@@ -11,18 +11,24 @@ export type SupportDrawerMode = "intro" | "form";
 
 type SupportDrawerContextType = {
   open: boolean;
-  setOpen: (v: boolean) => void;
+  /** `message` seeds the support form, but only on a closed→open transition. */
+  setOpen: (v: boolean, options?: { message?: string }) => void;
   /** Section the drawer shows when it opens; a closed→open resets to intro. */
   initialMode: SupportDrawerMode;
   /** Topic preselected in the support form; a closed→open resets it. */
   initialTopic: Topic | null;
+  /** Message prefilled in the support form; a closed→open resets it. */
+  initialMessage: string;
   /**
    * Bumped on closed→open transitions and on every openWithMode so the
    * drawer can remount via key and re-seed mode/topic. A redundant
    * setOpen(true) while already open does NOT bump it.
    */
   openEpoch: number;
-  openWithMode: (mode: SupportDrawerMode, options?: { topic?: Topic }) => void;
+  openWithMode: (
+    mode: SupportDrawerMode,
+    options?: { topic?: Topic; message?: string },
+  ) => void;
 };
 
 const SupportDrawerContext = createContext<SupportDrawerContextType | null>(
@@ -41,16 +47,18 @@ export function SupportDrawerProvider({
   const [open, setOpenState] = useState(defaultOpen);
   const [initialMode, setInitialMode] = useState<SupportDrawerMode>("intro");
   const [initialTopic, setInitialTopic] = useState<Topic | null>(null);
+  const [initialMessage, setInitialMessage] = useState("");
   const [openEpoch, setOpenEpoch] = useState(0);
 
   const setOpen = useCallback(
-    (v: boolean) => {
+    (v: boolean, options?: { message?: string }) => {
       // Reseed only on a closed→open transition: a redundant setOpen(true)
       // while open (support button, "Report issue") must not remount the
       // drawer and wipe an in-progress draft. openWithMode always reseeds.
       if (v && !open) {
         setInitialMode("intro");
         setInitialTopic(null);
+        setInitialMessage(options?.message ?? "");
         setOpenEpoch((e) => e + 1);
       }
       setOpenState(v);
@@ -59,9 +67,13 @@ export function SupportDrawerProvider({
   );
 
   const openWithMode = useCallback(
-    (mode: SupportDrawerMode, options?: { topic?: Topic }) => {
+    (
+      mode: SupportDrawerMode,
+      options?: { topic?: Topic; message?: string },
+    ) => {
       setInitialMode(mode);
       setInitialTopic(options?.topic ?? null);
+      setInitialMessage(options?.message ?? "");
       setOpenEpoch((e) => e + 1);
       setOpenState(true);
     },
@@ -75,6 +87,7 @@ export function SupportDrawerProvider({
         setOpen,
         initialMode,
         initialTopic,
+        initialMessage,
         openEpoch,
         openWithMode,
       }}

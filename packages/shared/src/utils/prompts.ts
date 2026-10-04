@@ -16,12 +16,15 @@ export function compileTemplateString(
   context: Record<string, unknown>,
 ) {
   try {
-    return template.replace(/{{\s*([\w.]+)\s*}}/g, (match, key: string) => {
-      if (!(key in context)) return match;
+    return template.replace(
+      /\{\{\s*([\p{L}\p{N}_.]+)\s*\}\}/gu,
+      (match, key: string) => {
+        if (!(key in context)) return match;
 
-      const value = context[key];
-      return value === undefined || value === null ? "" : String(value);
-    });
+        const value = context[key];
+        return value === undefined || value === null ? "" : String(value);
+      },
+    );
   } catch {
     return template;
   }

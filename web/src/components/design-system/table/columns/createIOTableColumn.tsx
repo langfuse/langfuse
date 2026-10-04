@@ -59,6 +59,7 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
 
   return createTableColumn<TData, TValue>({
     ...options,
+    cellPadding: "none",
     cellBackground: ioCellBackgrounds[variant],
     loadingCell,
     renderCell: (value, context) => {

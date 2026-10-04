@@ -17,6 +17,7 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
           metadata: undefined,
         },
         expected: {
+          additionalInput: { model: "gpt-4.1" },
           messages: [
             {
               source: "input",

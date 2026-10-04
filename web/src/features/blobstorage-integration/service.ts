@@ -9,7 +9,7 @@ import {
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   normalizeBlobStorageRegion,
 } from "@langfuse/shared";
-import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
+import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import { validateBlobStorageEndpoint } from "@langfuse/shared/src/server";

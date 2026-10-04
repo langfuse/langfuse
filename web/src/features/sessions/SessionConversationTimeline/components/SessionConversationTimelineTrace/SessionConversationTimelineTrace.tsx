@@ -6,6 +6,7 @@ import {
   CircleAlert,
   FileWarning,
   Info,
+  type LucideIcon,
   MessageSquareOff,
   MoreHorizontal,
   TriangleAlert,
@@ -34,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Tooltip as DSTooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -99,12 +101,15 @@ function SessionTimelineStatusIndicator({
 }: {
   observation: SessionObservation;
 }) {
-  const Icon =
-    observation.level === "ERROR"
-      ? CircleAlert
-      : observation.level === "WARNING"
-        ? TriangleAlert
-        : Info;
+  const Icon = (() => {
+    if (observation.level === "ERROR") {
+      return CircleAlert;
+    }
+    if (observation.level === "WARNING") {
+      return TriangleAlert;
+    }
+    return Info;
+  })();
   const colors = getLevelColors(observation.level);
 
   return (
@@ -126,6 +131,33 @@ function SessionTimelineStatusIndicator({
         {observation.statusMessage}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * Badge for a state an observation header reports next to its duration, e.g.
+ * truncated content. The label is both the accessible name and the tooltip.
+ */
+function SessionTimelineMarkerIcon({
+  icon: Icon,
+  label,
+}: {
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <DSTooltip label={label}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+          role="img"
+          aria-label={label}
+        >
+          <Icon className="h-3 w-3" aria-hidden="true" />
+        </span>
+      )}
+    </DSTooltip>
   );
 }
 
@@ -161,7 +193,7 @@ function SessionObservationActionsMenuContent({
         disabled={actions.comment.disabled}
         onSelect={() => actions.comment.onSelect(observation)}
       >
-        Add comment
+        Comments
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={actions.addToDataset.disabled}
@@ -250,12 +282,15 @@ function getNestedObservationSummary(
       }
 
       const names = count <= 3 ? Array.from(toolNames) : [];
-      const namesSummary =
-        names.length < 2
-          ? (names[0] ?? "")
-          : names.length === 2
-            ? `${names[0]} and ${names[1]}`
-            : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      const namesSummary = (() => {
+        if (names.length < 2) {
+          return names[0] ?? "";
+        }
+        if (names.length === 2) {
+          return `${names[0]} and ${names[1]}`;
+        }
+        return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      })();
       if (names.length === count) return `tools: ${namesSummary}`;
 
       return `${count} tool${count === 1 ? "" : "s"}${namesSummary ? ` using ${namesSummary}` : ""}`;
@@ -524,34 +559,22 @@ function SessionTimelineConversationObservation({
               <SessionTimelineStatusIndicator observation={observation} />
             ) : null}
             {isTruncated ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="Content truncated"
-                title="Content truncated"
-              >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={FileWarning}
+                label="Content truncated"
+              />
             ) : null}
             {hasNoConversationalContent ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="No conversational content"
-                title="No conversational content"
-              >
-                <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={MessageSquareOff}
+                label="No conversational content"
+              />
             ) : null}
             {observation.metadataTruncated ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="Metadata omitted because it is too large"
-                title="Metadata omitted because it is too large"
-              >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={FileWarning}
+                label="Metadata omitted because it is too large"
+              />
             ) : null}
             {observation.latency !== null && observation.type !== "EVENT" ? (
               <span className="text-muted-foreground font-mono text-[11px]">
@@ -909,7 +932,8 @@ function LoadedSessionConversationTimeline({
                   }
                   onOpenInTraceView={() => onOpenObservation(observation.id)}
                 />
-              ) : !isToolStart && !isEmptyEnd ? (
+              ) : !isEmptyEnd &&
+                (observation.type !== "TOOL" || phase !== "end") ? (
                 <SessionTimelineObservation
                   observation={observation}
                   parsed={parsed}

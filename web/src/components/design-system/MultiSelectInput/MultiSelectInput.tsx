@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
@@ -15,6 +15,7 @@ type MultiSelectOption<V> = {
   value: V;
   label: string;
   secondaryLabel?: string;
+  disabled?: boolean;
 };
 
 type MultiSelectInputProps<V> = {
@@ -25,10 +26,12 @@ type MultiSelectInputProps<V> = {
   selectedLabel: string;
   searchPlaceholder: string;
   emptyMessage: string;
+  selectAllLabel?: string;
   error?: boolean;
+  disabled?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<"button">,
-  "id" | "aria-describedby" | "aria-invalid"
+  "id" | "aria-describedby" | "aria-invalid" | "aria-label"
 >;
 
 function MultiSelectInputInner<V extends string>(
@@ -40,24 +43,37 @@ function MultiSelectInputInner<V extends string>(
     selectedLabel,
     searchPlaceholder,
     emptyMessage,
+    selectAllLabel,
     error,
+    disabled,
     ...triggerProps
   }: MultiSelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
   const listId = React.useId();
+  const allSelected =
+    options.length > 0 &&
+    options.every((option) => option.disabled || value.includes(option.value));
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <InputControl contentLayout="spread" error={error}>
+    <PopoverPrimitive.Root
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
+      <InputControl contentLayout="spread" error={error} disabled={disabled}>
         <PopoverPrimitive.Trigger
           ref={ref}
           type="button"
           role="combobox"
           aria-controls={listId}
           aria-expanded={open}
+          disabled={disabled}
           {...triggerProps}
         >
           <span
@@ -69,7 +85,7 @@ function MultiSelectInputInner<V extends string>(
           >
             {value.length > 0 ? selectedLabel : placeholder}
           </span>
-          <ChevronDown className="size-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         </PopoverPrimitive.Trigger>
       </InputControl>
       <PopoverPrimitive.Portal container={container}>
@@ -83,8 +99,54 @@ function MultiSelectInputInner<V extends string>(
             <InputDropdown.Root>
               <CommandPrimitive>
                 <InputDropdown.Search>
-                  <CommandPrimitive.Input placeholder={searchPlaceholder} />
+                  <CommandPrimitive.Input
+                    placeholder={searchPlaceholder}
+                    value={search}
+                    onValueChange={setSearch}
+                  />
                 </InputDropdown.Search>
+                {selectAllLabel &&
+                  !search.trim() &&
+                  options.some((option) => !option.disabled) && (
+                    <InputDropdown.Option
+                      highlight="focus"
+                      checked={allSelected}
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={allSelected}
+                        onClick={() =>
+                          onValueChange(
+                            allSelected
+                              ? value.filter((selectedValue) =>
+                                  options.every(
+                                    (option) =>
+                                      option.value !== selectedValue ||
+                                      option.disabled,
+                                  ),
+                                )
+                              : [
+                                  ...value,
+                                  ...options
+                                    .filter(
+                                      (option) =>
+                                        !option.disabled &&
+                                        !value.includes(option.value),
+                                    )
+                                    .map((option) => option.value),
+                                ],
+                          )
+                        }
+                      >
+                        <InputDropdown.OptionContent
+                          label={selectAllLabel}
+                          title={selectAllLabel}
+                          type="checkbox"
+                          checked={allSelected}
+                        />
+                      </button>
+                    </InputDropdown.Option>
+                  )}
                 <InputDropdown.Empty>
                   <CommandPrimitive.Empty>
                     {emptyMessage}
@@ -100,10 +162,13 @@ function MultiSelectInputInner<V extends string>(
                           <InputDropdown.Option
                             key={option.value}
                             highlight="aria-selected"
+                            checked={isSelected}
                           >
                             <CommandPrimitive.Item
                               value={option.value}
                               keywords={[option.label]}
+                              disabled={option.disabled}
+                              aria-checked={isSelected}
                               onSelect={() => {
                                 if (isSelected) {
                                   onValueChange(
@@ -122,11 +187,8 @@ function MultiSelectInputInner<V extends string>(
                                 label={option.label}
                                 title={option.label}
                                 secondaryLabel={option.secondaryLabel}
-                                indicator={
-                                  <InputDropdown.CheckIndicator
-                                    checked={isSelected}
-                                  />
-                                }
+                                type="checkbox"
+                                checked={isSelected}
                               />
                             </CommandPrimitive.Item>
                           </InputDropdown.Option>

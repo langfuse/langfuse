@@ -59,7 +59,7 @@ import {
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showErrorToast } from "@/src/features/notifications";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { api } from "@/src/utils/api";
 import {
   createInAppAgentScreenContext,

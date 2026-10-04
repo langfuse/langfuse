@@ -8,8 +8,13 @@ import {
 } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
+import {
+  tablePlaceholderOptions,
+  type TableDataScope,
+} from "@/src/components/table/utils/tablePlaceholder";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import {
   removeAppRootDefaultFilter,
@@ -24,6 +29,7 @@ type FullEventsObservation = FullEventsObservations[number] & {
 type UseEventsTableDataParams = {
   projectId: string;
   filterState: FilterState;
+  tableDataScope: TableDataScope;
   paginationState: {
     page: number;
     limit: number;
@@ -54,6 +60,7 @@ type UseEventsTableDataParams = {
 export function useEventsTableData({
   projectId,
   filterState,
+  tableDataScope,
   paginationState,
   orderByState,
   searchQuery,
@@ -65,6 +72,7 @@ export function useEventsTableData({
   rowsEnabled = true,
   ioCharLimit,
 }: UseEventsTableDataParams) {
+  const capture = usePostHogClientCapture();
   // Prepare query payloads
   const getCountPayload = useMemo(
     () => ({
@@ -93,12 +101,14 @@ export function useEventsTableData({
   );
 
   const silentHttpCodes = [422];
+  const placeholderOptions = tablePlaceholderOptions(tableDataScope);
 
   const observations = api.events.all.useQuery(getAllPayload, {
+    ...placeholderOptions,
     enabled: rowsEnabled,
     refetchOnWindowFocus: true,
-    placeholderData: (prev) => prev,
     meta: {
+      ...placeholderOptions.meta,
       silentHttpCodes, // Turns off red bubble
     },
   });
@@ -125,7 +135,13 @@ export function useEventsTableData({
     refetchOnWindowFocus: false,
     staleTime: Infinity,
     retry: false,
-    meta: { silentHttpCodes },
+    meta: {
+      tableDataScope: {
+        ...tableDataScope,
+        filter: removeAppRootDefaultFilter(tableDataScope.filter),
+      },
+      silentHttpCodes,
+    },
   });
   const activeObservations =
     shouldRunAppRootFallback && !appRootFallbackQuery.isError
@@ -175,11 +191,11 @@ export function useEventsTableData({
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
     ...sendAsPostOption,
+    ...placeholderOptions,
     enabled:
       rowsEnabled && activeObservations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
-    placeholderData: (prev) => prev,
   });
 
   // I/O lands one query behind the rows.
@@ -198,9 +214,8 @@ export function useEventsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    // Placeholder data is the previous key's rows: report them as loaded so a
-    // filter/page/sort change keeps them on screen. "loading" now means the
-    // table has nothing to show at all.
+    // Same-scope placeholders keep paging and refreshes loaded; scope changes
+    // have no placeholder and show the cold-load state.
     if (activeObservations.isPending) {
       return { status: "loading" as const, rows: undefined };
     }
@@ -228,9 +243,9 @@ export function useEventsTableData({
 
   // Fetch the exact count only after the user selects all matching rows.
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
+    ...placeholderOptions,
     enabled: selectAll,
     refetchOnWindowFocus: true,
-    placeholderData: (prev) => prev,
   });
 
   const totalCount = selectAll
@@ -252,7 +267,18 @@ export function useEventsTableData({
 
   // Add to queue mutation
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      if (variables.isBatchAction || data.createdCount > 0) {
+        capture("annotation_queues:item_added", {
+          type: "trace",
+          source: "ObservationTable",
+          targetType: "observation",
+          objectType: "OBSERVATION",
+          queueCount: 1,
+          isV4: true,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Observations added to queue",
         description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import * as z from "zod";
 
@@ -33,7 +34,7 @@ const session = {
     name: "Example User",
     admin: false,
     canCreateOrganizations: true,
-    featureFlags: {},
+    featureFlags: testFeatureFlags({ templateFlag: false }),
     organizations: [
       {
         id: "org-1",

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
@@ -44,14 +45,7 @@ async function prepare({
           aiTelemetryEnabled: true,
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin,
     },
     environment: {
@@ -130,6 +124,20 @@ describe("datasets trpc", () => {
           datasetItemId: v4(),
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  });
+
+  describe("datasets.updateDataset", () => {
+    it("returns NOT_FOUND when the dataset does not exist", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.datasets.updateDataset({
+          projectId: project.id,
+          datasetId: v4(),
+          name: "renamed",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 

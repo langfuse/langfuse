@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
@@ -136,7 +137,7 @@ async function prepare(role: Role = Role.OWNER) {
       id: user.id,
       name: user.name,
       canCreateOrganizations: true,
-      featureFlags: {} as NonNullable<Session["user"]>["featureFlags"],
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations: [
         {
           id: org.id,
@@ -570,6 +571,13 @@ describe("AI gateway control plane", () => {
       project_id: project.id,
     });
     expect(rawClaims).not.toHaveProperty("api_key_id");
+    // The gateway batches uploads by attribution but ingestion writes into the
+    // token's project, so both must name the same tenant.
+    expect(result.attribution).toMatchObject({
+      organization_id: ingestionClaims.organization_id,
+      project_id: ingestionClaims.project_id,
+    });
+    expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });

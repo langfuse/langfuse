@@ -30,6 +30,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
                 control_plane,
                 config.max_active_requests,
                 config.max_concurrent_resolutions,
+                config.telemetry_buffer_bytes,
             )
         })
         .transpose()?;

@@ -67,6 +67,9 @@ report over an uncertain code change.
 - Preserve existing IDs when updating an entry.
 - Generate a new lowercase UUID for a new model entry.
 - Refresh `updatedAt` only for entries that changed.
+- Write every per-token price in a changed entry as `<USD per MTok>e-6`
+  (`0.1e-6`, not `1e-7`; `25e-6`, not `2.5e-5`). See "Price Conversion" in
+  `provider-sources-and-price-keys.md`.
 - Add newly released major models when they are officially documented, priced,
   and representable with Langfuse's existing usage keys. Prioritize flagship
   text/chat/reasoning models and models named by manual audit instructions.
