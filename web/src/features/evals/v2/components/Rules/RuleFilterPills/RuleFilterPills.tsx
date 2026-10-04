@@ -150,7 +150,7 @@ export function RuleFilterPills({
       renderOverflow={({ overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm" className="font-normal">
+            <Badge variant="secondary" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>

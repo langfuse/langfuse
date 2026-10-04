@@ -35,7 +35,7 @@ import {
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -568,14 +568,6 @@ export function MarkdownView({
             handleOnCopy={handleOnCopy}
             hoverRevealControls
             controlButtons={controlButtons}
-            collapseControl={
-              shouldBeCollapsible
-                ? {
-                    isCollapsed,
-                    onToggle: () => toggleCollapsed("header"),
-                  }
-                : undefined
-            }
           />
         </>
       ) : null}
@@ -684,13 +676,19 @@ export function MarkdownView({
           ? getSafeImageUrl(imageUrl)
           : null;
 
-      return safeImageUrl ? (
-        <div key={index}>
-          <ResizableImage src={safeImageUrl} />
-        </div>
-      ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-        <LangfuseMediaView key={index} mediaReferenceString={imageUrl} />
-      ) : (
+      if (safeImageUrl) {
+        return (
+          <div key={index}>
+            <ResizableImage src={safeImageUrl} />
+          </div>
+        );
+      }
+      if (MediaReferenceStringSchema.safeParse(imageUrl).success) {
+        return (
+          <LangfuseMediaView key={index} mediaReferenceString={imageUrl} />
+        );
+      }
+      return (
         <div
           key={index}
           className="grid grid-cols-[auto_1fr] items-center gap-2"

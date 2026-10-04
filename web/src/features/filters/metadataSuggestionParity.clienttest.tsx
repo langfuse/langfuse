@@ -9,7 +9,7 @@
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import { observedMetadataOptions } from "@/src/fns/observedMetadata/metadataPaths";
 import {
   useSidebarFilterState,
@@ -71,6 +71,14 @@ function MetadataFacetHarness() {
 
 describe("metadata suggestions in the filter sidebar", () => {
   beforeAll(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
     Element.prototype.scrollIntoView = vi.fn();
   });
 

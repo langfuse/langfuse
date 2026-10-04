@@ -1,7 +1,7 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import {
   handleGetMemberships,
   handleUpdateMembership,
@@ -9,9 +9,7 @@ import {
 } from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { writeOrgError } from "@/src/features/public-api/server/writeError";
-
+import { shadowAuth, writeOrgError } from "@/src/features/public-api/server";
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,

@@ -35,8 +35,19 @@ import {
 } from "@/src/components/ui/jsonViewPreference";
 
 // Valid tab values for detail view
-export type DetailTab = "preview" | "attributes" | "log" | "scores";
-const VALID_TABS: DetailTab[] = ["preview", "attributes", "log", "scores"];
+export type DetailTab =
+  | "preview"
+  | "attributes"
+  | "log"
+  | "scores"
+  | "messages";
+const VALID_TABS: DetailTab[] = [
+  "preview",
+  "attributes",
+  "log",
+  "scores",
+  "messages",
+];
 const DEFAULT_TAB: DetailTab = "preview";
 
 // Valid view preference values

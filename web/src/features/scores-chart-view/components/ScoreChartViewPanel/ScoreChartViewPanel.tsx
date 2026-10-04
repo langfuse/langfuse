@@ -4,9 +4,10 @@ import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import type { DataPoint } from "@/src/features/widgets";
 import { Button } from "@/src/components/ui/button";
+
 // Chart type picker is view-agnostic (only depends on `DashboardWidgetChartType`),
 // so it's reused as-is rather than duplicated.
-import { ChartTypePicker } from "@/src/features/chart-view/components/ConfigControls";
+import { ChartTypePicker, ChartCanvas } from "@/src/features/chart-view";
 import { type AggregationFn } from "@/src/features/chart-view/types";
 import { isTimeSeriesChartType } from "@/src/features/chart-view/vocab";
 import {
@@ -22,7 +23,6 @@ import {
 // Shared with the observations chart view: once a metric resolves to a
 // label/unit, rendering an already-aggregated series is identical regardless
 // of which vocabulary (events vs. scores) picked that metric.
-import { ChartCanvas } from "@/src/features/chart-view/components/ChartCanvas";
 import { DatasetSelect } from "@/src/features/scores-chart-view/components/DatasetSelect";
 import { MetricSelect } from "@/src/features/scores-chart-view/components/MetricSelect";
 import { AggregationSelect } from "@/src/features/scores-chart-view/components/AggregationSelect";

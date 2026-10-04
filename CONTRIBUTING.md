@@ -61,7 +61,7 @@ We recommend checking out DeepWiki to familiarize yourself with the project:
 ### Technologies we use
 
 - Application (this repository)
-  - NextJS 14, pages router
+  - Next.js 16, Pages Router
   - NextAuth.js / Auth.js
   - tRPC: Frontend APIs
   - Prisma ORM
@@ -131,6 +131,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
+- The pnpm version pinned in `package.json` under `devEngines.packageManager`. The Docker setup uses Corepack 0.36.0; CI reads the same pin through `pnpm/setup`.
 - [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker, for the AI gateway (which starts with `pnpm dev`, see [gateway setup](ai-gateway/README.md#run-locally)) and for the worker's native addon (compiled during the worker build, see [packages/native/README.md](packages/native/README.md)). Each crate pins its own toolchain in `rust-toolchain.toml`; rustup installs it on first use.
 - Docker to run the database locally
 - Clickhouse client
@@ -218,11 +219,15 @@ This repository keeps the shared agent setup in source control so developers
 using different tools can work against the same instructions, bootstrap, and
 MCP server catalog.
 
+The catalog includes Next DevTools for routes, compilation errors, and logs from
+a running `pnpm run dev:web` server. Run `pnpm run agents:sync`, reload your
+agent's MCP configuration, and select this checkout's server with `nextjs_index`.
+Use Playwright for browser interaction; see the [diagnostics guide](.agents/README.md#nextjs-runtime-diagnostics).
+
 - Canonical shared docs:
   - `.agents/AGENTS.md`
-- Root discovery symlinks:
-  - `AGENTS.md`
-  - `CLAUDE.md`
+- Root discovery symlink: `AGENTS.md` -> `.agents/AGENTS.md`
+- Folder instructions: `AGENTS.md` in the directory they describe
 - Shared agent setup overview: `.agents/README.md`
 - Shared skills: `.agents/skills/`
 - Shared tool/bootstrap/MCP config: `.agents/config.json`
@@ -240,6 +245,10 @@ MCP server catalog.
 - Tool-specific skill projections generated locally and not committed:
   - `.claude/skills/*`
 - Shared bootstrap for agent environments: `bash scripts/agents/setup.sh`
+
+Use a harness that reads `AGENTS.md` directly. For Claude Code, upgrade to
+2.1.277 or later and see the compatibility notes in `.agents/README.md`.
+Folder instructions need no `CLAUDE.md` copy or symlink.
 
 When you change the shared MCP setup:
 
@@ -269,12 +278,7 @@ When you change the shared MCP setup:
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
 
-   The pre-commit hook runs formatting and lint checks. To skip only the lint
-   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
-
-   ```bash
-   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
-   ```
+   The pre-commit hook runs formatting checks.
 
    CI still runs the required checks for pull requests.
 
@@ -340,6 +344,26 @@ pnpm run db:seed:examples
 
 > [!NOTE]
 > If you find yourself stuck and want to clean the repo, execute `pnpm run nuke`. It will remove all node_modules and build files.
+
+### Toolchain diagnostics and dependency maintenance
+
+- Writable installs automatically deduplicate compatible dependency versions; review
+  the lockfile diff as usual. Frozen installs preserve the lockfile.
+- Use `pnpm add <package> --save-types` to add available companion types. For older
+  runtime majors, explicitly select matching `@types` versions: automatic selection
+  uses the catalog or latest eligible typings, not the runtime's major.
+- `pnpm change check` checks that the root, web, and worker package versions
+  agree. CI runs it too; release-it still owns releases and source version constants.
+- Rust build, lint, typecheck, and test scripts share one machine-wide slot across
+  worktrees using the same pnpm state directory. `pnpm tasks status` shows holders
+  and waiters. Persistent dev servers stay outside this group; direct Cargo commands
+  bypass it. This limits concurrent jobs, not compiler threads.
+- Turbo watch respects task inputs: Prisma regenerates on schema changes, not
+  ordinary shared TypeScript edits. Production caches exclude Next development output.
+- Turbo keeps successful task/cache hashes visible with `errors-only` logs. Its
+  shared worktree cache has a 7.5 GB cleanup target; eviction runs in the background.
+- `pnpm --filter web run analyze` opens Next's experimental bundle analyzer;
+  `pnpm --filter web run build-trace` opens a Turbopack trace when one is available.
 
 ## System behavior
 
@@ -585,7 +609,7 @@ This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:**
 To generate the server SDKs, run:
 
 ```sh
-npx fern-api generate --api server
+pnpm dlx fern-api@3.88.0 generate --api server
 ```
 
 **Note:** You need a signed in fern account to generate SDKs.

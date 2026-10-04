@@ -12,6 +12,8 @@ The new data model is
 - Rule (basically the old `job_configuration`)
 - Rule assignments (association table handling the n:m relationship)
 
+FACET evaluators are internal and must be excluded from user-facing evaluator and rule queries.
+
 Traces captured during the eval executions in the past only captured `job_configuration_id`.
 Only new runs capture `evaluator_id` and `evaluation_rule_id`.
 

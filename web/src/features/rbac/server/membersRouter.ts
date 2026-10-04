@@ -35,8 +35,10 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
-import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import {
+  featurePreviewFlags,
+  setUserFeaturePreviewWithAuthorization,
+} from "@/src/features/feature-flags/server";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {

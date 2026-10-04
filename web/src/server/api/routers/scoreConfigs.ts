@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -17,7 +17,7 @@ import {
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
 import { traceException } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { appendCategoryToExisting } from "@/src/features/scores/lib/annotationFormHelpers";
 
 const ScoreConfigAllInput = z.object({

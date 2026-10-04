@@ -1,5 +1,5 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { createProjectRoute } from "@/src/features/setup";
 import { PlusIcon, Settings } from "lucide-react";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
