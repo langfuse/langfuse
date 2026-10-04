@@ -46,7 +46,7 @@ import {
 } from "@langfuse/shared";
 import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
@@ -275,9 +275,12 @@ const PromptTriggerFields = ({
   control: Control<FormValues>;
   disabled: boolean;
 }) => {
-  const [labelsOpened, setLabelsOpened] = React.useState(false);
-  const { data: labels = [], isFetching: labelsLoading } =
-    api.prompts.allLabels.useQuery({ projectId }, { enabled: labelsOpened });
+  const [optionsOpened, setOptionsOpened] = React.useState(false);
+  const { data: filterOptions, isFetching: optionsLoading } =
+    api.prompts.filterOptions.useQuery(
+      { projectId },
+      { enabled: optionsOpened },
+    );
 
   return (
     <>
@@ -328,14 +331,12 @@ const PromptTriggerFields = ({
             <FormLabel>Filter</FormLabel>
             <FormControl>
               <InlineFilterBuilder
-                columns={webhookActionFilterOptions(
-                  labels.map((value) => ({ value })),
-                )}
-                columnsWithCustomSelect={["labels"]}
-                loadingOptionColumns={labelsLoading ? ["labels"] : []}
+                columns={webhookActionFilterOptions(filterOptions)}
+                columnsWithCustomSelect={["labels", "tags"]}
+                loadingOptionColumns={optionsLoading ? ["labels", "tags"] : []}
                 onOptionsOpen={(columnId) => {
-                  if (columnId === "labels") {
-                    setLabelsOpened(true);
+                  if (columnId === "labels" || columnId === "tags") {
+                    setOptionsOpened(true);
                   }
                 }}
                 filterState={field.value || []}

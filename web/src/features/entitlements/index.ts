@@ -5,6 +5,7 @@
 export type { Entitlement } from "@/src/features/entitlements/constants/entitlements";
 export {
   useEntitlementLimit,
+  useEntitlements,
   useHasEntitlement,
   useOptionalEntitlement,
   usePlan,

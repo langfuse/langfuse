@@ -7,8 +7,7 @@ import {
   redis,
 } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
-
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 /* 
 This API route is used by Langfuse Cloud to delete API keys for a project.
 We will work on admin APIs in the future. See the discussion here: https://github.com/orgs/langfuse/discussions/3243

@@ -8,7 +8,7 @@ import {
 import { useSessionDetailStore } from "@/src/features/sessions/SessionDetailStoreProvider";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
-import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { type IOPreviewContentMode } from "@/src/features/traces";
 
 type LazySessionTraceEventsRowProps = {
   trace: RouterOutputs["sessions"]["tracesFromEvents"][number];

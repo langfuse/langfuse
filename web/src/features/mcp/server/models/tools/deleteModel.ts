@@ -2,7 +2,7 @@ import {
   DeleteModelV1Query,
   DeleteModelV1Response,
 } from "@/src/features/public-api/server";
-import { deleteModelForApi } from "@/src/features/models/server/publicApiModelService";
+import { deleteModelForApi } from "@/src/features/models/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 

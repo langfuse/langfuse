@@ -12,7 +12,7 @@ import {
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/auth/policy/authorize";
-import { type ShadowAuthParams } from "@/src/features/public-api/server/shadowAuth";
+import { type ShadowAuthParams } from "@/src/features/public-api/server";
 import {
   type AuthorizationContext,
   type OrganizationAction,

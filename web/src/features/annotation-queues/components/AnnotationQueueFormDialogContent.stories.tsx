@@ -66,40 +66,59 @@ export const Create = meta.story({
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(
-      await body.findByRole("button", { name: /Select.*Helpfulness/ }),
+      await body.findByRole("combobox", { name: "Score configs" }),
     );
 
     await waitFor(() =>
-      expect(body.getByPlaceholderText("Value")).toBeVisible(),
+      expect(
+        body.getByPlaceholderText("Search score configs..."),
+      ).toBeVisible(),
     );
   },
 });
 
 export const Edit = meta.story({
-  render: () => {
-    return (
-      <Dialog open onOpenChange={fn()}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <AnnotationQueueFormDialogContent
-            mode="edit"
-            initialValues={{
-              name: "Support review queue",
-              description: "Weekly support trace review",
-              scoreConfigIds: ["config-1", "config-2"],
-              newAssignmentUserIds: [],
-            }}
-            scoreConfigs={scoreConfigs}
-            projectId="project-1"
-            queueId="queue-1"
-            queueNames={["Support review queue", "Other queue"]}
-            onManageScoreConfigsClick={fn()}
-            hasQueueAssignmentsReadAccess={false}
-            isSubmitting={false}
-            onSubmit={fn()}
-            submitLabel="Save queue"
-          />
-        </DialogContent>
-      </Dialog>
+  name: "(Test) Edit with archived config",
+  args: {
+    mode: "edit",
+    initialValues: {
+      name: "Support review queue",
+      description: "Weekly support trace review",
+      scoreConfigIds: ["config-1", "config-2", "config-3"],
+      newAssignmentUserIds: [],
+    },
+    scoreConfigs,
+    projectId: "project-1",
+    queueId: "queue-1",
+    queueNames: ["Support review queue", "Other queue"],
+    onManageScoreConfigsClick: fn(),
+    hasQueueAssignmentsReadAccess: false,
+    isSubmitting: false,
+    onSubmit: fn(),
+    submitLabel: "Save queue",
+  },
+  render: (args) => (
+    <Dialog open onOpenChange={fn()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <AnnotationQueueFormDialogContent {...args} />
+      </DialogContent>
+    </Dialog>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const picker = await body.findByRole("combobox", { name: "Score configs" });
+    await expect(picker).toHaveTextContent("Legacy quality");
+    await userEvent.click(picker);
+    await userEvent.click(
+      body.getByRole("option", { name: /Legacy quality/, hidden: true }),
+    );
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(body.getByRole("button", { name: "Save queue" }));
+    await waitFor(() =>
+      expect(args.onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ scoreConfigIds: ["config-1", "config-2"] }),
+        expect.anything(),
+      ),
     );
   },
 });

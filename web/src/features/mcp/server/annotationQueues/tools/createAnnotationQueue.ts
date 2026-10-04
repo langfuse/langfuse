@@ -1,4 +1,4 @@
-import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/server";
 import {
   CreateAnnotationQueueBody,
   CreateAnnotationQueueResponse,

@@ -12,19 +12,23 @@ export function evaluatorScoresUrl(
   evaluatorName: string,
   evaluatorType: EvalTemplateType,
 ) {
+  // Code and decision-model evaluators name their scores themselves (per
+  // question for decision models), so only the evaluator ID finds them.
+  // Judge scores are named after the evaluator, and name also matches judge
+  // scores written before scores carried an evaluator ID.
   const evaluatorFilter: FilterState[number] =
-    evaluatorType === EvalTemplateTypeEnum.CODE
+    evaluatorType === EvalTemplateTypeEnum.LLM_AS_JUDGE
       ? {
-          column: "evaluatorId",
-          type: "stringOptions",
-          operator: "any of",
-          value: [evaluatorId],
-        }
-      : {
           column: "name",
           type: "stringOptions",
           operator: "any of",
           value: [evaluatorName],
+        }
+      : {
+          column: "evaluatorId",
+          type: "stringOptions",
+          operator: "any of",
+          value: [evaluatorId],
         };
 
   const filter: FilterState = [
@@ -41,7 +45,7 @@ export function evaluatorScoresUrl(
 
 export function evaluatorExecutionsUrl(
   projectId: string,
-  evaluatorName: string,
+  evaluatorId: string,
   evaluatorType: EvalTemplateType,
 ) {
   const environment =
@@ -50,10 +54,10 @@ export function evaluatorExecutionsUrl(
       : LangfuseInternalTraceEnvironment.LLMJudge;
   const filter: FilterState = [
     {
-      column: "traceName",
+      column: "evaluatorId",
       type: "stringOptions",
       operator: "any of",
-      value: [`Execute evaluator: ${evaluatorName}`],
+      value: [evaluatorId],
     },
     {
       column: "environment",
@@ -68,5 +72,5 @@ export function evaluatorExecutionsUrl(
       value: true,
     },
   ];
-  return `/project/${encodeURIComponent(projectId)}/traces?filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
+  return `/project/${encodeURIComponent(projectId)}/traces?dateRange=7d&filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
 }

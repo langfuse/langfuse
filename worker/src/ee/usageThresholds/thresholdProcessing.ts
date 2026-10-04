@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type { Organization } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -436,12 +435,15 @@ export async function processThresholds(
   };
 
   // 8. Return result for metrics tracking
-  const actionTaken =
-    currentState === "BLOCKED"
-      ? "BLOCKED"
-      : currentState === "WARNING"
-        ? "WARNING"
-        : "NONE";
+  const actionTaken = (() => {
+    if (currentState === "BLOCKED") {
+      return "BLOCKED";
+    }
+    if (currentState === "WARNING") {
+      return "WARNING";
+    }
+    return "NONE";
+  })();
   return {
     actionTaken,
     emailSent,

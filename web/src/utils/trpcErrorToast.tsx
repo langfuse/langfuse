@@ -1,5 +1,5 @@
 import { TRPCClientError } from "@trpc/client";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
 // Catch network level errors, e.g. by proxy rate-limiting
@@ -96,6 +96,11 @@ export const trpcErrorToast = (error: unknown) => {
     const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
 
     const path = error.data?.path;
+    // OTEL trace id attached by the tRPC errorFormatter; absent when OTEL is not
+    // running (self-hosted / unsampled). Surfaced so users can share it in
+    // support tickets for correlation.
+    const traceId =
+      typeof error.data?.traceId === "string" ? error.data.traceId : undefined;
     const validationDescription = formatTrpcZodValidationDescription(error);
     const description =
       validationDescription ?? error.message ?? getErrorDescription(httpStatus);
@@ -105,6 +110,7 @@ export const trpcErrorToast = (error: unknown) => {
       description,
       httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
       path,
+      traceId,
     );
   } else {
     showErrorToast(

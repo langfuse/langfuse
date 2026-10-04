@@ -4,7 +4,7 @@ import {
   convertScoreColumnsToAnalyticsData,
   scoreFilters,
 } from "@/src/features/scores";
-import { transformAggregatedRunMetricsToChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { transformAggregatedRunMetricsToChartData } from "@/src/features/dashboard";
 
 export function useDatasetRunCompareChartData(
   projectId: string,
