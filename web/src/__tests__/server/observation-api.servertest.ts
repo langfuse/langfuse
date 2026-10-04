@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   createEvent,
   createObservation,
@@ -19,8 +18,6 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
-
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 // Helper type for observation data
 type ObservationData = {
@@ -82,6 +79,17 @@ const insertObservations = async (
 };
 
 describe("/api/public/observations API Endpoint", () => {
+  let projectId: string;
+  let auth: string;
+
+  // A fresh org per test keeps each test far below the per-minute legacy
+  // public API quota, which the whole file would exceed on a shared org.
+  beforeEach(async () => {
+    const fixture = await createOrgProjectAndApiKey();
+    projectId = fixture.projectId;
+    auth = fixture.auth;
+  });
+
   it("clamps Hobby observation access to the last 30 days", async () => {
     const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
     const oldId = uuidv4();
@@ -150,15 +158,22 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationV1Response,
             "GET",
             `/api/public/observations/${observationId}?useEventsTable=${useEventsTable}`,
+            undefined,
+            auth,
           );
 
-          const expectedModelId = useEventsTable
-            ? "model_id" in observation
-              ? observation.model_id
-              : undefined
-            : "internal_model_id" in observation
-              ? observation.internal_model_id
-              : undefined;
+          const expectedModelId = (() => {
+            if (useEventsTable) {
+              if ("model_id" in observation) {
+                return observation.model_id;
+              }
+              return undefined;
+            }
+            if ("internal_model_id" in observation) {
+              return observation.internal_model_id;
+            }
+            return undefined;
+          })();
 
           expect(getEventRes.body).toMatchObject({
             id: observationId,
@@ -192,6 +207,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationV1Response,
             "GET",
             `/api/public/observations/${observationId}?startTime=2024-03-15T08:30:00.000Z&useEventsTable=${useEventsTable}`,
+            undefined,
+            auth,
           );
 
           expect(getEventRes.body).toMatchObject({
@@ -225,6 +242,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationV1Response,
             "GET",
             `/api/public/observations/${observationId}?startTime=2024-03-16T00:00:00.000Z&useEventsTable=${useEventsTable}`,
+            undefined,
+            auth,
           );
 
           expect(getEventRes.body).toMatchObject({
@@ -238,6 +257,8 @@ describe("/api/public/observations API Endpoint", () => {
           const res = await makeAPICall(
             "GET",
             `/api/public/observations/${uuidv4()}?startTime=2024-03-15T08:30:00&useEventsTable=${useEventsTable}`,
+            undefined,
+            auth,
           );
 
           expect(res.status).toBe(400);
@@ -269,6 +290,8 @@ describe("/api/public/observations API Endpoint", () => {
             GetObservationV1Response,
             "GET",
             `/api/public/observations/${observationId}?useEventsTable=${useEventsTable}`,
+            undefined,
+            auth,
           );
           expect(getEventRes.body).toMatchObject({
             id: observationId,
@@ -287,7 +310,7 @@ describe("/api/public/observations API Endpoint", () => {
           const observation = createObservationData(useEventsTable, {
             id: observationId,
             trace_id: traceId,
-            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            project_id: projectId,
             model_id: "clrkwk4cb000408l576jl7koo",
             provided_model_name: "gpt-3.5-turbo",
             input: JSON.stringify({ key: "input" }),
@@ -308,6 +331,7 @@ describe("/api/public/observations API Endpoint", () => {
             "GET",
             `/api/public/observations?traceId=${traceId}${queryParam}`,
             undefined,
+            auth,
           );
 
           expect(fetchedObservations.status).toBe(200);
@@ -345,7 +369,7 @@ describe("/api/public/observations API Endpoint", () => {
           const generationObservation = createObservationData(useEventsTable, {
             id: generationId,
             trace_id: traceId,
-            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            project_id: projectId,
             model_id: "model-1",
             provided_model_name: "gpt-3.5-turbo",
             input: JSON.stringify({ key: "input" }),
@@ -362,7 +386,7 @@ describe("/api/public/observations API Endpoint", () => {
           const spanObservation = createObservationData(useEventsTable, {
             id: spanId,
             trace_id: traceId,
-            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            project_id: projectId,
             input: JSON.stringify({ key: "input" }),
             output: JSON.stringify({ key: "output" }),
             version: "2.0.0",
@@ -379,6 +403,7 @@ describe("/api/public/observations API Endpoint", () => {
             "GET",
             `/api/public/observations?type=GENERATION&traceId=${traceId}${queryParam}`,
             undefined,
+            auth,
           );
 
           expect(fetchedObservations.status).toBe(200);
@@ -411,7 +436,7 @@ describe("/api/public/observations API Endpoint", () => {
               const createdTrace = createTrace({
                 id: traceId,
                 [snakeCase(prop)]: value,
-                project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+                project_id: projectId,
               });
 
               await createTracesCh([createdTrace]);
@@ -422,7 +447,7 @@ describe("/api/public/observations API Endpoint", () => {
               trace_id: traceId,
               start_time: timestamp * timeMultiplier,
               end_time: timestamp * timeMultiplier,
-              project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              project_id: projectId,
               type: "GENERATION",
               [snakeCase(prop)]: value,
             });
@@ -433,14 +458,14 @@ describe("/api/public/observations API Endpoint", () => {
               GetObservationsV1Response,
               "GET",
               `/api/public/observations?${prop}=${value}${queryParam}`,
+              undefined,
+              auth,
             );
 
             expect(observations.body.meta.totalItems).toBe(1);
             expect(observations.body.data.length).toBe(1);
             const obsResult = observations.body.data[0];
-            expect(obsResult.projectId).toBe(
-              "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-            );
+            expect(obsResult.projectId).toBe(projectId);
             if (prop === "userId") return;
             expect((obsResult as any)[prop]).toBe(value);
           },
@@ -460,7 +485,7 @@ describe("/api/public/observations API Endpoint", () => {
             start_time: timestamp1 * timeMultiplier,
             event_ts: timestamp1 * timeMultiplier,
             end_time: timestamp1 * timeMultiplier,
-            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            project_id: projectId,
             type: "GENERATION",
           });
 
@@ -471,7 +496,7 @@ describe("/api/public/observations API Endpoint", () => {
             start_time: timestamp2 * timeMultiplier,
             event_ts: timestamp2 * timeMultiplier,
             end_time: timestamp2 * timeMultiplier,
-            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            project_id: projectId,
             type: "SPAN",
           });
 
@@ -481,7 +506,7 @@ describe("/api/public/observations API Endpoint", () => {
             name: "generation-name",
             start_time: timestamp3 * timeMultiplier,
             event_ts: timestamp3 * timeMultiplier,
-            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            project_id: projectId,
             type: "EVENT",
           });
 
@@ -492,7 +517,7 @@ describe("/api/public/observations API Endpoint", () => {
             start_time: timestamp4 * timeMultiplier,
             event_ts: timestamp4 * timeMultiplier,
             end_time: timestamp4 * timeMultiplier,
-            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            project_id: projectId,
             type: "GENERATION",
           });
 
@@ -507,6 +532,7 @@ describe("/api/public/observations API Endpoint", () => {
             "GET",
             `/api/public/observations?fromStartTime=${fromTimestamp}&toStartTime=${toTimestamp}&traceId=${traceId}${queryParam}`,
             undefined,
+            auth,
           );
 
           expect(fetchedObservations.body.data.length).toBe(2);
@@ -524,6 +550,7 @@ describe("/api/public/observations API Endpoint", () => {
             "GET",
             `/api/public/observations?fromStartTime=${fromTimestamp}&traceId=${traceId}${queryParam}`,
             undefined,
+            auth,
           );
 
           expect(fetchedObservations.body.data.length).toBe(3);
@@ -544,6 +571,7 @@ describe("/api/public/observations API Endpoint", () => {
             "GET",
             `/api/public/observations?toStartTime=${toTimestamp}&traceId=${traceId}${queryParam}`,
             undefined,
+            auth,
           );
 
           expect(fetchedObservations.body.data.length).toBe(3);
@@ -564,6 +592,7 @@ describe("/api/public/observations API Endpoint", () => {
             "GET",
             `/api/public/observations?limit=1&page=2&traceId=${traceId}${queryParam}`,
             undefined,
+            auth,
           );
 
           expect(fetchedObservations.body.data.length).toBe(1);

@@ -47,7 +47,7 @@ import {
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

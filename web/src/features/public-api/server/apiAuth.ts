@@ -115,8 +115,7 @@ export class ApiAuthService {
 
               if (!slowKey) {
                 logger.error(
-                  "No key found for public key",
-                  formatSubmittedPublicKeyForLog(publicKey),
+                  `No key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
                 );
                 if (this.redis) {
                   logger.info(
@@ -158,15 +157,14 @@ export class ApiAuthService {
 
             if (!finalApiKey) {
               logger.info(
-                "No project id found for key",
-                formatSubmittedPublicKeyForLog(publicKey),
+                `No project id found for key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
               );
               throw new Error("Invalid credentials");
             }
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
-              logger.error("Invalid plan type for key", finalApiKey.plan);
+              logger.error(`Invalid plan type for key: ${finalApiKey.plan}`);
               throw new Error("Invalid credentials");
             }
 
@@ -325,7 +323,9 @@ export class ApiAuthService {
       },
     });
     if (!dbKey) {
-      logger.info("No api key found for public key:", publicKey);
+      logger.info(
+        `No api key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+      );
       throw new Error("Invalid public key");
     }
     return dbKey;
@@ -396,11 +396,12 @@ export class ApiAuthService {
     }
 
     try {
-      const redisApiKey = await this.redis.getex(
-        createApiKeyCacheKey(hash),
-        "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
-      );
+      // A plain GET, not GETEX: an entry expires a fixed TTL after it was
+      // written, never a TTL after it was last read. A sliding TTL lets an entry
+      // that is still being read outlive the API key it caches, so a request
+      // that repopulates the cache while the key is being revoked could keep the
+      // revoked key valid for as long as its holder kept using it.
+      const redisApiKey = await this.redis.get(createApiKeyCacheKey(hash));
 
       if (!redisApiKey) {
         return null;

@@ -1,8 +1,9 @@
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { AlertTriangle, X } from "lucide-react";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { AlertTriangle, Check, Copy, X } from "lucide-react";
 
 interface ErrorNotificationProps {
   error: string;
@@ -11,6 +12,7 @@ interface ErrorNotificationProps {
   dismissToast: (t?: string | number | undefined) => void;
   toast: string | number;
   path?: string;
+  traceId?: string;
 }
 
 export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
@@ -20,23 +22,16 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   dismissToast,
   toast,
   path,
+  traceId,
 }) => {
   const { setOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const capture = usePostHogClientCapture();
+  const { copy, isCopied } = useCopyToClipboard();
   const isError = type === "ERROR";
   const textColor = isError
     ? "text-destructive-foreground"
     : "text-dark-yellow";
-
-  // const handleReportIssueClick = () => {
-  //   if (chatAvailable) {
-  //     const currentUrl = window.location.href;
-  //     const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
-  //     sendUserChatMessage(message);
-  //     dismissToast(toast);
-  //   }
-  // };
 
   return (
     <div className="flex justify-between">
@@ -59,6 +54,24 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
             Path: {path}
           </div>
         )}
+        {traceId && (
+          <div
+            className={`flex items-start gap-1 text-sm leading-tight ${textColor}`}
+          >
+            <span className="min-w-0 break-all">Error ID: {traceId}</span>
+            <button
+              className={`flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-none bg-transparent p-0 ${textColor}`}
+              onClick={() => copy(traceId).catch(() => undefined)}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
+              aria-label="Copy error ID"
+              title="Copy error ID"
+            >
+              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+        )}
 
         {isError && (
           <Button
@@ -70,7 +83,14 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
                 path,
               });
               setMigrationPanelOpen(false);
-              setOpen(true);
+              setOpen(true, {
+                message: formatReportIssueMessage({
+                  error,
+                  description,
+                  path,
+                  traceId,
+                }),
+              });
             }}
           >
             Report issue to Langfuse team
@@ -100,4 +120,21 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       </button>
     </div>
   );
+};
+
+const formatReportIssueMessage = (details: {
+  error: string;
+  description: string;
+  path?: string;
+  traceId?: string;
+}) => {
+  const lines = [
+    "I received the following error:",
+    "",
+    `Error: ${details.error}`,
+  ];
+  if (details.description) lines.push(`Description: ${details.description}`);
+  if (details.path) lines.push(`Path: ${details.path}`);
+  if (details.traceId) lines.push(`Error ID: ${details.traceId}`);
+  return `${lines.join("\n")}\n\n`;
 };

@@ -312,7 +312,10 @@ describe("processObservationEval", () => {
             projectId,
             evaluationRuleId: rule.id,
             evaluatorId: evaluator.id,
-            evaluator: { projectId, type: "LLM_AS_JUDGE" },
+            evaluator: {
+              projectId,
+              type: { in: ["LLM_AS_JUDGE", "DECISION_MODEL"] },
+            },
           },
         }),
       );
@@ -913,7 +916,12 @@ describe("processObservationEval", () => {
             evaluationRuleId: config.id,
             evaluator: {
               projectId,
-              type: EvalTemplateType.LLM_AS_JUDGE,
+              type: {
+                in: [
+                  EvalTemplateType.LLM_AS_JUDGE,
+                  EvalTemplateType.DECISION_MODEL,
+                ],
+              },
             },
           }),
         }),

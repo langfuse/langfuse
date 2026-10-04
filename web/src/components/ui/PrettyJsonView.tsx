@@ -12,14 +12,13 @@ import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
-import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   ChevronDown,
   ChevronRight,
@@ -884,28 +883,6 @@ export function PrettyJsonView(props: {
     [parsedJson, largeStringValue, characterLimit],
   );
 
-  // Nested MarkdownView is rendered without a title (this view owns the
-  // header), so the header must host the same collapse control that
-  // MarkdownView would show when it has a title. Skip gated large strings:
-  // they render through LargeStringFallback, and splitting them for a
-  // preview would undo the main-thread guard that gate exists for.
-  const systemPromptCollapsibleContent =
-    largeStringValue !== null
-      ? ""
-      : typeof markdownContent === "string"
-        ? markdownContent
-        : typeof parsedJson === "string"
-          ? parsedJson
-          : "";
-  const {
-    shouldBeCollapsible: shouldCollapseSystemPrompt,
-    isCollapsed: isSystemPromptCollapsed,
-    toggleCollapsed: toggleSystemPromptCollapsed,
-  } = useCollapsibleSystemPrompt({
-    isSystemPrompt: Boolean(props.isSystemPrompt),
-    content: systemPromptCollapsibleContent,
-  });
-
   const baseTableData = useMemo(() => {
     try {
       if (
@@ -1450,16 +1427,6 @@ export function PrettyJsonView(props: {
           title={props.title}
           titleIcon={props.titleIcon}
           handleOnCopy={handleOnCopy}
-          collapseControl={
-            shouldCollapseSystemPrompt &&
-            isMarkdownMode &&
-            !shouldRenderStandaloneMedia
-              ? {
-                  isCollapsed: isSystemPromptCollapsed,
-                  onToggle: () => toggleSystemPromptCollapsed("header"),
-                }
-              : undefined
-          }
           inset={props.inset}
           hoverRevealControls
           controlButtons={

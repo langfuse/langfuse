@@ -19,16 +19,27 @@ export const validateNumericScore = ({
   value,
   minValue,
   maxValue,
+  badInput = false,
 }: {
   value?: number | null;
   minValue?: number | null;
   maxValue?: number | null;
+  badInput?: boolean;
 }): string | null => {
+  if (badInput || (isPresent(value) && !Number.isFinite(value))) {
+    return "Enter a number";
+  }
+  if (!isPresent(value)) return null;
   if (
-    (isPresent(maxValue) && Number(value) > maxValue) ||
-    (isPresent(minValue) && Number(value) < minValue)
+    (isPresent(maxValue) && value > maxValue) ||
+    (isPresent(minValue) && value < minValue)
   ) {
-    return `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`;
+    if (isPresent(minValue) && isPresent(maxValue)) {
+      return `Enter a value between ${minValue} and ${maxValue}`;
+    }
+    return isPresent(minValue)
+      ? `Enter a value of at least ${minValue}`
+      : `Enter a value of at most ${maxValue}`;
   }
   return null;
 };

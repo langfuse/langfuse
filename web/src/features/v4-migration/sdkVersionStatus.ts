@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { type RouterOutputs } from "@/src/utils/api";
-import { type SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { type SdkVersionInfo } from "@/src/features/sdk-version";
 
 type V4MigrationSdkStatus =
   | "checking"
@@ -196,12 +196,15 @@ export const getDetectedInstrumentationSeries = (
 export const formatSdkVersion = (sdkVersion: SdkVersionInfo | undefined) => {
   if (!sdkVersion?.language || !sdkVersion.version) return null;
 
-  const language =
-    sdkVersion.language === "javascript"
-      ? "JavaScript"
-      : sdkVersion.language === "python"
-        ? "Python"
-        : sdkVersion.language;
+  const language = (() => {
+    if (sdkVersion.language === "javascript") {
+      return "JavaScript";
+    }
+    if (sdkVersion.language === "python") {
+      return "Python";
+    }
+    return sdkVersion.language;
+  })();
   return `${language} ${sdkVersion.version}`;
 };
 

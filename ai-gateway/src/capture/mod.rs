@@ -1,6 +1,7 @@
-//! Best-effort capture around the existing relay lifecycle.
+mod anthropic_messages;
 mod facts;
 mod openai_responses;
+mod response;
 mod sse;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,50 +11,68 @@ use serde_json::{Map, Value, json};
 use tokio::time::Instant;
 
 use crate::{
-    resolution::{IngestionMode, MetadataValue, ResolvedRequestContext},
+    resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
     telemetry,
 };
+use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
-pub(crate) use facts::{InferenceFacts, RelayOutcome};
+pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_responses::OpenAiResponsesCapture;
 
-const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
+pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 
-/// Add another adapter here when another API is supported; the relay stays shared.
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
+    AnthropicMessages(AnthropicMessagesCapture),
 }
 
 impl ProtocolCapture {
+    fn new(api_format: ApiFormat, headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+        match api_format {
+            ApiFormat::OpenAiResponses => {
+                Self::OpenAiResponses(OpenAiResponsesCapture::new(headers, body, mode))
+            }
+            ApiFormat::AnthropicMessages => {
+                Self::AnthropicMessages(AnthropicMessagesCapture::new(headers, body, mode))
+            }
+        }
+    }
+
     fn record_response(&mut self, headers: &HeaderMap) {
         match self {
             Self::OpenAiResponses(capture) => capture.record_response(headers),
+            Self::AnthropicMessages(capture) => capture.record_response(headers),
         }
     }
 
     fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         match self {
             Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
+            Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
         }
     }
 
     fn end_body(&mut self) {
         match self {
             Self::OpenAiResponses(capture) => capture.end_body(),
+            Self::AnthropicMessages(capture) => capture.end_body(),
         }
     }
 
     fn into_facts(self) -> (&'static str, ProviderFacts) {
         match self {
             Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
+            Self::AnthropicMessages(capture) => ("anthropic.messages", capture.into_facts()),
         }
     }
 
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
+            Self::AnthropicMessages(_) => None,
         }
     }
 }
@@ -90,7 +109,8 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn for_openai_responses(
+    pub fn for_request(
+        api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         body: &[u8],
@@ -123,10 +143,10 @@ impl ExecutionCapture {
             otel.kind = "internal",
             http.request.body.size = i64::try_from(body.len()).unwrap_or(i64::MAX)
         )
-        .in_scope(|| OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()));
+        .in_scope(|| ProtocolCapture::new(api_format, headers, body, context.ingestion_mode()));
         Self {
             span,
-            protocol: Some(ProtocolCapture::OpenAiResponses(protocol)),
+            protocol: Some(protocol),
             started,
             start_time_unix_ms,
             first_byte_ms: None,
@@ -216,6 +236,22 @@ impl Drop for ExecutionCapture {
     fn drop(&mut self) {
         self.finish(RelayOutcome::Cancelled);
     }
+}
+
+fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+    let reason = if !identity_encoding(headers) {
+        InputOmissionReason::ContentEncoding
+    } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
+        InputOmissionReason::SizeLimit
+    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
+        return Ok(request);
+    } else {
+        InputOmissionReason::InvalidJson
+    };
+    Err(InputOmission {
+        reason,
+        body_bytes: body.len(),
+    })
 }
 
 fn bounded_string(value: &str) -> Option<String> {

@@ -3,14 +3,13 @@
  * These badges use BreakdownTooltip to show detailed cost/usage information
  */
 
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
   type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
+import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 
 export function CostBadge({
   totalCost,
@@ -23,6 +22,9 @@ export function CostBadge({
   priceSource?: PriceSource;
   costSource?: CostSource;
 }) {
+  if (!hasBreakdown(costDetails)) {
+    return <Badge color="ghost" text={usdFormatter(totalCost)} />;
+  }
   return (
     <BreakdownTooltip
       details={costDetails}
@@ -30,38 +32,31 @@ export function CostBadge({
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
+      <Badge color="ghost" interactive text={usdFormatter(totalCost)} />
     </BreakdownTooltip>
   );
 }
 
+/** A breakdown of nothing but zeros has nothing to say. */
+export const hasBreakdown = (details: Record<string, number>) =>
+  Object.values(details).some((value) => value > 0);
+
 export function UsageBadge({
-  inputUsage,
-  outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  inputUsage: number;
-  outputUsage: number;
   totalUsage: number;
   usageDetails: Record<string, number>;
 }) {
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
+  const tokenText = `${numberFormatter(totalUsage, 0)} tokens`;
+
+  if (!hasBreakdown(usageDetails)) {
+    return <Badge color="ghost" text={tokenText} />;
+  }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      {tokenText ? (
-        <Badge text={tokenText} trailingIcon={InfoIcon} />
-      ) : (
-        <BadgeShell aria-label="View usage breakdown">
-          <InfoIcon aria-hidden className="size-3" />
-        </BadgeShell>
-      )}
+      <Badge color="ghost" interactive text={tokenText} />
     </BreakdownTooltip>
   );
 }

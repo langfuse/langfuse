@@ -8,7 +8,7 @@ import {
   singleFilterList,
   optionalPaginationZod,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,

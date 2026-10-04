@@ -34,6 +34,10 @@ export function NumericScoreTimeSeriesChart(props: {
   schedulerId?: string;
   /** Shared hover-sync group so this chart joins the dashboard crosshair. */
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -112,8 +116,8 @@ export function NumericScoreTimeSeriesChart(props: {
     <div className="h-80 w-full shrink-0">
       <DashboardLineTimeSeriesChart
         data={extractedScores}
-        subtleFill
         syncId={props.syncId}
+        sync={props.sync}
       />
     </div>
   ) : (

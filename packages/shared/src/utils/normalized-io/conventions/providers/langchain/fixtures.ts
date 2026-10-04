@@ -1,5 +1,176 @@
 import type { NormalizedIOFixture } from "../fixture-types";
 
+// Reconstructed from a user-provided trace excerpt, not a verbatim capture.
+// https://reference.langchain.com/python/langchain-core/outputs/llm_result/LLMResult
+export const langchainSerializedGenerationResultFixture = {
+  name: "normalizes batched serialized LangChain messages and ChatGeneration output",
+  spanIO: {
+    input: {
+      messages: [
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "SystemMessage"],
+            kwargs: {
+              content: "* Never disclose private information *",
+              type: "system",
+            },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "SystemMessage"],
+            kwargs: {
+              content: "Answer questions about office hours.",
+              type: "system",
+            },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: { content: "office hours", type: "human", id: "123" },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "AIMessage"],
+            kwargs: {
+              content: [{ type: "text", text: "This is my answer" }],
+              response_metadata: {},
+            },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "AIMessage"],
+            kwargs: {
+              content: [
+                {
+                  id: "rs_099776",
+                  // Schema-derived reasoning fields, not captured model output:
+                  // https://github.com/openai/openai-python/blob/main/src/openai/types/responses/response_reasoning_item.py
+                  summary: [
+                    {
+                      type: "summary_text",
+                      text: "Checking whether current office hours are available.",
+                    },
+                  ],
+                  type: "reasoning",
+                  content: [
+                    {
+                      type: "reasoning_text",
+                      text: "The provided context does not contain current opening times.",
+                    },
+                  ],
+                  index: 0,
+                  encrypted_content: "encrypted",
+                },
+                {
+                  type: "text",
+                  text: "I don't have the latest opening times.",
+                },
+              ],
+              response_metadata: {},
+            },
+          },
+        ],
+      ],
+    },
+    output: {
+      generations: [
+        [
+          {
+            text: "You've asked about our office hours.",
+            generation_info: null,
+            type: "ChatGeneration",
+            message: {
+              lc: 1,
+              type: "constructor",
+              id: ["langchain", "schema", "messages", "AIMessage"],
+              kwargs: {
+                content: [
+                  {
+                    type: "text",
+                    text: "You've asked about our office hours.",
+                  },
+                ],
+                response_metadata: {},
+              },
+            },
+          },
+        ],
+      ],
+      llm_output: null,
+      run: null,
+      type: "LLMResult",
+    },
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        source: "input",
+        role: "system",
+        parts: [
+          { type: "text", text: "* Never disclose private information *" },
+        ],
+      },
+      {
+        source: "input",
+        role: "system",
+        parts: [{ type: "text", text: "Answer questions about office hours." }],
+      },
+      {
+        source: "input",
+        role: "user",
+        id: "123",
+        parts: [{ type: "text", text: "office hours" }],
+      },
+      {
+        source: "input",
+        role: "assistant",
+        parts: [{ type: "text", text: "This is my answer" }],
+      },
+      {
+        source: "input",
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: "Checking whether current office hours are available.",
+            },
+            providerMetadata: { id: "rs_099776", index: 0 },
+          },
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: "The provided context does not contain current opening times.",
+            },
+            providerMetadata: { id: "rs_099776", index: 0 },
+          },
+          {
+            type: "reasoning",
+            content: { kind: "encrypted", data: "encrypted" },
+            providerMetadata: { id: "rs_099776", index: 0 },
+          },
+          { type: "text", text: "I don't have the latest opening times." },
+        ],
+      },
+      {
+        source: "output",
+        role: "assistant",
+        parts: [{ type: "text", text: "You've asked about our office hours." }],
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
 /**
  * LangChain serialization envelope: instrumentation that dumps LangChain
  * message objects (dumpd) wraps each message in constructor kwargs with the
