@@ -821,6 +821,18 @@ export const promptRouter = createTRPCRouter({
           },
         );
       } catch (e) {
+        // A concurrent delete can remove the row between the existence check
+        // and the transaction. Prisma then raises P2025, which is the same
+        // missing-version case as the check above.
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2025"
+        ) {
+          throw new LangfuseNotFoundError(
+            `Prompt version with id ${input.promptVersionId} not found in project ${projectId}`,
+          );
+        }
+
         // Expected client errors are logged at their own severity by the tRPC
         // error middleware; only unexpected failures are logged here.
         if (!isBaseError(e) && !(e instanceof TRPCError)) {

@@ -1196,6 +1196,48 @@ describe("prompts trpc", () => {
       });
       expect(remaining).not.toBeNull();
     });
+
+    it("should return NOT_FOUND when the version disappears before the delete commits", async () => {
+      const { project, caller } = await prepare();
+
+      const prompt = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: `test-prompt-concurrent-delete-${v4()}`,
+          version: 1,
+          type: "text",
+          prompt: "content",
+          createdBy: "test-user",
+          labels: ["latest"],
+        },
+      });
+
+      const transactionSpy = vi
+        .spyOn(prisma, "$transaction")
+        .mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError(
+            "An operation failed because it depends on one or more records that were required but not found.",
+            { code: "P2025", clientVersion: "test" },
+          ),
+        );
+
+      try {
+        await expect(
+          caller.prompts.deleteVersion({
+            projectId: project.id,
+            promptVersionId: prompt.id,
+          }),
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      } finally {
+        transactionSpy.mockRestore();
+      }
+
+      const remaining = await prisma.prompt.findUnique({
+        where: { id: prompt.id },
+      });
+      expect(remaining).not.toBeNull();
+    });
   });
 
   describe("prompts.duplicatePrompt", () => {
