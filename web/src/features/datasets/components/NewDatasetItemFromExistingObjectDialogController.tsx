@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";
 
@@ -14,6 +14,7 @@ type DatasetItemDialogState = {
   traceId?: string;
   observationId?: string;
   fromDatasetId?: string;
+  datasetId?: string;
   input: Prisma.JsonValue | null;
   output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
@@ -25,6 +26,8 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
     openDialog: (payload: DatasetItemDialogState) => void;
   }) => ReactNode;
 }) {
+  const submissionPending = useRef(false);
+  const currentInstance = useRef(0);
   const normalizePrefillValue = (
     value: Prisma.JsonValue | null,
   ): Prisma.JsonValue | null => {
@@ -41,29 +44,45 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
   };
 
   return (
-    <DialogController<DatasetItemDialogState>
+    <DialogController<DatasetItemDialogState & { instance: number }>
       closeOnInteractionOutside={false}
-      size="xxl"
+      onBeforeClose={() => !submissionPending.current}
+      size="lg"
       renderContent={({ state, closeDialog }) => (
         <>
           <DialogHeader>
             <DialogTitle>Add item to datasets</DialogTitle>
           </DialogHeader>
           <NewDatasetItemForm
+            key={state.instance}
             traceId={state.traceId}
             observationId={state.observationId}
             projectId={props.projectId}
+            datasetId={state.datasetId}
             input={normalizePrefillValue(state.input)}
             output={normalizePrefillValue(state.output)}
             metadata={state.metadata}
-            onFormSuccess={closeDialog}
+            onPendingChange={(pending) => {
+              if (currentInstance.current === state.instance)
+                submissionPending.current = pending;
+            }}
+            onFormSuccess={() => {
+              if (currentInstance.current === state.instance) closeDialog();
+            }}
             className="h-full overflow-y-auto"
             currentDatasetId={state.fromDatasetId}
           />
         </>
       )}
     >
-      {({ openDialog }) => props.children({ openDialog })}
+      {({ openDialog }) =>
+        props.children({
+          openDialog: (payload) => {
+            if (submissionPending.current) return;
+            openDialog({ ...payload, instance: ++currentInstance.current });
+          },
+        })
+      }
     </DialogController>
   );
 }

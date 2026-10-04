@@ -39,9 +39,6 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
   FoldVertical,
   MoreVertical,
   PanelLeftClose,
@@ -54,6 +51,7 @@ import {
   WandSparkles,
   InfoIcon,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,7 +66,7 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
@@ -92,14 +90,14 @@ import type {
   StringKeyValueFilterEntry,
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type FilterState } from "@langfuse/shared";
 
 interface ControlsContextType {
@@ -1384,7 +1382,7 @@ const FilterAccordionTrigger = ({
       )}
       {...props}
     >
-      <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform" />
+      <DropdownIndicator direction="right" nudge />
       {children}
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
@@ -2006,9 +2004,9 @@ function CategoricalSelectContent({
                       variant="ghost"
                       size="sm"
                       onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
                     >
-                      <ChevronUp className="mr-1 h-3 w-3" />
+                      <DropdownIndicator direction="up" size="sm" nudge />
                       Show fewer values
                     </Button>
                   )}
@@ -2021,9 +2019,9 @@ function CategoricalSelectContent({
                           (current) => current + SHOW_MORE_INCREMENT,
                         )
                       }
-                      className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
+                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
                     >
-                      <ChevronDown className="mr-1 h-3 w-3" />
+                      <DropdownIndicator size="sm" nudge />
                       Show more values
                     </Button>
                   )}

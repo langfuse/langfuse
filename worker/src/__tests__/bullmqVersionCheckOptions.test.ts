@@ -275,7 +275,7 @@ describe("BullMQ Redis version check options", () => {
       defaultJobOptions: expect.objectContaining({
         attempts: 8,
         removeOnComplete: true,
-        removeOnFail: 10_000,
+        removeOnFail: { age: 7 * 24 * 3600, count: 1000 },
       }),
     });
   });

@@ -17,6 +17,11 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- Before creating a new component or reusing one from elsewhere in
+  `web/src/components`, first check `web/src/components/design-system` for an
+  existing component that satisfies the use case. Prefer the design-system
+  component and extend it when appropriate; use another component only when
+  the design system has no suitable option.
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
   intermediate tool output stays out of the main context.
@@ -271,12 +276,10 @@ regenerated outputs. Never hand-edit `generated/**`.
 
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
-- Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
 - After changing skills / AGENTS.md, run `pnpm run agents:sync` and
   `pnpm run agents:check`.
-- **Write agent guidance only in `AGENTS.md`, never in a `CLAUDE.md`.** Every
-  `AGENTS.md` in the tree gets a generated sibling `CLAUDE.md` symlink when running
-  `pnpm run agents:sync`.
+- **Write folder instructions directly in `AGENTS.md`.** Harnesses read these
+  files without provider-specific copies or compatibility symlinks.
 - Put package-local guidance in the narrowest `AGENTS.md` that owns it so that it's only
   loaded into context when needed.
 - When creating or editing `.agents/skills/**`, use

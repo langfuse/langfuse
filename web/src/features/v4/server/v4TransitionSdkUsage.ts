@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * SDK / events_core usage checks for the v4 transition.
  *
@@ -14,7 +13,7 @@ import {
   queryClickhouse,
   type IngestionSdkAttributionStatus,
 } from "@langfuse/shared/src/server";
-import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/server";
 import { getExperimentPostUsageByProject } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
 import {
   getV4TransitionDetectionWindow,
@@ -514,11 +513,13 @@ export const deriveExperimentInstrumentationMigration = ({
         currentInstrumentationStatus !== "supported")
     );
   });
-  return hasCurrentExperimentInstrumentation
-    ? { status: "not_required", upgradePath: null }
-    : hasInconclusiveExperimentSdkUsage
-      ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
-      : { status: "required", upgradePath: "api" };
+  if (hasCurrentExperimentInstrumentation) {
+    return { status: "not_required", upgradePath: null };
+  }
+  if (hasInconclusiveExperimentSdkUsage) {
+    return { status: "sdk_usage_inconclusive", upgradePath: "sdk" };
+  }
+  return { status: "required", upgradePath: "api" };
 };
 
 export const getSdkUsageSummaries = async ({

@@ -2,9 +2,9 @@
 // only — the chart library, widget components and import/export helpers other
 // features already imported by file path.
 //
-// filters' multi-select and single-select and events' outlier-strip binning
-// stay on deep paths: routing them through this index would close runtime
-// cycles between widgets and those features.
+// filters' multi-select and single-select, events' outlier-strip binning,
+// and DashboardGrid stay on deep paths: routing them through this index
+// would close runtime cycles between widgets and those features.
 export { Chart } from "@/src/features/widgets/chart-library/Chart";
 export { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 export type {
@@ -16,6 +16,8 @@ export type {
 export { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 export { formatMetric } from "@/src/features/widgets/chart-library/utils";
 export type { DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
+export { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+export { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 export { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 export { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 export type { WidgetDimensionConfig } from "@/src/features/widgets/hooks/useWidgetQuery";
@@ -27,8 +29,10 @@ export {
   buildWidgetExport,
   parseImportedWidgetJson,
   parsePastedWidget,
+  toWidgetCreateFields,
 } from "@/src/features/widgets/utils/import-export-utils";
 export type {
+  PastedWidgetParseResult,
   WidgetExportSource,
   WidgetImport,
 } from "@/src/features/widgets/utils/import-export-utils";

@@ -2,7 +2,7 @@
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import {
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,

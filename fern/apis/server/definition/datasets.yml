@@ -86,10 +86,10 @@ types:
       description: optional<string>
       metadata: optional<unknown>
       inputSchema:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: JSON Schema for validating dataset item inputs. When set, all new and existing dataset items will be validated against this schema.
       expectedOutputSchema:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: JSON Schema for validating dataset item expected outputs. When set, all new and existing dataset items will be validated against this schema.
   PaginatedDatasetRuns:
     properties:

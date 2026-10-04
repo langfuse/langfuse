@@ -10,8 +10,8 @@ import {
 } from "@/src/features/traces";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/features/sessions/actions/downloadSessionAsJson";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { parseJsonIfString } from "@langfuse/shared";

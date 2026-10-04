@@ -6,6 +6,7 @@ import {
   FTS_TEXT_OPERATORS,
   StringFilter,
   StringObjectFilter,
+  hasFtsSearchToken,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 
@@ -175,8 +176,11 @@ maybeEventsTable("FTS filter rewrites", () => {
         value,
       }).apply();
 
+      // The token prefilter is emitted only for FTS-accelerated operators whose
+      // value actually yields tokens; a tokenless value (e.g. "!!!") leans on
+      // the exact predicate alone.
       expect(rewritten.query.includes("hasAllTokens")).toBe(
-        FTS_TEXT_OPERATORS.has(operator),
+        FTS_TEXT_OPERATORS.has(operator) && hasFtsSearchToken(value),
       );
       await expect(matchingIds(rewritten)).resolves.toEqual(
         await matchingIds(baseline),
@@ -189,6 +193,7 @@ maybeEventsTable("FTS filter rewrites", () => {
       (
         [
           { operator: "=", value: "alpha" },
+          { operator: "=", value: "!!!" },
           { operator: "contains", value: "alpha" },
           { operator: "starts with", value: "alpha" },
           { operator: "ends with", value: "alpha" },
@@ -217,8 +222,12 @@ maybeEventsTable("FTS filter rewrites", () => {
       }).apply();
 
       if (operator === "=") {
-        // Equality prefilters with the text index; no non-indexed array scan.
-        expect(rewritten.query).toContain("hasAllTokens(e.metadata_values,");
+        // Equality prefilters with the text index when the value yields tokens;
+        // a tokenless value keeps the exact check alone. Neither path adds a
+        // non-indexed array scan.
+        expect(
+          rewritten.query.includes("hasAllTokens(e.metadata_values,"),
+        ).toBe(hasFtsSearchToken(value));
         expect(rewritten.query).not.toMatch(/has\(e\.metadata_values,/);
       } else if (NGRAM_METADATA_OPERATORS.has(operator)) {
         expect(rewritten.query).toContain(

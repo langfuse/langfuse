@@ -9,7 +9,7 @@ import {
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { validateQuery } from "@langfuse/shared/query";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 const DEFAULT_ROW_LIMIT = 100;
 
 export function isMetricsV2Available(): boolean {

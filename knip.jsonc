@@ -12,6 +12,10 @@
     "catalog": "off",
   },
   "workspaces": {
+    ".": {
+      // `pnpm change check` is a pnpm built-in, not an installed binary.
+      "ignoreBinaries": ["change"],
+    },
     "packages/shared": {
       "ignoreFiles": [
         // Standalone helper invoked manually as documented in the adjacent framework-traces README.

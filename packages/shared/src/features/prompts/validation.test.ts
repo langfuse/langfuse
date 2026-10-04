@@ -28,7 +28,7 @@ describe("PromptNameSchema", () => {
   // resolve through the catch-all. Deliberately not over-blocked.
   // Note: "folder/metrics" stays valid here; the catch-all's `/metrics`
   // URL-suffix handling is a separate, pre-existing quirk documented in
-  // web/src/pages/project/[projectId]/prompts/[[...folder]].tsx.
+  // web/src/features/prompts/PromptsPage.tsx.
   it.each(RESERVED_PROMPT_NAMES)(
     "allows '%s' as a folder name or leaf segment",
     (name) => {

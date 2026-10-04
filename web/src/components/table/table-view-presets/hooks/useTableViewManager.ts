@@ -17,9 +17,9 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useKeyedSessionStorageState } from "@/src/features/filters/hooks/useKeyedSessionStorageState";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import isEqual from "lodash/isEqual";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
@@ -71,6 +71,8 @@ interface UseTableStateProps {
   allowBackendSystemPresets?: boolean;
   /** Called after an application even when the validated state is unchanged. */
   onViewApplied?: (state: TableViewPresetState) => void;
+  /** Reset transient table state on selection; preserve bookmarked pagination. */
+  onViewSelected?: () => void;
 }
 
 const isViewApplicableToTable = (
@@ -113,6 +115,7 @@ export function useTableViewManager({
   disabled = false,
   allowBackendSystemPresets = false,
   onViewApplied,
+  onViewSelected,
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -209,6 +212,7 @@ export function useTableViewManager({
   const setSearchQueryRef = useRef(setSearchQuery);
   const setExpandedFiltersRef = useRef(setExpandedFilters);
   const onViewAppliedRef = useRef(onViewApplied);
+  const onViewSelectedRef = useRef(onViewSelected);
 
   // Update refs immediately on every render
   setFiltersRef.current = setFilters;
@@ -216,6 +220,7 @@ export function useTableViewManager({
   setSearchQueryRef.current = setSearchQuery;
   setExpandedFiltersRef.current = setExpandedFilters;
   onViewAppliedRef.current = onViewApplied;
+  onViewSelectedRef.current = onViewSelected;
 
   // Extract primitive for effect dep (rerender-dependencies: avoid object deps)
   const defaultViewId = resolvedDefault?.viewId;
@@ -319,6 +324,13 @@ export function useTableViewManager({
     (viewData: TableViewPresetState, meta?: SavedViewApplyMeta) => {
       // lock table
       setIsLoading(true);
+      if (
+        meta?.trigger === "select" ||
+        meta?.trigger === "system_preset" ||
+        meta?.trigger === "system_preset_cleared"
+      ) {
+        onViewSelectedRef.current?.();
+      }
 
       /**
        * Validate orderBy and filters
