@@ -10,7 +10,6 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -114,18 +113,15 @@ export const organizationApiKeysRouter = createTRPCRouter({
         scope: "organization:CRUD_apiKeys",
       });
 
-      const updated = await ctx.prisma.apiKey.updateMany({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.keyId,
           orgId: input.orgId,
           isInAppAgentKey: false,
         },
-        data: {
-          note: input.note,
-        },
       });
 
-      if (updated.count === 0) {
+      if (!apiKey) {
         throw new LangfuseNotFoundError("API key not found");
       }
 
@@ -134,6 +130,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: input.keyId,
         action: "update",
+      });
+
+      await ctx.prisma.apiKey.update({
+        where: {
+          id: input.keyId,
+          orgId: input.orgId,
+          isInAppAgentKey: false,
+        },
+        data: {
+          note: input.note,
+        },
       });
 
       // do not return the api key
@@ -173,18 +180,10 @@ export const organizationApiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      try {
-        return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
-          input.id,
-          input.orgId,
-          "ORGANIZATION",
-        );
-      } catch (error) {
-        if (isPrismaRecordNotFoundError(error)) {
-          throw new LangfuseNotFoundError("API key not found");
-        }
-
-        throw error;
-      }
+      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+        input.id,
+        input.orgId,
+        "ORGANIZATION",
+      );
     }),
 });

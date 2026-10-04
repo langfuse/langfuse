@@ -9,7 +9,6 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -105,18 +104,15 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
 
-      const updated = await ctx.prisma.apiKey.updateMany({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.keyId,
           projectId: input.projectId,
           isInAppAgentKey: false,
         },
-        data: {
-          note: input.note,
-        },
       });
 
-      if (updated.count === 0) {
+      if (!apiKey) {
         throw new LangfuseNotFoundError("API key not found");
       }
 
@@ -125,6 +121,17 @@ export const projectApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: input.keyId,
         action: "update",
+      });
+
+      await ctx.prisma.apiKey.update({
+        where: {
+          id: input.keyId,
+          projectId: input.projectId,
+          isInAppAgentKey: false,
+        },
+        data: {
+          note: input.note,
+        },
       });
 
       // do not return the api key
@@ -164,18 +171,10 @@ export const projectApiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      try {
-        return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
-          input.id,
-          input.projectId,
-          "PROJECT",
-        );
-      } catch (error) {
-        if (isPrismaRecordNotFoundError(error)) {
-          throw new LangfuseNotFoundError("API key not found");
-        }
-
-        throw error;
-      }
+      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+        input.id,
+        input.projectId,
+        "PROJECT",
+      );
     }),
 });
