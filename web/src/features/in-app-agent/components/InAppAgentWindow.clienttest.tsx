@@ -849,7 +849,7 @@ describe("InAppAgentWindow message actions", () => {
     });
   });
 
-  it("joins later answer texts into one visible reply after Working", async () => {
+  it("keeps the answer visible when reasoning follows a redirect", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -901,6 +901,15 @@ describe("InAppAgentWindow message actions", () => {
             },
           },
           {
+            id: "assistant-post-redirect-reasoning",
+            role: "assistant" as const,
+            content: {
+              type: "reasoning" as const,
+              text: "The redirect is ready; I should close the turn.",
+              isStreaming: false,
+            },
+          },
+          {
             id: "assistant-closer",
             runId: "run-1",
             timestamp: new Date("2026-08-06T15:27:48.000Z").getTime(),
@@ -928,7 +937,7 @@ describe("InAppAgentWindow message actions", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(activityTrigger);
-    expect(screen.getByText("Thought")).toBeVisible();
+    expect(screen.getAllByText("Thought")).toHaveLength(2);
     expect(screen.getByText(analysis)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
