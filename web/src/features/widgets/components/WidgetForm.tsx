@@ -68,9 +68,8 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
 import {
-  formatChartDimension,
-  isEmptyChartDimension,
   isTimeSeriesChart,
+  prepareTagCountDataPoint,
 } from "@/src/features/widgets/chart-library/utils";
 import { Plus, X, AlertCircle, Sparkles } from "lucide-react";
 import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
@@ -615,6 +614,19 @@ export function WidgetForm({
         const dimensionValue = item[dimensionField];
         const isTimeSeries = isTimeSeriesChart(chartType);
 
+        if (
+          dimensionField === "tags" &&
+          metricField === "count_count" &&
+          Array.isArray(dimensionValue)
+        ) {
+          return prepareTagCountDataPoint({
+            tags: dimensionValue,
+            count: Number(metric || 0),
+            timeDimension: item["time_dimension"],
+            isTimeSeries,
+          });
+        }
+
         const isFillerMetricValue =
           metric == null ||
           (getWidgetMissingBucketValue(selectedAggregation) === "zero" &&
@@ -622,7 +634,7 @@ export function WidgetForm({
         if (
           isTimeSeries &&
           dimensionField !== "none" &&
-          isEmptyChartDimension(dimensionValue) &&
+          (dimensionValue === null || dimensionValue === "") &&
           isFillerMetricValue
         ) {
           return {
@@ -635,7 +647,14 @@ export function WidgetForm({
         return {
           dimension:
             dimensionValue !== undefined && dimensionField !== "none"
-              ? formatChartDimension(dimensionValue)
+              ? (() => {
+                  const val = dimensionValue;
+                  if (val === null || val === undefined || val === "")
+                    return "n/a";
+                  if (typeof val === "string") return val;
+                  if (Array.isArray(val)) return val.join(", ");
+                  return String(val);
+                })()
               : formatMetricName(metricField),
           metric: Array.isArray(metric)
             ? metric

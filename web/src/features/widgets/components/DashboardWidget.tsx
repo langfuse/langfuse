@@ -18,9 +18,8 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import {
-  formatChartDimension,
-  isEmptyChartDimension,
   isTimeSeriesChart,
+  prepareTagCountDataPoint,
 } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
@@ -348,6 +347,19 @@ export function DashboardWidget({
         widget.data.dimensions.slice().shift()?.field ?? "none";
       const dimensionValue = item[dimensionField];
 
+      if (
+        dimensionField === "tags" &&
+        metricField === "count_count" &&
+        Array.isArray(dimensionValue)
+      ) {
+        return prepareTagCountDataPoint({
+          tags: dimensionValue,
+          count: Number(metricValue || 0),
+          timeDimension: item["time_dimension"],
+          isTimeSeries,
+        });
+      }
+
       // A gap-filled empty bucket arrives as a row with no dimension and the
       // metric column's type default: NULL for nullable aggregations
       // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
@@ -362,7 +374,7 @@ export function DashboardWidget({
           Number(metricValue) === 0);
       if (
         isTimeSeries &&
-        isEmptyChartDimension(dimensionValue) &&
+        (dimensionValue === null || dimensionValue === "") &&
         isFillerMetricValue
       ) {
         return {
@@ -375,7 +387,16 @@ export function DashboardWidget({
       return {
         dimension:
           dimensionValue !== undefined
-            ? formatChartDimension(dimensionValue)
+            ? (() => {
+                const val = dimensionValue;
+                // Empty first: "" is a string, so the order matters. (LFE-10694)
+                if (val === null || val === undefined || val === "")
+                  return "n/a";
+                if (typeof val === "string") return val;
+                if (Array.isArray(val)) return val.join(", ");
+                // Objects / numbers / booleans are stringified to avoid React key issues
+                return String(val);
+              })()
             : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue

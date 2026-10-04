@@ -1,76 +1,128 @@
 // @vitest-environment node
 
 import {
-  formatChartDimension,
   formatMetric,
   getUniqueDimensions,
   groupDataByTimeDimension,
   getDimensionSummaries,
   getEvenTickInterval,
-  isEmptyChartDimension,
+  prepareTagCountDataPoint,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
-describe("isEmptyChartDimension", () => {
-  it.each([
-    { value: null, expected: true },
-    { value: "", expected: true },
-    { value: [], expected: true },
-    { value: undefined, expected: false },
-    { value: ["production"], expected: false },
-    { value: "production", expected: false },
-    { value: 0, expected: false },
-    { value: false, expected: false },
-  ])(
-    "checks $value for an empty dimension: $expected",
-    ({ value, expected }) => {
-      expect(isEmptyChartDimension(value)).toBe(expected);
+describe("prepareTagCountDataPoint", () => {
+  it.each([true, false])(
+    "keeps untagged counts separate from a literal n/a tag (time series: %s)",
+    (isTimeSeries) => {
+      const data = [
+        prepareTagCountDataPoint({
+          tags: [],
+          count: 8,
+          timeDimension: "t1",
+          isTimeSeries,
+        }),
+        prepareTagCountDataPoint({
+          tags: ["n/a"],
+          count: 3,
+          timeDimension: "t1",
+          isTimeSeries,
+        }),
+      ];
+
+      expect(getUniqueDimensions(data)).toEqual(["[]", '["n/a"]']);
+      expect(groupDataByTimeDimension(data)).toEqual([
+        { time_dimension: "t1", "[]": 8, '["n/a"]': 3 },
+      ]);
+      expect(getDimensionSummaries(data)).toEqual(
+        new Map([
+          ["[]", 8],
+          ['["n/a"]', 3],
+        ]),
+      );
     },
   );
-});
 
-describe("formatChartDimension", () => {
   it.each([
-    { value: undefined, expected: "n/a" },
-    { value: null, expected: "n/a" },
-    { value: "", expected: "n/a" },
-    { value: [], expected: "n/a" },
-    { value: [""], expected: "n/a" },
-    { value: "production", expected: "production" },
-    { value: ["production"], expected: "production" },
-    { value: ["production", "chat"], expected: "production, chat" },
-    { value: 0, expected: "0" },
-    { value: false, expected: "false" },
-    { value: 42, expected: "42" },
-    { value: true, expected: "true" },
-  ])("formats $value as $expected", ({ value, expected }) => {
-    expect(formatChartDimension(value)).toBe(expected);
+    { first: [], second: [""] },
+    { first: ["a, b"], second: ["a", "b"] },
+    { first: ["a", ""], second: ["a, "] },
+    { first: ["[]"], second: [] },
+    { first: ['["a"]'], second: ["a"] },
+  ])("keeps $first and $second in separate series", ({ first, second }) => {
+    const data = [first, second].map((tags, index) =>
+      prepareTagCountDataPoint({
+        tags,
+        count: index + 1,
+        timeDimension: "t1",
+        isTimeSeries: true,
+      }),
+    );
+
+    expect(getUniqueDimensions(data)).toHaveLength(2);
+    const { time_dimension: _time, ...counts } =
+      groupDataByTimeDimension(data)[0];
+    expect(Object.values(counts)).toEqual([1, 2]);
   });
 
-  it("keeps untagged counts alongside tagged series and empty bucket markers", () => {
-    const data: DataPoint[] = [
-      { time_dimension: "t1", dimension: formatChartDimension([]), metric: 8 },
-      {
-        time_dimension: "t1",
-        dimension: formatChartDimension(["production"]),
-        metric: 3,
-      },
-      { time_dimension: "t2", dimension: undefined, metric: null },
-      { time_dimension: "t3", dimension: formatChartDimension([]), metric: 0 },
+  it("keeps filled time buckets without adding an untagged series", () => {
+    const data = [
+      prepareTagCountDataPoint({
+        tags: ["production"],
+        count: 3,
+        timeDimension: "t1",
+        isTimeSeries: true,
+      }),
+      prepareTagCountDataPoint({
+        tags: [],
+        count: 0,
+        timeDimension: "t2",
+        isTimeSeries: true,
+      }),
     ];
 
-    expect(getUniqueDimensions(data)).toEqual(["n/a", "production"]);
+    expect(data[1]).toEqual({
+      time_dimension: "t2",
+      dimension: undefined,
+      metric: null,
+    });
+    expect(getUniqueDimensions(data)).toEqual(['["production"]']);
     expect(groupDataByTimeDimension(data)).toEqual([
-      { time_dimension: "t1", "n/a": 8, production: 3 },
+      { time_dimension: "t1", '["production"]': 3 },
       { time_dimension: "t2" },
-      { time_dimension: "t3", "n/a": 0 },
     ]);
-    expect(getDimensionSummaries(data)).toEqual(
-      new Map([
-        ["n/a", 8],
-        ["production", 3],
-      ]),
+  });
+
+  it("keeps an all-empty time series free of fabricated groups", () => {
+    const data = ["t1", "t2"].map((timeDimension) =>
+      prepareTagCountDataPoint({
+        tags: [],
+        count: 0,
+        timeDimension,
+        isTimeSeries: true,
+      }),
     );
+
+    expect(getUniqueDimensions(data)).toEqual([]);
+    expect(groupDataByTimeDimension(data)).toEqual([
+      { time_dimension: "t1" },
+      { time_dimension: "t2" },
+    ]);
+    expect(getDimensionSummaries(data)).toEqual(new Map());
+  });
+
+  it("keeps a categorical zero count", () => {
+    expect(
+      prepareTagCountDataPoint({
+        tags: [],
+        count: 0,
+        timeDimension: undefined,
+        isTimeSeries: false,
+      }),
+    ).toEqual({
+      time_dimension: undefined,
+      dimension: "[]",
+      metric: 0,
+    });
   });
 });
 

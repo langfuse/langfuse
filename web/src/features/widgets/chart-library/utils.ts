@@ -6,18 +6,31 @@ import {
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 
-export function isEmptyChartDimension(value: unknown): boolean {
-  return (
-    value === null ||
-    value === "" ||
-    (Array.isArray(value) && value.length === 0)
-  );
-}
+export function prepareTagCountDataPoint({
+  tags,
+  count,
+  timeDimension,
+  isTimeSeries,
+}: {
+  tags: string[];
+  count: number;
+  timeDimension: string | undefined;
+  isTimeSeries: boolean;
+}): DataPoint {
+  // A real count group has at least one event; WITH FILL produces zero counts.
+  if (isTimeSeries && count === 0) {
+    return {
+      time_dimension: timeDimension,
+      dimension: undefined,
+      metric: null,
+    };
+  }
 
-export function formatChartDimension(value: unknown): string {
-  if (value === undefined || isEmptyChartDimension(value)) return "n/a";
-  if (Array.isArray(value)) return value.join(", ") || "n/a";
-  return String(value);
+  return {
+    time_dimension: timeDimension,
+    dimension: JSON.stringify(tags),
+    metric: count,
+  };
 }
 
 export const toFullMetricString = (metric: FormattedMetric): string =>

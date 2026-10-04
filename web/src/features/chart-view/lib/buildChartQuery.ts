@@ -1,9 +1,7 @@
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
   type DataPoint,
-  formatChartDimension,
   getWidgetMissingBucketValue,
-  isEmptyChartDimension,
 } from "@/src/features/widgets";
 import { type ChartViewConfig } from "../types";
 import { getDimension, getMetric, isTimeSeriesChartType } from "../vocab";
@@ -74,6 +72,14 @@ export function buildChartQuery({
   };
 }
 
+/** Stringify a raw dimension cell the way the widget charts do. */
+const dimensionValue = (raw: unknown): string => {
+  if (raw === null || raw === undefined || raw === "") return "n/a";
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) return raw.join(", ");
+  return String(raw);
+};
+
 /**
  * Turns `executeQuery` rows into chart-library `DataPoint[]` for a config —
  * the inverse of {@link buildChartQuery}. Pure; unit-tested. Time-series rows
@@ -106,14 +112,14 @@ export function rowsToDataPoints(
         value == null ||
         (getWidgetMissingBucketValue(config.aggregation) === "zero" &&
           Number(value) === 0);
-      if (isEmptyChartDimension(rawDim) && isFiller) {
+      if ((rawDim === null || rawDim === "") && isFiller) {
         return { time_dimension, dimension: undefined, metric: null };
       }
     }
 
     const dim = (() => {
       if (hasBreakdown) {
-        return formatChartDimension(row[dimension.field as string]);
+        return dimensionValue(row[dimension.field as string]);
       }
       if (isNumber) {
         return undefined;
