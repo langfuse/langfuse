@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { validateAllDatasetItems } from "@langfuse/shared/src/server";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 
 type DatasetJson =
   | Prisma.InputJsonObject
@@ -239,10 +240,7 @@ export const updateDataset = async ({
   } catch (error) {
     // P2025 = row not found; also thrown for cross-project ids, so the 404
     // does not leak whether the dataset exists in another project.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
+    if (isPrismaRecordNotFoundError(error)) {
       throw new LangfuseNotFoundError(
         `Dataset ${input.id} not found in project ${projectId}`,
       );
