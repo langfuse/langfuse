@@ -201,7 +201,7 @@ jobs:
       - name: Run Rust tests
         run: cargo test --locked
       - name: Build runtime image
-        run: docker build --target runtime -t langfuse-ai-gateway:test .
+        run: docker build --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
 
@@ -262,6 +262,10 @@ jobs:
       # by every AGENTS.md are resolved.
       - name: agent guidance paths resolve
         run: pnpm run agents:check
+      - name: product package versions agree
+        run: pnpm change check
+      - name: agent setup tests
+        run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: Load default env
@@ -1000,6 +1004,13 @@ jobs:
           pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm --filter=worker... run build
+      - name: run native codec tests against ClickHouse
+        if: matrix.deploy-mode == ''
+        env:
+          LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE: "1"
+        run: |
+          pnpm --filter @langfuse/native run test
+          pnpm --filter worker run test:native-codec
       - name: run tests
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
@@ -1172,7 +1183,7 @@ jobs:
         run: |
           (set +e; bash scripts/ci/install-playwright.sh > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
-        run: pnpm run build --filter=!ai-gateway
+        run: pnpm run build --filter=!ai-gateway --filter=!worker --filter=!@langfuse/native
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate

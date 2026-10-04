@@ -22,7 +22,6 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   FilterIcon,
   Info,
@@ -30,6 +29,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
   PopoverContent,
@@ -67,9 +67,11 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { useQueryProject } from "@/src/features/projects/hooks";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { useQueryProject } from "@/src/features/projects";
+import {
+  useLangfuseCloudRegion,
+  openAIFeaturesSettings,
+} from "@/src/features/organizations";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.
@@ -292,7 +294,9 @@ export function PopoverFilterBuilder({
                   {filterState.length}
                 </span>
               ) : (
-                <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                <span className="ml-1 flex">
+                  <DropdownIndicator nudge />
+                </span>
               )}
             </Button>
           ) : (
@@ -714,7 +718,7 @@ function FilterBuilderForm({
             <span className="min-w-0 truncate" title={columnLabel}>
               {columnLabel}
             </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            <DropdownIndicator />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="max-w-fit p-0">

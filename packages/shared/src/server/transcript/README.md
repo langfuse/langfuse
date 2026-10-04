@@ -12,8 +12,8 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-orderObservations(observations: Observation[]): Observation[];
-assembleTranscript(orderedObservations: Observation[]): Transcript | null;
+orderObservations<T extends TranscriptObservation>(observations: T[]): Array<T & { nestingLevel: number }>;
+assembleTranscript(orderedObservations: OrderedObservation[]): Transcript | null;
 
 type Transcript = { threads: Thread[] };
 
@@ -23,6 +23,7 @@ type Thread = {
 };
 
 type Turn = {
+  nestingLevel: number;
   messages: ThreadMessage[];
   observations: { id: string; traceId: string }[]; // observations that contributed, in order
 };
@@ -30,6 +31,8 @@ type Turn = {
 type ThreadMessage = NormalizedMessage & {
   observationId: string; // observation that first emitted the message
   traceId: string;
+  startTime: Date; // source observation start, not an individual message timestamp
+  endTime: Date | null; // source observation end, when available
 };
 ```
 
@@ -42,6 +45,31 @@ time bounds the trace tree uses: once for the structure of every observation
 without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
 merge the two by id so the walk order comes from the structure and the
 messages from the content.
+
+### Why a trace renderer also needs observations
+
+`assembleTranscript` returns normalized conversation threads, not a complete
+trace. It retains the messages and minimal observation references needed to
+connect them, but does not retain the fields a trace-level view needs:
+
+- A root `SPAN` or `AGENT` can carry the trace input and final application
+  output, including output produced after the last model or tool call. Those
+  fields are absent from the assembled conversation.
+- Non-generation operations, unmatched tool observations, and observation
+  type/name/level/status are not represented as conversation messages. A
+  renderer needs them to show the operation sequence and inline failures.
+- Available tool definitions can occur in generation input or metadata. They
+  are not part of the normalized messages returned by the assembler.
+
+The Topics renderer therefore accepts both the assembled transcript and the
+already loaded, ordered observations. It uses the transcript for roles, threads,
+replayed history, and matched tool results; it uses observations for trace-level
+context and for locating messages among operations. This adds no repository
+read. If other consumers need the same trace context, an explicit optional
+context field or richer observation references on the assembled result could
+remove that second input. Such an extension should keep conversation assembly
+and trace-level facts distinct, so root I/O and operation metadata do not become
+duplicate conversation messages.
 
 ## Ordering
 
@@ -180,7 +208,11 @@ and observation provenance are excluded. All fields inside parts are included.
 ```
 transcript/
 ├── README.md
-├── index.ts               public surface: assembleTranscript, orderObservations, types
+├── index.ts               public surface: assembly, renderers, types
+├── topics-renderer.ts     Topics trace-level layout
+├── topics-renderer-config.ts  Topics block caps and inclusions
+├── topics-renderer.test.ts    Topics layout behavior
+├── generic-renderer.ts    preserved plain-text comparison layout
 ├── ordering.ts            orderObservations, the trace tree walk
 ├── ordering.test.ts       ordering rules
 ├── transcript.ts          assembleTranscript
@@ -206,3 +238,10 @@ Run with console output enabled to see it:
 ```bash
 pnpm --filter @langfuse/shared run test src/server/transcript --disableConsoleIntercept
 ```
+
+`currentTurn.nestingLevel` is the observation-tree depth of the first GENERATION
+that contributes retained messages to the current turn. All ancestor types count;
+fetched roots and observations with missing parents are level 0. Cyclic rows
+that cannot be reached by the tree walk also use level 0. Earlier conversation
+history, replay-only generations, later generations, and TOOL contributors do
+not determine the value. Ordering attaches depth without changing source observations.

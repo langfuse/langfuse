@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { evaluatorToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/evaluatorToEvaluatorSetupDraft";
 import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
@@ -22,11 +21,15 @@ export function useEvalTemplate({
   const managedTemplate = templateKey
     ? managedEvaluatorTemplateService.get(templateKey)
     : null;
-  const draft = managedTemplate
-    ? managedTemplateToEvaluatorSetupDraft(managedTemplate)
-    : projectEvaluator.data
-      ? evaluatorToEvaluatorSetupDraft(projectEvaluator.data)
-      : null;
+  const draft = (() => {
+    if (managedTemplate) {
+      return managedTemplateToEvaluatorSetupDraft(managedTemplate);
+    }
+    if (projectEvaluator.data) {
+      return evaluatorToEvaluatorSetupDraft(projectEvaluator.data);
+    }
+    return null;
+  })();
 
   return {
     draft:

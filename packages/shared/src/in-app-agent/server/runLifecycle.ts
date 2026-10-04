@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { LangfuseConflictError } from "../../index";
 import {
   InAppAgentRunErrorCode,
@@ -520,18 +519,21 @@ async function cancelRunInTransaction(params: {
   runId: string;
   runStatus: InAppAgentRunStatus;
 }): Promise<CancelRunResult> {
-  const immediateCancel =
-    params.runStatus === InAppAgentRunStatus.QUEUED
-      ? {
-          errorCode: InAppAgentRunErrorCode.CANCELLED,
-          errorMessage: "Cancelled before a worker picked the run up",
-        }
-      : params.runStatus === InAppAgentRunStatus.AWAITING_APPROVAL
-        ? {
-            errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
-            errorMessage: "Approval cancelled",
-          }
-        : null;
+  const immediateCancel = (() => {
+    if (params.runStatus === InAppAgentRunStatus.QUEUED) {
+      return {
+        errorCode: InAppAgentRunErrorCode.CANCELLED,
+        errorMessage: "Cancelled before a worker picked the run up",
+      };
+    }
+    if (params.runStatus === InAppAgentRunStatus.AWAITING_APPROVAL) {
+      return {
+        errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
+        errorMessage: "Approval cancelled",
+      };
+    }
+    return null;
+  })();
 
   if (immediateCancel) {
     const { count } = await params.tx.inAppAgentRun.updateMany({

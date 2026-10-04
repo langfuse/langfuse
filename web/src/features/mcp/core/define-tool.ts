@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
-import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
+import type { ApiAction } from "@/src/features/public-api/server";
 import type { ServerContext } from "../types";
 
 /**
