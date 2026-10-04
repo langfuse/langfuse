@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useFormState, useWatch, type UseFormReturn } from "react-hook-form";
 import { useStore } from "zustand";
 import {
@@ -168,6 +168,8 @@ export function AnnotationScoreRow({
 }) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState<string | null>(null);
+  const commentDraftRef = useRef(commentDraft);
+  commentDraftRef.current = commentDraft;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
@@ -221,6 +223,41 @@ export function AnnotationScoreRow({
       actions.saveNumeric(fieldKey, target, input);
     else if (input) actions.saveText(fieldKey, target);
   };
+  useEffect(() => {
+    if (!isActive || !score.id) {
+      actions.registerPendingCommentFlush(fieldKey, null);
+      return;
+    }
+    const savedComment = score.comment ?? null;
+    const localValue = commentDraftRef.current ?? savedComment ?? "";
+    const hasPending =
+      localValue.trim() !== (savedComment ?? "").trim();
+    if (!hasPending) {
+      actions.registerPendingCommentFlush(fieldKey, null);
+      return;
+    }
+    actions.registerPendingCommentFlush(fieldKey, () => {
+      const currentScore = form.getValues(`scoreData.${index}`);
+      if (!currentScore?.id) return;
+      const saved = currentScore.comment ?? null;
+      const draft = commentDraftRef.current;
+      const nextValue = (draft ?? saved ?? "").trim();
+      if (nextValue === (saved ?? "").trim()) return;
+      actions.saveComment(fieldKey, target, nextValue || null);
+      setCommentDraft(null);
+    });
+    return () => actions.registerPendingCommentFlush(fieldKey, null);
+  }, [
+    actions,
+    commentDraft,
+    fieldKey,
+    form,
+    index,
+    isActive,
+    score.comment,
+    score.id,
+    target,
+  ]);
   return (
     <Form {...form} formState={fieldState}>
       <div

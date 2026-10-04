@@ -1,5 +1,10 @@
 import { Card } from "@/src/components/ui/card";
-import { AnnotationForm, type ScoreTarget } from "@/src/features/scores";
+import {
+  AnnotationForm,
+  type AnnotationRefreshHandle,
+  type ScoreTarget,
+} from "@/src/features/scores";
+import type { Ref } from "react";
 import {
   type AnnotationQueueItem,
   type ScoreDomain,
@@ -20,11 +25,20 @@ interface AnnotationDrawerSectionProps {
   configs: ScoreConfigDomain[];
   environment?: string;
   isV4: boolean;
+  annotationRefreshRef?: Ref<AnnotationRefreshHandle>;
 }
 
 export const AnnotationDrawerSection: React.FC<
   AnnotationDrawerSectionProps
-> = ({ item, scoreTarget, scores, configs, environment, isV4 }) => {
+> = ({
+  item,
+  scoreTarget,
+  scores,
+  configs,
+  environment,
+  isV4,
+  annotationRefreshRef,
+}) => {
   const session = useSession();
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
@@ -37,6 +51,7 @@ export const AnnotationDrawerSection: React.FC<
     <Card className="col-span-2 flex h-full flex-col overflow-y-auto border-none p-3 [--annotation-surface:var(--card)]">
       <AnnotationForm
         key={"annotation-drawer-content" + item.objectId}
+        refreshRef={annotationRefreshRef}
         scoreTarget={scoreTarget}
         serverScores={scores}
         configSelection={{ mode: "fixed", configs }}

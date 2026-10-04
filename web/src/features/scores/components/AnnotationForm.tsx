@@ -151,6 +151,7 @@ export function AnnotationFormContent({
   });
   useImperativeHandle(refreshRef, () => ({
     focus,
+    flushPendingEdits: () => actions.flushPendingEdits(),
     refresh(data) {
       const refreshed = targets.flatMap((target) => {
         const primary =
