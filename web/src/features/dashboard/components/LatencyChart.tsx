@@ -34,6 +34,7 @@ export const GenerationLatencyChart = ({
   metricsVersion,
   schedulerId,
   syncId,
+  sync,
 }: {
   className?: string;
   projectId: string;
@@ -45,6 +46,10 @@ export const GenerationLatencyChart = ({
   metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) => {
   const { allModels, selectedModels, setSelectedModels } = useModelSelection(
     projectId,
@@ -178,6 +183,7 @@ export const GenerationLatencyChart = ({
                       label="Latency"
                       unit="millisecond"
                       syncId={syncId}
+                      sync={sync}
                       missingValue="gap"
                     />
                   </div>

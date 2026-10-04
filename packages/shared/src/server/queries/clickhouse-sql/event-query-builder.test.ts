@@ -5,6 +5,7 @@ import {
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
 } from "./event-query-builder";
 
 describe("EventsQueryBuilder public API v2 field groups", () => {
@@ -109,6 +110,24 @@ describe("EventsSessionAggregationQueryBuilder", () => {
 
     expect(query).not.toContain("metadata_names");
     expect(query).not.toContain("metadata_values");
+    expect(query).not.toContain("tool_definitions");
+    expect(query).not.toContain("tool_calls");
+  });
+
+  it("selects tool aggregates only when requested", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base", "tools")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names",
+    );
+    expect(query).toContain(
+      "groupUniqArrayArray(tool_call_names) AS called_tool_names",
+    );
+    expect(query).toContain("sum(length(tool_calls)) AS tool_calls_count");
   });
 });
 
@@ -218,6 +237,20 @@ describe("buildEventsFullTableSplitQuery", () => {
     );
     expect(query).toContain(
       'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
+  });
+});
+
+describe("ExperimentsAggregationQueryBuilder", () => {
+  it("reads non propagated experiment-level attributes from experiment item root spans", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
     );
   });
 });

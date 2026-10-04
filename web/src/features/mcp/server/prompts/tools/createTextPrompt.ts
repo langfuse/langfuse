@@ -13,7 +13,7 @@ import {
   COMMIT_MESSAGE_MAX_LENGTH,
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
-import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { createPromptForApi } from "@/src/features/prompts/server";
 import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ParamCreatePromptLabels } from "../validation";
@@ -99,6 +99,7 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
       fn: async (span) => {
         const createdPrompt = await createPromptForApi({
           context,
+          ctx: context.auth,
           input: CreatePromptSchema.parse({
             name: input.name,
             type: PromptType.Text,

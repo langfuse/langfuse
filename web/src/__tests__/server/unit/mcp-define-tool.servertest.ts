@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
 import { defineTool } from "../../../features/mcp/core/define-tool";
 
 describe("defineTool", () => {

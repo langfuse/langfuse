@@ -36,9 +36,9 @@ export const BillingScheduleNotification = (
       <div className="flex gap-2 pl-3">
         <InfoIcon className="mt-1 h-4 w-4 shrink-0" />
         <div>
-          <div className="leading-5">{`Your organization is scheduled to switch from ${props.planLabel} to ${props.scheduledPlanSwitch.newPlanLabel} on ${props.scheduledPlanSwitch.formatted}.`}</div>
+          <div>{`Your organization is scheduled to switch from ${props.planLabel} to ${props.scheduledPlanSwitch.newPlanLabel} on ${props.scheduledPlanSwitch.formatted}.`}</div>
           {props.scheduledPlanSwitch.message && (
-            <div className="mt-2 leading-5 text-blue-800 dark:text-blue-300">
+            <div className="mt-2 text-blue-800 dark:text-blue-300">
               {props.scheduledPlanSwitch.message}
             </div>
           )}

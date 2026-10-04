@@ -1,10 +1,13 @@
-/* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import {
+  selectHasValidModel,
+  type EvaluatorSetupStore,
+} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { EvaluatorSetupFooterView } from "./EvaluatorSetupFooterView";
 
 export function EvaluatorSetupFooter({
@@ -32,6 +35,7 @@ export function EvaluatorSetupFooter({
     promptMessagesReason,
     scoreOutputReason,
     nameMissing,
+    hasValidModel,
   } = useStore(
     store,
     useShallow((state) => {
@@ -58,22 +62,30 @@ export function EvaluatorSetupFooter({
             ? getScoreOutputValidation(state.scoreOutput).reason
             : null,
         nameMissing: !state.name.trim(),
+        hasValidModel: selectHasValidModel(state),
       };
     }),
   );
   const hasUnsavedChanges = currentSnapshot !== initialSnapshot;
-  const disabledReason =
-    nameMissing && !nameAIAssistanceAvailable
-      ? "Add an evaluator name before saving."
-      : promptMessagesReason
-        ? promptMessagesReason
-        : scoreOutputReason
-          ? scoreOutputReason
-          : codeValidation &&
-              !codeValidation.isPending &&
-              !codeValidation.isValid
-            ? "Fix the code validation errors before saving."
-            : null;
+  const disabledReason = (() => {
+    if (nameMissing && !nameAIAssistanceAvailable) {
+      return "Add an evaluator name before saving.";
+    }
+    if (promptMessagesReason) {
+      return promptMessagesReason;
+    }
+    if (scoreOutputReason) {
+      return scoreOutputReason;
+    }
+    if (
+      codeValidation &&
+      !codeValidation.isPending &&
+      !codeValidation.isValid
+    ) {
+      return "Fix the code validation errors before saving.";
+    }
+    return null;
+  })();
   const saveDisabled =
     !canSubmit ||
     Boolean(
@@ -98,8 +110,23 @@ export function EvaluatorSetupFooter({
   }
 
   return (
-    <EvaluatorSetupFooterView mode="create" {...sharedProps}>
-      Next: attach a rule to run this evaluator on incoming observations.
-    </EvaluatorSetupFooterView>
+    <ConfirmationDialogController
+      title="Create evaluator without a model?"
+      text="This evaluator won't be able to run until a model is configured. Do you want to create it anyway?"
+      confirmLabel="Create anyway"
+      variant="default"
+      loading={isSaving}
+      onConfirm={onSave}
+    >
+      {({ openDialog }) => (
+        <EvaluatorSetupFooterView
+          mode="create"
+          {...sharedProps}
+          onSave={hasValidModel ? onSave : openDialog}
+        >
+          Next: attach a rule to run this evaluator on incoming observations.
+        </EvaluatorSetupFooterView>
+      )}
+    </ConfirmationDialogController>
   );
 }

@@ -1,6 +1,5 @@
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type DefaultViewScope } from "@langfuse/shared/src/server";
 
 interface UseDefaultViewMutationsProps {

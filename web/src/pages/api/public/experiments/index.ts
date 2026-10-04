@@ -8,8 +8,7 @@ import {
   GetExperimentsV1Response,
 } from "@/src/features/public-api/types/experiments";
 import { listExperimentsForPublicApi } from "@/src/features/experiments/server/public";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Experiments",

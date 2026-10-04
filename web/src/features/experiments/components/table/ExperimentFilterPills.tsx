@@ -6,7 +6,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { ListFilter, ChevronsUpDown, X, Check } from "lucide-react";
+import { ListFilter, X, Check } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useMemo, useState } from "react";
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -103,7 +104,7 @@ function FilterPillWithTarget({
             <span className="max-w-[100px] truncate" title={experimentName}>
               {experimentName}
             </span>
-            <ChevronsUpDown className="h-3 w-3 opacity-50" />
+            <DropdownIndicator direction="up-down" size="sm" nudge />
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-1" align="start">

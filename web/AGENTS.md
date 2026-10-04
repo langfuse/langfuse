@@ -91,6 +91,11 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Web Conventions
 
+- Before creating a new component or reusing one from elsewhere in
+  `src/components`, first check `src/components/design-system` for an existing
+  component that satisfies the use case. Prefer the design-system component
+  and extend it when appropriate; use another component only when the design
+  system has no suitable option.
 - **Before adding or modifying a chart, dashboard, or chart formatter, read
   `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
   manifesto. It owns the data → preparer → visualiser contract: presentation
@@ -295,6 +300,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 5. Inspect traces and other artifacts under `/tmp/playwright-mcp` when a browser session fails.
 
 ## Package-Specific Rules
+
+- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags.
 
 - Router style is Pages Router-centric; follow existing routing patterns.
 - In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the

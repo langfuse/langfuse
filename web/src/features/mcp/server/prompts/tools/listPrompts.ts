@@ -13,7 +13,7 @@ import {
   ParamPromptTag,
 } from "../validation";
 import { ParamLimit, ParamPage } from "../../../core/validation";
-import { listPromptsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { listPromptsForApi } from "@/src/features/prompts/server";
 import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { paginationMeta } from "../../publicApi";

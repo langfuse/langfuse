@@ -24,8 +24,6 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
-  ChevronsUpDown,
-  ChevronDownIcon,
   ExternalLink,
   Grid2X2,
   HardDriveDownload,
@@ -34,6 +32,7 @@ import {
   Newspaper,
   X,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SiGithub } from "react-icons/si";
 import { VERSION } from "@/src/constants";
 import {
@@ -63,7 +62,7 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
@@ -212,7 +211,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-2 pr-3 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -292,7 +291,9 @@ function MobileNavSwitcher({
                   >
                     {organization.name}
                   </span>
-                  <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                  <span className="ml-auto flex shrink-0">
+                    <DropdownIndicator />
+                  </span>
                 </SidebarMenuButton>
               )}
             </OrganizationDropdownMenu>
@@ -321,7 +322,9 @@ function MobileNavSwitcher({
                     >
                       {project.name}
                     </span>
-                    <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                    <span className="ml-auto flex shrink-0">
+                      <DropdownIndicator />
+                    </span>
                   </SidebarMenuButton>
                 )}
               </ProjectDropdownMenu>
@@ -478,10 +481,11 @@ function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar
-                size="lg"
+                size="md"
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
+                email={user.email}
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
@@ -491,7 +495,6 @@ function NavUser({
                   {user.email}
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -503,10 +506,11 @@ function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar
-                  size="lg"
+                  size="md"
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
+                  email={user.email}
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
@@ -589,13 +593,33 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     return assertUnreachable(update.updateType);
   }, [update]);
 
+  // Radix returns focus to the trigger when the menu closes, and the browser
+  // treats that programmatic focus as `:focus-visible`, so the Button's
+  // `focus-visible:ring-2` ring is left showing on the badge after a
+  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
+  // restore is suppressed only for an interaction that never used the keyboard.
+  //
+  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
+  // interaction, not only on the trigger: the menu is portalled, so once it is
+  // open every key event lands on the content instead. A mouse-opened menu
+  // closed with Escape or Enter is a keyboard interaction and must get focus
+  // back on the trigger.
+  const pointerOnly = React.useRef(false);
+  const noteKeyboardUse = () => {
+    pointerOnly.current = false;
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="xs"
-          className="h-5 max-w-full min-w-0 translate-y-0.5 py-0 text-[0.625rem] leading-none"
+          className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
+          onPointerDown={() => {
+            pointerOnly.current = true;
+          }}
+          onKeyDown={noteKeyboardUse}
         >
           <span className="truncate" title={versionText}>
             {versionText}
@@ -612,7 +636,19 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuContent
+        onClick={(e) => e.stopPropagation()}
+        // Both hooks are needed: Radix's DismissableLayer handles Escape before
+        // it reaches the content's own onKeyDown, while onKeyDown covers the
+        // arrow/Enter/typeahead keys used to pick an item.
+        onKeyDown={noteKeyboardUse}
+        onEscapeKeyDown={noteKeyboardUse}
+        onCloseAutoFocus={(event) => {
+          if (!pointerOnly.current) return;
+          pointerOnly.current = false;
+          event.preventDefault();
+        }}
+      >
         {update ? (
           <>
             <DropdownMenuLabel>

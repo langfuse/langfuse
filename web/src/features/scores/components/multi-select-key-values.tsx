@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Archive, ChevronDown, Component, Search } from "lucide-react";
+import { Archive, Component, Search } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -184,7 +185,7 @@ export function MultiSelectKeyValues<
           {iconLeft}
           {title}
           {iconRight}
-          <ChevronDown className="h-4 w-4 opacity-50" />
+          <DropdownIndicator nudge />
           {selectedValueKeys.size > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />

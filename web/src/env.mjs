@@ -383,7 +383,10 @@ export const env = createEnv({
 
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
+    // Bounds how long a revoked API key can still authenticate. Entries are
+    // not refreshed on read, so a key stops working at most one TTL after its
+    // last cache write. Shared with the policy-core authz context cache.
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(60),
 
     // The gateway data plane calls /resolve on every LLM request, so the
     // lookup is cached. The TTL bounds how long a revoked key or a disabled
@@ -530,7 +533,12 @@ export const env = createEnv({
     // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
     // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
     // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
-    LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+    // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+    // authenticates through the instance credential chain (GCP application
+    // default credentials) and takes no key.
+    LANGFUSE_AI_PROVIDER: z
+      .enum(["bedrock", "anthropic", "openai", "vertex"])
+      .optional(),
     LANGFUSE_AI_MODEL: z.string().optional(),
     LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
     LANGFUSE_AI_API_KEY: z.string().optional(),
@@ -558,6 +566,7 @@ export const env = createEnv({
         },
       ),
     LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
       .enum(["url", "inline", "disabled"])
@@ -1163,6 +1172,7 @@ export const env = createEnv({
     LANGFUSE_AI_USE_RESPONSES_API: process.env.LANGFUSE_AI_USE_RESPONSES_API,
     LANGFUSE_AI_EXTRA_HEADERS: process.env.LANGFUSE_AI_EXTRA_HEADERS,
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+    LANGFUSE_AI_VERTEX_LOCATION: process.env.LANGFUSE_AI_VERTEX_LOCATION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
       process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,

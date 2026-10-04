@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ChevronRight, Github, Plus, Slack, Webhook } from "lucide-react";
+import { Github, Plus, Slack, Webhook } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { automationCreateHref } from "@/src/features/automations/components/automationForm";
+import { automationCreateHref } from "@/src/features/automations";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */
@@ -74,7 +75,7 @@ export function MonitorsOnboarding({
                         {channel.icon}
                         {channel.label}
                       </span>
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      <DropdownIndicator direction="right" />
                     </Link>
                   </Button>
                 ))}

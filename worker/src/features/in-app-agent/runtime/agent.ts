@@ -1130,7 +1130,7 @@ async function createMastraAdapter(params: {
   onToolExecutionEnd?: (toolCallId: string) => void;
   stepLimitState: StepLimitState;
 }) {
-  const languageModel = createInAppAgentLanguageModel({
+  const languageModel = await createInAppAgentLanguageModel({
     config: params.options.model,
     awsProfile: params.awsProfile,
   });
