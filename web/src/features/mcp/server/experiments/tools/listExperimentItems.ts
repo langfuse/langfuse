@@ -1,4 +1,4 @@
-import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server/public/service";
+import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server";
 import { GetExperimentItemsV1Response } from "@/src/features/public-api/server";
 import { buildObservationUrl } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";

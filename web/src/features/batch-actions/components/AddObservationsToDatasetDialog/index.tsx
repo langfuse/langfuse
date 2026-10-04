@@ -1,4 +1,6 @@
-import { Button } from "@/src/components/ui/button";
+import { useRef, useState } from "react";
+import { useStore } from "zustand";
+import { parseJsonPrioritised, type BatchActionQuery } from "@langfuse/shared";
 import {
   Dialog,
   DialogContent,
@@ -6,182 +8,171 @@ import {
   DialogTitle,
   DialogDescription,
   DialogBody,
-  DialogFooter,
 } from "@/src/components/ui/dialog";
-import { ChevronLeft } from "lucide-react";
-
-// Step components
-import { DatasetChoiceStep } from "./DatasetChoiceStep";
-import { DatasetSelectStep } from "./DatasetSelectStep";
+import { api, sendAsPostOption } from "@/src/utils/api";
+import { showErrorToast } from "@/src/features/notifications";
 import { DatasetCreateStep } from "./DatasetCreateStep";
-import { MappingStep } from "./MappingStep";
-import { FinalPreviewStep } from "./FinalPreviewStep";
+import { DatasetMappingEditor } from "./DatasetMappingEditor";
 import { StatusStep } from "./StatusStep";
-
-// Hook
-import {
-  useAddToDatasetWizard,
-  type UseAddToDatasetWizardProps,
-} from "./useAddToDatasetWizard";
+import { createDatasetMappingStore } from "./datasetMappingStore";
+import { submitDatasetBatch } from "./submitDatasetBatch";
+import type { ObservationPreviewData } from "./types";
 
 type AddObservationsToDatasetDialogProps = {
   projectId: string;
   onClose: () => void;
-} & UseAddToDatasetWizardProps;
+  onSuccess: () => void;
+  selectedObservationIds: string[];
+  query: BatchActionQuery;
+  selectAll: boolean;
+  totalCount: number;
+  isV4: boolean;
+  exampleObservation: { id: string; traceId: string; startTime?: Date };
+};
+
+function normalizeValue(value: unknown) {
+  if (typeof value !== "string") return value;
+  const parsed = parseJsonPrioritised(value);
+  return parsed === undefined ? value : parsed;
+}
 
 export function AddObservationsToDatasetDialog(
   props: AddObservationsToDatasetDialogProps,
 ) {
-  const { projectId, onClose } = props;
-
-  const {
-    state,
-    formRef,
-    observationData,
-    isLoadingObservation,
-    displayCount,
-    selectMode,
-    goBack,
-    goToStep,
-    handleNextClick,
-    handleDatasetSelect,
-    handleDatasetCreated,
-    handleInputConfigChange,
-    handleOutputConfigChange,
-    handleMetadataConfigChange,
-    handleCreateValidationChange,
-    handleInputValidationChange,
-    handleOutputValidationChange,
-    isNextDisabled,
-    nextButtonLabel,
-    dialogDescription,
-    showBackButton,
-    canClose,
-    isLoading,
-  } = useAddToDatasetWizard(props);
-
-  const { step } = state;
-
+  const [source] = useState(() => ({
+    selectedObservationIds: [...props.selectedObservationIds],
+    query: props.query,
+    selectAll: props.selectAll,
+    totalCount: props.totalCount,
+    exampleObservation: props.exampleObservation,
+    isV4: props.isV4,
+  }));
+  const [store] = useState(createDatasetMappingStore);
+  const screen = useStore(store, (state) => state.screen);
+  const submission = useStore(store, (state) => state.submission);
+  const createPending = useRef(false);
+  const count = source.selectAll
+    ? source.totalCount
+    : source.selectedObservationIds.length;
+  const example = source.exampleObservation;
+  const datasets = api.datasets.allDatasetMeta.useQuery({
+    projectId: props.projectId,
+  });
+  const observationQuery = api.observations.byId.useQuery(
+    {
+      projectId: props.projectId,
+      observationId: example.id,
+      traceId: example.traceId,
+      startTime: example.startTime,
+    },
+    { enabled: !source.isV4 && Boolean(example.id && example.traceId) },
+  );
+  const eventQuery = api.events.batchIO.useQuery(
+    {
+      projectId: props.projectId,
+      observations: [{ id: example.id, traceId: example.traceId }],
+      minStartTime: example.startTime as Date,
+      maxStartTime: example.startTime as Date,
+      truncated: false,
+    },
+    {
+      ...sendAsPostOption,
+      enabled:
+        source.isV4 &&
+        Boolean(example.id && example.traceId && example.startTime),
+    },
+  );
+  const raw = source.isV4 ? eventQuery.data?.[0] : observationQuery.data;
+  const observation: ObservationPreviewData | null = raw
+    ? {
+        id: example.id,
+        input: normalizeValue(raw.input),
+        output: normalizeValue(raw.output),
+        metadata: normalizeValue(raw.metadata),
+      }
+    : null;
+  const previewQuery = source.isV4 ? eventQuery : observationQuery;
+  const mutation = api.batchAction.addToDataset.create.useMutation({
+    onError: (error) =>
+      showErrorToast("Failed to schedule action", error.message),
+  });
   return (
-    <Dialog open onOpenChange={(open) => !open && canClose && onClose()}>
-      <DialogContent className="flex max-h-[90vh] max-w-6xl flex-col">
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (
+          !open &&
+          store.getState().submission.status !== "pending" &&
+          !createPending.current
+        )
+          props.onClose();
+      }}
+    >
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>
-            Add {displayCount} Observation(s) to dataset
-            {!["select", "create", "choice"].includes(step)
-              ? " " + state.dataset.name
-              : ""}
+            {screen === "create"
+              ? "Create dataset"
+              : `Add ${count} observation${count === 1 ? "" : "s"} to dataset`}
           </DialogTitle>
-          <DialogDescription className="mt-1">
-            {dialogDescription}
+          <DialogDescription>
+            {screen === "create"
+              ? "Create a dataset, then review the values to add."
+              : "Choose a dataset and review how each observation becomes a dataset item."}
           </DialogDescription>
         </DialogHeader>
-
-        <DialogBody className="flex-1 overflow-y-auto p-0">
-          {step === "choice" && <DatasetChoiceStep onSelectMode={selectMode} />}
-
-          {step === "select" && (
-            <DatasetSelectStep
-              projectId={projectId}
-              dataset={state.dataset}
-              onDatasetSelect={handleDatasetSelect}
+        {submission.status === "scheduled" && (
+          <DialogBody>
+            <StatusStep
+              projectId={props.projectId}
+              batchActionId={submission.batchActionId}
+              dataset={submission.dataset}
+              expectedCount={count}
+              onClose={props.onClose}
             />
-          )}
-
-          {step === "create" && (
-            <DatasetCreateStep
-              projectId={projectId}
-              formRef={formRef}
-              onDatasetCreated={handleDatasetCreated}
-              onValidationChange={handleCreateValidationChange}
-            />
-          )}
-
-          {step === "input-mapping" && (
-            <MappingStep
-              field="input"
-              fieldLabel="Input"
-              defaultSourceField="input"
-              config={state.mapping.input}
-              onConfigChange={handleInputConfigChange}
-              observationData={observationData}
-              isLoading={isLoadingObservation}
-              schema={state.dataset.inputSchema}
-              onValidationChange={handleInputValidationChange}
-            />
-          )}
-
-          {step === "output-mapping" && (
-            <MappingStep
-              field="expectedOutput"
-              fieldLabel="Expected Output"
-              defaultSourceField="output"
-              config={state.mapping.expectedOutput}
-              onConfigChange={handleOutputConfigChange}
-              observationData={observationData}
-              isLoading={isLoadingObservation}
-              schema={state.dataset.expectedOutputSchema}
-              onValidationChange={handleOutputValidationChange}
-            />
-          )}
-
-          {step === "metadata-mapping" && (
-            <MappingStep
-              field="metadata"
-              fieldLabel="Metadata"
-              defaultSourceField="metadata"
-              config={state.mapping.metadata}
-              onConfigChange={handleMetadataConfigChange}
-              observationData={observationData}
-              isLoading={isLoadingObservation}
-            />
-          )}
-
-          {step === "preview" && state.dataset.id && state.dataset.name && (
-            <FinalPreviewStep
-              dataset={{ id: state.dataset.id, name: state.dataset.name }}
-              mapping={state.mapping}
-              observationData={observationData}
-              totalCount={displayCount}
-              onEditStep={goToStep}
-            />
-          )}
-
-          {step === "status" &&
-            state.submission.batchActionId &&
-            state.dataset.id &&
-            state.dataset.name && (
-              <StatusStep
-                projectId={projectId}
-                batchActionId={state.submission.batchActionId}
-                dataset={{ id: state.dataset.id, name: state.dataset.name }}
-                expectedCount={displayCount}
-                onClose={onClose}
-              />
-            )}
-        </DialogBody>
-
-        {/* Footer with navigation buttons */}
-        {step !== "status" && step !== "choice" && (
-          <DialogFooter className="flex justify-between">
-            <div className="grow">
-              {showBackButton && (
-                <Button type="button" variant="ghost" onClick={goBack}>
-                  <ChevronLeft className="mr-1 h-4 w-4" />
-                  Back
-                </Button>
-              )}
-            </div>
-            <div>
-              <Button
-                onClick={handleNextClick}
-                disabled={isNextDisabled}
-                loading={isLoading}
-              >
-                {nextButtonLabel}
-              </Button>
-            </div>
-          </DialogFooter>
+          </DialogBody>
+        )}
+        {submission.status !== "scheduled" && screen === "create" && (
+          <DatasetCreateStep
+            projectId={props.projectId}
+            onDatasetCreated={(dataset) => {
+              store.getState().actions.datasetCreated(dataset);
+            }}
+            onSubmittingChange={(pending) => {
+              createPending.current = pending;
+            }}
+            onCancel={() => store.getState().actions.setScreen("compose")}
+          />
+        )}
+        {submission.status !== "scheduled" && screen === "compose" && (
+          <DatasetMappingEditor
+            store={store}
+            datasets={datasets.data ?? []}
+            loading={datasets.isLoading || previewQuery.isLoading}
+            unavailable={
+              datasets.isError ||
+              previewQuery.isError ||
+              (!previewQuery.isLoading && !observation)
+            }
+            onRetry={() => {
+              datasets.refetch();
+              previewQuery.refetch();
+            }}
+            observation={observation}
+            count={count}
+            onClose={props.onClose}
+            onSubmit={(dataset) =>
+              submitDatasetBatch({
+                projectId: props.projectId,
+                store,
+                dataset,
+                observation,
+                source,
+                submit: mutation.mutateAsync,
+                onSuccess: props.onSuccess,
+              })
+            }
+          />
         )}
       </DialogContent>
     </Dialog>

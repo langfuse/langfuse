@@ -26,6 +26,7 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
   BaseError,
+  ApiError,
 } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 
@@ -199,6 +200,17 @@ describe("MCP Error Formatting", () => {
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
         expect(mcpError.message).toContain("Authentication failed");
         expect(mcpError.message).toContain("API key");
+      });
+
+      it("should pass through ApiError 401 message for connection auth", () => {
+        const error = new ApiError(
+          "Invalid credentials. Confirm that you've configured the correct host.",
+          401,
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+        expect(mcpError.message).toContain("Invalid credentials");
       });
 
       it("should format ForbiddenError with permission message", () => {

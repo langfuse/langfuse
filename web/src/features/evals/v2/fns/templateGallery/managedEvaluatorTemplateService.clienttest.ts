@@ -19,6 +19,7 @@ describe("managedEvaluatorTemplateService", () => {
       "out-of-scope-request",
       "quality-criterion",
       "topic-classifier",
+      "topic-decision-model",
     ]);
     expect(codeTemplates.categories.length).toBeGreaterThan(0);
   });

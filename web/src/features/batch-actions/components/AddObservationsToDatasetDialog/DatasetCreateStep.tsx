@@ -1,27 +1,22 @@
 import { DatasetForm } from "@/src/features/datasets";
-import type { DatasetCreateStepProps } from "./types";
+import type { DatasetInfo } from "./types";
 
-export function DatasetCreateStep(props: DatasetCreateStepProps) {
-  const { projectId, formRef, onDatasetCreated, onValidationChange } = props;
+export function DatasetCreateStep(props: {
+  projectId: string;
+  onDatasetCreated: (dataset: DatasetInfo) => void;
+  onSubmittingChange: (pending: boolean) => void;
+  onCancel: () => void;
+}) {
+  const { projectId, onDatasetCreated, onSubmittingChange, onCancel } = props;
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h3 className="text-lg font-bold">Create New Dataset</h3>
-        <p className="text-muted-foreground text-sm">
-          Fill in the details to create a new dataset
-        </p>
-      </div>
-
-      <DatasetForm
-        ref={formRef}
-        projectId={projectId}
-        mode="create"
-        redirectOnSuccess={false}
-        showFooter={false}
-        onCreateDatasetSuccess={onDatasetCreated}
-        onValidationChange={onValidationChange}
-      />
-    </div>
+    <DatasetForm
+      projectId={projectId}
+      mode="create"
+      redirectOnSuccess={false}
+      onCreateDatasetSuccess={onDatasetCreated}
+      onSubmittingChange={onSubmittingChange}
+      onCancel={onCancel}
+    />
   );
 }

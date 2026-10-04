@@ -1,4 +1,4 @@
-import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
+import { submitFeedback } from "@/src/features/feedback/server";
 import { PostFeedbackBody } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";

@@ -122,11 +122,11 @@ import { cn } from "@/src/utils/tailwind";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
-const TracesTable = lazy(
-  () => import("@/src/components/table/use-cases/traces"),
-);
-const ObservationsTable = lazy(
-  () => import("@/src/components/table/use-cases/observations"),
+const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));
+const ObservationsTable = lazy(() =>
+  import("@/src/features/tracing-tables").then((m) => ({
+    default: m.ObservationsTable,
+  })),
 );
 
 const EventsTable = lazy(
@@ -689,11 +689,15 @@ export const InnerEvaluatorForm = (props: {
 
     // For modern targets, derive status from runOnLive
     const isModern = !isLegacyEvalTarget(values.target);
-    const status = isModern
-      ? values.runOnLive
-        ? JobConfigState.ACTIVE
-        : JobConfigState.INACTIVE
-      : undefined;
+    const status = (() => {
+      if (isModern) {
+        if (values.runOnLive) {
+          return JobConfigState.ACTIVE;
+        }
+        return JobConfigState.INACTIVE;
+      }
+      return undefined;
+    })();
 
     (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
@@ -914,7 +918,6 @@ export const InnerEvaluatorForm = (props: {
                                 Traces
                                 <Badge
                                   variant="secondary"
-                                  size="sm"
                                   className="border-border border font-normal"
                                 >
                                   Legacy
@@ -995,7 +998,6 @@ export const InnerEvaluatorForm = (props: {
                           Low-level SDK methods
                           <Badge
                             variant="secondary"
-                            size="sm"
                             className="border-border border font-normal"
                           >
                             Legacy

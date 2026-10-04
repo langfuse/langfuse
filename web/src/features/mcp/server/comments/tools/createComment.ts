@@ -1,6 +1,6 @@
 import { CommentObjectType } from "@langfuse/shared";
 import { z } from "zod";
-import { createCommentForApi } from "@/src/features/comments/server/publicCommentService";
+import { createCommentForApi } from "@/src/features/comments/server";
 import {
   PostCommentsV1Body,
   PostCommentsV1Response,

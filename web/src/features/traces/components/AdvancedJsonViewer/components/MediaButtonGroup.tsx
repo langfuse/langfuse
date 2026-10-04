@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { File, Image as ImageIcon, Volume2, Video } from "lucide-react";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import {
@@ -90,6 +90,7 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     },
     {
       enabled: Boolean(projectId),
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,

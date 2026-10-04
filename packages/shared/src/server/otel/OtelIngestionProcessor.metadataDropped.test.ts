@@ -58,7 +58,10 @@ const createProcessor = () =>
     sdkVersion: "3.8.1",
   });
 
-type OtelAttribute = { key: string; value: Record<string, unknown> };
+type OtelAttribute = {
+  key: string;
+  value: Record<string, unknown> | null | undefined;
+};
 
 const buildBatch = (attributes: OtelAttribute[]): ResourceSpan[] => [
   {
@@ -97,6 +100,23 @@ const buildBatch = (attributes: OtelAttribute[]): ResourceSpan[] => [
   },
 ];
 
+const getObservations = async (path: "v3" | "v4", batch: ResourceSpan[]) => {
+  const processor = createProcessor();
+  if (path === "v4") {
+    return processor.processToEvent(batch);
+  }
+
+  return (await processor.processToIngestionEvents(batch))
+    .filter((event) => event.type === "span-create")
+    .map((event) => event.body);
+};
+
+const rawEmptyAttributes = (prefix: string) => [
+  { key: `${prefix}.missing`, value: undefined },
+  { key: `${prefix}.null`, value: null },
+  { key: `${prefix}.empty`, value: {} },
+];
+
 const droppedCalls = () =>
   recordIncrementMock.mock.calls.filter(([stat]) => stat === METRIC);
 
@@ -126,7 +146,7 @@ describe("gateway metadata", () => {
     ["v3", "other-instrumentation"],
     ["v4", "other-instrumentation"],
   ])(
-    "preserves canonical fields and metadata for %s %s",
+    "preserves canonical fields and non-duplicate metadata for %s %s",
     async (path, scope) => {
       const completionStartTime = "2025-07-13T05:20:00.500Z";
       const modelParameters = {
@@ -145,6 +165,11 @@ describe("gateway metadata", () => {
         "langfuse.observation.usage_details": JSON.stringify(usageDetails),
         "langfuse.observation.cost_details": JSON.stringify({ total: 0.001 }),
         "langfuse.observation.completion_start_time": completionStartTime,
+        "user.id": "user-test",
+        "session.id": "session-test",
+        "langfuse.trace.name": "trace-test",
+        "langfuse.trace.tags": JSON.stringify(["tag-a", "tag-b"]),
+        "langfuse.environment": "staging",
       };
       const batch = buildBatch(
         Object.entries({
@@ -178,11 +203,16 @@ describe("gateway metadata", () => {
           reasoning: '{"effort":"low"}',
         },
         completionStartTime,
+        environment: "staging",
         input: '[{"role":"user","content":"Hi"}]',
         output: '[{"type":"message","content":[]}]',
         ...(path === "v4"
           ? {
               type: "GENERATION",
+              userId: "user-test",
+              sessionId: "session-test",
+              traceName: "trace-test",
+              tags: ["tag-a", "tag-b"],
               modelName: "test-model",
               providedUsageDetails: usageDetails,
               providedCostDetails: { total: 0.001 },
@@ -210,6 +240,168 @@ describe("gateway metadata", () => {
       });
     },
   );
+});
+
+describe("raw OTLP empty attribute values", () => {
+  it.each(["v3", "v4"] as const)(
+    "omits missing and empty values while preserving fallbacks and siblings on %s",
+    async (path) => {
+      const batch = buildBatch([
+        { key: "ai.operationId", value: undefined },
+        { key: "ai.prompt.messages", value: null },
+        { key: "ai.prompt", value: { stringValue: "prompt-fallback" } },
+        { key: "ai.result.text", value: {} },
+        {
+          key: "ai.response.object",
+          value: { stringValue: "response-fallback" },
+        },
+        { key: "gen_ai.usage.prompt_tokens", value: null },
+        { key: "gen_ai.usage.input_tokens", value: { intValue: "42" } },
+        { key: "gen_ai.usage.completion_tokens", value: {} },
+        { key: "gen_ai.usage.output_tokens", value: { intValue: "7" } },
+        {
+          key: "langfuse.observation.metadata.encodedNull",
+          value: { stringValue: null },
+        },
+      ]);
+      batch[0].resource!.attributes!.push(...rawEmptyAttributes("resource"), {
+        key: "resource.inheritedEmpty",
+        value: Object.create({ stringValue: null }),
+      });
+      const scopeSpan = batch[0].scopeSpans![0];
+      scopeSpan.scope!.name = "ai";
+      scopeSpan.scope!.attributes!.push(...rawEmptyAttributes("scope"));
+      scopeSpan.spans!.push({
+        ...scopeSpan.spans![0],
+        traceId: Buffer.from("fedcba9876543210fedcba9876543210", "hex"),
+        spanId: Buffer.from("fedcba9876543210", "hex"),
+        name: "sibling-span",
+        attributes: [
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "span" },
+          },
+        ],
+      });
+
+      const observations = await getObservations(path, batch);
+      const primary = observations.find(
+        (observation) => observation.name === "test-span",
+      );
+      const sibling = observations.find(
+        (observation) => observation.name === "sibling-span",
+      );
+
+      expect(primary).toMatchObject({
+        name: "test-span",
+        input: "prompt-fallback",
+        output: "response-fallback",
+        ...(path === "v4"
+          ? { providedUsageDetails: { input: 42, output: 7 } }
+          : { usageDetails: { input: 42, output: 7 } }),
+      });
+      expect(primary?.metadata).toMatchObject({
+        encodedNull: null,
+        resourceAttributes: { "service.name": "test-svc" },
+        scope: { attributes: { public_key: "pk-test" } },
+      });
+      expect(primary?.metadata?.resourceAttributes).toEqual({
+        "service.name": "test-svc",
+      });
+      expect(primary?.metadata?.scope?.attributes).toEqual({
+        public_key: "pk-test",
+      });
+      expect(primary?.metadata?.attributes).not.toHaveProperty([
+        "ai.operationId",
+      ]);
+      expect(sibling).toMatchObject({ name: "sibling-span" });
+    },
+  );
+
+  it("preserves typed array values, nested positions, and empty arrays", () => {
+    const batch = buildBatch([
+      {
+        key: "langfuse.observation.metadata.values",
+        value: {
+          arrayValue: {
+            values: [
+              { stringValue: "" },
+              { boolValue: false },
+              { intValue: "0" },
+              { doubleValue: 0 },
+              {},
+              null,
+              {
+                arrayValue: {
+                  values: [
+                    { stringValue: "nested" },
+                    {},
+                    null,
+                    { arrayValue: {} },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        key: "langfuse.observation.metadata.emptyArray",
+        value: { arrayValue: {} },
+      },
+    ]);
+
+    const observation = createProcessor().processToEvent(batch)[0];
+    expect(observation.metadata).toMatchObject({
+      values: ["", false, 0, 0, null, null, ["nested", null, null, []]],
+      emptyArray: [],
+    });
+  });
+
+  it("omits empty event attributes while preserving typed falsy values", () => {
+    const empty = [
+      { key: "missing", value: undefined },
+      { key: "null", value: null },
+      { key: "empty", value: {} },
+    ];
+    const falsy = [
+      { key: "enabled", value: { boolValue: false } },
+      { key: "zero", value: { intValue: "0" } },
+      { key: "blank", value: { stringValue: "" } },
+    ];
+    const batch = buildBatch([]);
+    batch[0].scopeSpans![0].spans![0].events = [
+      {
+        name: "gen_ai.system.message",
+        attributes: [
+          { key: "content", value: { stringValue: "system" } },
+          ...empty,
+          ...falsy,
+        ],
+      },
+      {
+        name: "gen_ai.choice",
+        attributes: [
+          { key: "text", value: { stringValue: "choice" } },
+          ...empty,
+          ...falsy,
+        ],
+      },
+    ];
+
+    expect(createProcessor().processToEvent(batch)[0]).toMatchObject({
+      input: [
+        {
+          role: "system",
+          content: "system",
+          enabled: false,
+          zero: 0,
+          blank: "",
+        },
+      ],
+      output: { text: "choice", enabled: false, zero: 0, blank: "" },
+    });
+  });
 });
 
 describe("OTel metadata_dropped metric", () => {

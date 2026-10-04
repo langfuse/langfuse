@@ -49,8 +49,8 @@ types:
         type: nullable<string>
         docs: The user identifier associated with the trace
       metadata:
-        type: optional<unknown>
-        docs: The metadata associated with the trace. Can be any JSON.
+        type: optional<map<string, unknown>>
+        docs: The metadata associated with the trace. Values can be any JSON; non-object metadata sent at ingestion is returned under the `metadata` key.
       tags:
         type: list<string>
         docs: The tags associated with the trace.
@@ -148,7 +148,7 @@ types:
         type: nullable<string>
         docs: The version of the observation
       metadata:
-        type: unknown
+        type: map<string, unknown>
         docs: Additional metadata of the observation
       output:
         type: unknown
@@ -309,7 +309,7 @@ types:
 
       # Metadata fields (field group: metadata)
       metadata:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: Additional metadata of the observation
 
       # Model fields (field group: model)
@@ -454,7 +454,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: unknown
+        type: map<string, unknown>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>
@@ -539,7 +539,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: unknown
+        type: map<string, unknown>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>
@@ -643,10 +643,10 @@ types:
         type: unknown
         docs: Metadata associated with the dataset
       inputSchema:
-        type: nullable<unknown>
+        type: nullable<map<string, unknown>>
         docs: JSON Schema for validating dataset item inputs
       expectedOutputSchema:
-        type: nullable<unknown>
+        type: nullable<map<string, unknown>>
         docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime

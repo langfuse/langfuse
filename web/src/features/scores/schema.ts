@@ -2,6 +2,7 @@ import { ANNOTATION_SCORE_DATA_TYPES_ARRAY } from "@/src/features/scores/types";
 import { z } from "zod";
 
 export const AnnotationScoreDataSchema = z.object({
+  targetKey: z.string().optional(),
   // Required for ClickHouse deduplication (not shown in UI)
   id: z.string().nullish(),
   timestamp: z.date().nullish(),

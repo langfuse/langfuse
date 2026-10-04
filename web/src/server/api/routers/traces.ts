@@ -1,8 +1,7 @@
-/* eslint-disable no-nested-ternary */
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { aggregateScores } from "@/src/features/scores/server";
 import {
   applyCommentFilters,
   traceException,
@@ -57,13 +56,13 @@ import {
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
+import { createBatchActionJob } from "@/src/features/table/server";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/features/trace-graph-view/server";
 import { env } from "@/src/env.mjs";
 import {
   toDomainWithStringifiedMetadata,
@@ -431,16 +430,24 @@ export const traceRouter = createTRPCRouter({
         .map((o) => o.endTime)
         .filter((t) => t)
         .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
-      const latencyMs =
-        obsStartTimes.length > 0
-          ? obsEndTimes.length > 0
-            ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+      const latencyMs = (() => {
+        if (obsStartTimes.length > 0) {
+          if (obsEndTimes.length > 0) {
+            return (
+              (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
               obsStartTimes[0]!.getTime()
-            : obsStartTimes.length > 1
-              ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-                obsStartTimes[0]!.getTime()
-              : undefined
-          : undefined;
+            );
+          }
+          if (obsStartTimes.length > 1) {
+            return (
+              obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+              obsStartTimes[0]!.getTime()
+            );
+          }
+          return undefined;
+        }
+        return undefined;
+      })();
 
       const scoresDomain =
         toDomainArrayWithStringifiedMetadata<ScoreDomain>(scores);

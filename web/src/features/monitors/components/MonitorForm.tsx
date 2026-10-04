@@ -4,7 +4,8 @@ import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
-import { ChevronDown, type LucideIcon, Plus } from "lucide-react";
+import { type LucideIcon, Plus } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
@@ -42,8 +43,8 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects";
 import { WidgetPropertySelectItem } from "@/src/features/widgets";
-import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
-import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { MetricsFilterBuilder } from "@/src/features/metrics";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { resolveMonitorNameForSave } from "@/src/features/monitors/fns/resolveMonitorNameForSave";
 import { cn } from "@/src/utils/tailwind";
@@ -69,8 +70,7 @@ import {
 } from "@langfuse/shared/monitors";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
-import TagManager from "@/src/features/tag/components/TagManager";
-
+import { TagManager } from "@/src/features/tag";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
@@ -752,7 +752,7 @@ export const MonitorForm = ({
                   <AccordionPrimitive.Item value="advanced">
                     <AccordionPrimitive.Header className="flex">
                       <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        <DropdownIndicator nudge />
                         Advanced Options
                       </AccordionPrimitive.Trigger>
                     </AccordionPrimitive.Header>
