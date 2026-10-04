@@ -9,7 +9,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
-import { throwIfApiKeyMissing } from "@/src/features/public-api/server/apiKeyNotFound";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -171,7 +171,11 @@ export const projectApiKeysRouter = createTRPCRouter({
           "PROJECT",
         );
       } catch (error) {
-        throwIfApiKeyMissing(error);
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("API key not found");
+        }
+
+        throw error;
       }
     }),
 });
