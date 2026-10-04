@@ -86,7 +86,7 @@ jobs:
           pnpm install -g vercel@54.7.0
 
           set +e
-          deploy_output=$(vercel deploy web/storybook-static --yes --scope langfuse 2>&1)
+            deploy_output=$(vercel deploy web/storybook-static --archive=tgz --yes --scope langfuse 2>&1)
           deploy_status=$?
           set -e
 

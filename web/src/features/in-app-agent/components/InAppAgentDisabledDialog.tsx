@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations";
 
 export function InAppAgentDisabledDialog({
   open,

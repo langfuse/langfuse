@@ -18,10 +18,10 @@ import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import {
@@ -82,11 +82,15 @@ const PeekViewEvaluatorConfigDetail = ({
     isLegacyEvalTarget(evalConfig.targetObject) &&
     (readOnly || legacyEditingDisabled);
   const editModeDisabled = readOnly || !hasAccess || legacyEditingDisabled;
-  const editModeDisabledReason = readOnly
-    ? "This legacy evaluator is inactive and can only be viewed or deleted"
-    : legacyEditingDisabled
-      ? "Deprecated evaluators are only available in read-only mode"
-      : undefined;
+  const editModeDisabledReason = (() => {
+    if (readOnly) {
+      return "This legacy evaluator is inactive and can only be viewed or deleted";
+    }
+    if (legacyEditingDisabled) {
+      return "Deprecated evaluators are only available in read-only mode";
+    }
+    return undefined;
+  })();
 
   return (
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">

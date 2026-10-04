@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -377,9 +378,9 @@ export function ExperimentComparisonSelector({
                 className="bg-muted/40 hover:bg-muted flex w-full items-center gap-2 px-2 py-1.5 text-left"
               >
                 {row.isExpanded ? (
-                  <ChevronDown className="h-3 w-3 shrink-0" />
+                  <DropdownIndicator size="sm" nudge />
                 ) : (
-                  <ChevronRight className="h-3 w-3 shrink-0" />
+                  <DropdownIndicator direction="right" size="sm" nudge />
                 )}
                 <span className="truncate text-xs font-bold" title={row.label}>
                   {row.label}

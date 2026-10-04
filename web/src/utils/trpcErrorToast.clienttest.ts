@@ -30,6 +30,7 @@ const trpcError = (opts: {
   message: string;
   path?: string;
   zodError?: unknown;
+  traceId?: string;
 }) =>
   TRPCClientError.from({
     error: {
@@ -40,6 +41,7 @@ const trpcError = (opts: {
         httpStatus: opts.httpStatus,
         ...(opts.path !== undefined ? { path: opts.path } : {}),
         ...(opts.zodError !== undefined ? { zodError: opts.zodError } : {}),
+        ...(opts.traceId !== undefined ? { traceId: opts.traceId } : {}),
       },
     },
   });
@@ -123,6 +125,7 @@ describe("trpcErrorToast", () => {
       "name: Too small: expected string to have >=1 characters",
       "WARNING",
       "prompts.create",
+      undefined,
     );
   });
 
@@ -141,6 +144,27 @@ describe("trpcErrorToast", () => {
       "Invalid input, projectId is required",
       "WARNING",
       "prompts.create",
+      undefined,
+    );
+  });
+
+  it("forwards the OTEL trace id to the toast when present", () => {
+    trpcErrorToast(
+      trpcError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: "prompts.create",
+        message: "Something went wrong",
+        traceId: "abc123def456",
+      }),
+    );
+
+    expect(showErrorToastMock).toHaveBeenCalledWith(
+      "Internal Server Error",
+      "Something went wrong",
+      "ERROR",
+      "prompts.create",
+      "abc123def456",
     );
   });
 });

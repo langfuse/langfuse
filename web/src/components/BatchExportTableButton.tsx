@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -90,7 +90,12 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" title="Export">
+        <Button
+          variant="outline"
+          size="icon"
+          title="Export"
+          className="hidden md:inline-flex"
+        >
           {isExporting ? (
             <Spinner size="sm" />
           ) : (

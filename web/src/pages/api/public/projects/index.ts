@@ -3,9 +3,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { writeProjectError } from "@/src/features/public-api/server/writeError";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import {
+  shadowAuth,
+  writeProjectError,
+} from "@/src/features/public-api/server";
 
 /** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
 const projectKeyRequired =

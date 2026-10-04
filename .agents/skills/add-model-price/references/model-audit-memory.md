@@ -12,11 +12,51 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-09-14
+**Audit date:** 2026-09-30
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-09-14 run re-fetched the full Anthropic pricing table (plus the
+The 2026-09-30 run re-fetched the full Anthropic pricing page (model table,
+cache-hits footnote, Fast mode and Batch tables), the Anthropic models-overview
+comparison table, the OpenAI aggregate Standard/Long-Context/Fast-mode/Flex
+pricing tables, the full OpenAI model catalog, both Gemini pricing pages (3.x
+and 2.5 families, with explicit Free/Paid column separation), the Gemini
+models catalog, the AWS Bedrock pricing page, and the TypeSafe Jev models
+page. This run found one new model: **GPT-6.1 Sol** (`gpt-6.1-sol`), a new
+sibling alongside the still-active `gpt-6-sol` — same $2/$10 input/output and
+$2.50 cache-write rate, but half the cached-input price ($0.10/MTok vs.
+$0.20/MTok). See `provider-sources-and-price-keys.md`'s "September 30 2026"
+entry for the full six-tier pricing and matchPattern detail. Every other price
+checked this run — including every existing Anthropic, OpenAI, and Gemini row
+below, the AWS Bedrock Public Extended Access limitation, and the TypeSafe Jev
+`jev-1.13.0` pricing — matched verbatim; no other updates were needed. The
+2026-09-29 run before it re-fetched the full Anthropic pricing page (model table,
+cache-hits footnote, Fast mode and Batch tables), the Anthropic models-overview
+comparison table, the OpenAI aggregate Standard/Fast-mode/Flex pricing summary,
+the full OpenAI model catalog, a dedicated re-fetch of `gpt-5-chat-latest`'s own
+model page, and both Gemini pricing pages (3.x and 2.5 families) plus the
+Gemini models catalog. This run found one new model, released the day before
+the audit: **Claude Sonnet 5.5** (`claude-sonnet-5-5`), Anthropic's new
+Sonnet-tier flagship (Sonnet 5 demoted to legacy), priced identically to
+`claude-sonnet-5` ($2/$10 input/output, standard 0.1x cache-read multiplier, no
+Fast mode, flat 1M context) — see `provider-sources-and-price-keys.md`'s
+"September 29 2026" entry for full detail. Every other price checked this run —
+including every existing Anthropic, OpenAI, and Gemini row below — matched
+verbatim. The 2026-09-22 run before it re-fetched the full Anthropic pricing page, the Anthropic
+models-overview comparison table, the OpenAI aggregate Standard/Batch/Flex/Fast-mode
+pricing tables plus the full model catalog, and both Gemini pricing pages (3.x and
+2.5 families) plus the Gemini models catalog, with a follow-up verbatim-quote fetch
+for `gemini-3.5-flash-lite`/`gemini-3.1-flash-lite`/`gemini-3.1-pro-preview`/
+`gemini-3-flash-preview`. This run found two new model families and added all
+three of their members: **Claude Opus 5.5** (`claude-opus-5-5`, Anthropic's new
+recommended default, priced at half of Claude Opus 5 with a non-standard 0.05x
+cache-read multiplier) and **GPT-6 Sol** / **GPT-6 Luna** (`gpt-6-sol`,
+`gpt-6-luna`, filling out the GPT-6 family below `gpt-6-astra` with the same
+six-tier Standard/Fast-mode/Flex/Large-Context shape). Every other price checked
+this run — including every existing Anthropic, OpenAI, and Gemini row below —
+matched verbatim; see `provider-sources-and-price-keys.md`'s "September 22 2026
+audit" entry for full detail and the new models' own dedicated entries for exact
+figures and matchPatterns. The 2026-09-14 run before it re-fetched the full Anthropic pricing table (plus the
 models-overview table), the full OpenAI standard/Fast-mode/Flex pricing tables plus
 the full model catalog page, both Gemini pricing pages (2.5-family and 3.x-family)
 plus the Gemini models catalog, and a dedicated re-fetch of `gpt-5-chat-latest`'s own
@@ -46,7 +86,10 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 
 | Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
 | -------- | --------------------- | --------------- | --------------- | --------------- | --------------- | ------ | ------------------- | -------- |
-| OpenAI | gpt-6-astra | Input $10/MTok, Cached $1/MTok, Cache write $12.50/MTok, Output $50/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x base; Flex 0.5x base | Yes | None | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-astra | Added 2026-09-03, re-confirmed unchanged 2026-09-10 and 2026-09-14. Six-tier gpt-5.6-sol-style key set. |
+| OpenAI | gpt-6-astra | Input $10/MTok, Cached $1/MTok, Cache write $12.50/MTok, Output $50/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x base; Flex 0.5x base; Ultrafast 6x base ($60/$6/$75/$300, long-context $120/$12/$150/$450) | Yes | Updated | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-astra https://developers.openai.com/api/docs/guides/ultrafast-mode | Added 2026-09-03, re-confirmed unchanged 2026-09-10, 2026-09-14, and 2026-09-22. Ultrafast (`service_tier: "ultrafast"`) and Ultrafast · Large context tiers added 2026-09-30; it is the only model on the Ultrafast pricing tab. Eight-tier gpt-5.6-sol-style key set. |
+| OpenAI | gpt-6-sol | Input $2/MTok, Cached $0.20/MTok, Cache write $2.50/MTok, Output $10/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x applicable tier; Flex 0.5x applicable tier | Yes | None | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-sol | Added 2026-09-22, re-confirmed unchanged 2026-09-30. Six-tier gpt-6-astra-style key set; same 1,050,000-token context window and 272K large-context threshold as gpt-6-astra. Still a distinct, separately-priced model ID from the newer gpt-6.1-sol. |
+| OpenAI | gpt-6.1-sol | Input $2/MTok, Cached $0.10/MTok, Cache write $2.50/MTok, Output $10/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x applicable tier (large-context Fast row directly quoted); Flex 0.5x applicable tier (Flex·Large-Context derived, not separately published) | Yes | Added | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6.1-sol | Added 2026-09-30. Six-tier gpt-6-sol-style key set; same context window and threshold as gpt-6-sol/gpt-6-astra. Cached-input price is half of gpt-6-sol's ($0.10 vs $0.20/MTok); every other base rate is identical. |
+| OpenAI | gpt-6-luna | Input $0.10/MTok, Cached $0.01/MTok, Cache write $0.125/MTok, Output $0.50/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x applicable tier; Flex 0.5x applicable tier | Yes | Added | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-luna | Added 2026-09-22. Six-tier gpt-6-astra-style key set; same context window and threshold as gpt-6-astra/gpt-6-sol. |
 
 | Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
 | -------- | --------------------- | --------------- | --------------- | --------------- | --------------- | ------ | ------------------ | -------- |
@@ -54,6 +97,7 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 | Anthropic | claude-mythos-5-1 | Same as claude-fable-5-1 | Yes | Flat 1M context; no Fast mode | Yes | Added | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/models/mythos-5-1/overview | Limited availability (Project Glasswing), mirrors claude-mythos-5's simpler API-only matchPattern (no Bedrock/GCP variants). |
 | Anthropic | claude-fable-5 | Input $10/MTok, Output $50/MTok, 5m $12.50/MTok, 1h $20/MTok, read $1/MTok | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged; now listed as "legacy (still available)" behind Fable 5.1 but pricing is the same. |
 | Anthropic | claude-mythos-5 | Same as claude-fable-5 | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
+| Anthropic | claude-opus-5-5 | Input $4/MTok, Output $20/MTok, 5m $5/MTok, 1h $8/MTok, read $0.20/MTok (0.05x, not the standard 0.1x) | Yes | Flat 1M context; Fast mode $8/$40 confirmed available | Yes | Added | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/models/overview | New model, now Anthropic's recommended default ("For long-running agentic coding and knowledge work") ahead of Opus 5. Cache-read discount is 0.05x per an explicit page footnote (a third distinct multiplier alongside the 0.025x Fable 5.1/Mythos 5.1 rate and the standard 0.1x). Fast-mode cache read/write derived by applying the documented multipliers to the $8 Fast-mode base (not the $4 Standard base): read $0.40, 5m write $10, 1h write $16. matchPattern mirrors claude-opus-5 with a `-5` suffix. |
 | Anthropic | claude-opus-5 | Input $5/MTok, Output $25/MTok, 5m $6.25/MTok, 1h $10/MTok, read $0.50/MTok | Yes | Flat 1M context; Fast mode $10/$50 confirmed available | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-opus-4-8 | Same as Opus 5, Fast mode $10/$50 confirmed available | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-opus-4-7 | Same as Opus 5 base rate; **Fast mode NOT available** (requests with `speed:"fast"` error) | Yes | Flat 1M context; no Fast mode tier | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Explicitly confirmed via page text this run. File already correctly has only a Standard tier (no Fast mode) — do not add one without re-checking this page. |
@@ -61,14 +105,15 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 | Anthropic | claude-opus-4-5-20251101 | Same as Opus 5 | Yes | Single Standard tier in file (no separate Large Context tier); page wording on the 1M-flat-context list is ambiguous for 4.5 specifically but the main pricing table shows no separate rate, so the file's single-tier treatment is correct either way | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-opus-4-1-20250805 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Deprecated — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/about-claude/model-deprecations | Still "retired, except on Bedrock and Google Cloud"; deprecations page now shows a firm retirement date of August 5, 2026 (previously open-ended). |
 | Anthropic | claude-opus-4-20250514 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Retired except Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/about-claude/model-deprecations | Re-confirmed present; deprecations page shows firm retirement date June 15, 2026. |
-| Anthropic | claude-sonnet-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok | Yes | Flat 1M context; permanent pricing (no Sep 1 2026 increase) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged; the $2/$10 permanent-pricing note is still on the page verbatim. |
+| Anthropic | claude-sonnet-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok | Yes | Flat 1M context; permanent pricing (no Sep 1 2026 increase) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged; the $2/$10 permanent-pricing note is still on the page verbatim. Now "legacy (still available)" behind Sonnet 5.5. |
+| Anthropic | claude-sonnet-5-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok (standard 0.1x multiplier) | Yes | Flat 1M context; no Fast mode (only Opus 5.5/5/4.8 have it) | Yes | Added | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/models/overview https://platform.claude.com/docs/en/models/sonnet-5-5/overview | New model, released 2026-09-28, now the current Sonnet-tier flagship (Sonnet 5 demoted to legacy). Pricing numerically identical to claude-sonnet-5. matchPattern mirrors claude-sonnet-5 with a `-5` suffix, verified not to collide with it via the match-pattern tester. |
 | Anthropic | claude-sonnet-4-6 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-sonnet-4-5-20250929 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | No large-context tier (200k hard cap) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-sonnet-4-20250514 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Retired except Bedrock/Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed present on current page's main table, unchanged. |
 | Anthropic | claude-haiku-4-5-20251001 | Input $1/MTok, Output $5/MTok, 5m $1.25/MTok, 1h $2/MTok, read $0.10/MTok | Yes | No large-context tier | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-3-5-haiku-20241022 | Input $0.80/MTok, Output $4/MTok, 5m $1/MTok, 1h $1.60/MTok, read $0.08/MTok | Yes | Retired except Bedrock/Google Cloud | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed present, unchanged. |
 | Anthropic | claude-3.7-sonnet-20250219 / claude-3.5-sonnet-20241022 / claude-3-5-sonnet-20240620 / claude-3-opus-20240229 / claude-3-sonnet-20240229 / claude-3-haiku-20240307 | Legacy prices retained | No | Not on current page | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Not re-verified this run; retired, out of "flagship" scope. |
-| AWS Bedrock | claude-3-5-sonnet-20240620 / claude-3.5-sonnet-20241022 (Public Extended Access SKU) | $6.00/MTok input, $30.00/MTok output, $7.50/MTok cache write, $0.60/MTok cache read | Yes (confirmed real Aug 4 2026) | Distinct dated SKU, not a context-length tier | Not applicable | Unresolved | https://aws.amazon.com/bedrock/pricing/ | Not re-verified this run; permanent documented limitation (model-ID string match cannot distinguish billing SKU). |
+| AWS Bedrock | claude-3-5-sonnet-20240620 / claude-3.5-sonnet-20241022 (Public Extended Access SKU) | $6.00/MTok input, $30.00/MTok output, $7.50/MTok cache write, $0.60/MTok cache read | Yes (re-confirmed 2026-09-30) | Distinct dated SKU, not a context-length tier | Not applicable | Unresolved | https://aws.amazon.com/bedrock/pricing/ | Re-confirmed unchanged 2026-09-30; permanent documented limitation (model-ID string match cannot distinguish billing SKU). |
 | OpenAI | gpt-5.6-sol | Input $4/MTok, Cached $0.40/MTok, Cache write $5.00/MTok, Output $20/MTok | Yes | Large Context (>272K): $8/$0.80/$10.00/$30; Fast mode 2x base; Flex 0.5x base | Yes | None | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-5.6-sol | Promotional price cut from Aug 24 2026 reconfirmed still active, still "available at least through November 21, 2026" — re-verify after that date. |
 | OpenAI | gpt-5.6-terra | Input $2/MTok, Cached $0.20/MTok, Cache write $2.50/MTok, Output $12/MTok | Yes | Large Context (>272K): $4/$0.40/$5.00/$18 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged. |
 | OpenAI | gpt-5.6-luna | Input $0.20/MTok, Cached $0.02/MTok, Cache write $0.25/MTok, Output $1.20/MTok | Yes | Large Context (>272K): $0.40/$0.04/$0.50/$1.80 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged. |

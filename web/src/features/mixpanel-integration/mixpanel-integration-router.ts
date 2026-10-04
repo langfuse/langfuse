@@ -4,8 +4,9 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import {
   assertPersistedExportSourceAllowed,
   resolveExportSource,
-} from "@/src/features/analytics-integrations/server/exportSource";
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
+  isPrismaRecordNotFoundError,
+  getDisplayCredential,
+} from "@/src/features/analytics-integrations/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -15,7 +16,6 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
   LangfuseNotFoundError,
