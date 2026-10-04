@@ -1027,6 +1027,43 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scoreConfigs.byId", () => {
+    it("returns NOT_FOUND when the config is missing in the project", async () => {
+      await expect(
+        caller.scoreConfigs.byId({
+          projectId,
+          id: randomUUID(),
+        }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "No score config with this id in this project.",
+      });
+    });
+
+    it("returns the config when it exists in the project", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `byid-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.byId({
+          projectId,
+          id: config.id,
+        }),
+      ).resolves.toMatchObject({
+        id: config.id,
+        name: config.name,
+        dataType: ScoreConfigDataType.NUMERIC,
+      });
+    });
+  });
+
   describe("scoreConfigs.appendCategory", () => {
     it("keeps both categories when two appends race", async () => {
       const config = await prisma.scoreConfig.create({
