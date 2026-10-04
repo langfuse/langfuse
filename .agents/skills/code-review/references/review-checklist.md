@@ -96,7 +96,7 @@ This is the canonical shared review checklist for Langfuse.
 
 ## Prisma errors
 
-- Do not inline `instanceof Prisma.PrismaClientKnownRequestError && code === "P2025"`. Reuse `isPrismaRecordNotFoundError` in `web` (`web/src/features/analytics-integrations/server/isPrismaRecordNotFoundError.ts`) and `isRecordNotFoundError` in `worker` (`worker/src/features/integrations/prismaErrors.ts`). A true result maps to `LangfuseNotFoundError` (or the domain not-found subclass) so a missing row is a 404, not a 500.
+- Do not inline `instanceof Prisma.PrismaClientKnownRequestError && code === "P2025"`. Reuse `isPrismaRecordNotFoundError` (`packages/shared/src/server/prismaErrors.ts`, re-exported from `@langfuse/shared/src/server`) and `isRecordNotFoundError` in `worker` (`worker/src/features/integrations/prismaErrors.ts`). A true result maps to `LangfuseNotFoundError` (or the domain not-found subclass) so a missing row is a 404, not a 500.
 
 ## JavaScript / TypeScript Style
 

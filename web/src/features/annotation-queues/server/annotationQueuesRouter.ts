@@ -1,5 +1,4 @@
 import { env } from "@/src/env.mjs";
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
@@ -19,6 +18,7 @@ import {
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
+  isPrismaRecordNotFoundError,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
