@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
@@ -404,10 +405,7 @@ export const modelRouter = createTRPCRouter({
           },
         });
       } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2025"
-        ) {
+        if (isPrismaRecordNotFoundError(error)) {
           throw new LangfuseNotFoundError("Model not found");
         }
         throw error;

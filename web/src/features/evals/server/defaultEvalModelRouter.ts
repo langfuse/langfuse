@@ -1,3 +1,4 @@
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -8,7 +9,6 @@ import { z } from "zod";
 import {
   EvaluatorBlockReason,
   LangfuseNotFoundError,
-  Prisma,
   ZodModelConfig,
 } from "@langfuse/shared";
 import {
@@ -92,10 +92,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
           return blockResult;
         });
       } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2025"
-        ) {
+        if (isPrismaRecordNotFoundError(error)) {
           throw new LangfuseNotFoundError("Default evaluation model not found");
         }
         throw error;

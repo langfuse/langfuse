@@ -8,6 +8,7 @@ import {
   SafeLlmApiKeySchema,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -27,7 +28,6 @@ import {
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
   LangfuseNotFoundError,
-  Prisma,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -471,10 +471,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           return { providerBlock, defaultModelBlock };
         });
       } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2025"
-        ) {
+        if (isPrismaRecordNotFoundError(error)) {
           throw new LangfuseNotFoundError("LLM API key not found");
         }
         throw error;
