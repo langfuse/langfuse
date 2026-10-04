@@ -1,11 +1,78 @@
 // @vitest-environment node
 
 import {
+  formatChartDimension,
   formatMetric,
+  getUniqueDimensions,
+  groupDataByTimeDimension,
   getDimensionSummaries,
   getEvenTickInterval,
+  isEmptyChartDimension,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+
+describe("isEmptyChartDimension", () => {
+  it.each([
+    { value: null, expected: true },
+    { value: "", expected: true },
+    { value: [], expected: true },
+    { value: undefined, expected: false },
+    { value: ["production"], expected: false },
+    { value: "production", expected: false },
+    { value: 0, expected: false },
+    { value: false, expected: false },
+  ])(
+    "checks $value for an empty dimension: $expected",
+    ({ value, expected }) => {
+      expect(isEmptyChartDimension(value)).toBe(expected);
+    },
+  );
+});
+
+describe("formatChartDimension", () => {
+  it.each([
+    { value: undefined, expected: "n/a" },
+    { value: null, expected: "n/a" },
+    { value: "", expected: "n/a" },
+    { value: [], expected: "n/a" },
+    { value: [""], expected: "n/a" },
+    { value: "production", expected: "production" },
+    { value: ["production"], expected: "production" },
+    { value: ["production", "chat"], expected: "production, chat" },
+    { value: 0, expected: "0" },
+    { value: false, expected: "false" },
+    { value: 42, expected: "42" },
+    { value: true, expected: "true" },
+  ])("formats $value as $expected", ({ value, expected }) => {
+    expect(formatChartDimension(value)).toBe(expected);
+  });
+
+  it("keeps untagged counts alongside tagged series and empty bucket markers", () => {
+    const data: DataPoint[] = [
+      { time_dimension: "t1", dimension: formatChartDimension([]), metric: 8 },
+      {
+        time_dimension: "t1",
+        dimension: formatChartDimension(["production"]),
+        metric: 3,
+      },
+      { time_dimension: "t2", dimension: undefined, metric: null },
+      { time_dimension: "t3", dimension: formatChartDimension([]), metric: 0 },
+    ];
+
+    expect(getUniqueDimensions(data)).toEqual(["n/a", "production"]);
+    expect(groupDataByTimeDimension(data)).toEqual([
+      { time_dimension: "t1", "n/a": 8, production: 3 },
+      { time_dimension: "t2" },
+      { time_dimension: "t3", "n/a": 0 },
+    ]);
+    expect(getDimensionSummaries(data)).toEqual(
+      new Map([
+        ["n/a", 8],
+        ["production", 3],
+      ]),
+    );
+  });
+});
 
 describe("formatMetric", () => {
   it("keeps compact numeric formatting within maxCharacters", () => {

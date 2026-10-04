@@ -23,7 +23,11 @@ import {
   getWidgetMissingBucketValue,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  formatChartDimension,
+  isEmptyChartDimension,
+  isTimeSeriesChart,
+} from "@/src/features/widgets/chart-library/utils";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
 
@@ -246,7 +250,7 @@ export function WidgetContent({
           Number(metricValue) === 0);
       if (
         isTimeSeries &&
-        (dimensionValue === null || dimensionValue === "") &&
+        isEmptyChartDimension(dimensionValue) &&
         isFillerMetricValue
       ) {
         return {
@@ -271,17 +275,7 @@ export function WidgetContent({
       if (entityIsCategory) {
         seriesDimension = xAxisValue ?? "Unknown";
       } else if (dimensionValue !== undefined) {
-        const val = dimensionValue;
-        // Empty first: "" is a string, so the order matters. (LFE-10694)
-        if (val === null || val === undefined || val === "") {
-          seriesDimension = "n/a";
-        } else if (typeof val === "string") {
-          seriesDimension = val;
-        } else if (Array.isArray(val)) {
-          seriesDimension = val.join(", ");
-        } else {
-          seriesDimension = String(val);
-        }
+        seriesDimension = formatChartDimension(dimensionValue);
       } else {
         seriesDimension = formatMetricName(metricField);
       }

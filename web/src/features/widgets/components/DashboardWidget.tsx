@@ -17,7 +17,11 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  formatChartDimension,
+  isEmptyChartDimension,
+  isTimeSeriesChart,
+} from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
   TrashIcon,
@@ -358,7 +362,7 @@ export function DashboardWidget({
           Number(metricValue) === 0);
       if (
         isTimeSeries &&
-        (dimensionValue === null || dimensionValue === "") &&
+        isEmptyChartDimension(dimensionValue) &&
         isFillerMetricValue
       ) {
         return {
@@ -371,16 +375,7 @@ export function DashboardWidget({
       return {
         dimension:
           dimensionValue !== undefined
-            ? (() => {
-                const val = dimensionValue;
-                // Empty first: "" is a string, so the order matters. (LFE-10694)
-                if (val === null || val === undefined || val === "")
-                  return "n/a";
-                if (typeof val === "string") return val;
-                if (Array.isArray(val)) return val.join(", ");
-                // Objects / numbers / booleans are stringified to avoid React key issues
-                return String(val);
-              })()
+            ? formatChartDimension(dimensionValue)
             : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue

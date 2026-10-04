@@ -67,7 +67,11 @@ import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  formatChartDimension,
+  isEmptyChartDimension,
+  isTimeSeriesChart,
+} from "@/src/features/widgets/chart-library/utils";
 import { Plus, X, AlertCircle, Sparkles } from "lucide-react";
 import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
@@ -618,7 +622,7 @@ export function WidgetForm({
         if (
           isTimeSeries &&
           dimensionField !== "none" &&
-          (dimensionValue === null || dimensionValue === "") &&
+          isEmptyChartDimension(dimensionValue) &&
           isFillerMetricValue
         ) {
           return {
@@ -631,14 +635,7 @@ export function WidgetForm({
         return {
           dimension:
             dimensionValue !== undefined && dimensionField !== "none"
-              ? (() => {
-                  const val = dimensionValue;
-                  if (val === null || val === undefined || val === "")
-                    return "n/a";
-                  if (typeof val === "string") return val;
-                  if (Array.isArray(val)) return val.join(", ");
-                  return String(val);
-                })()
+              ? formatChartDimension(dimensionValue)
               : formatMetricName(metricField),
           metric: Array.isArray(metric)
             ? metric

@@ -6,6 +6,20 @@ import {
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 
+export function isEmptyChartDimension(value: unknown): boolean {
+  return (
+    value === null ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  );
+}
+
+export function formatChartDimension(value: unknown): string {
+  if (value === undefined || isEmptyChartDimension(value)) return "n/a";
+  if (Array.isArray(value)) return value.join(", ") || "n/a";
+  return String(value);
+}
+
 export const toFullMetricString = (metric: FormattedMetric): string =>
   `${metric.negative ? "-" : ""}${metric.prefix ?? ""}${metric.main}${metric.suffix ?? ""}`;
 
