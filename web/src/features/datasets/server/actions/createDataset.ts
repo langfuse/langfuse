@@ -7,8 +7,10 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { validateAllDatasetItems } from "@langfuse/shared/src/server";
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
+import {
+  isPrismaRecordNotFoundError,
+  validateAllDatasetItems,
+} from "@langfuse/shared/src/server";
 
 type DatasetJson =
   | Prisma.InputJsonObject
