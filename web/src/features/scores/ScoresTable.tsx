@@ -1140,7 +1140,7 @@ export default function ScoresTable({
     !scores.isError &&
     !totalScoreCountQuery.isError &&
     totalCount === 0 &&
-    queryFilter.explicitFilterState.length === 0
+    queryFilter.effectiveFilterState.length === 0
   ) {
     return (
       <div className="flex h-full w-full flex-col items-center gap-1 px-8 pt-24 pb-8">
