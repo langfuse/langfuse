@@ -66,12 +66,17 @@ vi.mock(
       deleteAction,
       scheduledExportActions,
       mediaStorageActions,
+      onSubmit,
     }: {
       deleteAction: ReactNode;
       scheduledExportActions: ReactNode;
       mediaStorageActions: ReactNode;
+      onSubmit: (values: Record<string, never>) => void;
     }) => (
       <>
+        <button type="button" onClick={() => onSubmit({})}>
+          Submit form
+        </button>
         <div aria-label="Scheduled export actions">
           {scheduledExportActions}
         </div>
@@ -178,6 +183,17 @@ describe("BlobStorageIntegrationContainer action explanations", () => {
     await success;
 
     expect(onSaved).toHaveBeenCalledWith("new-integration-id");
+  });
+
+  it("marks a new integration create explicitly", () => {
+    renderContainer(null);
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit form" }));
+
+    expect(mocks.mutate).toHaveBeenCalledWith({
+      projectId: "project-id",
+      integrationId: null,
+    });
   });
 
   it("only renders destructive delete with confirmation for a saved integration", async () => {
