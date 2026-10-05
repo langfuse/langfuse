@@ -157,9 +157,9 @@
     "ch:migrations:clean": "node clickhouse/scripts/prepare-migrations.mjs clean clickhouse/migrations",
     "ch:up": "sh clickhouse/scripts/up.sh",
     "ch:down": "sh clickhouse/scripts/down.sh",
-    "ch:drop": "bash clickhouse/scripts/drop.sh",
+    "ch:drop": "sh clickhouse/scripts/drop.sh",
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
-    "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
+    "ch:reset": "pnpm run ch:drop && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
     "ch:seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-clickhouse.ts",
     "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts",
     "seed:scenario": "dotenv -e ../../.env -- tsx scripts/seeder/cli.ts"

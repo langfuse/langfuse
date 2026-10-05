@@ -180,7 +180,10 @@ the same PR.
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
-- ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
+- ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset` drops all
+  tables and views in the configured database, then migrates and seeds it.
+  Requires `CLICKHOUSE_CLUSTER_ENABLED=false`; use `ch:down` for clustered
+  rollbacks.
 - Materialize direct-migration trees: `pnpm ch:migrations:materialize`
 - Clean direct-migration trees: `pnpm ch:migrations:clean`
 
