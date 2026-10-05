@@ -341,7 +341,7 @@ const SingleOrganizationProjectOverviewTile = ({
     <div key={org.id}>
       <SubHeaderLabel
         title={org.name}
-        titleClassName="text-muted-foreground"
+        titleClassName="text-muted-foreground font-bold"
         className="truncate"
         labelBadge={
           org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
