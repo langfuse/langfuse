@@ -104,6 +104,59 @@ export default function BlobStorageIntegrationPage() {
     );
   };
 
+  const renderSettingsContent = () => {
+    if (!hasEntitlement) {
+      return (
+        <p className="text-sm">
+          This feature is not available in your current plan.
+        </p>
+      );
+    }
+    if (!hasAccess) {
+      return (
+        <p className="text-sm">
+          Your current role does not grant you access to these settings, please
+          reach out to your project admin or owner.
+        </p>
+      );
+    }
+    if (!state.data) return <IntegrationSettingsSkeleton />;
+    if (!showDetails) {
+      return (
+        <BlobStorageIntegrationTable
+          integrations={state.data.configs}
+          showMediaStorage={showMediaStorage}
+          onSelect={(integration) => openIntegration(integration.id)}
+          onCreate={() => openIntegration("new")}
+        />
+      );
+    }
+    if (integrationId !== "new" && !selectedConfig) {
+      return (
+        <Card className="p-4 text-sm">
+          This blob storage integration could not be found.
+        </Card>
+      );
+    }
+
+    return (
+      <>
+        {selectedConfig && <BlobStorageStatusSection config={selectedConfig} />}
+        <Header title="Integration details" className="mt-8" />
+        <Card className="p-3">
+          <BlobStorageIntegrationContainer
+            config={selectedConfig ?? null}
+            projectId={projectId}
+            writeMode={state.data.writeMode}
+            showMediaStorage={showMediaStorage}
+            onDeleted={closeIntegration}
+            onSaved={openIntegration}
+          />
+        </Card>
+      </>
+    );
+  };
+
   return (
     <ContainerPage
       headerProps={{
@@ -138,52 +191,7 @@ export default function BlobStorageIntegrationPage() {
         Configure blob storage destinations for scheduled exports
         {showMediaStorage ? " and external media rendering" : ""}.
       </p>
-      {!hasEntitlement ? (
-        <p className="text-sm">
-          This feature is not available in your current plan.
-        </p>
-      ) : !hasAccess ? (
-        <p className="text-sm">
-          Your current role does not grant you access to these settings, please
-          reach out to your project admin or owner.
-        </p>
-      ) : (
-        <>
-          {!state.data ? (
-            <IntegrationSettingsSkeleton />
-          ) : showDetails ? (
-            integrationId !== "new" && !selectedConfig ? (
-              <Card className="p-4 text-sm">
-                This blob storage integration could not be found.
-              </Card>
-            ) : (
-              <>
-                {selectedConfig && (
-                  <BlobStorageStatusSection config={selectedConfig} />
-                )}
-                <Header title="Integration details" className="mt-8" />
-                <Card className="p-3">
-                  <BlobStorageIntegrationContainer
-                    config={selectedConfig ?? null}
-                    projectId={projectId}
-                    writeMode={state.data.writeMode}
-                    showMediaStorage={showMediaStorage}
-                    onDeleted={closeIntegration}
-                    onSaved={openIntegration}
-                  />
-                </Card>
-              </>
-            )
-          ) : (
-            <BlobStorageIntegrationTable
-              integrations={state.data.configs}
-              showMediaStorage={showMediaStorage}
-              onSelect={(integration) => openIntegration(integration.id)}
-              onCreate={() => openIntegration("new")}
-            />
-          )}
-        </>
-      )}
+      {renderSettingsContent()}
     </ContainerPage>
   );
 }

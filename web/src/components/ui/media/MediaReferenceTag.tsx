@@ -54,12 +54,15 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
     {
       enabled: armed && isFeatureEnabled && Boolean(projectId),
       staleTime: 4 * 60 * 1000,
+      refetchInterval: open ? 4 * 60 * 1000 : false,
       retry: false,
     },
   );
+  if (!isFeatureEnabled) return descriptor.uri;
+
   let status: MediaTagStatus = "loading";
   if (!armed) status = "idle";
-  else if (!isFeatureEnabled || resolved.isError) status = "error";
+  else if (resolved.isError) status = "error";
   else if (resolved.data) status = "ready";
 
   return (
@@ -71,13 +74,6 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) setArmed(true);
-        if (
-          nextOpen &&
-          resolved.data &&
-          new Date(resolved.data.expiresAt).getTime() <= Date.now() + 30_000
-        ) {
-          resolved.refetch();
-        }
       }}
     />
   );

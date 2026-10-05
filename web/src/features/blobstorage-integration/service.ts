@@ -144,6 +144,28 @@ export async function upsertBlobStorageIntegration(params: {
       throw new InvalidRequestError("Blob storage integration not found");
     }
 
+    const duplicateDestination = await tx.blobStorageIntegration.findFirst({
+      where: {
+        projectId,
+        type: data.type,
+        bucketName: data.bucketName,
+        prefix: data.prefix,
+        ...(data.type === BlobStorageIntegrationType.S3_COMPATIBLE
+          ? { endpoint: data.endpoint }
+          : {}),
+        ...(data.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE
+          ? { accessKeyId }
+          : {}),
+        ...(integrationId ? { id: { not: integrationId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (duplicateDestination) {
+      throw new InvalidRequestError(
+        "A blob storage integration already uses this destination and prefix",
+      );
+    }
+
     // Require secret key for new integrations (unless using host credentials)
     if (!existing) {
       const isUsingHostCredentials =

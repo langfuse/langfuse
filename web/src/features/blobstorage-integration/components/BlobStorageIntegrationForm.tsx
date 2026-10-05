@@ -116,9 +116,6 @@ export const BlobStorageIntegrationForm = ({
                   <FormControl>
                     <Switch
                       checked={field.value}
-                      disabled={
-                        storageType === "AZURE_BLOB_STORAGE" && !field.value
-                      }
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
@@ -181,6 +178,9 @@ export const BlobStorageIntegrationForm = ({
                     <FormControl>
                       <Switch
                         checked={field.value}
+                        disabled={
+                          storageType === "AZURE_BLOB_STORAGE" && !field.value
+                        }
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>

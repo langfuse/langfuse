@@ -203,4 +203,23 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
       expect.anything(),
     );
   });
+
+  it("allows Azure exports but disables Azure external media", () => {
+    const initialValues = buildBlobStorageFormValues(
+      {
+        ...savedConfig,
+        type: BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+        enabled: false,
+        mediaStorageEnabled: false,
+      },
+      exportSourceCtx,
+    );
+    render(ui("azure", initialValues, undefined, true));
+
+    const exportsSection = screen.getByText("Scheduled exports").closest("div");
+    const mediaSection = screen.getByText("External media").closest("div");
+
+    expect(within(exportsSection!).getByRole("switch")).not.toBeDisabled();
+    expect(within(mediaSection!).getByRole("switch")).toBeDisabled();
+  });
 });
