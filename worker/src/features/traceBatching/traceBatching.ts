@@ -549,7 +549,7 @@ const ACKNOWLEDGE_SCRIPT = `
 `;
 
 function recordTrackingVolume(
-  stage: "eligible" | "sampled" | "recorded",
+  stage: "eligible" | "recorded",
   entries: Iterable<
     readonly [
       string,
@@ -620,7 +620,6 @@ export async function trackTraceBatchActivity(
             samplingRate,
           })),
     );
-    recordGauge("langfuse.trace_batch.sampling_rate", samplingRate);
     // Counts distinct trace IDs per ingestion batch, not globally unique traces.
     recordIncrement("langfuse.trace_batch.sampling_decisions", entries.length, {
       decision: "selected",
@@ -630,7 +629,6 @@ export async function trackTraceBatchActivity(
       bounds.size - entries.length,
       { decision: "excluded" },
     );
-    recordTrackingVolume("sampled", entries);
     if (entries.length === 0) return;
     if (!redis) throw new Error("Trace batching requires Redis");
     // Bounded scripts keep ingestion from monopolizing the global Redis slot.
@@ -657,7 +655,9 @@ export async function trackTraceBatchActivity(
       );
       // Count only acknowledged chunks; a timeout can leave Redis's outcome unknown.
       recordTrackingVolume("recorded", chunk);
-      recordIncrement("langfuse.trace_batch.expired_traces", expired);
+      recordIncrement("langfuse.trace_batch.expired_traces", expired, {
+        source: "ingestion",
+      });
       recordIncrement("langfuse.trace_batch.tracked_traces", chunk.length);
     }
   } catch (error) {
@@ -751,7 +751,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       const [clock, , pending, ready, oldest, expired] = snapshot.map(Number);
       now = clock;
       cutoff = String(snapshot[1]);
-      recordIncrement("langfuse.trace_batch.expired_traces", expired);
+      recordIncrement("langfuse.trace_batch.expired_traces", expired, {
+        source: "dispatcher",
+      });
       recordGauge("langfuse.trace_batch.pending_traces", pending);
       recordGauge("langfuse.trace_batch.ready_traces", ready);
       recordGauge(
@@ -832,9 +834,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           2 * QUERY_BUFFER_MS,
         { strategy },
       );
-      recordIncrement("langfuse.trace_batch.dispatched_traces", batch.length, {
-        batch_kind: batch.length === 1 ? "singleton" : "multi",
-      });
       let estimatedEventUpdateCount = 0;
       let estimatedSerializedEventBytes = 0;
       let unavailableEstimates = 0;
@@ -855,15 +854,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         } else {
           unavailableEstimates++;
         }
-        recordDistribution(
-          "langfuse.trace_batch.observed_start_span_ms",
-          entry.trace.maxStart - entry.trace.minStart,
-          { strategy },
-        );
-        recordDistribution(
-          "langfuse.trace_batch.due_lag_ms",
-          Math.max(0, Date.now() - entry.due),
-        );
       }
       if (unavailableEstimates === 0) {
         recordDistribution(

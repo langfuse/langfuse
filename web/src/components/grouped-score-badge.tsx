@@ -9,6 +9,7 @@ import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { scoreLevelFromScore } from "@/src/components/score-tag";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import { ScoreValue } from "@/src/components/ScoreValue";
 
 type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 
@@ -42,9 +43,6 @@ const partitionScores = <T extends ChipScore>(
   };
 };
 
-const formatScoreValue = (score: ChipScore) =>
-  score.stringValue ?? score.value?.toFixed(2) ?? "";
-
 const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
   const groups = Object.entries(groupScoresByName(scores)).sort(([a], [b]) =>
     a.localeCompare(b),
@@ -59,8 +57,16 @@ const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
             <span className="text-muted-foreground whitespace-nowrap">
               {name}
             </span>
-            <span className="text-foreground whitespace-nowrap">
-              {groupScores.map(formatScoreValue).join(", ")}
+            <span className="text-foreground inline-flex items-center gap-1 whitespace-nowrap">
+              {groupScores.map((score, index) => (
+                <span
+                  key={index}
+                  className="inline-flex min-w-0 items-center gap-1"
+                >
+                  <ScoreValue name={name} score={score} />
+                  {index < groupScores.length - 1 && <span>,</span>}
+                </span>
+              ))}
             </span>
           </li>
         ))}

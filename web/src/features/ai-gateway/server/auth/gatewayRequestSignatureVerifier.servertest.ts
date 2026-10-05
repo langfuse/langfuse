@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 
+import { propagation, ROOT_CONTEXT } from "@opentelemetry/api";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +9,7 @@ import { signHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import {
+  contextWithGatewayRequestId,
   withGatewayModelsSignatureVerification,
   withGatewayResolveSignatureVerification,
 } from "./gatewayRequestSignatureVerifier";
@@ -209,5 +211,32 @@ describe("withGatewayResolveSignatureVerification", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(handler).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe("contextWithGatewayRequestId", () => {
+  const requestId = "0192b6f4-6c1e-7a3b-8c4d-5e6f7a8b9c0d";
+  const loggedRequestId = (headers: NextApiRequest["headers"]) =>
+    propagation
+      .getBaggage(
+        contextWithGatewayRequestId(
+          { headers } as NextApiRequest,
+          ROOT_CONTEXT,
+        ),
+      )
+      ?.getEntry("langfuse.gateway.request.id")?.value;
+
+  it("adds the gateway request ID to the log context", () => {
+    expect(loggedRequestId({ "langfuse-gateway-request-id": requestId })).toBe(
+      requestId,
+    );
+  });
+
+  it.each([
+    ["missing", {}],
+    ["not a UUID", { "langfuse-gateway-request-id": "req\ninjected" }],
+    ["repeated", { "langfuse-gateway-request-id": [requestId, requestId] }],
+  ])("ignores a %s request ID", (_, headers) => {
+    expect(loggedRequestId(headers)).toBeUndefined();
   });
 });

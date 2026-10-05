@@ -165,7 +165,7 @@ pub(crate) async fn resolved_request_context_for(
     })
     .await;
     web.control_plane()
-        .resolve("gateway-secret", api_format)
+        .resolve("gateway-secret", api_format, "test-request-id")
         .await
         .unwrap()
 }

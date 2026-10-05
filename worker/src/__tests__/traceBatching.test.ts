@@ -537,13 +537,16 @@ describe("trace micro-batch scheduling with Redis", () => {
         );
       expect(Number(sample?.[1])).toBeGreaterThan(0);
     }
-    for (const type of ["waiting", "delayed"]) {
-      expect(recordGauge).toHaveBeenCalledWith(
-        "langfuse.trace_batch.queue_depth",
-        type === "waiting" ? 2 : 1,
-        { type, unit: "records" },
-      );
-    }
+    expect(recordGauge).toHaveBeenCalledWith(
+      "langfuse.trace_batch.queue_depth",
+      1,
+      { type: "delayed", unit: "records" },
+    );
+    expect(recordGauge).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.queue_depth",
+      expect.anything(),
+      expect.objectContaining({ type: "waiting" }),
+    );
     expect(recordGauge).toHaveBeenCalledWith(
       "langfuse.trace_batch.queue_waiting_head_age_ms",
       5_000,
@@ -563,7 +566,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       "langfuse.trace_batch.active_reads",
       0,
     );
-    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(10);
+    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(7);
     expect(
       vi.mocked(recordGauge).mock.calls.every(([, value]) => value === 0),
     ).toBe(true);
@@ -854,10 +857,6 @@ describe("trace micro-batch scheduling with Redis", () => {
         traceCount: 2,
         projectCount: 1,
       });
-      expect(recordDistribution).toHaveBeenCalledWith(
-        "langfuse.trace_batch.found_project_count",
-        1,
-      );
       // All three observations must carry their untruncated I/O and metadata.
       expect(result.ioMetadataBytes).toBeGreaterThanOrEqual(
         3 * (Buffer.byteLength(input) + Buffer.byteLength(output) + 8_000),
@@ -866,9 +865,9 @@ describe("trace micro-batch scheduling with Redis", () => {
         "langfuse.trace_batch.size",
         2,
       );
-      expect(recordDistribution).toHaveBeenCalledWith(
+      expect(recordDistribution).not.toHaveBeenCalledWith(
         "langfuse.trace_batch.io_metadata_bytes",
-        result.ioMetadataBytes,
+        expect.anything(),
       );
       expect(await client().zcard(dueKey)).toBe(0);
       expect(await client().hlen(stateKey)).toBe(0);
@@ -927,9 +926,13 @@ describe("trace micro-batch scheduling with Redis", () => {
         1_000 - expectedCount,
         { decision: "excluded" },
       );
+      expect(recordIncrement).not.toHaveBeenCalledWith(
+        "langfuse.trace_batch.event_updates",
+        expect.anything(),
+        { stage: "sampled" },
+      );
       for (const [stage, count] of [
         ["eligible", 1_000],
-        ["sampled", expectedCount],
         ...(expectedCount > 0 ? [["recorded", expectedCount] as const] : []),
       ] as const) {
         expect(recordIncrement).toHaveBeenCalledWith(
@@ -968,9 +971,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       1_001,
       { stage: "eligible" },
     );
-    expect(recordIncrement).toHaveBeenCalledWith(
+    expect(recordIncrement).not.toHaveBeenCalledWith(
       "langfuse.trace_batch.event_updates",
-      1_001,
+      expect.anything(),
       { stage: "sampled" },
     );
     expect(recordIncrement).toHaveBeenCalledWith(
@@ -1696,6 +1699,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.expired_traces",
       1_000,
+      { source: "ingestion" },
     );
     await trackTraceBatchActivity("project", [event("refreshed", 3_000_000)]);
     expect((await client().hkeys(stateKey)).sort()).toEqual([
@@ -1706,6 +1710,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.expired_traces",
       1,
+      { source: "ingestion" },
     );
     expect(await queue.getWaitingCount()).toBe(0);
   });
@@ -1727,6 +1732,11 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     const dispatcher = runner();
     await dispatcher.processBatch();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.expired_traces",
+      expect.any(Number),
+      { source: "dispatcher" },
+    );
     expect(
       vi
         .mocked(recordIncrement)

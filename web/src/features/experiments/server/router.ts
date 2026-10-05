@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import { addDays } from "date-fns";
@@ -583,9 +582,18 @@ export const experimentsRouter = createTRPCRouter({
         traceNames: string[],
       ): Record<string, ("observation" | "trace")[]> => {
         const out: Record<string, ("observation" | "trace")[]> = {};
-        for (const name of observationNames)
-          (out[name] ??= []).push("observation");
-        for (const name of traceNames) (out[name] ??= []).push("trace");
+        for (const name of observationNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("observation");
+        }
+        for (const name of traceNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("trace");
+        }
         return out;
       };
 

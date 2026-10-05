@@ -368,7 +368,7 @@ export default function EvaluatorsPage() {
         accessorKey: "name",
         id: "name",
         header: "Name",
-        size: 320,
+        size: 240,
         isFixedPosition: true,
         enableSorting: true,
         cell: ({ row }) => (
@@ -381,7 +381,7 @@ export default function EvaluatorsPage() {
         accessorKey: "status",
         id: "status",
         header: "Status",
-        size: 130,
+        size: 100,
         enableHiding: true,
         cell: ({ row }) => {
           if (
@@ -416,7 +416,7 @@ export default function EvaluatorsPage() {
         accessorKey: "type",
         id: "type",
         header: "Type",
-        size: 160,
+        size: 130,
         enableHiding: true,
         enableSorting: true,
         cell: ({ row }) => <EvaluatorTypeBadge type={row.original.type} />,
@@ -424,8 +424,8 @@ export default function EvaluatorsPage() {
       createNumberTableColumn<EvaluatorRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
+        header: "Cost (7d)",
+        size: 110,
         enableHiding: true,
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
@@ -457,7 +457,7 @@ export default function EvaluatorsPage() {
       createUserTableColumn<EvaluatorRow>({
         accessorKey: "createdByUser",
         header: "Created by",
-        size: 180,
+        size: 90,
         enableHiding: true,
         variant: "text",
         emptyValue: "API",
@@ -485,8 +485,9 @@ export default function EvaluatorsPage() {
         accessorKey: "actions",
         id: "actions",
         header: "Actions",
-        size: 170,
+        size: 130,
         isFixedPosition: true,
+        isPinnedRight: true,
         enableSorting: false,
         enableResizing: false,
         cell: ({ row }) => (
