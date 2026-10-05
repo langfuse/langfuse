@@ -961,3 +961,245 @@ fn openai_and_anthropic_admissions_draw_from_one_execution_budget() {
     drop(held);
     assert!(relay.try_admit().is_ok());
 }
+
+const CHAT_CONTENT_CHUNK: &str = "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4.1-mini-2025-04-14\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Hello\"},\"finish_reason\":\"stop\"}],\"usage\":null}\n\n";
+const CHAT_USAGE_CHUNK: &str = "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4.1-mini-2025-04-14\",\"choices\":[],\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":1,\"total_tokens\":10,\"prompt_tokens_details\":{\"cached_tokens\":4},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\n";
+const CHAT_DONE: &str = "data: [DONE]\n\n";
+
+/// Generation context headers in the shape SDK users send them.
+const CHAT_CONTEXT_HEADERS: [(&str, &str); 8] = [
+    (
+        "traceparent",
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    ),
+    ("langfuse-user-id", "chat-user"),
+    ("langfuse-session-id", "chat-session"),
+    ("langfuse-trace-name", "chat-trace"),
+    ("langfuse-environment", "staging"),
+    ("langfuse-tags", "tag-a,tag-b"),
+    ("langfuse-metadata", "team:search"),
+    ("content-type", "application/json"),
+];
+
+#[tokio::test]
+async fn chat_completions_streams_report_usage_without_exposing_the_requested_chunk() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry, test_support::upload_json};
+
+    const UNREQUESTED: &str = r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true}"#;
+    const REQUESTED: &str = r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true,"stream_options":{"include_usage":true}}"#;
+    for (request, forwarded, relayed) in [
+        (
+            UNREQUESTED,
+            r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true,"stream_options":{"include_usage":true}}"#,
+            [CHAT_CONTENT_CHUNK, CHAT_DONE].concat(),
+        ),
+        (
+            REQUESTED,
+            REQUESTED,
+            [CHAT_CONTENT_CHUNK, CHAT_USAGE_CHUNK, CHAT_DONE].concat(),
+        ),
+    ] {
+        let (sent, mut received) = tokio::sync::mpsc::channel(2);
+        let sink = FakeServer::start(move |request| {
+            let sent = sent.clone();
+            async move {
+                let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+                sent.send(upload_json(&bytes)).await.unwrap();
+                Response::new(Body::from("{}"))
+            }
+        })
+        .await;
+        let telemetry =
+            Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+        let upstream = FakeServer::start(move |request| async move {
+            assert_eq!(request.uri(), "/v1/chat/completions");
+            assert_eq!(
+                request.headers()[header::AUTHORIZATION],
+                "Bearer provider-secret"
+            );
+            for (name, _) in CHAT_CONTEXT_HEADERS {
+                if name != "content-type" {
+                    assert!(!request.headers().contains_key(name), "forwarded {name}");
+                }
+            }
+            assert_eq!(
+                to_bytes(request.into_body(), 4096).await.unwrap(),
+                forwarded
+            );
+            // Arrive split mid-event, as a provider stream may.
+            let native = [CHAT_CONTENT_CHUNK, CHAT_USAGE_CHUNK, CHAT_DONE].concat();
+            let (head, tail) = native.split_at(CHAT_CONTENT_CHUNK.len() + 20);
+            Response::builder()
+                .header("content-type", "text/event-stream; charset=utf-8")
+                .header("x-request-id", "req-chat")
+                .body(Body::from_stream(stream::iter([
+                    Ok::<_, Infallible>(head.to_owned()),
+                    Ok(tail.to_owned()),
+                ])))
+                .unwrap()
+        })
+        .await;
+        let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+        let response = relay
+            .forward_route(
+                relay.try_admit().unwrap(),
+                resolved_request_context_for(
+                    ApiFormat::OpenAiChatCompletions,
+                    "provider-secret",
+                    "full",
+                )
+                .await,
+                &headers(
+                    &[
+                        CHAT_CONTEXT_HEADERS.as_slice(),
+                        &[("authorization", "Bearer gateway-secret")],
+                    ]
+                    .concat(),
+                ),
+                Bytes::from_static(request.as_bytes()),
+                Route::OpenAiChatCompletions,
+                None,
+                &mut crate::correlation::RequestCorrelation::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.headers()["x-request-id"], "req-chat");
+        assert_eq!(
+            to_bytes(response.into_body(), 65536).await.unwrap(),
+            relayed
+        );
+        let payload = tokio::time::timeout(Duration::from_secs(5), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_chat_upload(&payload, request);
+        telemetry
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await;
+    }
+}
+
+#[tokio::test]
+async fn chat_completions_forward_other_bodies_and_error_streams_unchanged() {
+    const JSON_REQUEST: &str = r#"{"model":"gpt-4.1-mini", "messages":[]}"#;
+    let upstream = FakeServer::start(|request| async move {
+        let body = to_bytes(request.into_body(), 4096).await.unwrap();
+        if body == JSON_REQUEST {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"id":"chatcmpl-1","choices":[]}"#))
+                .unwrap()
+        } else {
+            // A failed stream is relayed as is, even if it resembles a usage chunk.
+            Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("content-type", "text/event-stream")
+                .body(Body::from(CHAT_USAGE_CHUNK))
+                .unwrap()
+        }
+    })
+    .await;
+    let relay = transport(&upstream);
+    for (request, status, expected) in [
+        (
+            JSON_REQUEST,
+            StatusCode::OK,
+            r#"{"id":"chatcmpl-1","choices":[]}"#,
+        ),
+        (
+            r#"{"model":"gpt-4.1-mini","stream":true}"#,
+            StatusCode::BAD_REQUEST,
+            CHAT_USAGE_CHUNK,
+        ),
+    ] {
+        let response = relay
+            .forward_route(
+                relay.try_admit().unwrap(),
+                resolved_request_context_for(
+                    ApiFormat::OpenAiChatCompletions,
+                    "provider-secret",
+                    "usage",
+                )
+                .await,
+                &headers(&[("content-type", "application/json")]),
+                Bytes::from_static(request.as_bytes()),
+                Route::OpenAiChatCompletions,
+                None,
+                &mut crate::correlation::RequestCorrelation::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status);
+        assert_eq!(
+            to_bytes(response.into_body(), 4096).await.unwrap(),
+            expected
+        );
+    }
+    assert_eq!(upstream.calls(), 2);
+}
+
+fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
+    use serde_json::{Value, json};
+
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(span["name"], "openai.chat-completions");
+    assert_eq!(span["traceId"], "4bf92f3577b34da6a3ce929d0e0e4736");
+    assert_eq!(span["parentSpanId"], "00f067aa0ba902b7");
+    let attribute = |key: &str| {
+        let attribute = span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .unwrap_or_else(|| panic!("missing {key}"));
+        attribute["value"]["stringValue"].clone()
+    };
+    let parsed =
+        |key: &str| -> Value { serde_json::from_str(attribute(key).as_str().unwrap()).unwrap() };
+    for (key, value) in [
+        ("user.id", "chat-user"),
+        ("session.id", "chat-session"),
+        ("langfuse.trace.name", "chat-trace"),
+        ("langfuse.environment", "staging"),
+        ("langfuse.observation.level", "DEFAULT"),
+        ("langfuse.observation.model.name", "gpt-4.1-mini-2025-04-14"),
+    ] {
+        assert_eq!(attribute(key), value, "{key}");
+    }
+    assert_eq!(parsed("langfuse.trace.tags"), json!(["tag-a", "tag-b"]));
+    assert_eq!(
+        parsed("langfuse.observation.usage_details"),
+        json!({"prompt_tokens":9,"completion_tokens":1,"total_tokens":10,"prompt_tokens_details":{"cached_tokens":4},"completion_tokens_details":{"reasoning_tokens":0}})
+    );
+    // The recorded input is the caller's request, not the upstream rewrite.
+    assert_eq!(
+        parsed("langfuse.observation.input"),
+        json!({"messages":[{"role":"user","content":"Say hello"}]})
+    );
+    assert_eq!(
+        parsed("langfuse.observation.model.parameters").get("stream_options"),
+        serde_json::from_str::<Value>(request)
+            .unwrap()
+            .get("stream_options")
+    );
+    assert_eq!(
+        parsed("langfuse.observation.output"),
+        json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"Hello"}}]})
+    );
+    attribute("langfuse.observation.completion_start_time");
+    let metadata = parsed("langfuse.observation.metadata");
+    assert_eq!(metadata["team"], "search");
+    assert_eq!(
+        metadata["langfuse.gateway.request.api_format"],
+        "openai.chat-completions"
+    );
+    assert_eq!(metadata["langfuse.gateway.response.id"], "chatcmpl-1");
+    assert_eq!(metadata["langfuse.gateway.upstream.request.id"], "req-chat");
+    for secret in [
+        "provider-secret",
+        "gateway-secret",
+        "private-ingestion-token",
+    ] {
+        assert!(!payload.to_string().contains(secret));
+    }
+}

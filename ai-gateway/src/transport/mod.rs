@@ -1,4 +1,6 @@
 //! Bounded byte relay. One task owns upstream reads; the body owns its lifetime.
+mod usage_chunk;
+
 use std::{
     fmt,
     pin::Pin,
@@ -23,6 +25,7 @@ use tokio::{
     task::JoinHandle,
     time::Instant,
 };
+pub(crate) use usage_chunk::UsageChunkFilter;
 
 /// Sanitized failures; upstream URLs, bodies and credentials are never retained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,7 +85,9 @@ const COMMON_RESPONSE_HEADERS: &[&str] = &[
 
 pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
     match api_format {
-        ApiFormat::OpenAiResponses => selected_headers(source, COMMON_REQUEST_HEADERS, &[]),
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => {
+            selected_headers(source, COMMON_REQUEST_HEADERS, &[])
+        }
         ApiFormat::AnthropicMessages => {
             selected_headers(source, COMMON_REQUEST_HEADERS, &["anthropic-"])
         }
@@ -91,7 +96,7 @@ pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> Head
 
 pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
     match api_format {
-        ApiFormat::OpenAiResponses => selected_headers(
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => selected_headers(
             source,
             &[
                 COMMON_RESPONSE_HEADERS,
@@ -125,7 +130,7 @@ pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> Hea
 /// The provider's own request ID, bounded like other captured provider facts.
 pub(crate) fn provider_request_id(headers: &HeaderMap, api_format: ApiFormat) -> Option<&str> {
     let name = match api_format {
-        ApiFormat::OpenAiResponses => "x-request-id",
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => "x-request-id",
         ApiFormat::AnthropicMessages => "request-id",
     };
     headers
@@ -135,11 +140,33 @@ pub(crate) fn provider_request_id(headers: &HeaderMap, api_format: ApiFormat) ->
         .filter(|value| value.len() <= 512)
 }
 
+/// An uncompressed SSE body, the only shape whose events the relay can inspect.
+pub(crate) fn is_plain_event_stream(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("text/event-stream"))
+        && identity_encoding(headers)
+}
+
+pub(crate) fn identity_encoding(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::CONTENT_ENCODING)
+        .iter()
+        .all(|value| {
+            value
+                .to_str()
+                .is_ok_and(|value| value.eq_ignore_ascii_case("identity"))
+        })
+}
+
 pub(crate) fn relay<T: Send + 'static>(
     upstream: reqwest::Response,
     deadline: Instant,
     owner: T,
     capture: ExecutionCapture,
+    filter: Option<UsageChunkFilter>,
 ) -> Body {
     relay_stream(
         upstream.bytes_stream().map(|chunk| {
@@ -154,14 +181,17 @@ pub(crate) fn relay<T: Send + 'static>(
         deadline,
         owner,
         Some(capture),
+        filter,
     )
 }
 
+/// The capture observes upstream bytes before `filter` decides what the caller receives.
 fn relay_stream<S, T>(
     upstream: S,
     deadline: Instant,
     owner: T,
     capture: Option<ExecutionCapture>,
+    mut filter: Option<UsageChunkFilter>,
 ) -> Body
 where
     S: Stream<Item = Result<Bytes, ProviderError>> + Send + 'static,
@@ -200,12 +230,24 @@ where
                     .fetch_add(chunk.len(), Ordering::Relaxed);
                 pump_resources.chunks.fetch_add(1, Ordering::Relaxed);
                 pump_resources.observe(|capture| capture.push_bytes(&chunk));
+                let chunk = match &mut filter {
+                    Some(filter) => filter.filter_chunk(&chunk),
+                    None => chunk,
+                };
                 // One queued chunk plus one pending send; no per-chunk tasks.
                 for bytes in chunk.chunks(64 * 1024) {
                     if sender.send(Bytes::copy_from_slice(bytes)).await.is_err() {
                         return Ok(());
                     }
                 }
+            }
+            if let Some(tail) = filter
+                .as_mut()
+                .map(UsageChunkFilter::finish)
+                .filter(|tail| !tail.is_empty())
+                && sender.send(tail).await.is_err()
+            {
+                return Ok(());
             }
             pump_resources.observe(ExecutionCapture::end_body);
             Ok::<_, ProviderError>(())
@@ -419,6 +461,7 @@ mod tests {
             Instant::now() + Duration::from_secs(1),
             Owner(released.clone()),
             None,
+            None,
         );
         tokio::time::timeout(Duration::from_secs(1), released.notified())
             .await
@@ -459,6 +502,7 @@ mod tests {
             Instant::now() + Duration::from_secs(10),
             Owner(released.clone()),
             None,
+            None,
         );
         tokio::task::yield_now().await;
         assert_eq!(polled.load(Ordering::SeqCst), 1);
@@ -476,6 +520,7 @@ mod tests {
             stream::iter([Ok(bytes.clone()), Err(ProviderError::Transport)]),
             Instant::now() + Duration::from_secs(1),
             Owner(released.clone()),
+            None,
             None,
         );
         // Wait until the pump has published its failure with the successful chunk queued.
@@ -495,6 +540,7 @@ mod tests {
             stream::once(async { Ok(Bytes::from_static(b"final bytes")) }),
             Instant::now() + Duration::from_millis(30),
             Owner(released.clone()),
+            None,
             None,
         );
         tokio::time::timeout(Duration::from_secs(1), released.notified())

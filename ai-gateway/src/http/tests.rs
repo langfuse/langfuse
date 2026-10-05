@@ -177,6 +177,10 @@ impl Gateway {
         reqwest::Client::new().post(format!("{}/openai/v1/responses", self.url))
     }
 
+    fn chat_completions(&self) -> reqwest::RequestBuilder {
+        reqwest::Client::new().post(format!("{}/openai/v1/chat/completions", self.url))
+    }
+
     fn compact(&self) -> reqwest::RequestBuilder {
         reqwest::Client::new().post(format!("{}/openai/v1/responses/compact", self.url))
     }
@@ -1043,18 +1047,82 @@ async fn openai_routes_ignore_x_api_key_and_keep_their_envelope() {
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
-    let response = gateway
-        .post()
-        .header("x-api-key", "gateway-key")
-        .body("{}")
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
-    assert_eq!(body["error"]["code"], "invalid_api_key");
-    assert!(body.get("type").is_none());
+    for request in [gateway.post(), gateway.chat_completions()] {
+        let response = request
+            .header("x-api-key", "gateway-key")
+            .body("{}")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body: serde_json::Value =
+            serde_json::from_str(&response.text().await.unwrap()).unwrap();
+        assert_eq!(body["error"]["code"], "invalid_api_key");
+        assert!(body.get("type").is_none());
+    }
     assert_eq!(web.calls(), 0);
+}
+
+#[tokio::test]
+async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_errors() {
+    let web = FakeServer::start(|request| async move {
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            r#"{"apiFormat":"openai.chat-completions"}"#
+        );
+        resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
+    })
+    .await;
+    let provider = FakeServer::start(|request| async move {
+        assert_eq!(request.uri(), "/v1/chat/completions");
+        assert_eq!(
+            request.headers()[header::AUTHORIZATION],
+            "Bearer provider-chat"
+        );
+        let body = to_bytes(request.into_body(), 4096).await.unwrap();
+        if body == r#"{"model":"unknown-model","messages":[]}"# {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"error":{"code":"model_not_found"}}"#))
+                .unwrap();
+        }
+        assert_eq!(body, r#"{ "model":"gpt-4.1-mini", "messages":[] }"#);
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"id":"chatcmpl-1","choices":[]}"#))
+            .unwrap()
+    })
+    .await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    for (body, status, expected) in [
+        (
+            r#"{ "model":"gpt-4.1-mini", "messages":[] }"#,
+            StatusCode::OK,
+            r#"{"id":"chatcmpl-1","choices":[]}"#,
+        ),
+        (
+            r#"{"model":"unknown-model","messages":[]}"#,
+            StatusCode::NOT_FOUND,
+            r#"{"error":{"code":"model_not_found"}}"#,
+        ),
+    ] {
+        let response = gateway
+            .chat_completions()
+            .bearer_auth("gateway-chat")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status);
+        assert_eq!(response.text().await.unwrap(), expected);
+    }
+    let missing = gateway.chat_completions().body("{}").send().await.unwrap();
+    assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
+    let body: serde_json::Value = serde_json::from_str(&missing.text().await.unwrap()).unwrap();
+    assert_eq!(body["error"]["type"], "authentication_error");
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 2);
 }
 
 #[tokio::test]
