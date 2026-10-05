@@ -16,8 +16,8 @@ use tokio::{
 
 pub use crate::transport::ProviderError;
 use crate::{
-    capture::{ExecutionCapture, RelayOutcome},
-    correlation::RequestCorrelation,
+    capture::{self, ExecutionCapture, RelayOutcome},
+    correlation::{RequestCorrelation, UpstreamTarget},
     resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
@@ -233,6 +233,13 @@ impl ProviderTransport {
             }
             _ => body,
         };
+        // The relay forwards the caller's `model` unchanged.
+        let model = if route.captures_generation() {
+            capture.requested_model().map(str::to_owned)
+        } else {
+            capture::request_model(headers, &body)
+        };
+        correlation.record_upstream(UpstreamTarget::for_connection(context.connection(), model));
         let mut upstream = self
             .client
             .request(route.method(), self.request_url(route, query))

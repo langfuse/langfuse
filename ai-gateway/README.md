@@ -102,7 +102,9 @@ host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
 
 Logs and operational OpenTelemetry exports describe gateway health independently
 of the inference generations sent to Langfuse. They do not include request/response
-content, credentials, key metadata, or URL query strings. Health probes are excluded
+content, credentials, key metadata, or URL query strings. They do carry the
+[resolution context](#resolution-context), including the provider connection name
+and the requested model. Health probes are excluded
 from request logs and spans.
 
 Use `LANGFUSE_LOG_FORMAT=text` locally and `json` for log collectors. Built-in `tracing-subscriber` formatters handle both modes. JSON event fields
@@ -166,6 +168,33 @@ response headers, which still upload a generation. Requests rejected earlier, su
 as authentication failures, and model or token-count routes omit them. Upload is
 best-effort, so a dropped generation can leave these IDs unresolved. The gateway
 does not set CORS headers, so no `Access-Control-Expose-Headers` is involved.
+
+### Resolution context
+
+Once Web resolution succeeds, the request also carries its tenant, and once it is
+sent upstream, the provider connection and model it was sent to. Requests rejected
+before resolution carry none of them. A resolved request that fails before reaching
+the provider, such as a 413 body or 503 execution capacity rejection, carries only
+the tenant. Provider failures before response headers (502/504) still name the
+connection that was tried.
+
+| Response header | Server span field | JSON log key | Value |
+| --- | --- | --- | --- |
+| `langfuse-organization-id` | `langfuse.organization.id` | `organization_id` | Organization of the gateway key |
+| `langfuse-project-id` | `langfuse.project.id` | `project_id` | Ingestion project |
+| `langfuse-provider` | `gateway.provider` | `provider` | Stable lowercase provider type, `openai` or `anthropic` |
+| `langfuse-provider-connection-id` | `gateway.provider.connection.id` | `provider_connection_id` | Opaque provider connection ID |
+| — | `gateway.provider.connection.name` | `provider_connection_name` | The connection's user-chosen name; never sent to callers |
+| `langfuse-model` | `gateway.upstream.model` | `upstream_model` | The request's `model`, which the relay forwards unchanged |
+
+The provider fields describe the latest upstream attempt, so with fallbacks they
+name the connection that served the response, or the last one tried. The model is
+read from the request body when it is uncompressed JSON of at most 5 MiB; the
+models routes have none. Its header is omitted unless the value is printable ASCII.
+The span fields are declared empty on the `http.server` span and recorded after
+resolution; child spans do not repeat them. JSON log lines emitted inside the
+request after they are recorded repeat them as top-level keys, like `request_id`.
+They are never metric attributes.
 
 Each inference request phase has a child span of the server span so a waterfall
 has no unattributed wall time:
@@ -821,6 +850,9 @@ invalid response, even if Web selected it.
 | --- | --- | --- | --- |
 | `openai` | `openai.responses`, `openai.chat-completions` | `https://api.openai.com/v1` | `{"type":"Bearer","token":…}` → `Authorization: Bearer` |
 | `anthropic` | `anthropic.messages` | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
+
+The connection's `name` is optional in the contract, so the gateway also resolves
+against a Web deployment that predates it. Web always sends it.
 
 `ProviderConnection::credential()` exposes the secret in its header position
 (`ProviderCredential::Bearer` or `ProviderCredential::XApiKey`) and has no `Debug`

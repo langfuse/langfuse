@@ -82,6 +82,14 @@ impl ProtocolCapture {
         }
     }
 
+    fn requested_model(&self) -> Option<&str> {
+        match self {
+            Self::OpenAiResponses(capture) => capture.requested_model(),
+            Self::OpenAiChatCompletions(capture) => capture.requested_model(),
+            Self::AnthropicMessages(capture) => capture.requested_model(),
+        }
+    }
+
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
@@ -197,6 +205,13 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
+    /// The request's `model`, if the capture could parse it.
+    pub fn requested_model(&self) -> Option<&str> {
+        self.protocol
+            .as_ref()
+            .and_then(ProtocolCapture::requested_model)
+    }
+
     pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
@@ -269,6 +284,21 @@ fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>,
         reason,
         body_bytes: body.len(),
     })
+}
+
+/// The `model` of a request body that is not captured, within the capture's limits.
+pub(crate) fn request_model(headers: &HeaderMap, body: &[u8]) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct Model<'a> {
+        #[serde(borrow)]
+        model: std::borrow::Cow<'a, str>,
+    }
+    if body.is_empty() || body.len() > MAX_INPUT_CAPTURE_BYTES || !identity_encoding(headers) {
+        return None;
+    }
+    serde_json::from_slice::<Model<'_>>(body)
+        .ok()
+        .and_then(|request| bounded_string(&request.model))
 }
 
 fn bounded_string(value: &str) -> Option<String> {
