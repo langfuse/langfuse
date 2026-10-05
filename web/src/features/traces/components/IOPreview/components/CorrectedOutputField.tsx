@@ -59,7 +59,7 @@ export function CorrectedOutputField({
   // Diff dialog state
   const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
 
-  // One-line link by default; the full section renders on demand.
+  // Empty corrections stay collapsed until the user opens the section.
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Merge cache + server data
@@ -161,9 +161,7 @@ export function CorrectedOutputField({
     setIsEditing(false);
   };
 
-  // Collapsed to a one-line link by default: corrections are used by a small
-  // share of users, so the full editor UI only takes space once asked for.
-  if (!isExpanded) {
+  if (!isExpanded && !hasContent) {
     return (
       <div className="px-2 py-2">
         <button
