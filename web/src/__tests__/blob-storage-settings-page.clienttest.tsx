@@ -1,22 +1,29 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const mocks = vi.hoisted(() => ({
   hasAccess: true,
   hasEntitlement: false,
+  push: vi.fn(),
+  routerQuery: {
+    projectId: "proj-1",
+    integrationId: undefined as string | undefined,
+  },
   useQuery: vi.fn(),
 }));
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
-    query: { projectId: "proj-1" },
+    query: mocks.routerQuery,
     pathname: "/project/[projectId]/settings/integrations/blob-storage",
-    push: vi.fn(),
+    push: mocks.push,
   }),
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children }: { children: ReactNode }) => <a>{children}</a>,
+  default: ({ children, href }: { children: ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 
 vi.mock("@/src/components/layouts/container-page", () => ({
@@ -25,10 +32,16 @@ vi.mock("@/src/components/layouts/container-page", () => ({
     headerProps,
   }: {
     children: ReactNode;
-    headerProps: { title: string };
+    headerProps: {
+      title: string;
+      actionButtonsLeft?: ReactNode;
+      actionButtonsRight?: ReactNode;
+    };
   }) => (
     <div>
       <h1>{headerProps.title}</h1>
+      {headerProps.actionButtonsLeft}
+      {headerProps.actionButtonsRight}
       {children}
     </div>
   ),
@@ -43,9 +56,24 @@ vi.mock("@/src/components/ui/StatusBadge/StatusBadge", () => ({
 }));
 
 vi.mock("@/src/components/ui/button", () => ({
-  Button: ({ children }: { children: ReactNode }) => (
-    <button>{children}</button>
-  ),
+  Button: ({
+    asChild,
+    children,
+    onClick,
+    variant = "default",
+  }: {
+    asChild?: boolean;
+    children: ReactNode;
+    onClick?: () => void;
+    variant?: string;
+  }) =>
+    asChild ? (
+      children
+    ) : (
+      <button data-variant={variant} onClick={onClick}>
+        {children}
+      </button>
+    ),
 }));
 
 vi.mock("@/src/components/ui/card", () => ({
@@ -94,9 +122,22 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
+    useUtils: () => ({
+      blobStorageIntegration: {
+        invalidate: vi.fn(),
+      },
+    }),
     blobStorageIntegration: {
       get: {
         useQuery: mocks.useQuery,
+      },
+      delete: {
+        useMutation: () => ({
+          error: null,
+          isPending: false,
+          mutateAsync: vi.fn(),
+          reset: vi.fn(),
+        }),
       },
     },
   },
@@ -109,6 +150,7 @@ describe("BlobStorageIntegrationPage entitlement gate", () => {
     vi.clearAllMocks();
     mocks.hasAccess = true;
     mocks.hasEntitlement = false;
+    mocks.routerQuery.integrationId = undefined;
     mocks.useQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -164,4 +206,70 @@ describe("BlobStorageIntegrationPage entitlement gate", () => {
       expect.objectContaining({ enabled: true }),
     );
   });
+});
+
+describe("BlobStorageIntegrationPage header actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.hasAccess = true;
+    mocks.hasEntitlement = true;
+    mocks.routerQuery.integrationId = undefined;
+    mocks.useQuery.mockReturnValue({
+      data: {
+        configs: [
+          {
+            id: "integration-id",
+            bucketName: "bucket",
+            enabled: true,
+            lastError: null,
+            lastSyncAt: null,
+            nextSyncAt: null,
+            runStartedAt: null,
+          },
+        ],
+        writeMode: "upsert",
+      },
+      isLoading: false,
+    });
+  });
+
+  it("shows the primary add action beside the secondary docs action on the list", () => {
+    render(<BlobStorageIntegrationPage />);
+
+    const docs = screen.getByRole("link", { name: "Integration Docs ↗" });
+    const add = screen.getByRole("button", { name: "Add integration" });
+
+    expect(docs).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage",
+    );
+    expect(add).toHaveAttribute("data-variant", "default");
+
+    fireEvent.click(add);
+
+    expect(mocks.push).toHaveBeenCalledWith(
+      {
+        pathname: "/project/[projectId]/settings/integrations/blob-storage",
+        query: { projectId: "proj-1", integrationId: "new" },
+      },
+      undefined,
+      { shallow: true },
+    );
+  });
+
+  it.each(["new", "integration-id"])(
+    "hides the add action on the %s integration detail",
+    (integrationId) => {
+      mocks.routerQuery.integrationId = integrationId;
+
+      render(<BlobStorageIntegrationPage />);
+
+      expect(
+        screen.queryByRole("button", { name: "Add integration" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Integration Docs ↗" }),
+      ).toBeInTheDocument();
+    },
+  );
 });

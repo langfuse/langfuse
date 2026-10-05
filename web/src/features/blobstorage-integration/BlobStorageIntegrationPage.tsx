@@ -15,7 +15,7 @@ import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-inte
 import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
 import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 
@@ -163,7 +163,6 @@ export default function BlobStorageIntegrationPage() {
             <BlobStorageIntegrationTable
               integrations={state.data.configs}
               onSelect={(integration) => openIntegration(integration.id)}
-              onCreate={() => openIntegration("new")}
               onDelete={openDialog}
             />
           )}
@@ -213,14 +212,22 @@ export default function BlobStorageIntegrationPage() {
           </>
         ),
         actionButtonsRight: (
-          <Button asChild variant="secondary">
-            <Link
-              href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage"
-              target="_blank"
-            >
-              Integration Docs ↗
-            </Link>
-          </Button>
+          <>
+            <Button asChild variant="secondary">
+              <Link
+                href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage"
+                target="_blank"
+              >
+                Integration Docs ↗
+              </Link>
+            </Button>
+            {!showDetails && (
+              <Button onClick={() => openIntegration("new")}>
+                <Plus className="mr-1 size-4" aria-hidden="true" />
+                Add integration
+              </Button>
+            )}
+          </>
         ),
       }}
     >

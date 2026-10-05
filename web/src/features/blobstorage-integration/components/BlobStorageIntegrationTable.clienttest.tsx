@@ -43,7 +43,6 @@ describe("BlobStorageIntegrationTable", () => {
           }),
         ]}
         onSelect={vi.fn()}
-        onCreate={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
@@ -72,7 +71,6 @@ describe("BlobStorageIntegrationTable", () => {
             }),
           ]}
           onSelect={onSelect}
-          onCreate={vi.fn()}
           onDelete={onDelete}
         />
       </LayerProvider>,

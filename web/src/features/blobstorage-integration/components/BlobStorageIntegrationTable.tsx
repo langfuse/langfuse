@@ -1,10 +1,7 @@
 import { useCallback, useMemo } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
-import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type TableProps } from "@/src/components/design-system/table/Table";
@@ -41,12 +38,10 @@ const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
 export function BlobStorageIntegrationTable({
   integrations,
   onSelect,
-  onCreate,
   onDelete,
 }: {
   integrations: BlobStorageIntegration[];
   onSelect: (integration: BlobStorageIntegration) => void;
-  onCreate: () => void;
   onDelete: (integration: BlobStorageIntegration) => void;
 }) {
   const columns = useMemo<LangfuseColumnDef<BlobStorageIntegration>[]>(
@@ -91,16 +86,6 @@ export function BlobStorageIntegrationTable({
     ],
     [onDelete],
   );
-  const toolbarActions: SettingsTableProps<BlobStorageIntegration>["toolbarActions"] =
-    [
-      {
-        id: "add-integration",
-        label: "Add integration",
-        variant: "secondary",
-        icon: <Plus className="size-4" aria-hidden="true" />,
-        onClick: onCreate,
-      },
-    ];
 
   return (
     <SettingsTable
@@ -108,7 +93,6 @@ export function BlobStorageIntegrationTable({
       columns={columns}
       data={{ status: "success", data: integrations }}
       actions={actions}
-      toolbarActions={toolbarActions}
       onRowClick={onSelect}
       noResultsMessage="No blob storage integrations configured."
     />
