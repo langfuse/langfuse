@@ -208,7 +208,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
                 id: lookupIntegrationId,
                 projectId: input.projectId,
               },
-              select: { createdAt: true, exportSource: true },
+              select: { id: true, createdAt: true, exportSource: true },
             })
           : null;
 
