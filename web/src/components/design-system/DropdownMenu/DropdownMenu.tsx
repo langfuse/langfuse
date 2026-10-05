@@ -176,6 +176,8 @@ type DropdownMenuProps = {
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
+  /** Shown in the header after the title; renders the header on its own. */
+  titleBadge?: React.ReactNode;
   description?: string;
 };
 
@@ -204,7 +206,9 @@ function DropdownMenuNode({
   placement = "bottom-start",
   search,
   title,
+  titleBadge,
 }: DropdownMenuProps) {
+  const hasHeader = Boolean(title || titleBadge);
   const [isOpen, setIsOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -333,9 +337,16 @@ function DropdownMenuNode({
                   }
                 : {})}
             >
-              {title ? (
+              {hasHeader ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
-                  {title}
+                  {titleBadge ? (
+                    <div className="flex items-center gap-2">
+                      {title}
+                      {titleBadge}
+                    </div>
+                  ) : (
+                    title
+                  )}
                   {description && (
                     <p className="text-muted-foreground mt-1 text-xs font-normal">
                       {description}
@@ -382,7 +393,7 @@ function DropdownMenuNode({
               ) : null}
               <div
                 className={menuBodyVariants({
-                  hasTitle: Boolean(title || search),
+                  hasTitle: hasHeader || Boolean(search),
                   showBottomGradient: bottom,
                   showTopGradient: top,
                 })}
