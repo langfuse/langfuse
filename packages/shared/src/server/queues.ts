@@ -101,9 +101,19 @@ export const TraceQueueEventSchema = z.object({
   exactTimestamp: z.date().optional(),
   traceEnvironment: z.string().optional(), // Optional to maintain backward compatibility with existing jobs in queue during deployment. 'optional()' can be removed after queue was exhausted
 });
+// Who triggered a queued job (e.g. a deletion). Only used for logging; optional
+// on payloads so that jobs enqueued before this field existed still parse.
+export const ActorSchema = z.object({
+  type: z.enum(["USER", "API_KEY"]),
+  userId: z.string().optional(),
+  apiKeyId: z.string().optional(),
+  publicKey: z.string().optional(),
+});
+export type Actor = z.infer<typeof ActorSchema>;
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
   traceIds: z.array(z.string()),
+  actor: ActorSchema.optional(),
 });
 export const ScoresQueueEventSchema = z.object({
   projectId: z.string(),
@@ -186,62 +196,38 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
+// Fields shared by the batch actions that select rows from a table and apply
+// one action to them.
+const BatchActionTableEventBaseSchema = z.object({
+  projectId: z.string(),
+  query: BatchActionQuerySchema,
+  tableName: z.enum(BatchTableNames),
+  cutoffCreatedAt: z.date(),
+  targetId: z.string().optional(),
+  type: z.enum(BatchActionType),
+  userId: z.string().optional(), // Requesting user, for logging only
+});
+
 export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   "actionId",
   [
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("score-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("dataset-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("trace-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("trace-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("session-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("observation-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
     z.object({
       actionId: z.literal("eval-create"),

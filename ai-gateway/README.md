@@ -107,6 +107,8 @@ from request logs and spans.
 Use `LANGFUSE_LOG_FORMAT=text` locally and `json` for log collectors. Built-in `tracing-subscriber` formatters handle both modes. JSON event fields
 are top-level attributes; span fields are nested. HTTP response and execution
 summaries include top-level `trace_id` and `span_id` for Datadog correlation.
+Every JSON log line emitted while serving an inference request also carries a
+top-level `request_id`; see [Request IDs](#request-ids).
 `info` emits lifecycle, HTTP response, and execution summaries; `debug` adds
 sanitized capture details. Other log events do not automatically include trace IDs. Dependency logs stay at `warn`. Log severity does not control
 trace sampling. `trace` is not an accepted gateway log level.
@@ -128,6 +130,40 @@ completion, cancellation, timeout, or transport error. HTTP status and stream
 outcome are separate: a 200 response can still fail while streaming. The server
 span carries `http.request.body.size`, `gateway.outcome`, and
 `gateway.first_byte_ms` once they are known.
+
+### Request IDs
+
+Every inference request gets a fresh UUIDv7 gateway request ID (time-ordered, no prefix) at ingress, before
+authentication, so it exists for every response, including rejections before
+resolution, 4xx/5xx gateway errors and streams. It appears in:
+
+| Where | Field |
+| --- | --- |
+| Every response | `langfuse-request-id` header, sent with the initial headers of a stream |
+| Gateway JSON error bodies | Top-level `request_id` in both native envelopes |
+| Gateway JSON log lines for the request | Top-level `request_id` |
+| Operational server span | `gateway.request.id` |
+| Web resolution call | `langfuse-gateway-request-id` header; Web adds it to its log context |
+| Langfuse generation | `langfuse.gateway.request.id` metadata |
+
+A caller's `x-request-id` never becomes the gateway request ID. A single printable
+value of at most 256 bytes is recorded separately as the server span's
+`gateway.client.request.id` and as `langfuse.gateway.client.request.id` generation
+metadata; it is not forwarded to Web or the provider. The provider's own request ID
+(OpenAI `x-request-id`, Anthropic `request-id`) is recorded as the server span's
+`provider_request_id` on every route and as `langfuse.gateway.upstream.request.id`
+generation metadata, and its response header is still relayed unchanged.
+
+When the request will produce a Langfuse generation (`/openai/v1/responses`,
+`/openai/v1/responses/compact` and `/anthropic/v1/messages` with inference telemetry
+configured), the response also carries `langfuse-trace-id` and
+`langfuse-observation-id`: the uploaded generation's trace ID, after `traceparent`
+and agent turn grouping, and its OpenTelemetry span ID, which Langfuse stores as the
+observation ID. They are also set on 502/504 responses for provider failures before
+response headers, which still upload a generation. Requests rejected earlier, such
+as authentication failures, and model or token-count routes omit them. Upload is
+best-effort, so a dropped generation can leave these IDs unresolved. The gateway
+does not set CORS headers, so no `Access-Control-Expose-Headers` is involved.
 
 Each inference request phase has a child span of the server span so a waterfall
 has no unattributed wall time:
@@ -273,8 +309,9 @@ only; Web still selects the provider connection. Compact `encrypted_content` is 
 unchanged. Inference routes drop request query strings: the Anthropic SDK's
 `?beta=true` carries nothing beyond the `anthropic-beta` header. Provider errors retain
 their status and body. Gateway errors use the namespace's native envelope:
-`{"error":{"message":"...","type":"...","param":null,"code":"..."}}` for OpenAI and
-`{"type":"error","error":{"type":"...","message":"..."}}` for Anthropic, where the
+`{"error":{"message":"...","type":"...","param":null,"code":"..."},"request_id":"..."}`
+for OpenAI and `{"type":"error","error":{"type":"...","message":"..."},"request_id":"..."}`
+for Anthropic, where `request_id` is the gateway request ID and the
 error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
 `api_error`).
@@ -369,10 +406,11 @@ each field describes:
 | `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
 | `response.id`                                                                               | Native response object's ID                                                 |
 | `response.status_code`                                                                      | HTTP status returned to the caller                                          |
+| `request.id`                                                                                | Gateway request ID, also returned as the `langfuse-request-id` response header |
+| `client.request.id`                                                                         | Caller's `x-request-id`, when valid                                         |
 | `upstream.request.id`                                                                       | Provider request ID from the upstream `x-request-id` (OpenAI) or `request-id` (Anthropic) header |
 
-`request.id` is reserved for a future gateway-generated request ID and is not
-emitted. The upstream request ID is separate and is omitted when unavailable.
+The client and upstream request IDs are omitted when unavailable.
 API-key attribution entries appear both as top-level metadata and under
 `langfuse.gateway.api_key.metadata.*`.
 Gateway, agent and OpenTelemetry fields win collisions; the namespaced attribution

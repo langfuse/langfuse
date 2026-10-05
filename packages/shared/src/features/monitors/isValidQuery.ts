@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 /** isValidQuery.ts checks that a Monitor's (view, metric, filters) tuple
  * resolves against the v2 view declaration in the query package. Consumed as
  * a zod `superRefine` from the Monitor input schemas in `./types`. */
@@ -64,7 +63,9 @@ export function isValidQuery(input: {
     const metricReason = invalidMetricReason(declaration, input.view, m);
     if (metricReason) {
       rejected.push(m);
-      reason ??= metricReason;
+      if (reason === undefined) {
+        reason = metricReason;
+      }
     } else {
       accepted.push(m);
     }

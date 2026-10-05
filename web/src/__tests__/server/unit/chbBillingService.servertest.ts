@@ -680,6 +680,24 @@ describe("chbBillingService", () => {
       expect(clientMock.getAttachedPlan).not.toHaveBeenCalled();
       expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ["cancel", (s: ChbBillingService) => s.cancel(ORG_ID)],
+      ["reactivate", (s: ChbBillingService) => s.reactivate(ORG_ID)],
+      [
+        "clearPlanSwitchSchedule",
+        (s: ChbBillingService) => s.clearPlanSwitchSchedule(ORG_ID),
+      ],
+    ])(
+      "maps %s without an attached plan onto PRECONDITION_FAILED",
+      async (_label, call) => {
+        withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
+
+        expect(await trpcCode(call(service()))).toBe("PRECONDITION_FAILED");
+        expect(clientMock.setScheduledChange).not.toHaveBeenCalled();
+        expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("getInvoices", () => {

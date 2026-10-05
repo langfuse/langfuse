@@ -11,6 +11,7 @@ use serde_json::{Map, Value, json};
 use tokio::time::Instant;
 
 use crate::{
+    correlation::RequestCorrelation,
     resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
     telemetry,
 };
@@ -169,15 +170,19 @@ impl ExecutionCapture {
         telemetry: telemetry::Telemetry,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
+        correlation: &mut RequestCorrelation,
     ) {
         let client_metadata = self
             .protocol
             .as_ref()
             .and_then(ProtocolCapture::client_metadata);
-        self.delivery = Some((
-            telemetry,
-            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata),
-        ));
+        let delivery = telemetry::DeliveryContext::from_resolved(context, headers, client_metadata);
+        correlation.record_generation(delivery.generation_ids());
+        self.metadata["request_id"] = json!(correlation.id());
+        if let Some(client_id) = correlation.client_id() {
+            self.metadata["client_request_id"] = json!(client_id);
+        }
+        self.delivery = Some((telemetry, delivery));
     }
 
     pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
