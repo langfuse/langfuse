@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/no-let-assign-in-react */
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import {
   ChevronDown,
@@ -786,20 +786,27 @@ function LoadedSessionConversationTimeline({
       ]),
     );
   }, [observations]);
-  let collapsedObservationIds = collapseState.observationIds;
-  if (
-    scrollTarget &&
-    scrollTarget.requestId !== collapseState.scrollRequestId
-  ) {
+  const collapsedObservationIds = useMemo(() => {
+    if (
+      !scrollTarget ||
+      scrollTarget.requestId === collapseState.scrollRequestId
+    ) {
+      return collapseState.observationIds;
+    }
     const target = observations.find(
       ({ observation }) => observation.id === scrollTarget.observationId,
     );
     const observationIds = new Set(collapseState.observationIds);
     target?.ancestorObservationIds.forEach((id) => observationIds.delete(id));
-    collapsedObservationIds = observationIds;
+    return observationIds;
+  }, [scrollTarget, collapseState, observations]);
+  if (
+    scrollTarget &&
+    scrollTarget.requestId !== collapseState.scrollRequestId
+  ) {
     setCollapseState({
       scrollRequestId: scrollTarget.requestId,
-      observationIds,
+      observationIds: collapsedObservationIds,
     });
   }
 
