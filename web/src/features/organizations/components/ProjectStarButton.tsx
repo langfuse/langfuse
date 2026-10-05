@@ -27,7 +27,7 @@ export const ProjectStarButton = ({
         "relative z-10 shrink-0",
         isStarred
           ? "text-foreground"
-          : "text-muted-foreground/50 hover:text-foreground",
+          : "text-muted-foreground/35 hover:text-foreground",
       )}
       onClick={(e) => {
         e.preventDefault();
