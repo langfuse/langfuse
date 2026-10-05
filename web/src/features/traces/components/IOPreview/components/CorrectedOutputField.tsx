@@ -159,8 +159,7 @@ export function CorrectedOutputField({
   const handleDeleteWithExitEdit = () => {
     handleDelete();
     setIsEditing(false);
-    // Keep the empty editor open instead of collapsing back to the link.
-    setIsExpanded(true);
+    setIsExpanded(false);
   };
 
   if (!isExpanded && !effectiveCorrection) {

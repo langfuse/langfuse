@@ -108,8 +108,12 @@ describe("CorrectedOutputField visibility", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps the section open after deleting an auto-shown correction", () => {
+  it("collapses back to the link after deleting a correction", () => {
     const { rerender } = render(
+      <CorrectedOutputField {...baseProps} existingCorrection={null} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
+    rerender(
       <CorrectedOutputField
         {...baseProps}
         existingCorrection={
@@ -124,10 +128,10 @@ describe("CorrectedOutputField visibility", () => {
     fireEvent.click(screen.getByTitle("Delete corrected output"));
     rerender(<CorrectedOutputField {...baseProps} existingCorrection={null} />);
 
-    expect(screen.getByText("Corrected Output")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Correct output" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Correct output" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Corrected Output")).not.toBeInTheDocument();
   });
 
   it("keeps the section collapsed when no correction exists", () => {
