@@ -6,7 +6,8 @@ Run the OTEL replay suites against an isolated ClickHouse table:
 pnpm --filter worker run test:otel-replay
 ```
 
-Use the normal worker test environment and a migrated ClickHouse database. The
+Use local or disposable test services: migrated ClickHouse and Postgres databases
+and Redis without active ingestion consumers. The
 test client uses `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, and
 `CLICKHOUSE_DB`; Vitest loads the repository's `.env` without overriding supplied
 environment variables. The configured user needs to read the `events_full`
@@ -31,14 +32,30 @@ when legacy processing fails. The suites keep generated seeds reproducible and
 disable retries. Memory tables cover ClickHouse types, defaults, and serialization;
 MergeTree deduplication and production materialized views are outside the run.
 
-## Remote execution
+## Scope and caveats
 
-The same command can run from a checkout on an authorized remote host, including
-a bastion with an appropriate runtime and database access, or locally through
-an existing tunnel. Install the repository dependencies and build the shared
-package as for local worker tests; provide the remote database connection in
-the environment. No code needs to execute on the bastion when using a tunnel.
+- Scratch tables isolate ClickHouse inserts and provide predictable readback
+  targets. They do not isolate the whole application from production services.
+  Dual tests create Postgres project/session state and real Redis jobs; run them
+  only against test services. Another worker consuming those jobs would race the
+  harness.
+- Each replay processes one document under the direct-v4 route, with optional
+  legacy writes. The job explicitly selects ingestion version 4; an empty
+  staging table does not test the queue-forwarded events route.
+- Legacy merge reads still target ordinary trace and observation tables. Dual
+  cases use fresh projects with no existing rows. They do not cover updates
+  across replay calls: a later call cannot read the earlier scratch writes.
+  Such tests need reads and writes to share the same isolated state first.
+- The harness invokes production queue processors in-process, including the
+  legacy jobs it enqueues. It does not exercise BullMQ worker consumption,
+  Redis deserialization, scheduling, or retries.
+- Media uploads and association writes use test doubles. Their calls can verify
+  content and destinations, but do not prove object-storage persistence or
+  Postgres media/link persistence. Model/prompt lookups and evaluation services
+  are also controlled rather than end-to-end.
 
-The current corpus is synthetic. Fetching production S3 batches and replaying a
-time window are separate extensions; this command does not discover production
-credentials, enqueue production jobs, or download customer data.
+The current corpus is synthetic. Production S3 capture is a separate extension:
+preserve the raw object bytes, then replay against local services with an
+explicit routing/configuration context. Running from a bastion is compatible
+with that model, but pointing this test command at production databases or
+queues is not.
