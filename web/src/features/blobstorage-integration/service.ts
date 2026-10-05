@@ -131,13 +131,6 @@ export async function upsertBlobStorageIntegration(params: {
   };
 
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
-      SELECT pg_advisory_xact_lock(
-        hashtext('blob-storage-integrations'),
-        hashtext(${projectId})
-      )
-    `;
-
     const existing = integrationId
       ? await tx.blobStorageIntegration.findFirst({
           where: { id: integrationId, projectId },
