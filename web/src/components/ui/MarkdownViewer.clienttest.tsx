@@ -6,15 +6,22 @@ import {
 } from "@/src/components/ui/MarkdownViewer";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 
-const { externalMediaState, resolveExternalMediaQueryMock } = vi.hoisted(
-  () => ({
-    externalMediaState: { enabled: true },
-    resolveExternalMediaQueryMock: vi.fn(() => ({
-      isError: false,
-      data: { url: "https://signed.example.com/image.png" },
-    })),
-  }),
-);
+const {
+  externalMediaState,
+  refetchExternalMediaMock,
+  resolveExternalMediaQueryMock,
+} = vi.hoisted(() => ({
+  externalMediaState: { enabled: true },
+  refetchExternalMediaMock: vi.fn(),
+  resolveExternalMediaQueryMock: vi.fn(() => ({
+    isError: false,
+    data: {
+      url: "https://signed.example.com/image.png",
+      expiresAt: new Date(Date.now() - 1),
+    },
+    refetch: refetchExternalMediaMock,
+  })),
+}));
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: { projectId: "project-1" } }),
@@ -60,6 +67,7 @@ const renderMarkdown = (markdown: string) =>
 describe("MarkdownView external S3 media", () => {
   beforeEach(() => {
     externalMediaState.enabled = true;
+    refetchExternalMediaMock.mockClear();
     resolveExternalMediaQueryMock.mockClear();
   });
 
@@ -126,6 +134,17 @@ describe("MarkdownView external S3 media", () => {
       { projectId: "project-1", uri },
       expect.objectContaining({ enabled: false }),
     );
+  });
+
+  it("refreshes an expired signed URL when reopening its media tag", () => {
+    renderMarkdown("s3://customer-bucket/media/photo.png");
+
+    const mediaTag = screen.getByRole("button", { name: "PNG media" });
+    fireEvent.click(mediaTag);
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(mediaTag);
+
+    expect(refetchExternalMediaMock).toHaveBeenCalledTimes(1);
   });
 
   it("keeps rendering HTTP Markdown images through the existing image path", () => {
