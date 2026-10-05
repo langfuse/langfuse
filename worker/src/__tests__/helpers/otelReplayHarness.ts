@@ -1,91 +1,201 @@
 import { randomUUID } from "node:crypto";
 
+import { expect, vi } from "vitest";
+import type { Job } from "bullmq";
+
 import {
   clickhouseClient,
+  getS3EventStorageClient,
+  IngestionQueue,
+  QueueJobs,
+  QueueName,
+  StorageServiceFactory,
   type ClickhouseClientType,
-  type ResourceSpan,
-  OtelIngestionProcessor,
+  type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
-import { IngestionService } from "../../services/IngestionService";
-import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
+import { otelIngestionQueueProcessorBuilder } from "../../queues/otelIngestionQueue";
+import { ingestionQueueProcessorBuilder } from "../../queues/ingestionQueue";
+import {
+  configureOtelReplayEnvironment,
+  otelReplayMocks,
+} from "./otelReplaySetup";
 
 type OtelReplayStoredRow = Record<string, unknown>;
 
-type RunOtelReplayParams = {
-  resourceSpans: ResourceSpan[];
-  projectId?: string;
-  fileKey?: string;
+export type OtelReplayResult = {
+  storedRows: OtelReplayStoredRow[];
+  legacyRows?: Partial<Record<LegacyReplayTable, OtelReplayStoredRow[]>>;
 };
 
-type OtelReplayResult = {
-  storedRows: OtelReplayStoredRow[];
+type LegacyReplayTable =
+  | TableName.Traces
+  | TableName.Observations
+  | TableName.ObservationsBatchStaging;
+
+const legacyReplayTables: LegacyReplayTable[] = [
+  TableName.Traces,
+  TableName.Observations,
+  TableName.ObservationsBatchStaging,
+];
+
+type RunOtelReplayParams = {
+  /** The exact S3 document bytes passed to the production queue processor. */
+  bytes: Buffer;
+  projectId?: string;
+  orgId?: string;
+  fileKey?: string;
+  mediaUploadEnabled?: boolean;
+  overflowEnabled?: boolean;
+  overflowSizeLimitBytes?: number;
+  writeMode?: "events_only" | "dual";
 };
 
 /**
- * Runs the production OTEL event phase through the production writer and reads
- * the rows persisted in an isolated Memory table.
+ * Replay an S3 OTEL document through the production queue and JSON writer, then
+ * read its events_full rows from an isolated ClickHouse Memory table.
  */
 export async function runOtelReplay(
   params: RunOtelReplayParams,
 ): Promise<OtelReplayResult> {
   const projectId = params.projectId ?? "otel-replay-test";
   const fileKey = params.fileKey ?? "otel-replay/test.json";
+  const writeMode = params.writeMode ?? "events_only";
   const client = clickhouseClient();
   const suffix = randomUUID().replaceAll("-", "");
   const tableName = `otel_replay_events_${suffix}`;
-  let writer: ClickhouseWriter | undefined;
-  let tableCreated = false;
-  let writerShutdown = false;
+  const originalBytes = Buffer.from(params.bytes);
+  const restoreEnvironment = configureOtelReplayEnvironment({
+    mediaUploadEnabled: params.mediaUploadEnabled,
+    overflowEnabled: params.overflowEnabled,
+    overflowSizeLimitBytes: params.overflowSizeLimitBytes,
+    writeMode,
+  });
+
+  const uploadedEventJson = new Map<string, string>();
+  const storage = {
+    download: vi.fn(async (path?: string) => {
+      const uploaded = path ? uploadedEventJson.get(path) : undefined;
+      return uploaded ?? Buffer.from(originalBytes).toString("utf8");
+    }),
+    listFiles: vi.fn(async (prefix: string) =>
+      [...uploadedEventJson.keys()]
+        .filter((path) => path.startsWith(prefix))
+        .map((file) => ({ file, createdAt: new Date() })),
+    ),
+  };
+  const storageServiceSpy =
+    writeMode === "dual"
+      ? vi.spyOn(StorageServiceFactory, "getInstance").mockReturnValue({
+          uploadJson: otelReplayMocks.uploadEventJson,
+        } as never)
+      : undefined;
+
+  const isolatedTableNames = new Map<TableName, string>([
+    [TableName.EventsFull, tableName],
+  ]);
+  if (writeMode === "dual") {
+    for (const legacyTable of legacyReplayTables) {
+      isolatedTableNames.set(legacyTable, `${tableName}_${legacyTable}`);
+    }
+    otelReplayMocks.uploadEventJson.mockImplementation(
+      async (path: string, body: Record<string, unknown>[]) => {
+        uploadedEventJson.set(path, JSON.stringify(body));
+      },
+    );
+  }
+
+  const createdTables: string[] = [];
+  let writer: ReturnType<typeof ClickhouseWriter.getInstance> | undefined;
+  let replayResult: OtelReplayResult | undefined;
+  let primaryError: Error | undefined;
+  const cleanupErrors: unknown[] = [];
 
   try {
-    await client.command({
-      query: `CREATE TABLE ${tableName} AS events_full ENGINE = Memory`,
-    });
-    tableCreated = true;
-
-    writer = ClickhouseWriter.getInstance({
-      insert: async (params: Parameters<ClickhouseClientType["insert"]>[0]) =>
-        client.insert({
-          ...params,
-          table:
-            params.table === TableName.EventsFull ? tableName : params.table,
-        }),
-    } as ClickhouseClientType);
-
-    const processor = new OtelIngestionProcessor({
-      projectId,
-      publicKey: "",
-      sdkName: "otel-replay",
-      sdkVersion: "test",
-      fileKey,
-    });
-    const ingestionService = new IngestionService(
-      {} as never,
-      {} as never,
-      writer,
-      {} as never,
+    vi.mocked(getS3EventStorageClient).mockReturnValue(
+      storage as unknown as ReturnType<typeof getS3EventStorageClient>,
     );
 
-    await processOtelEvents({
-      processor,
-      resourceSpans: params.resourceSpans,
-      ingestionService,
-      projectId,
-      fileKey,
-      shouldWriteToEventsTable: true,
+    for (const [sourceTable, isolatedTable] of isolatedTableNames) {
+      await client.command({
+        query: `CREATE TABLE ${isolatedTable} AS ${sourceTable} ENGINE = Memory`,
+      });
+      createdTables.push(isolatedTable);
+    }
+
+    const insert = async (
+      insertParams: Parameters<ClickhouseClientType["insert"]>[0],
+    ) =>
+      client.insert({
+        ...insertParams,
+        table:
+          isolatedTableNames.get(insertParams.table as TableName) ??
+          insertParams.table,
+      });
+    const testClient = new Proxy(client, {
+      get(target, property, receiver) {
+        if (property === "insert") return insert;
+        return Reflect.get(target, property, receiver);
+      },
     });
 
-    // Reset the singletons here so cleanup cannot retry rows retained by this drain.
     await ClickhouseWriter.shutdownAll();
-    writerShutdown = true;
+    writer = ClickhouseWriter.getInstance(testClient);
 
-    const pendingRows = writer.queue[TableName.EventsFull].length;
-    if (pendingRows > 0) {
-      throw new Error(
-        `ClickHouse replay writer retained ${pendingRows} EventsFull rows after shutdown`,
-      );
+    const processor = otelIngestionQueueProcessorBuilder(false);
+    const job = {
+      data: {
+        id: `otel-replay-${suffix}`,
+        timestamp: new Date(),
+        name: QueueJobs.OtelIngestionJob,
+        payload: {
+          data: { fileKey },
+          authCheck: {
+            validKey: true,
+            scope: {
+              projectId,
+              orgId: params.orgId ?? "otel-replay-org",
+              accessLevel: "project",
+            },
+          },
+          ingestionVersion: "4",
+          sdkName: "otel-replay",
+          sdkVersion: "test",
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
+
+    await processor(job, undefined);
+    expect(storage.download).toHaveBeenCalledOnce();
+
+    if (writeMode === "dual") {
+      // The OTEL processor hands retained legacy writes to the normal queue.
+      // Those jobs have generated S3 keys, so the replay's unique project ID
+      // scopes the drain before the writes land in the isolated tables.
+      const legacyProcessor = ingestionQueueProcessorBuilder(false);
+      for (const shardName of IngestionQueue.getShardNames()) {
+        const queue = IngestionQueue.getInstance({ shardName });
+        if (!queue) continue;
+        const jobs = await queue.getJobs(["waiting", "delayed", "prioritized"]);
+        for (const legacyJob of jobs.filter(
+          (candidate) =>
+            candidate.data.payload.authCheck.scope.projectId === projectId,
+        )) {
+          await legacyProcessor(legacyJob, undefined);
+          await legacyJob.remove();
+        }
+      }
+    }
+
+    await ClickhouseWriter.shutdownAll();
+    for (const table of isolatedTableNames.keys()) {
+      const pendingRows = writer.queue[table].length;
+      if (pendingRows > 0) {
+        throw new Error(
+          `ClickHouse replay retained ${pendingRows} ${table} rows after shutdown`,
+        );
+      }
     }
 
     const result = await client.query({
@@ -98,27 +208,71 @@ export async function runOtelReplay(
       `,
       format: "JSONEachRow",
     });
+    const legacyRows =
+      writeMode === "dual"
+        ? Object.fromEntries(
+            await Promise.all(
+              legacyReplayTables.map(async (table) => {
+                const legacyResult = await client.query({
+                  query: `SELECT * FROM ${isolatedTableNames.get(table)}`,
+                  format: "JSONEachRow",
+                });
+                return [
+                  table,
+                  (await legacyResult.json()) as OtelReplayStoredRow[],
+                ];
+              }),
+            ),
+          )
+        : undefined;
 
-    return {
+    replayResult = {
       storedRows: (await result.json()) as OtelReplayStoredRow[],
+      legacyRows,
     };
   } catch (error) {
-    throw new Error(
-      `OTEL replay harness failed for ClickHouse table ${tableName}: ${formatUnknownError(error)}`,
+    primaryError = new Error(
+      `OTEL replay failed for ClickHouse table ${tableName}: ${formatUnknownError(error)}`,
       { cause: error },
     );
   } finally {
+    restoreEnvironment();
+    storageServiceSpy?.mockRestore();
+    vi.mocked(getS3EventStorageClient).mockReset();
+    otelReplayMocks.uploadEventJson.mockReset();
+    otelReplayMocks.uploadEventJson.mockResolvedValue(undefined);
+
     try {
-      if (writer && !writerShutdown) {
-        // Each corpus replay needs a fresh singleton and interval timer.
-        await ClickhouseWriter.shutdownAll();
-      }
-    } finally {
-      if (tableCreated) {
-        await client.command({ query: `DROP TABLE IF EXISTS ${tableName}` });
+      await ClickhouseWriter.shutdownAll();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    if (createdTables.length > 0) {
+      try {
+        await Promise.all(
+          createdTables.map((table) =>
+            client.command({ query: `DROP TABLE IF EXISTS ${table}` }),
+          ),
+        );
+      } catch (error) {
+        cleanupErrors.push(error);
       }
     }
   }
+
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(
+      primaryError ? [primaryError, ...cleanupErrors] : cleanupErrors,
+      primaryError
+        ? `OTEL replay cleanup failed after ${tableName}`
+        : `OTEL replay cleanup failed for ${tableName}`,
+    );
+  }
+  if (primaryError) throw primaryError;
+  if (!replayResult) {
+    throw new Error(`OTEL replay produced no result for ${tableName}`);
+  }
+  return replayResult;
 }
 
 function formatUnknownError(error: unknown): string {

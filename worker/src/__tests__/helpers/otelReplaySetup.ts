@@ -3,6 +3,9 @@ import { env } from "../../env";
 
 const otelReplayMocks = vi.hoisted(() => ({
   findModel: vi.fn(),
+  getS3EventStorageClient: vi.fn(),
+  uploadEventJson: vi.fn(),
+  linkMediaToTraceOrObservation: vi.fn(),
   uploadMediaForTrace: vi.fn(),
   getPrompt: vi.fn(),
   fetchObservationEvalRules: vi.fn(),
@@ -32,6 +35,9 @@ vi.mock("../../env", async (importOriginal) => {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   findModel: otelReplayMocks.findModel,
+  getS3EventStorageClient: otelReplayMocks.getS3EventStorageClient,
+  uploadEventJson: otelReplayMocks.uploadEventJson,
+  linkMediaToTraceOrObservation: otelReplayMocks.linkMediaToTraceOrObservation,
   PromptService: class {
     getPrompt(...args: unknown[]) {
       return otelReplayMocks.getPrompt(...args);
@@ -62,6 +68,9 @@ export function configureDefaultOtelReplayMocks(): void {
     model: null,
     pricingTiers: [],
   });
+  otelReplayMocks.getS3EventStorageClient.mockReset();
+  otelReplayMocks.uploadEventJson.mockResolvedValue(undefined);
+  otelReplayMocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
   otelReplayMocks.uploadMediaForTrace.mockResolvedValue({
     mediaId: "otel-replay-media",
     outcome: "uploaded",
@@ -76,6 +85,7 @@ type ReplayEnvironmentOptions = {
   mediaUploadEnabled?: boolean;
   overflowEnabled?: boolean;
   overflowSizeLimitBytes?: number;
+  writeMode?: "events_only" | "dual";
 };
 
 /**
@@ -98,6 +108,9 @@ export function configureOtelReplayEnvironment(
       env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
     LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES:
       env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR:
+      env.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR,
   };
 
   Object.assign(env, {
@@ -114,6 +127,10 @@ export function configureOtelReplayEnvironment(
       : "false",
     LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES:
       options.overflowSizeLimitBytes ?? 2 * 1024 * 1024,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: options.writeMode ?? "events_only",
+    // Keep deployment-level forcing out of the replay; direct tests select
+    // that path through the same ingestionVersion=4 signal as production.
+    LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: "dual_write",
   });
 
   return () => Object.assign(env, original);

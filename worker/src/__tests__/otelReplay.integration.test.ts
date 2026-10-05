@@ -2,7 +2,11 @@ import "./helpers/otelReplaySetup";
 
 import { Decimal } from "decimal.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ResourceSpan } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  type ResourceSpan,
+} from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { runOtelReplay } from "./helpers/otelReplayHarness";
 import {
   configureDefaultOtelReplayMocks,
@@ -172,9 +176,12 @@ describe(
 
     it("writes both enriched observations and preserves accounting through readback", async () => {
       const { storedRows } = await runOtelReplay({
-        resourceSpans: buildResourceSpans(),
+        bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
         projectId: PROJECT_ID,
         fileKey: FILE_KEY,
+        mediaUploadEnabled: true,
+        overflowEnabled: true,
+        overflowSizeLimitBytes: 256,
       });
 
       expect(storedRows).toHaveLength(2);
@@ -256,6 +263,50 @@ describe(
 
       for (const row of storedRows) {
         expect(Number(row.event_bytes)).toBeGreaterThan(0);
+      }
+    });
+
+    it("preserves JavaScript rounding for unsafe OTLP numbers in the raw document", async () => {
+      // Keep the number literal in the S3 document. Serializing a JS object
+      // first would round it before the production queue reads the bytes.
+      const bytes = Buffer.from(
+        `[{"resource":{"attributes":[]},"scopeSpans":[{"scope":{"name":"otel-replay"},"spans":[{"traceId":"${TRACE_ID}","spanId":"${FIRST_SPAN_ID}","name":"unsafe-number","startTimeUnixNano":"1714488530686000000","endTimeUnixNano":"1714488530687000000","attributes":[{"key":"gen_ai.request.temperature","value":{"doubleValue":9007199254740993}}],"status":{"code":0}}]}]}]`,
+      );
+      const { storedRows } = await runOtelReplay({
+        bytes,
+        projectId: `${PROJECT_ID}-unsafe-number`,
+        fileKey: `${FILE_KEY}.unsafe-number`,
+        mediaUploadEnabled: true,
+      });
+
+      expect(storedRows).toHaveLength(1);
+      const metadataIndex = (storedRows[0].metadata_names as string[]).indexOf(
+        "attributes.gen_ai.request.temperature",
+      );
+      expect(metadataIndex).toBeGreaterThanOrEqual(0);
+      expect(storedRows[0].metadata_values?.[metadataIndex]).toBe(
+        "9007199254740992",
+      );
+    });
+
+    it("persists legacy and events_full rows from raw OTEL bytes in dual mode", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      try {
+        const { storedRows, legacyRows } = await runOtelReplay({
+          bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
+          projectId,
+          orgId,
+          fileKey: `${FILE_KEY}.dual-write`,
+          writeMode: "dual",
+        });
+
+        expect(storedRows).toHaveLength(2);
+        expect(legacyRows?.traces?.length).toBeGreaterThan(0);
+        expect(legacyRows?.observations).toHaveLength(2);
+        expect(legacyRows?.observations_batch_staging).toHaveLength(0);
+      } finally {
+        await prisma.project.delete({ where: { id: projectId } });
+        await prisma.organization.delete({ where: { id: orgId } });
       }
     });
   },
