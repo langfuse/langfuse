@@ -1,5 +1,5 @@
-/* eslint-disable no-nested-ternary, @repo/no-let-assign-in-react */
-import React, { useCallback, useRef } from "react";
+/* eslint-disable no-nested-ternary */
+import React, { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronDown,
@@ -237,13 +237,11 @@ const TurnCard = React.memo(
       sidebarTrace;
     const isTraceLevelIOOnly =
       hasMatchingTraceLevelIO && observations?.length === 0;
-    let observationListClassName = "-mx-1";
-    if (observations?.length) {
-      observationListClassName = "mt-2";
-    }
-    if (isTraceLevelIOOnly) {
-      observationListClassName = "-mx-1 mt-2";
-    }
+    const observationListClassName = useMemo(() => {
+      if (isTraceLevelIOOnly) return "-mx-1 mt-2";
+      if (observations?.length) return "mt-2";
+      return "-mx-1";
+    }, [isTraceLevelIOOnly, observations?.length]);
 
     return (
       <div
