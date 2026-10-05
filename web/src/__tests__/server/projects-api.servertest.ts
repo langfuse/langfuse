@@ -16,6 +16,10 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
+import { type NextApiRequest, type NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
+import projectApiKeysHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys";
+import projectApiKeyHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys/[apiKeyId]";
 
 // Schema for project response
 const ProjectResponseSchema = z.object({
@@ -101,11 +105,13 @@ describe("Projects API", () => {
   const orgApiKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
   const orgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
 
+  let orgApiKeyId: string;
+
   beforeAll(async () => {
     const keyCreator = await prisma.user.create({
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
-    await createApiKey(prisma, {
+    const orgKey = await createApiKey(prisma, {
       owner: OrganizationId("seed-org-id"),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
@@ -114,6 +120,7 @@ describe("Projects API", () => {
         secretKey: orgSecretKey,
       },
     });
+    orgApiKeyId = orgKey.id;
   });
 
   describe("GET /api/public/projects", () => {
@@ -843,6 +850,32 @@ describe("Projects API", () => {
       }
     });
 
+    it("attributes project-key creation to the authenticating API key", async () => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        query: { projectId },
+        headers: {
+          authorization: createBasicAuthHeader(orgApiKey, orgSecretKey),
+        },
+        body: { note: "Audit attribution" },
+      });
+
+      await projectApiKeysHandler(req, res);
+      expect(res._getStatusCode()).toBe(201);
+      createdApiKeyId = res._getJSONData().id;
+
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { projectId, resourceId: createdApiKeyId, action: "create" },
+      });
+      expect(audit).toMatchObject({
+        apiKeyId: orgApiKeyId,
+        orgId: "seed-org-id",
+        projectId,
+        resourceType: "apiKey",
+        resourceId: createdApiKeyId,
+      });
+    });
+
     it.each([
       {
         label: "omitted",
@@ -1219,6 +1252,33 @@ describe("Projects API", () => {
       } catch {
         // Ignore errors if the API key was already deleted by the test
       }
+    });
+
+    it("attributes project-key deletion to the authenticating API key", async () => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { projectId, apiKeyId: deleteTestApiKeyId },
+        headers: {
+          authorization: createBasicAuthHeader(orgApiKey, orgSecretKey),
+        },
+      });
+
+      await projectApiKeyHandler(req, res);
+      expect(res._getStatusCode()).toBe(200);
+      expect(
+        await prisma.apiKey.findUnique({ where: { id: deleteTestApiKeyId } }),
+      ).toBeNull();
+
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { projectId, resourceId: deleteTestApiKeyId, action: "delete" },
+      });
+      expect(audit).toMatchObject({
+        apiKeyId: orgApiKeyId,
+        orgId: "seed-org-id",
+        projectId,
+        resourceType: "apiKey",
+        resourceId: deleteTestApiKeyId,
+      });
     });
 
     it("should delete an API key with valid organization API key", async () => {

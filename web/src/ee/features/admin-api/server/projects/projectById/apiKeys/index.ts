@@ -70,9 +70,7 @@ export async function handleCreateApiKey(
   const { name, note, expiresAt, role, publicKey, secretKey } =
     validationResult.data;
 
-  // Validate predefined keys if provided
   if (publicKey || secretKey) {
-    // Both keys must be provided together
     if (!publicKey || !secretKey) {
       return res.status(400).json({
         message:
@@ -80,7 +78,6 @@ export async function handleCreateApiKey(
       });
     }
 
-    // Validate key format
     if (!publicKey.startsWith("pk-lf-")) {
       return res.status(400).json({
         message: "publicKey must start with 'pk-lf-'",
@@ -101,7 +98,6 @@ export async function handleCreateApiKey(
   }
 
   try {
-    // Create the API key
     const apiKeyMeta = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId(role),
@@ -113,7 +109,6 @@ export async function handleCreateApiKey(
         publicKey && secretKey ? { publicKey, secretKey } : undefined,
     });
 
-    // Log the API key creation
     await auditLog({
       resourceType: "apiKey",
       resourceId: apiKeyMeta.id,
@@ -121,7 +116,7 @@ export async function handleCreateApiKey(
       orgId: orgId,
       projectId: projectId,
       orgRole: "ADMIN",
-      apiKeyId: "ORG_KEY",
+      apiKeyId: createdByApiKeyId,
     });
 
     logger.info(
@@ -135,7 +130,6 @@ export async function handleCreateApiKey(
       role,
     });
   } catch (error) {
-    // Handle database unique constraint violations
     if (
       error instanceof Error &&
       (error.message.includes("Unique constraint") ||

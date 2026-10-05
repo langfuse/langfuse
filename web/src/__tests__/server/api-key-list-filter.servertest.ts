@@ -113,6 +113,11 @@ describe("public API key list filters", () => {
     const keyCreator = await prisma.user.create({
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
+    const callerKey = await createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+    });
     const inAppAgentKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
@@ -127,6 +132,7 @@ describe("public API key list filters", () => {
       projectId,
       inAppAgentKey.id,
       orgId,
+      callerKey.id,
     );
 
     expect(response.statusCode).toBe(404);
