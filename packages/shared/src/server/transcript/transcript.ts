@@ -74,6 +74,7 @@ export function assembleTranscript(
         thread: { messages: [], observations: [] },
         messages: [],
         shownCounts: new Map(),
+        shownReasoningCounts: new Map(),
       };
       states.push(state);
     }

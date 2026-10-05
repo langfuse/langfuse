@@ -21,34 +21,60 @@ export type ThreadState = {
   thread: AssembledTurn;
   messages: KeyedMessage[];
   shownCounts: Map<string, number>;
+  shownReasoningCounts: Map<string, number>;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
-/** Object property order and observation provenance do not define identity. */
-export function messageKey(message: NormalizedMessage): string {
-  return JSON.stringify(
-    [message.role, message.parts],
-    (_key, value: unknown) =>
-      isRecord(value)
-        ? Object.fromEntries(
-            Object.keys(value)
-              .sort()
-              .map((key) => [key, value[key]]),
-          )
-        : value,
+/** Provider annotations, property order, and provenance do not define identity. */
+function contentKey(message: NormalizedMessage): string {
+  const parts = message.parts.map(
+    ({ providerMetadata: _metadata, ...part }) => {
+      if (part.type === "tool-call") {
+        const { toolType: _toolType, ...call } = part;
+        return call;
+      }
+      return part;
+    },
   );
+  return JSON.stringify([message.role, parts], (_key, value: unknown) =>
+    isRecord(value)
+      ? Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [key, value[key]]),
+        )
+      : value,
+  );
+}
+
+const hasContent = (message: NormalizedMessage) =>
+  message.parts.some(({ type }) => type !== "reasoning");
+
+/** Reasoning is retained separately, but does not establish continuity. */
+export function messageKey(message: NormalizedMessage): string {
+  return contentKey({
+    ...message,
+    parts: message.parts.filter(({ type }) => type !== "reasoning"),
+  });
 }
 
 /** Find a thread that matches the input messages. */
 export function findThread(states: ThreadState[], input: KeyedMessage[]) {
-  const inputKeys = new Set(input.map(({ key }) => key));
+  const inputKeys = new Set(
+    input.filter(({ message }) => hasContent(message)).map(({ key }) => key),
+  );
   return states.findLast(
     ({ messages }) =>
-      messages.some(({ message }) => message.role !== "system") &&
+      messages.some(
+        ({ message }) => message.role !== "system" && hasContent(message),
+      ) &&
       messages.every(
-        ({ message, key }) => message.role === "system" || inputKeys.has(key),
+        ({ message, key }) =>
+          message.role === "system" ||
+          !hasContent(message) ||
+          inputKeys.has(key),
       ),
   );
 }
@@ -62,8 +88,9 @@ export function append(
   isNewThread: boolean,
   toolCalls: ReturnType<typeof createToolCallRegistry>,
 ) {
-  const { thread, messages, shownCounts } = state;
+  const { thread, messages, shownCounts, shownReasoningCounts } = state;
   const inputCounts = new Map<string, number>();
+  const inputReasoningCounts = new Map<string, number>();
   const replayCalls = new Map<string, number>();
   const replayTotals = new Map<string, number>();
   // Count first so a truncated replay cannot attach a result to the wrong call.
@@ -109,14 +136,37 @@ export function append(
       emitted.parts.length === message.parts.length
         ? originalKey
         : messageKey(emitted);
-    if (!isOutput) {
+    const containsContent = hasContent(emitted);
+    let isReplay = false;
+    if (!isOutput && containsContent) {
       const occurrence = (inputCounts.get(key) ?? 0) + 1;
       inputCounts.set(key, occurrence);
-      if (!isNewThread && occurrence <= (shownCounts.get(key) ?? 0)) continue;
-      thread.messages.push(emitted);
+      isReplay = !isNewThread && occurrence <= (shownCounts.get(key) ?? 0);
     }
-    messages.push({ message: emitted, key });
-    shownCounts.set(key, (shownCounts.get(key) ?? 0) + 1);
+    // A replay may add reasoning without adding another copy of its text or calls.
+    // Keep newly seen reasoning at the observation where it was recorded.
+    emitted.parts = emitted.parts.filter((part) => {
+      if (part.type !== "reasoning") return !isReplay;
+      const reasoningKey = contentKey({ ...message, parts: [part] });
+      const shown = shownReasoningCounts.get(reasoningKey) ?? 0;
+      const occurrence = (inputReasoningCounts.get(reasoningKey) ?? 0) + 1;
+      if (!isOutput) inputReasoningCounts.set(reasoningKey, occurrence);
+      if (
+        !isOutput &&
+        !isNewThread &&
+        (!containsContent || isReplay) &&
+        occurrence <= shown
+      )
+        return false;
+      shownReasoningCounts.set(reasoningKey, shown + 1);
+      return true;
+    });
+    if (!emitted.parts.length) continue;
+    if (!isOutput) thread.messages.push(emitted);
+    if (containsContent && !isReplay) {
+      messages.push({ message: emitted, key });
+      shownCounts.set(key, (shownCounts.get(key) ?? 0) + 1);
+    }
     addContributor(thread, observation);
   }
 }
