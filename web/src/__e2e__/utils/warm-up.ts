@@ -34,7 +34,17 @@ export default async function warmUp(config: FullConfig) {
       let warmed = false;
       while (!warmed && Date.now() < deadline) {
         try {
-          await context.get(path, { timeout: REQUEST_TIMEOUT_MS });
+          // A 5xx is the server telling us it is not ready yet — the exact
+          // state being warmed away — so it is worth another go. Anything
+          // below that means the route resolved and ran, which is all this
+          // needs; a 404 would mean the path is simply wrong, and retrying
+          // that would burn the whole budget for nothing.
+          const response = await context.get(path, {
+            timeout: REQUEST_TIMEOUT_MS,
+          });
+          if (response.status() >= 500) {
+            throw new Error(`${path} answered ${response.status()}`);
+          }
           warmed = true;
         } catch {
           await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
