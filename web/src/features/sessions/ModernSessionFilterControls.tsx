@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-let-assign-in-react */
 import { type ReactNode, useState } from "react";
 import {
   type ColumnDefinition,
@@ -259,23 +258,20 @@ export function ModernSessionFilterControls({
     });
   };
 
-  let filterDialogViewActions: ModernSessionFilterDialogViewActions = {
-    type: "none",
-  };
-  if (hasWriteAccess && updateView) {
-    filterDialogViewActions = {
-      type: "update",
-      viewName: updateView.name,
-      isUpdating: updateConfigMutation.isPending,
-      onCreate: openSaveViewDialog,
-      onUpdate: updateCurrentView,
-    };
-  } else if (hasWriteAccess) {
-    filterDialogViewActions = {
-      type: "create",
-      onCreate: openSaveViewDialog,
-    };
-  }
+  const writableViewActions: ModernSessionFilterDialogViewActions = updateView
+    ? {
+        type: "update",
+        viewName: updateView.name,
+        isUpdating: updateConfigMutation.isPending,
+        onCreate: openSaveViewDialog,
+        onUpdate: updateCurrentView,
+      }
+    : {
+        type: "create",
+        onCreate: openSaveViewDialog,
+      };
+  const filterDialogViewActions: ModernSessionFilterDialogViewActions =
+    hasWriteAccess ? writableViewActions : { type: "none" };
 
   return (
     <>
