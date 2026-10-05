@@ -109,7 +109,7 @@ export async function upsertBlobStorageIntegration(params: {
   const mediaPrefix =
     data.mediaPrefix === undefined
       ? undefined
-      : data.mediaPrefix.trim() || null;
+      : data.mediaPrefix?.trim() || null;
 
   const writeData = {
     type: data.type,
