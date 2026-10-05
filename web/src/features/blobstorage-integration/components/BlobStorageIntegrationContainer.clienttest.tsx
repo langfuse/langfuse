@@ -69,7 +69,7 @@ const renderContainer = (
       <BlobStorageIntegrationContainer
         config={config}
         projectId="project-id"
-        writeMode="upsert"
+        writeMode="events_only"
         showMediaStorage
         onDeleted={vi.fn()}
         onSaved={vi.fn()}

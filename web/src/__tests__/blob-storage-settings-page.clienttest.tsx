@@ -99,8 +99,12 @@ vi.mock(
 vi.mock(
   "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable",
   () => ({
-    BlobStorageIntegrationTable: (props: { showMediaStorage: boolean }) => {
-      mocks.tableProps(props);
+    BlobStorageIntegrationTable: ({
+      showMediaStorage,
+    }: {
+      showMediaStorage: boolean;
+    }) => {
+      mocks.tableProps({ showMediaStorage });
       return <div>Blob storage table</div>;
     },
   }),
