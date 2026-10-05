@@ -1,4 +1,4 @@
-import { useState, type ComponentProps, type Key } from "react";
+import { useState, type ComponentProps, type Key, type ReactNode } from "react";
 
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 
@@ -10,6 +10,7 @@ export interface ObservationPreviewProps {
     "currentView" | "setIsPrettyViewAvailable" | "onVirtualizationChange"
   >;
   onPrettyViewAvailabilityChange?: (isAvailable: boolean) => void;
+  children?: ReactNode;
 }
 
 export function ObservationPreview({
@@ -17,6 +18,7 @@ export function ObservationPreview({
   previewKey,
   previewProps,
   onPrettyViewAvailabilityChange,
+  children,
 }: ObservationPreviewProps) {
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
@@ -35,6 +37,17 @@ export function ObservationPreview({
         setIsPrettyViewAvailable={onPrettyViewAvailabilityChange}
         onVirtualizationChange={setIsJSONBetaVirtualized}
       />
+      {children && (
+        <div
+          className={
+            currentView === "json-beta" && isJSONBetaVirtualized
+              ? "max-h-1/2 shrink-0 overflow-auto"
+              : "shrink-0"
+          }
+        >
+          {children}
+        </div>
+      )}
       {currentView !== "json-beta" ? (
         <div className="h-4 w-full shrink-0" />
       ) : null}

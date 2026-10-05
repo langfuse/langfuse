@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { CorrectionScopeSelect } from "./CorrectionScopeSelect";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -35,9 +36,48 @@ interface CorrectedOutputFieldProps {
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
   compact?: boolean; // Use smaller font size for JSON Beta view
+  traceCorrection?: {
+    existingCorrection: ScoreDomain;
+    actualOutput: unknown;
+    actualOutputTooLarge?: boolean;
+    environment: string;
+  };
 }
 
+type CorrectionScope = "trace" | "observation";
+
 export function CorrectedOutputField({
+  traceCorrection,
+  ...props
+}: CorrectedOutputFieldProps) {
+  const [selectedScope, setSelectedScope] = useState<CorrectionScope | null>(
+    null,
+  );
+  const scope =
+    selectedScope ?? (props.existingCorrection ? "observation" : "trace");
+  const hasScopeSelector = Boolean(traceCorrection && props.observationId);
+
+  return (
+    <CorrectionEditor
+      {...props}
+      {...(hasScopeSelector && scope === "trace"
+        ? {
+            ...traceCorrection,
+            observationId: undefined,
+            actualOutputTooLarge: traceCorrection?.actualOutputTooLarge,
+          }
+        : {})}
+      key={`${props.traceId}:${props.observationId ?? "trace"}:${hasScopeSelector ? scope : "default"}`}
+      scopeSelector={
+        hasScopeSelector
+          ? { value: scope, onChange: setSelectedScope }
+          : undefined
+      }
+    />
+  );
+}
+
+function CorrectionEditor({
   actualOutput,
   actualOutputTooLarge = false,
   existingCorrection,
@@ -46,7 +86,13 @@ export function CorrectedOutputField({
   traceId,
   environment = "default",
   compact = false,
-}: CorrectedOutputFieldProps) {
+  scopeSelector,
+}: Omit<CorrectedOutputFieldProps, "traceCorrection"> & {
+  scopeSelector?: {
+    value: CorrectionScope;
+    onChange: (scope: CorrectionScope) => void;
+  };
+}) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
   const capture = usePostHogClientCapture();
 
@@ -87,6 +133,8 @@ export function CorrectedOutputField({
     isValidJson,
     handleEdit,
     handleChange,
+    flushPendingSave,
+    cancelPendingSave,
   } = useCorrectionEditor({
     correctionValue,
     actualOutput,
@@ -157,12 +205,18 @@ export function CorrectedOutputField({
   };
 
   const handleDeleteWithExitEdit = () => {
+    cancelPendingSave();
     handleDelete();
     setIsEditing(false);
     setIsExpanded(false);
   };
 
-  if (!isExpanded && !effectiveCorrection) {
+  const handleScopeChange = (scope: CorrectionScope) => {
+    flushPendingSave();
+    scopeSelector?.onChange(scope);
+  };
+
+  if (!isExpanded && !effectiveCorrection && !scopeSelector) {
     return (
       <div className="px-2 py-2">
         <button
@@ -195,7 +249,7 @@ export function CorrectedOutputField({
       />
       <div className="px-2">
         <div className="group relative rounded-md">
-          <div className="flex items-center justify-between py-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-1.5">
             <div className="flex items-center gap-1">
               <span
                 className={cn(
@@ -207,7 +261,10 @@ export function CorrectedOutputField({
               </span>
               <HoverCard>
                 <HoverCardTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground">
+                  <button
+                    aria-label="About corrected outputs"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <Info className="h-3.5 w-3.5" />
                   </button>
                 </HoverCardTrigger>
@@ -227,6 +284,13 @@ export function CorrectedOutputField({
                   </p>
                 </HoverCardContent>
               </HoverCard>
+              {scopeSelector && (
+                <CorrectionScopeSelect
+                  value={scopeSelector.value}
+                  isDisabled={isEditing && !isValidJson}
+                  onChange={handleScopeChange}
+                />
+              )}
             </div>
             <div className="-mr-1 flex items-center">
               <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
