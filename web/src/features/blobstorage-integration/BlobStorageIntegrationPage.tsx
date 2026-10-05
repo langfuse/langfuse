@@ -1,6 +1,5 @@
 import ContainerPage from "@/src/components/layouts/container-page";
 import { Button } from "@/src/components/ui/button";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -10,7 +9,7 @@ import { BlobStorageSettingsContent } from "@/src/features/blobstorage-integrati
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ArrowLeft } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { AddBlobStorageIntegrationButton } from "@/src/features/blobstorage-integration/components/AddBlobStorageIntegrationButton/AddBlobStorageIntegrationButton";
+import { BlobStorageIntegrationHeaderActions } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationHeaderActions/BlobStorageIntegrationHeaderActions";
 
 const syncStatusFromConfig = (
   config: RouterOutputs["blobStorageIntegration"]["get"]["configs"][number],
@@ -115,21 +114,11 @@ export default function BlobStorageIntegrationPage() {
           </>
         ),
         actionButtonsRight: (
-          <>
-            <Button asChild variant="secondary">
-              <Link
-                href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage"
-                target="_blank"
-              >
-                Integration Docs ↗
-              </Link>
-            </Button>
-            <AddBlobStorageIntegrationButton
-              canLoadConfig={canLoadConfig}
-              showDetails={showDetails}
-              onClick={() => openIntegration("new")}
-            />
-          </>
+          <BlobStorageIntegrationHeaderActions
+            canLoadConfig={canLoadConfig}
+            showDetails={showDetails}
+            onAddIntegration={() => openIntegration("new")}
+          />
         ),
       }}
     >
