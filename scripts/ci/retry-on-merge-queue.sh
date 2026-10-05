@@ -66,8 +66,11 @@ echo "::warning title=Retrying a failed merge-queue step::Command failed with ex
 retry_status=$?
 
 if [[ "${retry_status}" -ne 0 ]]; then
+  # Report the FIRST attempt's status, so a merge-queue failure exits exactly
+  # as the same failure would on a pull request, where nothing is retried. The
+  # retry's own status is in the message above rather than the exit code.
   echo "::error title=Merge-queue retry failed::Both attempts failed (exit ${status}, then ${retry_status}): $*"
-  exit "${retry_status}"
+  exit "${status}"
 fi
 
 echo "::warning title=Flaky CI::Command failed once and passed on retry: $*"
