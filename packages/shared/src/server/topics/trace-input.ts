@@ -1,5 +1,4 @@
 import { isRootObservation } from "../../eventsTable";
-import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import {
   queryClickhouse,
@@ -134,9 +133,9 @@ export async function loadTopicTranscript(params: {
   })) {
     if (row.project_id !== projectId || row.trace_id !== traceId)
       throw new Error("Trace snapshot scope mismatch");
-    // Rows arrive newest first; retain the latest non-empty trace context.
+    if (!observations.length) environment = row.environment;
+    // Rows arrive newest first; retain the latest non-empty session and name metadata.
     if (!sessionId && row.session_id) sessionId = row.session_id;
-    if (!environment && row.environment) environment = row.environment;
     if (!traceName && row.trace_name) traceName = row.trace_name;
     if (
       !rootName &&
@@ -183,7 +182,7 @@ export async function loadTopicTranscript(params: {
   return {
     unitStartTime: observations[0].startTime.toISOString(),
     sessionId,
-    environment: environment || DEFAULT_TRACE_ENVIRONMENT,
+    environment,
     traceName: traceName || rootName,
     transcript: assembleTranscript(orderObservations(observations), {
       maxCharacters: 10_000,

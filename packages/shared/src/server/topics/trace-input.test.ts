@@ -97,7 +97,7 @@ describe("Topics transcript input", () => {
       expect(result).toMatchObject({
         unitStartTime: "2026-09-15T09:00:00.000Z",
         sessionId: "current-session",
-        environment: "production",
+        environment: "",
         traceName: "Current trace",
       });
       const json = JSON.stringify(result.transcript);
@@ -155,14 +155,14 @@ describe("Topics transcript input", () => {
     ).toBe("Root fallback");
   });
 
-  it("defaults missing source context", async () => {
+  it("preserves empty source context", async () => {
     const result = await loadRows({
       parent_span_id: "missing-root",
       environment: "",
       trace_name: "",
     });
     expect(result).toMatchObject({
-      environment: "default",
+      environment: "",
       traceName: "",
     });
   });
