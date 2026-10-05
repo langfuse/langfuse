@@ -257,12 +257,12 @@ export const annotationWorkflowRouter = createTRPCRouter({
         await auditLog(
           {
             session: ctx.session,
-            resourceType: "annotationQueue",
-            resourceId: input.queueId,
+            resourceType: "annotationWorkflowVersion",
+            resourceId: version.id,
             action: "workflow.draft.create",
             after: {
               workflowId: workflow.id,
-              versionId: version.id,
+              queueId: input.queueId,
               source: "STARTER",
             },
           },
@@ -324,12 +324,12 @@ export const annotationWorkflowRouter = createTRPCRouter({
         await auditLog(
           {
             session: ctx.session,
-            resourceType: "annotationQueue",
-            resourceId: input.queueId,
+            resourceType: "annotationWorkflowVersion",
+            resourceId: version.id,
             action: "workflow.draft.create",
             after: {
               workflowId: workflow.id,
-              versionId: version.id,
+              queueId: input.queueId,
               source: "MANUAL",
             },
           },
@@ -503,12 +503,12 @@ export const annotationWorkflowRouter = createTRPCRouter({
         await auditLog(
           {
             session: ctx.session,
-            resourceType: "annotationQueue",
-            resourceId: input.queueId,
+            resourceType: "annotationWorkflowVersion",
+            resourceId: version.id,
             action: "workflow.draft.create",
             after: {
               workflowId: workflow.id,
-              versionId: version.id,
+              queueId: input.queueId,
               source: "AI",
             },
           },
@@ -563,10 +563,13 @@ export const annotationWorkflowRouter = createTRPCRouter({
         await auditLog(
           {
             session: ctx.session,
-            resourceType: "annotationQueue",
-            resourceId: result[1].queueId,
+            resourceType: "annotationWorkflow",
+            resourceId: input.workflowId,
             action: "workflow.publish",
-            after: { workflowId: input.workflowId, versionId: input.versionId },
+            after: {
+              queueId: result[1].queueId,
+              versionId: input.versionId,
+            },
           },
           tx,
         );
@@ -652,11 +655,12 @@ export const annotationWorkflowRouter = createTRPCRouter({
         await auditLog(
           {
             session: ctx.session,
-            resourceType: "annotationQueueItem",
-            resourceId: input.itemId,
+            resourceType: "annotationResponse",
+            resourceId: response.id,
             action: "workflow.submit",
             after: {
-              responseId: response.id,
+              queueId: input.queueId,
+              itemId: input.itemId,
               workflowVersionId: input.workflowVersionId,
             },
           },
