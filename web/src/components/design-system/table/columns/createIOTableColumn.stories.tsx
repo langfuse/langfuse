@@ -330,7 +330,7 @@ export const TestLoadingCellBackgrounds = meta.story({
       "[&_[data-slot=skeleton]]:bg-muted-foreground/20",
     );
     await expect(outputCell).toHaveClass(
-      "[&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+      "[&_[data-slot=skeleton]]:bg-muted-foreground/20",
     );
   },
 });
