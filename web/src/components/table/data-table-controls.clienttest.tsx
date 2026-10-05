@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { eventsTableCols, type FilterState } from "@langfuse/shared";
@@ -368,6 +367,7 @@ describe("CategoricalFacet", () => {
     const label = screen.getByText("gpt-4.1");
     const suffix = screen.getByText("Project default");
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(label).not.toHaveClass("flex-1");
@@ -461,6 +461,7 @@ describe("CategoricalFacet", () => {
     const firstUnselected = screen.getByText("opt-0");
     expect(selected).toBeInTheDocument();
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       selected.compareDocumentPosition(firstUnselected) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -617,6 +618,7 @@ describe("CategoricalFacet", () => {
     const firstKept = screen.getByText("opt-0");
     expect(excluded).toBeInTheDocument();
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       excluded.compareDocumentPosition(firstKept) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -700,6 +702,7 @@ describe("CategoricalFacet", () => {
     const a = screen.getByText("a");
     const c = screen.getByText("c");
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -742,6 +745,7 @@ describe("DataTableControls facet ordering", () => {
     const a = screen.getByText(first);
     const b = screen.getByText(second);
     return Boolean(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
     );
   };
@@ -1383,6 +1387,7 @@ describe("DataTableControls facet-name search", () => {
     const a = screen.getByText(first);
     const b = screen.getByText(second);
     return Boolean(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
     );
   };
