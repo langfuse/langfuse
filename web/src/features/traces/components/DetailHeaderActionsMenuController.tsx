@@ -12,6 +12,7 @@ import {
 } from "@/src/features/events";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { useWebCalloutAction } from "@/src/features/web-callouts";
 
 type IdItem = {
@@ -239,6 +240,7 @@ export function DetailHeaderActionsMenuController({
             type: "item" as const,
             id: "copy-clickhouse-query",
             title: "Copy ClickHouse query",
+            badge: <InternalFeatureBadge />,
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },

@@ -207,21 +207,28 @@ export const PromptDetail = ({
     },
   );
 
-  let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;
-  try {
-    chatMessages = ChatMlArraySchema.parse(
-      resolutionMode === "resolved"
-        ? promptGraph.data?.resolvedPrompt
-        : prompt?.prompt,
-    );
-  } catch (error) {
-    if (PromptType.Chat === prompt?.type) {
-      console.warn(
-        "Could not parse returned chat prompt to pretty ChatML",
-        error,
+  const chatMessages = useMemo<z.infer<typeof ChatMlArraySchema> | null>(() => {
+    try {
+      return ChatMlArraySchema.parse(
+        resolutionMode === "resolved"
+          ? promptGraph.data?.resolvedPrompt
+          : prompt?.prompt,
       );
+    } catch (error) {
+      if (PromptType.Chat === prompt?.type) {
+        console.warn(
+          "Could not parse returned chat prompt to pretty ChatML",
+          error,
+        );
+      }
     }
-  }
+    return null;
+  }, [
+    resolutionMode,
+    promptGraph.data?.resolvedPrompt,
+    prompt?.prompt,
+    prompt?.type,
+  ]);
 
   const utils = api.useUtils();
 

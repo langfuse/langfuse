@@ -264,21 +264,49 @@ export class SkillService {
     const skill = await this.findSkillVersion(params);
     const file = skill.files.find(({ path }) => path === params.path);
     if (!file) throw new LangfuseNotFoundError("Skill resource not found");
-    return (
-      await this.getFileContent({
-        projectId: params.projectId,
-        fileId: file.id,
-      })
-    ).content;
+    const { data } = await this.getFileContents({
+      projectId: params.projectId,
+      sha256Hashes: [file.blob.sha256Hash],
+    });
+    return data[0]!.content;
   }
 
-  async getFileContent(params: { projectId: string; fileId: string }) {
-    const file = await this.prisma.skillFile.findFirst({
-      where: { projectId: params.projectId, id: params.fileId },
-      select: { blob: { select: { content: true } } },
+  async getFileContents(params: { projectId: string; sha256Hashes: string[] }) {
+    const hashes = [...new Set(params.sha256Hashes)];
+    const where = {
+      projectId: params.projectId,
+      sha256Hash: { in: hashes },
+      files: { some: { projectId: params.projectId } },
+    } satisfies Prisma.SkillBlobWhereInput;
+    const blobs = await this.prisma.skillBlob.findMany({
+      where,
+      select: { contentLength: true },
     });
-    if (!file) throw new LangfuseNotFoundError("Skill file not found");
-    return { content: file.blob.content };
+    if (blobs.length !== hashes.length) {
+      throw new LangfuseNotFoundError("One or more skill files not found");
+    }
+    // Check metadata before loading text so oversized batches stay bounded.
+    if (
+      blobs.reduce((total, blob) => total + blob.contentLength, 0) > 10_000_000
+    ) {
+      throw new InvalidRequestError(
+        "Skill file contents must not exceed 10000000 UTF-8 bytes per batch. Request fewer hashes.",
+      );
+    }
+    const data = await this.prisma.skillBlob.findMany({
+      where,
+      select: { sha256Hash: true, content: true },
+    });
+    if (data.length !== hashes.length) {
+      throw new LangfuseNotFoundError("One or more skill files not found");
+    }
+    const byHash = new Map(data.map((blob) => [blob.sha256Hash, blob]));
+    return {
+      data: hashes.map((sha256Hash) => ({
+        sha256Hash,
+        content: byHash.get(sha256Hash)!.content,
+      })),
+    };
   }
 
   async list(params: {

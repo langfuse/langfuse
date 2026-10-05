@@ -18,6 +18,7 @@ import {
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
+  isPrismaRecordNotFoundError,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -507,10 +508,15 @@ export const queueRouter = createTRPCRouter({
 
         return queue;
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Queue not found in project");
+        }
+
+        logger.error(error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Deleting annotation queue failed.",

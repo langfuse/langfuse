@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import {
@@ -108,27 +108,37 @@ export function ConnectedModernSessionBodyTimeline({
       filter.value,
   );
 
-  const traceIndexById = new Map(
-    traces.map((trace, index) => [trace.id, index] as const),
+  const traceIndexById = useMemo(
+    () => new Map(traces.map((trace, index) => [trace.id, index] as const)),
+    [traces],
   );
-  const activeChunkIndices = new Set<number>();
-  if (!searchQuery) {
-    let highestChunkIndex = Math.min(
-      loadedThroughChunkIndex,
-      Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
-    );
-    for (const traceId of visibleTraceIds) {
-      const traceIndex = traceIndexById.get(traceId);
-      if (traceIndex === undefined) continue;
-      highestChunkIndex = Math.max(
-        highestChunkIndex,
-        Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE),
+  const activeChunkIndices = useMemo(() => {
+    const activeChunkIndices = new Set<number>();
+    if (!searchQuery) {
+      let highestChunkIndex = Math.min(
+        loadedThroughChunkIndex,
+        Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
       );
+      for (const traceId of visibleTraceIds) {
+        const traceIndex = traceIndexById.get(traceId);
+        if (traceIndex === undefined) continue;
+        highestChunkIndex = Math.max(
+          highestChunkIndex,
+          Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE),
+        );
+      }
+      for (let chunkIndex = 0; chunkIndex <= highestChunkIndex; chunkIndex++) {
+        activeChunkIndices.add(chunkIndex);
+      }
     }
-    for (let chunkIndex = 0; chunkIndex <= highestChunkIndex; chunkIndex++) {
-      activeChunkIndices.add(chunkIndex);
-    }
-  }
+    return activeChunkIndices;
+  }, [
+    searchQuery,
+    loadedThroughChunkIndex,
+    traces.length,
+    visibleTraceIds,
+    traceIndexById,
+  ]);
 
   const queryDescriptors: Array<{
     key: string;

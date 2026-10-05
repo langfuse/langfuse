@@ -7,14 +7,14 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.11.3 --global
+RUN npm install turbo@2.11.6 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 RUN npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@12.6.0 --activate
+    && corepack prepare pnpm@12.8.2 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
@@ -42,7 +42,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 WORKDIR /app
 
 COPY . .
-RUN turbo prune --scope=web --docker
+RUN turbo prune web --docker
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
 
