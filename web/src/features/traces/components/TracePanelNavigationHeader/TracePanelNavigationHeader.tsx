@@ -381,7 +381,10 @@ function ViewModeSwitch({
         {graphDisabledReason ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span>
+              <span
+                tabIndex={0}
+                className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
+              >
                 <Tabs.Trigger value="graph" disabled label="Graph" />
               </span>
             </TooltipTrigger>
