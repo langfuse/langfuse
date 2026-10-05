@@ -192,24 +192,37 @@ function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
   );
 }
 
-/** shadowAuthorize authorizes one item against a shadowAuth-resolved context for the active migration mode: legacy and ungated items pass, shadow only diffs against legacy's implicit allow, and enforce returns the decision the caller disposes of. */
+/** shadowAuthorize enforces per-item permissions or compares them with the caller's legacy decision. */
 export function shadowAuthorize(params: ShadowAuthorizeParams): Decision {
-  if (params.action === __dangerouslySkipAuthz || !params.ctx) {
+  if (params.action === __dangerouslySkipAuthz) {
     return { success: true };
   }
+  if (!params.ctx) return skipAuthorization(params);
   const decision = authorize(
     params.ctx,
     tenantFor(params.ctx, params.resource),
     params.action,
     toResourceId(params.resource),
   );
+  return diffOrGate(params, decision);
+}
+
+/** skipAuthorization returns an early decision when policy evaluation is skipped or unavailable. */
+function skipAuthorization(params: ShadowAuthorizeParams): Decision {
+  if (env.API_AUTH_MIGRATION === "enforce") {
+    return unauthorizedError("Missing authz context");
+  }
+  return params.legacyDecision;
+}
+
+/** diffOrGate shadows the authorization outcome or enforces it depending on the AUTH_API_MIGRATION */
+function diffOrGate(
+  params: ShadowAuthorizeParams,
+  decision: Decision,
+): Decision {
   if (env.API_AUTH_MIGRATION === "shadow") {
-    shadowAuthDiff(
-      decision,
-      { success: true, scope: { accessLevel: params.accessLevel } },
-      params.action,
-    );
-    return { success: true };
+    shadowAuthDiff(decision, params.legacyDecision, params.action);
+    return params.legacyDecision;
   }
   return decision;
 }
@@ -234,12 +247,14 @@ export type ShadowAuthParams = EnforceAuthParams & {
   allowedAccessLevels: ApiAccessLevel[];
 };
 
-/** ShadowAuthorizeParams is one per-item authorization: the resolved context, the action the item asserts or the explicit opt-out, the resource it targets, and the access level the shadow diff records. */
+/** ShadowAuthorizeParams carries the per-item action, context, resource, and legacy decision. */
 export type ShadowAuthorizeParams = {
   ctx: AuthorizationContext | undefined;
   action: ApiAction;
   resource: Resource;
-  accessLevel: ApiAccessLevel;
+  legacyDecision:
+    | { success: true; scope: { accessLevel: ApiAccessLevel } }
+    | ErrorResult<BaseError>;
 };
 
 /** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */

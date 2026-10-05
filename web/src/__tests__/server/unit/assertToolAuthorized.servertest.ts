@@ -112,10 +112,19 @@ describe("assertToolAuthorized", () => {
     ).not.toThrow();
   });
 
-  it("passes when no context resolved (legacy)", () => {
+  it("passes when no context resolved in legacy", () => {
+    env.API_AUTH_MIGRATION = "legacy";
     expect(() =>
       assertToolAuthorized(tool("prompts:CUD"), serverContext(undefined)),
     ).not.toThrow();
+  });
+
+  it("rejects a gated tool without context in enforce", () => {
+    expect(() =>
+      assertToolAuthorized(tool("prompts:CUD"), serverContext()),
+    ).toThrow(
+      expect.objectContaining({ code: ErrorCode.InvalidRequest }) as Error,
+    );
   });
 
   describe("shadow mode", () => {
