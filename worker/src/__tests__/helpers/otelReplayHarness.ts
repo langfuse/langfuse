@@ -106,8 +106,8 @@ const differentialClockFields = new Set([
   "event_ts",
 ]);
 
-function comparableOtelReplayRows(
-  rows: OtelReplayStoredRow[],
+export function comparableOtelReplayRows(
+  rows: OtelReplayStoredRow[] = [],
 ): OtelReplayStoredRow[] {
   return rows
     .map((row) =>
@@ -118,9 +118,7 @@ function comparableOtelReplayRows(
       ),
     )
     .sort((left, right) =>
-      `${String(left.trace_id)}\u0000${String(left.span_id)}`.localeCompare(
-        `${String(right.trace_id)}\u0000${String(right.span_id)}`,
-      ),
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
     );
 }
 
@@ -157,7 +155,7 @@ export async function runOtelReplayComparison(
  * Replay an S3 OTEL document through the production queue and JSON writer, then
  * read its events_full rows from an isolated ClickHouse Memory table.
  */
-async function runOneOtelReplay(
+export async function runOneOtelReplay(
   params: RunOtelReplayParams & { mode: OtelRawReplayMode },
 ): Promise<OtelReplayResult> {
   const projectId = params.projectId ?? "otel-replay-test";
