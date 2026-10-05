@@ -594,9 +594,22 @@ export default function SignInPage({
   // empty field is filled, which keeps `?email=` and anything already typed.
   useEffect(() => {
     if (!lastUsedSsoEmail) return;
+    // An instance can drop its last SSO config after an address was
+    // remembered. The resulting one-step form never runs the lookup that
+    // would clear it, so discard it here instead of prefilling a sign-in
+    // method the instance no longer offers.
+    if (!authProviders.sso) {
+      setLastUsedSsoEmail("");
+      return;
+    }
     if (credentialsForm.getValues("email")) return;
     credentialsForm.setValue("email", lastUsedSsoEmail);
-  }, [credentialsForm, lastUsedSsoEmail]);
+  }, [
+    authProviders.sso,
+    credentialsForm,
+    lastUsedSsoEmail,
+    setLastUsedSsoEmail,
+  ]);
 
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,

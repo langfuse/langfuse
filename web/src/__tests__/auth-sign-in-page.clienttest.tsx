@@ -491,6 +491,21 @@ describe("sign-in page last used SSO email", () => {
     expect(storedSsoEmail()).toBe("jane@acme.com");
   });
 
+  // An instance that removes its last SSO config renders the one-step password
+  // form, which never runs the lookup that would clear a remembered address.
+  it("drops a remembered address when the instance has no SSO configured", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+
+    renderSignIn({ authProviders: { ...authProviders, sso: false } });
+
+    // One-step form: password is visible immediately.
+    expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(storedSsoEmail()).toBe("");
+    });
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+  });
+
   // The transport path (fetch rejects) is likewise not a verdict on the domain.
   it("keeps the remembered address when check-sso cannot be reached", async () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
