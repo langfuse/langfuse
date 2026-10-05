@@ -88,41 +88,53 @@ function MediaObjectPreview({
   const fileName =
     parseS3Uri(uri)?.key.split("/").pop() || "external media object";
   const mediaType = contentType.split("/")[0];
-  const previewContent =
-    mediaType === "image" ? (
-      <ResizableImage
-        src={signedUrl}
-        alt={`Preview ${fileName}`}
-        isDefaultVisible
-        shouldValidateImageSource={false}
-        fitContent
-      />
-    ) : mediaType === "audio" ? (
-      <audio
-        aria-label={`Preview ${fileName}`}
-        controls
-        className="w-full"
-        preload="metadata"
-        onError={() => setHasLoadError(true)}
-        src={signedUrl}
-      />
-    ) : mediaType === "video" ? (
-      <video
-        aria-label={`Preview ${fileName}`}
-        controls
-        className="w-full"
-        preload="metadata"
-        playsInline
-        onError={() => setHasLoadError(true)}
-        src={signedUrl}
-      />
-    ) : (
-      <MediaFileCard
-        contentType={contentType}
-        fileName={fileName}
-        onClick={() => window.open(signedUrl, "_blank", "noopener,noreferrer")}
-      />
-    );
+  const previewContent = (() => {
+    switch (mediaType) {
+      case "image":
+        return (
+          <ResizableImage
+            src={signedUrl}
+            alt={`Preview ${fileName}`}
+            isDefaultVisible
+            shouldValidateImageSource={false}
+            fitContent
+          />
+        );
+      case "audio":
+        return (
+          <audio
+            aria-label={`Preview ${fileName}`}
+            controls
+            className="w-full"
+            preload="metadata"
+            onError={() => setHasLoadError(true)}
+            src={signedUrl}
+          />
+        );
+      case "video":
+        return (
+          <video
+            aria-label={`Preview ${fileName}`}
+            controls
+            className="w-full"
+            preload="metadata"
+            playsInline
+            onError={() => setHasLoadError(true)}
+            src={signedUrl}
+          />
+        );
+      default:
+        return (
+          <MediaFileCard
+            contentType={contentType}
+            fileName={fileName}
+            onClick={() =>
+              window.open(signedUrl, "_blank", "noopener,noreferrer")
+            }
+          />
+        );
+    }
+  })();
 
   return (
     <div className="flex flex-col gap-2" aria-live="polite">
