@@ -18,9 +18,10 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
 import {
+  comparableOtelReplayRows,
   expectRawOtelReplayParity,
   runOtelReplayComparison,
-  type OtelReplayResult,
+  runOneOtelReplay,
   type OtelRawReplayComparison,
 } from "./helpers/otelReplayHarness";
 import {
@@ -179,21 +180,6 @@ function createMediaAssociationCapture(): () => MediaAssociation[] {
   };
 }
 
-function normalizedRows(rows: OtelReplayResult["storedRows"] = []) {
-  return rows
-    .map((row) =>
-      Object.fromEntries(
-        Object.entries(row).filter(
-          ([key]) =>
-            key !== "created_at" && key !== "updated_at" && key !== "event_ts",
-        ),
-      ),
-    )
-    .sort((left, right) =>
-      JSON.stringify(left).localeCompare(JSON.stringify(right)),
-    );
-}
-
 function expectLegacyReplayParity(comparison: OtelRawReplayComparison) {
   for (const table of [
     "traces",
@@ -201,9 +187,11 @@ function expectLegacyReplayParity(comparison: OtelRawReplayComparison) {
     "observations_batch_staging",
   ] as const) {
     expect(
-      normalizedRows(comparison.earlyTs.legacyRows?.[table]),
+      comparableOtelReplayRows(comparison.earlyTs.legacyRows?.[table]),
       `early-ts ${table}`,
-    ).toEqual(normalizedRows(comparison.originalTs.legacyRows?.[table]));
+    ).toEqual(
+      comparableOtelReplayRows(comparison.originalTs.legacyRows?.[table]),
+    );
   }
 }
 
@@ -887,64 +875,73 @@ describe(
       },
     );
 
-    it("removes replay-owned ingestion jobs when a legacy replay job fails", async () => {
-      const { projectId, orgId } = await createOrgProjectAndApiKey();
-      const originalBlobStorageFileLogFlag =
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
-      env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG = "false";
+    it.each([
+      ["original-ts", false],
+      ["original-ts", true],
+      ["early-ts", false],
+      ["early-ts", true],
+    ] as const)(
+      "removes replay-owned jobs after failure (%s, separate traces: %s)",
+      async (mode, separateTraces) => {
+        const { projectId, orgId } = await createOrgProjectAndApiKey();
+        const originalBlobStorageFileLogFlag =
+          env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
+        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG = "false";
 
-      const unrelatedQueue = IngestionQueue.getInstance({
-        shardingKey: `${projectId}-unrelated`,
-      });
-      if (!unrelatedQueue)
-        throw new Error("Ingestion queue is not initialized");
-      const unrelatedJob = await unrelatedQueue.add(QueueJobs.IngestionJob, {
-        id: `otel-replay-unrelated-${randomUUID()}`,
-        timestamp: new Date(),
-        name: QueueJobs.IngestionJob,
-        payload: {
-          data: {
-            type: "span-create",
-            eventBodyId: `otel-replay-unrelated-${randomUUID()}`,
-            fileKey: "unrelated.json",
-            bucketPrefix: "otel-replay/unrelated/",
-            ingestionApiKey: "",
-            ingestionSdkName: "otel-replay-test",
-            ingestionSdkVersion: "test",
+        const unrelatedQueue = IngestionQueue.getInstance({
+          shardingKey: `${projectId}-unrelated`,
+        });
+        if (!unrelatedQueue)
+          throw new Error("Ingestion queue is not initialized");
+        const unrelatedJob = await unrelatedQueue.add(QueueJobs.IngestionJob, {
+          id: `otel-replay-unrelated-${randomUUID()}`,
+          timestamp: new Date(),
+          name: QueueJobs.IngestionJob,
+          payload: {
+            data: {
+              type: "span-create",
+              eventBodyId: `otel-replay-unrelated-${randomUUID()}`,
+              fileKey: "unrelated.json",
+              bucketPrefix: "otel-replay/unrelated/",
+              ingestionApiKey: "",
+              ingestionSdkName: "otel-replay-test",
+              ingestionSdkVersion: "test",
+            },
+            authCheck: {
+              validKey: true,
+              scope: { projectId, orgId, accessLevel: "project" },
+            },
           },
-          authCheck: {
-            validKey: true,
-            scope: { projectId, orgId, accessLevel: "project" },
-          },
-        },
-      });
+        });
 
-      try {
-        await expect(
-          runOtelReplayComparison({
-            bytes: Buffer.from(
-              JSON.stringify(buildResourceSpans({ separateTraces: true })),
-            ),
-            projectId,
-            orgId,
-            fileKey: `${FILE_KEY}.legacy-failure`,
-            writeMode: "dual",
-            failLegacyQueueProcessing: true,
-          }),
-        ).rejects.toThrow("simulated legacy ingestion read failure");
+        try {
+          await expect(
+            runOneOtelReplay({
+              mode,
+              bytes: Buffer.from(
+                JSON.stringify(buildResourceSpans({ separateTraces })),
+              ),
+              projectId,
+              orgId,
+              fileKey: `${FILE_KEY}.legacy-failure`,
+              writeMode: "dual",
+              failLegacyQueueProcessing: true,
+            }),
+          ).rejects.toThrow("simulated legacy ingestion read failure");
 
-        const remainingJobs = await getIngestionJobsForProject(projectId);
-        expect(remainingJobs.map((job) => job.id)).toEqual([unrelatedJob.id]);
-      } finally {
-        const remainingJobs = await getIngestionJobsForProject(projectId);
-        await Promise.allSettled(remainingJobs.map((job) => job.remove()));
-        const traceJobs = await getTraceUpsertJobsForProject(projectId);
-        await Promise.allSettled(traceJobs.map((job) => job.remove()));
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG =
-          originalBlobStorageFileLogFlag;
-        await prisma.project.delete({ where: { id: projectId } });
-        await prisma.organization.delete({ where: { id: orgId } });
-      }
-    });
+          const remainingJobs = await getIngestionJobsForProject(projectId);
+          expect(remainingJobs.map((job) => job.id)).toEqual([unrelatedJob.id]);
+        } finally {
+          const remainingJobs = await getIngestionJobsForProject(projectId);
+          await Promise.allSettled(remainingJobs.map((job) => job.remove()));
+          const traceJobs = await getTraceUpsertJobsForProject(projectId);
+          await Promise.allSettled(traceJobs.map((job) => job.remove()));
+          env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG =
+            originalBlobStorageFileLogFlag;
+          await prisma.project.delete({ where: { id: projectId } });
+          await prisma.organization.delete({ where: { id: orgId } });
+        }
+      },
+    );
   },
 );
