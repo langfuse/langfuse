@@ -1,4 +1,5 @@
 import { Job, Processor } from "bullmq";
+import type { EarlyOtelBatch } from "@langfuse/native";
 import { z } from "zod";
 import {
   clickhouseClient,
@@ -44,7 +45,9 @@ import {
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
 } from "../features/otel-media/processOtelMedia";
+import { restoreInlineMedia } from "../features/otel-media/resolveExtractedMedia";
 import { processOtelEvents } from "../features/otel-ingestion/processOtelEvents";
+import { prepareOtelBatch } from "../features/otel-ingestion/prepareOtelBatch";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
@@ -436,6 +439,7 @@ export const otelIngestionQueueProcessorBuilder = (
   return async (
     job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
   ): Promise<void> => {
+    let earlyBatch: EarlyOtelBatch | undefined;
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
       const publicKey = job.data.payload.data.publicKey ?? "";
@@ -491,47 +495,79 @@ export const otelIngestionQueueProcessorBuilder = (
       // Otherwise, we'd probably have to upsert one row per generated event further below.
       // Easy change, but needs alignment.
 
-      // Download file from blob storage
-      const resourceSpans = await getS3EventStorageClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      ).download(fileKey);
-
-      recordHistogram(
-        "langfuse.ingestion.s3_file_size_bytes",
-        resourceSpans.length, // At this point it's still a string.
-        {
-          skippedS3List: "true",
-          otel: "true",
-        },
-      );
-
-      // Parse spans from S3 download
-      let parsedSpans = JSON.parse(resourceSpans);
-
-      // Apply ingestion masking if enabled (EE feature)
-      if (isIngestionMaskingEnabled()) {
-        const maskingResult = await applyIngestionMasking({
-          data: parsedSpans,
+      let parsedSpans: ResourceSpan[];
+      if (env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED === "true") {
+        const bytes = await getS3EventStorageClient(
+          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        ).downloadBytes(fileKey);
+        recordHistogram(
+          "langfuse.ingestion.s3_file_size_bytes",
+          bytes.byteLength,
+          { skippedS3List: "true", otel: "true" },
+        );
+        const prepared = await prepareOtelBatch({
+          bytes: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
           projectId,
           orgId: job.data.payload.authCheck.scope.orgId,
           propagatedHeaders: job.data.payload.propagatedHeaders,
+          extractMedia:
+            env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
+            Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         });
-
-        if (!maskingResult.success) {
-          // Fail-closed: drop event. Emit the S3 location so operators can
-          // scan logs to identify which raw payloads need to be replayed via
-          // worker/src/scripts/replayIngestionEventsV2 once the upstream
-          // masking callback is healthy again.
-          logger.warn(`Dropping OTEL event due to masking failure`, {
+        if (!prepared) {
+          logger.warn("Dropping OTEL event due to masking failure", {
             projectId,
-            orgId: job.data.payload.authCheck.scope.orgId,
             fileKey,
-            error: maskingResult.error,
-            propagatedHeaders: job.data.payload.propagatedHeaders,
           });
           return;
         }
-        parsedSpans = maskingResult.data;
+        earlyBatch = prepared.batch;
+        parsedSpans = prepared.batch
+          ? JSON.parse(prepared.batch.json())
+          : prepared.spans;
+      } else {
+        // Download file from blob storage
+        const resourceSpans = await getS3EventStorageClient(
+          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        ).download(fileKey);
+
+        recordHistogram(
+          "langfuse.ingestion.s3_file_size_bytes",
+          resourceSpans.length, // At this point it's still a string.
+          {
+            skippedS3List: "true",
+            otel: "true",
+          },
+        );
+
+        // Parse spans from S3 download
+        parsedSpans = JSON.parse(resourceSpans);
+
+        // Apply ingestion masking if enabled (EE feature)
+        if (isIngestionMaskingEnabled()) {
+          const maskingResult = await applyIngestionMasking({
+            data: parsedSpans,
+            projectId,
+            orgId: job.data.payload.authCheck.scope.orgId,
+            propagatedHeaders: job.data.payload.propagatedHeaders,
+          });
+
+          if (!maskingResult.success) {
+            // Fail-closed: drop event. Emit the S3 location so operators can
+            // scan logs to identify which raw payloads need to be replayed via
+            // worker/src/scripts/replayIngestionEventsV2 once the upstream
+            // masking callback is healthy again.
+            logger.warn(`Dropping OTEL event due to masking failure`, {
+              projectId,
+              orgId: job.data.payload.authCheck.scope.orgId,
+              fileKey,
+              error: maskingResult.error,
+              propagatedHeaders: job.data.payload.propagatedHeaders,
+            });
+            return;
+          }
+          parsedSpans = maskingResult.data;
+        }
       }
 
       // Generate events via OtelIngestionProcessor
@@ -545,6 +581,12 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
+      if (earlyBatch) {
+        await restoreInlineMedia(
+          earlyBatch,
+          events.map((event) => event.body),
+        );
+      }
 
       // Here, we split the events into observations and non-observations.
       // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
@@ -731,6 +773,7 @@ export const otelIngestionQueueProcessorBuilder = (
           await processOtelEventMedia({
             targets: createLegacyOtelMediaTargets(traces.concat(observations)),
             writePath: "legacy",
+            earlyBatch,
             projectId,
             fileKey,
             mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
@@ -780,6 +823,7 @@ export const otelIngestionQueueProcessorBuilder = (
         projectId,
         fileKey,
         shouldWriteToEventsTable,
+        earlyBatch,
       });
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
@@ -804,6 +848,8 @@ export const otelIngestionQueueProcessorBuilder = (
         fields: { fileKey },
       });
       throw e;
+    } finally {
+      await earlyBatch?.dispose();
     }
   };
 };

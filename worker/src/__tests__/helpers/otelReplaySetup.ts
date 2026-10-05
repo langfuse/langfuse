@@ -24,6 +24,7 @@ vi.mock("../../env", async (importOriginal) => {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
       LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: "false",
       LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: "false",
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: "false",
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "otel-replay-test",
       LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "otel-replay/",
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "false",
@@ -82,6 +83,7 @@ export function configureDefaultOtelReplayMocks(): void {
 
 type ReplayEnvironmentOptions = {
   mediaUploadEnabled?: boolean;
+  earlyMediaExtractionEnabled?: boolean;
   overflowEnabled?: boolean;
   overflowSizeLimitBytes?: number;
   writeMode?: "events_only" | "dual";
@@ -101,6 +103,8 @@ export function configureOtelReplayEnvironment(
     LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS:
       env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
     LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+    LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
     LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG:
@@ -121,6 +125,8 @@ export function configureOtelReplayEnvironment(
     LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: options.mediaUploadEnabled
       ? "true"
       : "false",
+    LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+      options.earlyMediaExtractionEnabled ? "true" : "false",
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "otel-replay-test",
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "otel-replay/",
     LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "false",
