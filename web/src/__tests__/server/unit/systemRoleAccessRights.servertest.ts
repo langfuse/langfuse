@@ -20,6 +20,23 @@ const orgReservedProjectActions: ProjectAction[] = [
 ];
 
 describe("systemRoleAccessRights", () => {
+  it.each([
+    ["OWNER", true],
+    ["LEGACY_ORGANIZATION_API_KEY", true],
+    ["ADMIN", false],
+    ["VIEWER", false],
+  ] as const)(
+    "grants protected ownership management to %s: %s",
+    (role, expected) => {
+      const actions = systemRoleAccessRights[role].policies
+        .filter((policy) => policy.resourceKind === "organization")
+        .flatMap((policy) => policy.actions);
+      expect(actions.includes("organizationMembers:manageOwnership")).toBe(
+        expected,
+      );
+    },
+  );
+
   // Decision-equivalence guard: these api-key policies pin the exact action
   // sets a later ticket depends on staying equal.
   it("grants a legacy project API key every project action except the org-reserved admin actions", () => {
