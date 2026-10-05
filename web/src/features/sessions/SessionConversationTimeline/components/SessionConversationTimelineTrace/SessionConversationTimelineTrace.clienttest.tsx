@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SessionConversationTimelineTrace } from "./SessionConversationTimelineTrace";
@@ -32,10 +32,9 @@ const timing = {
 };
 
 describe("SessionConversationTimelineTrace", () => {
-  it("keeps trace and observation navigation and always renders source actions", async () => {
+  it("keeps trace and observation navigation without source actions", () => {
     const onOpenTrace = vi.fn();
     const onOpenObservation = vi.fn();
-    const onAnnotateObservation = vi.fn();
     const sourceObservation = {
       id: timing.observationId,
       traceId: trace.id,
@@ -55,12 +54,6 @@ describe("SessionConversationTimelineTrace", () => {
         scrollTarget={null}
         state={{
           type: "transcript",
-          onAnnotateObservation,
-          onCommentObservation: vi.fn(),
-          onAddObservationToDataset: vi.fn(),
-          annotateDisabled: false,
-          commentDisabled: false,
-          addToDatasetDisabled: false,
           observations: [sourceObservation],
           result: {
             state: "loaded",
@@ -114,17 +107,7 @@ describe("SessionConversationTimelineTrace", () => {
     expect(onOpenTrace).toHaveBeenCalledOnce();
     expect(screen.getByText("Answer")).toBeInTheDocument();
     expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
-    const messageActions = screen.getAllByRole("button", {
-      name: "Actions for Source generation",
-    })[1]!;
-    expect(messageActions.textContent).toBe("Actions");
-    expect(messageActions.closest("article")).not.toBeNull();
-    expect(
-      messageActions.parentElement?.parentElement?.querySelector("time"),
-    ).not.toBeNull();
-    fireEvent.click(messageActions);
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Annotate" }));
-    expect(onAnnotateObservation).toHaveBeenCalledWith(sourceObservation);
+    expect(screen.queryByRole("button", { name: /^Actions/ })).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Transcript may be incomplete" }),
     ).toBeNull();
@@ -141,12 +124,6 @@ describe("SessionConversationTimelineTrace", () => {
         scrollTarget={null}
         state={{
           type: "transcript",
-          onAnnotateObservation: vi.fn(),
-          onCommentObservation: vi.fn(),
-          onAddObservationToDataset: vi.fn(),
-          annotateDisabled: false,
-          commentDisabled: false,
-          addToDatasetDisabled: false,
           observations: [{ id: "generation-1" }] as Extract<
             Props["state"],
             { type: "transcript" }
@@ -239,6 +216,15 @@ describe("SessionConversationTimelineTrace", () => {
     expect(screen.getByText(/"city": "Berlin"/)).toBeTruthy();
     expect(screen.getByText(/"temperature": 12/)).toBeTruthy();
     expect(screen.getByLabelText("Failed")).toBeTruthy();
+    const toolRow = screen
+      .getByRole("button", { name: "Collapse weather" })
+      .closest("section")!;
+    onOpenObservation.mockClear();
+    fireEvent.click(
+      within(toolRow).getByRole("button", { name: "Open observation" }),
+    );
+    expect(onOpenObservation).toHaveBeenCalledExactlyOnceWith("generation-1");
+    expect(screen.queryByRole("button", { name: /^Actions/ })).toBeNull();
     expect(
       container.querySelectorAll('time[datetime="2026-09-24T12:00:00.000Z"]'),
     ).toHaveLength(3);

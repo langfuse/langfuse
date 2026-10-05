@@ -1,10 +1,9 @@
 import { CircleAlert, MessageSquareOff } from "lucide-react";
-import { type ComponentProps, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
@@ -12,29 +11,15 @@ import { SessionTranscriptContent } from "./SessionTranscriptContent";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/SessionConversationTimeline/useSessionTraceTranscripts";
 
-type ActionObservation = Pick<
-  RouterOutputs["events"]["sessionAll"]["observations"][number],
-  "id" | "traceId" | "name" | "startTime" | "environment"
-> & { traceId: string };
-
 export type PreparedSessionConversationTimelineTraceState =
   | { type: "loading" }
   | { type: "error" }
   | { type: "empty" }
-  | ({
+  | {
       type: "transcript";
       result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
       observations: RouterOutputs["events"]["sessionAll"]["observations"];
-    } & SessionObservationActionProps);
-
-type SessionObservationActionProps = {
-  onAnnotateObservation: (observation: ActionObservation) => void;
-  onCommentObservation: (observation: ActionObservation) => void;
-  onAddObservationToDataset: (observation: ActionObservation) => void;
-  annotateDisabled: boolean;
-  commentDisabled: boolean;
-  addToDatasetDisabled: boolean;
-};
+    };
 
 const toPreviewText = (value: unknown) => {
   const text =
@@ -46,58 +31,6 @@ const toPreviewText = (value: unknown) => {
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
-
-export function SessionObservationActionsMenu({
-  observation,
-  onAnnotateObservation,
-  onCommentObservation,
-  onAddObservationToDataset,
-  annotateDisabled,
-  commentDisabled,
-  addToDatasetDisabled,
-  children,
-}: {
-  observation: ActionObservation;
-  children: ComponentProps<typeof DropdownMenu>["children"];
-} & SessionObservationActionProps) {
-  return (
-    <DropdownMenu
-      placement="bottom-end"
-      ariaLabel={`Actions for ${observation.name ?? observation.id}`}
-      items={[
-        {
-          type: "item",
-          id: "annotate",
-          title: "Annotate",
-          disabled: annotateDisabled
-            ? { reason: "Annotation is unavailable." }
-            : undefined,
-          onClick: () => onAnnotateObservation(observation),
-        },
-        {
-          type: "item",
-          id: "comments",
-          title: "Comments",
-          disabled: commentDisabled
-            ? { reason: "Comments are unavailable." }
-            : undefined,
-          onClick: () => onCommentObservation(observation),
-        },
-        {
-          type: "item",
-          id: "add-to-dataset",
-          title: "Add to dataset",
-          disabled: addToDatasetDisabled
-            ? { reason: "Dataset access is unavailable." }
-            : undefined,
-          onClick: () => onAddObservationToDataset(observation),
-        },
-      ]}
-    >
-      {children}
-    </DropdownMenu>
-  );
-}
 
 export function SessionTimelineToolRow({
   name,
@@ -194,7 +127,7 @@ export function SessionConversationTimelineTrace({
       className="px-4 pb-14 sm:px-6 lg:px-10"
       data-session-trace-id={trace.id}
     >
-      <div className="mb-6 flex items-center gap-4 pt-5">
+      <div className="group/trace-header mb-6 flex items-center gap-4 pt-5">
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground ph-no-capture flex shrink-0 items-center gap-2 font-mono text-xs transition-colors"
@@ -207,6 +140,13 @@ export function SessionConversationTimelineTrace({
           <span>trace · {trace.id}</span>
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground hidden shrink-0 font-mono text-xs group-focus-within/trace-header:block group-hover/trace-header:block hover:underline"
+          onClick={onOpenTrace}
+        >
+          Open trace
+        </button>
         {state.type === "transcript" && state.result.cutoff && (
           <Tooltip label="This transcript may be incomplete because the observation limit was reached.">
             {({ getTriggerProps }) => (

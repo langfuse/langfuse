@@ -127,15 +127,6 @@ const sourceObservation = {
   environment: trace.environment,
 } as TranscriptState["observations"][number];
 
-const observationActionProps = {
-  onAnnotateObservation: fn(),
-  onCommentObservation: fn(),
-  onAddObservationToDataset: fn(),
-  annotateDisabled: false,
-  commentDisabled: false,
-  addToDatasetDisabled: false,
-};
-
 function transcriptState({
   messages,
   history,
@@ -147,7 +138,6 @@ function transcriptState({
 }): TranscriptState {
   return {
     type: "transcript",
-    ...observationActionProps,
     result: {
       state: "loaded",
       cutoff: false,
@@ -174,7 +164,6 @@ export const MultipleThreads = meta.story({
     ...commonArgs,
     state: {
       type: "transcript",
-      ...observationActionProps,
       result,
       observations: [sourceObservation],
     },
@@ -185,7 +174,6 @@ export const Cutoff = meta.story({
     ...commonArgs,
     state: {
       type: "transcript",
-      ...observationActionProps,
       result: { ...result, cutoff: true },
       observations: [sourceObservation],
     },
@@ -245,15 +233,9 @@ export const ExpandTool = meta.story({
     const toolRow = canvas
       .getByRole("button", { name: "Collapse weather" })
       .closest("section")!;
-    const toolActions = within(toolRow).getByRole("button", {
-      name: "Actions for Weather assistant",
-    });
-    await expect(toolActions).toHaveTextContent("Actions");
-    await userEvent.click(toolActions);
-    const page = within(canvasElement.ownerDocument.body);
-    await userEvent.hover(page.getByRole("menu"));
-    await expect(toolActions).toBeVisible();
-    await userEvent.keyboard("{Escape}");
+    await expect(
+      within(toolRow).getByRole("button", { name: "Open observation" }),
+    ).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse weather" }),
     );
@@ -263,51 +245,28 @@ export const ExpandTool = meta.story({
   },
 });
 
-export const AnnotateSourceObservation = meta.story({
-  name: "(Test) Annotate Source Observation",
+export const OpenToolObservation = meta.story({
+  name: "(Test) Opens Tool Observation",
   args: {
     ...commonArgs,
-    state: {
-      ...weatherState,
-      onAnnotateObservation: fn(),
-    },
+    state: weatherState,
+    onOpenObservation: fn(),
   },
   play: async ({ args, canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    const bubble = canvasElement.querySelector("article");
-    if (!bubble) throw new globalThis.Error("Expected a chat bubble");
-    await userEvent.hover(bubble);
-    const messageActions = within(bubble).getByRole("button", {
-      name: "Actions for Weather assistant",
+    const canvas = within(canvasElement);
+    const toolRow = canvas
+      .getByRole("button", { name: "Expand weather" })
+      .closest("section")!;
+    await userEvent.hover(toolRow);
+    const openObservation = within(toolRow).getByRole("button", {
+      name: "Open observation",
     });
-    await expect(messageActions).toBeVisible();
-    await expect(messageActions).toHaveTextContent("Actions");
-    await userEvent.click(messageActions);
-    await userEvent.unhover(bubble);
-    await userEvent.hover(page.getByRole("menu"));
-    await expect(messageActions).toBeVisible();
+    await expect(openObservation).toBeVisible();
+    await userEvent.click(openObservation);
+    await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
     await expect(
-      within(bubble).getByRole("button", { name: "Open observation" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("menuitem", { name: "Annotate" }),
-    ).toBeInTheDocument();
-    await expect(
-      page.getByRole("menuitem", { name: "Comments" }),
-    ).toBeInTheDocument();
-    await expect(
-      page.getByRole("menuitem", { name: "Add to dataset" }),
-    ).toBeInTheDocument();
-    await userEvent.click(
-      page.getByRole("menuitem", {
-        name: "Annotate",
-      }),
-    );
-    if (args.state.type !== "transcript")
-      throw new globalThis.Error("Expected transcript state");
-    await expect(args.state.onAnnotateObservation).toHaveBeenCalledWith(
-      sourceObservation,
-    );
+      canvas.queryByRole("button", { name: /^Actions/ }),
+    ).not.toBeInTheDocument();
   },
 });
 

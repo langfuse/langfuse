@@ -42,14 +42,12 @@ export function SessionTimelineContentMessage({
   senderName,
   timestamp,
   onOpenObservation,
-  trailingContent,
 }: {
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
   timestamp?: Date | null;
   onOpenObservation?: () => void;
-  trailingContent?: React.ReactNode;
 }) {
   const presentation = rolePresentation[role];
   const Icon = presentation.icon;
@@ -175,7 +173,7 @@ export function SessionTimelineContentMessage({
                   ))}
                 </div>
               ) : null}
-              {(timestamp || trailingContent || onOpenObservation) &&
+              {(timestamp || onOpenObservation) &&
                 groupIndex === groups.length - 1 && (
                   <div
                     className={cn(
@@ -187,7 +185,7 @@ export function SessionTimelineContentMessage({
                       <button
                         type="button"
                         className={cn(
-                          "hover:text-foreground invisible group-focus-within/bubble:visible group-hover/bubble:visible group-has-[[data-session-actions-trigger][aria-expanded=true]]/bubble:visible hover:underline",
+                          "hover:text-foreground invisible group-focus-within/bubble:visible group-hover/bubble:visible hover:underline",
                           role !== "user" && "order-1",
                         )}
                         onClick={onOpenObservation}
@@ -199,16 +197,6 @@ export function SessionTimelineContentMessage({
                       <time dateTime={timestamp.toISOString()}>
                         {timestamp.toLocaleTimeString()}
                       </time>
-                    )}
-                    {trailingContent && (
-                      <span
-                        className={cn(
-                          "invisible group-focus-within/bubble:visible group-hover/bubble:visible group-has-[[data-session-actions-trigger][aria-expanded=true]]/bubble:visible",
-                          role === "user" ? "-order-1" : "order-2",
-                        )}
-                      >
-                        {trailingContent}
-                      </span>
                     )}
                   </div>
                 )}

@@ -15,15 +15,6 @@ import {
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 
-const observationActionProps = {
-  onAnnotateObservation: fn(),
-  onCommentObservation: fn(),
-  onAddObservationToDataset: fn(),
-  annotateDisabled: false,
-  commentDisabled: false,
-  addToDatasetDisabled: false,
-};
-
 const traces: TraceProps[] = [
   {
     trace: {
@@ -39,7 +30,6 @@ const traces: TraceProps[] = [
     turnNumber: 1,
     state: {
       type: "transcript",
-      ...observationActionProps,
       result: {
         state: "loaded",
         cutoff: false,
@@ -129,7 +119,6 @@ function SessionConversationalViewStory({
       ...traces[0]!,
       state: {
         type: "transcript",
-        ...observationActionProps,
         observations: Array.from({ length: 3 }, (_, batchIndex) => ({
           id: `batch-${batchIndex}`,
           traceId: traces[0]!.trace.id,
@@ -200,7 +189,6 @@ function SessionConversationalViewStory({
         ...item,
         state: {
           ...item.state,
-          ...observationActionProps,
           observations: item.state.observations as Extract<
             TraceProps["state"],
             { type: "transcript" }

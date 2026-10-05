@@ -1,11 +1,7 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { type RouterOutputs } from "@/src/utils/api";
 import { type TranscriptMessageGroup } from "../../fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "../../fns/getSessionTranscriptRows";
-import {
-  SessionTimelineToolRow,
-  SessionObservationActionsMenu,
-} from "./SessionConversationTimelineTrace";
+import { SessionTimelineToolRow } from "./SessionConversationTimelineTrace";
 import { ChevronDown, Wrench } from "lucide-react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "../../useSessionTraceTranscripts";
@@ -15,32 +11,19 @@ import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "../../../fns/groupConsecutiveTools";
 
-type ObservationActionProps = Pick<
-  ComponentProps<typeof SessionObservationActionsMenu>,
-  | "onAnnotateObservation"
-  | "onCommentObservation"
-  | "onAddObservationToDataset"
-  | "annotateDisabled"
-  | "commentDisabled"
-  | "addToDatasetDisabled"
->;
-
 export function SessionTranscriptContent({
   result,
-  observations,
   onOpenObservation,
   scrollTarget,
-  ...observationActionProps
 }: {
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
-  observations: RouterOutputs["events"]["sessionAll"]["observations"];
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
     requestId: number;
   } | null;
-} & ObservationActionProps) {
+}) {
   const rows = getSessionTranscriptRows(result.transcript);
   return (
     <div className="ph-no-capture space-y-4">
@@ -60,8 +43,6 @@ export function SessionTranscriptContent({
           <SessionTranscriptThread
             rows={rows.filter((row) => row.threadIndex === threadIndex)}
             onOpenObservation={onOpenObservation}
-            observations={observations}
-            {...observationActionProps}
             scrollTarget={scrollTarget}
           />
         </div>
@@ -79,8 +60,6 @@ function SessionTranscriptThread({
   rows,
   onOpenObservation,
   scrollTarget,
-  observations,
-  ...observationActionProps
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
   onOpenObservation: (observationId: string) => void;
@@ -89,8 +68,7 @@ function SessionTranscriptThread({
     rowId?: string;
     requestId: number;
   } | null;
-  observations: RouterOutputs["events"]["sessionAll"]["observations"];
-} & ObservationActionProps) {
+}) {
   const groups = groupConsecutiveTools(rows, {
     isTool: ({ row }) => row.type === "tool",
     getName: ({ row }) =>
@@ -108,8 +86,6 @@ function SessionTranscriptThread({
           rows={group.rows}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
-          observations={observations}
-          {...observationActionProps}
         />
       );
     }
@@ -119,8 +95,6 @@ function SessionTranscriptThread({
         item={group.row}
         onOpenObservation={onOpenObservation}
         scrollTarget={scrollTarget}
-        observations={observations}
-        {...observationActionProps}
       />
     );
   });
@@ -130,8 +104,6 @@ function SessionTranscriptRow({
   item,
   onOpenObservation,
   scrollTarget,
-  observations,
-  ...observationActionProps
 }: {
   item: ReturnType<typeof getSessionTranscriptRows>[number];
 } & Omit<ComponentProps<typeof SessionTranscriptThread>, "rows">) {
@@ -139,41 +111,10 @@ function SessionTranscriptRow({
   const timing = row.message.timing;
   const isTool = row.type === "tool";
   const isSystem = row.message.role === "system";
-  const observation = observations.find(
-    (item) => item.id === row.message.observationId,
-  );
-  const actionsMenu = observation?.traceId && (
-    <SessionObservationActionsMenu
-      observation={{
-        id: observation.id,
-        traceId: observation.traceId,
-        name: observation.name,
-        startTime: observation.startTime,
-        environment: observation.environment,
-      }}
-      {...observationActionProps}
-    >
-      {({ getTriggerProps }) => {
-        return (
-          <button
-            type="button"
-            aria-label={`Actions for ${observation.name ?? observation.id}`}
-            className="hover:text-foreground inline-flex items-center gap-0.5 hover:underline"
-            data-session-actions-trigger=""
-            {...getTriggerProps()}
-          >
-            Actions
-            <ChevronDown className="h-3 w-3" aria-hidden="true" />
-          </button>
-        );
-      }}
-    </SessionObservationActionsMenu>
-  );
-  const metadata = (isTool || isSystem) && (timing || actionsMenu) && (
-    <div className="text-muted-foreground invisible flex items-center gap-3 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-has-[[data-session-actions-trigger][aria-expanded=true]]/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
-      {!isTool &&
-        row.message.role === "system" &&
-        row.message.observationId && (
+  const metadata = (isTool || isSystem) &&
+    (timing || row.message.observationId) && (
+      <div className="text-muted-foreground invisible flex items-center gap-3 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
+        {row.message.observationId && (
           <button
             type="button"
             className="hover:text-foreground underline"
@@ -182,21 +123,20 @@ function SessionTranscriptRow({
             Open observation
           </button>
         )}
-      {actionsMenu}
-      {isTool && timing && timing.endTime !== null && (
-        <span>
-          {formatIntervalSeconds(
-            (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
-          )}
-        </span>
-      )}
-      {timing && (isTool || isSystem) && (
-        <time dateTime={timing.startTime.toISOString()}>
-          {timing.startTime.toLocaleTimeString()}
-        </time>
-      )}
-    </div>
-  );
+        {isTool && timing && timing.endTime !== null && (
+          <span>
+            {formatIntervalSeconds(
+              (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
+            )}
+          </span>
+        )}
+        {timing && (isTool || isSystem) && (
+          <time dateTime={timing.startTime.toISOString()}>
+            {timing.startTime.toLocaleTimeString()}
+          </time>
+        )}
+      </div>
+    );
   return (
     <div
       key={id}
@@ -224,7 +164,7 @@ function SessionTranscriptRow({
       ) : (
         <SessionTranscriptMessage
           message={row.message}
-          trailingContent={isSystem ? metadata : actionsMenu}
+          trailingContent={isSystem ? metadata : null}
           onOpenObservation={onOpenObservation}
         />
       )}
@@ -334,7 +274,6 @@ function SessionTranscriptMessage({
       parts={message.parts}
       senderName={message.senderName}
       timestamp={message.timing?.startTime ?? null}
-      trailingContent={trailingContent}
       onOpenObservation={
         message.observationId
           ? () => onOpenObservation(message.observationId!)
