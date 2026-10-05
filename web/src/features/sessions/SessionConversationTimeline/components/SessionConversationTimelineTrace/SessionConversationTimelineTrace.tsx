@@ -1,4 +1,4 @@
-import { ChevronDown, CircleAlert, MessageSquareOff } from "lucide-react";
+import { CircleAlert, MessageSquareOff } from "lucide-react";
 import { type ReactNode } from "react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
@@ -12,6 +12,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { SessionTranscriptContent } from "./SessionTranscriptContent";
+import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/SessionConversationTimeline/useSessionTraceTranscripts";
 
 type ActionObservation = Pick<
@@ -107,41 +108,14 @@ export function SessionTimelineToolRow({
   trailingContent?: ReactNode;
 }) {
   return (
-    <section
-      className={cn("flex scroll-mt-16 flex-col py-1", isExpanded && "gap-2")}
-    >
-      <div className="flex w-full min-w-0 items-center gap-0.5">
-        <button
-          type="button"
-          onClick={onOpenObservation ?? (() => onExpandedChange(!isExpanded))}
-          className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-        >
-          <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
-            {renderFilterIcon("TOOL")}
-          </span>
-          <span
-            className="min-w-0 truncate text-xs font-normal hover:underline"
-            title={name}
-          >
-            {name}
-          </span>
-        </button>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-          aria-expanded={isExpanded}
-          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${name}`}
-          onClick={() => onExpandedChange(!isExpanded)}
-        >
-          <ChevronDown
-            className={cn(
-              "h-3.5 w-3.5 transition-transform",
-              !isExpanded && "-rotate-90",
-            )}
-            aria-hidden="true"
-          />
-        </button>
-        <span className="ml-auto flex shrink-0 items-center gap-2">
+    <SessionTimelineCollapsibleRow
+      label={name}
+      icon={renderFilterIcon("TOOL")}
+      isExpanded={isExpanded}
+      onExpandedChange={onExpandedChange}
+      onOpenObservation={onOpenObservation}
+      trailingContent={
+        <>
           {trailingContent}
           {isError ? (
             <CircleAlert
@@ -149,40 +123,39 @@ export function SessionTimelineToolRow({
               aria-label="Failed"
             />
           ) : null}
-        </span>
+        </>
+      }
+    >
+      <div className="flex min-w-0 flex-col gap-3">
+        {hasPreviewValue(input) ? (
+          <div className="relative flex min-w-0 flex-col gap-1">
+            <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
+              Input
+            </span>
+            <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
+              {toPreviewText(input)}
+            </pre>
+          </div>
+        ) : null}
+        {hasPreviewValue(output) ? (
+          <div className="relative flex min-w-0 flex-col gap-1">
+            <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
+              Output
+            </span>
+            <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
+              {toPreviewText(output)}
+            </pre>
+          </div>
+        ) : null}
+        {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
+          <div className="relative">
+            <span className="text-muted-foreground text-xs">
+              No input or output
+            </span>
+          </div>
+        ) : null}
       </div>
-      {isExpanded ? (
-        <div className="flex min-w-0 flex-col gap-3 pl-[22px]">
-          {hasPreviewValue(input) ? (
-            <div className="relative flex min-w-0 flex-col gap-1">
-              <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
-                Input
-              </span>
-              <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
-                {toPreviewText(input)}
-              </pre>
-            </div>
-          ) : null}
-          {hasPreviewValue(output) ? (
-            <div className="relative flex min-w-0 flex-col gap-1">
-              <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
-                Output
-              </span>
-              <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
-                {toPreviewText(output)}
-              </pre>
-            </div>
-          ) : null}
-          {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
-            <div className="relative">
-              <span className="text-muted-foreground text-xs">
-                No input or output
-              </span>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
+    </SessionTimelineCollapsibleRow>
   );
 }
 

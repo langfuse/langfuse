@@ -1,0 +1,73 @@
+import { type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+
+export function SessionTimelineCollapsibleRow({
+  label,
+  icon,
+  isExpanded,
+  onExpandedChange,
+  onOpenObservation,
+  trailingContent,
+  children,
+}: {
+  label: string;
+  icon?: ReactNode;
+  isExpanded: boolean;
+  onExpandedChange: (isExpanded: boolean) => void;
+  onOpenObservation?: () => void;
+  trailingContent?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "group/collapsible-row flex w-full scroll-mt-16 flex-col py-1",
+        isExpanded && "gap-2",
+      )}
+      data-expanded={isExpanded}
+    >
+      <div className="flex w-full min-w-0 items-center gap-0.5">
+        <button
+          type="button"
+          onClick={onOpenObservation ?? (() => onExpandedChange(!isExpanded))}
+          className="flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          aria-expanded={onOpenObservation ? undefined : isExpanded}
+        >
+          {icon && (
+            <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
+              {icon}
+            </span>
+          )}
+          <span
+            className="min-w-0 truncate text-xs font-normal hover:underline"
+            title={label}
+          >
+            {label}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm p-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label}`}
+          onClick={() => onExpandedChange(!isExpanded)}
+        >
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 transition-transform",
+              !isExpanded && "-rotate-90",
+            )}
+            aria-hidden="true"
+          />
+        </button>
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {trailingContent}
+        </span>
+      </div>
+      {isExpanded && (
+        <div className={cn("min-w-0", icon && "pl-[22px]")}>{children}</div>
+      )}
+    </section>
+  );
+}

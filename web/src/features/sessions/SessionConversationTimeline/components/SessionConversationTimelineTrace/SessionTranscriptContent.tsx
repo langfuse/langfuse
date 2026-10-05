@@ -194,12 +194,15 @@ function SessionTranscriptRow({
           </DropdownMenu>
         )}
         {(isTool || row.message.role === "system") && (
-          <time dateTime={timing.startTime.toISOString()}>
+          <time
+            dateTime={timing.startTime.toISOString()}
+            className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible"
+          >
             {timing.startTime.toLocaleTimeString()}
           </time>
         )}
         {isTool && timing.endTime !== null && (
-          <span>
+          <span className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
             {formatIntervalSeconds(
               (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
             )}
