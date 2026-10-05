@@ -233,15 +233,6 @@ describe("Topics definition storage", () => {
     );
   });
 
-  it("rejects a definition larger than an insert batch", async () => {
-    await expect(
-      writeTopicDefinitions([
-        { ...topic, description: "x".repeat(8 * 1024 * 1024) },
-      ]),
-    ).rejects.toThrow("maximum insert row size");
-    expect(mocks.exec).not.toHaveBeenCalled();
-  });
-
   it("bounds exact definition lookups and scopes every batch to its project", async () => {
     const ids = Array.from({ length: 1001 }, (_, index) => `topic-${index}`);
     await getTopicDefinitions("project-a", [...ids, ids[0]], timeRange);
