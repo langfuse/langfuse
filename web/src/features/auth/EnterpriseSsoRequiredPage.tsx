@@ -161,7 +161,7 @@ export default function EnterpriseSsoRequiredPage() {
           </p>
         </div>
 
-        <div className="border-border bg-card mt-10 rounded-lg border px-6 py-8 shadow-sm sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-card mt-10 rounded-lg px-6 py-8 sm:mx-auto sm:w-full sm:max-w-md">
           <Form {...form}>
             <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <FormField

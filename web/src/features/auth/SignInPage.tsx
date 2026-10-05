@@ -808,7 +808,7 @@ export default function SignInPage({
 
         {isLangfuseCloud && <CloudRegionSwitch />}
 
-        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-card mt-14 rounded-lg px-6 py-10 sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
           <div className="space-y-6">
             {/* Email / (optional) password form – only when credentials auth is enabled */}
             {authProviders.credentials && (
