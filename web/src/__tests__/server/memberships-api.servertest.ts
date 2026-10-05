@@ -6,6 +6,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { Role } from "@langfuse/shared";
+import projectMembershipRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
+import { env } from "@/src/env.mjs";
 import { createMocks } from "node-mocks-http";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import * as auditLogs from "@/src/features/audit-logs/server";
@@ -17,6 +19,10 @@ import {
   handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
 import {
+  handleUpdateMembership as handleUpdateProjectMembership,
+  handleDeleteMembership as handleDeleteProjectMembership,
+} from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
+import {
   createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
@@ -26,6 +32,11 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
+
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
 
 // Schema for membership response
 const MembershipResponseSchema = z.object({
@@ -884,4 +895,272 @@ describe("Organization membership safeguards", () => {
     expect((await membership(memberId))?.role).toBe(Role.ADMIN);
     expect(await logs()).toHaveLength(1);
   });
+});
+
+describe("Project membership safeguards", () => {
+  let orgId: string;
+  let projectId: string;
+  let userId: string;
+  let adminAuth: string;
+  let projectAdminAuth: string;
+  let legacyAuth: string;
+  let legacyKeyId: string;
+  let projectAdminKeyId: string;
+  let adminContext: AuthorizationContext;
+  const mutableEnv = env as {
+    API_AUTH_MIGRATION: typeof env.API_AUTH_MIGRATION;
+  };
+  const originalMode = env.API_AUTH_MIGRATION;
+
+  beforeEach(async () => {
+    mutableEnv.API_AUTH_MIGRATION = "enforce";
+    const org = await prisma.organization.create({
+      data: { name: randomUUID(), cloudConfig: { plan: "Team" } },
+    });
+    orgId = org.id;
+    const project = await prisma.project.create({
+      data: { name: randomUUID(), orgId },
+    });
+    projectId = project.id;
+    const user = await prisma.user.create({
+      data: {
+        email: `${randomUUID()}@example.com`,
+        organizationMemberships: { create: { orgId, role: Role.MEMBER } },
+      },
+    });
+    userId = user.id;
+    const key = await createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("ADMIN"),
+      createdBy: UserId(userId),
+    });
+    adminAuth = createBasicAuthHeader(key.publicKey, key.secretKey);
+    const authentication = await authenticator.authenticate({
+      headers: { authorization: adminAuth },
+    });
+    if (!authentication.success) throw authentication.error;
+    adminContext = authentication.context;
+    const projectKey = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("ADMIN"),
+      createdBy: UserId(userId),
+    });
+    projectAdminKeyId = projectKey.id;
+    projectAdminAuth = createBasicAuthHeader(
+      projectKey.publicKey,
+      projectKey.secretKey,
+    );
+    const legacyKey = await createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(userId),
+    });
+    legacyKeyId = legacyKey.id;
+    legacyAuth = createBasicAuthHeader(
+      legacyKey.publicKey,
+      legacyKey.secretKey,
+    );
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    mutableEnv.API_AUTH_MIGRATION = originalMode;
+    await prisma.auditLog.deleteMany({ where: { orgId } });
+    await prisma.organization.delete({ where: { id: orgId } });
+    await prisma.user.delete({ where: { id: userId } });
+  });
+
+  const membership = () =>
+    prisma.projectMembership.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+    });
+  const logs = () =>
+    prisma.auditLog.findMany({
+      where: { projectId, resourceType: "projectMembership" },
+      orderBy: { createdAt: "asc" },
+    });
+  const request = async (
+    method: "PUT" | "DELETE",
+    role?: Role,
+    auth = adminAuth,
+  ) => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method,
+      query: { projectId },
+      headers: { authorization: auth },
+      body: { userId, role },
+    });
+    await projectMembershipRoute(req, res);
+    return res;
+  };
+  const createMembership = async (role: Role) => {
+    const orgMembership = await prisma.organizationMembership.findUniqueOrThrow(
+      {
+        where: { orgId_userId: { orgId, userId } },
+      },
+    );
+    return prisma.projectMembership.create({
+      data: { projectId, userId, orgMembershipId: orgMembership.id, role },
+    });
+  };
+
+  it("rejects ADMIN promotion to project OWNER", async () => {
+    expect((await request("PUT", Role.OWNER)).statusCode).toBe(403);
+    expect(await membership()).toBeNull();
+    expect(await logs()).toEqual([]);
+  });
+
+  it.each([
+    ["organization", "PUT", Role.ADMIN],
+    ["organization", "PUT", Role.OWNER],
+    ["organization", "DELETE", undefined],
+    ["project", "PUT", Role.ADMIN],
+    ["project", "PUT", Role.OWNER],
+    ["project", "DELETE", undefined],
+  ] as const)(
+    "rejects %s ADMIN owner %s to %s",
+    async (scope, method, role) => {
+      const before = await createMembership(Role.OWNER);
+      const auth = scope === "project" ? projectAdminAuth : adminAuth;
+      expect((await request(method, role, auth)).statusCode).toBe(403);
+      expect(await membership()).toEqual(before);
+      expect(await logs()).toEqual([]);
+    },
+  );
+
+  it.each(["legacy", "shadow"] as const)(
+    "enforces ownership and write grants in %s mode",
+    async (mode) => {
+      mutableEnv.API_AUTH_MIGRATION = mode;
+      expect((await request("PUT", Role.OWNER)).statusCode).toBe(403);
+      const viewer = await createApiKey(prisma, {
+        owner: OrganizationId(orgId),
+        role: SystemRoleId("VIEWER"),
+        createdBy: UserId(userId),
+      });
+      const auth = createBasicAuthHeader(viewer.publicKey, viewer.secretKey);
+      expect((await request("PUT", Role.MEMBER, auth)).statusCode).toBe(403);
+      expect(await membership()).toBeNull();
+      expect(await logs()).toEqual([]);
+    },
+  );
+
+  it("allows ordinary project ADMIN mutations and attributes every audit to its caller", async () => {
+    expect(
+      (await request("PUT", Role.VIEWER, projectAdminAuth)).statusCode,
+    ).toBe(200);
+    const created = await membership();
+    expect(
+      (await request("PUT", Role.ADMIN, projectAdminAuth)).statusCode,
+    ).toBe(200);
+    const updated = await membership();
+    expect(
+      (await request("DELETE", undefined, projectAdminAuth)).statusCode,
+    ).toBe(200);
+    expect(await membership()).toBeNull();
+    const records = await logs();
+    expect(records.map(({ action }) => action)).toEqual([
+      "create",
+      "update",
+      "delete",
+    ]);
+    for (const record of records) {
+      expect(record).toMatchObject({
+        orgId,
+        projectId,
+        type: "API_KEY",
+        apiKeyId: projectAdminKeyId,
+        resourceId: `${projectId}--${userId}`,
+      });
+    }
+    const serialized = (value: unknown) => JSON.parse(JSON.stringify(value));
+    expect(JSON.parse(records[0]!.after!)).toEqual(serialized(created));
+    expect(JSON.parse(records[1]!.before!)).toEqual(serialized(created));
+    expect(JSON.parse(records[1]!.after!)).toEqual(serialized(updated));
+    expect(JSON.parse(records[2]!.before!)).toEqual(serialized(updated));
+  });
+
+  it.each(["legacy", "shadow", "enforce"] as const)(
+    "keeps legacy organization owner authority and permits zero direct project owners in %s mode",
+    async (mode) => {
+      mutableEnv.API_AUTH_MIGRATION = mode;
+      expect((await request("PUT", Role.OWNER, legacyAuth)).statusCode).toBe(
+        200,
+      );
+      expect((await request("PUT", Role.OWNER, legacyAuth)).statusCode).toBe(
+        200,
+      );
+      expect((await request("PUT", Role.MEMBER, legacyAuth)).statusCode).toBe(
+        200,
+      );
+      expect((await request("PUT", Role.OWNER, legacyAuth)).statusCode).toBe(
+        200,
+      );
+      expect((await request("DELETE", undefined, legacyAuth)).statusCode).toBe(
+        200,
+      );
+      expect(await membership()).toBeNull();
+      expect(
+        (await logs()).every(({ apiKeyId }) => apiKeyId === legacyKeyId),
+      ).toBe(true);
+    },
+  );
+
+  it("combines membership and ownership policy grants across roles", async () => {
+    const context: AuthorizationContext = {
+      ...adminContext,
+      policies: (
+        [
+          ["VIEWER", "projectMembers:CUD"],
+          ["INGEST", "projectMembers:manageOwnership"],
+        ] as const
+      ).map(([role, action]) => ({
+        id: action,
+        roleId: SystemRoleId(role),
+        tenantId: OrganizationId(orgId),
+        effect: "ALLOW",
+        actions: [action],
+        resources: [ProjectId(projectId)],
+      })),
+    };
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "PUT",
+      body: { userId, role: Role.OWNER },
+    });
+    await handleUpdateProjectMembership(
+      req,
+      res,
+      projectId,
+      orgId,
+      projectAdminKeyId,
+      context,
+    );
+    expect(res.statusCode).toBe(200);
+    expect((await membership())?.role).toBe(Role.OWNER);
+    expect(await logs()).toHaveLength(1);
+  });
+
+  it.each(["create", "update", "delete"] as const)(
+    "rolls back project membership %s when audit persistence fails",
+    async (operation) => {
+      if (operation !== "create") await createMembership(Role.MEMBER);
+      const before = await membership();
+      vi.spyOn(auditLogs, "auditLog").mockRejectedValueOnce(
+        new Error("audit unavailable"),
+      );
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: operation === "delete" ? "DELETE" : "PUT",
+        body: { userId, role: Role.ADMIN },
+      });
+      const handler =
+        operation === "delete"
+          ? handleDeleteProjectMembership
+          : handleUpdateProjectMembership;
+      await expect(
+        handler(req, res, projectId, orgId, projectAdminKeyId, adminContext),
+      ).rejects.toThrow("audit unavailable");
+      expect(await membership()).toEqual(before);
+      expect(await logs()).toEqual([]);
+    },
+  );
 });

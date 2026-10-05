@@ -15,6 +15,7 @@ const orgReservedProjectActions: ProjectAction[] = [
   "apiKeys:CUD",
   "projectMembers:read",
   "projectMembers:CUD",
+  "projectMembers:manageOwnership",
   "project:update",
   "project:delete",
 ];
@@ -68,6 +69,7 @@ describe("systemRoleAccessRights", () => {
             "apiKeys:CUD",
             "projectMembers:read",
             "projectMembers:CUD",
+            "projectMembers:manageOwnership",
             "project:update",
             "project:delete",
           ],

@@ -77,6 +77,7 @@ export const projectScopes = [
   "projectAuditLogs:read",
 
   "projectMembers:CUD",
+  "projectMembers:manageOwnership",
   "projectMembers:read",
 
   "promptExperiments:CUD",
@@ -162,6 +163,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "project:update",
     "projectAuditLogs:read",
     "projectMembers:CUD",
+    "projectMembers:manageOwnership",
     "projectMembers:read",
     "promptExperiments:CUD",
     "promptExperiments:read",

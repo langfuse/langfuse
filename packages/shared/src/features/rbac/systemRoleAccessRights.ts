@@ -78,6 +78,7 @@ const orgKeyProjectActions: ProjectAction[] = [
   "apiKeys:CUD",
   "projectMembers:read",
   "projectMembers:CUD",
+  "projectMembers:manageOwnership",
   "project:update",
   "project:delete",
 ];
