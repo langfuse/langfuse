@@ -266,9 +266,6 @@ export const traceBatchQueueProcessor: Processor<
       for (const [name, value] of [
         ["observation_count", observationCount],
         ["input_bytes", inputBytes],
-        ["output_bytes", outputBytes],
-        ["metadata_bytes", metadataBytes],
-        ["io_metadata_bytes", inputBytes + outputBytes + metadataBytes],
       ] as const) {
         recordDistribution(`langfuse.trace_batch.failed_read_${name}`, value);
       }
@@ -295,14 +292,6 @@ export const traceBatchQueueProcessor: Processor<
     recordDistribution("langfuse.trace_batch.input_bytes", inputBytes);
     recordDistribution("langfuse.trace_batch.output_bytes", outputBytes);
     recordDistribution("langfuse.trace_batch.metadata_bytes", metadataBytes);
-    recordDistribution(
-      "langfuse.trace_batch.io_metadata_bytes",
-      ioMetadataBytes,
-    );
-    recordDistribution(
-      "langfuse.trace_batch.found_project_count",
-      foundProjects.size,
-    );
     recordDistribution(
       "langfuse.trace_batch.missing_trace_count",
       batch.traces.length - foundTraces.size,
@@ -359,9 +348,5 @@ export const traceBatchQueueProcessor: Processor<
           : {}),
       });
     }
-    recordIncrement("langfuse.trace_batch.read_attempts", 1, { outcome });
-    recordDistribution("langfuse.trace_batch.read_duration_ms", durationMs, {
-      outcome,
-    });
   }
 };
