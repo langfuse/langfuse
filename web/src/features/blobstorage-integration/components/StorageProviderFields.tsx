@@ -44,7 +44,7 @@ export const StorageProviderFields = ({
                 onValueChange={field.onChange}
                 placeholder="Select provider"
                 options={[
-                  { value: BlobStorageIntegrationType.S3, label: "AWS S3" },
+                  { value: BlobStorageIntegrationType.S3, label: "Amazon S3" },
                   {
                     value: BlobStorageIntegrationType.S3_COMPATIBLE,
                     label: "S3 Compatible Storage",
@@ -109,7 +109,7 @@ export const StorageProviderFields = ({
         />
       )}
 
-      {/* Region field - Only shown for AWS S3 or compatible storage */}
+      {/* Region field - Only shown for Amazon S3 or compatible storage */}
       {integrationType !== "AZURE_BLOB_STORAGE" && (
         <FormField
           control={control}

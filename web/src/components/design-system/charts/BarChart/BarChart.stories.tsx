@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
 import { chartColors } from "../constants";
 import { BarChart } from "./BarChart";
@@ -24,6 +24,47 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const YAxisTickDensity = meta.story({
+  name: "(Test) Y-axis Tick Density",
+  render: (args) => (
+    <div className="flex w-[400px] flex-col gap-4">
+      {["h-[50px]", "h-[100px]", "h-[224px]"].map((heightClass) => (
+        <div key={heightClass} className={heightClass}>
+          <BarChart {...args} />
+        </div>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(async () => {
+      const charts = within(canvasElement).getAllByRole("group", {
+        name: "Bar chart",
+      });
+      await expect(charts).toHaveLength(3);
+      for (const chart of charts) {
+        const labels = Array.from(
+          chart.querySelectorAll('text[text-anchor="end"][dominant-baseline]'),
+        );
+        await expect(labels.length).toBeGreaterThan(0);
+        const bounds = labels
+          .map((label) => label.getBoundingClientRect())
+          .sort((left, right) => left.top - right.top);
+        for (const bound of bounds) {
+          await expect(bound.height).toBeGreaterThan(0);
+        }
+        for (let index = 1; index < bounds.length; index++) {
+          const previous = bounds[index - 1];
+          const current = bounds[index];
+          if (!previous || !current) throw new Error("Label bounds not found");
+          // Allow minor font-metric and subpixel differences between browsers.
+          await expect(current.top).toBeGreaterThanOrEqual(previous.bottom - 1);
+        }
+        await expect(labels[0]).toHaveTextContent("0");
+      }
+    });
+  },
+});
 
 export const PositiveBaseline = meta.story({
   name: "(Test) Positive Baseline",
