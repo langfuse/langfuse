@@ -311,32 +311,27 @@ export const BlobStorageIntegrationContainer = ({
         </DialogController>
       }
       deleteAction={
-        <ConfirmationDialogController
-          title="Delete blob storage integration?"
-          text="This removes the saved integration configuration. Objects already stored in the bucket are not deleted."
-          confirmLabel="Delete integration"
-          variant="destructive"
-          loading={mutDelete.isPending}
-          disabled={!config}
-          onConfirm={async () => {
-            if (!config?.id) return;
-            await mutDelete.mutateAsync({
-              projectId,
-              integrationId: config.id,
-            });
-          }}
-        >
-          {({ openDialog }) => (
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={!config}
-              onClick={openDialog}
-            >
-              Delete integration
-            </Button>
-          )}
-        </ConfirmationDialogController>
+        config?.id ? (
+          <ConfirmationDialogController
+            title="Delete blob storage integration?"
+            text="This removes the saved integration configuration. Objects already stored in the bucket are not deleted."
+            confirmLabel="Delete integration"
+            variant="destructive"
+            loading={mutDelete.isPending}
+            onConfirm={() =>
+              mutDelete.mutateAsync({
+                projectId,
+                integrationId: config.id,
+              })
+            }
+          >
+            {({ openDialog }) => (
+              <Button type="button" variant="destructive" onClick={openDialog}>
+                Delete integration
+              </Button>
+            )}
+          </ConfirmationDialogController>
+        ) : null
       }
     />
   );

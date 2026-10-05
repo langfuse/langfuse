@@ -294,7 +294,7 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     );
   });
 
-  it("shows section actions only while enabled and keeps delete separate from save", () => {
+  it("shows section actions only while enabled and places delete before save", () => {
     const initialValues = buildBlobStorageFormValues(
       {
         ...savedConfig,
@@ -328,12 +328,13 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     expect(
       screen.getByRole("button", { name: "Test external media object" }),
     ).toHaveTextContent("Test");
-    expect(
-      screen.getByRole("button", { name: "Delete integration" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Save" }).parentElement,
-    ).toHaveClass("justify-end");
+    const deleteButton = screen.getByRole("button", {
+      name: "Delete integration",
+    });
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(deleteButton).toBeVisible();
+    expect(saveButton.parentElement).toHaveClass("justify-end", "gap-2");
+    expect(saveButton.previousElementSibling).toBe(deleteButton);
     expect(screen.queryByRole("button", { name: "Reset" })).toBeNull();
 
     fireEvent.click(screen.getByRole("switch", { name: "Scheduled exports" }));

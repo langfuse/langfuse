@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { BlobStorageIntegrationType } from "@langfuse/shared";
 
@@ -6,6 +6,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { BlobStorageIntegrationContainer } from "./BlobStorageIntegrationContainer";
 
 const mocks = vi.hoisted(() => ({
+  deleteMutateAsync: vi.fn(),
   mutate: vi.fn(),
 }));
 
@@ -37,7 +38,12 @@ vi.mock("@/src/utils/api", () => {
       }),
       blobStorageIntegration: {
         update: { useMutation: mutation },
-        delete: { useMutation: mutation },
+        delete: {
+          useMutation: () => ({
+            isPending: false,
+            mutateAsync: mocks.deleteMutateAsync,
+          }),
+        },
         runNow: { useMutation: mutation },
         validate: { useMutation: mutation },
         testExternalMediaObject: { useMutation: mutation },
@@ -48,15 +54,18 @@ vi.mock("@/src/utils/api", () => {
 
 vi.mock("./BlobStorageIntegrationForm", () => ({
   BlobStorageIntegrationForm: ({
+    deleteAction,
     scheduledExportActions,
     mediaStorageActions,
   }: {
+    deleteAction: ReactNode;
     scheduledExportActions: ReactNode;
     mediaStorageActions: ReactNode;
   }) => (
     <>
       <div aria-label="Scheduled export actions">{scheduledExportActions}</div>
       <div aria-label="Media storage actions">{mediaStorageActions}</div>
+      <div aria-label="Form actions">{deleteAction}</div>
     </>
   ),
 }));
@@ -78,6 +87,10 @@ const renderContainer = (
   );
 
 describe("BlobStorageIntegrationContainer action explanations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it.each([
     ["Test scheduled export upload", "Save the integration before testing."],
     ["Run now", "Save the integration before running an export."],
@@ -118,5 +131,51 @@ describe("BlobStorageIntegrationContainer action explanations", () => {
     expect(
       screen.getByRole("button", { name: "Test external media object" }),
     ).toHaveAttribute("title", "Test an external media object");
+  });
+
+  it("only renders destructive delete with confirmation for a saved integration", async () => {
+    const { rerender } = renderContainer(null);
+    expect(
+      screen.queryByRole("button", { name: "Delete integration" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <LayerProvider>
+        <BlobStorageIntegrationContainer
+          config={{
+            id: "integration-id",
+            projectId: "project-id",
+            type: BlobStorageIntegrationType.S3,
+            enabled: true,
+            mediaStorageEnabled: true,
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          }}
+          projectId="project-id"
+          writeMode="events_only"
+          showMediaStorage
+          onDeleted={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </LayerProvider>,
+    );
+
+    const deleteButton = screen.getByRole("button", {
+      name: "Delete integration",
+    });
+    expect(deleteButton).toHaveClass("bg-destructive");
+    fireEvent.click(deleteButton);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("Delete blob storage integration?"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Delete integration" }),
+    );
+
+    expect(mocks.deleteMutateAsync).toHaveBeenCalledWith({
+      projectId: "project-id",
+      integrationId: "integration-id",
+    });
   });
 });

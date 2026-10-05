@@ -222,16 +222,14 @@ export const BlobStorageIntegrationForm = ({
           />
         )}
       </form>
-      <div className="mt-8 flex items-center justify-between gap-2">
-        <div>{deleteAction}</div>
-        <div className="flex justify-end">
-          <Button
-            loading={isSaving}
-            onClick={blobStorageForm.handleSubmit(onSubmit)}
-          >
-            Save
-          </Button>
-        </div>
+      <div className="mt-8 flex items-center justify-end gap-2">
+        {deleteAction}
+        <Button
+          loading={isSaving}
+          onClick={blobStorageForm.handleSubmit(onSubmit)}
+        >
+          Save
+        </Button>
       </div>
     </Form>
   );
