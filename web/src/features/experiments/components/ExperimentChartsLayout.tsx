@@ -1,3 +1,4 @@
+import { MAX_EXPERIMENT_CHARTS } from "../constants/charts";
 import { type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -18,7 +19,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
 
 const PANEL_IDS = ["charts", "table"];
-const NO_STORAGE = { getItem: () => null, setItem: () => {} };
 type Props = {
   projectId: string;
   experiments: Array<{ id: string; name: string; startTime: Date }>;
@@ -62,12 +62,13 @@ function ChartsLayout({
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: `experiment-charts-size-${projectId}`,
     panelIds: PANEL_IDS,
-    storage: typeof window === "undefined" ? NO_STORAGE : localStorage,
+    storage: "local",
   });
   const isLoading = isExternalLoading || isMetricOptionsLoading;
   const addChartTitle = (() => {
     if (canAdd) return "Add chart";
-    if (charts.length >= 4) return "Maximum of four charts";
+    if (charts.length >= MAX_EXPERIMENT_CHARTS)
+      return `Maximum of ${MAX_EXPERIMENT_CHARTS} charts`;
     return "All available metrics are already shown";
   })();
   const renderCharts = () => {

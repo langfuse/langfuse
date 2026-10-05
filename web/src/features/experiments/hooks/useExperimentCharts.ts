@@ -1,3 +1,4 @@
+import { MAX_EXPERIMENT_CHARTS } from "../constants/charts";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { pickDefaultStripMetric } from "@/src/features/experiments/fns/pickDefaultStripMetric";
 import {
@@ -19,7 +20,7 @@ function validSlots(value: unknown): value is ExperimentChartSlot[] {
   return (
     Array.isArray(value) &&
     value.length > 0 &&
-    value.length <= 4 &&
+    value.length <= MAX_EXPERIMENT_CHARTS &&
     new Set(value.map((slot) => slot?.id)).size === value.length &&
     value.every(
       (slot) =>
@@ -59,9 +60,10 @@ export function useExperimentCharts({
 
   return {
     charts: resolvedCharts,
-    canAdd: charts.length < 4 && unusedOptions.length > 0,
+    canAdd: charts.length < MAX_EXPERIMENT_CHARTS && unusedOptions.length > 0,
     addChart: () => {
-      if (charts.length >= 4 || unusedOptions.length === 0) return;
+      if (charts.length >= MAX_EXPERIMENT_CHARTS || unusedOptions.length === 0)
+        return;
       setCharts([
         ...charts,
         {

@@ -348,6 +348,8 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      // Return the server-resolved window so widgets share it without adding
+      // a render-time timestamp to the fallback query input.
       const to = new Date();
       const from = addDays(to, -MOST_RECENT_LOOKBACK_DAYS);
       const filter: FilterState = [

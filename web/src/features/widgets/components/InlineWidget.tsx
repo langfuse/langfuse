@@ -9,7 +9,6 @@ import {
   getResultUnit,
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
-import { prepareEntitySeries } from "@/src/features/widgets/chart-library/prepareEntitySeries";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
@@ -225,10 +224,7 @@ export function WidgetContent({
       // Handle x-axis: prefer entity_dimension, then time_dimension
       let xAxisValue: string | undefined;
       if (item["entity_dimension"] !== undefined) {
-        xAxisValue =
-          chartType === "LINE_TIME_SERIES" && entityDimensionLabelMap
-            ? String(item["entity_dimension"])
-            : getXAxisValue(item, entityDimensionLabelMap);
+        xAxisValue = getXAxisValue(item, entityDimensionLabelMap);
       } else if (item["time_dimension"] !== undefined) {
         xAxisValue = String(item["time_dimension"]);
       }
@@ -303,10 +299,6 @@ export function WidgetContent({
             : Number(metricValue || 0),
       };
     });
-
-    if (chartType === "LINE_TIME_SERIES" && entityDimensionLabelMap) {
-      return prepareEntitySeries(mapped, entityDimensionLabelMap);
-    }
 
     // Entity-dimension charts have no meaningful query-side order (the server
     // falls back to first-metric DESC, which differs per chart). Order the
@@ -434,12 +426,7 @@ export function WidgetContent({
         onSortChange={chartType === "PIVOT_TABLE" ? onSortChange : undefined}
         isLoading={queryResult.isPending || isExternalLoading}
         metricFormatter={chartPresentation?.metricFormatter}
-        missingValue={
-          entityDimensionLabelMap
-            ? "gap"
-            : getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")
-        }
-        entityDimensionLabelMap={entityDimensionLabelMap}
+        missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
         colorBarsByCategory={colorBarsByCategory}
         legendPosition={legendPosition}

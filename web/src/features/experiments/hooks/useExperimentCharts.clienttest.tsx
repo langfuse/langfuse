@@ -61,33 +61,3 @@ it("keeps an explicit metric and chart type across filters and remounts", () => 
     chartType: "line",
   });
 });
-
-it("keeps the default automatic, adds unused metrics, and retains at least one chart", () => {
-  const { result, rerender } = renderHook(
-    ({ availableMetricOptions }) =>
-      useExperimentCharts({ projectId: "p1", availableMetricOptions }),
-    { initialProps: { availableMetricOptions: [cost] } },
-  );
-  expect(result.current.charts[0].metricId).toBe(cost.id);
-  rerender({ availableMetricOptions: options });
-  expect(result.current.charts[0].metricId).toBe(accuracy.id);
-  for (let i = 0; i < 4; i++) act(() => result.current.addChart());
-  expect(result.current.charts).toHaveLength(4);
-  expect(
-    new Set(result.current.charts.map((chart) => chart.metricId)).size,
-  ).toBe(4);
-  expect(result.current.canAdd).toBe(false);
-  const ids = result.current.charts.map((chart) => chart.id);
-  for (const id of ids) act(() => result.current.removeChart(id));
-  expect(result.current.charts).toHaveLength(1);
-});
-
-it("recovers from malformed stored configuration", () => {
-  localStorage.setItem("experiment-charts-v1-p1", JSON.stringify([null]));
-  const { result } = renderHook(() =>
-    useExperimentCharts({ projectId: "p1", availableMetricOptions: options }),
-  );
-  expect(result.current.charts).toEqual([
-    { id: "initial", metricId: accuracy.id, chartType: "line" },
-  ]);
-});

@@ -6,6 +6,8 @@ import type {
 import type { WidgetDimensionConfig } from "@/src/features/widgets";
 import type { FilterCondition } from "@langfuse/shared";
 
+export const MAX_EXPERIMENT_CHARTS = 4;
+
 // Base chart IDs
 export const BASE_CHART_IDS = {
   COST: "base:cost",
@@ -67,7 +69,7 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   chartType: "LINE_TIME_SERIES",
   chartConfig: { type: "LINE_TIME_SERIES" },
   timeDimension: null,
-  entityDimension: { field: "experimentId" },
+  entityDimension: { field: "experimentName" },
   filters: [],
 } as const;
 
@@ -88,7 +90,7 @@ export const EXPERIMENT_LATENCY_WIDGET_CONFIG = {
 } as const;
 
 const BASE_SCORE_CHART_CONFIG = {
-  entityDimension: { field: "experimentId" },
+  entityDimension: { field: "experimentName" },
   timeDimension: null,
   minVersion: "v2",
   // Entity (x-axis) order follows the experiments table order, applied
@@ -100,7 +102,7 @@ export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
   ScoreLevel,
   { field: string }
 > = {
-  obs: { field: "experimentId" },
+  obs: { field: "experimentName" },
   experiment: { field: "datasetRunId" },
 };
 

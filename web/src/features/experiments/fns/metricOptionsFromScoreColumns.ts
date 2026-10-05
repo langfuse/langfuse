@@ -7,7 +7,7 @@ export function metricOptionsFromScoreColumns(
   observation: ScoreColumn[],
   experiment: ScoreColumn[],
 ) {
-  const atLevel = (columns: ScoreColumn[]) => {
+  const groupScoreNamesByDataType = (columns: ScoreColumn[]) => {
     const numeric = new Set(
       columns.filter((c) => c.dataType === "NUMERIC").map((c) => c.name),
     );
@@ -24,8 +24,8 @@ export function metricOptionsFromScoreColumns(
       ),
     };
   };
-  const obs = atLevel(observation);
-  const run = atLevel(experiment);
+  const obs = groupScoreNamesByDataType(observation);
+  const run = groupScoreNamesByDataType(experiment);
   return buildMetricOptions({
     obs_scores_avg: obs.numeric,
     obs_score_booleans: obs.boolean,

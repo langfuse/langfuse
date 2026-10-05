@@ -160,8 +160,6 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
-  /** Entity IDs remain axis keys; labels are presentation-only. */
-  entityDimensionLabelMap?: Record<string, string>;
   /**
    * Give each bar of a categorical (entity) axis its own palette colour, plus a
    * legend below the plot that names it. Off by default: a dashboard bar chart

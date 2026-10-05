@@ -66,7 +66,6 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
-  entityDimensionLabelMap,
   colorBarsByCategory,
   zeroBaseline,
   emptyState,
@@ -107,7 +106,6 @@ const ChartComponent = ({
    * charts and forwarded to `prepareTimeAxis`. Used by dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
-  entityDimensionLabelMap?: Record<string, string>;
   /**
    * Colour each bar of a categorical axis and name it in a legend below the
    * plot; see {@link ChartProps.colorBarsByCategory}. Consumed by VERTICAL_BAR.
@@ -194,7 +192,6 @@ const ChartComponent = ({
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
             missingValue={missingValue}
-            entityDimensionLabelMap={entityDimensionLabelMap}
             hideXAxisLabels={hideXAxisLabels}
           />
         );

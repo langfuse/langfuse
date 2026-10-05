@@ -107,8 +107,21 @@ export function ExperimentMetricStrip({
       })),
       filters: [
         ...widgetConfig.filters,
+        ...(widgetConfig.entityDimension.field === "experimentName"
+          ? [
+              {
+                column: "experimentName",
+                operator: "any of" as const,
+                type: "stringOptions" as const,
+                value: orderedExperiments.map((experiment) => experiment.name),
+              },
+            ]
+          : []),
         {
-          column: widgetConfig.entityDimension.field,
+          column:
+            widgetConfig.entityDimension.field === "datasetRunId"
+              ? "datasetRunId"
+              : "experimentId",
           operator: "any of",
           type: "stringOptions",
           value: orderedExperiments.map((experiment) => experiment.id),

@@ -78,7 +78,6 @@ import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ExperimentChartsLayout } from "../ExperimentChartsLayout";
 import { metricOptionsFromScoreColumns } from "../../fns/metricOptionsFromScoreColumns";
-import { experimentChartDateRange } from "../../fns/experimentChartDateRange";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
@@ -569,10 +568,7 @@ export default function ExperimentsTable({
       ),
     [observationScoreDefinitions, experimentScoreDefinitions],
   );
-  const chartDateRange = experimentChartDateRange(
-    tableDateRange,
-    fallbackDateRange,
-  );
+  const chartDateRange = fallbackDateRange ?? tableDateRange;
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
     projectId,
