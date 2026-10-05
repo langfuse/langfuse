@@ -63,7 +63,9 @@ const ApiKeysResponseSchema = z.object({
       createdAt: z.string().or(z.date()),
       expiresAt: z.string().or(z.date()).nullable(),
       lastUsedAt: z.string().or(z.date()).nullable(),
+      name: z.string().nullable(),
       note: z.string().nullable(),
+      role: z.string().nullable(),
       publicKey: z.string(),
       displaySecretKey: z.string().nullable(),
     }),
@@ -76,9 +78,11 @@ const ApiKeyCreationResponseSchema = z.object({
   publicKey: z.string(),
   secretKey: z.string(),
   displaySecretKey: z.string(),
+  name: z.string().nullable(),
   note: z.string().nullable(),
+  role: z.string(),
   createdAt: z.string().or(z.date()),
-  expiresAt: z.string().or(z.date()).optional(),
+  expiresAt: z.iso.datetime().nullable(),
 });
 
 // Schema for API key deletion response
@@ -839,6 +843,111 @@ describe("Projects API", () => {
       }
     });
 
+    it.each([
+      {
+        label: "omitted",
+        role: undefined,
+        expiresAt: undefined,
+        name: "Named key",
+      },
+      { label: "null", role: null, expiresAt: null, name: "Named key" },
+      { label: "empty", role: "", expiresAt: undefined, name: "" },
+      {
+        label: "explicit legacy",
+        name: undefined,
+        role: "LEGACY_PROJECT_API_KEY",
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+    ])(
+      "provisions a key with $label role and lists its expiration",
+      async ({ role, expiresAt, name }) => {
+        const response = await makeAPICall<
+          z.infer<typeof ApiKeyCreationResponseSchema>
+        >(
+          "POST",
+          `/api/public/projects/${projectId}/apiKeys`,
+          { name, role, expiresAt },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        createdApiKeyId = response.body.id;
+        expect(response.status).toBe(201);
+        expect(response.body).toMatchObject({
+          name: name ?? null,
+          note: name ?? null,
+          expiresAt: expiresAt ?? null,
+          role: "LEGACY_PROJECT_API_KEY",
+        });
+
+        const stored = await prisma.apiKey.findUniqueOrThrow({
+          where: { id: response.body.id },
+          include: { roleAssignments: true },
+        });
+        expect(stored.note).toBe(name ?? null);
+        expect(stored.expiresAt?.toISOString() ?? null).toBe(expiresAt ?? null);
+        expect(stored.roleAssignments).toMatchObject([
+          { systemRole: "LEGACY_PROJECT_API_KEY" },
+        ]);
+
+        const listed = await makeAPICall<z.infer<typeof ApiKeysResponseSchema>>(
+          "GET",
+          `/api/public/projects/${projectId}/apiKeys`,
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(listed.status).toBe(200);
+        ApiKeysResponseSchema.parse(listed.body);
+        const listedKey = listed.body.apiKeys.find(
+          (key) => key.id === stored.id,
+        );
+        expect(listedKey).toMatchObject({
+          name: name ?? null,
+          note: name ?? null,
+          expiresAt: expiresAt ?? null,
+          role: "LEGACY_PROJECT_API_KEY",
+        });
+        for (const field of [
+          "secretKey",
+          "hashedSecretKey",
+          "fastHashedSecretKey",
+          "roleAssignments",
+        ]) {
+          expect(listedKey).not.toHaveProperty(field);
+        }
+      },
+    );
+
+    it.each([
+      { label: "both name and note", body: { name: "same", note: "same" } },
+      { label: "empty name and note", body: { name: "", note: "" } },
+      { label: "empty name with note", body: { name: "", note: "alias" } },
+      { label: "name with empty note", body: { name: "name", note: "" } },
+      { label: "null name", body: { name: null } },
+      { label: "past expiration", body: { expiresAt: "2000-01-01T00:00:00Z" } },
+      { label: "invalid expiration", body: { expiresAt: "not-a-date" } },
+      { label: "numeric expiration", body: { expiresAt: 4_102_444_800_000 } },
+      {
+        label: "wrong-scope legacy role",
+        body: { role: "LEGACY_ORGANIZATION_API_KEY" },
+      },
+      { label: "admin role", body: { role: "ADMIN" } },
+      { label: "viewer role", body: { role: "VIEWER" } },
+      { label: "ingest role", body: { role: "INGEST" } },
+      { label: "scores ingest role", body: { role: "SCORES_INGEST" } },
+      { label: "gateway role", body: { role: "AI_GATEWAY" } },
+      { label: "role array", body: { role: [] } },
+    ])("rejects $label without creating a key", async ({ body }) => {
+      const before = await prisma.apiKey.count({ where: { projectId } });
+      const result = await makeAPICall<{ message: string }>(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        body,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toEqual(expect.any(String));
+      expect(await prisma.apiKey.count({ where: { projectId } })).toBe(before);
+    });
+
     it("should create a new API key with valid organization API key", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
@@ -858,6 +967,9 @@ describe("Projects API", () => {
       expect(response.body).toHaveProperty("publicKey");
       expect(response.body).toHaveProperty("secretKey");
       expect(response.body.note).toBe(note);
+      expect(response.body.name).toBe(note);
+      expect(response.body.expiresAt).toBeNull();
+      expect(response.body.role).toBe("LEGACY_PROJECT_API_KEY");
 
       // Store the created API key ID for cleanup
       createdApiKeyId = response.body.id;

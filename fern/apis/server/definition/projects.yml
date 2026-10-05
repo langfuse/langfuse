@@ -81,9 +81,19 @@ service:
         name: CreateApiKeyRequest
         body:
           properties:
+            name:
+              type: optional<string>
+              docs: Optional name for the API key. Cannot be provided together with note, even if either value is an empty string.
             note:
               type: optional<string>
-              docs: Optional note for the API key
+              availability: deprecated
+              docs: Deprecated alias for name. Cannot be provided together with name, even if either value is an empty string.
+            role:
+              type: optional<nullable<CreateApiKeyRole>>
+              docs: API key role. Omit, set to null, or use an empty string for LEGACY_PROJECT_API_KEY. Only LEGACY_PROJECT_API_KEY is currently supported; other presets are rejected.
+            expiresAt:
+              type: optional<nullable<datetime>>
+              docs: Optional expiration timestamp in ISO 8601 format. Must be in the future. Omit or set to null for a key that does not expire.
             publicKey:
               type: optional<string>
               docs: Optional predefined public key. Must start with 'pk-lf-'. If provided, secretKey must also be provided.
@@ -134,6 +144,23 @@ types:
       success: boolean
       message: string
 
+  CreateApiKeyRole:
+    docs: Roles accepted when provisioning an API key.
+    enum:
+      - LEGACY_PROJECT_API_KEY
+      - value: ""
+        name: EMPTY
+        docs: Use the legacy role for this API key scope.
+
+  ApiKeyRole:
+    docs: Stored role of an API key. Keys created through other interfaces may have roles unavailable for provisioning through this endpoint.
+    enum:
+      - LEGACY_PROJECT_API_KEY
+      - ADMIN
+      - VIEWER
+      - INGEST
+      - SCORES_INGEST
+
   ApiKeyList:
     docs: List of API keys for a project
     properties:
@@ -144,9 +171,20 @@ types:
     properties:
       id: string
       createdAt: datetime
-      expiresAt: optional<datetime>
+      expiresAt:
+        type: optional<datetime>
+        docs: Expiration timestamp. Null if the key does not expire.
       lastUsedAt: optional<datetime>
-      note: optional<string>
+      role:
+        type: optional<nullable<ApiKeyRole>>
+        docs: Single stored role assignment. Null if the key has no unique role assignment.
+      name:
+        type: optional<nullable<string>>
+        docs: Name of the API key. Contains the same value as note; null if no name was provided.
+      note:
+        type: optional<string>
+        availability: deprecated
+        docs: Deprecated alias for name. Contains the same value as name.
       publicKey: string
       displaySecretKey: string
 
@@ -155,10 +193,22 @@ types:
     properties:
       id: string
       createdAt: datetime
+      expiresAt:
+        type: optional<nullable<datetime>>
+        docs: Expiration timestamp. Null if the key does not expire.
       publicKey: string
       secretKey: string
       displaySecretKey: string
-      note: optional<string>
+      role:
+        type: optional<nullable<ApiKeyRole>>
+        docs: Single stored role assignment. Null if the key has no unique role assignment.
+      name:
+        type: optional<nullable<string>>
+        docs: Name of the API key. Contains the same value as note; null if no name was provided.
+      note:
+        type: optional<string>
+        availability: deprecated
+        docs: Deprecated alias for name. Contains the same value as name.
 
   ApiKeyDeletionResponse:
     docs: Response for API key deletion

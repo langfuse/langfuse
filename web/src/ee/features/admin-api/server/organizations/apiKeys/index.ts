@@ -5,6 +5,11 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
+import { InvalidRequestError } from "@langfuse/shared";
+import {
+  apiKeyCreationSchema,
+  apiKeyToResponse,
+} from "@/src/ee/features/admin-api/server/apiKeys";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
@@ -36,13 +41,14 @@ export async function handleGetApiKeys(
       note: true,
       publicKey: true,
       displaySecretKey: true,
+      roleAssignments: { select: { systemRole: true } },
     },
     orderBy: {
       createdAt: "asc",
     },
   });
 
-  return res.status(200).json({ apiKeys });
+  return res.status(200).json({ apiKeys: apiKeys.map(apiKeyToResponse) });
 }
 
 export async function handleCreateApiKey(
@@ -51,8 +57,11 @@ export async function handleCreateApiKey(
   organizationId: string,
 ) {
   // Validate the request body
-  const createApiKeySchema = z.object({
-    note: z.string().optional(),
+  const createApiKeySchema = apiKeyCreationSchema.extend({
+    role: z
+      .enum(["LEGACY_ORGANIZATION_API_KEY", ""])
+      .nullish()
+      .transform((role) => role || "LEGACY_ORGANIZATION_API_KEY"),
   });
 
   const validationResult = createApiKeySchema.safeParse(req.body);
@@ -64,13 +73,18 @@ export async function handleCreateApiKey(
     });
   }
 
-  const { note } = validationResult.data;
+  const { name, note, expiresAt, role } = validationResult.data;
+
+  if (name !== undefined && note !== undefined) {
+    throw new InvalidRequestError("Provide either name or note, not both");
+  }
 
   const apiKeyMeta = await createApiKey(prisma, {
     owner: OrganizationId(organizationId),
-    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    role: SystemRoleId(role),
     createdBy: "system",
-    name: note,
+    name: name ?? note,
+    expiresAt,
   });
 
   // Log the API key creation
@@ -87,5 +101,10 @@ export async function handleCreateApiKey(
     `Created API key ${apiKeyMeta.id} for organization ${organizationId} via admin API`,
   );
 
-  return res.status(201).json(apiKeyMeta);
+  return res.status(201).json({
+    ...apiKeyMeta,
+    name: apiKeyMeta.note,
+    expiresAt: expiresAt ?? null,
+    role,
+  });
 }

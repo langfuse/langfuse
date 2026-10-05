@@ -5,6 +5,11 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ApiKeyId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { InvalidRequestError } from "@langfuse/shared";
+import {
+  apiKeyCreationSchema,
+  apiKeyToResponse,
+} from "@/src/ee/features/admin-api/server/apiKeys";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
@@ -36,13 +41,14 @@ export async function handleGetApiKeys(
       note: true,
       publicKey: true,
       displaySecretKey: true,
+      roleAssignments: { select: { systemRole: true } },
     },
     orderBy: {
       createdAt: "asc",
     },
   });
 
-  return res.status(200).json({ apiKeys });
+  return res.status(200).json({ apiKeys: apiKeys.map(apiKeyToResponse) });
 }
 
 export async function handleCreateApiKey(
@@ -53,8 +59,11 @@ export async function handleCreateApiKey(
   createdByApiKeyId?: string,
 ) {
   // Validate the request body
-  const createApiKeySchema = z.object({
-    note: z.string().optional(),
+  const createApiKeySchema = apiKeyCreationSchema.extend({
+    role: z
+      .enum(["LEGACY_PROJECT_API_KEY", ""])
+      .nullish()
+      .transform((role) => role || "LEGACY_PROJECT_API_KEY"),
     publicKey: z.string().optional(),
     secretKey: z.string().optional(),
   });
@@ -68,7 +77,12 @@ export async function handleCreateApiKey(
     });
   }
 
-  const { note, publicKey, secretKey } = validationResult.data;
+  const { name, note, expiresAt, role, publicKey, secretKey } =
+    validationResult.data;
+
+  if (name !== undefined && note !== undefined) {
+    throw new InvalidRequestError("Provide either name or note, not both");
+  }
 
   // Validate predefined keys if provided
   if (publicKey || secretKey) {
@@ -104,9 +118,10 @@ export async function handleCreateApiKey(
     // Create the API key
     const apiKeyMeta = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      role: SystemRoleId(role),
       createdBy: ApiKeyId(createdByApiKeyId),
-      name: note,
+      name: name ?? note,
+      expiresAt,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,
     });
@@ -126,7 +141,12 @@ export async function handleCreateApiKey(
       `Created API key ${apiKeyMeta.id} for project ${projectId} via public API`,
     );
 
-    return res.status(201).json(apiKeyMeta);
+    return res.status(201).json({
+      ...apiKeyMeta,
+      name: apiKeyMeta.note,
+      expiresAt: expiresAt ?? null,
+      role,
+    });
   } catch (error) {
     // Handle database unique constraint violations
     if (
