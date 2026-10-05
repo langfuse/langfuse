@@ -2,28 +2,30 @@
 
 This read-only experiment measures full-event reads and transcript assembly for
 idle traces. It requires
-`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` and explicit opt-in. All four enablement
-flags below default to `false`; an ordinary release needs no infrastructure
-changes. These internal controls are intentionally absent from env templates.
+`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` and explicit opt-in. The enablement flags
+and the transcript-metrics switch below default to `false`; an ordinary release
+needs no infrastructure changes. These internal controls are intentionally
+absent from env templates.
 
 ## Controls
 
-| Variable                                      | Default   | Role                                                                                                       |
-| --------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`   | Track accepted direct-v4 event writes in Redis.                                                            |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Schedule idle traces into BullMQ jobs.                                                                     |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Register the batch worker.                                                                                 |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                               |
-| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Choose project-order packing or opt-in locality grouping.                                                  |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Maximum traces per job, up to 10,000.                                                                      |
-| `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `2`       | ClickHouse threads per query (positive integer).                                                           |
-| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`         | unset     | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
-| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`          | unset     | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent batch jobs per worker process.                                                                  |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Idle time before a trace is ready (10 minutes).                                                            |
-| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Pending retention and inactivity expiry (2 hours).                                                         |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Dispatcher cadence (30 seconds).                                                                           |
+| Variable                                          | Default   | Role                                                                                                       |
+| ------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`   | Track accepted direct-v4 event writes in Redis.                                                            |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`   | Schedule idle traces into BullMQ jobs.                                                                     |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`   | Register the batch worker.                                                                                 |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
+| `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`   | Emit transcript size distributions. Span attributes and failure counters stay on either way.               |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                               |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project` | Choose project-order packing or opt-in locality grouping.                                                  |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`      | Maximum traces per job, up to 10,000.                                                                      |
+| `LANGFUSE_TRACE_BATCH_MAX_THREADS`                | `2`       | ClickHouse threads per query (positive integer).                                                           |
+| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`             | unset     | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
+| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`              | unset     | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`       | Concurrent batch jobs per worker process.                                                                  |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`  | Idle time before a trace is ready (10 minutes).                                                            |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000` | Pending retention and inactivity expiry (2 hours).                                                         |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`   | Dispatcher cadence (30 seconds).                                                                           |
 
 Producer, dispatcher and consumer can run independently. Sampling reuses the
 evaluator's deterministic trace-ID sampler; every observation of the same trace
@@ -77,17 +79,20 @@ every member; `estimates_unavailable` counts unknown traces and affected batches
 Estimates stay out of queue payloads, job IDs and batch selection. They do not cap
 work or change oversized-trace handling. Dispatch retries can emit another sample.
 
-Serialized event bytes differ from the reader's `io_metadata_bytes` metric: they
-include the serialized event fields and JSON encoding, and do not represent RAM,
-network transfer or ClickHouse scan bytes. After rollout, collect a stable hour
+Serialized event bytes differ from the reader's `input_bytes`, `output_bytes`
+and `metadata_bytes` metrics: they include the serialized event fields and JSON
+encoding, and do not represent RAM, network transfer or ClickHouse scan bytes.
+The job return still sums those three as `ioMetadataBytes`; that sum is not a
+custom metric. After rollout, collect a stable hour
 with unchanged sampling and batching settings; compare trace/batch distributions,
 unknown-estimate counts, ingestion latency and Redis command rate/CPU/memory with
 the baseline before choosing any size-aware batching policy.
 
 The worker streams full `events_full` payloads and records batch observation,
-trace, project and logical payload-byte metrics. The `input_bytes`, `output_bytes`
+trace and logical payload-byte metrics. The `input_bytes`, `output_bytes`
 and `metadata_bytes` distributions under `langfuse.trace_batch` each report one
-total per completed batch read; `io_metadata_bytes` retains their combined total.
+total per completed batch read. Distinct project count stays on the span and
+completion log.
 Sizes count UTF-8 bytes, including metadata keys and values, excluding JSON
 transport framing/escaping and compression. They do not measure ClickHouse bytes
 scanned or per-trace ingestion size; retries can record another batch sample.
@@ -117,33 +122,37 @@ events can arrive. Event versions follow the current ClickHouse merge state;
 the shared ordering function keeps one observation per ID. Retries can repeat
 per-trace samples.
 
-These distributions use the `langfuse.trace_batch` prefix:
+These values are always attributes on the `trace-batch-transcript` span. With
+`LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED=true` they are also
+`langfuse.trace_batch.*` distributions. That switch defaults to `false`.
+Failure and unavailable estimates still increment the counters named in the
+paragraphs below, with or without the switch.
 
-| Metric | Sample |
-| --- | --- |
-| `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
-| `transcript_json_characters` | UTF-16 length of `JSON.stringify(assembleTranscript(...))`, including thread/message wrappers and provenance; zero for a null transcript. Same admitted traces as the Topics length metrics. |
-| `transcript_json_tokens` | o200k estimate of that complete JSON string, tagged `tokenizer:o200k_base`; zero for a null transcript. Attempted on the same admitted traces as `topics_transcript_tokens`; unavailable estimates are omitted. |
-| `generic_transcript_characters` | UTF-16 length of the previous generic plain-text layout, rendered with the same Topics block caps and inclusions. Tool definitions or errors may still render when assembly returns null. |
-| `generic_transcript_tokens` | o200k estimate of that generic text, tagged `tokenizer:o200k_base`. |
-| `transcript_message_tokens` | Sum of current-turn and history message-projection token estimates; zero when empty, omitted if either estimate is unavailable. Distinct from full-transcript JSON. |
-| `transcript_current_turn_tokens` | Token estimate of current-turn messages across all threads, using role and parts only; zero when empty. |
-| `transcript_history_tokens` | Token estimate of history messages across all threads, using the same role/parts representation; zero when empty. |
-| `transcript_content_characters` | Sum of JSON-serialized message-part lengths across history and current turn, in UTF-16 code units; excludes message wrappers and provenance. |
-| `transcript_tool_response_characters` | The subset of content characters belonging to tool-role messages or unmatched tool-result parts; zero when absent. |
-| `transcript_thread_count` | Number of assembled conversation threads, or zero for a null transcript. |
-| `transcript_observation_count` | Ordered, deduplicated observations passed to assembly and the Topics renderer. The `observation_count` span attribute is the raw row count before deduplication. |
-| `transcript_history_message_count`, `transcript_history_part_count` | Replayed messages and their normalized parts across all assembled threads. |
-| `transcript_current_turn_message_count`, `transcript_current_turn_part_count` | This-trace messages and their normalized parts across all assembled threads. |
-| `transcript_current_turn_tool_call_count`, `transcript_current_turn_tool_result_count` | Tool-call parts and tool-result parts in this trace; a tool-role part also counts as a result. |
-| `transcript_assembly_phase_duration_ms` | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
-| `topics_transcript_characters` | UTF-16 length of the complete rendered Topics text, including labels, section headings and line breaks; admitted traces only. |
-| `topics_transcript_tokens` | o200k estimate of that same text, tagged `tokenizer:o200k_base`; admitted traces only. |
-| `transcript_comparison_render_duration_ms` | Time to serialize assembled JSON and render generic and Topics text, excluding tokenization. |
-| `transcript_comparison_tokenization_duration_ms` | Wall time for the three sequential JSON, generic and Topics token estimates, excluding the existing current-turn/history estimates. |
-| `topics_transcript_block_characters` | Present block content length tagged `block:user\|assistant\|system\|reasoning\|tool_calls\|tool_results\|tool_definitions\|errors\|run_io\|observations` and `stage:raw\|clipped`; absent blocks emit no sample. |
-| `topics_transcript_blocks_cut` | Number of content blocks cut by their per-block character caps. |
-| `topics_transcript_history_characters`, `topics_transcript_current_turn_characters`, `topics_transcript_history_share` | Rendered content-line characters from replayed input and this run, plus replayed input divided by their sum (0 when both are empty). This-run content includes fallback trace-level I/O, observation markers, and inline errors. |
+| Metric                                                                                                                 | Sample                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transcript_assembly_duration_ms`                                                                                      | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`.                                                                                                                                                                                                                                         |
+| `transcript_json_characters`                                                                                           | UTF-16 length of `JSON.stringify(assembleTranscript(...))`, including thread/message wrappers and provenance; zero for a null transcript. Same admitted traces as the Topics length metrics.                                                                                                                                                                           |
+| `transcript_json_tokens`                                                                                               | o200k estimate of that complete JSON string, tagged `tokenizer:o200k_base`; zero for a null transcript. Attempted on the same admitted traces as `topics_transcript_tokens`; unavailable estimates are omitted.                                                                                                                                                        |
+| `generic_transcript_characters`                                                                                        | UTF-16 length of the previous generic plain-text layout, rendered with the same Topics block caps and inclusions. Tool definitions or errors may still render when assembly returns null.                                                                                                                                                                              |
+| `generic_transcript_tokens`                                                                                            | o200k estimate of that generic text, tagged `tokenizer:o200k_base`.                                                                                                                                                                                                                                                                                                    |
+| `transcript_message_tokens`                                                                                            | Sum of current-turn and history message-projection token estimates; zero when empty, omitted if either estimate is unavailable. Distinct from full-transcript JSON.                                                                                                                                                                                                    |
+| `transcript_current_turn_tokens`                                                                                       | Token estimate of current-turn messages across all threads, using role and parts only; zero when empty.                                                                                                                                                                                                                                                                |
+| `transcript_history_tokens`                                                                                            | Token estimate of history messages across all threads, using the same role/parts representation; zero when empty.                                                                                                                                                                                                                                                      |
+| `transcript_content_characters`                                                                                        | Sum of JSON-serialized message-part lengths across history and current turn, in UTF-16 code units; excludes message wrappers and provenance.                                                                                                                                                                                                                           |
+| `transcript_tool_response_characters`                                                                                  | The subset of content characters belonging to tool-role messages or unmatched tool-result parts; zero when absent.                                                                                                                                                                                                                                                     |
+| `transcript_thread_count`                                                                                              | Number of assembled conversation threads, or zero for a null transcript.                                                                                                                                                                                                                                                                                               |
+| `transcript_observation_count`                                                                                         | Ordered, deduplicated observations passed to assembly and the Topics renderer. The `observation_count` span attribute is the raw row count before deduplication.                                                                                                                                                                                                       |
+| `transcript_history_message_count`, `transcript_history_part_count`                                                    | Replayed messages and their normalized parts across all assembled threads.                                                                                                                                                                                                                                                                                             |
+| `transcript_current_turn_message_count`, `transcript_current_turn_part_count`                                          | This-trace messages and their normalized parts across all assembled threads.                                                                                                                                                                                                                                                                                           |
+| `transcript_current_turn_tool_call_count`, `transcript_current_turn_tool_result_count`                                 | Tool-call parts and tool-result parts in this trace; a tool-role part also counts as a result.                                                                                                                                                                                                                                                                         |
+| `transcript_assembly_phase_duration_ms`                                                                                | Two non-overlapping samples per trace tagged `phase:normalization` or `phase:matching`. Normalization includes initial message-key construction and partitioning; matching covers remaining assembly work, including tool matching, deduplication, any rebuilt keys and finalization. Observation ordering is outside these phases but remains in total assembly time. |
+| `topics_transcript_characters`                                                                                         | UTF-16 length of the complete rendered Topics text, including labels, section headings and line breaks; admitted traces only.                                                                                                                                                                                                                                          |
+| `topics_transcript_tokens`                                                                                             | o200k estimate of that same text, tagged `tokenizer:o200k_base`; admitted traces only.                                                                                                                                                                                                                                                                                 |
+| `transcript_comparison_render_duration_ms`                                                                             | Time to serialize assembled JSON and render generic and Topics text, excluding tokenization.                                                                                                                                                                                                                                                                           |
+| `transcript_comparison_tokenization_duration_ms`                                                                       | Wall time for the three sequential JSON, generic and Topics token estimates, excluding the existing current-turn/history estimates.                                                                                                                                                                                                                                    |
+| `topics_transcript_block_characters`                                                                                   | Present block content length tagged `block:user\|assistant\|system\|reasoning\|tool_calls\|tool_results\|tool_definitions\|errors\|run_io\|observations` and `stage:raw\|clipped`; absent blocks emit no sample.                                                                                                                                                       |
+| `topics_transcript_blocks_cut`                                                                                         | Number of content blocks cut by their per-block character caps.                                                                                                                                                                                                                                                                                                        |
+| `topics_transcript_history_characters`, `topics_transcript_current_turn_characters`, `topics_transcript_history_share` | Rendered content-line characters from replayed input and this run, plus replayed input divided by their sum (0 when both are empty). This-run content includes fallback trace-level I/O, observation markers, and inline errors.                                                                                                                                       |
 
 Topics measurement uses the existing assembled transcript and the inclusive
 Topics preset in `packages/shared/src/server/transcript/topics-renderer-config.ts`. It
@@ -182,20 +191,19 @@ and worker; every admitted trace receives Topics measurements.
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
 selects `o200k_base`, also used by GPT-5 mini and nano
-([OpenAI mapping](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py)); metrics are tagged
-`tokenizer:o200k_base`. These are serialized-payload estimates, not provider
+([OpenAI mapping](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py)).
+The span records `tokenizer:o200k_base`. These are serialized-payload estimates, not provider
 billing counts or a model's full request framing.
 Current turn and history use identical `{ messages: [{ role, parts }] }` JSON
 framing, without observation provenance. Only nonempty partitions are tokenized,
 at most twice per trace. Their sum is `transcript_message_tokens`; it is not
 directly comparable to the full assembled-transcript JSON or rendered text. The
-`transcript_json_*`, `generic_transcript_*`, and `topics_transcript_*` length
-distributions are attempted on the same admitted trace cohort and can be
-compared at p50/p90/p99 after checking their sample counts. The generic
+`transcript_json_*`, `generic_transcript_*`, and `topics_transcript_*` lengths
+are span attributes on the same admitted trace cohort. The generic
 renderer preserves the previous plain-text layout under the same Topics
 per-block preset; it has no trace-root I/O or run-state sections. Empty
 transcripts have zero JSON length and tokens. Thread counts are numeric
-samples, never metric tags.
+span attributes.
 
 To diagnose large Topics texts, compare `topics_transcript_tokens` with
 `transcript_observation_count`, the history/current-turn message and part counts,
@@ -237,8 +245,11 @@ trace's observations. Before submitting another transcript it awaits the previou
 promise. Projections are tokenized sequentially, keeping at most one pending
 tokenizer request per batch. Success and stream
 failure both drain accepted promises; a stream failure never assembles its
-partial final trace. Assembly itself remains synchronous. `read_duration_ms`
-includes all this processing.
+partial final trace. Assembly itself remains synchronous. Wall-clock duration
+of that work, including tokenization, is the span attribute `duration_ms` and
+the experiment completion log. The generic queue series
+`langfuse.queue.trace_batch.time_distribution` with `type:processing` records
+the same duration when the processor returns.
 
 Memory includes the current trace, the previous transcript being tokenized and
 stream buffers, multiplied by active batch jobs. Each trace also retains its
@@ -255,11 +266,10 @@ CPU and queue depth before raising batch concurrency.
 ClickHouse must sort the filtered result, so compare query memory and latency against the unordered
 baseline before increasing load.
 
-Enable percentile aggregations for these distribution metrics in Datadog
-Metrics Summary, then select p50, p75, p90, p95 and p99 in Metrics Explorer.
-Datadog computes these across workers; do not average worker percentiles.
-See [Datadog distributions](https://docs.datadoghq.com/metrics/distributions/).
-Metric delivery and percentile configuration must be verified after deployment.
+Transcript sizes are always span attributes. The same measurements are also
+dogstatsd distributions when `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED`
+is `true`. That switch defaults to `false`. Use the trace explorer query below
+either way.
 
 ### Inspect individual transcripts in Datadog
 
@@ -281,7 +291,7 @@ It also records the remaining Topics metrics above. Block character attributes u
 `topics_transcript_block_<block>_<stage>_characters`. Topics character metrics
 are absent if rendering failed; the token metric can also be absent if its
 estimate failed.
-No transcript content is attached, and IDs are not distribution metric tags.
+No transcript content is attached. Project and trace IDs stay on the span.
 `transcript_characters` is the legacy span-only name for the same value as
 `transcript_json_characters`. The full JSON includes syntax and provenance, so
 use `transcript_content_characters` as the tool-response denominator. JSON
@@ -311,8 +321,8 @@ and retries can produce different or repeated samples for the same trace.
 These spans follow existing APM ingestion sampling and retention. Configure a
 [custom retention filter](https://docs.datadoghq.com/tracing/trace_pipeline/trace_retention/)
 at 100% for the outlier query to keep matching ingested spans searchable. This
-cannot recover spans dropped before ingestion. Distribution metrics remain
-independent and cannot identify a historical sample's trace retroactively.
+cannot recover spans dropped before ingestion. Transcript sizes live on these
+spans and follow APM sampling; they are not separate custom metrics.
 
 ## Capacity measurements
 
@@ -320,19 +330,17 @@ The following metrics use the `langfuse.trace_batch` prefix. All additions are
 inside the existing cloud experiment paths; normal ingestion with tracking
 disabled performs no new aggregation or Redis calls.
 
-| Metric | Kind / tags | Meaning |
-| --- | --- | --- |
-| `event_updates`, `serialized_event_bytes` | Counters; `stage:eligible\|sampled\|recorded` | Accepted, valid-start-time updates before sampling, after sampling, and in Redis-acknowledged chunks. Repeated updates count again. |
-| `read_attempts` | Counter; `outcome:success\|failure\|discard` | One outcome per processor invocation, including retries, validation failures and disabled/expired discards. |
-| `read_duration_ms` | Distribution; same outcome tags | Wall-clock processor duration, including failed and discarded attempts. |
-| `active_reads` | Per-process gauge | Streams currently being consumed; failures decrement the count too. |
-| `failed_read_observation_count`, `failed_read_input_bytes`, `failed_read_output_bytes`, `failed_read_metadata_bytes`, `failed_read_io_metadata_bytes` | Distributions | Partial logical rows/bytes consumed before a stream failure. Separate from successful throughput. |
-| `queue_depth` | Gauge; `type:waiting\|active\|delayed\|failed` | Global BullMQ snapshots; waiting includes paused work. |
-| `queue_waiting_head_age_ms` | Gauge | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty. |
-| `redis_key_bytes` | Gauge; `key:due\|state` | Estimated memory of each readiness key, including Redis overhead. |
-| `redis_key_entries` | Gauge; `key:due\|state` | `ZCARD` / `HLEN` at the memory snapshot. |
+| Metric                                                     | Kind / tags                          | Meaning                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event_updates`, `serialized_event_bytes`                  | Counters; `stage:eligible\|recorded` | Accepted, valid-start-time updates before sampling, and in Redis-acknowledged chunks. Repeated updates count again. Selected volume is `sampling_decisions`.                                                                                                                                                                          |
+| `active_reads`                                             | Per-process gauge                    | Streams currently being consumed; failures decrement the count too.                                                                                                                                                                                                                                                                   |
+| `failed_read_observation_count`, `failed_read_input_bytes` | Distributions                        | Partial logical rows and input bytes consumed before a stream failure. Separate from successful throughput. Output and metadata bytes stay on the completion log.                                                                                                                                                                     |
+| `queue_depth`                                              | Gauge; `type:delayed`                | Delayed BullMQ jobs. Waiting, active, and failed depth stay on `langfuse.queue.trace_batch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.trace_batch` series, the same as every other queue. Processing time is recorded when the processor returns. Discard reasons stay on `discarded_jobs`. |
+| `queue_waiting_head_age_ms`                                | Gauge                                | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty.                                                                                                                                                                                                                                                  |
+| `redis_key_bytes`                                          | Gauge; `key:due\|state`              | Estimated memory of each readiness key, including Redis overhead.                                                                                                                                                                                                                                                                     |
+| `redis_key_entries`                                        | Gauge; `key:due\|state`              | `ZCARD` / `HLEN` at the memory snapshot.                                                                                                                                                                                                                                                                                              |
 
-The eligible/sampled counters reuse the already-computed serialized size and
+The eligible and recorded counters reuse the already-computed serialized size and
 per-trace aggregates. Recorded volume is emitted after each acknowledged Lua
 chunk: earlier chunks remain counted if a later one fails. A timeout can mean
 Redis applied an update without acknowledgement, so the stage difference includes
@@ -466,8 +474,9 @@ cost is O(n × k × cap), where k is the fewest feasible jobs. Measure duration
 before increasing scale, especially with distant event times that force many jobs.
 
 Compare `dispatched_batches` (tags `strategy`, `fill`),
-`event_time_envelope_ms`, `observed_start_span_ms`, `candidate_buffer_size` and
-`selector_duration_ms` under `langfuse.trace_batch`. The envelope metric includes
+`event_time_envelope_ms`, `candidate_buffer_size` and
+`selector_duration_ms` under `langfuse.trace_batch`. Per-trace event span stays
+on the completion log as `maxTraceSpanMs`. The envelope metric includes
 the reader's two-minute margin on each side; the selector's envelope limit does
 not. Payload and Redis state are unchanged.
 
@@ -485,6 +494,8 @@ worker/container rather than a fleet average:
 - `runtime.node.mem.heap_used`: JavaScript heap in use.
 - `langfuse.trace_batch.snapshot_size`, `pending_traces`, `ready_traces` and
   `oldest_due_age_ms`: snapshot and backlog growth.
+- `langfuse.trace_batch.expired_traces`: tagged `source:ingestion` or
+  `source:dispatcher`. Sum within one source; the two writers are different events.
 - `langfuse.periodic_runner.duration_ms` and `completed`, filtered by
   `runner:trace_batch_dispatcher`: run duration and outcome.
 
