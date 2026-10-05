@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="430" viewBox="0 0 780 430" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect width="780" height="430" fill="#ffffff"/>
+  <text x="20" y="26" font-size="15" font-weight="600" fill="#1b1f23">CI pipeline duration — 2026-09-29..10-05 (merge_group, successful runs)</text>
+  <text x="20" y="44" font-size="11" fill="#57606a">Daily medians, seconds. 10-03 (German Unity Day) and 10-05 omitted: zero merge_group runs.</text>
+
+  <!-- y gridlines at 0,65,130,195,260s :: y = 366 - v/260*312 -->
+  <line x1="52" y1="366" x2="768" y2="366" stroke="#d0d7de" stroke-width="1"/>
+  <line x1="52" y1="288" x2="768" y2="288" stroke="#eaeef2" stroke-width="1"/>
+  <line x1="52" y1="210" x2="768" y2="210" stroke="#eaeef2" stroke-width="1"/>
+  <line x1="52" y1="132" x2="768" y2="132" stroke="#eaeef2" stroke-width="1"/>
+  <line x1="52" y1="54"  x2="768" y2="54"  stroke="#eaeef2" stroke-width="1"/>
+  <text x="44" y="370" font-size="10" fill="#57606a" text-anchor="end">0</text>
+  <text x="44" y="292" font-size="10" fill="#57606a" text-anchor="end">65</text>
+  <text x="44" y="214" font-size="10" fill="#57606a" text-anchor="end">130</text>
+  <text x="44" y="136" font-size="10" fill="#57606a" text-anchor="end">195</text>
+  <text x="44" y="58"  font-size="10" fill="#57606a" text-anchor="end">260</text>
+  <line x1="52" y1="40" x2="52" y2="366" stroke="#d0d7de" stroke-width="1"/>
+
+  <!-- x labels at 62,236,410,584,758 -->
+  <text x="62"  y="384" font-size="10" fill="#57606a" text-anchor="middle">09-29</text>
+  <text x="236" y="384" font-size="10" fill="#57606a" text-anchor="middle">09-30</text>
+  <text x="410" y="384" font-size="10" fill="#57606a" text-anchor="middle">10-01</text>
+  <text x="584" y="384" font-size="10" fill="#57606a" text-anchor="middle">10-02</text>
+  <text x="758" y="384" font-size="10" fill="#57606a" text-anchor="middle">10-04</text>
+
+  <!-- perceived: 235, 248.5, 216.5, 206.5, 189 -->
+  <polyline fill="none" stroke="#3987e5" stroke-width="2.5" points="62,84 236,67.8 410,106.2 584,118.2 758,139.2"/>
+  <circle cx="62"  cy="84"    r="3.5" fill="#3987e5"/>
+  <circle cx="236" cy="67.8"  r="3.5" fill="#3987e5"/>
+  <circle cx="410" cy="106.2" r="3.5" fill="#3987e5"/>
+  <circle cx="584" cy="118.2" r="3.5" fill="#3987e5"/>
+  <circle cx="758" cy="139.2" r="3.5" fill="#3987e5"/>
+
+  <!-- execution: 218.5, 232, 203, 188.5, 178 -->
+  <polyline fill="none" stroke="#de5a20" stroke-width="2.5" points="62,103.8 236,87.6 410,122.4 584,139.8 758,152.4"/>
+  <circle cx="62"  cy="103.8" r="3.5" fill="#de5a20"/>
+  <circle cx="236" cy="87.6"  r="3.5" fill="#de5a20"/>
+  <circle cx="410" cy="122.4" r="3.5" fill="#de5a20"/>
+  <circle cx="584" cy="139.8" r="3.5" fill="#de5a20"/>
+  <circle cx="758" cy="152.4" r="3.5" fill="#de5a20"/>
+
+  <!-- e2e-tests job: 167, 179, 174, 155, 149 -->
+  <polyline fill="none" stroke="#8875e0" stroke-width="2.5" points="62,165.6 236,151.2 410,157.2 584,180 758,187.2"/>
+  <circle cx="62"  cy="165.6" r="3.5" fill="#8875e0"/>
+  <circle cx="236" cy="151.2" r="3.5" fill="#8875e0"/>
+  <circle cx="410" cy="157.2" r="3.5" fill="#8875e0"/>
+  <circle cx="584" cy="180"   r="3.5" fill="#8875e0"/>
+  <circle cx="758" cy="187.2" r="3.5" fill="#8875e0"/>
+
+  <!-- legend -->
+  <rect x="62" y="400" width="12" height="3" fill="#3987e5"/>
+  <text x="80" y="406" font-size="11" fill="#1b1f23">perceived (wall) — weekly 216.5s</text>
+  <rect x="290" y="400" width="12" height="3" fill="#de5a20"/>
+  <text x="308" y="406" font-size="11" fill="#1b1f23">execution — weekly 203s</text>
+  <rect x="490" y="400" width="12" height="3" fill="#8875e0"/>
+  <text x="508" y="406" font-size="11" fill="#1b1f23">e2e-tests job — weekly 167s</text>
+</svg>

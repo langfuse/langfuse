@@ -1,0 +1,153 @@
+{
+  "window": { "from": "2026-09-29", "to": "2026-10-05", "kind": "trailing-7-days", "tz": "UTC" },
+  "windowRule": "trailing 7 days ending today (2026-10-05, run at ~05:48 UTC)",
+  "isoWeekNote": "ISO week 2026-W41 runs Mon 2026-10-05..Sun 2026-10-11; this trailing window spans most of W40-ISO. Label kept as W41 for continuity with the weekly file series, which is indexed by run date, not by ISO week.",
+  "generatedAt": "2026-10-05",
+  "overlapWithPrevious": "none — previous file covered 2026-09-22..09-28, this one starts 09-29. First non-overlapping pair in the series; week-over-week deltas here are NOT inflated by shared runs.",
+  "population": {
+    "timing": "merge_group runs with conclusion=success only",
+    "vitest": "merge_group runs only this week (pull_request not needed; 5 distinct merge_group runs gave 5 reporter blocks)",
+    "excluded": "push/main runs excluded from everything; failed and cancelled runs excluded from timing and counted separately"
+  },
+  "runCounts": {
+    "2026-09-29": { "merge_group_success": 8, "merge_group_failed": 0, "pull_request_success": 32, "push_success": 11, "sampled": 6 },
+    "2026-09-30": { "merge_group_success": 11, "merge_group_failed": 3, "pull_request_success": 59, "push_success": 19, "sampled": 6, "note": "slowest day AND the only day with merge_group failures — see regressionCheck.slowDayRule" },
+    "2026-10-01": { "merge_group_success": 13, "merge_group_failed": 0, "pull_request_success": 45, "push_success": 14, "sampled": 6 },
+    "2026-10-02": { "merge_group_success": 16, "merge_group_failed": 2, "pull_request_success": 52, "push_success": 20, "sampled": 6, "note": "busiest day; no Friday merge_group collapse this week, unlike several prior weeks" },
+    "2026-10-03": { "merge_group_success": 0, "merge_group_failed": 0, "pull_request_success": 1, "push_success": 0, "sampled": 0, "note": "2 runs all day. German Unity Day (Oct 3) — Langfuse is Berlin-based. Expect this holiday to blank out CI every year." },
+    "2026-10-04": { "merge_group_success": 5, "merge_group_failed": 0, "pull_request_success": 22, "push_success": 8, "sampled": 5, "note": "unusually active Sunday; exactly at the n>=5 density threshold" },
+    "2026-10-05": { "merge_group_success": 0, "merge_group_failed": 0, "pull_request_success": 1, "push_success": 0, "sampled": 0, "note": "today, window ends 05:48 UTC; zero merge_group runs so omitted from charts and aggregate" },
+    "total": { "merge_group_success": 53, "merge_group_failed": 5, "pull_request_success": 212, "sampled": 29 }
+  },
+  "dailyMedians": {
+    "2026-09-29": { "n": 6, "perceived": 235, "execution": 218.5, "runnerWait": 17, "webBuildStep": 47, "webRunTestsStep": 77, "workerRunTestsStep": 86.5, "e2eTestsJob": 167, "e2eBuildStep": 39, "e2eRunStep": 50.5 },
+    "2026-09-30": { "n": 6, "perceived": 248.5, "execution": 232, "runnerWait": 16.5, "webBuildStep": 48.5, "webRunTestsStep": 87, "workerRunTestsStep": 98.5, "e2eTestsJob": 179, "e2eBuildStep": 29, "e2eRunStep": 53 },
+    "2026-10-01": { "n": 6, "perceived": 216.5, "execution": 203, "runnerWait": 14.5, "webBuildStep": 48.5, "webRunTestsStep": 80, "workerRunTestsStep": 88, "e2eTestsJob": 174, "e2eBuildStep": 35, "e2eRunStep": 50 },
+    "2026-10-02": { "n": 6, "perceived": 206.5, "execution": 188.5, "runnerWait": 19.5, "webBuildStep": 45, "webRunTestsStep": 76.5, "workerRunTestsStep": 85.5, "e2eTestsJob": 155, "e2eBuildStep": 39, "e2eRunStep": 50.5 },
+    "2026-10-04": { "n": 5, "perceived": 189, "execution": 178, "runnerWait": 12, "webBuildStep": 43, "webRunTestsStep": 74, "workerRunTestsStep": 82, "e2eTestsJob": 149, "e2eBuildStep": 37, "e2eRunStep": 48 }
+  },
+  "denseDays": ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-04"],
+  "thinDaysExcludedFromAggregate": ["2026-10-03", "2026-10-05"],
+  "weeklyAggregate": {
+    "perceived": 216.5, "execution": 203, "runnerWait": 16.5,
+    "webBuildStep": 47, "webRunTestsStep": 77, "workerRunTestsStep": 86.5,
+    "e2eTestsJob": 167, "e2eBuildStep": 37, "e2eRunStep": 50.5,
+    "unit": "seconds", "method": "median of the 5 dense daily medians (all n>=5)"
+  },
+  "pooledPercentiles": {
+    "perceived": { "p50": 210, "p90": 302.2 },
+    "execution": { "p50": 190, "p90": 271.4 },
+    "runnerWait": { "p50": 16, "p90": 20 },
+    "webBuildStep": { "p50": 46, "p90": 56.2 },
+    "webRunTestsStep": { "p50": 77, "p90": 98.6 },
+    "workerRunTestsStep": { "p50": 87, "p90": 110 },
+    "e2eTestsJob": { "p50": 164, "p90": 192.8 },
+    "e2eBuildStep": { "p50": 35, "p90": 48 },
+    "e2eRunStep": { "p50": 50, "p90": 63.6 },
+    "n": 29
+  },
+  "vsW40partial0928": {
+    "baseline": { "perceived": 226.5, "execution": 214.8, "runnerWait": 13.5, "webBuildStep": 48.5, "webRunTestsStep": 77, "workerRunTestsStep": 81.3, "e2eTestsJob": 197, "e2eBuildStep": 66 },
+    "perceived": "-4.4%", "execution": "-5.5%", "runnerWait": "+22%",
+    "webBuildStep": "-3.1%", "webRunTestsStep": "0.0%", "workerRunTestsStep": "+6.4%",
+    "e2eTestsJob": "-15.2%", "e2eBuildStep": "-44%",
+    "note": "runnerWait +22% is +3s on a 13.5s base — noise at this magnitude. workerRunTests +6.4% is runner variance, not content: shard is flat at 194 files / 2497->2517 tests / 81.7->82.6s."
+  },
+  "headline": {
+    "claim": "The W39 suggested diff was applied on main and delivered the predicted win.",
+    "commit": "cda2fe27bc9c776c668b9e1a8052a574ea290be8",
+    "pr": 18012,
+    "title": "fix(ci): skip unused worker build in browser e2e job",
+    "author": "Tobias Wochinger",
+    "appliedAt": "2026-09-28T12:36:54Z",
+    "diff": "pipeline.yml e2e-tests Build step: pnpm run build --filter=!ai-gateway  ->  --filter=!ai-gateway --filter=!worker --filter=!@langfuse/native",
+    "cleanBeforeAfter": "W40 window (09-22..09-28) is essentially all pre-change; this window (09-29..10-05) is all post-change. The commit landed hours AFTER the W40 run's check, which is why W40 correctly reported it as unapplied.",
+    "scorecard": {
+      "e2eBuildStep": { "before": 69, "predicted": "42-48", "actual": 37, "verdict": "beat prediction" },
+      "e2eTestsJob": { "before": 186, "predicted": "~160", "actual": 167, "verdict": "near hit" },
+      "perceived": { "before": 234, "predicted": "~205", "actual": 216.5, "verdict": "short of prediction but -7.5% vs W39" }
+    }
+  },
+  "regressionCheck": {
+    "verdict": "no regression — this is an improvement week",
+    "sustainedShiftScan": "no metric moved >=50% across 3+ consecutive days. Perceived declines near-monotonically 235 -> 248.5 -> 216.5 -> 206.5 -> 189 (max/min 1.31x). e2eBuildStep is stable all week (39/29/35/39/37).",
+    "aboveTenPercent": "e2eTestsJob -15.2% and e2eBuildStep -44% are both improvements, both attributed to #18012.",
+    "slowDayRule": "09-30 was the slowest day (248.5s) and carried 3 of the week's 5 merge_group failures. Per the standing rule, a slow day with elevated failures is not called a regression — and by 10-02/10-04 the numbers had fallen well below it.",
+    "w39RegressionStatus": "RESOLVED. The 09-21 e2e Build regression (42->69s, commit 1a2d1f211 / #17062 native addon scaffold) is closed out by #18012."
+  },
+  "criticalPath": {
+    "executionMinusE2e": 36,
+    "note": "was 17.8s in W40. e2e-tests is still effectively the whole critical path, but the margin roughly doubled because e2e shrank while the shards did not.",
+    "shardSlack": "web run-tests 77s and worker run-tests 86.5s sit ~80-85s below the 167s e2e job (was ~115-120s in W40). Still far off the critical path: no test-level optimization in either shard can move perceived time until that slack closes.",
+    "e2eStepBreakdown": {
+      "method": "median per-step duration across all 29 sampled e2e-tests jobs",
+      "Run e2e tests": 50, "Build": 35, "Seed DB": 14, "Post Cache Next.js builds": 13,
+      "Scan client bundle for minifier-dropped bindings": 7, "Use Node.js 24 with pnpm cache": 5,
+      "Cache Next.js builds": 5, "Start dev containers in background": 5, "Install playwright in background": 5,
+      "install dependencies": 3, "Complete runner": 3, "checkout": 2, "other": 4,
+      "sumOfStepMedians": 151,
+      "jobMedian": 167,
+      "unaccounted": "~16s of runner start/teardown not attributed to any step",
+      "takeaway": "With Build down to 35s, the largest remaining block is no longer the build. 'Run e2e tests' (50s) is now the single biggest item and is genuine test execution; after it, the overhead tail is diffuse (14+13+7+5+5+5+5) with no single dominant target."
+    }
+  },
+  "vitestAnalysis": {
+    "runsSampled": 5,
+    "runIds": [36532310677, 36697907062, 36845304904, 36999701320, 37203077478],
+    "jobs": [
+      { "date": "2026-09-29", "shard": "web", "jobId": 109288513619, "testFiles": "319 passed (319)", "tests": "5479 passed | 17 skipped (5496)", "duration": "71.99s", "retries": 0 },
+      { "date": "2026-09-30", "shard": "worker", "jobId": 109830191573, "testFiles": "194 passed | 1 skipped (195)", "tests": "2518 passed | 4 skipped (2522)", "duration": "83.03s", "retries": 0 },
+      { "date": "2026-10-01", "shard": "web", "jobId": 110313897881, "duration": "n/a (totals above tail window)", "retries": 0 },
+      { "date": "2026-10-02", "shard": "web", "jobId": 110814336499, "duration": "n/a (totals above tail window)", "retries": 0 },
+      { "date": "2026-10-04", "shard": "worker", "jobId": 111438560344, "testFiles": "194 passed | 1 skipped (195)", "tests": "2517 passed | 4 skipped (2521)", "duration": "82.59s", "retries": 0 }
+    ],
+    "retriedTests": 0,
+    "flakyStreak": "FIFTH consecutive week with zero retried tests across every sampled shard (09-07, 09-14, 09-21, 09-28, 10-05).",
+    "flakyWatchlist": "DROPPED. notes.md said 'if W41 is clean too, stop carrying the watchlist'. W41 is clean. The watchlist is now empty; reinstate only when a Retried tests block actually appears.",
+    "webShardGrowth": "317 files / 5413 tests / 69.31s (W40) -> 319 / 5479 / 71.99s (09-29). +2 files, +66 tests, +2.68s. Normal coverage growth, proportionate duration.",
+    "workerShardGrowth": "194 files / 2497 tests / 81.74s (W40) -> 194 / 2517-2518 / 82.6-83.0s. Flat. Confirms the +6.4% workerRunTests weekly median is runner variance, not new test content.",
+    "webSlowestFiles": {
+      "2026-09-29": [["26.08s", "event-repository.servertest.ts", 104], ["17.96s", "traces-api.servertest.ts", 84], ["14.85s", "dataset-service.servertest.ts", 35], ["14.15s", "queryBuilder.servertest.ts", 115], ["13.82s", "score-comparison-analytics.servertest.ts", 46]],
+      "2026-10-01": [["26.95s", "event-repository.servertest.ts", 104], ["15.10s", "score-comparison-analytics.servertest.ts", 46], ["13.95s", "traces-api.servertest.ts", 84], ["12.71s", "ingestion-api.servertest.ts", 63], ["10.40s", "scores-api-v3.servertest.ts", 80]],
+      "2026-10-02": [["28.62s", "event-repository.servertest.ts", 104], ["18.86s", "traces-api.servertest.ts", 84], ["16.48s", "score-comparison-analytics.servertest.ts", 46], ["15.04s", "ingestion-api.servertest.ts", 63], ["14.90s", "dataset-service.servertest.ts", 35]]
+    },
+    "webNewEntrant": "dataset-service.servertest.ts (35 tests) at 14.85-14.90s on 09-29/10-02 (10.16s on 10-01) was not in the W40 top-5. DB-backed; on the do-not-mine list by category. Watch only.",
+    "workerSlowest": {
+      "topFile": "src/__tests__/traceBatching.test.ts 15.15-15.18s (42 tests) — #1 both sampled days",
+      "topTest": "traceBatching.test.ts > trace micro-batch scheduling with Redis > ingests through BullMQ, postpones readiness on new activity, and consumes full ClickHouse payloads once due — 13.58s (10-04), 13.67s (09-30)",
+      "history": "W39 outlier at 12.08s, absent from W40 top-10, now back at #1 and growing slightly. Never flaky, just slow. Sits ~80s below the critical path, so optimizing it would not move perceived time."
+    }
+  },
+  "optimizationCandidatesExamined": [
+    {
+      "candidate": "scripts/scan-client-bundle.mjs — collectExemptRanges() is O(N^2)",
+      "whyInteresting": "The only item on the e2e critical path that lives in editable repo surface rather than .github/workflows. Step median 7s of a 167s job.",
+      "defectConfirmed": true,
+      "evidence": "Extracted the walker verbatim (it only touches plain ESTree objects, so it runs without espree) and timed it on synthetic left-nested '&&' chains — the shape minified bundles are full of. Scaling is ~4x per doubling of N: 27ms@500, 126ms@1000, 457ms@2000, 1867ms@4000, 7595ms@8000. Cause: for every LogicalExpression, typeofNamesIn(node.left) re-walks the entire left subtree, so a left-nested chain of depth N costs O(N^2).",
+      "fixAttempted": "Memoize the typeof-name set per node in one post-order pass, sharing the set object with the only non-empty child and copying only when two non-empty sets merge.",
+      "result": "REJECTED — trades one quadratic for another. 783x faster on deep left-nested chains (7595ms -> 9.7ms at N=8000) but 55x SLOWER on flat guard-then-use statement lists (16.9ms -> 923ms at N=8000), because N siblings with distinct non-empty sets force N successive set copies at the parent. Output verified identical in both shapes, so the rejection is purely on performance.",
+      "doNotRepeat": "Do not re-propose naive per-node set memoization here. A real fix needs a structure that is cheap for BOTH shapes (persistent/immutable sets, or indexing only the nodes that are actually queried) — and it cannot be verified in this sandbox anyway (see blocker).",
+      "blocker": "No node_modules and no pnpm/turbo in the sandbox, so espree/eslint-scope/globals do not resolve and the scanner cannot be run end-to-end. The 7s -> ? CI wall-clock effect is unmeasurable here even for a correct fix.",
+      "upside": "Even a perfect fix is ~7s of a 167s job (~4%). Worth doing for its own sake; not a headline."
+    },
+    {
+      "candidate": "worker traceBatching.test.ts (15.2s file, 13.6s single test)",
+      "result": "rejected by the standing arithmetic rule — worker shard sits ~80s below the e2e critical path, so no saving there reaches perceived time"
+    },
+    {
+      "candidate": "web event-repository.servertest.ts (26-28.6s, 104 tests)",
+      "result": "rejected — already on the DB-backed do-not-re-mine list, and the web shard has ~85s of slack to the critical path"
+    }
+  ],
+  "structuralWasteReportOnly": {
+    "turboPnpmCacheReservationRaces": "Still present and now observed on BOTH shards in the same week: 'Failed to save: Unable to reserve cache with key ...' on worker 09-30 (node-cache pnpm key), web 09-29 (5 separate turbo keys), web 10-01 (node-cache + pnpm-lockfile-verified), web 10-02 (2 turbo keys). Concurrent matrix jobs race for identical cache keys; the loser silently discards its upload. Costs no wall time directly but wastes the upload and degrades later hit rates.",
+    "runnerQueueOutliers": "BLACKSMITH_RUNNER_MESSAGE_WAIT_MS in sampled shards: 109, 113, 205, 261, 284, 599. Mostly sub-300ms; the 599ms on the 09-30 worker lines up with that day being the slowest. One run (36872085195, 10-01) had a 58s runner wait, the only large one in 29 runs."
+  },
+  "outlierRuns": [
+    { "id": 36928139733, "date": "2026-10-01", "perceived": 335 },
+    { "id": 36740777036, "date": "2026-09-30", "perceived": 326 },
+    { "id": 37065821405, "date": "2026-10-02", "perceived": 301, "headSha": "f75c661db", "note": "#17852 chore(dx): enable pnpm dedupe and task-aware turbo watch — touched turbo.json and pipeline.yml. Single slow run only; the 10-02 daily median was the second-fastest of the week, so no evidence of a sustained effect. Not pursued." },
+    { "id": 36640246417, "date": "2026-09-29", "perceived": 286 },
+    { "id": 36872085195, "date": "2026-10-01", "runnerWait": 58, "note": "only large runner wait in the sample" }
+  ]
+}
