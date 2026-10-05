@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { CheckIcon } from "lucide-react";
 
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -11,11 +10,7 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { PopoverController } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 
 type DatasetPickerProps = {
@@ -29,33 +24,17 @@ export function DatasetPicker({
   selectedDatasetId,
   onSelect,
 }: DatasetPickerProps) {
-  const [open, setOpen] = useState(false);
   const selectedDataset = datasets.find(
     (dataset) => dataset.id === selectedDatasetId,
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="min-w-0 flex-1 justify-between gap-2 px-2 font-normal"
-        >
-          <span
-            className="min-w-0 flex-1 truncate text-left"
-            title={selectedDataset?.name}
-          >
-            {selectedDataset?.name ?? "Select a dataset"}
-          </span>
-          <DropdownIndicator />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-(--radix-popover-trigger-width) overflow-auto p-0"
-        align="start"
-      >
+    <PopoverController
+      align="start"
+      contentClassName="w-(--radix-popover-trigger-width) overflow-auto p-0"
+      disabled={false}
+      modal={false}
+      renderContent={({ closePopover }) => (
         <InputCommand>
           <InputCommandInput
             placeholder="Search datasets..."
@@ -70,7 +49,7 @@ export function DatasetPicker({
                   key={dataset.id}
                   onSelect={() => {
                     onSelect(dataset.id);
-                    setOpen(false);
+                    closePopover();
                   }}
                 >
                   <span
@@ -92,7 +71,26 @@ export function DatasetPicker({
             </InputCommandGroup>
           </InputCommandList>
         </InputCommand>
-      </PopoverContent>
-    </Popover>
+      )}
+    >
+      {({ isOpen, Trigger }) => (
+        <Trigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={isOpen}
+            className="min-w-0 flex-1 justify-between gap-2 px-2 font-normal"
+          >
+            <span
+              className="min-w-0 flex-1 truncate text-left"
+              title={selectedDataset?.name}
+            >
+              {selectedDataset?.name ?? "Select a dataset"}
+            </span>
+            <DropdownIndicator />
+          </Button>
+        </Trigger>
+      )}
+    </PopoverController>
   );
 }
