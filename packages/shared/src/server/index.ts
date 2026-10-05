@@ -160,6 +160,7 @@ export * from "./utils/metadata_conversion";
 export * from "./repositories/experiments";
 export * from "./utils/rendering";
 export * from "./utils/sqlLike";
+export * from "./prismaErrors";
 export * from "./redis/evalExecutionQueue";
 export * from "./redis/llmAsJudgeExecutionQueue";
 export * from "./redis/codeEvalExecutionQueue";

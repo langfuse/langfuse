@@ -3,6 +3,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import {
   BatchExportFileFormat,
@@ -458,5 +459,121 @@ describe("batchExport tRPC – useEventsTable snapshot", () => {
       tableName: "sessions",
       useEventsTable: false,
     });
+  });
+});
+
+describe("batchExport tRPC – cancel", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: { id: { in: __orgIds } },
+    });
+  });
+
+  it("returns NOT_FOUND when the export is missing instead of a Prisma update error", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.cancel({
+        projectId: project.id,
+        batchExportId: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("returns NOT_FOUND when the export belongs to another project", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    const other = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id, other.org.id);
+
+    const exportJob = await prisma.batchExport.create({
+      data: {
+        projectId: other.project.id,
+        userId: "user-test",
+        status: BatchExportStatus.QUEUED,
+        name: "other project export",
+        format: BatchExportFileFormat.CSV,
+        query: {
+          tableName: BatchTableNames.Traces,
+          filter: null,
+          orderBy: null,
+        },
+      },
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.cancel({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const stillQueued = await prisma.batchExport.findUnique({
+      where: { id: exportJob.id },
+    });
+    expect(stillQueued?.status).toBe(BatchExportStatus.QUEUED);
+    expect(stillQueued?.projectId).toBe(other.project.id);
+  });
+
+  it("cancels an existing queued export", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const exportJob = await prisma.batchExport.create({
+      data: {
+        projectId: project.id,
+        userId: "user-test",
+        status: BatchExportStatus.QUEUED,
+        name: "queued export",
+        format: BatchExportFileFormat.CSV,
+        query: {
+          tableName: BatchTableNames.Traces,
+          filter: null,
+          orderBy: null,
+        },
+      },
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.cancel({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).resolves.toBeUndefined();
+
+    const cancelled = await prisma.batchExport.findUnique({
+      where: { id: exportJob.id },
+    });
+    expect(cancelled?.status).toBe(BatchExportStatus.CANCELLED);
   });
 });

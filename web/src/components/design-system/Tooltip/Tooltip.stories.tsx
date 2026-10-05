@@ -53,6 +53,17 @@ export const TestHoverAndFocus = meta.story({
     );
 
     await userEvent.unhover(trigger);
+    const viewport = canvasElement.ownerDocument.documentElement;
+    await userEvent.pointer([
+      { target: trigger },
+      {
+        target: canvasElement.ownerDocument.body,
+        coords: {
+          clientX: viewport.clientWidth - 1,
+          clientY: viewport.clientHeight - 1,
+        },
+      },
+    ]);
     await waitFor(() =>
       expect(body.queryByRole("tooltip")).not.toBeInTheDocument(),
     );

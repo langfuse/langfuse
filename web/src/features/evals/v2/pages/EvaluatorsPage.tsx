@@ -31,7 +31,6 @@ import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBul
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -287,6 +286,13 @@ export default function EvaluatorsPage() {
     evaluators.data.totalItems === 0 &&
     !searchQuery &&
     filterState.length === 0;
+  const openGalleryFromNewEvaluatorButton = () => {
+    capture("eval:onboarding_started", {
+      entryPoint: "new_evaluator_button",
+      hasExistingEvaluators: evaluators.isSuccess ? !showOnboarding : undefined,
+    });
+    setGalleryOpen(true);
+  };
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJobExecution:read",
@@ -315,7 +321,7 @@ export default function EvaluatorsPage() {
       meta: { silentHttpCodes: [503] },
     },
   );
-  const recentExecutions = api.evalsV2.recentExecutions.useQuery(
+  const executionSummaries = api.evalsV2.executionSummaries.useQuery(
     { projectId, evaluatorIds },
     {
       enabled: hasExecutionReadAccess && evaluatorIds.length > 0,
@@ -377,50 +383,32 @@ export default function EvaluatorsPage() {
         header: "Status",
         size: 130,
         enableHiding: true,
-        cell: ({ row }) => (
-          <EvaluatorStatusBadge
-            ruleCount={row.original._count.assignments}
-            active={row.original.hasActiveRules}
-            blocked={Boolean(row.original.blockedAt)}
-            blockReason={row.original.blockReason}
-            blockMessage={row.original.blockMessage}
-          />
-        ),
-      },
-      {
-        accessorKey: "executionTraces",
-        id: "executionTraces",
-        header: "Last 5 runs",
-        size: 130,
-        enableHiding: true,
         cell: ({ row }) => {
-          if (recentExecutions.isPending && hasExecutionReadAccess) {
+          if (
+            executionSummaries.isPending &&
+            hasExecutionReadAccess &&
+            !row.original.blockedAt &&
+            row.original._count.assignments > 0
+          ) {
             return <Skeleton className="h-4 w-16" />;
           }
-          const history = (
-            <EvaluatorExecutionHistory
-              traces={recentExecutions.data?.[row.original.id] ?? []}
-            />
-          );
-          return hasExecutionReadAccess ? (
-            <button
-              type="button"
-              className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={`View executions for ${row.original.name}`}
-              onClick={() =>
-                router.push(
-                  evaluatorExecutionsUrl(
-                    projectId,
-                    row.original.name,
-                    row.original.type,
-                  ),
-                )
+          return (
+            <EvaluatorStatusBadge
+              ruleCount={row.original._count.assignments}
+              summary={executionSummaries.data?.[row.original.id]}
+              blocked={Boolean(row.original.blockedAt)}
+              blockReason={row.original.blockReason}
+              blockMessage={row.original.blockMessage}
+              executionsHref={
+                hasExecutionReadAccess
+                  ? evaluatorExecutionsUrl(
+                      projectId,
+                      row.original.id,
+                      row.original.type,
+                    )
+                  : null
               }
-            >
-              {history}
-            </button>
-          ) : (
-            history
+            />
           );
         },
       },
@@ -519,7 +507,7 @@ export default function EvaluatorsPage() {
                 router.push(
                   evaluatorExecutionsUrl(
                     projectId,
-                    row.original.name,
+                    row.original.id,
                     row.original.type,
                   ),
                 )
@@ -527,11 +515,15 @@ export default function EvaluatorsPage() {
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
-              onClone={() =>
-                router.push(
+              onClone={() => {
+                capture("eval:onboarding_started", {
+                  entryPoint: "clone_evaluator",
+                  hasExistingEvaluators: true,
+                });
+                return router.push(
                   `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(row.original.id)}`,
-                )
-              }
+                );
+              }}
               onDelete={() => setDeleteIds([row.original.id])}
             />
           </div>
@@ -539,12 +531,13 @@ export default function EvaluatorsPage() {
       },
     ],
     [
+      capture,
       costs.data,
       costs.isPending,
       hasExecutionReadAccess,
       projectId,
-      recentExecutions.data,
-      recentExecutions.isPending,
+      executionSummaries.data,
+      executionSummaries.isPending,
       router,
       selectActionColumn,
     ],
@@ -620,7 +613,7 @@ export default function EvaluatorsPage() {
             "Create reusable evaluator definitions and test them before activation.",
         },
         mobileActionButtons: showOnboarding ? (
-          <Button size="sm" onClick={() => setGalleryOpen(true)}>
+          <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
             <Plus className="mr-2 h-4 w-4" />
             New evaluator
           </Button>
@@ -678,7 +671,7 @@ export default function EvaluatorsPage() {
                 {...evaluatorAlerts}
               />
             )}
-            <Button onClick={() => setGalleryOpen(true)}>
+            <Button onClick={openGalleryFromNewEvaluatorButton}>
               <Plus className="mr-2 h-4 w-4" />
               New evaluator
             </Button>
