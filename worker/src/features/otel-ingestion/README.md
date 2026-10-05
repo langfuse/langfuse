@@ -33,6 +33,15 @@ when legacy processing fails. The suites keep generated seeds reproducible and
 disable retries. Memory tables cover ClickHouse types, defaults, and serialization;
 MergeTree deduplication and production materialized views are outside the run.
 
+Dual comparisons check persisted `events_full`, trace, and observation rows
+between the original extractor and early extraction, excluding only generated
+`created_at`, `updated_at`, and `event_ts` timestamps. Media checks compare the
+content and logical associations requested from the upload/link services rather
+than requiring identical call counts, since early extraction can reuse an
+upload. Directed expectations supplement parity so both paths dropping media
+does not count as success. These checks cover the effect of early extraction on
+dual writes, not independent correctness of every legacy transformation.
+
 ## Scope and caveats
 
 - Scratch tables isolate ClickHouse inserts and provide predictable readback

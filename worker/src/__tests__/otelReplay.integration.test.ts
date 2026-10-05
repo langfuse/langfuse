@@ -21,6 +21,7 @@ import {
   expectRawOtelReplayParity,
   runOtelReplayComparison,
   type OtelReplayResult,
+  type OtelRawReplayComparison,
 } from "./helpers/otelReplayHarness";
 import {
   configureDefaultOtelReplayMocks,
@@ -191,6 +192,19 @@ function normalizedRows(rows: OtelReplayResult["storedRows"] = []) {
     .sort((left, right) =>
       JSON.stringify(left).localeCompare(JSON.stringify(right)),
     );
+}
+
+function expectLegacyReplayParity(comparison: OtelRawReplayComparison) {
+  for (const table of [
+    "traces",
+    "observations",
+    "observations_batch_staging",
+  ] as const) {
+    expect(
+      normalizedRows(comparison.earlyTs.legacyRows?.[table]),
+      `early-ts ${table}`,
+    ).toEqual(normalizedRows(comparison.originalTs.legacyRows?.[table]));
+  }
 }
 
 function createBufferId(hex: string): Buffer {
@@ -772,16 +786,7 @@ describe(
           expect(result.legacyRows?.observations_batch_staging).toHaveLength(0);
         }
 
-        for (const table of [
-          "traces",
-          "observations",
-          "observations_batch_staging",
-        ] as const) {
-          expect(
-            normalizedRows(comparison.earlyTs.legacyRows?.[table]),
-            `early-ts ${table}`,
-          ).toEqual(normalizedRows(comparison.originalTs.legacyRows?.[table]));
-        }
+        expectLegacyReplayParity(comparison);
       } finally {
         const traceJobs = await getTraceUpsertJobsForProject(projectId);
         await Promise.allSettled(traceJobs.map((job) => job.remove()));
@@ -791,6 +796,96 @@ describe(
         await prisma.organization.delete({ where: { id: orgId } });
       }
     });
+
+    it.each(["succeed", "fail"] as const)(
+      "preserves mixed existing and inline media in dual writes when uploads %s",
+      async (outcome) => {
+        const { projectId, orgId } = await createOrgProjectAndApiKey();
+        const existingReference =
+          "@@@langfuseMedia:type=image/png|id=preexisting-media-id|source=bytes@@@";
+        const content = Buffer.from("dual-inline-media");
+        const dataUri = `data:image/png;base64,${content.toString("base64")}`;
+        const input = JSON.stringify([existingReference, dataUri]);
+        const uploadFails = outcome === "fail";
+        if (uploadFails) {
+          otelReplayMocks.uploadMediaForTrace.mockRejectedValue(
+            new Error("simulated media upload failure"),
+          );
+        }
+        try {
+          const comparison = await runOtelReplayComparison({
+            bytes: focusedReplayBytes({
+              attributes: [
+                stringAttribute("langfuse.trace.input", input),
+                stringAttribute("langfuse.observation.input", input),
+              ],
+            }),
+            projectId,
+            orgId,
+            fileKey: `${FILE_KEY}.dual-media-${outcome}`,
+            mediaUploadEnabled: true,
+            writeMode: "dual",
+            // Rejected upload attempts do not establish media associations.
+            captureSideEffects: uploadFails
+              ? undefined
+              : createMediaAssociationCapture(),
+          });
+          expectRawOtelReplayParity(comparison);
+          expectLegacyReplayParity(comparison);
+          const expectedInput = JSON.stringify([
+            existingReference,
+            uploadFails
+              ? dataUri
+              : "@@@langfuseMedia:type=image/png|id=image-media-id|source=base64_data_uri@@@",
+          ]);
+          for (const result of [comparison.originalTs, comparison.earlyTs]) {
+            expect(result.storedRows, result.mode).toHaveLength(1);
+            expect(result.legacyRows?.traces, result.mode).toHaveLength(1);
+            expect(result.legacyRows?.observations, result.mode).toHaveLength(
+              1,
+            );
+            for (const row of [
+              result.storedRows[0],
+              result.legacyRows?.traces?.[0],
+              result.legacyRows?.observations?.[0],
+            ]) {
+              expect(row?.input, result.mode).toBe(expectedInput);
+            }
+          }
+          expect(otelReplayMocks.uploadMediaForTrace).toHaveBeenCalled();
+          for (const [params] of otelReplayMocks.uploadMediaForTrace.mock
+            .calls) {
+            expect(params.contentBytes).toEqual(content);
+          }
+          if (uploadFails) {
+            expect(
+              otelReplayMocks.linkMediaToTraceOrObservation,
+            ).not.toHaveBeenCalled();
+          } else {
+            expect(comparison.earlyTs.sideEffects).toEqual(
+              comparison.originalTs.sideEffects,
+            );
+            expect(comparison.originalTs.sideEffects).toHaveLength(2);
+            expect(comparison.originalTs.sideEffects).toEqual(
+              expect.arrayContaining(
+                [undefined, FIRST_SPAN_ID].map((observationId) =>
+                  expect.objectContaining({
+                    traceId: TRACE_ID,
+                    observationId,
+                    field: "input",
+                    contentBase64: content.toString("base64"),
+                    origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+                  }),
+                ),
+              ),
+            );
+          }
+        } finally {
+          await prisma.project.delete({ where: { id: projectId } });
+          await prisma.organization.delete({ where: { id: orgId } });
+        }
+      },
+    );
 
     it("removes replay-owned ingestion jobs when a legacy replay job fails", async () => {
       const { projectId, orgId } = await createOrgProjectAndApiKey();
