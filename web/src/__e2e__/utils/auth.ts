@@ -6,7 +6,7 @@ const DEMO_USER = {
   password: "password",
 } as const;
 
-/** Mirrors the `expect` timeout in playwright.config.ts. */
+/** Matched to the `expect` timeout in playwright.config.ts. */
 const SIGN_IN_TIMEOUT_MS = 60_000;
 
 /**
@@ -44,7 +44,11 @@ export async function signIn(
   // so waiting only for the navigation reports "still on /auth/sign-in"
   // either way — true in both cases and an explanation in neither. Race the
   // form's own error against the navigation and report whichever arrives.
-  const formError = page.locator(".text-destructive").first();
+  //
+  // `FormLabel` also turns `text-destructive` when its own field is invalid
+  // and sits ahead of the form-level error in the DOM, so excluding labels
+  // keeps this from reporting a rejection as the single word "Email".
+  const formError = page.locator(".text-destructive:not(label)").first();
   const rejection = await Promise.race([
     page
       .waitForURL(expectedUrl, { timeout: SIGN_IN_TIMEOUT_MS })
@@ -57,4 +61,11 @@ export async function signIn(
   if (rejection !== null) {
     throw new Error(`Sign-in was rejected by the form: ${rejection}`);
   }
+
+  // `waitForURL` resolves on the first navigation that matches and never
+  // looks again, so by itself it only proves the app passed *through*
+  // `expectedUrl`. Pin where it came to rest too — that is what the
+  // `toHaveURL` assertions this replaces were actually checking, and for the
+  // targetPath tests it is the whole point.
+  await expect(page).toHaveURL(expectedUrl);
 }

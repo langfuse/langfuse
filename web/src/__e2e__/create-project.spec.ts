@@ -42,8 +42,12 @@ test.describe("Create project", () => {
     await page.goto("/auth/sign-in");
     await signIn(page);
 
-    // Start create org flow
-    await page.isVisible('[data-testid="create-organization-btn"]');
+    // Start create org flow. `page.isVisible` does not wait and its result
+    // was discarded, so the click below carried the whole wait on its 10s
+    // action timeout; assert it instead.
+    await expect(
+      page.locator('[data-testid="create-organization-btn"]'),
+    ).toBeVisible();
     await page.click('[data-testid="create-organization-btn"]');
     await expect(page).toHaveURL("/setup");
 
