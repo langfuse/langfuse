@@ -57,11 +57,11 @@ processing is unavailable until both are set. Changing either requires a new
 execution, and changing the embedding model requires rebuilding the map from
 the new vectors. These are internal Topics PoC settings, not part of the
 self-hosted configuration surface. Topic naming continues to use
-`global.openai.gpt-5.6-terra`.
+`us.openai.gpt-5.6-terra`.
 
 Bedrock uses the default AWS credential chain; the worker role needs
 `bedrock:InvokeModel` access to the selected summary and embedding models,
-`global.openai.gpt-5.6-terra` for topic naming, and any routed foundation models.
+`us.openai.gpt-5.6-terra` for topic naming, and any routed foundation models.
 Usage is retained for custom models, but cost estimates are only available for
 the built-in summary, naming and embedding model IDs. Locally, set
 `LANGFUSE_TOPICS_AWS_PROFILE=playground` to use the SSO profile without changing
@@ -81,10 +81,14 @@ Summaries snapshot source environment and trace name; assignments copy that
 snapshot. Reprocessing refreshes metadata even when text is reused; session
 results have no trace name.
 
-Summaries use `global.openai.gpt-5.6-luna`; cluster naming uses
-`global.openai.gpt-5.6-terra` through Bedrock Converse with reasoning disabled.
-Both OpenAI profiles use global cross-region inference, including when invoked
-from `eu-west-1`; they do not provide EU-only routing. Embeddings use Cohere Embed v4
+The summary model is selected with `LANGFUSE_TOPICS_SUMMARY_MODEL`. Topic
+naming uses `us.openai.gpt-5.6-terra` through Bedrock Converse with reasoning
+disabled. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
+and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html)
+currently list `us.` geographic inference profiles in commercial Regions, but
+no `eu.` profiles; these profiles route within the US geography, including when
+invoked from `eu-west-1`.
+Embeddings use Cohere Embed v4
 (`cohere.embed-v4:0`) on Amazon Bedrock, with float output, `clustering` input
 type for both discovery and assignment, and truncation disabled. Default: 1,024
 dimensions; supported choices: 256, 512, 1,024, 1,536. Calls embed one summary at a

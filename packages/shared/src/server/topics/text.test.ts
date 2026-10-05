@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("generateTopicText", () => {
-  it.each(["global.openai.gpt-5.6-luna", "global.openai.gpt-5.6-terra"])(
+  it.each(["us.openai.gpt-5.6-luna", "us.openai.gpt-5.6-terra"])(
     "serializes %s structured output through Bedrock with the Topics profile",
     async (model) => {
       const schema = z.object({ summary: z.string() });
@@ -110,7 +110,7 @@ describe("generateTopicText", () => {
 
     await expect(
       generateTopicText({
-        model: "global.openai.gpt-5.6-luna",
+        model: "us.openai.gpt-5.6-luna",
         messages: [{ role: "user", content: "Hi" }],
         schema: z.object({ summary: z.string() }),
         maxOutputTokens: 256,

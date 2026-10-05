@@ -59,7 +59,7 @@ describe("Topics naming boundary", () => {
       facet,
       "RAW_TRANSCRIPT_SENTINEL",
       topicProcessingConfigSchema.parse({
-        summaryModel: "global.openai.gpt-5.6-luna",
+        summaryModel: "us.openai.gpt-5.6-luna",
       }),
     );
     expect(result.output).toEqual({
@@ -81,7 +81,7 @@ describe("Topics naming boundary", () => {
     expect(result.costDetails.total).toBeCloseTo(0.000056, 10);
     const request = state.call.mock.calls[0][0];
     expect(request).toMatchObject({
-      model: "global.openai.gpt-5.6-luna",
+      model: "us.openai.gpt-5.6-luna",
       region: "eu-west-1",
       profile: "topics-test",
     });
@@ -96,7 +96,7 @@ describe("Topics naming boundary", () => {
         facet,
         "Trace evidence.",
         topicProcessingConfigSchema.parse({
-          summaryModel: "global.openai.gpt-5.6-luna",
+          summaryModel: "us.openai.gpt-5.6-luna",
         }),
       ),
     ).rejects.toMatchObject({ reason: "authentication" });
@@ -109,7 +109,7 @@ describe("Topics naming boundary", () => {
       usage: { inputTokens: 100 },
     });
     const config = topicProcessingConfigSchema.parse({
-      summaryModel: "global.openai.gpt-5.6-luna",
+      summaryModel: "us.openai.gpt-5.6-luna",
     });
     const result = await summarizeTopicTrace(
       facet,
@@ -138,7 +138,7 @@ describe("Topics naming boundary", () => {
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({
           maxInputTokens: 256,
-          summaryModel: "global.openai.gpt-5.6-luna",
+          summaryModel: "us.openai.gpt-5.6-luna",
         }),
       ),
     ).rejects.toThrow(
@@ -166,9 +166,7 @@ describe("Topics naming boundary", () => {
       evidenceSummaryIds: [members[399].id],
     });
     expect(state.call).toHaveBeenCalledOnce();
-    expect(state.call.mock.calls[0][0].model).toBe(
-      "global.openai.gpt-5.6-terra",
-    );
+    expect(state.call.mock.calls[0][0].model).toBe("us.openai.gpt-5.6-terra");
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
     const submitted = JSON.parse(
       state.call.mock.calls[0][0].messages[1].content,

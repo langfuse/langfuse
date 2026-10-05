@@ -22,7 +22,8 @@ import {
   topicProviderError,
 } from "./provider-error";
 
-export const TOPICS_NAMING_MODEL = "global.openai.gpt-5.6-terra";
+export const TOPICS_NAMING_MODEL = "us.openai.gpt-5.6-terra";
+const TOPICS_SUMMARY_COST_MODEL = "us.openai.gpt-5.6-luna";
 
 export function requireTopicsModelConfig() {
   const models = getTopicsModelConfig();
@@ -106,7 +107,7 @@ async function structuredCall<T>(
     throw topicProviderError(error);
   });
   const actualRates =
-    stage === "naming" || model === "global.openai.gpt-5.6-luna"
+    stage === "naming" || model === TOPICS_SUMMARY_COST_MODEL
       ? rates(result.usage.inputTokens ?? inputLimit)
       : null;
   recordTopicTokenUsage(stage, {

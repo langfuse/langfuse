@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: () => state.enabled,
   getTopicsModelConfig: () => ({
-    summaryModel: "global.openai.gpt-5.6-luna",
+    summaryModel: "us.openai.gpt-5.6-luna",
     embeddingModel: "cohere.embed-v4:0",
   }),
   ensureDefaultTopicFacets: (...args: unknown[]) => state.facets(...args),
@@ -143,7 +143,7 @@ describe("summarizeAssembledTrace", () => {
       facetVersion: 2,
       state: "complete",
       summary: "Export monthly sales.",
-      summaryModel: "global.openai.gpt-5.6-luna",
+      summaryModel: "us.openai.gpt-5.6-luna",
       embeddingModel: "cohere.embed-v4:0",
       environment: "default",
       traceName: "agent-turn",

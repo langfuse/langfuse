@@ -298,7 +298,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
-  TOPICS_NAMING_MODEL: "global.openai.gpt-5.6-terra",
+  TOPICS_NAMING_MODEL: "us.openai.gpt-5.6-terra",
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
   nameTopicGroup: (...args: unknown[]) => state.name(...args),
