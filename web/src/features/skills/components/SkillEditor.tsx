@@ -1,5 +1,4 @@
-/* eslint-disable @repo/no-let-assign-in-react */
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import { useMediaQuery } from "react-responsive";
 import {
@@ -97,12 +96,12 @@ export function SkillEditor({
       ? null
       : parseSkillFrontmatterMetadata(skillMarkdown);
   const draftName = metadata?.name.trim() ?? name;
-  let nameError: string | null = null;
-  if (skillMarkdown !== undefined) {
-    nameError = metadata
+  const nameError = useMemo(() => {
+    if (skillMarkdown === undefined) return null;
+    return metadata
       ? metadata.nameError
       : `Add valid YAML frontmatter with a name in SKILL.md. ${SKILL_NAME_RULES}`;
-  }
+  }, [skillMarkdown, metadata]);
   const hasNameChanged =
     baseVersion !== null &&
     skillMarkdown !== undefined &&
@@ -114,15 +113,22 @@ export function SkillEditor({
   );
   const isCheckingName =
     createsNewSkill && !nameError && nameAvailability.isPending;
-  let createDisabledReason = nameError;
-  if (createsNewSkill && !nameError) {
+  const createDisabledReason = useMemo(() => {
+    if (!createsNewSkill || nameError) return nameError;
     if (nameAvailability.data?.data.length) {
-      createDisabledReason = `A skill named "${draftName}" already exists. Choose a different name.`;
-    } else if (nameAvailability.isError) {
-      createDisabledReason =
-        "Could not check whether this skill name is available. Please try again.";
+      return `A skill named "${draftName}" already exists. Choose a different name.`;
     }
-  }
+    if (nameAvailability.isError) {
+      return "Could not check whether this skill name is available. Please try again.";
+    }
+    return nameError;
+  }, [
+    createsNewSkill,
+    nameError,
+    nameAvailability.data,
+    nameAvailability.isError,
+    draftName,
+  ]);
   const nameWarning = [
     hasNameChanged
       ? `Versions must keep the name "${name}". Reset the name or create a new skill.`
@@ -529,32 +535,34 @@ function SkillFileEditor({
     (state) => state.actions.updateActiveFile,
   );
   const fileContents = useSkillFileContents(projectId, activeFile);
+  const { refetch } = fileContents;
   const content = activeFile.content ?? fileContents.data?.content;
 
-  let editorContent;
-  if (content === undefined && fileContents.isError) {
-    editorContent = (
-      <div className="flex flex-col items-start gap-2 text-sm">
-        <p>{fileContents.error.message}</p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            fileContents.refetch();
-          }}
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  } else if (content === undefined) {
-    editorContent = (
-      <div role="status" className="flex items-center gap-2 text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading file…
-      </div>
-    );
-  } else {
-    editorContent = (
+  const editorContent = useMemo(() => {
+    if (content === undefined && fileContents.isError) {
+      return (
+        <div className="flex flex-col items-start gap-2 text-sm">
+          <p>{fileContents.error.message}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              refetch();
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      );
+    }
+    if (content === undefined) {
+      return (
+        <div role="status" className="flex items-center gap-2 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading file…
+        </div>
+      );
+    }
+    return (
       <CodeMirrorEditor
         key={activePath}
         value={content}
@@ -567,7 +575,15 @@ function SkillFileEditor({
         className="h-full"
       />
     );
-  }
+  }, [
+    content,
+    fileContents.isError,
+    fileContents.error,
+    refetch,
+    activePath,
+    editable,
+    updateActiveFile,
+  ]);
 
   return (
     <section className="ph-no-capture flex h-full min-w-0 flex-col">
