@@ -532,7 +532,7 @@ export function TraceDetailView({
                 value="scores"
                 className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden"
               >
-                <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3">
+                <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
                   <ScoresTable
                     projectId={projectId}
                     traceId={trace.id}
@@ -544,6 +544,7 @@ export function TraceDetailView({
                       "userId",
                     ]}
                     localStorageSuffix="TracePreview"
+                    insetToolbar
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />
                 </div>
