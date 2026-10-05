@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
@@ -313,13 +313,22 @@ export function SessionConversationSidebar(
                                   if (group.type === "tools") {
                                     const firstTool = group.rows[0]!;
                                     return (
-                                      <Tooltip
+                                      <CustomTooltip
                                         key={firstTool.id}
                                         placement="right"
                                         delay={200}
-                                        label={group.rows
-                                          .map((row) => row.label)
-                                          .join("\n")}
+                                        content={
+                                          <div className="flex flex-col gap-2">
+                                            <h4 className="text-sm font-bold">
+                                              Tool calls
+                                            </h4>
+                                            <div className="text-muted-foreground whitespace-pre-line">
+                                              {group.rows
+                                                .map((row) => row.label)
+                                                .join("\n")}
+                                            </div>
+                                          </div>
+                                        }
                                       >
                                         {({ getTriggerProps }) => (
                                           <button
@@ -343,7 +352,7 @@ export function SessionConversationSidebar(
                                             </span>
                                           </button>
                                         )}
-                                      </Tooltip>
+                                      </CustomTooltip>
                                     );
                                   }
                                   const row = group.row;
