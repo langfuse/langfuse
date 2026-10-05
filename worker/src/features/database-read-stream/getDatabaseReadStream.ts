@@ -28,6 +28,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  storableTraceSessionIds,
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
@@ -303,7 +304,7 @@ export const getDatabaseReadStreamPaginated = async ({
           const prismaSessionInfo = await prisma.traceSession.findMany({
             where: {
               id: {
-                in: sessions.map((s) => s.session_id),
+                in: storableTraceSessionIds(sessions.map((s) => s.session_id)),
               },
               projectId: projectId,
             },
