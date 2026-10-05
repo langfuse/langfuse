@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Ellipsis,
   LockIcon,
   MessageSquareText,
   Settings,
@@ -15,6 +16,10 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Separator } from "@/src/components/ui/separator";
+import {
+  DropdownMenuController,
+  DropdownMenuItem,
+} from "@/src/components/ui/dropdown-menu";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -22,7 +27,7 @@ import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -45,6 +50,14 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
+import { ProjectList } from "@/src/features/organizations/components/ProjectList";
+import {
+  PinnedProjectsSection,
+  selectPinnedProjects,
+} from "@/src/features/organizations/components/PinnedProjectsSection";
+import { type LastTraceAt } from "@/src/features/organizations/components/projectActivity";
+import { useProjectStars } from "@/src/features/organizations/useProjectStars";
+import { useRecentProjects } from "@/src/features/organizations/useRecentProjects";
 
 const OrganizationProjectTiles = ({
   org,
@@ -197,9 +210,12 @@ const DemoOrganizationTile = () => {
 const OrganizationActionButtons = ({
   orgId,
   primaryButtonVariant = "default",
+  layout = "icons",
 }: {
   orgId: string;
   primaryButtonVariant?: "default" | "secondary";
+  /** `icons`: settings and members as ghost icon buttons. `menu`: both behind one ⋯ menu. */
+  layout?: "icons" | "menu";
 }) => {
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
@@ -212,17 +228,55 @@ const OrganizationActionButtons = ({
 
   return (
     <>
-      <Button asChild variant="ghost">
-        <Link href={`/organization/${orgId}/settings`}>
-          <Settings size={14} />
-        </Link>
-      </Button>
-      {membersViewAccess && (
-        <Button asChild variant="ghost">
-          <Link href={`/organization/${orgId}/settings/members`}>
-            <Users size={14} />
-          </Link>
-        </Button>
+      {layout === "menu" ? (
+        <DropdownMenuController
+          align="end"
+          renderMenu={() => (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href={`/organization/${orgId}/settings`}>
+                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Organization settings
+                </Link>
+              </DropdownMenuItem>
+              {membersViewAccess && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/organization/${orgId}/settings/members`}>
+                    <Users className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Members
+                  </Link>
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
+        >
+          {({ Trigger }) => (
+            <Trigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Organization actions"
+              >
+                <Ellipsis className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Trigger>
+          )}
+        </DropdownMenuController>
+      ) : (
+        <>
+          <Button asChild variant="ghost">
+            <Link href={`/organization/${orgId}/settings`}>
+              <Settings size={14} />
+            </Link>
+          </Button>
+          {membersViewAccess && (
+            <Button asChild variant="ghost">
+              <Link href={`/organization/${orgId}/settings/members`}>
+                <Users size={14} />
+              </Link>
+            </Button>
+          )}
+        </>
       )}
       {createProjectAccess ? (
         <Button asChild variant={primaryButtonVariant}>
@@ -279,13 +333,22 @@ const SingleOrganizationPage = ({
 const SingleOrganizationProjectOverviewTile = ({
   org,
   search,
+  lastTraceByProjectId,
+  isStarred,
+  onToggleStar,
 }: {
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
+  lastTraceByProjectId: Map<string, LastTraceAt>;
+  isStarred: (projectId: string) => boolean;
+  onToggleStar: (projectId: string) => void;
 }) => {
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
+  const visibleProjects = org.projects.filter(
+    (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
+  );
 
   if (isDemoOrg) {
     return (
@@ -315,10 +378,18 @@ const SingleOrganizationProjectOverviewTile = ({
           <OrganizationActionButtons
             orgId={org.id}
             primaryButtonVariant="secondary"
+            layout="menu"
           />
         }
       />
-      <OrganizationProjectTiles org={org} search={search} />
+      {visibleProjects.length > 0 && (
+        <ProjectList
+          projects={visibleProjects}
+          lastTraceByProjectId={lastTraceByProjectId}
+          isStarred={isStarred}
+          onToggleStar={onToggleStar}
+        />
+      )}
     </div>
   );
 };
@@ -332,6 +403,34 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const { starredIds, isStarred, toggle: toggleStar } = useProjectStars();
+  const recentIds = useRecentProjects();
+  const lastTraceQueries = api.useQueries((t) =>
+    (organizations ?? []).map((org) =>
+      t.organizations.lastTraceByProject({ orgId: org.id }),
+    ),
+  );
+  const lastTraceByProjectId = useMemo(() => {
+    const map = new Map<string, LastTraceAt>();
+    for (const q of lastTraceQueries) {
+      for (const row of q.data ?? []) map.set(row.projectId, row.lastTraceAt);
+    }
+    return map;
+  }, [lastTraceQueries]);
+
+  const pinnedProjects = useMemo(
+    () =>
+      selectPinnedProjects({
+        organizations: (organizations ?? []).filter(
+          (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+        ),
+        starredIds,
+        recentIds,
+        lastTraceByProjectId,
+        search: search ?? undefined,
+      }),
+    [organizations, starredIds, recentIds, lastTraceByProjectId, search],
+  );
 
   if (organizations === undefined) {
     return "loading...";
@@ -403,6 +502,15 @@ export const OrganizationProjectOverview = () => {
         <AgentToolsBanner />
       )}
       {showOnboarding && <Onboarding />}
+      {!showOnboarding && pinnedProjects.length > 0 && (
+        <div className="mb-10">
+          <PinnedProjectsSection
+            projects={pinnedProjects}
+            isStarred={isStarred}
+            onToggleStar={toggleStar}
+          />
+        </div>
+      )}
       {organizations
         .map((org) => {
           const isDemo = env.NEXT_PUBLIC_DEMO_ORG_ID === org.id;
@@ -421,6 +529,9 @@ export const OrganizationProjectOverview = () => {
                 <SingleOrganizationProjectOverviewTile
                   org={org}
                   search={search ?? undefined}
+                  lastTraceByProjectId={lastTraceByProjectId}
+                  isStarred={isStarred}
+                  onToggleStar={toggleStar}
                 />
               </div>
             </Fragment>

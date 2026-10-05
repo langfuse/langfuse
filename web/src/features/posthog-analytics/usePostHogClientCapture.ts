@@ -312,6 +312,8 @@ const events = {
     "demo_project_button_click",
   ],
   projects: ["new_form_submit", "new_form_open"],
+  project_star: ["toggled"],
+  home: ["pinned_project_clicked"],
   dataset_item: [
     "archive_toggle",
     "new_form_open",
