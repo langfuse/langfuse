@@ -38,7 +38,7 @@ export const PinnedProjectCard = ({
       />
       <Card className="flex flex-col gap-1 px-4 py-3 shadow-none">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-lg font-bold" title={project.name}>
+          <span className="truncate text-base font-bold" title={project.name}>
             {project.name}
           </span>
           <ProjectStarButton
