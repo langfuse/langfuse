@@ -56,6 +56,8 @@ import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { getDetailTabs } from "../../fns/getDetailTabs";
 import { resolveDetailTab } from "../../fns/resolveDetailTab";
+import { VisualizationRenderer } from "@/src/features/custom-visualizations/components/VisualizationRenderer";
+import { matchesTraceVisualization } from "@/src/features/custom-visualizations/fns/observationVisualization";
 
 export interface TraceDetailViewProps {
   isLoading?: false;
@@ -135,6 +137,22 @@ function LoadedTraceDetailView({
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
+  const activeVisualizations = api.customVisualizations.active.useQuery(
+    { projectId },
+    {
+      enabled: isAuthenticatedAndProjectMember && !isAnnotationMode,
+      refetchOnWindowFocus: false,
+    },
+  );
+  const rootObservation =
+    observations.find((observation) => !observation.parentObservationId) ??
+    observations[0];
+  const traceVisualizations = rootObservation
+    ? (activeVisualizations.data?.filter(({ definition }) =>
+        matchesTraceVisualization(definition, rootObservation),
+      ) ?? [])
+    : [];
+  const showVisualizationsTab = traceVisualizations.length > 0;
   const tabs = getDetailTabs({
     target: "trace",
     isV4,
@@ -142,6 +160,7 @@ function LoadedTraceDetailView({
     isAnnotationMode,
     hasObservations: observations.length > 0,
     canViewScores: isAuthenticatedAndProjectMember,
+    hasVisualizations: showVisualizationsTab,
   });
   const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
   const showScoresTab = tabs.includes("scores");
@@ -274,6 +293,30 @@ function LoadedTraceDetailView({
       });
     }
     setSelectedTab(value as DetailTab);
+  };
+
+  const visualizationData = {
+    trace: {
+      id: trace.id,
+      name: trace.name,
+      timestamp: trace.timestamp,
+      latency: trace.latency,
+      input: parsedInput,
+      output: parsedOutput,
+      metadata: parsedMetadata,
+      environment: trace.environment,
+      tags: trace.tags,
+    },
+    observations: observations.map((observation) => ({
+      id: observation.id,
+      name: observation.name,
+      type: observation.type,
+      startTime: observation.startTime,
+      endTime: observation.endTime,
+      level: observation.level,
+      statusMessage: observation.statusMessage,
+      metadata: observation.metadata,
+    })),
   };
 
   return (
@@ -574,6 +617,37 @@ function LoadedTraceDetailView({
                   currentView={isLogViewVirtualized ? "pretty" : currentView}
                   target="trace"
                 />
+              </Tabs.Content>
+            )}
+
+            {showVisualizationsTab && (
+              <Tabs.Content value="visualizations" layout="fill">
+                <div className="ph-no-capture min-h-0 flex-1 space-y-5 overflow-auto p-4">
+                  {traceVisualizations.map((visualization) => (
+                    <section
+                      key={visualization.versionId}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-bold">
+                            {visualization.definition.title}
+                          </h3>
+                          <p className="text-muted-foreground text-xs">
+                            {visualization.definition.summary}
+                          </p>
+                        </div>
+                        <span className="text-muted-foreground shrink-0 text-[10px]">
+                          v{visualization.version}
+                        </span>
+                      </div>
+                      <VisualizationRenderer
+                        definition={visualization.definition}
+                        data={visualizationData}
+                      />
+                    </section>
+                  ))}
+                </div>
               </Tabs.Content>
             )}
 

@@ -93,6 +93,8 @@ model User {
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  customVisualizationsCreated CustomVisualization[] @relation("CustomVisualizationCreatedByUser")
+  customVisualizationVersionsCreated CustomVisualizationVersion[] @relation("CustomVisualizationVersionCreatedByUser")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -189,6 +191,7 @@ model Project {
   commentReactions                  CommentReaction[]
   annotationQueue                   AnnotationQueue[]
   annotationQueueItem               AnnotationQueueItem[]
+  customVisualizations              CustomVisualization[]
   Media                             Media[]
   PromptDependency                  PromptDependency[]
   LlmSchema                         LlmSchema[]
@@ -694,6 +697,48 @@ model AnnotationQueueAssignment {
 
   @@unique([projectId, queueId, userId])
   @@map("annotation_queue_assignments")
+}
+
+// A visualization has stable identity while its complete behavior is stored in
+// immutable versions. activeVersionId is the only live pointer, so editing or
+// generating a draft cannot change trace/session rendering until it is published.
+model CustomVisualization {
+  id              String                       @id @default(cuid())
+  projectId       String                       @map("project_id")
+  project         Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  activeVersionId String?                      @unique @map("active_version_id")
+  activeVersion   CustomVisualizationVersion?  @relation("ActiveCustomVisualizationVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+  createdByUserId String                       @map("created_by_user_id")
+  createdByUser   User                         @relation("CustomVisualizationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime                     @default(now()) @map("created_at")
+  updatedAt       DateTime                     @default(now()) @updatedAt @map("updated_at")
+  versions        CustomVisualizationVersion[] @relation("CustomVisualizationVersions")
+
+  @@unique([id, projectId])
+  @@index([projectId, updatedAt(sort: Desc)])
+  @@map("custom_visualizations")
+}
+
+model CustomVisualizationVersion {
+  id              String               @id @default(cuid())
+  visualizationId String               @map("visualization_id")
+  visualization   CustomVisualization  @relation("CustomVisualizationVersions", fields: [visualizationId], references: [id], onDelete: Cascade)
+  version         Int
+  definition      Json                 @db.JsonB
+  source          String
+  prompt          String?              @db.Text
+  modelProvider   String?              @map("model_provider")
+  modelName       String?              @map("model_name")
+  createdByUserId String               @map("created_by_user_id")
+  createdByUser   User                 @relation("CustomVisualizationVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  activeFor       CustomVisualization? @relation("ActiveCustomVisualizationVersion")
+
+  @@unique([visualizationId, version])
+  @@index([visualizationId, createdAt(sort: Desc)])
+  @@map("custom_visualization_versions")
 }
 
 model CronJobs {

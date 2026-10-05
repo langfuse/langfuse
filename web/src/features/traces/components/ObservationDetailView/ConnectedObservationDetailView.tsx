@@ -71,6 +71,12 @@ import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
+import { VisualizationRenderer } from "@/src/features/custom-visualizations/components/VisualizationRenderer";
+import {
+  buildObservationVisualizationData,
+  matchesObservationVisualization,
+} from "@/src/features/custom-visualizations/fns/observationVisualization";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -204,6 +210,7 @@ export function ConnectedObservationDetailView({
   const currentView = jsonViewPreference;
   const selectedViewTab = jsonViewToggleTab(currentView);
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  const [showCustomVisualization, setShowCustomVisualization] = useState(false);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -303,6 +310,8 @@ export function ConnectedObservationDetailView({
   });
 
   const session = useSession();
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
   const hasCommentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -320,6 +329,33 @@ export function ConnectedObservationDetailView({
   );
 
   const commentedPathsByField = useCommentedPaths(observationComments.data);
+
+  const activeVisualizations = api.customVisualizations.active.useQuery(
+    { projectId },
+    {
+      enabled: isAuthenticatedAndProjectMember && !isAnnotationMode,
+      refetchOnWindowFocus: false,
+    },
+  );
+  const visualizationObservation = {
+    ...observation,
+    input: parsedInput ?? observationWithIOCompat.data?.input,
+    output: parsedOutput ?? observationWithIOCompat.data?.output,
+    metadata: parsedMetadata ?? observationWithIOCompat.data?.metadata,
+  };
+  const observationVisualizations =
+    activeVisualizations.data?.filter(({ definition }) =>
+      matchesObservationVisualization(definition, visualizationObservation),
+    ) ?? [];
+  const isCustomVisualizationView =
+    selectedTab === "preview" &&
+    showCustomVisualization &&
+    observationVisualizations.length > 0;
+  const activeViewTab = (() => {
+    if (isCustomVisualizationView) return "custom";
+    if (selectedTab === "log" && isLogViewVirtualized) return "pretty";
+    return selectedViewTab;
+  })();
 
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
@@ -384,7 +420,9 @@ export function ConnectedObservationDetailView({
                     !(
                       selectedTab === "log" ||
                       selectedTab === "attributes" ||
-                      (selectedTab === "preview" && isPrettyViewAvailable)
+                      (selectedTab === "preview" &&
+                        (isPrettyViewAvailable ||
+                          observationVisualizations.length > 0))
                     ) && "invisible",
                   )}
                 >
@@ -393,7 +431,8 @@ export function ConnectedObservationDetailView({
                     <div
                       className={cn(
                         "flex items-center gap-1.5",
-                        (selectedTab === "attributes" ||
+                        (isCustomVisualizationView ||
+                          selectedTab === "attributes" ||
                           (selectedTab === "log" && isLogViewVirtualized)) &&
                           "invisible",
                       )}
@@ -410,12 +449,13 @@ export function ConnectedObservationDetailView({
                   )}
                   <div className="h-fit shrink-0 py-0.5 pr-4 pl-2">
                     <Tabs
-                      value={
-                        selectedTab === "log" && isLogViewVirtualized
-                          ? "pretty"
-                          : selectedViewTab
-                      }
+                      value={activeViewTab}
                       onValueChange={(value) => {
+                        if (value === "custom") {
+                          setShowCustomVisualization(true);
+                          return;
+                        }
+                        setShowCustomVisualization(false);
                         if (
                           selectedTab === "log" &&
                           isLogViewVirtualized &&
@@ -462,6 +502,10 @@ export function ConnectedObservationDetailView({
                         ) : (
                           <Tabs.Trigger value="json" label="Raw" />
                         )}
+                        {selectedTab === "preview" &&
+                        observationVisualizations.length > 0 ? (
+                          <Tabs.Trigger value="custom" label="Custom" />
+                        ) : null}
                       </Tabs.List>
                     </Tabs>
                   </div>
@@ -477,7 +521,38 @@ export function ConnectedObservationDetailView({
               </Tabs.Content>
             )}
             <Tabs.Content value="preview" layout="fill">
-              <ObservationPreview
+              {isCustomVisualizationView ? (
+                <div className="ph-no-capture flex min-h-0 w-full flex-1 flex-col gap-5 overflow-auto p-4">
+                  {observationVisualizations.map((visualization) => (
+                    <section
+                      key={visualization.versionId}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-bold">
+                            {visualization.definition.title}
+                          </h3>
+                          <p className="text-muted-foreground text-xs">
+                            {visualization.definition.summary}
+                          </p>
+                        </div>
+                        <span className="text-muted-foreground shrink-0 text-[10px]">
+                          v{visualization.version}
+                        </span>
+                      </div>
+                      <VisualizationRenderer
+                        definition={visualization.definition}
+                        data={buildObservationVisualizationData(
+                          visualization.definition,
+                          visualizationObservation,
+                        )}
+                      />
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <ObservationPreview
                 currentView={currentView}
                 previewKey={observation.id}
                 onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
@@ -543,7 +618,8 @@ export function ConnectedObservationDetailView({
                   traceId,
                   environment: observation.environment,
                 }}
-              />
+                />
+              )}
             </Tabs.Content>
 
             <Tabs.Content value="attributes" layout="fill">

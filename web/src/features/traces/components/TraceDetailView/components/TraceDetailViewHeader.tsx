@@ -14,6 +14,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
 
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { memo, useRef } from "react";
+import { useRouter } from "next/router";
 import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
@@ -47,6 +48,7 @@ import {
   MessageSquare,
   MessageSquareOff,
   PlusIcon,
+  Palette,
   SquarePen,
 } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -125,6 +127,7 @@ function LoadedTraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const router = useRouter();
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -345,6 +348,26 @@ function LoadedTraceDetailViewHeader({
                   </Button>
                 )}
               </AnnotateDrawerController>
+            )}
+            {!isAnnotationMode && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                onClick={() =>
+                  router.push({
+                    pathname: `/project/${projectId}/visualizations`,
+                    query: {
+                      source: "trace",
+                      traceId: trace.id,
+                    },
+                  })
+                }
+              >
+                <Palette className="h-3.5 w-3.5" />
+                <span>Visualize</span>
+              </Button>
             )}
             <Button
               type="button"

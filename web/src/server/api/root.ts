@@ -66,6 +66,7 @@ import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter"
 import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
+import { customVisualizationRouter } from "@/src/features/custom-visualizations/server/customVisualizationRouter";
 
 /**
  * This is the primary router for your server.
@@ -77,6 +78,7 @@ export const appRouter = createTRPCRouter({
   annotationQueues: queueRouter,
   annotationQueueItems: queueItemRouter,
   annotationQueueAssignments: queueAssignmentRouter,
+  customVisualizations: customVisualizationRouter,
   batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,

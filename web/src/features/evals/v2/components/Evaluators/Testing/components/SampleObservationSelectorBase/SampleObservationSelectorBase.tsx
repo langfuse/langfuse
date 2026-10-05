@@ -2,6 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import {
+  ArrowUpRight,
   Database,
   FlaskConical,
   ListTree,
@@ -25,6 +26,7 @@ import {
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   buildAiContext,
@@ -54,6 +56,7 @@ import {
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { formatCompactRelativeTime } from "@/src/utils/dates";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
@@ -156,6 +159,7 @@ export type SampleObservationSelectorBaseProps = {
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
+  displayMode?: "table" | "compact-list";
 };
 
 export function SampleObservationSelectorBase(
@@ -181,6 +185,7 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
+    displayMode = "table",
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -317,37 +322,39 @@ export function SampleObservationSelectorBase(
   );
   const matchingObservations = observationPages.flat();
   const observationIOPages = api.useQueries((t) =>
-    observationPages
-      .filter((page) => page.length > 0)
-      .map((page) => {
-        const observations = page.filter(
-          (observation) =>
-            observation.id && observation.traceId && observation.startTime,
-        );
-        const startTimes = observations.map((observation) =>
-          observation.startTime.getTime(),
-        );
+    displayMode === "compact-list"
+      ? []
+      : observationPages
+          .filter((page) => page.length > 0)
+          .map((page) => {
+            const observations = page.filter(
+              (observation) =>
+                observation.id && observation.traceId && observation.startTime,
+            );
+            const startTimes = observations.map((observation) =>
+              observation.startTime.getTime(),
+            );
 
-        return t.events.batchIO(
-          {
-            projectId,
-            observations: observations.map((observation) => ({
-              id: observation.id,
-              traceId: observation.traceId!,
-            })),
-            minStartTime: new Date(
-              startTimes.length > 0 ? Math.min(...startTimes) : 0,
-            ),
-            maxStartTime: new Date(
-              startTimes.length > 0 ? Math.max(...startTimes) : 0,
-            ),
-          },
-          {
-            ...sendAsPostOption,
-            enabled: observationQuery.isSuccess && observations.length > 0,
-          },
-        );
-      }),
+            return t.events.batchIO(
+              {
+                projectId,
+                observations: observations.map((observation) => ({
+                  id: observation.id,
+                  traceId: observation.traceId!,
+                })),
+                minStartTime: new Date(
+                  startTimes.length > 0 ? Math.min(...startTimes) : 0,
+                ),
+                maxStartTime: new Date(
+                  startTimes.length > 0 ? Math.max(...startTimes) : 0,
+                ),
+              },
+              {
+                ...sendAsPostOption,
+                enabled: observationQuery.isSuccess && observations.length > 0,
+              },
+            );
+          }),
   );
   const observationIOById = useMemo(
     () =>
@@ -579,16 +586,18 @@ export function SampleObservationSelectorBase(
           description={matchingDescription}
           tooltip={matchingTooltip}
           trailing={
-            <DataTableColumnVisibilityFilter
-              tableName="evaluator-sample-observations"
-              isV4
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-              triggerSize="sm"
-            />
+            displayMode === "compact-list" ? null : (
+              <DataTableColumnVisibilityFilter
+                tableName="evaluator-sample-observations"
+                isV4
+                columns={columns}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={setColumnVisibility}
+                columnOrder={columnOrder}
+                setColumnOrder={setColumnOrder}
+                triggerSize="sm"
+              />
+            )
           }
         />
         <div
@@ -600,37 +609,129 @@ export function SampleObservationSelectorBase(
                 }
               : undefined
           }
-          className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
+          className={
+            displayMode === "compact-list"
+              ? "flex min-h-0 flex-1 flex-col overflow-y-auto"
+              : "flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
+          }
+          onScroll={displayMode === "compact-list" ? handleScroll : undefined}
         >
-          <DataTable
-            tableName={tableName}
-            columns={columns}
-            data={
-              observationsPending && matchingObservations.length === 0
-                ? { isLoading: true, isError: false }
-                : observationsError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: observationsError.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: matchingObservations,
-                    }
-            }
-            hidePagination
-            onScroll={handleScroll}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
-            rowHeight={rowHeight}
-            onRowClick={onOpenTrace}
-            getRowClassName={getRowClassName}
-            noResultsMessage="No observations match the current filters and time range."
-          />
+          {displayMode === "compact-list" ? (
+            <div className="space-y-1 pb-2">
+              {observationsPending && matchingObservations.length === 0 ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : observationsError ? (
+                <p className="text-destructive px-2 py-6 text-sm">
+                  {observationsError.message}
+                </p>
+              ) : matchingObservations.length === 0 ? (
+                <p className="text-muted-foreground px-2 py-6 text-sm">
+                  No observations match this filter and time range.
+                </p>
+              ) : (
+                matchingObservations.map((observation) => {
+                  const selected = observation.id === selectedObservationId;
+                  return (
+                    <div
+                      key={observation.id}
+                      className={`flex w-full items-start rounded-lg border text-left transition-colors ${
+                        selected
+                          ? "border-primary bg-primary/5 ring-primary/20 ring-1"
+                          : "hover:border-border hover:bg-muted/50 border-transparent"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelect(observation)}
+                        className="flex min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left"
+                      >
+                        <ItemBadge
+                          type={observation.type as LangfuseItemType}
+                          isSmall
+                          className="mt-0.5"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className="truncate text-sm font-bold"
+                            title={observation.name ?? observation.type}
+                          >
+                            {observation.name ?? observation.type}
+                          </div>
+                          <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-[11px]">
+                            <span
+                              className="truncate"
+                              title={
+                                observation.traceName ??
+                                observation.traceId ??
+                                undefined
+                              }
+                            >
+                              {observation.traceName ?? observation.traceId}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span className="shrink-0">
+                              {formatCompactRelativeTime(observation.startTime)}
+                            </span>
+                          </div>
+                          <div className="text-muted-foreground/70 mt-1 font-mono text-[10px]">
+                            {observation.id.slice(0, 8)}
+                          </div>
+                        </div>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="m-1.5 h-8 w-8 shrink-0"
+                        title="Open this example in context"
+                        aria-label={`Open ${observation.name ?? observation.id} in context`}
+                        onClick={() => onOpenTrace(observation)}
+                      >
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+              {observationsFetching ? (
+                <Skeleton className="h-12 w-full" />
+              ) : null}
+            </div>
+          ) : (
+            <DataTable
+              tableName={tableName}
+              columns={columns}
+              data={
+                observationsPending && matchingObservations.length === 0
+                  ? { isLoading: true, isError: false }
+                  : observationsError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: observationsError.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: matchingObservations,
+                      }
+              }
+              hidePagination
+              onScroll={handleScroll}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
+              onRowClick={onOpenTrace}
+              getRowClassName={getRowClassName}
+              noResultsMessage="No observations match the current filters and time range."
+            />
+          )}
         </div>
       </section>
     </div>

@@ -21,6 +21,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Palette,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -208,6 +209,14 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
     href: `/project/[projectId]/evals`,
     legacyPathname: `/project/[projectId]/evals/legacy`,
+  },
+  {
+    title: "Visualizations",
+    href: `/project/[projectId]/visualizations`,
+    projectRbacScopes: ["project:read"],
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+    icon: Palette,
   },
   {
     title: "Human Annotation",

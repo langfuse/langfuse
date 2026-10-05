@@ -12,6 +12,7 @@ const labels: Record<DetailTab, string> = {
   attributes: "Attributes",
   scores: "Scores",
   log: "Log View",
+  visualizations: "Visualizations",
 };
 
 const rowClassName = "flex h-9 shrink-0 items-center border-b";
@@ -27,7 +28,7 @@ type TraceDetailTabsBarListProps = {
 /**
  * Tab bar for the trace and observation detail panels. Which tabs a panel
  * shows depends on the trace, the project role, and the enabled features, so
- * the row is anywhere between two and five tabs wide; the ones that do not fit
+ * the row is anywhere between two and six tabs wide; the ones that do not fit
  * next to the trailing controls move behind an overflow menu.
  */
 export function TraceDetailTabsBarList(

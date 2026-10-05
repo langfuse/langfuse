@@ -36,6 +36,7 @@ export function EvaluatorSampleObservationSelector({
   onFilterStateChange,
   onSelect,
   onOpenTrace,
+  displayMode = "table",
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -44,6 +45,7 @@ export function EvaluatorSampleObservationSelector({
   onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
+  displayMode?: "table" | "compact-list";
 }) {
   const selectionGroupName = useId();
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
@@ -101,14 +103,27 @@ export function EvaluatorSampleObservationSelector({
       getRowClassName={(observation) =>
         observation.id === selectedObservationId ? "bg-muted/50" : ""
       }
-      filterDescription="Filter the observations to a representative sample for testing this evaluator."
-      filterTooltip="These filters control which observations you can pick to test with."
-      matchingDescription="Select an observation to test the evaluator and verify the variable mapping."
+      filterDescription={
+        displayMode === "compact-list"
+          ? "Narrow the examples you want to compare."
+          : "Filter the observations to a representative sample for testing this evaluator."
+      }
+      filterTooltip={
+        displayMode === "compact-list"
+          ? "These filters affect this example browser only."
+          : "These filters control which observations you can pick to test with."
+      }
+      matchingDescription={
+        displayMode === "compact-list"
+          ? "Choose one to update both previews."
+          : "Select an observation to test the evaluator and verify the variable mapping."
+      }
       matchingTooltip="Observations matching the current filters and global time range."
       formatCount={(count) =>
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={preserveObservedOptions}
+      displayMode={displayMode}
     />
   );
 }
