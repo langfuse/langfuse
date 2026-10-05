@@ -69,6 +69,7 @@
     "turbo": "2.11.6"
   },
   "release-it": {
+    "npm": false,
     "git": {
       "commitMessage": "chore: release v${version}",
       "tagName": "v${version}",
@@ -82,6 +83,9 @@
     "plugins": {
       "@release-it/bumper": {
         "out": [
+          {
+            "file": "./package.json"
+          },
           {
             "file": "./packages/shared/src/constants/VERSION.ts",
             "type": "application/typescript"
