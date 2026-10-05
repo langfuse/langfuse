@@ -2,7 +2,6 @@ export function groupConsecutiveTools<T>(
   rows: readonly T[],
   options: {
     isTool: (row: T) => boolean;
-    getName: (row: T) => string;
     getBoundary: (row: T) => string | number | undefined;
   },
 ) {
@@ -27,19 +26,7 @@ export function groupConsecutiveTools<T>(
       groups.push({ type: "row", row });
       continue;
     }
-    const counts = new Map<string, number>();
-    for (const tool of tools) {
-      const name = options.getName(tool);
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-    const names = Array.from(counts, ([name, count]) =>
-      count === 1 ? name : `${count}× ${name}`,
-    );
-    let summary = names[0]!;
-    if (names.length === 2) summary = `${names[0]} and ${names[1]}`;
-    if (names.length > 2)
-      summary = `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
-    if (summary.length > 60) summary = `${tools.length} tools`;
+    const summary = `${tools.length} tool calls`;
     groups.push({ type: "tools", rows: tools, summary });
   }
   return groups;

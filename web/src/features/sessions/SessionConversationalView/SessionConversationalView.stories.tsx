@@ -293,35 +293,32 @@ export const ConsecutiveToolGroups = meta.story({
     const timeline = within(
       canvas.getByLabelText("Session conversation timeline"),
     );
-    for (const summary of ["5× tool_1", "tool_a and tool_b", "7 tools"]) {
+    for (const summary of ["5 tool calls", "2 tool calls", "7 tool calls"]) {
       await expect(sidebar.getByText(summary)).toBeInTheDocument();
       await expect(
         timeline.getByRole("button", { name: `Show tools: ${summary}` }),
       ).toHaveAttribute("aria-expanded", "false");
     }
-    await userEvent.click(sidebar.getByText("tool_a and tool_b"));
-    await userEvent.click(
-      sidebar.getByRole("button", { name: "tool: tool_b" }),
-    );
+    await userEvent.click(sidebar.getByText("2 tool calls"));
     await expect(
-      timeline.getByRole("button", { name: "Hide tools: tool_a and tool_b" }),
+      timeline.getByRole("button", { name: "Hide tools: 2 tool calls" }),
     ).toHaveAttribute("aria-expanded", "true");
     await expect(
       timeline.getByRole("button", { name: "Expand tool_b" }),
     ).toBeInTheDocument();
     await userEvent.click(
-      timeline.getByRole("button", { name: "Hide tools: tool_a and tool_b" }),
+      timeline.getByRole("button", { name: "Hide tools: 2 tool calls" }),
     );
     await expect(
-      timeline.getByRole("button", { name: "Show tools: tool_a and tool_b" }),
+      timeline.getByRole("button", { name: "Show tools: 2 tool calls" }),
     ).toHaveAttribute("aria-expanded", "false");
     await userEvent.type(sidebar.getByRole("textbox"), "tool_1");
-    await expect(sidebar.getByText("5× tool_1")).toBeInTheDocument();
     await expect(
-      sidebar.queryByText("tool_a and tool_b"),
-    ).not.toBeInTheDocument();
+      sidebar.getAllByRole("button", { name: "tool: tool_1" }),
+    ).toHaveLength(5);
+    await expect(sidebar.queryByText("2 tool calls")).not.toBeInTheDocument();
     await expect(
-      timeline.getByRole("button", { name: "Show tools: 7 tools" }),
+      timeline.getByRole("button", { name: "Show tools: 7 tool calls" }),
     ).toBeInTheDocument();
   },
 });
@@ -336,10 +333,10 @@ export const MultipleTraces = meta.story({
   play: async ({ canvasElement }) => {
     const sidebar = within(within(canvasElement).getByRole("complementary"));
     await expect(
-      sidebar.getByRole("button", { name: "user: Can you check my order?" }),
+      sidebar.getByRole("button", { name: "User message" }),
     ).toBeInTheDocument();
     await expect(
-      sidebar.getByRole("button", { name: "assistant: I'll look it up." }),
+      sidebar.getByRole("button", { name: "Assistant message" }),
     ).toBeInTheDocument();
     await expect(
       sidebar.getByRole("button", { name: "1 First turn" }),
@@ -363,10 +360,10 @@ export const SearchMatchingMessages = meta.story({
     const sidebar = within(canvas.getByRole("complementary"));
     await userEvent.type(sidebar.getByRole("textbox"), "ORDER");
     await expect(
-      sidebar.getByRole("button", { name: "user: Can you check my order?" }),
+      sidebar.getByRole("button", { name: "User message" }),
     ).toBeInTheDocument();
     await expect(
-      sidebar.queryByRole("button", { name: "assistant: I'll look it up." }),
+      sidebar.queryByRole("button", { name: "Assistant message" }),
     ).not.toBeInTheDocument();
     await expect(
       sidebar.getByRole("button", { name: "1 First turn" }),

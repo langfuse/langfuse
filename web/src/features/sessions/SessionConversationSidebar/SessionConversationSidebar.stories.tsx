@@ -140,6 +140,9 @@ export const SelectMessagesAndTools = meta.story({
       throw new globalThis.Error("Expected loaded sidebar");
     const canvas = within(canvasElement);
     await expect(
+      canvas.queryByRole("heading", { name: "Thread 1" }),
+    ).not.toBeInTheDocument();
+    await expect(
       canvas.queryByRole("button", { name: "Filter observations" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
@@ -147,10 +150,209 @@ export const SelectMessagesAndTools = meta.story({
     );
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:3");
     await userEvent.click(
-      canvas.getByRole("button", {
-        name: "assistant: Initialize the SDK to start tracing.",
-      }),
+      canvas.getAllByRole("button", {
+        name: "Assistant message",
+      })[1]!,
     );
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:4");
+  },
+});
+export const MultipleThreads = meta.story({
+  name: "(Test) Multiple Threads",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        ...loadedArgs.traces[0]!,
+        threadCount: 2,
+        transcriptRows: [
+          {
+            id: "0:0",
+            threadIndex: 0,
+            observationId: "generation-1",
+            role: "tool",
+            label: "apply_patch",
+          },
+          {
+            id: "1:0",
+            threadIndex: 1,
+            observationId: "generation-2",
+            role: "tool",
+            label: "read_file",
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement, args }) => {
+    if (args.state !== "loaded")
+      throw new globalThis.Error("Expected loaded sidebar");
+    const canvas = within(canvasElement);
+    const firstThread = within(
+      await canvas.findByRole("region", { name: "Thread 1" }),
+    );
+    const secondThread = within(
+      canvas.getByRole("region", { name: "Thread 2" }),
+    );
+    await expect(
+      firstThread.getByRole("button", { name: "tool: apply_patch" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      secondThread.getByRole("button", { name: "tool: read_file" }),
+    );
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-2", "1:0");
+    await userEvent.type(canvas.getByRole("textbox"), "apply_patch");
+    await expect(
+      canvas.getByRole("heading", { name: "Thread 1" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("heading", { name: "Thread 2" }),
+    ).not.toBeInTheDocument();
+  },
+});
+export const GroupedTools = meta.story({
+  name: "(Test) Grouped Tools",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        ...loadedArgs.traces[0]!,
+        transcriptRows: [
+          {
+            id: "0:0",
+            observationId: "generation-1",
+            role: "tool",
+            label: "read_file",
+          },
+          {
+            id: "0:1",
+            observationId: "generation-2",
+            role: "tool",
+            label: "apply_patch",
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement, args }) => {
+    if (args.state !== "loaded")
+      throw new globalThis.Error("Expected loaded sidebar");
+    const canvas = within(canvasElement);
+    const group = await canvas.findByRole("button", {
+      name: "Tools: 2 tool calls",
+    });
+    await expect(group).not.toHaveAttribute("aria-expanded");
+    await expect(
+      canvas.queryByRole("button", { name: "tool: apply_patch" }),
+    ).not.toBeInTheDocument();
+    await userEvent.hover(group);
+    await expect(
+      within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).resolves.toHaveTextContent("read_file apply_patch");
+    await userEvent.click(group);
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:0");
+    await userEvent.type(canvas.getByRole("textbox"), "tool");
+    await expect(
+      canvas.queryByRole("button", { name: "Tools: 2 tool calls" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "tool: read_file" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "tool: apply_patch" }),
+    );
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-2", "0:1");
+    await userEvent.clear(canvas.getByRole("textbox"));
+    await expect(
+      canvas.getByRole("button", { name: "Tools: 2 tool calls" }),
+    ).toBeInTheDocument();
+  },
+});
+export const ConsecutiveMessages = meta.story({
+  name: "(Test) Consecutive Messages",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        ...loadedArgs.traces[0]!,
+        threadCount: 2,
+        transcriptRows: [
+          {
+            id: "0:0",
+            threadIndex: 0,
+            observationId: "generation-1",
+            role: "user",
+            label: "First request",
+          },
+          {
+            id: "0:1",
+            threadIndex: 0,
+            observationId: "generation-2",
+            role: "user",
+            label: "More context",
+          },
+          {
+            id: "0:2",
+            threadIndex: 0,
+            observationId: "generation-2",
+            role: "assistant",
+            label: "First response",
+          },
+          {
+            id: "0:3",
+            threadIndex: 0,
+            observationId: "generation-3",
+            role: "assistant",
+            label: "More detail",
+          },
+          {
+            id: "0:4",
+            threadIndex: 0,
+            observationId: "generation-3",
+            role: "tool",
+            label: "read_file",
+          },
+          {
+            id: "0:5",
+            threadIndex: 0,
+            observationId: "generation-4",
+            role: "assistant",
+            label: "Done",
+          },
+          {
+            id: "1:0",
+            threadIndex: 1,
+            observationId: "generation-5",
+            role: "assistant",
+            label: "Next thread",
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement, args }) => {
+    if (args.state !== "loaded")
+      throw new globalThis.Error("Expected loaded sidebar");
+    const canvas = within(canvasElement);
+    const firstThread = within(
+      await canvas.findByRole("region", { name: "Thread 1" }),
+    );
+    await userEvent.click(
+      firstThread.getByRole("button", { name: "2 User messages" }),
+    );
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:0");
+    await userEvent.click(
+      firstThread.getByRole("button", { name: "2 Assistant messages" }),
+    );
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-2", "0:2");
+    await expect(
+      firstThread.getByRole("button", { name: "Assistant message" }),
+    ).toBeInTheDocument();
+    await expect(
+      within(canvas.getByRole("region", { name: "Thread 2" })).getByRole(
+        "button",
+        { name: "Assistant message" },
+      ),
+    ).toBeInTheDocument();
   },
 });

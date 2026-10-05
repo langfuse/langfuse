@@ -1,14 +1,8 @@
 import { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  Bot,
-  ChevronDown,
-  Search,
-  Settings,
-  UserRound,
-  Wrench,
-} from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
@@ -22,9 +16,11 @@ export type SessionConversationSidebarTrace = {
   trace: EventSessionTrace;
   turnNumber: number;
   idleGapSeconds: number | null;
+  threadCount?: number;
   transcriptRows:
     | Array<{
         id: string;
+        threadIndex?: number;
         observationId: string;
         label: string;
         role: "system" | "user" | "assistant" | "tool";
@@ -194,6 +190,18 @@ export function SessionConversationSidebar(
                 sidebarTrace;
               const isCollapsed = !props.expandedTraceIds.has(trace.id);
               const isActive = trace.id === activeTraceId;
+              const threads = new Map<
+                number,
+                NonNullable<SessionConversationSidebarTrace["transcriptRows"]>
+              >();
+              for (const row of transcriptRows ?? []) {
+                const threadIndex = row.threadIndex ?? 0;
+                const threadRows = threads.get(threadIndex);
+                if (threadRows) threadRows.push(row);
+                else threads.set(threadIndex, [row]);
+              }
+              const showThreadHeaders =
+                (sidebarTrace.threadCount ?? threads.size) > 1;
               return (
                 <SessionVirtualizedRow
                   key={item.key}
@@ -277,86 +285,130 @@ export function SessionConversationSidebar(
                             </p>
                           )}
                           <div className="flex flex-col">
-                            {groupConsecutiveTools(transcriptRows ?? [], {
-                              isTool: (row) => row.role === "tool",
-                              getName: (row) => row.label,
-                              getBoundary: (row) => row.toolGroupId,
-                            }).map((group) => {
-                              if (group.type === "tools") {
-                                return (
-                                  <details
-                                    key={group.rows[0]!.id}
-                                    className="ph-no-capture group/tool-group min-w-0"
-                                  >
-                                    <summary className="text-muted-foreground hover:bg-foreground/10 -mr-2 -ml-1 flex cursor-pointer list-none items-center gap-2 rounded-sm px-1 py-1 text-[13px] [&::-webkit-details-marker]:hidden">
-                                      <Wrench className="h-3.5 w-3.5 shrink-0" />
-                                      <span
-                                        className="min-w-0 flex-1 truncate"
-                                        title={group.summary}
+                            {Array.from(threads, ([threadIndex, rows]) => (
+                              <section
+                                key={threadIndex}
+                                aria-label={
+                                  showThreadHeaders
+                                    ? `Thread ${threadIndex + 1}`
+                                    : undefined
+                                }
+                                className={cn(
+                                  "flex min-w-0 flex-col",
+                                  showThreadHeaders &&
+                                    "border-border mt-2 border-t pt-2 first:mt-0 first:border-t-0 first:pt-0",
+                                )}
+                              >
+                                {showThreadHeaders && (
+                                  <h4 className="text-muted-foreground pb-1 text-xs font-bold">
+                                    Thread {threadIndex + 1}
+                                  </h4>
+                                )}
+                                {groupConsecutiveTools(rows, {
+                                  isTool: (row) =>
+                                    props.search.trim() === "" &&
+                                    row.role === "tool",
+                                  getBoundary: (row) => row.toolGroupId,
+                                }).map((group, groupIndex, groups) => {
+                                  if (group.type === "tools") {
+                                    const firstTool = group.rows[0]!;
+                                    return (
+                                      <Tooltip
+                                        key={firstTool.id}
+                                        placement="right"
+                                        delay={200}
+                                        label={group.rows
+                                          .map((row) => row.label)
+                                          .join("\n")}
                                       >
-                                        {group.summary}
-                                      </span>
-                                      <ChevronDown className="h-3 w-3 shrink-0 -rotate-90 group-open/tool-group:rotate-0" />
-                                    </summary>
-                                    <div className="pl-2">
-                                      {group.rows.map((row) => (
-                                        <button
-                                          key={row.id}
-                                          type="button"
-                                          aria-label={`tool: ${row.label}`}
-                                          onClick={() =>
-                                            props.onSelect(
-                                              turnNumber - 1,
-                                              row.observationId,
-                                              row.id,
-                                            )
-                                          }
-                                          className="ph-no-capture text-muted-foreground hover:bg-foreground/10 flex w-full min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left text-[13px]"
-                                        >
-                                          <Wrench className="h-3.5 w-3.5 shrink-0" />
-                                          <span
-                                            className="min-w-0 flex-1 truncate"
-                                            title={row.label}
+                                        {({ getTriggerProps }) => (
+                                          <button
+                                            {...getTriggerProps()}
+                                            type="button"
+                                            aria-label={`Tools: ${group.summary}`}
+                                            onClick={() =>
+                                              props.onSelect(
+                                                turnNumber - 1,
+                                                firstTool.observationId,
+                                                firstTool.id,
+                                              )
+                                            }
+                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left text-[13px] transition-colors duration-150"
                                           >
-                                            {row.label}
-                                          </span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </details>
-                                );
-                              }
-                              const row = group.row;
-                              const Icon = {
-                                user: UserRound,
-                                assistant: Bot,
-                                system: Settings,
-                                tool: Wrench,
-                              }[row.role];
-                              return (
-                                <button
-                                  key={row.id}
-                                  type="button"
-                                  onClick={() =>
-                                    props.onSelect(
-                                      turnNumber - 1,
-                                      row.observationId,
-                                      row.id,
-                                    )
+                                            <span
+                                              className="min-w-0 flex-1 truncate"
+                                              title={group.summary}
+                                            >
+                                              {group.summary}
+                                            </span>
+                                          </button>
+                                        )}
+                                      </Tooltip>
+                                    );
                                   }
-                                  className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left transition-colors duration-150"
-                                  aria-label={`${row.role}: ${row.label}`}
-                                >
-                                  <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                                  <span
-                                    className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
-                                    title={row.label}
-                                  >
-                                    {row.label}
-                                  </span>
-                                </button>
-                              );
-                            })}
+                                  const row = group.row;
+                                  const previousGroup = groups[groupIndex - 1];
+                                  if (
+                                    row.role !== "tool" &&
+                                    previousGroup?.type === "row" &&
+                                    previousGroup.row.role === row.role
+                                  )
+                                    return null;
+                                  let messageCount = 1;
+                                  if (row.role !== "tool") {
+                                    for (
+                                      let index = groupIndex + 1;
+                                      index < groups.length;
+                                      index++
+                                    ) {
+                                      const nextGroup = groups[index]!;
+                                      if (
+                                        nextGroup.type !== "row" ||
+                                        nextGroup.row.role !== row.role
+                                      )
+                                        break;
+                                      messageCount++;
+                                    }
+                                  }
+                                  const messageLabel = {
+                                    user: "User message",
+                                    assistant: "Assistant message",
+                                    system: "System message",
+                                    tool: `Tool: ${row.label}`,
+                                  }[row.role];
+                                  const label =
+                                    messageCount === 1
+                                      ? messageLabel
+                                      : `${messageCount} ${messageLabel}s`;
+                                  return (
+                                    <button
+                                      key={row.id}
+                                      type="button"
+                                      onClick={() =>
+                                        props.onSelect(
+                                          turnNumber - 1,
+                                          row.observationId,
+                                          row.id,
+                                        )
+                                      }
+                                      className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left transition-colors duration-150"
+                                      aria-label={
+                                        row.role === "tool"
+                                          ? `tool: ${row.label}`
+                                          : label
+                                      }
+                                    >
+                                      <span
+                                        className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
+                                        title={label}
+                                      >
+                                        {label}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </section>
+                            ))}
                           </div>
                         </div>
                       )}

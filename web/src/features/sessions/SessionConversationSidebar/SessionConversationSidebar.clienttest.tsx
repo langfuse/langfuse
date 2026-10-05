@@ -86,7 +86,7 @@ describe("SessionConversationSidebar", () => {
     expect(
       screen.queryByRole("button", { name: "Filter observations" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "assistant: Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Assistant message" }));
     expect(onSelect).toHaveBeenCalledWith(1, "generation", "0:1");
     fireEvent.click(screen.getByRole("button", { name: "tool: search" }));
     expect(onSelect).toHaveBeenCalledWith(1, "generation", "0:2");
@@ -116,7 +116,7 @@ describe("SessionConversationSidebar", () => {
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "assistant: Answer" }),
+      screen.queryByRole("button", { name: "Assistant message" }),
     ).not.toBeInTheDocument();
   });
 

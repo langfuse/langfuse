@@ -71,10 +71,6 @@ function SessionTranscriptThread({
 }) {
   const groups = groupConsecutiveTools(rows, {
     isTool: ({ row }) => row.type === "tool",
-    getName: ({ row }) =>
-      row.type === "tool"
-        ? (row.call?.toolName ?? row.result?.toolName ?? "Tool")
-        : "",
     getBoundary: ({ threadIndex }) => threadIndex,
   });
   return groups.map((group) => {

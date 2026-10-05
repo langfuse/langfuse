@@ -36,7 +36,7 @@ export function SessionConversationalView(
         if (item.state.type === "empty") return [];
         let toolGroupId: string | undefined;
         return getSessionTranscriptRows(item.state.result.transcript).map(
-          ({ id, row }) => {
+          ({ id, threadIndex, row }) => {
             if (row.type !== "tool") toolGroupId = undefined;
             else if (toolGroupId === undefined) toolGroupId = id;
             const label =
@@ -54,6 +54,7 @@ export function SessionConversationalView(
                   row.message.role;
             return {
               id,
+              threadIndex,
               toolGroupId:
                 row.type === "tool"
                   ? `${id.split(":")[0]}:${toolGroupId}`
@@ -82,6 +83,10 @@ export function SessionConversationalView(
             ? null
             : computeIdleGapSeconds(props.traces[index - 1]!.trace, item.trace),
         transcriptRows: matchingRows,
+        threadCount:
+          item.state.type === "transcript"
+            ? item.state.result.transcript?.threads.length
+            : undefined,
       });
     }
   }
