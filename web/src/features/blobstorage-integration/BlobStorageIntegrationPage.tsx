@@ -16,6 +16,8 @@ import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration
 import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ArrowLeft } from "lucide-react";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 
 const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
   up_to_date: "active",
@@ -73,6 +75,22 @@ export default function BlobStorageIntegrationPage() {
       },
     },
   );
+  const utils = api.useUtils();
+  const deleteIntegration = api.blobStorageIntegration.delete.useMutation({
+    onSuccess: async () => {
+      await utils.blobStorageIntegration.invalidate();
+      showSuccessToast({
+        title: "Blob storage integration deleted",
+        description: "The integration was removed from this project.",
+      });
+    },
+    onError: (error) => {
+      showErrorToast(
+        "Failed to delete blob storage integration",
+        error.message,
+      );
+    },
+  });
 
   const selectedConfig =
     integrationId === "new"
@@ -122,11 +140,34 @@ export default function BlobStorageIntegrationPage() {
     if (!state.data) return <IntegrationSettingsSkeleton />;
     if (!showDetails) {
       return (
-        <BlobStorageIntegrationTable
-          integrations={state.data.configs}
-          onSelect={(integration) => openIntegration(integration.id)}
-          onCreate={() => openIntegration("new")}
-        />
+        <ConfirmationDialogController<
+          RouterOutputs["blobStorageIntegration"]["get"]["configs"][number]
+        >
+          title="Delete blob storage integration"
+          text={(integration) =>
+            `Delete the integration for “${integration.bucketName}”? This action cannot be undone.`
+          }
+          confirmLabel="Delete integration"
+          variant="destructive"
+          loading={deleteIntegration.isPending}
+          error={deleteIntegration.error?.message}
+          onAfterDismiss={deleteIntegration.reset}
+          onConfirm={(integration) =>
+            deleteIntegration.mutateAsync({
+              projectId,
+              integrationId: integration.id,
+            })
+          }
+        >
+          {({ openDialog }) => (
+            <BlobStorageIntegrationTable
+              integrations={state.data.configs}
+              onSelect={(integration) => openIntegration(integration.id)}
+              onCreate={() => openIntegration("new")}
+              onDelete={openDialog}
+            />
+          )}
+        </ConfirmationDialogController>
       );
     }
     if (integrationId !== "new" && !selectedConfig) {

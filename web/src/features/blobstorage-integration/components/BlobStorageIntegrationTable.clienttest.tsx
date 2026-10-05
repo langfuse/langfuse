@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type ComponentProps } from "react";
 
 import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
@@ -34,6 +34,7 @@ describe("BlobStorageIntegrationTable", () => {
         ]}
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        onDelete={vi.fn()}
       />,
     );
 
@@ -44,5 +45,43 @@ describe("BlobStorageIntegrationTable", () => {
     expect(failedRow).not.toBeNull();
     expect(within(healthyRow!).getByText("Active")).toBeInTheDocument();
     expect(within(failedRow!).getByText("Error")).toBeInTheDocument();
+  });
+
+  it("requests deletion for the selected row without opening it", async () => {
+    const onDelete = vi.fn();
+    const onSelect = vi.fn();
+
+    render(
+      <BlobStorageIntegrationTable
+        integrations={[
+          integration({ bucketName: "first-bucket" }),
+          integration({
+            id: "second-integration",
+            bucketName: "second-bucket",
+          }),
+        ]}
+        onSelect={onSelect}
+        onCreate={vi.fn()}
+        onDelete={onDelete}
+      />,
+    );
+
+    const secondRow = screen.getByText("second-bucket").closest("tr");
+    expect(secondRow).not.toBeNull();
+
+    fireEvent.click(
+      within(secondRow!).getByRole("button", { name: "Open actions menu" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "Delete integration",
+      }),
+    );
+
+    expect(onDelete).toHaveBeenCalledOnce();
+    expect(onDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "second-integration" }),
+    );
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

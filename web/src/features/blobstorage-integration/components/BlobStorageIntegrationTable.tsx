@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Plus } from "lucide-react";
+import { useCallback, useMemo } from "react";
+import { Plus, Trash2 } from "lucide-react";
 
 import {
   SettingsTable,
@@ -7,6 +7,7 @@ import {
 } from "@/src/components/SettingsTable/SettingsTable";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { type BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
@@ -41,10 +42,12 @@ export function BlobStorageIntegrationTable({
   integrations,
   onSelect,
   onCreate,
+  onDelete,
 }: {
   integrations: BlobStorageIntegration[];
   onSelect: (integration: BlobStorageIntegration) => void;
   onCreate: () => void;
+  onDelete: (integration: BlobStorageIntegration) => void;
 }) {
   const columns = useMemo<LangfuseColumnDef<BlobStorageIntegration>[]>(
     () => [
@@ -73,6 +76,21 @@ export function BlobStorageIntegrationTable({
     ],
     [],
   );
+  const actions = useCallback<
+    NonNullable<TableProps<BlobStorageIntegration>["actions"]>
+  >(
+    (integration) => [
+      {
+        id: "delete",
+        type: "item",
+        title: "Delete integration",
+        icon: Trash2,
+        variant: "destructive",
+        onClick: () => onDelete(integration),
+      },
+    ],
+    [onDelete],
+  );
   const toolbarActions: SettingsTableProps<BlobStorageIntegration>["toolbarActions"] =
     [
       {
@@ -89,6 +107,7 @@ export function BlobStorageIntegrationTable({
       tableName="Blob storage integrations"
       columns={columns}
       data={{ status: "success", data: integrations }}
+      actions={actions}
       toolbarActions={toolbarActions}
       onRowClick={onSelect}
       noResultsMessage="No blob storage integrations configured."
