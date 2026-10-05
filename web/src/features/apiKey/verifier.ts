@@ -84,14 +84,14 @@ export class Verifier {
     return null;
   }
 
-  /** backfillSlowHash bcrypt-verifies a secret against the public key's row, backfilling the fast hash on a match, or null on a miss. */
+  /** backfillSlowHash bcrypt-verifies keys without a fast hash and backfills matching secrets. */
   private async backfillSlowHash(
     publicKey: string,
     secretKey: string,
   ): Promise<VerifyApiKeyResult | null> {
     const found = await this.apiKeyRepo.findByPublicKey(publicKey);
     if (!found.success) return found;
-    if (!found.apiKey) return null;
+    if (!found.apiKey || found.apiKey.fastHashedSecretKey !== null) return null;
 
     let valid: boolean;
     try {

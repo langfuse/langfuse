@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { InternalServerError } from "@langfuse/shared";
 import { type ApiKey } from "@langfuse/shared/src/db";
-import { hashSecretKey } from "@langfuse/shared/src/server";
+import { hashSecretKey, verifySecretKey } from "@langfuse/shared/src/server";
 
 import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
 import {
@@ -10,6 +10,11 @@ import {
   type ApiKeyRepository,
 } from "@/src/features/apiKey/apiKeyRepository";
 import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+
+vi.mock(import("@langfuse/shared/src/server"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, verifySecretKey: vi.fn(actual.verifySecretKey) };
+});
 
 const SALT = "salt";
 const ADMIN = "admin-secret";
@@ -103,6 +108,24 @@ describe("Basic authenticates the secret as privateKey", () => {
       parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
     );
     expect(result.success).toBe(false);
+  });
+  it("rejects a fast-hash mismatch without bcrypt or backfill", async () => {
+    const key = apiKey();
+    const store = stubStore({
+      findByPublicKey: vi.fn(async () => lookup(key)),
+    });
+    vi.mocked(verifySecretKey).mockClear();
+
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "wrong-secret")),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: invalidCredentials },
+    });
+    expect(verifySecretKey).not.toHaveBeenCalled();
+    expect(store.backfillFastHash).not.toHaveBeenCalled();
   });
 });
 
