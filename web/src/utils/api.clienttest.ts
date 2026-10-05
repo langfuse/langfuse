@@ -6,6 +6,7 @@ import {
   EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
+  EXPECTED_TRPC_ERROR_MESSAGES,
   captureBuildId,
   fetchWithParseErrorStatus,
   getApproxTrpcGetUrlBytes,
@@ -611,6 +612,67 @@ describe("isExpectedTrpcClientError", () => {
     expect(isExpectedTrpcClientError(null)).toBe(false);
     expect(isExpectedTrpcClientError(undefined)).toBe(false);
   });
+
+  it.each(EXPECTED_TRPC_ERROR_MESSAGES)(
+    "treats the password-reset OTP message %j as expected even without a string data.code",
+    (message) => {
+      // Production envelope: HTTP 200 + error body, `data.code` missing or
+      // tagged SUCCESS on the Sentry span. Classification must not depend
+      // on UNAUTHORIZED being present on `data.code`.
+      const withoutCode = TRPCClientError.from({
+        error: {
+          code: -32001,
+          message,
+          data: { path: "credentials.resetPassword" },
+        },
+      });
+      const successCode = TRPCClientError.from({
+        error: {
+          code: -32001,
+          message,
+          data: { code: "SUCCESS", path: "credentials.resetPassword" },
+        },
+      });
+
+      expect(isExpectedTrpcClientError(withoutCode)).toBe(true);
+      expect(isExpectedTrpcClientError(successCode)).toBe(true);
+    },
+  );
+
+  it("does not treat a nearby OTP wording as expected", () => {
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "SUCCESS",
+          httpStatus: 200,
+          path: "credentials.resetPassword",
+          message: "Invalid verification code",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not suppress a 5xx on credentials.resetPassword", () => {
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: "credentials.resetPassword",
+          message:
+            "Internal error. We have been notified and are working on it.",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not treat a non-tRPC Error with the OTP message as expected", () => {
+    expect(
+      isExpectedTrpcClientError(
+        new Error("Invalid or expired verification code."),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("getTrpcErrorFingerprint", () => {
@@ -860,6 +922,22 @@ describe("reportTrpcErrorWithoutToast", () => {
     expect(captureExceptionMock).toHaveBeenCalledTimes(1);
     const [, options] = captureExceptionMock.mock.calls[0]!;
     expect(options.tags.area).toBe("evals");
+  });
+
+  it("suppresses a password-reset OTP failure even when data.code is SUCCESS", () => {
+    reportTrpcErrorWithoutToast(
+      TRPCClientError.from({
+        error: {
+          code: -32001,
+          message: EXPECTED_TRPC_ERROR_MESSAGES[0],
+          data: { code: "SUCCESS", path: "credentials.resetPassword" },
+        },
+      }),
+      "auth",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
   });
 
   it("never shows the standard error toast (the local onError owns the UX)", () => {

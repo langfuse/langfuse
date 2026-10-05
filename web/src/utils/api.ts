@@ -132,10 +132,11 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
- * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
- * must not log them.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus the exact server-minted
+ * messages on {@link EXPECTED_TRPC_ERROR_MESSAGES}. Empty/too-short fields,
+ * stale in-app-agent approvals, a rejected user-configured remote-experiment
+ * URL, and an invalid/expired password-reset OTP are the product working as
+ * designed — the toast / form error is the UX; Sentry must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
@@ -175,6 +176,26 @@ export const EXPECTED_TRPC_CONFLICT_PATHS = [
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
   "datasets.upsertRemoteExperiment",
+] as const;
+
+/**
+ * Exact, server-minted `TRPCClientError` messages that are expected
+ * user-facing states even when `data.code` is missing or not one of
+ * {@link EXPECTED_TRPC_ERROR_CODES}.
+ *
+ * `credentials.resetPassword` throws these as `UNAUTHORIZED` for a wrong,
+ * expired, or already-consumed email OTP (and for a signed-in email
+ * mismatch). The setup/reset form already renders the message. In
+ * production the HTTP envelope can be 200 with the error in the JSON
+ * body, so the client sometimes tags `trpc.code=SUCCESS` and the
+ * code-only allowlist misses the event.
+ *
+ * Exact match only — a nearby wording or a non-`TRPCClientError` with
+ * the same text still captures.
+ */
+export const EXPECTED_TRPC_ERROR_MESSAGES = [
+  "Invalid or expired verification code.",
+  "Verification code does not match the signed-in account.",
 ] as const;
 
 const getTrpcErrorData = (
@@ -218,7 +239,8 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => [
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
  * See {@link EXPECTED_TRPC_ERROR_CODES}, {@link EXPECTED_TRPC_CONFLICT_PATHS},
- * and {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, and
+ * {@link EXPECTED_TRPC_ERROR_MESSAGES}.
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
@@ -240,6 +262,12 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
     code === "BAD_REQUEST" &&
     path !== undefined &&
     (EXPECTED_TRPC_BAD_REQUEST_PATHS as readonly string[]).includes(path)
+  ) {
+    return true;
+  }
+  if (
+    error instanceof TRPCClientError &&
+    (EXPECTED_TRPC_ERROR_MESSAGES as readonly string[]).includes(error.message)
   ) {
     return true;
   }
