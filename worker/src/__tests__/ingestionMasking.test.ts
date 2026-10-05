@@ -263,6 +263,7 @@ describe("Ingestion Masking", () => {
         expect(validations).toBe(2);
         expect(maskingServer.getReceivedRequests()).toHaveLength(2);
         for (const request of maskingServer.getReceivedRequests()) {
+          expect(request.headers["content-type"]).toBe("application/json");
           expect(request.body).toEqual(sampleSpanData);
         }
         expect(result.success).toBe(outcome !== "fail-closed");

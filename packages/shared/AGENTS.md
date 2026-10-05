@@ -58,8 +58,9 @@
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure
-  policy independent of representation. The optional transport handles request bodies
-  and response validation; default callers retain JSON serialization.
+  policy independent of in-memory representation. The callback always exchanges JSON;
+  the optional transport supplies reusable JSON text or UTF-8 bytes and validates
+  responses inside retries. Default callers retain JSON serialization.
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points

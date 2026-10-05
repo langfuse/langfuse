@@ -29,9 +29,10 @@ export interface ApplyIngestionMaskingParams<T> {
   propagatedHeaders?: Record<string, string>;
 }
 
-/** Representation-specific HTTP handling; response validation runs inside masking retries. */
+/** JSON callback encoding and decoding; response validation runs inside masking retries. */
 export interface IngestionMaskingTransport<T> {
-  body(data: T): NonNullable<Parameters<typeof fetch>[1]>["body"];
+  /** JSON text or UTF-8 JSON bytes, reusable across retries. */
+  body(data: T): string | Uint8Array<ArrayBuffer>;
   read(response: Response): Promise<T>;
 }
 
