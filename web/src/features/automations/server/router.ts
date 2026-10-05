@@ -144,12 +144,15 @@ const validateScoreAnnotationAutomation = async ({
   const valueFilters = filters.filter((item) =>
     ["value", "stringValue", "longStringValue"].includes(item.column),
   );
-  const expectedValueColumn =
-    scoreConfig.dataType === "NUMERIC" || scoreConfig.dataType === "BOOLEAN"
-      ? "value"
-      : scoreConfig.dataType === "TEXT"
-        ? "longStringValue"
-        : "stringValue";
+  let expectedValueColumn = "stringValue";
+  if (
+    scoreConfig.dataType === "NUMERIC" ||
+    scoreConfig.dataType === "BOOLEAN"
+  ) {
+    expectedValueColumn = "value";
+  } else if (scoreConfig.dataType === "TEXT") {
+    expectedValueColumn = "longStringValue";
+  }
   const valueFilter = valueFilters[0];
   if (
     valueFilters.length > 1 ||

@@ -1,6 +1,5 @@
 import React from "react";
 import { type UseFormReturn } from "react-hook-form";
-import { z } from "zod";
 import {
   type ActionCreate,
   type ActionDomain,
@@ -10,15 +9,9 @@ import {
 import { type BaseActionHandler } from "./BaseActionHandler";
 import { AnnotationQueueActionForm } from "./AnnotationQueueActionForm";
 
-const AnnotationQueueActionFormSchema = z.object({
-  annotationQueue: z.object({
-    queueIds: z.array(z.string()).min(1),
-  }),
-});
-
-type AnnotationQueueActionFormData = z.infer<
-  typeof AnnotationQueueActionFormSchema
->;
+type AnnotationQueueActionFormData = {
+  annotationQueue: Pick<AnnotationQueueActionConfig, "queueIds">;
+};
 
 export class AnnotationQueueActionHandler implements BaseActionHandler<AnnotationQueueActionFormData> {
   actionType = "ANNOTATION_QUEUE" as const;
