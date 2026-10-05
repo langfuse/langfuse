@@ -3,6 +3,7 @@ import { useMemo, useCallback, useRef, useState } from "react";
 import {
   Check,
   Github,
+  ListPlus,
   Plus,
   Slack,
   Webhook as WebhookIcon,
@@ -38,6 +39,7 @@ const actionLabel: Record<ActionTypes, string> = {
   WEBHOOK: "Webhook",
   SLACK: "Slack",
   GITHUB_DISPATCH: "GitHub Dispatch",
+  ANNOTATION_QUEUE: "Annotation Queue",
 };
 
 const actionIcon = {
@@ -46,6 +48,7 @@ const actionIcon = {
   SLACK: Slack,
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- Preserve existing automation brand icons until their replacements are migrated.
   GITHUB_DISPATCH: Github,
+  ANNOTATION_QUEUE: ListPlus,
 } satisfies Record<ActionTypes, typeof WebhookIcon>;
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */

@@ -333,7 +333,21 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
       })
       .optional(),
   }),
-  // Add other entity types here in the future
+  z.object({
+    entityType: z.literal("score"),
+    projectId: z.string(),
+    eventId: z.string(),
+    action: EventActionSchema.extract(["created", "updated"]),
+    score: z.object({
+      id: z.string(),
+      name: z.string(),
+      dataType: z.string(),
+      value: z.number(),
+      stringValue: z.string().nullish(),
+      longStringValue: z.string().nullish(),
+      observationId: z.string().nullish(),
+    }),
+  }),
 ]);
 export type EntityChangeEventType = z.infer<typeof EntityChangeEventSchema>;
 

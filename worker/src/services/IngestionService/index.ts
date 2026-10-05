@@ -61,6 +61,7 @@ import {
   type IngestionAttribution,
   type PricingTierMatchAttributes,
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+  scoreChangeEventSourcing,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -797,6 +798,21 @@ export class IngestionService {
       toClickhouseDateTime(createdAtTimestamp);
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+
+    await scoreChangeEventSourcing({
+      projectId,
+      eventId: `${finalScoreRecord.id}:${finalScoreRecord.event_ts}`,
+      action: clickhouseScoreRecord ? "updated" : "created",
+      score: {
+        id: finalScoreRecord.id,
+        name: finalScoreRecord.name,
+        dataType: finalScoreRecord.data_type,
+        value: finalScoreRecord.value,
+        stringValue: finalScoreRecord.string_value,
+        longStringValue: finalScoreRecord.long_string_value,
+        observationId: finalScoreRecord.observation_id,
+      },
+    });
   }
 
   private async processTraceEventList(params: {

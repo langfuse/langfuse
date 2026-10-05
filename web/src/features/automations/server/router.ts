@@ -12,7 +12,9 @@ import {
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
+  type FilterState,
 } from "@langfuse/shared";
+import { type PrismaClient } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { v4 } from "uuid";
 import {
@@ -44,6 +46,160 @@ const CreateAutomationInputSchema = z.object({
 const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
   automationId: z.string(),
 });
+
+const validateScoreAnnotationAutomation = async ({
+  prisma,
+  projectId,
+  eventSource,
+  actionConfig,
+  actionType,
+  filter,
+  eventActions,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  eventSource: TriggerEventSource;
+  actionConfig: z.infer<typeof ActionCreateSchema>;
+  actionType: z.infer<typeof CreateAutomationInputSchema>["actionType"];
+  filter: FilterState | null;
+  eventActions: string[];
+}) => {
+  if (actionType !== actionConfig.type) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Action type does not match the action configuration.",
+    });
+  }
+  const isScoreTrigger = eventSource === TriggerEventSource.Score;
+  const isAnnotationQueueAction = actionConfig.type === "ANNOTATION_QUEUE";
+
+  if (isScoreTrigger !== isAnnotationQueueAction) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "Score triggers must use an annotation queue action, and annotation queue actions must use a score trigger.",
+    });
+  }
+  if (!isScoreTrigger) return;
+  if (actionConfig.type !== "ANNOTATION_QUEUE") return;
+  if (
+    eventActions.length === 0 ||
+    eventActions.some((action) => action === "deleted")
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Score triggers support created and updated score events.",
+    });
+  }
+
+  const filters = filter ?? [];
+  const nameFilter = filters.find((item) => item.column === "name");
+  const dataTypeFilter = filters.find((item) => item.column === "dataType");
+  const allowedColumns = new Set([
+    "name",
+    "dataType",
+    "value",
+    "stringValue",
+    "longStringValue",
+  ]);
+
+  const uniqueColumns = new Set(filters.map((item) => item.column));
+  if (
+    filters.length < 2 ||
+    filters.length > 3 ||
+    uniqueColumns.size !== filters.length ||
+    filters.some((item) => !allowedColumns.has(item.column)) ||
+    nameFilter?.type !== "string" ||
+    nameFilter.operator !== "=" ||
+    typeof nameFilter.value !== "string" ||
+    dataTypeFilter?.type !== "string" ||
+    dataTypeFilter.operator !== "=" ||
+    typeof dataTypeFilter.value !== "string"
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid score trigger configuration.",
+    });
+  }
+
+  const scoreConfig = await prisma.scoreConfig.findFirst({
+    where: {
+      projectId,
+      name: nameFilter.value,
+      dataType: dataTypeFilter.value as
+        | "NUMERIC"
+        | "BOOLEAN"
+        | "CATEGORICAL"
+        | "TEXT",
+    },
+    select: { id: true, dataType: true, categories: true },
+  });
+  if (!scoreConfig) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "The selected score configuration was not found.",
+    });
+  }
+
+  const valueFilters = filters.filter((item) =>
+    ["value", "stringValue", "longStringValue"].includes(item.column),
+  );
+  const expectedValueColumn =
+    scoreConfig.dataType === "NUMERIC" || scoreConfig.dataType === "BOOLEAN"
+      ? "value"
+      : scoreConfig.dataType === "TEXT"
+        ? "longStringValue"
+        : "stringValue";
+  const valueFilter = valueFilters[0];
+  if (
+    valueFilters.length > 1 ||
+    (valueFilter &&
+      (valueFilter.column !== expectedValueColumn ||
+        valueFilter.operator !== "=" ||
+        (expectedValueColumn === "value"
+          ? valueFilter.type !== "number" ||
+            typeof valueFilter.value !== "number" ||
+            !Number.isFinite(valueFilter.value) ||
+            (scoreConfig.dataType === "BOOLEAN" &&
+              valueFilter.value !== 0 &&
+              valueFilter.value !== 1)
+          : valueFilter.type !== "string" ||
+            typeof valueFilter.value !== "string")))
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid score trigger value.",
+    });
+  }
+
+  if (
+    scoreConfig.dataType === "CATEGORICAL" &&
+    valueFilter?.type === "string" &&
+    !z
+      .array(z.object({ label: z.string(), value: z.number() }))
+      .catch([])
+      .parse(scoreConfig.categories)
+      .some((category) => category.label === valueFilter.value)
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "The selected categorical score value does not exist.",
+    });
+  }
+
+  const queueCount = await prisma.annotationQueue.count({
+    where: {
+      projectId,
+      id: { in: actionConfig.queueIds },
+    },
+  });
+  if (queueCount !== new Set(actionConfig.queueIds).size) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "One or more selected annotation queues were not found.",
+    });
+  }
+};
 
 export const automationsRouter = createTRPCRouter({
   // Get automations that were recently auto-disabled due to failures
@@ -278,6 +434,16 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
+      await validateScoreAnnotationAutomation({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        eventSource: TriggerEventSourceSchema.parse(input.eventSource),
+        actionConfig: input.actionConfig,
+        actionType: input.actionType,
+        filter: input.filter,
+        eventActions: input.eventAction,
+      });
+
       const triggerId = v4();
       const actionId = v4();
 
@@ -395,6 +561,16 @@ export const automationsRouter = createTRPCRouter({
           message: `Automation with id ${input.automationId} not found.`,
         });
       }
+
+      await validateScoreAnnotationAutomation({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        eventSource: TriggerEventSourceSchema.parse(input.eventSource),
+        actionConfig: input.actionConfig,
+        actionType: input.actionType,
+        filter: input.filter,
+        eventActions: input.eventAction,
+      });
 
       let finalActionConfig = input.actionConfig;
 

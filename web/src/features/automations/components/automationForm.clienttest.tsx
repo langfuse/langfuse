@@ -31,6 +31,35 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: { labels: [], tags: [] }, isFetching: false }),
       },
     },
+    scoreConfigs: {
+      all: {
+        useQuery: () => ({
+          data: {
+            configs: [
+              {
+                id: "score-config-1",
+                name: "quality",
+                dataType: "BOOLEAN",
+                categories: [
+                  { label: "True", value: 1 },
+                  { label: "False", value: 0 },
+                ],
+                isArchived: false,
+              },
+            ],
+          },
+          isLoading: false,
+        }),
+      },
+    },
+    annotationQueues: {
+      allNamesAndIds: {
+        useQuery: () => ({
+          data: [{ id: "queue-1", name: "Needs review" }],
+          isLoading: false,
+        }),
+      },
+    },
     projects: { byId: { useQuery: () => ({ data: undefined }) } },
     naturalLanguageFilters: {
       createCompletion: { useMutation: () => ({ mutateAsync: vi.fn() }) },
@@ -162,5 +191,49 @@ describe("AutomationForm handleActionTypeChange", () => {
 
     expect(screen.queryByText("API Version")).toBeNull();
     expect(screen.queryByText("Select API version")).toBeNull();
+  });
+
+  it("submits score name and type with annotation queue ids", async () => {
+    render(<AutomationForm projectId="p1" isEditing={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+      target: { value: "Review quality scores" },
+    });
+
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "Score" }));
+
+    fireEvent.click(screen.getAllByRole("combobox")[1]);
+    fireEvent.click(
+      await screen.findByRole("option", { name: "quality (boolean)" }),
+    );
+
+    const queuePicker = screen.getAllByRole("combobox").at(-1);
+    expect(queuePicker).toBeDefined();
+    fireEvent.click(queuePicker!);
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Needs review" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+
+    await waitFor(() => {
+      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
+      eventSource: TriggerEventSource.Score,
+      eventAction: ["created", "updated"],
+      filter: [
+        { column: "name", operator: "=", value: "quality", type: "string" },
+        {
+          column: "dataType",
+          operator: "=",
+          value: "BOOLEAN",
+          type: "string",
+        },
+      ],
+      actionType: "ANNOTATION_QUEUE",
+      actionConfig: { type: "ANNOTATION_QUEUE", queueIds: ["queue-1"] },
+    });
   });
 });

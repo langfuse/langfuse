@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  Score = "score",
   Monitor = "monitor",
   // ProjectNotification groups platform "something went wrong" events (e.g.
   // failed exports, blocked evaluators). The specific event lives in the
@@ -17,6 +18,7 @@ export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
 export const TriggerEventSourceSchema = z.enum([
   TriggerEventSource.Prompt,
+  TriggerEventSource.Score,
   TriggerEventSource.Monitor,
   TriggerEventSource.ProjectNotification,
 ]);
@@ -60,7 +62,12 @@ export type ActionDomainWithSecrets = Omit<Action, "config"> & {
   config: ActionConfigWithSecrets;
 };
 
-export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK", "GITHUB_DISPATCH"]);
+export const ActionTypeSchema = z.enum([
+  "WEBHOOK",
+  "SLACK",
+  "GITHUB_DISPATCH",
+  "ANNOTATION_QUEUE",
+]);
 
 export const AvailableWebhookApiSchema = z.partialRecord(
   z.enum(["prompt", "monitor", "project-notification"]),
@@ -110,6 +117,20 @@ export const SlackActionConfigSchema = z.object({
 
 export type SlackActionConfig = z.infer<typeof SlackActionConfigSchema>;
 
+export const AnnotationQueueActionConfigSchema = z.object({
+  type: z.literal("ANNOTATION_QUEUE"),
+  queueIds: z
+    .array(z.string())
+    .min(1)
+    .refine((queueIds) => new Set(queueIds).size === queueIds.length, {
+      message: "Annotation queue ids must be unique",
+    }),
+});
+
+export type AnnotationQueueActionConfig = z.infer<
+  typeof AnnotationQueueActionConfigSchema
+>;
+
 export const GitHubDispatchActionConfigSchema = z.object({
   type: z.literal("GITHUB_DISPATCH"),
   url: z.url(),
@@ -146,18 +167,21 @@ export const ActionConfigSchema = z.discriminatedUnion("type", [
   WebhookActionConfigSchema,
   SlackActionConfigSchema,
   GitHubDispatchActionConfigSchema,
+  AnnotationQueueActionConfigSchema,
 ]);
 
 export const ActionCreateSchema = z.discriminatedUnion("type", [
   WebhookActionCreateSchema,
   SlackActionConfigSchema,
   GitHubDispatchActionCreateSchema,
+  AnnotationQueueActionConfigSchema,
 ]);
 
 export const SafeActionConfigSchema = z.discriminatedUnion("type", [
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  AnnotationQueueActionConfigSchema,
 ]);
 
 export type ActionTypes = z.infer<typeof ActionTypeSchema>;
@@ -191,6 +215,12 @@ export function isSlackActionConfig(
   config: unknown,
 ): config is SlackActionConfig {
   return SlackActionConfigSchema.safeParse(config).success;
+}
+
+export function isAnnotationQueueActionConfig(
+  config: unknown,
+): config is AnnotationQueueActionConfig {
+  return AnnotationQueueActionConfigSchema.safeParse(config).success;
 }
 
 /**

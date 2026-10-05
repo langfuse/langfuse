@@ -70,6 +70,18 @@ const githubDispatchSchema = z.object({
   originalUrl: z.string().optional(),
 });
 
+const scoreTriggerSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  dataType: z.enum(["NUMERIC", "BOOLEAN", "CATEGORICAL", "TEXT"]),
+  matchValue: z.boolean(),
+  value: z.string(),
+});
+
+const annotationQueueSchema = z.object({
+  queueIds: z.array(z.string()).min(1, "Select at least one annotation queue"),
+});
+
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
 const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
@@ -173,10 +185,11 @@ export const automationCreateHref = (
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
-  eventSource: z.string().min(1, "Event source is required"),
+  eventSource: TriggerEventSourceSchema,
   eventAction: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
+  score: scoreTriggerSchema,
 });
 
 const formSchema = z
@@ -193,6 +206,10 @@ const formSchema = z
       actionType: z.literal("GITHUB_DISPATCH"),
       githubDispatch: githubDispatchSchema,
     }),
+    baseFormSchema.extend({
+      actionType: z.literal("ANNOTATION_QUEUE"),
+      annotationQueue: annotationQueueSchema,
+    }),
   ])
   .superRefine((data, ctx) => {
     // Prompt-source triggers require at least one event action; monitor and
@@ -206,6 +223,18 @@ const formSchema = z
         code: "custom",
         path: ["eventAction"],
         message: "At least one event action is required",
+      });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      (!data.score.name ||
+        !data.score.dataType ||
+        (data.score.matchValue && data.score.value === ""))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["score"],
+        message: "Select a score and provide the optional match value.",
       });
     }
   });
@@ -244,6 +273,7 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
+              <SelectItem value={TriggerEventSource.Score}>Score</SelectItem>
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
@@ -372,6 +402,214 @@ const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
   </Alert>
 );
 
+const scoreKey = (name: string, dataType: string) =>
+  JSON.stringify([name, dataType]);
+
+const getScoreTriggerDefaults = (
+  filter: FilterState,
+): z.infer<typeof scoreTriggerSchema> => {
+  const name = filter.find((item) => item.column === "name")?.value;
+  const dataType = filter.find((item) => item.column === "dataType")?.value;
+  const valueFilter = filter.find((item) =>
+    ["value", "stringValue", "longStringValue"].includes(item.column),
+  );
+  const validName = typeof name === "string" ? name : "";
+  const validDataType =
+    dataType === "NUMERIC" ||
+    dataType === "BOOLEAN" ||
+    dataType === "CATEGORICAL" ||
+    dataType === "TEXT"
+      ? dataType
+      : "NUMERIC";
+
+  return {
+    key: validName ? scoreKey(validName, validDataType) : "",
+    name: validName,
+    dataType: validDataType as z.infer<typeof scoreTriggerSchema>["dataType"],
+    matchValue: Boolean(valueFilter),
+    value:
+      typeof valueFilter?.value === "string" ||
+      typeof valueFilter?.value === "number"
+        ? String(valueFilter.value)
+        : "",
+  };
+};
+
+const buildScoreTriggerFilter = (
+  score: z.infer<typeof scoreTriggerSchema>,
+): FilterState => {
+  const filter: FilterState = [
+    { column: "name", type: "string", operator: "=", value: score.name },
+    {
+      column: "dataType",
+      type: "string",
+      operator: "=",
+      value: score.dataType,
+    },
+  ];
+  if (!score.matchValue) return filter;
+
+  if (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") {
+    filter.push({
+      column: "value",
+      type: "number",
+      operator: "=",
+      value: Number(score.value),
+    });
+  } else {
+    filter.push({
+      column: score.dataType === "TEXT" ? "longStringValue" : "stringValue",
+      type: "string",
+      operator: "=",
+      value: score.value,
+    });
+  }
+  return filter;
+};
+
+const ScoreTriggerFields = ({
+  projectId,
+  control,
+  disabled,
+}: {
+  projectId: string;
+  control: Control<FormValues>;
+  disabled: boolean;
+}) => {
+  const { data, isLoading } = api.scoreConfigs.all.useQuery({ projectId });
+
+  return (
+    <>
+      <FormField
+        control={control}
+        name="score"
+        render={({ field }) => {
+          const config = data?.configs.find(
+            (item) =>
+              item.name === field.value.name &&
+              item.dataType === field.value.dataType,
+          );
+          const configs = (data?.configs ?? []).filter(
+            (item) => !item.isArchived || item.id === config?.id,
+          );
+
+          return (
+            <div className="space-y-4">
+              <FormItem>
+                <FormLabel>Score</FormLabel>
+                <Select
+                  value={field.value.key}
+                  disabled={disabled || isLoading}
+                  onValueChange={(key) => {
+                    const selected = configs.find(
+                      (item) => scoreKey(item.name, item.dataType) === key,
+                    );
+                    if (!selected) return;
+                    field.onChange({
+                      key,
+                      name: selected.name,
+                      dataType: selected.dataType,
+                      matchValue: false,
+                      value: "",
+                    });
+                  }}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a score" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {configs.map((item) => (
+                      <SelectItem
+                        key={item.id}
+                        value={scoreKey(item.name, item.dataType)}
+                      >
+                        {item.name} ({item.dataType.toLowerCase()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  The automation matches this score name and type.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+
+              {config ? (
+                <FormItem className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={field.value.matchValue}
+                      onCheckedChange={(matchValue) =>
+                        field.onChange({
+                          ...field.value,
+                          matchValue,
+                          value: "",
+                        })
+                      }
+                      disabled={disabled}
+                    />
+                    <FormLabel>
+                      Only when the score has a specific value
+                    </FormLabel>
+                  </div>
+                  {field.value.matchValue ? (
+                    config.dataType === "BOOLEAN" ||
+                    config.dataType === "CATEGORICAL" ? (
+                      <Select
+                        value={field.value.value}
+                        onValueChange={(value) =>
+                          field.onChange({ ...field.value, value })
+                        }
+                        disabled={disabled}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a value" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {(config.categories ?? []).map((category) => (
+                            <SelectItem
+                              key={category.label}
+                              value={
+                                config.dataType === "BOOLEAN"
+                                  ? String(category.value)
+                                  : category.label
+                              }
+                            >
+                              {category.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        type={config.dataType === "NUMERIC" ? "number" : "text"}
+                        value={field.value.value}
+                        onChange={(event) =>
+                          field.onChange({
+                            ...field.value,
+                            value: event.target.value,
+                          })
+                        }
+                        disabled={disabled}
+                        placeholder="Value"
+                      />
+                    )
+                  ) : null}
+                  <FormMessage />
+                </FormItem>
+              ) : null}
+            </div>
+          );
+        }}
+      />
+    </>
+  );
+};
+
 interface AutomationFormProps {
   projectId: string;
   onSuccess?: (
@@ -452,11 +690,13 @@ export const AutomationForm = ({
       automation?.trigger.eventActions ??
       (resolvedEventSource === TriggerEventSource.Prompt
         ? promptEventActionDefaults
-        : resolvedEventSource === TriggerEventSource.ProjectNotification
-          ? // New channels start with every event enabled; the per-event
-            // toggles in the settings section manage them afterwards.
-            [...ProjectNotificationEventTypeSchema.options]
-          : []);
+        : resolvedEventSource === TriggerEventSource.Score
+          ? ["created", "updated"]
+          : resolvedEventSource === TriggerEventSource.ProjectNotification
+            ? // New channels start with every event enabled; the per-event
+              // toggles in the settings section manage them afterwards.
+              [...ProjectNotificationEventTypeSchema.options]
+            : []);
 
     const resolvedFilter: FilterState =
       automation?.trigger.filter ?? parsedPrefill.filter ?? [];
@@ -476,6 +716,7 @@ export const AutomationForm = ({
         ? automation.trigger.status
         : "ACTIVE") as "ACTIVE" | "INACTIVE",
       filter: resolvedFilter,
+      score: getScoreTriggerDefaults(resolvedFilter),
     };
 
     if (actionType === "WEBHOOK") {
@@ -517,6 +758,16 @@ export const AutomationForm = ({
           displayGitHubToken:
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
           originalUrl: githubDefaults.githubDispatch.originalUrl,
+        },
+      };
+    } else if (actionType === "ANNOTATION_QUEUE") {
+      const handler = ActionHandlerRegistry.getHandler("ANNOTATION_QUEUE");
+      const defaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "ANNOTATION_QUEUE" as const,
+        annotationQueue: {
+          queueIds: defaults.annotationQueue.queueIds ?? [],
         },
       };
     }
@@ -572,7 +823,12 @@ export const AutomationForm = ({
         name: resolvedName,
         eventSource: data.eventSource,
         eventAction: data.eventAction,
-        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        filter:
+          data.eventSource === TriggerEventSource.Score
+            ? buildScoreTriggerFilter(data.score)
+            : data.filter && data.filter.length > 0
+              ? data.filter
+              : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
         actionConfig: actionConfig,
@@ -591,7 +847,12 @@ export const AutomationForm = ({
         name: resolvedName,
         eventSource: data.eventSource,
         eventAction: data.eventAction,
-        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        filter:
+          data.eventSource === TriggerEventSource.Score
+            ? buildScoreTriggerFilter(data.score)
+            : data.filter && data.filter.length > 0
+              ? data.filter
+              : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
         actionConfig: actionConfig,
@@ -630,6 +891,10 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
+    } else if (value === "ANNOTATION_QUEUE") {
+      const handler = ActionHandlerRegistry.getHandler("ANNOTATION_QUEUE");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("annotationQueue", defaultValues.annotationQueue);
     }
   };
 
@@ -673,13 +938,25 @@ export const AutomationForm = ({
   /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
   const handleEventSourceChange = (value: TriggerEventSource) => {
     form.setValue("eventSource", value);
-    if (value === TriggerEventSource.Monitor) {
+    if (value === TriggerEventSource.Score) {
+      form.setValue("eventAction", ["created", "updated"]);
+      handleActionTypeChange("ANNOTATION_QUEUE");
+    } else if (value === TriggerEventSource.Monitor) {
       form.setValue("eventAction", []);
+      if (form.getValues("actionType") === "ANNOTATION_QUEUE") {
+        handleActionTypeChange("WEBHOOK");
+      }
     } else {
       form.setValue("eventAction", promptEventActionDefaults);
+      if (form.getValues("actionType") === "ANNOTATION_QUEUE") {
+        handleActionTypeChange("WEBHOOK");
+      }
     }
     form.setValue("filter", []);
   };
+
+  const actionTypes =
+    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes();
 
   return (
     <Form {...form}>
@@ -747,6 +1024,12 @@ export const AutomationForm = ({
               )}
               {watchedEventSource === TriggerEventSource.Monitor ? (
                 <MonitorTriggerFields projectId={projectId} />
+              ) : watchedEventSource === TriggerEventSource.Score ? (
+                <ScoreTriggerFields
+                  projectId={projectId}
+                  control={form.control}
+                  disabled={!hasAccess || !isEditing}
+                />
               ) : (
                 <PromptTriggerFields
                   projectId={projectId}
@@ -783,11 +1066,16 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {(
-                        allowedActionTypes ??
-                        ActionHandlerRegistry.getAllActionTypes()
-                      ).map((actionType) => (
-                        <SelectItem key={actionType} value={actionType}>
+                      {actionTypes.map((actionType) => (
+                        <SelectItem
+                          key={actionType}
+                          value={actionType}
+                          disabled={
+                            watchedEventSource === TriggerEventSource.Score
+                              ? actionType !== "ANNOTATION_QUEUE"
+                              : actionType === "ANNOTATION_QUEUE"
+                          }
+                        >
                           {actionType === "WEBHOOK"
                             ? "Webhook"
                             : actionType === "SLACK"
