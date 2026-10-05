@@ -114,7 +114,7 @@ export const BlobStorageIntegrationContainer = ({
     capture("integrations:blob_storage_form_submitted");
     mut.mutate({
       projectId,
-      integrationId: config?.id,
+      integrationId: config?.id ?? null,
       ...values,
     });
   };
