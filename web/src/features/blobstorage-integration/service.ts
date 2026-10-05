@@ -125,6 +125,13 @@ export async function upsertBlobStorageIntegration(params: {
   };
 
   return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtext('blob-storage-integrations'),
+        hashtext(${projectId})
+      )
+    `;
+
     const existing = integrationId
       ? await tx.blobStorageIntegration.findFirst({
           where: { id: integrationId, projectId },
@@ -136,12 +143,21 @@ export async function upsertBlobStorageIntegration(params: {
             runStartedAt: true,
             createdAt: true,
             exportSource: true,
+            mediaStorageEnabled: true,
           },
         })
       : null;
 
     if (integrationId && !existing) {
       throw new InvalidRequestError("Blob storage integration not found");
+    }
+
+    const mediaStorageEnabled =
+      data.mediaStorageEnabled ?? existing?.mediaStorageEnabled ?? false;
+    if (mediaStorageEnabled && !data.prefix) {
+      throw new InvalidRequestError(
+        "A prefix is required for external media storage",
+      );
     }
 
     const duplicateDestination = await tx.blobStorageIntegration.findFirst({

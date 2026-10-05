@@ -23,12 +23,19 @@ describe("parseS3Uri", () => {
 });
 
 describe("isS3KeyWithinPrefix", () => {
+  it("rejects an empty prefix", () => {
+    expect(isS3KeyWithinPrefix("customer/image.png", "")).toBe(false);
+  });
+
   it("accepts keys inside the configured prefix", () => {
     expect(isS3KeyWithinPrefix("customer/image.png", "customer/")).toBe(true);
   });
 
   it("rejects similarly named sibling prefixes", () => {
     expect(isS3KeyWithinPrefix("customer-other/image.png", "customer/")).toBe(
+      false,
+    );
+    expect(isS3KeyWithinPrefix("customer-other/image.png", "customer")).toBe(
       false,
     );
   });

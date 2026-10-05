@@ -67,6 +67,13 @@ export const blobStorageIntegrationFormSchema =
     .superRefine(validateAzureContainerName)
     .superRefine(validateExportFieldGroups)
     .superRefine((value, ctx) => {
+      if (value.mediaStorageEnabled && !value.prefix) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["prefix"],
+          message: "A prefix is required for external media storage",
+        });
+      }
       if (
         value.mediaStorageEnabled &&
         value.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE

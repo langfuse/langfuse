@@ -34,5 +34,7 @@ export function parseS3Uri(value: string): ParsedS3Uri | null {
 }
 
 export function isS3KeyWithinPrefix(key: string, prefix: string): boolean {
-  return prefix === "" || key.startsWith(prefix);
+  if (!prefix) return false;
+  const directoryPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+  return key.startsWith(directoryPrefix);
 }
