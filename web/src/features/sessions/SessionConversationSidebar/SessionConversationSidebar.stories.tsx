@@ -124,7 +124,16 @@ export const DarkMode = meta.story({
   args: loadedArgs,
   globals: { theme: "dark" },
 });
-export const Loading = meta.story({ args: { state: "loading" } });
+export const Loading = meta.story({
+  args: { state: "loading" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("textbox", {
+        name: "Search messages and tools",
+      }),
+    ).toBeDisabled();
+  },
+});
 export const Empty = meta.story({ args: { ...loadedArgs, traces: [] } });
 export const Error = meta.story({
   args: {

@@ -110,8 +110,20 @@ export function SessionConversationSidebar(
         aria-busy="true"
         className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
       >
-        <div className="flex shrink-0 items-center border-b px-2 py-2.5">
-          <div className="bg-muted h-7 flex-1 animate-pulse rounded-sm" />
+        <div className="shrink-0 border-b px-2 py-2.5">
+          <div className="relative min-w-0">
+            <Search
+              className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
+              strokeWidth={1.6}
+            />
+            <Input
+              disabled
+              value=""
+              aria-label="Search messages and tools"
+              placeholder="Search messages and tools"
+              className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
+            />
+          </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-1 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (

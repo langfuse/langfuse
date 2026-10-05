@@ -100,10 +100,12 @@ const traces: TraceProps[] = [
 
 function SessionConversationalViewStory({
   workflowTraces,
+  isLoading = false,
   isSearchPending = false,
   groupedTools = false,
 }: {
   workflowTraces?: typeof supportAgentWorkflow;
+  isLoading?: boolean;
   isSearchPending?: boolean;
   groupedTools?: boolean;
 }) {
@@ -201,6 +203,20 @@ function SessionConversationalViewStory({
     : traces;
   const displayedTraces = groupedTools ? toolTraces : workflowTraceProps;
   const controller = useSessionConversationTimelineController(displayedTraces);
+  if (isLoading) {
+    return (
+      <div className="@container/session-workspace flex h-screen min-w-[320px]">
+        <SessionConversationalView
+          state="loading"
+          traces={displayedTraces.map((item) => ({
+            ...item,
+            state: { type: "loading" },
+          }))}
+          controller={controller}
+        />
+      </div>
+    );
+  }
   return (
     <div className="@container/session-workspace flex h-screen min-w-[320px]">
       <SessionConversationalView
@@ -251,6 +267,7 @@ function SessionConversationalViewStory({
 
 const meta = preview.meta({ component: SessionConversationalViewStory });
 export default meta;
+export const Loading = meta.story({ args: { isLoading: true } });
 export const SupportAgentWorkflow = meta.story({
   name: "(Test) Support Agent Workflow",
   args: { workflowTraces: supportAgentWorkflow },

@@ -164,65 +164,35 @@ export function SessionConversationTimelineTrace({
       {state.type === "loading" && (
         <div
           role="status"
-          aria-label="Loading conversation"
-          className="flex flex-col gap-1"
+          aria-label="Loading transcript"
+          className="flex flex-col gap-5 py-2"
         >
-          {[
-            {
-              nameWidth: "w-36",
-              messages: [
-                { alignment: "end", height: "h-16", width: "w-3/5" },
-                { alignment: "start", height: "h-24", width: "w-4/5" },
-              ],
-            },
-            { nameWidth: "w-24", messages: [] },
-            {
-              nameWidth: "w-44",
-              messages: [
-                { alignment: "start", height: "h-20", width: "w-2/3" },
-              ],
-            },
-          ].map((observation, observationIndex) => (
+          <div className="flex items-center gap-2 py-1">
+            <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-full" />
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-3 w-3 shrink-0" />
+          </div>
+          {(["user", "assistant"] as const).map((role) => (
             <div
-              key={observationIndex}
+              key={role}
               className={cn(
-                "flex flex-col py-2",
-                observation.messages.length > 0 && "gap-4",
+                "flex w-full",
+                role === "user" ? "justify-end" : "justify-start",
               )}
             >
-              <div className="flex w-full min-w-0 items-center gap-2">
-                <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
-                <Skeleton className={cn("h-3", observation.nameWidth)} />
-                <span className="ml-auto flex shrink-0 items-center gap-2">
-                  <Skeleton className="h-3 w-9" />
-                  <Skeleton className="h-3 w-16" />
-                </span>
-              </div>
-              {observation.messages.length > 0 ? (
-                <div className="flex flex-col gap-5">
-                  {observation.messages.map((message, messageIndex) => (
-                    <div
-                      key={messageIndex}
-                      className={cn(
-                        "flex w-full",
-                        message.alignment === "end"
-                          ? "justify-end"
-                          : "justify-start",
-                      )}
-                    >
-                      <Skeleton
-                        className={cn(
-                          "max-w-[min(85%,48rem)] rounded-2xl",
-                          message.height,
-                          message.width,
-                        )}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+              <Skeleton
+                className={cn(
+                  "max-w-[min(85%,48rem)] rounded-2xl",
+                  role === "user" ? "h-20 w-3/5" : "h-24 w-4/5",
+                )}
+              />
             </div>
           ))}
+          <div className="flex items-center gap-2 py-1">
+            <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-full" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-3 shrink-0" />
+          </div>
         </div>
       )}
       {state.type === "error" && (
