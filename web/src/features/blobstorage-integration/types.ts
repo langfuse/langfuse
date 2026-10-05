@@ -11,6 +11,7 @@ import {
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  validateMediaPrefix,
   exportStartDateNotInFuture,
   EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
@@ -18,14 +19,6 @@ import {
 const storagePrefixSchema = z
   .string()
   .refine((value) => !value || value.endsWith("/"), {
-    message: "Prefix must end with a forward slash (/)",
-  })
-  .optional()
-  .or(z.literal(""));
-
-const mediaPrefixSchema = z
-  .string()
-  .refine((value) => !value.trim() || value.endsWith("/"), {
     message: "Prefix must end with a forward slash (/)",
   })
   .optional()
@@ -46,7 +39,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   accessKeyId: z.string().optional(),
   secretAccessKey: z.string().nullable().optional(),
   prefix: storagePrefixSchema,
-  mediaPrefix: mediaPrefixSchema,
+  mediaPrefix: z.string().optional(),
   exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
@@ -77,6 +70,7 @@ export const blobStorageIntegrationFormSchema =
   blobStorageIntegrationFormSchemaBase
     .superRefine(validateAzureContainerName)
     .superRefine(validateExportFieldGroups)
+    .superRefine(validateMediaPrefix)
     .superRefine((value, ctx) => {
       if (
         value.mediaStorageEnabled &&

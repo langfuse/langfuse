@@ -11,6 +11,7 @@ import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  validateMediaPrefix,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server";
@@ -134,7 +135,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           fileType: z.enum(BlobStorageIntegrationFileType).optional(),
         })
         .superRefine(validateAzureContainerName)
-        .superRefine(validateExportFieldGroups),
+        .superRefine(validateExportFieldGroups)
+        .superRefine(validateMediaPrefix),
     )
     .mutation(async ({ input, ctx }) => {
       try {

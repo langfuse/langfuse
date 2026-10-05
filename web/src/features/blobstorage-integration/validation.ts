@@ -27,6 +27,26 @@ export function validateExportFieldGroups(
   }
 }
 
+export function validateMediaPrefix(
+  data: {
+    mediaPrefix?: string | null;
+    mediaStorageEnabled?: boolean;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    data.mediaStorageEnabled &&
+    data.mediaPrefix?.trim() &&
+    !data.mediaPrefix.endsWith("/")
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Prefix must end with a forward slash (/)",
+      path: ["mediaPrefix"],
+    });
+  }
+}
+
 /**
  * Azure container names must be 3-63 characters, lowercase letters, numbers,
  * and hyphens only. Must start and end with a letter or number. No consecutive
