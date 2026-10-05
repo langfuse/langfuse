@@ -154,6 +154,7 @@ export function ItemTypeTile({
     <Tooltip>
       <TooltipTrigger asChild>
         <span
+          role="img"
           aria-label={displayLabel}
           className={cn(
             "inline-flex size-6 shrink-0 items-center justify-center rounded-sm",
