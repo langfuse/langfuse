@@ -23,6 +23,14 @@ const storagePrefixSchema = z
   .optional()
   .or(z.literal(""));
 
+const mediaPrefixSchema = z
+  .string()
+  .refine((value) => !value.trim() || value.endsWith("/"), {
+    message: "Prefix must end with a forward slash (/)",
+  })
+  .optional()
+  .or(z.literal(""));
+
 export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
@@ -38,7 +46,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   accessKeyId: z.string().optional(),
   secretAccessKey: z.string().nullable().optional(),
   prefix: storagePrefixSchema,
-  mediaPrefix: storagePrefixSchema,
+  mediaPrefix: mediaPrefixSchema,
   exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
@@ -70,13 +78,6 @@ export const blobStorageIntegrationFormSchema =
     .superRefine(validateAzureContainerName)
     .superRefine(validateExportFieldGroups)
     .superRefine((value, ctx) => {
-      if (value.mediaStorageEnabled && !value.mediaPrefix) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["mediaPrefix"],
-          message: "A media prefix is required for external media storage",
-        });
-      }
       if (
         value.mediaStorageEnabled &&
         value.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE

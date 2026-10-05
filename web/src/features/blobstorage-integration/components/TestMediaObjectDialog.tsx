@@ -38,8 +38,9 @@ export function TestMediaObjectDialog({
       <Dialog.Body>
         <p className="text-muted-foreground text-sm">
           Enter an existing canonical S3 URI from this integration&apos;s media
-          prefix. Langfuse will test server-side read access, then test browser
-          access through a signed URL.
+          scope. Langfuse will test server-side read access, then test browser
+          access through a signed URL. If no media prefix is configured,
+          Langfuse can sign any object in the bucket.
         </p>
         <form id={formId} className="grid gap-2" onSubmit={handleSubmit}>
           <Label htmlFor={inputId}>S3 URI</Label>

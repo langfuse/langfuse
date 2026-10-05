@@ -184,9 +184,8 @@ export const BlobStorageIntegrationForm = ({
               >
                 <p className="text-muted-foreground text-sm">
                   Resolve canonical <code>s3://&lt;bucket&gt;/&lt;key&gt;</code>{" "}
-                  references under a dedicated media prefix for inline previews.
-                  Configure the bucket CORS policy to allow browser reads from
-                  your Langfuse origin.
+                  references for inline previews. Configure the bucket CORS
+                  policy to allow browser reads from your Langfuse origin.
                 </p>
                 <FormField
                   control={control}
@@ -198,8 +197,9 @@ export const BlobStorageIntegrationForm = ({
                         <Input {...prefixField} placeholder="langfuse-media/" />
                       </FormControl>
                       <FormDescription>
-                        Required path containing media objects that Langfuse may
-                        sign for inline previews.
+                        Optional path containing media objects that Langfuse may
+                        sign for inline previews. If left blank, Langfuse can
+                        sign any object in this bucket.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

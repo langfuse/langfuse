@@ -15,6 +15,10 @@ import {
 
 const EXTERNAL_MEDIA_URL_TTL_SECONDS = 5 * 60;
 
+function isKeyWithinMediaScope(key: string, mediaPrefix: string | null) {
+  return !mediaPrefix || isS3KeyWithinPrefix(key, mediaPrefix);
+}
+
 function createExternalMediaStorageService(
   integration: BlobStorageIntegration,
 ) {
@@ -68,17 +72,15 @@ export async function resolveExternalMediaUrl({
     },
   });
   const matchingIntegrations = integrations
-    .filter(
-      ({ mediaPrefix }) =>
-        mediaPrefix && isS3KeyWithinPrefix(parsed.key, mediaPrefix),
-    )
+    .filter(({ mediaPrefix }) => isKeyWithinMediaScope(parsed.key, mediaPrefix))
     .toSorted(
       (left, right) =>
         (right.mediaPrefix?.length ?? 0) - (left.mediaPrefix?.length ?? 0),
     );
   const integration = matchingIntegrations[0];
   const hasAmbiguousMatch =
-    integration &&
+    integration !== undefined &&
+    matchingIntegrations[1] !== undefined &&
     matchingIntegrations[1]?.mediaPrefix?.length ===
       integration.mediaPrefix?.length;
 
@@ -145,10 +147,7 @@ export async function testExternalMediaObject({
       "The media object must use the selected integration bucket",
     );
   }
-  if (
-    !integration.mediaPrefix ||
-    !isS3KeyWithinPrefix(parsed.key, integration.mediaPrefix)
-  ) {
+  if (!isKeyWithinMediaScope(parsed.key, integration.mediaPrefix)) {
     throw new InvalidRequestError(
       "The media object must be within the selected integration media prefix",
     );

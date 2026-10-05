@@ -208,9 +208,9 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     expect(screen.queryByLabelText("Export Prefix")).not.toBeInTheDocument();
   });
 
-  it("only enables external media when the feature-gated section is shown", async () => {
+  it("allows external media without a media prefix when the feature-gated section is shown", async () => {
     const initialValues = buildBlobStorageFormValues(
-      savedConfig,
+      { ...savedConfig, mediaPrefix: null },
       exportSourceCtx,
     );
     const { rerender } = render(ui("hidden", initialValues));
@@ -222,14 +222,14 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     fireEvent.click(
       screen.getByRole("switch", { name: "External media storage" }),
     );
-    expect(screen.getByLabelText("Media Prefix")).toHaveValue("media/");
+    expect(screen.getByLabelText("Media Prefix")).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         mediaStorageEnabled: true,
-        mediaPrefix: "media/",
+        mediaPrefix: "",
       }),
       expect.anything(),
     );

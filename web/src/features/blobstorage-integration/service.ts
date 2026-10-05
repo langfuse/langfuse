@@ -149,46 +149,12 @@ export async function upsertBlobStorageIntegration(params: {
             runStartedAt: true,
             createdAt: true,
             exportSource: true,
-            mediaStorageEnabled: true,
-            mediaPrefix: true,
           },
         })
       : null;
 
     if (integrationId && !existing) {
       throw new InvalidRequestError("Blob storage integration not found");
-    }
-
-    const mediaStorageEnabled =
-      data.mediaStorageEnabled ?? existing?.mediaStorageEnabled ?? false;
-    const effectiveMediaPrefix =
-      mediaPrefix === undefined ? existing?.mediaPrefix : mediaPrefix;
-    if (mediaStorageEnabled && !effectiveMediaPrefix) {
-      throw new InvalidRequestError(
-        "A media prefix is required for external media storage",
-      );
-    }
-
-    const duplicateDestination = await tx.blobStorageIntegration.findFirst({
-      where: {
-        projectId,
-        type: data.type,
-        bucketName: data.bucketName,
-        prefix: data.prefix,
-        ...(data.type === BlobStorageIntegrationType.S3_COMPATIBLE
-          ? { endpoint: data.endpoint }
-          : {}),
-        ...(data.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE
-          ? { accessKeyId }
-          : {}),
-        ...(integrationId ? { id: { not: integrationId } } : {}),
-      },
-      select: { id: true },
-    });
-    if (duplicateDestination) {
-      throw new InvalidRequestError(
-        "A blob storage integration already uses this destination and prefix",
-      );
     }
 
     // Require secret key for new integrations (unless using host credentials)
