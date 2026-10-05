@@ -40,6 +40,7 @@ vi.mock("@opentelemetry/api", () => ({
 
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: {
+    TraceBatch: "trace-batch",
     TraceDelete: "trace-delete",
   },
   contextWithLangfuseProps: vi.fn(() => ({})),
@@ -127,6 +128,34 @@ describe("WorkerManager queue metrics", () => {
       ["langfuse.queue.trace_delete.rate", 1, { type: "failed" }],
       ["langfuse.queue.trace_delete.rate", 1, { type: "error" }],
       ["langfuse.queue.trace_delete.rate", 1, { type: "stalled" }],
+    ]);
+  });
+
+  it("skips trace-batch request rate and processing time", async () => {
+    WorkerManager.register("trace-batch" as never, async () => "processed");
+
+    await expect(
+      mocks.processor!({
+        data: { payload: { projectId: "project-id" } },
+        timestamp: Date.now() - 50,
+      }),
+    ).resolves.toBe("processed");
+
+    expect(mocks.recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.queue.trace_batch.rate",
+      1,
+      { type: "request" },
+    );
+    expect(
+      mocks.recordDistribution.mock.calls.map(([metric, _value, tags]) => [
+        metric,
+        tags,
+      ]),
+    ).toEqual([
+      [
+        "langfuse.queue.trace_batch.time_distribution",
+        { type: "wait", unit: "milliseconds" },
+      ],
     ]);
   });
 

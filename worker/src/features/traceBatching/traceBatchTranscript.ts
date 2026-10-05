@@ -6,7 +6,6 @@ import {
   getProductBaseUrl,
   getTracer,
   orderObservations,
-  recordDistribution,
   recordIncrement,
   renderGenericTranscript,
   renderTranscript,
@@ -47,9 +46,6 @@ function recordTokens(
   metric: (typeof TOKEN_METRICS)[number],
   tokens: number,
 ) {
-  recordDistribution(`langfuse.trace_batch.${metric}`, tokens, {
-    tokenizer: "o200k_base",
-  });
   span.setAttribute(`langfuse.trace_batch.${metric}`, tokens);
 }
 
@@ -97,7 +93,6 @@ function recordContentAndStructureCounts(
     ["transcript_content_characters", total],
     ["transcript_tool_response_characters", toolResponses],
   ] as const) {
-    recordDistribution(`langfuse.trace_batch.${metric}`, characters);
     span.setAttribute(`langfuse.trace_batch.${metric}`, characters);
   }
   for (const [metric, count] of [
@@ -109,7 +104,6 @@ function recordContentAndStructureCounts(
     ["transcript_current_turn_tool_call_count", currentTurnToolCalls],
     ["transcript_current_turn_tool_result_count", currentTurnToolResults],
   ] as const) {
-    recordDistribution(`langfuse.trace_batch.${metric}`, count);
     span.setAttribute(`langfuse.trace_batch.${metric}`, count);
   }
 }
@@ -169,7 +163,6 @@ function recordTopicsRendering(
       topicsTranscriptConfig,
     );
     const metric = (name: string, value: number) => {
-      recordDistribution(`langfuse.trace_batch.${name}`, value);
       span.setAttribute(`langfuse.trace_batch.${name}`, value);
     };
     metric("topics_transcript_characters", text.length);
@@ -189,11 +182,6 @@ function recordTopicsRendering(
       if (stats.blockCharacters[block].raw === 0) continue;
       for (const stage of ["raw", "clipped"] as const) {
         const characters = stats.blockCharacters[block][stage];
-        recordDistribution(
-          "langfuse.trace_batch.topics_transcript_block_characters",
-          characters,
-          { block, stage },
-        );
         span.setAttribute(
           `langfuse.trace_batch.topics_transcript_block_${block}_${stage}_characters`,
           characters,
@@ -220,9 +208,6 @@ async function recordTopicsTokens(text: string, span: Span) {
     span.setAttribute("langfuse.trace_batch.topics_transcript", "unavailable");
     return;
   }
-  recordDistribution("langfuse.trace_batch.topics_transcript_tokens", tokens, {
-    tokenizer: "o200k_base",
-  });
   span.setAttribute("langfuse.trace_batch.topics_transcript_tokens", tokens);
 }
 
@@ -237,9 +222,6 @@ async function recordTranscriptJsonTokens(text: string | null, span: Span) {
     span.setAttribute("langfuse.trace_batch.transcript_json", "unavailable");
     return;
   }
-  recordDistribution("langfuse.trace_batch.transcript_json_tokens", tokens, {
-    tokenizer: "o200k_base",
-  });
   span.setAttribute("langfuse.trace_batch.transcript_json_tokens", tokens);
 }
 
@@ -255,9 +237,6 @@ async function recordGenericTranscriptTokens(text: string, span: Span) {
     span.setAttribute("langfuse.trace_batch.generic_transcript", "unavailable");
     return;
   }
-  recordDistribution("langfuse.trace_batch.generic_transcript_tokens", tokens, {
-    tokenizer: "o200k_base",
-  });
   span.setAttribute("langfuse.trace_batch.generic_transcript_tokens", tokens);
 }
 
@@ -268,10 +247,6 @@ function recordGenericRendering(
 ): string | undefined {
   try {
     const text = renderGenericTranscript(transcript, observations);
-    recordDistribution(
-      "langfuse.trace_batch.generic_transcript_characters",
-      text.length,
-    );
     span.setAttribute(
       "langfuse.trace_batch.generic_transcript_characters",
       text.length,
@@ -316,11 +291,6 @@ export function recordTraceBatchTranscript(
       phaseTimings = timings;
     });
     const assemblyDurationMs = performance.now() - startedAt;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_assembly_duration_ms",
-      assemblyDurationMs,
-      { has_transcript: String(transcript !== null) },
-    );
     span.setAttributes({
       "langfuse.trace_batch.transcript_assembly_duration_ms":
         assemblyDurationMs,
@@ -330,21 +300,12 @@ export function recordTraceBatchTranscript(
       ["normalization", phaseTimings.normalizationMs],
       ["matching", phaseTimings.matchingMs],
     ] as const) {
-      recordDistribution(
-        "langfuse.trace_batch.transcript_assembly_phase_duration_ms",
-        duration,
-        { phase },
-      );
       span.setAttribute(
         `langfuse.trace_batch.transcript_assembly_${phase}_duration_ms`,
         duration,
       );
     }
     const threadCount = transcript?.threads.length ?? 0;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_thread_count",
-      threadCount,
-    );
     span.setAttribute(
       "langfuse.trace_batch.transcript_thread_count",
       threadCount,
@@ -358,10 +319,6 @@ export function recordTraceBatchTranscript(
     const transcriptJson =
       transcript === null ? null : JSON.stringify(transcript);
     const transcriptJsonCharacters = transcriptJson?.length ?? 0;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_json_characters",
-      transcriptJsonCharacters,
-    );
     span.setAttribute(
       "langfuse.trace_batch.transcript_json_characters",
       transcriptJsonCharacters,
@@ -385,10 +342,6 @@ export function recordTraceBatchTranscript(
     );
     const comparisonRenderDurationMs =
       performance.now() - comparisonRenderStart;
-    recordDistribution(
-      "langfuse.trace_batch.transcript_comparison_render_duration_ms",
-      comparisonRenderDurationMs,
-    );
     span.setAttribute(
       "langfuse.trace_batch.transcript_comparison_render_duration_ms",
       comparisonRenderDurationMs,
@@ -437,10 +390,6 @@ export function recordTraceBatchTranscript(
       }
       const comparisonTokenizationDurationMs =
         performance.now() - comparisonTokenizationStart;
-      recordDistribution(
-        "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
-        comparisonTokenizationDurationMs,
-      );
       span.setAttribute(
         "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
         comparisonTokenizationDurationMs,
