@@ -142,7 +142,7 @@ const OrganizationProjectTiles = ({
                 {project.deletedAt ? (
                   <CardDescription>Project is being deleted</CardDescription>
                 ) : (
-                  <p className="text-muted-foreground font-mono text-xs">
+                  <p className="text-muted-foreground text-xs">
                     {lastTraceQuery.isSuccess
                       ? formatLastTrace(lastTraceAt)
                       : null}

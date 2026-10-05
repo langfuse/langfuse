@@ -24,7 +24,7 @@ export const ProjectStarButton = ({
       aria-pressed={isStarred}
       title={label}
       className={cn(
-        "relative z-10 shrink-0",
+        "relative z-10 shrink-0 hover:bg-transparent",
         isStarred
           ? "text-foreground"
           : "text-muted-foreground/35 hover:text-foreground",

@@ -89,7 +89,7 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
           )}
           {props.label && (
             <Link href={props.label.href}>
-              <StatusBadge type={props.label.text} />
+              <StatusBadge type={props.label.text} isLive={false} />
             </Link>
           )}
         </div>
