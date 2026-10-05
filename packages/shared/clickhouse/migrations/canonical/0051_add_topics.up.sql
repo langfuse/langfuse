@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS topics {CLICKHOUSE_CLUSTER_CLAUSE}
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(created_at)
-ORDER BY (project_id, toDate(created_at), id);
+ORDER BY (project_id, toDate(created_at), id)
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 (
@@ -86,4 +87,5 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)
 PARTITION BY toYYYYMM(unit_start_time)
 PRIMARY KEY (project_id, toStartOfMinute(unit_start_time), facet_id, facet_version)
-ORDER BY (project_id, toStartOfMinute(unit_start_time), facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), clustering_run_id, origin);
+ORDER BY (project_id, toStartOfMinute(unit_start_time), facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), clustering_run_id, origin)
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
