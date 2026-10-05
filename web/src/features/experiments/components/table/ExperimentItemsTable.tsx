@@ -57,10 +57,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
-import { type FieldRef } from "@/src/features/search-bar/lib/fields";
-
-import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
-
+import { useExperimentItemsSearchRegistry } from "../../hooks/useExperimentItemsSearchRegistry";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import { useExpectedOutputVisibility } from "../../hooks/useExpectedOutputVisibility";
 import {
@@ -585,6 +582,12 @@ export default function ExperimentItemsTable({
       allExperimentIds.includes(exp.experimentId),
     );
   }, [experimentNames, allExperimentIds]);
+
+  const searchRegistry = useExperimentItemsSearchRegistry({
+    baselineId,
+    selectedExperiments: selectedExperimentNames,
+    colorExperimentIds,
+  });
 
   // A stacked cell holds one line per run, told apart by a colour marker only,
   // so every value and every comparison chip in it names its run on hover.
@@ -1612,39 +1615,6 @@ export default function ExperimentItemsTable({
     viewControllers.handleUserStateChange(orderByState, next);
     setOrderByState(next);
   };
-  const searchRegistry = {
-    ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
-    targeting: {
-      defaultTarget: "baseline",
-      targets: [
-        ...(baselineId
-          ? [
-              {
-                id: "baseline",
-                label: "baseline",
-                keyword: true,
-                textClassName: getExperimentColorStyles(
-                  baselineId,
-                  colorExperimentIds,
-                ).textClass,
-              },
-            ]
-          : []),
-        ...selectedExperimentNames.map((experiment) => ({
-          id: experiment.experimentId,
-          label: experiment.experimentName,
-          textClassName: getExperimentColorStyles(
-            experiment.experimentId,
-            colorExperimentIds,
-          ).textClass,
-        })),
-      ],
-      supports: (field: FieldRef) =>
-        field.type === "scores" ||
-        (field.type === "field" && field.field.id === "level"),
-    },
-  };
-
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (!canUsePeek) return undefined;
     return {

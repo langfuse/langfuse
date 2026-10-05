@@ -21,7 +21,7 @@
 // - NOT lowers at this boundary (none-of / does-not-contain / inverted
 //   comparisons / inverted booleans); gaps error via fields.negationIssue.
 
-import { resolveFilterTarget } from "./targeting";
+import { resolveAttachedTarget } from "./targeting";
 import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
@@ -377,10 +377,7 @@ function lowerFilter(
   scoreTypes?: ScoreTypeContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
-  const field = registry.resolveField(node.key);
-  const targeted =
-    node.target || (field && registry.targeting?.supports(field));
-  const target = targeted ? resolveFilterTarget(node, registry) : undefined;
+  const target = resolveAttachedTarget(node, registry);
   if (target && "error" in target) {
     errors.push(target.error);
     return;

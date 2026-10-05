@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "./experimentItemsSearchRegistry";
 import { planCommit, filterStateToQueryText } from "@/src/features/search-bar";
-import { type FieldRef } from "@/src/features/search-bar/lib/fields";
+import { supportsExperimentItemFilterTarget } from "../lib/experimentItemsFilterTargeting";
 
 import {
   singleFilterList,
@@ -95,9 +95,7 @@ describe("experiment filter targets", () => {
         { id: "baseline", label: "baseline", keyword: true },
         { id: "run-b", label: "Claude Sonnet", textClassName: "text-pink-500" },
       ],
-      supports: (field: FieldRef) =>
-        field.type === "scores" ||
-        (field.type === "field" && field.field.id === "level"),
+      supports: supportsExperimentItemFilterTarget,
     },
   };
 
