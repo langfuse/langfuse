@@ -88,6 +88,45 @@ describe("S3StorageService region normalization", () => {
   );
 });
 
+describe("S3StorageService object access verification", () => {
+  it("uses a one-byte GetObject range and closes the response body", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "us-east-1",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+    const destroy = vi.fn();
+    const send = vi
+      .spyOn(client, "send")
+      .mockResolvedValue({ Body: { destroy } } as never);
+
+    await service.verifyObjectAccess("media/image.png");
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(
+      (
+        send.mock.calls[0][0] as unknown as {
+          input: Record<string, unknown>;
+        }
+      ).input,
+    ).toMatchObject({
+      Bucket: "test-bucket",
+      Key: "media/image.png",
+      Range: "bytes=0-0",
+    });
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("resolveMediaStorageEndpoints", () => {
   it("keeps the existing endpoint for both server access and signed URLs by default", () => {
     expect(

@@ -285,6 +285,20 @@ async function storageBodyToBytes(body: unknown): Promise<Uint8Array> {
   return bytes;
 }
 
+async function closeStorageBody(body: unknown): Promise<void> {
+  if (!body || typeof body !== "object") return;
+
+  const candidate = body as {
+    cancel?: () => Promise<void>;
+    destroy?: () => void;
+  };
+  if (candidate.destroy) {
+    candidate.destroy();
+    return;
+  }
+  await candidate.cancel?.();
+}
+
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>;
 
@@ -306,6 +320,8 @@ export interface StorageService {
   download(path: string): Promise<string>;
 
   downloadBytes(path: string): Promise<Uint8Array>;
+
+  verifyObjectAccess(path: string): Promise<void>;
 
   listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
 
@@ -609,6 +625,19 @@ class AzureBlobStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "download bytes from Azure Blob Storage");
+    }
+  }
+
+  public async verifyObjectAccess(path: string): Promise<void> {
+    try {
+      const response = await this.client.getBlobClient(path).download(0, 1);
+      await closeStorageBody(response.readableStreamBody);
+    } catch (err) {
+      logger.error(
+        `Failed to verify access to Azure Blob Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "verify object access in Azure Blob Storage");
     }
   }
 
@@ -972,6 +1001,22 @@ class S3StorageService implements StorageService {
     }
   }
 
+  public async verifyObjectAccess(path: string): Promise<void> {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: path,
+          Range: "bytes=0-0",
+        }),
+      );
+      await closeStorageBody(response.Body);
+    } catch (err) {
+      logger.error(`Failed to verify access to S3 ${path}`, err);
+      handleStorageError(err, "verify object access in S3");
+    }
+  }
+
   public async listFiles(
     prefix: string,
   ): Promise<{ file: string; createdAt: Date }[]> {
@@ -1238,6 +1283,21 @@ class GoogleCloudStorageService implements StorageService {
       );
       handleStorageError(err, "download bytes from Google Cloud Storage");
     }
+  }
+
+  public async verifyObjectAccess(path: string): Promise<void> {
+    const stream = this.bucket.file(path).createReadStream({
+      start: 0,
+      end: 0,
+    });
+    await new Promise<void>((resolve, reject) => {
+      stream.once("readable", () => {
+        stream.destroy();
+        resolve();
+      });
+      stream.once("end", resolve);
+      stream.once("error", reject);
+    });
   }
 
   public async listFiles(
@@ -1732,6 +1792,25 @@ class OCIObjectStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "download bytes from OCI Object Storage");
+    }
+  }
+
+  public async verifyObjectAccess(path: string): Promise<void> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const response = await client.getObject({
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+        range: new common.Range(0, 0, null),
+      });
+      await closeStorageBody(response.value);
+    } catch (err) {
+      logger.error(
+        `Failed to verify access to OCI Object Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "verify object access in OCI Object Storage");
     }
   }
 

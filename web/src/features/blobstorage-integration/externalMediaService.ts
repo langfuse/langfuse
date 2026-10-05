@@ -1,4 +1,5 @@
 import {
+  type BlobStorageIntegration,
   BlobStorageIntegrationType,
   InvalidRequestError,
   isS3KeyWithinPrefix,
@@ -13,6 +14,29 @@ import {
 } from "@langfuse/shared/src/server";
 
 const EXTERNAL_MEDIA_URL_TTL_SECONDS = 5 * 60;
+
+function createExternalMediaStorageService(
+  integration: BlobStorageIntegration,
+) {
+  return StorageServiceFactory.getInstance({
+    accessKeyId: integration.accessKeyId ?? undefined,
+    secretAccessKey: integration.secretAccessKey
+      ? decrypt(integration.secretAccessKey)
+      : undefined,
+    bucketName: integration.bucketName,
+    endpoint: integration.endpoint ?? undefined,
+    region: integration.region,
+    forcePathStyle: integration.forcePathStyle,
+    useAzureBlob: false,
+    useGoogleCloudStorage: false,
+    useOCIObjectStorage: false,
+    googleCloudCredentials: undefined,
+    awsSse: undefined,
+    awsSseKmsKeyId: undefined,
+    externalEndpoint: undefined,
+    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
+  });
+}
 
 export async function resolveExternalMediaUrl({
   prisma,
@@ -66,24 +90,7 @@ export async function resolveExternalMediaUrl({
     await validateBlobStorageEndpoint(integration.endpoint);
   }
 
-  const storageService = StorageServiceFactory.getInstance({
-    accessKeyId: integration.accessKeyId ?? undefined,
-    secretAccessKey: integration.secretAccessKey
-      ? decrypt(integration.secretAccessKey)
-      : undefined,
-    bucketName: integration.bucketName,
-    endpoint: integration.endpoint ?? undefined,
-    region: integration.region,
-    forcePathStyle: integration.forcePathStyle,
-    useAzureBlob: false,
-    useGoogleCloudStorage: false,
-    useOCIObjectStorage: false,
-    googleCloudCredentials: undefined,
-    awsSse: undefined,
-    awsSseKmsKeyId: undefined,
-    externalEndpoint: undefined,
-    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
-  });
+  const storageService = createExternalMediaStorageService(integration);
 
   const url = await storageService.getSignedUrl(
     parsed.key,
@@ -95,4 +102,69 @@ export async function resolveExternalMediaUrl({
     url,
     expiresAt: new Date(Date.now() + EXTERNAL_MEDIA_URL_TTL_SECONDS * 1000),
   };
+}
+
+export async function testExternalMediaObject({
+  prisma,
+  projectId,
+  integrationId,
+  uri,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  integrationId: string;
+  uri: string;
+}) {
+  const parsed = parseS3Uri(uri);
+  if (!parsed) {
+    throw new InvalidRequestError(
+      "External media must use s3://<bucket>/<key>",
+    );
+  }
+
+  const integration = await prisma.blobStorageIntegration.findFirst({
+    where: {
+      id: integrationId,
+      projectId,
+      mediaStorageEnabled: true,
+      type: {
+        in: [
+          BlobStorageIntegrationType.S3,
+          BlobStorageIntegrationType.S3_COMPATIBLE,
+        ],
+      },
+    },
+  });
+  if (!integration) {
+    throw new InvalidRequestError(
+      "The selected external media integration is not available",
+    );
+  }
+  if (parsed.bucket !== integration.bucketName) {
+    throw new InvalidRequestError(
+      "The media object must use the selected integration bucket",
+    );
+  }
+  if (
+    !integration.mediaPrefix ||
+    !isS3KeyWithinPrefix(parsed.key, integration.mediaPrefix)
+  ) {
+    throw new InvalidRequestError(
+      "The media object must be within the selected integration media prefix",
+    );
+  }
+
+  if (integration.endpoint) {
+    await validateBlobStorageEndpoint(integration.endpoint);
+  }
+
+  const storageService = createExternalMediaStorageService(integration);
+  await storageService.verifyObjectAccess(parsed.key);
+  const signedUrl = await storageService.getSignedUrl(
+    parsed.key,
+    EXTERNAL_MEDIA_URL_TTL_SECONDS,
+    false,
+  );
+
+  return { signedUrl };
 }
