@@ -478,6 +478,7 @@ export const coreDataTableExports: Array<
             type: true,
             bucketName: true,
             prefix: true,
+            mediaPrefix: true,
             region: true,
             endpoint: true,
             forcePathStyle: true,

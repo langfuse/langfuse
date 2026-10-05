@@ -17,8 +17,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Provider selection plus the connection fields whose labels and visibility
-// depend on it: bucket/container, endpoint, region, path style, credentials,
-// and prefix.
+// depend on it: bucket/container, endpoint, region, path style, and credentials.
 export const StorageProviderFields = ({
   control,
 }: {
@@ -220,27 +219,6 @@ export const StorageProviderFields = ({
                     ? "Your AWS IAM user secret access key. Leave empty to use host credentials (IAM roles, instance profiles, etc.)"
                     : "Your AWS IAM user secret access key"
                   : "Secret key for your S3-compatible storage"}
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={control}
-        name="prefix"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Export Prefix</FormLabel>
-            <FormControl>
-              <Input {...field} />
-            </FormControl>
-            <FormDescription>
-              {integrationType === "AZURE_BLOB_STORAGE"
-                ? 'Optional prefix path for exported files in your Azure container (e.g., "langfuse-exports/")'
-                : integrationType === "S3"
-                  ? 'Optional prefix path for exported files in your S3 bucket (e.g., "langfuse-exports/")'
-                  : 'Optional prefix path for exported files (e.g., "langfuse-exports/")'}
             </FormDescription>
             <FormMessage />
           </FormItem>

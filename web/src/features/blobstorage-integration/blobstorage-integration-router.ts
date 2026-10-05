@@ -188,6 +188,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             accessKeyId: rest.accessKeyId ?? null,
             secretAccessKey: rest.secretAccessKey ?? null,
             prefix: rest.prefix ?? "",
+            mediaPrefix: externalMediaStorageEnabled
+              ? (rest.mediaPrefix ?? null)
+              : undefined,
             exportFrequency: rest.exportFrequency,
             enabled: rest.enabled,
             forcePathStyle: rest.forcePathStyle,

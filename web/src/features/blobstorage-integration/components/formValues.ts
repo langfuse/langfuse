@@ -39,6 +39,7 @@ export function buildBlobStorageFormValues(
     accessKeyId: state?.accessKeyId || "",
     secretAccessKey: state?.secretAccessKey || null,
     prefix: state?.prefix || "",
+    mediaPrefix: state?.mediaPrefix || "",
     exportFrequency: (state?.exportFrequency ||
       "daily") as BlobStorageFormValues["exportFrequency"],
     enabled: state?.enabled ?? true,

@@ -44,12 +44,19 @@ export async function resolveExternalMediaUrl({
     },
   });
   const matchingIntegrations = integrations
-    .filter(({ prefix }) => isS3KeyWithinPrefix(parsed.key, prefix))
-    .toSorted((left, right) => right.prefix.length - left.prefix.length);
+    .filter(
+      ({ mediaPrefix }) =>
+        mediaPrefix && isS3KeyWithinPrefix(parsed.key, mediaPrefix),
+    )
+    .toSorted(
+      (left, right) =>
+        (right.mediaPrefix?.length ?? 0) - (left.mediaPrefix?.length ?? 0),
+    );
   const integration = matchingIntegrations[0];
   const hasAmbiguousMatch =
     integration &&
-    matchingIntegrations[1]?.prefix.length === integration.prefix.length;
+    matchingIntegrations[1]?.mediaPrefix?.length ===
+      integration.mediaPrefix?.length;
 
   if (!integration || hasAmbiguousMatch) {
     throw new InvalidRequestError("External media is not available");

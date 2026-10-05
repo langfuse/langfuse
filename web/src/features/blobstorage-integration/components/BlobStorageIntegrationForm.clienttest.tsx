@@ -30,6 +30,7 @@ const savedConfig: Partial<BlobStorageIntegration> = {
   region: "us-east-1",
   accessKeyId: "AKIA-SEED",
   prefix: "exports/",
+  mediaPrefix: "media/",
   fileType: BlobStorageIntegrationFileType.JSONL,
   enabled: true,
 };
@@ -186,11 +187,13 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     });
     expect(exportsSwitch).toBeChecked();
     expect(screen.getByLabelText("Export Frequency")).toBeVisible();
+    expect(screen.getByLabelText("Export Prefix")).toHaveValue("exports/");
 
     fireEvent.click(exportsSwitch);
 
     expect(exportsSwitch).not.toBeChecked();
     expect(screen.queryByLabelText("Export Frequency")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Export Prefix")).not.toBeInTheDocument();
   });
 
   it("only enables external media when the feature-gated section is shown", async () => {
@@ -207,11 +210,15 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     fireEvent.click(
       screen.getByRole("switch", { name: "External media storage" }),
     );
+    expect(screen.getByLabelText("Media Prefix")).toHaveValue("media/");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ mediaStorageEnabled: true }),
+      expect.objectContaining({
+        mediaStorageEnabled: true,
+        mediaPrefix: "media/",
+      }),
       expect.anything(),
     );
   });

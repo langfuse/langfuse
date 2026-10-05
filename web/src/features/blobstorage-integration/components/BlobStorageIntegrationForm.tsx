@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
 import {
   Card,
   CardContent,
@@ -114,6 +115,23 @@ export const BlobStorageIntegrationForm = ({
               disabled={false}
               onCheckedChange={field.onChange}
             >
+              <FormField
+                control={control}
+                name="prefix"
+                render={({ field: prefixField }) => (
+                  <FormItem>
+                    <FormLabel>Export Prefix</FormLabel>
+                    <FormControl>
+                      <Input {...prefixField} />
+                    </FormControl>
+                    <FormDescription>
+                      Optional path for exported files, for example{" "}
+                      <code>langfuse-exports/</code>.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <ExportScheduleFields control={control} />
               <ExportSourceField
                 control={control}
@@ -163,10 +181,27 @@ export const BlobStorageIntegrationForm = ({
               >
                 <p className="text-muted-foreground text-sm">
                   Resolve canonical <code>s3://&lt;bucket&gt;/&lt;key&gt;</code>{" "}
-                  references under this integration&apos;s configured prefix for
-                  inline previews. Configure the bucket CORS policy to allow
-                  browser reads from your Langfuse origin.
+                  references under a dedicated media prefix for inline previews.
+                  Configure the bucket CORS policy to allow browser reads from
+                  your Langfuse origin.
                 </p>
+                <FormField
+                  control={control}
+                  name="mediaPrefix"
+                  render={({ field: prefixField }) => (
+                    <FormItem>
+                      <FormLabel>Media Prefix</FormLabel>
+                      <FormControl>
+                        <Input {...prefixField} placeholder="langfuse-media/" />
+                      </FormControl>
+                      <FormDescription>
+                        Required path containing media objects that Langfuse may
+                        sign for inline previews.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </ToggleableCard>
             )}
           />
