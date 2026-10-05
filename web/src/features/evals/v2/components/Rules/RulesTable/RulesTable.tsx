@@ -245,7 +245,7 @@ export function RulesTable({
         accessorKey: "name",
         id: "name",
         header: "Name",
-        size: 260,
+        size: 220,
         isFixedPosition: true,
         enableSorting: true,
         cell: ({ row }) => {
@@ -298,8 +298,8 @@ export function RulesTable({
       createNumberTableColumn<RuleTableRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
+        header: "Cost (7d)",
+        size: 110,
         enableHiding: true,
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
