@@ -369,3 +369,103 @@ describe("sign-in page SSO check transport errors", () => {
     expect(addBreadcrumbMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sign-in page last used SSO email", () => {
+  const STORAGE_KEY = "langfuse_last_used_sso_email";
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  const storedSsoEmail = () => {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw === null ? null : (JSON.parse(raw) as string);
+  };
+
+  const ssoCheckReturns = (providerId: string | null) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        providerId === null
+          ? new Response(JSON.stringify({ message: "not found" }), {
+              status: 404,
+              headers: { "Content-Type": "application/json" },
+            })
+          : new Response(JSON.stringify({ providerId }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+      ),
+    );
+
+  const continueWithEmail = (email: string) => {
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: email },
+    });
+    fireEvent.click(screen.getByTestId("submit-email-password-sign-in-form"));
+  };
+
+  const renderTwoStepSignIn = () =>
+    renderSignIn({ authProviders: { ...authProviders, sso: true } });
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("pre-fills the email input with the remembered SSO address", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+
+    renderTwoStepSignIn();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Email")).toHaveValue("jane@acme.com");
+    });
+    // Nothing else is revealed: the password step still waits on check-sso.
+    expect(screen.queryByLabelText(/Password/)).not.toBeInTheDocument();
+  });
+
+  it("lets an email query param win over the remembered address", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    routerState.query = { email: "invited@acme.com" };
+
+    renderTwoStepSignIn();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Email")).toHaveValue("invited@acme.com");
+    });
+  });
+
+  it("remembers the address when check-sso redirects to an SSO provider", async () => {
+    ssoCheckReturns("acme.com.okta");
+
+    renderTwoStepSignIn();
+    continueWithEmail("jane@acme.com");
+
+    await waitFor(() => {
+      expect(signInMock).toHaveBeenCalledWith("acme.com.okta", undefined);
+    });
+    expect(storedSsoEmail()).toBe("jane@acme.com");
+  });
+
+  it("forgets a remembered address once an email falls back to a password", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    ssoCheckReturns(null);
+
+    renderTwoStepSignIn();
+    continueWithEmail("someone-else@example.com");
+
+    // The password step appearing is what marks the email as not SSO-backed.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    });
+    expect(storedSsoEmail()).toBe("");
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+});
