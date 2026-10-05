@@ -30,7 +30,7 @@ import {
   type BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
 import { isExportSourceSelectable } from "@/src/features/analytics-integrations";
-import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
+import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/fns/buildBlobStorageFormValues";
 import { StorageProviderFields } from "@/src/features/blobstorage-integration/components/StorageProviderFields";
 import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";
 import { ExportSourceField } from "@/src/features/blobstorage-integration/components/ExportSourceField";

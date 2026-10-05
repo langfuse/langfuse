@@ -8,7 +8,7 @@ import {
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { TestMediaObjectDialog } from "@/src/features/blobstorage-integration/components/TestMediaObjectDialog";
+import { TestMediaObjectDialog } from "@/src/features/blobstorage-integration/components/TestMediaObjectDialog/TestMediaObjectDialog";
 
 function TestHarness({
   onTest,

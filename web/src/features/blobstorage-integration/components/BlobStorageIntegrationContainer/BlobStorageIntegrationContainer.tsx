@@ -15,9 +15,9 @@ import {
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";
-import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
-import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
-import { TestMediaObjectDialog } from "@/src/features/blobstorage-integration/components/TestMediaObjectDialog";
+import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/fns/buildBlobStorageFormValues";
+import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm/BlobStorageIntegrationForm";
+import { TestMediaObjectDialog } from "@/src/features/blobstorage-integration/components/TestMediaObjectDialog/TestMediaObjectDialog";
 import { testSignedMediaUrlCors } from "@/src/features/blobstorage-integration/fns/testSignedMediaUrlCors";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";

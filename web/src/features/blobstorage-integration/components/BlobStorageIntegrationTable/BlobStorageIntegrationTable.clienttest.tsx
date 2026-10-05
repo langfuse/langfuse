@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type ComponentProps } from "react";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
+import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable/BlobStorageIntegrationTable";
 
 vi.stubGlobal(
   "ResizeObserver",

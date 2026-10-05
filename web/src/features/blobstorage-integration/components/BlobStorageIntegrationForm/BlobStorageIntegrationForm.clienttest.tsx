@@ -12,7 +12,7 @@ import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
 import {
   buildBlobStorageFormValues,
   type BlobStorageFormValues,
-} from "./formValues";
+} from "@/src/features/blobstorage-integration/fns/buildBlobStorageFormValues";
 
 // EVENTS-only context (post-cutoff Cloud project, new row): single selectable
 // source, selector hidden — keeps the rendered tree small and the submit
