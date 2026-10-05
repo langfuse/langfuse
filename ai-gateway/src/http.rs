@@ -12,6 +12,7 @@ use serde::Serialize;
 use tracing::Instrument;
 
 use crate::{
+    correlation::{RequestCorrelation, assign_request_id},
     inference::{InferenceService, RequestPreparationError},
     providers::{ProviderError, Route, forwarded_query},
     resolution::{ApiFormat, ResolutionError},
@@ -47,6 +48,7 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
             inference: inference.map(Arc::new),
             lifecycle,
         })
+        .layer(axum::middleware::from_fn(assign_request_id))
 }
 
 async fn handle_responses(State(state): State<InferenceRouteState>, request: Request) -> Response {
@@ -85,16 +87,24 @@ async fn handle_anthropic_models(
     handle(state, request, Route::AnthropicModels).await
 }
 
-async fn handle(state: InferenceRouteState, request: Request, route: Route) -> Response {
-    relay(state, request, route)
-        .await
-        .unwrap_or_else(|error| error.into_native_response(route.api_format()))
+async fn handle(state: InferenceRouteState, mut request: Request, route: Route) -> Response {
+    let mut correlation = request
+        .extensions_mut()
+        .remove::<RequestCorrelation>()
+        .unwrap_or_default();
+    let mut response = match relay(state, request, route, &mut correlation).await {
+        Ok(response) => response,
+        Err(error) => error.into_native_response(route.api_format(), correlation.id()),
+    };
+    correlation.apply_generation_headers(response.headers_mut());
+    response
 }
 
 async fn relay(
     state: InferenceRouteState,
     request: Request,
     route: Route,
+    correlation: &mut RequestCorrelation,
 ) -> Result<Response, InferenceHttpError> {
     let inference = state
         .inference
@@ -103,7 +113,7 @@ async fn relay(
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
     let (permit, context) = inference
-        .resolve_and_admit(&gateway_key, route.api_format())
+        .resolve_and_admit(&gateway_key, route.api_format(), correlation.id())
         .await
         .map_err(|error| match error {
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
@@ -124,6 +134,7 @@ async fn relay(
             bytes,
             route,
             query.as_deref(),
+            correlation,
         )
         .await
         .map_err(InferenceHttpError::Provider)
@@ -226,8 +237,9 @@ enum InferenceHttpError {
 }
 
 #[derive(Serialize)]
-struct OpenAiErrorResponse {
+struct OpenAiErrorResponse<'a> {
     error: OpenAiErrorDetail,
+    request_id: &'a str,
 }
 #[derive(Serialize)]
 struct OpenAiErrorDetail {
@@ -239,10 +251,11 @@ struct OpenAiErrorDetail {
 }
 
 #[derive(Serialize)]
-struct AnthropicErrorResponse {
+struct AnthropicErrorResponse<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
     error: AnthropicErrorDetail,
+    request_id: &'a str,
 }
 #[derive(Serialize)]
 struct AnthropicErrorDetail {
@@ -356,7 +369,7 @@ impl InferenceHttpError {
         }
     }
 
-    fn into_native_response(self, api_format: ApiFormat) -> Response {
+    fn into_native_response(self, api_format: ApiFormat, request_id: &str) -> Response {
         let (phase, reason) = self.category();
         let (status, message, kind, code) = self.classify();
         if status.is_server_error() {
@@ -384,6 +397,7 @@ impl InferenceHttpError {
                         param: None,
                         code,
                     },
+                    request_id,
                 }),
             )
                 .into_response(),
@@ -395,6 +409,7 @@ impl InferenceHttpError {
                         kind: anthropic_error_type(status),
                         message,
                     },
+                    request_id,
                 }),
             )
                 .into_response(),

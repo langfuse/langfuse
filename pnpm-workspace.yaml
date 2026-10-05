@@ -5,6 +5,31 @@ packages:
   - "ai-gateway"
   - "packages/**"
   - "ee"
+# Consolidate compatible versions during writable installs; frozen installs keep the lockfile.
+autoDedupe: true
+# These private product packages are versioned together by release-it.
+versioning:
+  fixed:
+    - [langfuse, web, worker]
+# Bound competing Rust jobs across worktrees sharing pnpm's state directory.
+# Keep persistent dev servers and the outer Turbo commands outside this group.
+concurrencyGroups:
+  langfuse-rust: 1
+tasks:
+  "rust:build":
+    concurrencyGroup: langfuse-rust
+  "rust:build:dev":
+    concurrencyGroup: langfuse-rust
+  "rust:build:debug":
+    concurrencyGroup: langfuse-rust
+  "rust:typecheck":
+    concurrencyGroup: langfuse-rust
+  "rust:lint":
+    concurrencyGroup: langfuse-rust
+  "rust:lint:fix":
+    concurrencyGroup: langfuse-rust
+  "rust:test":
+    concurrencyGroup: langfuse-rust
 catalog:
   "@aws-sdk/client-cloudwatch": 3.1074.0
   "@aws-sdk/client-eventbridge": 3.1074.0
@@ -23,15 +48,14 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
+# Drop exceptions for versions no longer in the lockfile during writable installs.
+minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.
 # Older releases have already passed the five-day quarantine above.
 trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 7200
 # Keep pnpm itself out of the workspace lockfile's dependency graph.
 pmOnFail: ignore
-# the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
-# this list is version-specific
-# minimumReleaseAgeExclude:
 packageExtensions:
   # TypeScript 7 has no JavaScript compiler API yet. Keep Storybook's toolchain
   # on the TypeScript 6 compatibility package while Next builds with 7.
@@ -148,12 +172,12 @@ patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
   # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
-  '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
+  "@radix-ui/react-roving-focus@1.1.11": patches/@radix-ui__react-roving-focus@1.1.11.patch
   # Select typeahead schedules nextItem.ref.current.focus() in a setTimeout.
   # If the item unmounts before the timeout (dynamic option lists, closing the
   # menu, a sibling field remounting items), the ref is null and throws.
   # Fixed upstream in 2.3.7; remove this patch when we bump.
-  '@radix-ui/react-select@2.2.6': patches/@radix-ui__react-select@2.2.6.patch
+  "@radix-ui/react-select@2.2.6": patches/@radix-ui__react-select@2.2.6.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
   # The document-level drag handlers crash when a panel group unmounts
   # mid-drag: setPointerCapture on the detached separator throws
@@ -165,7 +189,7 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
-  # These Next.js releases pass the five-day window after 2026-10-05.
+  # Next.js security fixes; eligible without exceptions after 2026-10-05 16:08 UTC.
   - next@16.3.8
   - "@next/env@16.3.8"
   - "@next/eslint-plugin-next@16.3.8"
@@ -177,3 +201,13 @@ minimumReleaseAgeExclude:
   - "@next/swc-linux-x64-musl@16.3.8"
   - "@next/swc-win32-arm64-msvc@16.3.8"
   - "@next/swc-win32-x64-msvc@16.3.8"
+  # Turbo and lint companions; eligible after 2026-10-06 04:01 UTC.
+  - turbo@2.11.6
+  - eslint-config-turbo@2.11.6
+  - eslint-plugin-turbo@2.11.6
+  - "@turbo/darwin-64@2.11.6"
+  - "@turbo/darwin-arm64@2.11.6"
+  - "@turbo/linux-64@2.11.6"
+  - "@turbo/linux-arm64@2.11.6"
+  - "@turbo/windows-64@2.11.6"
+  - "@turbo/windows-arm64@2.11.6"

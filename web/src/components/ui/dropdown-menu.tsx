@@ -391,13 +391,12 @@ const DropdownMenuItemWithSecondaryAction = (
       </span>
     </>
   );
-  let secondaryActionContent: React.ReactNode = null;
-
-  // The secondary action is intentionally pointer-only and cannot be targeted
-  // with the keyboard; the parent remains the row's sole menu item.
-  if (secondaryAction && SecondaryActionIcon) {
+  const secondaryActionContent = React.useMemo(() => {
+    // The secondary action is intentionally pointer-only and cannot be targeted
+    // with the keyboard; the parent remains the row's sole menu item.
+    if (!secondaryAction || !SecondaryActionIcon) return null;
     if (secondaryAction.href !== undefined) {
-      secondaryActionContent = (
+      return (
         <Link
           href={secondaryAction.href}
           target={secondaryAction.target}
@@ -428,24 +427,23 @@ const DropdownMenuItemWithSecondaryAction = (
           <SecondaryActionIcon size={12} />
         </Link>
       );
-    } else {
-      secondaryActionContent = (
-        <button
-          type="button"
-          aria-label={secondaryAction.ariaLabel}
-          disabled={isDisabled}
-          className={dropdownMenuItemSecondaryActionVariants()}
-          onClick={(event) => {
-            event.stopPropagation();
-            secondaryAction.onBeforeAction?.();
-            secondaryAction.onClick();
-          }}
-        >
-          <SecondaryActionIcon size={12} />
-        </button>
-      );
     }
-  }
+    return (
+      <button
+        type="button"
+        aria-label={secondaryAction.ariaLabel}
+        disabled={isDisabled}
+        className={dropdownMenuItemSecondaryActionVariants()}
+        onClick={(event) => {
+          event.stopPropagation();
+          secondaryAction.onBeforeAction?.();
+          secondaryAction.onClick();
+        }}
+      >
+        <SecondaryActionIcon size={12} />
+      </button>
+    );
+  }, [secondaryAction, SecondaryActionIcon, isDisabled]);
 
   return (
     <DropdownMenuItem

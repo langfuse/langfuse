@@ -15,6 +15,7 @@ use tokio::{
 pub use crate::transport::ProviderError;
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
+    correlation::RequestCorrelation,
     resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
@@ -176,10 +177,22 @@ impl ProviderTransport {
         headers: &HeaderMap,
         body: Bytes,
     ) -> Result<Response<Body>, ProviderError> {
-        self.forward_route(permit, context, headers, body, Route::OpenAiResponses, None)
-            .await
+        self.forward_route(
+            permit,
+            context,
+            headers,
+            body,
+            Route::OpenAiResponses,
+            None,
+            &mut RequestCorrelation::from_headers(headers),
+        )
+        .await
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each argument is a distinct per-request input of the relay"
+    )]
     pub(crate) async fn forward_route(
         &self,
         permit: RequestPermit,
@@ -188,6 +201,7 @@ impl ProviderTransport {
         body: Bytes,
         route: Route,
         query: Option<&str>,
+        correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
         let api_format = route.api_format();
         let (credential_name, mut credential) = provider_credential(&context)?;
@@ -195,7 +209,7 @@ impl ProviderTransport {
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry {
-                capture.deliver_to(telemetry.clone(), &context, headers);
+                capture.deliver_to(telemetry.clone(), &context, headers, correlation);
             }
             capture
         } else {
@@ -239,6 +253,9 @@ impl ProviderTransport {
                 return Err(error);
             }
         };
+        if let Some(request_id) = transport::provider_request_id(response.headers(), api_format) {
+            tracing::Span::current().record("provider_request_id", request_id);
+        }
         capture.record_response(response.status().as_u16(), response.headers());
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();

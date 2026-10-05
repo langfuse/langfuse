@@ -609,6 +609,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
             Bytes::from_static(COMPACT),
             Route::OpenAiResponsesCompact,
             None,
+            &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -632,6 +633,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
             Bytes::new(),
             Route::OpenAiModels,
             None,
+            &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -696,7 +698,8 @@ fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     assert!(metadata.get("native_usage").is_none());
     assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
     assert_eq!(metadata["langfuse.gateway.upstream.request.id"], "req-1");
-    assert!(metadata.get("langfuse.gateway.request.id").is_none());
+    assert!(metadata["langfuse.gateway.request.id"].is_string());
+    assert!(metadata.get("langfuse.gateway.client.request.id").is_none());
     let usage: Value = serde_json::from_str(
         attrs
             .iter()
@@ -821,6 +824,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
             Bytes::from_static(REQUEST),
             Route::AnthropicMessages,
             None,
+            &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -905,6 +909,7 @@ async fn count_tokens_relays_the_body_and_models_forwards_only_pagination() {
                 Bytes::from(body),
                 route,
                 query.as_deref(),
+                &mut crate::correlation::RequestCorrelation::default(),
             )
             .await
             .unwrap();
