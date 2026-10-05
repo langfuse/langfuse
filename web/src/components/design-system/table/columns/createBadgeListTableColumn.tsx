@@ -2,7 +2,8 @@ import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type LucideIcon } from "lucide-react";
 
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { SingleLineOverflowList } from "@/src/components/design-system/SingleLineOverflowList/SingleLineOverflowList";
+// eslint-disable-next-line boundaries/dependencies
+import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 // eslint-disable-next-line boundaries/dependencies
 import { Badge, type BadgeProps } from "@/src/components/ui/badge";

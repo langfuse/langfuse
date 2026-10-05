@@ -1,7 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
-import { SingleLineOverflowList } from "@/src/components/design-system/SingleLineOverflowList/SingleLineOverflowList";
+import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Tooltip,
