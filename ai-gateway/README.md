@@ -156,7 +156,8 @@ metadata; it is not forwarded to Web or the provider. The provider's own request
 generation metadata, and its response header is still relayed unchanged.
 
 When the request will produce a Langfuse generation (`/openai/v1/responses`,
-`/openai/v1/responses/compact` and `/anthropic/v1/messages` with inference telemetry
+`/openai/v1/responses/compact`, `/openai/v1/chat/completions` and
+`/anthropic/v1/messages` with inference telemetry
 configured), the response also carries `langfuse-trace-id` and
 `langfuse-observation-id`: the uploaded generation's trace ID, after `traceparent`
 and agent turn grouping, and its OpenTelemetry span ID, which Langfuse stores as the

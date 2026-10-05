@@ -222,7 +222,13 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
         if request.headers().get(header::AUTHORIZATION)
             == Some(&header::HeaderValue::from_static("Bearer valid"))
         {
-            return resolution_response("provider-secret");
+            let body = to_bytes(request.into_body(), 1024).await.unwrap();
+            let api_format =
+                serde_json::from_slice::<serde_json::Value>(&body).unwrap()["apiFormat"].clone();
+            return resolution_response_for(
+                serde_json::from_value(api_format).unwrap(),
+                "provider-secret",
+            );
         }
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -242,6 +248,24 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             true,
         ),
         (configured.post(), StatusCode::UNAUTHORIZED, false),
+        (
+            unconfigured.chat_completions(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            false,
+        ),
+        (
+            configured.chat_completions().bearer_auth("rejected"),
+            StatusCode::UNAUTHORIZED,
+            false,
+        ),
+        (
+            configured
+                .chat_completions()
+                .bearer_auth("valid")
+                .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
+            StatusCode::PAYLOAD_TOO_LARGE,
+            false,
+        ),
         (
             configured.post().bearer_auth("rejected"),
             StatusCode::UNAUTHORIZED,
@@ -689,6 +713,109 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
         assert_eq!(sink.calls(), 1);
         upstream_task.abort();
     }
+}
+
+#[tokio::test]
+async fn chat_completions_streams_carry_the_request_and_generation_ids() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::Value;
+
+    const CONTENT: &str = "data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}],\"usage\":null}\n\n";
+    const USAGE: &str = "data: {\"id\":\"chatcmpl-1\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":1,\"total_tokens\":3}}\n\n";
+    const DONE: &str = "data: [DONE]\n\n";
+    let (sent, mut received) = tokio::sync::mpsc::channel(1);
+    let sink = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes))
+                .await
+                .unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+    let (resolved, mut resolution_ids) = tokio::sync::mpsc::channel(1);
+    let web = FakeServer::start(move |request| {
+        let resolved = resolved.clone();
+        async move {
+            let id = request.headers()["langfuse-gateway-request-id"]
+                .to_str()
+                .unwrap()
+                .to_owned();
+            resolved.send(id).await.unwrap();
+            resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|request| async move {
+        assert_eq!(request.uri(), "/v1/chat/completions");
+        Response::builder()
+            .header("content-type", "text/event-stream")
+            .header("x-request-id", "req-upstream")
+            .body(Body::from([CONTENT, USAGE, DONE].concat()))
+            .unwrap()
+    })
+    .await;
+    let gateway = Gateway::start(Some(InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default())
+            .with_telemetry(telemetry.clone()),
+        128,
+    )))
+    .await;
+    let response = gateway
+        .chat_completions()
+        .bearer_auth("gateway-chat")
+        .header("x-request-id", "client-request")
+        .body(r#"{"model":"gpt-4.1-mini","messages":[],"stream":true}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let id = request_id(&response);
+    let header = |name: &str| response.headers()[name].to_str().unwrap().to_owned();
+    let (trace_id, observation_id) = (
+        header("langfuse-trace-id"),
+        header("langfuse-observation-id"),
+    );
+    assert_eq!(header("x-request-id"), "req-upstream");
+    assert_eq!(response.text().await.unwrap(), [CONTENT, DONE].concat());
+    assert_eq!(resolution_ids.recv().await.unwrap(), id);
+
+    let payload = tokio::time::timeout(Duration::from_secs(2), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(span["name"], "openai.chat-completions");
+    assert_eq!(span["traceId"], trace_id.as_str());
+    assert_eq!(span["spanId"], observation_id.as_str());
+    let metadata: Value = serde_json::from_str(
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["key"] == "langfuse.observation.metadata")
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(metadata["langfuse.gateway.request.id"], id.as_str());
+    assert_eq!(
+        metadata["langfuse.gateway.client.request.id"],
+        "client-request"
+    );
+    assert_eq!(
+        metadata["langfuse.gateway.upstream.request.id"],
+        "req-upstream"
+    );
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+        .await;
 }
 
 #[tokio::test]
