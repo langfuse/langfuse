@@ -98,8 +98,9 @@ describe("SessionConversationTimelineTrace", () => {
     expect(
       systemTimestamp?.parentElement?.classList.contains("invisible"),
     ).toBe(true);
-    const systemObservationButton =
-      systemHeader.querySelector("button.underline")!;
+    const systemObservationButton = within(systemHeader).getByRole("button", {
+      name: "Open observation",
+    });
     expect(
       systemObservationButton.parentElement?.classList.contains("invisible"),
     ).toBe(true);
@@ -207,7 +208,9 @@ describe("SessionConversationTimelineTrace", () => {
       text.indexOf("Other thread"),
     );
     fireEvent.click(screen.getByRole("button", { name: "weather" }));
-    expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
+    expect(onOpenObservation).not.toHaveBeenCalled();
+    expect(screen.getByText("Input")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "weather" }));
     expect(screen.queryByText("Input")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Expand weather" }));
     expect(screen.queryByText("weather · Result")).toBeNull();

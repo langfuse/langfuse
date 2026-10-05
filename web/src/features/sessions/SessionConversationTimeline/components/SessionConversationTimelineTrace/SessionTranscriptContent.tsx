@@ -117,7 +117,7 @@ function SessionTranscriptRow({
         {row.message.observationId && (
           <button
             type="button"
-            className="hover:text-foreground underline"
+            className="hover:text-foreground hover:underline"
             onClick={() => onOpenObservation(row.message.observationId!)}
           >
             Open observation
@@ -156,11 +156,7 @@ function SessionTranscriptRow({
       }
     >
       {row.type === "tool" ? (
-        <SessionTranscriptTool
-          row={row}
-          trailingContent={metadata}
-          onOpenObservation={onOpenObservation}
-        />
+        <SessionTranscriptTool row={row} trailingContent={metadata} />
       ) : (
         <SessionTranscriptMessage
           message={row.message}
@@ -225,11 +221,9 @@ function SessionTranscriptToolGroup({
 function SessionTranscriptTool({
   row,
   trailingContent,
-  onOpenObservation,
 }: {
   row: Extract<TranscriptMessageGroup<DisplayMessage>, { type: "tool" }>;
   trailingContent: ReactNode;
-  onOpenObservation: (observationId: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   return (
@@ -240,11 +234,6 @@ function SessionTranscriptTool({
       isError={row.result?.isError}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
-      onOpenObservation={
-        row.message.observationId
-          ? () => onOpenObservation(row.message.observationId!)
-          : undefined
-      }
       trailingContent={trailingContent}
     />
   );

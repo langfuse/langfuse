@@ -38,7 +38,6 @@ export function SessionTimelineToolRow({
   output,
   isExpanded,
   onExpandedChange,
-  onOpenObservation,
   isError,
   trailingContent,
 }: {
@@ -47,7 +46,6 @@ export function SessionTimelineToolRow({
   output: unknown;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
-  onOpenObservation?: () => void;
   isError?: boolean;
   trailingContent?: ReactNode;
 }) {
@@ -57,7 +55,6 @@ export function SessionTimelineToolRow({
       icon={renderFilterIcon("TOOL")}
       isExpanded={isExpanded}
       onExpandedChange={onExpandedChange}
-      onOpenObservation={onOpenObservation}
       trailingContent={
         <>
           {trailingContent}
