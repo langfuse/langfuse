@@ -8,6 +8,7 @@ import {
   formatSubmittedPublicKeyForLog,
   logger,
 } from "@langfuse/shared/src/server";
+import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
 
 type AuditableResource =
   | "annotationQueue"
@@ -133,6 +134,14 @@ export async function auditLog(
   log: AuditLog,
   prisma?: typeof _prisma | Prisma.TransactionClient,
 ) {
+  // Audit logs are an enterprise feature. Skip before any work so that an
+  // unlicensed self-hosted instance pays neither the record nor the extra
+  // api_keys lookup on the apiKeyId path. This also suppresses the application
+  // log mirror below: emitting "Audit log: ..." lines for events that were
+  // never recorded would both mislead and leave the feature fully usable via a
+  // log aggregator.
+  if (!isAuditLogEnabled()) return;
+
   const db = prisma ?? _prisma;
   const shared = {
     resourceType: log.resourceType,
