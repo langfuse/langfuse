@@ -69,6 +69,13 @@ export const ScoreColumnHeaderSummary = ({
   const hasMovementCounts = Boolean(
     movement && (movement.improved || movement.regressed || movement.changed),
   );
+  const movementCountsTitle = [
+    movement?.improved ? `${movement.improved} improved` : null,
+    movement?.regressed ? `${movement.regressed} regressed` : null,
+    movement?.changed ? `${movement.changed} changed` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     // The filter menu sits outside the hover-card trigger so its own popover is
@@ -81,7 +88,9 @@ export const ScoreColumnHeaderSummary = ({
               {icon && (
                 <span className="text-muted-foreground shrink-0">{icon}</span>
               )}
-              <span className="truncate">{nameLabel}</span>
+              <span className="truncate" title={label}>
+                {nameLabel}
+              </span>
             </span>
             {/* The values: this column's aggregate, and the one it moved from.
               The item count is deliberately NOT here — of the numbers competing
@@ -96,7 +105,10 @@ export const ScoreColumnHeaderSummary = ({
                 in an ellipsis: a value that stops with no mark reads as the
                 whole value. */}
               {baseline ? (
-                <span className="text-foreground min-w-0 truncate font-bold">
+                <span
+                  className="text-foreground min-w-0 truncate font-bold"
+                  title={formatScoreColumnAggregate(baseline)}
+                >
                   {formatScoreColumnAggregate(baseline)}
                 </span>
               ) : (
@@ -106,7 +118,10 @@ export const ScoreColumnHeaderSummary = ({
                 comparison recorded and this run has not yet is exactly the
                 case worth seeing. */}
               {comparison && (
-                <span className="min-w-0 truncate">
+                <span
+                  className="min-w-0 truncate"
+                  title={`vs ${formatScoreColumnAggregate(comparison)}`}
+                >
                   vs {formatScoreColumnAggregate(comparison)}
                 </span>
               )}
@@ -138,7 +153,10 @@ export const ScoreColumnHeaderSummary = ({
                   // Not a flex row: `text-overflow` only applies to a block
                   // box's inline content, and it is what drops a count whole
                   // and marks it, instead of clipping `↘141` into `↘1`.
-                  <span className="min-w-0 truncate">
+                  <span
+                    className="min-w-0 truncate"
+                    title={movementCountsTitle}
+                  >
                     {movement && movement.improved > 0 && (
                       <span className="text-dark-green pr-1 font-bold">
                         ↗{movement.improved}
