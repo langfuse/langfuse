@@ -9,10 +9,15 @@
 pub mod native_codec;
 mod native_js;
 pub(crate) mod native_schema;
+mod native_task;
+mod otel_input;
+mod otel_media;
 mod telemetry;
 mod topics;
 
 pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
+
+pub use otel_input::{validate_otel_json, EarlyOtelBatch, ValidatedOtelJson};
 
 use std::sync::Arc;
 use std::time::Duration;
