@@ -1,4 +1,5 @@
 import { env } from "@/src/env.mjs";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -36,6 +37,23 @@ const workflowInput = z.object({
   queueId: z.string(),
 });
 
+async function nextWorkflowVersion(
+  tx: Prisma.TransactionClient,
+  workflowId: string,
+  projectId: string,
+): Promise<number> {
+  await tx.$queryRaw`
+    SELECT id FROM annotation_workflows
+    WHERE id = ${workflowId} AND project_id = ${projectId}
+    FOR UPDATE
+  `;
+  const aggregate = await tx.annotationWorkflowVersion.aggregate({
+    where: { workflowId },
+    _max: { version: true },
+  });
+  return (aggregate._max.version ?? 0) + 1;
+}
+
 export const annotationWorkflowRouter = createTRPCRouter({
   generationModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -58,7 +76,7 @@ export const annotationWorkflowRouter = createTRPCRouter({
         scope: "annotationQueues:CUD",
       });
 
-      return ctx.prisma.annotationWorkflow.findMany({
+      const workflows = await ctx.prisma.annotationWorkflow.findMany({
         where: { projectId: input.projectId },
         orderBy: { updatedAt: "desc" },
         include: {
@@ -67,6 +85,7 @@ export const annotationWorkflowRouter = createTRPCRouter({
           },
           versions: {
             orderBy: { version: "desc" },
+            take: 50,
             select: {
               id: true,
               workflowId: true,
@@ -82,6 +101,43 @@ export const annotationWorkflowRouter = createTRPCRouter({
           _count: { select: { versions: true } },
         },
       });
+
+      return Promise.all(
+        workflows.map(async (workflow) => {
+          const liveVersion =
+            await ctx.prisma.annotationWorkflowVersion.findFirst({
+              where: {
+                workflowId: workflow.id,
+                workflow: { projectId: input.projectId },
+                publishedAt: { not: null },
+              },
+              orderBy: { publishedAt: "desc" },
+              select: {
+                id: true,
+                workflowId: true,
+                version: true,
+                source: true,
+                modelProvider: true,
+                modelName: true,
+                publishedAt: true,
+                createdAt: true,
+                spec: true,
+              },
+            });
+          if (
+            !liveVersion ||
+            workflow.versions.some((version) => version.id === liveVersion.id)
+          ) {
+            return workflow;
+          }
+          return {
+            ...workflow,
+            versions: [...workflow.versions, liveVersion].sort(
+              (left, right) => right.version - left.version,
+            ),
+          };
+        }),
+      );
     }),
 
   publishedQueues: protectedProjectProcedure
@@ -185,19 +241,34 @@ export const annotationWorkflowRouter = createTRPCRouter({
             description: STARTER_ANNOTATION_SPEC.summary,
           },
         });
-        const aggregate = await tx.annotationWorkflowVersion.aggregate({
-          where: { workflowId: workflow.id },
-          _max: { version: true },
-        });
-        return tx.annotationWorkflowVersion.create({
+        const version = await tx.annotationWorkflowVersion.create({
           data: {
             workflowId: workflow.id,
-            version: (aggregate._max.version ?? 0) + 1,
+            version: await nextWorkflowVersion(
+              tx,
+              workflow.id,
+              input.projectId,
+            ),
             spec: STARTER_ANNOTATION_SPEC,
             source: "STARTER",
             createdByUserId: ctx.session.user.id,
           },
         });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "annotationQueue",
+            resourceId: input.queueId,
+            action: "workflow.draft.create",
+            after: {
+              workflowId: workflow.id,
+              versionId: version.id,
+              source: "STARTER",
+            },
+          },
+          tx,
+        );
+        return version;
       });
     }),
 
@@ -237,19 +308,33 @@ export const annotationWorkflowRouter = createTRPCRouter({
             description: input.spec.summary,
           },
         });
-        const aggregate = await tx.annotationWorkflowVersion.aggregate({
-          where: { workflowId: workflow.id },
-          _max: { version: true },
-        });
         const version = await tx.annotationWorkflowVersion.create({
           data: {
             workflowId: workflow.id,
-            version: (aggregate._max.version ?? 0) + 1,
+            version: await nextWorkflowVersion(
+              tx,
+              workflow.id,
+              input.projectId,
+            ),
             spec: input.spec,
             source: "MANUAL",
             createdByUserId: ctx.session.user.id,
           },
         });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "annotationQueue",
+            resourceId: input.queueId,
+            action: "workflow.draft.create",
+            after: {
+              workflowId: workflow.id,
+              versionId: version.id,
+              source: "MANUAL",
+            },
+          },
+          tx,
+        );
         return { ...version, spec: input.spec };
       });
     }),
@@ -399,14 +484,14 @@ export const annotationWorkflowRouter = createTRPCRouter({
           },
           update: { name: spec.title, description: spec.summary },
         });
-        const aggregate = await tx.annotationWorkflowVersion.aggregate({
-          where: { workflowId: workflow.id },
-          _max: { version: true },
-        });
         const version = await tx.annotationWorkflowVersion.create({
           data: {
             workflowId: workflow.id,
-            version: (aggregate._max.version ?? 0) + 1,
+            version: await nextWorkflowVersion(
+              tx,
+              workflow.id,
+              input.projectId,
+            ),
             spec,
             source: "AI",
             prompt: input.prompt,
@@ -415,6 +500,20 @@ export const annotationWorkflowRouter = createTRPCRouter({
             createdByUserId: ctx.session.user.id,
           },
         });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "annotationQueue",
+            resourceId: input.queueId,
+            action: "workflow.draft.create",
+            after: {
+              workflowId: workflow.id,
+              versionId: version.id,
+              source: "AI",
+            },
+          },
+          tx,
+        );
         return { ...version, spec };
       });
     }),
@@ -450,16 +549,29 @@ export const annotationWorkflowRouter = createTRPCRouter({
       }
       AnnotationViewSpecSchema.parse(version.spec);
 
-      return ctx.prisma.$transaction([
-        ctx.prisma.annotationWorkflowVersion.update({
-          where: { id: version.id },
-          data: { publishedAt: new Date() },
-        }),
-        ctx.prisma.annotationWorkflow.update({
-          where: { id: input.workflowId, projectId: input.projectId },
-          data: { status: "PUBLISHED" },
-        }),
-      ]);
+      return ctx.prisma.$transaction(async (tx) => {
+        const result = await Promise.all([
+          tx.annotationWorkflowVersion.update({
+            where: { id: version.id },
+            data: { publishedAt: new Date() },
+          }),
+          tx.annotationWorkflow.update({
+            where: { id: input.workflowId, projectId: input.projectId },
+            data: { status: "PUBLISHED" },
+          }),
+        ]);
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "annotationQueue",
+            resourceId: result[1].queueId,
+            action: "workflow.publish",
+            after: { workflowId: input.workflowId, versionId: input.versionId },
+          },
+          tx,
+        );
+        return result;
+      });
     }),
 
   submit: protectedProjectProcedure
@@ -479,28 +591,18 @@ export const annotationWorkflowRouter = createTRPCRouter({
         scope: "annotationQueues:CUD",
       });
 
-      const [item, version] = await Promise.all([
-        ctx.prisma.annotationQueueItem.findFirst({
-          where: {
-            id: input.itemId,
+      const version = await ctx.prisma.annotationWorkflowVersion.findFirst({
+        where: {
+          id: input.workflowVersionId,
+          publishedAt: { not: null },
+          workflow: {
             projectId: input.projectId,
             queueId: input.queueId,
           },
-          select: { id: true },
-        }),
-        ctx.prisma.annotationWorkflowVersion.findFirst({
-          where: {
-            id: input.workflowVersionId,
-            publishedAt: { not: null },
-            workflow: {
-              projectId: input.projectId,
-              queueId: input.queueId,
-            },
-          },
-          select: { id: true, spec: true },
-        }),
-      ]);
-      if (!item || !version) {
+        },
+        select: { id: true, spec: true },
+      });
+      if (!version) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "This task or workflow version is no longer available.",
@@ -517,34 +619,49 @@ export const annotationWorkflowRouter = createTRPCRouter({
       }
 
       return ctx.prisma.$transaction(async (tx) => {
-        const response = await tx.annotationResponse.upsert({
+        const claimed = await tx.annotationQueueItem.updateMany({
           where: {
-            itemId_userId: {
-              itemId: input.itemId,
-              userId: ctx.session.user.id,
-            },
-          },
-          create: {
+            id: input.itemId,
             projectId: input.projectId,
-            itemId: input.itemId,
-            workflowVersionId: input.workflowVersionId,
-            userId: ctx.session.user.id,
-            payload: input.answers as Prisma.InputJsonValue,
+            queueId: input.queueId,
+            status: "PENDING",
           },
-          update: {
-            workflowVersionId: input.workflowVersionId,
-            payload: input.answers as Prisma.InputJsonValue,
-            submittedAt: new Date(),
-          },
-        });
-        await tx.annotationQueueItem.update({
-          where: { id: input.itemId, projectId: input.projectId },
           data: {
             status: "COMPLETED",
             annotatorUserId: ctx.session.user.id,
             completedAt: new Date(),
           },
         });
+        if (claimed.count !== 1) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "This task has already been completed or is no longer available.",
+          });
+        }
+
+        const response = await tx.annotationResponse.create({
+          data: {
+            projectId: input.projectId,
+            itemId: input.itemId,
+            workflowVersionId: input.workflowVersionId,
+            userId: ctx.session.user.id,
+            payload: input.answers as Prisma.InputJsonValue,
+          },
+        });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "annotationQueueItem",
+            resourceId: input.itemId,
+            action: "workflow.submit",
+            after: {
+              responseId: response.id,
+              workflowVersionId: input.workflowVersionId,
+            },
+          },
+          tx,
+        );
         return response;
       });
     }),

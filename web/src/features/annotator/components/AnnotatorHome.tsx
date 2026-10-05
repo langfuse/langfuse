@@ -23,8 +23,6 @@ export function AnnotatorHome({ projectId }: { projectId: string }) {
   });
   const queues = api.annotationQueues.all.useQuery({
     projectId,
-    page: 0,
-    limit: 50,
   });
   const workflows = api.annotationWorkflows.publishedQueues.useQuery(
     { projectId },
@@ -102,9 +100,10 @@ export function AnnotatorHome({ projectId }: { projectId: string }) {
                   variant="ghost"
                   size="sm"
                   onClick={() =>
-                    router.push(
-                      router.pathname.replace("[projectId]", projectId),
-                    )
+                    router.push({
+                      pathname: "/project/[projectId]/annotator",
+                      query: { projectId },
+                    })
                   }
                 >
                   Close

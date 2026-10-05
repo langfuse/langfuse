@@ -51,8 +51,6 @@ export function AnnotatorStudio({ projectId }: { projectId: string }) {
 
   const queues = api.annotationQueues.all.useQuery({
     projectId,
-    page: 0,
-    limit: 50,
   });
   const workflows = api.annotationWorkflows.list.useQuery(
     { projectId },
@@ -91,17 +89,20 @@ export function AnnotatorStudio({ projectId }: { projectId: string }) {
   const connection = connections.data?.data.find(
     (item) => item.provider === connectionKey,
   );
-  let availableModels: string[] = [];
-  if (usesInstanceAI && generationModel.data) {
-    availableModels = [generationModel.data.modelId];
-  } else if (connection) {
-    availableModels = [
-      ...connection.customModels,
-      ...(connection.withDefaultModels
-        ? supportedModels[connection.adapter]
-        : []),
-    ];
-  }
+  const availableModels: string[] = (() => {
+    if (usesInstanceAI && generationModel.data) {
+      return [generationModel.data.modelId];
+    }
+    if (connection) {
+      return [
+        ...connection.customModels,
+        ...(connection.withDefaultModels
+          ? supportedModels[connection.adapter]
+          : []),
+      ];
+    }
+    return [];
+  })();
   const model =
     (availableModels.includes(selectedModel)
       ? selectedModel

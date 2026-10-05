@@ -5,9 +5,15 @@ import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useAnnotationObjectData } from "@/src/features/annotation-queues/components/shared/hooks/useAnnotationObjectData";
 import { AnnotationQueueItemPage } from "@/src/features/annotation-queues/components/AnnotationQueueItemPage";
+import { useLogViewObservationIO } from "@/src/features/traces/components/TraceLogView/useLogViewObservationIO";
 import { Trace } from "@/src/features/traces";
-import { api } from "@/src/utils/api";
-import type { AnnotationQueueItem } from "@langfuse/shared";
+import { api, type RouterOutputs } from "@/src/utils/api";
+import {
+  AnnotationQueueObjectType,
+  AnnotationQueueStatus,
+  type AnnotationQueueItem,
+} from "@langfuse/shared";
+import { useEventsTraceData, useReadPath } from "@/src/features/events";
 import { ArrowLeft, ArrowRight, Braces, PanelTopOpen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -31,89 +37,17 @@ export function AnnotatorWorkbench({
   queueId: string;
   itemId: string;
 }) {
-  const router = useRouter();
-  const [answers, setAnswers] = useState<AnnotationAnswers>({});
-  const [showTechnical, setShowTechnical] = useState(false);
-  const item = api.annotationQueueItems.byId.useQuery({ projectId, itemId });
   const workflow = api.annotationWorkflows.publishedForQueue.useQuery(
     { projectId, queueId },
     {
-      staleTime: Infinity,
+      staleTime: 0,
+      refetchOnMount: "always",
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
     },
   );
-  const queues = api.annotationQueues.all.useQuery({
-    projectId,
-    page: 0,
-    limit: 50,
-  });
-  const objectData = useAnnotationObjectData(
-    item.data as
-      | (AnnotationQueueItem & {
-          parentTraceId?: string | null;
-        })
-      | null,
-    projectId,
-  );
-  const submit = api.annotationWorkflows.submit.useMutation();
-  const nextItem = api.annotationQueues.fetchAndLockNext.useMutation();
-  const utils = api.useUtils();
 
-  const queue = queues.data?.queues.find((entry) => entry.id === queueId);
-  const total = queue
-    ? Number(queue.countCompletedItems) + Number(queue.countPendingItems)
-    : 0;
-  const complete = queue ? Number(queue.countCompletedItems) : 0;
-  const progress = total ? Math.round((complete / total) * 100) : 0;
-  const spec = workflow.data?.version.spec;
-
-  const setAnswer = (questionId: string, answer: AnnotationAnswer) => {
-    setAnswers((current) => ({ ...current, [questionId]: answer }));
-  };
-
-  const handleSubmit = async () => {
-    if (!workflow.data || !spec) return;
-    const errors = validateAnswers(spec, answers);
-    if (errors.length > 0) {
-      toast.error(errors[0]);
-      return;
-    }
-    try {
-      await submit.mutateAsync({
-        projectId,
-        queueId,
-        itemId,
-        workflowVersionId: workflow.data.version.id,
-        answers,
-      });
-      await Promise.all([
-        utils.annotationQueues.all.invalidate(),
-        utils.annotationWorkflows.activity.invalidate(),
-      ]);
-      const next = await nextItem.mutateAsync({
-        projectId,
-        queueId,
-        seenItemIds: [itemId],
-      });
-      if (next) {
-        await router.push(
-          `/project/${projectId}/annotator/work/${queueId}/${next.id}`,
-        );
-        setAnswers({});
-        setShowTechnical(false);
-      } else {
-        toast.success("Queue complete. Nice work.");
-        await router.push(`/project/${projectId}/annotator`);
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not submit annotation",
-      );
-    }
-  };
-
-  if (item.isLoading || workflow.isLoading || objectData.isLoading) {
+  if (workflow.isLoading || workflow.isFetching) {
     return (
       <AnnotatorShell projectId={projectId} compact>
         <div className="grid h-full grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.5fr)_minmax(400px,0.75fr)]">
@@ -124,7 +58,135 @@ export function AnnotatorWorkbench({
     );
   }
 
-  if (!item.data || objectData.isError) {
+  return (
+    <AnnotatorWorkbenchItem
+      key={`${projectId}:${queueId}:${itemId}`}
+      projectId={projectId}
+      queueId={queueId}
+      itemId={itemId}
+      initialWorkflow={workflow.data ?? null}
+    />
+  );
+}
+
+function AnnotatorWorkbenchItem({
+  projectId,
+  queueId,
+  itemId,
+  initialWorkflow,
+}: {
+  projectId: string;
+  queueId: string;
+  itemId: string;
+  initialWorkflow: RouterOutputs["annotationWorkflows"]["publishedForQueue"];
+}) {
+  const router = useRouter();
+  const [workflow] = useState(initialWorkflow);
+  const [answers, setAnswers] = useState<AnnotationAnswers>({});
+  const [showTechnical, setShowTechnical] = useState(false);
+  const item = api.annotationQueueItems.byId.useQuery({ projectId, itemId });
+  const queues = api.annotationQueues.all.useQuery({
+    projectId,
+  });
+  const objectData = useAnnotationObjectData(
+    item.data as
+      | (AnnotationQueueItem & {
+          parentTraceId?: string | null;
+        })
+      | null,
+    projectId,
+  );
+  const observation = objectData.data?.observations?.find(
+    (entry: { id: string }) => entry.id === item.data?.objectId,
+  );
+  const isObservation =
+    item.data?.objectType === AnnotationQueueObjectType.OBSERVATION;
+  const observationIO = useLogViewObservationIO({
+    observationId: item.data?.objectId ?? "",
+    traceId: objectData.data?.id ?? "",
+    projectId,
+    startTime: observation?.startTime ?? new Date(0),
+    enabled: isObservation && !!observation?.startTime,
+  });
+  const submit = api.annotationWorkflows.submit.useMutation();
+  const nextItem = api.annotationQueues.fetchAndLockNext.useMutation();
+  const utils = api.useUtils();
+
+  const queue = queues.data?.queues.find((entry) => entry.id === queueId);
+  const total = queue
+    ? Number(queue.countCompletedItems) + Number(queue.countPendingItems)
+    : 0;
+  const complete = queue ? Number(queue.countCompletedItems) : 0;
+  const progress = total ? Math.round((complete / total) * 100) : 0;
+  const spec = workflow?.version.spec;
+
+  const setAnswer = (questionId: string, answer: AnnotationAnswer) => {
+    setAnswers((current) => ({ ...current, [questionId]: answer }));
+  };
+
+  const handleSubmit = async () => {
+    if (!workflow || !spec) return;
+    const errors = validateAnswers(spec, answers);
+    if (errors.length > 0) {
+      toast.error(errors[0]);
+      return;
+    }
+    try {
+      await submit.mutateAsync({
+        projectId,
+        queueId,
+        itemId,
+        workflowVersionId: workflow.version.id,
+        answers,
+      });
+      await Promise.all([
+        utils.annotationQueues.all.invalidate(),
+        utils.annotationWorkflows.activity.invalidate(),
+        utils.annotationWorkflows.publishedForQueue.invalidate({
+          projectId,
+          queueId,
+        }),
+      ]);
+      const next = await nextItem.mutateAsync({
+        projectId,
+        queueId,
+        seenItemIds: [itemId],
+      });
+      if (next) {
+        await router.push({
+          pathname: "/project/[projectId]/annotator/work/[queueId]/[itemId]",
+          query: { projectId, queueId, itemId: next.id },
+        });
+      } else {
+        toast.success("Queue complete. Nice work.");
+        await router.push({
+          pathname: "/project/[projectId]/annotator",
+          query: { projectId },
+        });
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not submit annotation",
+      );
+    }
+  };
+
+  if (item.isLoading || objectData.isLoading || observationIO.isLoading) {
+    return (
+      <AnnotatorShell projectId={projectId} compact>
+        <div className="grid h-full grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.5fr)_minmax(400px,0.75fr)]">
+          <Skeleton className="m-6" />
+          <Skeleton className="m-6" />
+        </div>
+      </AnnotatorShell>
+    );
+  }
+
+  if (
+    !item.data ||
+    objectData.isError ||
+    (isObservation && (!observation || observationIO.isError))
+  ) {
     return (
       <AnnotatorShell projectId={projectId} compact>
         <div className="flex h-full items-center justify-center p-8">
@@ -145,7 +207,28 @@ export function AnnotatorWorkbench({
     );
   }
 
-  if (!workflow.data || !spec) {
+  if (item.data.status !== AnnotationQueueStatus.PENDING) {
+    return (
+      <AnnotatorShell projectId={projectId} compact>
+        <div className="flex h-full items-center justify-center p-8">
+          <Card className="max-w-md p-6 text-center">
+            <h1>This task has already been completed</h1>
+            <p className="text-foreground-secondary mt-2 text-sm">
+              Its saved response is preserved. Choose another task from your
+              work list.
+            </p>
+            <Button asChild className="mt-5">
+              <Link href={`/project/${projectId}/annotator`}>
+                Back to my work
+              </Link>
+            </Button>
+          </Card>
+        </div>
+      </AnnotatorShell>
+    );
+  }
+
+  if (!workflow || !spec) {
     return (
       <AnnotatorShell projectId={projectId} compact>
         <AnnotationQueueItemPage
@@ -157,6 +240,25 @@ export function AnnotatorWorkbench({
       </AnnotatorShell>
     );
   }
+
+  const evidence =
+    item.data.objectType === AnnotationQueueObjectType.SESSION ? (
+      <SessionEvidence
+        projectId={projectId}
+        sessionId={item.data.objectId}
+        data={objectData.data}
+        spec={spec}
+      />
+    ) : (
+      <EvidenceView
+        spec={spec}
+        data={
+          isObservation
+            ? { ...observation, ...observationIO.data }
+            : objectData.data
+        }
+      />
+    );
 
   return (
     <AnnotatorShell projectId={projectId} compact>
@@ -217,7 +319,7 @@ export function AnnotatorWorkbench({
               <TechnicalTrace data={objectData.data} projectId={projectId} />
             </div>
           ) : (
-            <EvidenceView spec={spec} data={objectData.data} />
+            evidence
           )}
         </section>
 
@@ -227,7 +329,7 @@ export function AnnotatorWorkbench({
               <div className="mb-2 flex items-center justify-between gap-3">
                 <span className="text-foreground-tertiary text-xs">
                   {queue?.name ?? "Annotation queue"} · rubric v
-                  {workflow.data.version.version}
+                  {workflow.version.version}
                 </span>
                 <span className="text-foreground-tertiary text-xs tabular-nums">
                   {complete}/{total}
@@ -278,6 +380,84 @@ export function AnnotatorWorkbench({
   );
 }
 
+function SessionEvidence({
+  projectId,
+  sessionId,
+  data,
+  spec,
+}: {
+  projectId: string;
+  sessionId: string;
+  data: { traces?: { id: string; name?: string | null; timestamp?: Date }[] };
+  spec: AnnotationViewSpec;
+}) {
+  const { isV4 } = useReadPath();
+  const [selectedTraceId, setSelectedTraceId] = useState("");
+  const eventTraces = api.sessions.tracesFromEvents.useQuery(
+    { projectId, sessionId },
+    { enabled: isV4 },
+  );
+  const traces = isV4 ? (eventTraces.data ?? []) : (data.traces ?? []);
+  const traceId = selectedTraceId || traces[0]?.id || "";
+  const eventTrace = useEventsTraceData({
+    projectId,
+    traceId,
+    enabled: isV4 && !!traceId,
+  });
+  const legacyTrace = api.traces.byIdWithObservationsAndScores.useQuery(
+    { projectId, traceId },
+    { enabled: !isV4 && !!traceId },
+  );
+  const trace = isV4 ? eventTrace.data : legacyTrace.data;
+  const traceLoading = isV4 ? eventTrace.isLoading : legacyTrace.isLoading;
+  const traceError = isV4 ? !!eventTrace.error : legacyTrace.isError;
+
+  return (
+    <div className="ph-no-capture mx-auto max-w-4xl space-y-6 p-6 md:p-10">
+      <div>
+        <p className="text-foreground-secondary mb-2 text-sm">
+          Session evidence
+        </p>
+        <h2 className="text-2xl tracking-tight">Review each exchange.</h2>
+        <p className="text-foreground-secondary mt-2 text-sm">
+          {traces.length} traces in this session. Choose a trace to read its
+          input and output.
+        </p>
+      </div>
+      {eventTraces.isLoading && isV4 ? <Skeleton className="h-28" /> : null}
+      {traces.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {traces.map((entry, index) => (
+            <Button
+              key={entry.id}
+              size="sm"
+              variant={entry.id === traceId ? "secondary" : "outline"}
+              onClick={() => setSelectedTraceId(entry.id)}
+            >
+              {index + 1}. {entry.name || "Trace"}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      {traceLoading ? <Skeleton className="h-48" /> : null}
+      {trace && !traceLoading ? (
+        <EvidenceView spec={spec} data={trace} />
+      ) : null}
+      {traceError || (!traceLoading && traces.length === 0) ? (
+        <Card className="p-5 text-sm">
+          The exchange preview is unavailable. Open the full session for the
+          complete evidence.
+        </Card>
+      ) : null}
+      <Button asChild variant="outline" size="sm">
+        <Link href={`/project/${projectId}/sessions/${sessionId}`}>
+          Open full session
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
 function EvidenceView({
   spec,
   data,
@@ -289,42 +469,43 @@ function EvidenceView({
     .map((binding) => ({ binding, value: data?.[binding] }))
     .filter((entry) => entry.value !== undefined && entry.value !== null);
 
-  let content: ReactNode;
-  if (fields.length === 0) {
-    content = (
-      <Card className="p-6">
-        <p className="text-foreground-secondary text-sm">
-          This source does not expose the configured evidence fields. Use
-          Inspect trace for the complete technical view.
-        </p>
-      </Card>
-    );
-  } else if (spec.layout === "conversation") {
-    content = (
-      <div className="space-y-5">
-        {fields.map((field, index) => (
-          <div
-            key={field.binding}
-            className={`flex ${index % 2 === 1 ? "justify-end" : "justify-start"}`}
-          >
+  const content: ReactNode = (() => {
+    if (fields.length === 0) {
+      return (
+        <Card className="p-6">
+          <p className="text-foreground-secondary text-sm">
+            This source does not expose the configured evidence fields. Use
+            Inspect trace for the complete technical view.
+          </p>
+        </Card>
+      );
+    }
+    if (spec.layout === "conversation") {
+      return (
+        <div className="space-y-5">
+          {fields.map((field, index) => (
             <div
-              className={`max-w-[88%] rounded-2xl px-5 py-4 ${
-                index % 2 === 1
-                  ? "bg-primary text-primary-foreground rounded-br-sm"
-                  : "bg-muted rounded-bl-sm"
-              }`}
+              key={field.binding}
+              className={`flex ${index % 2 === 1 ? "justify-end" : "justify-start"}`}
             >
-              <p className="mb-2 text-xs opacity-70">
-                {evidenceLabel(field.binding)}
-              </p>
-              <ReadableValue value={field.value} />
+              <div
+                className={`max-w-[88%] rounded-2xl px-5 py-4 ${
+                  index % 2 === 1
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-muted rounded-bl-sm"
+                }`}
+              >
+                <p className="mb-2 text-xs opacity-70">
+                  {evidenceLabel(field.binding)}
+                </p>
+                <ReadableValue value={field.value} />
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    );
-  } else {
-    content = (
+          ))}
+        </div>
+      );
+    }
+    return (
       <div className="space-y-4">
         {fields.map((field) => (
           <Card key={field.binding} className="overflow-hidden">
@@ -338,7 +519,7 @@ function EvidenceView({
         ))}
       </div>
     );
-  }
+  })();
 
   return (
     <div className="ph-no-capture mx-auto max-w-4xl p-6 md:p-10">

@@ -243,6 +243,7 @@ export function validateAnswers(
     } else if (question.type === "scale") {
       if (
         typeof answer !== "number" ||
+        !Number.isInteger(answer) ||
         question.min === undefined ||
         question.max === undefined ||
         answer < question.min ||
