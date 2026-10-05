@@ -19,7 +19,8 @@
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { SkeletonGroup } from "@/src/components/ui/skeleton";
+import { DetailPanelSkeleton } from "@/src/features/traces/components/TraceDetailSkeletons";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
 import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { useMemo } from "react";
@@ -40,6 +41,7 @@ export function TracePanelDetail() {
     observations,
     serverScores: scores,
     corrections,
+    isPlaceholderData,
   } = useTraceData();
 
   // Resolved from the selected id, not from the tree: the observation list is
@@ -50,6 +52,7 @@ export function TracePanelDetail() {
     traceId: trace.id,
     projectId: trace.projectId,
     observations,
+    enabled: !isPlaceholderData,
   });
 
   // Memoize to prevent recreation when deps haven't changed
@@ -64,7 +67,11 @@ export function TracePanelDetail() {
           />
         );
       case "loading":
-        return <Skeleton className="h-full w-full rounded-none" />;
+        return (
+          <SkeletonGroup className="h-full w-full">
+            <DetailPanelSkeleton />
+          </SkeletonGroup>
+        );
       case "not-found":
         return (
           <PanelMessage

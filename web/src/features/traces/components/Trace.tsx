@@ -49,6 +49,8 @@ export type TraceProps = {
   layout?: "default" | "observation-focused";
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  /** This is the previous trace, kept on screen while the next one loads. */
+  isPlaceholderData?: boolean;
 };
 
 const DESKTOP_LAYOUTS = {
@@ -105,6 +107,7 @@ function TraceWithSelection({
   corrections,
   projectId,
   truncatedAtObservations,
+  isPlaceholderData = false,
   desktopLayout,
 }: Omit<TraceProps, "context"> & {
   desktopLayout: DesktopLayout;
@@ -133,6 +136,7 @@ function TraceWithSelection({
     traceId: trace.id,
     projectId,
     observations: loadedObservations,
+    enabled: !isPlaceholderData,
   });
   const detachedObservation =
     selected.kind === "observation" && selected.isOutsideLoadedList
@@ -168,6 +172,7 @@ function TraceWithSelection({
       detachedObservationId={detachedObservation?.id ?? null}
       detachedObservationIsMisplaced={detachedIsMisplaced}
       truncatedAtObservations={truncatedAtObservations}
+      isPlaceholderData={isPlaceholderData}
     >
       <TraceGraphDataProvider
         projectId={trace.projectId}

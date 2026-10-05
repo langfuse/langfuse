@@ -33,7 +33,7 @@ export type LogViewMode = "chronological" | "tree-order";
 export type LogViewTreeStyle = "flat" | "indented";
 
 /** Context in which trace is rendered - affects feature availability */
-type TraceRenderContext = "fullscreen" | "peek" | "annotation";
+export type TraceRenderContext = "fullscreen" | "peek" | "annotation";
 
 interface ViewPreferencesContextValue {
   showDuration: boolean;

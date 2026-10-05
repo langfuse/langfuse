@@ -11,6 +11,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import { StaleContent } from "@/src/features/traces/components/StaleContent";
 
 export function TracePage({
   traceId,
@@ -98,7 +99,9 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: trace.data.id,
+        // Route id, not the loaded one: the loaded trace may be the previous
+        // one kept as placeholder.
+        title: traceId,
         itemType: "TRACE",
         divider: false,
         breadcrumb: [
@@ -138,25 +141,29 @@ export function TracePage({
               listKey="traces"
               compact
             />
-            <TraceDetailActions
-              trace={trace.data}
-              traceContext={traceContext}
-              timestamp={timestamp}
-              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-            />
+            <StaleContent stale={trace.isPlaceholderData}>
+              <TraceDetailActions
+                trace={trace.data}
+                traceContext={traceContext}
+                timestamp={timestamp}
+                deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+              />
+            </StaleContent>
           </>
         ),
         // Mobile compact header: the same trace actions as full-width labeled
         // menu rows (Share / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
-          <TraceDetailActions
-            trace={trace.data}
-            traceContext={traceContext}
-            timestamp={timestamp}
-            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-            layout="menu"
-          />
+          <StaleContent stale={trace.isPlaceholderData}>
+            <TraceDetailActions
+              trace={trace.data}
+              traceContext={traceContext}
+              timestamp={timestamp}
+              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+              layout="menu"
+            />
+          </StaleContent>
         ),
       }}
     >
@@ -165,6 +172,7 @@ export function TracePage({
           trace={trace.data}
           context={traceContext}
           truncatedAtObservations={trace.truncatedAtObservations}
+          isPlaceholderData={trace.isPlaceholderData}
         />
       </div>
     </Page>

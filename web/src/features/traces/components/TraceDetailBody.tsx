@@ -1,5 +1,7 @@
 import { Trace, type TraceProps } from "@/src/features/traces/components/Trace";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { SkeletonGroup } from "@/src/components/ui/skeleton";
+import { StaleContent } from "@/src/features/traces/components/StaleContent";
+import { TraceDetailBodySkeleton } from "@/src/features/traces/components/TraceDetailSkeletons";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
 type TraceDetailData = NonNullable<
@@ -8,15 +10,17 @@ type TraceDetailData = NonNullable<
 
 /**
  * The trace detail body (`<Trace>`), shared by the peek and the standalone
- * page so the invocation isn't copy-pasted. Renders a skeleton until the data
- * arrives. `keySuffix` lets a caller force a remount when the focused item
- * changes (e.g. the observation peek keys on the observation id).
+ * page so the invocation isn't copy-pasted. A cold load shows a shaped
+ * skeleton; while `isPlaceholderData`, the previous trace stays on screen
+ * dimmed and inert. `keySuffix` lets a caller force a remount when the
+ * focused item changes (e.g. the observation peek keys on the observation id).
  */
 export function TraceDetailBody({
   trace,
   context,
   keySuffix,
   truncatedAtObservations,
+  isPlaceholderData = false,
   layout,
 }: {
   trace: TraceDetailData | undefined;
@@ -25,19 +29,34 @@ export function TraceDetailBody({
   layout?: TraceProps["layout"];
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  /** `trace` is the previous trace, kept while the next one loads. */
+  isPlaceholderData?: boolean;
 }) {
-  if (!trace) return <Skeleton className="h-full w-full rounded-none" />;
+  if (!trace)
+    return (
+      <SkeletonGroup className="h-full w-full">
+        <TraceDetailBodySkeleton
+          traceContext={context}
+          navigationCollapsed={
+            context === "annotation" || layout === "observation-focused"
+          }
+        />
+      </SkeletonGroup>
+    );
   return (
-    <Trace
-      key={keySuffix ? `${trace.id}-${keySuffix}` : trace.id}
-      trace={trace}
-      scores={trace.scores}
-      corrections={trace.corrections}
-      projectId={trace.projectId}
-      observations={trace.observations}
-      context={context}
-      layout={layout}
-      truncatedAtObservations={truncatedAtObservations}
-    />
+    <StaleContent stale={isPlaceholderData} fill>
+      <Trace
+        key={keySuffix ? `${trace.id}-${keySuffix}` : trace.id}
+        trace={trace}
+        scores={trace.scores}
+        corrections={trace.corrections}
+        projectId={trace.projectId}
+        observations={trace.observations}
+        context={context}
+        layout={layout}
+        truncatedAtObservations={truncatedAtObservations}
+        isPlaceholderData={isPlaceholderData}
+      />
+    </StaleContent>
   );
 }

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
@@ -40,6 +41,8 @@ interface UseEventsTraceDataResult {
    * server response — never a client-side copy of the constant.
    */
   truncatedAtObservations: number | undefined;
+  /** `data` is the previously loaded trace, kept on screen while this one loads. */
+  isPlaceholderData: boolean;
 }
 
 /**
@@ -72,6 +75,7 @@ export function useEventsTraceData(
         return failureCount < 3;
       },
       staleTime: 60 * 1000, // 1 minute
+      placeholderData: keepPreviousData,
     },
   );
 
@@ -130,10 +134,20 @@ export function useEventsTraceData(
   const scoresQuery = api.events.scoresForTrace.useQuery(
     { traceId, projectId, timestamp: props.timestamp },
     {
-      enabled: enabled && !!traceId,
+      // Fetched after the new observations so the previous trace keeps its own
+      // scores until the switch.
+      enabled: enabled && !!traceId && !eventsQuery.isPlaceholderData,
       staleTime: 60 * 1000,
+      placeholderData: keepPreviousData,
     },
   );
+
+  // The two queries resolve independently; never pair scores and observations
+  // from different traces.
+  const scoresData =
+    scoresQuery.isPlaceholderData === eventsQuery.isPlaceholderData
+      ? scoresQuery.data
+      : undefined;
 
   // Step 5: Transform and merge data
   const transformed = useMemo(() => {
@@ -141,7 +155,7 @@ export function useEventsTraceData(
 
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({
-      scores: scoresQuery.data ?? [],
+      scores: scoresData ?? [],
       dataTypes: [...ScoreDataTypeArray],
       onParseError: (e) => {
         console.error("[useEventsTraceData] Score validation error:", e);
@@ -176,7 +190,7 @@ export function useEventsTraceData(
       scores: scoresDomain,
       corrections,
     };
-  }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
+  }, [observations, traceId, rootIOQuery.data, scoresData]);
 
   return {
     data: transformed ?? undefined,
@@ -185,5 +199,6 @@ export function useEventsTraceData(
     truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
       ? eventsQuery.data.maxObservationsPerTrace
       : undefined,
+    isPlaceholderData: eventsQuery.isPlaceholderData,
   };
 }

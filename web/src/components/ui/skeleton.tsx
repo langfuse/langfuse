@@ -30,4 +30,24 @@ function Skeleton({
   );
 }
 
-export { Skeleton };
+/**
+ * Skeletons standing in for one surface. Invisible for the first 150ms so a
+ * fast load never flashes them; static fill, no pulse.
+ */
+function SkeletonGroup({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "animate-appear-delayed opacity-0 [&_[data-slot=skeleton]]:animate-none",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Skeleton, SkeletonGroup };
