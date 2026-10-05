@@ -1,7 +1,10 @@
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { hasInternalAccess } from "@/src/features/feature-flags/server";
+import {
+  getContextualFeatureFlags,
+  hasInternalAccess,
+} from "@/src/features/feature-flags/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -433,9 +436,8 @@ export const eventsRouter = createTRPCRouter({
     }),
   /**
    * Assemble the message transcript of a trace from its generations and tools,
-   * see `loadTraceTranscript`. Internal surface: Langfuse admins and
-   * deployments with experimental features enabled only, and only where the
-   * events tables are written.
+   * see `loadTraceTranscript`. Available to internal users and Session Timeline
+   * preview users, only where the events tables are written.
    */
   transcriptByTraceId: protectedGetEventsTraceProcedure
     .input(
@@ -446,7 +448,12 @@ export const eventsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      const isSessionTimelineEnabled =
+        getContextualFeatureFlags(ctx.session?.user, {
+          projectId: input.projectId,
+        })?.sessionTimeline === true;
       if (
+        !isSessionTimelineEnabled &&
         !hasInternalAccess({
           isAdmin: ctx.session?.user?.admin === true,
           isExperimentalFeaturesEnabled:
@@ -455,7 +462,8 @@ export const eventsRouter = createTRPCRouter({
       ) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Transcripts are an internal preview.",
+          message:
+            "Transcripts require internal access or the Session Timeline preview.",
         });
       }
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
