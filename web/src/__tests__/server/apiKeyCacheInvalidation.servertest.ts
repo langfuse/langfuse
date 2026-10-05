@@ -3,6 +3,7 @@ import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKeyCacheKey,
+  AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createAuthzContextCacheKey,
   createShaHash,
 } from "@langfuse/shared/src/server";
@@ -80,8 +81,11 @@ function cacheKeysFor({
 }) {
   return [
     createApiKeyCacheKey(fastHash),
-    createAuthzContextCacheKey(fastHash),
-    createAuthzContextCacheKey(createShaHash(publicKey, env.SALT!)),
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${fastHash}`,
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash(publicKey, env.SALT!)}`,
+    createAuthzContextCacheKey("basic", fastHash),
+    createAuthzContextCacheKey("bearer", fastHash),
+    createAuthzContextCacheKey("bearer", createShaHash(publicKey, env.SALT!)),
   ];
 }
 
