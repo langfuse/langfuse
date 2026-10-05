@@ -17,6 +17,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
+import * as otelPreparation from "../features/otel-ingestion/prepareOtelBatch";
 import {
   comparableOtelReplayRows,
   expectRawOtelReplayParity,
@@ -800,6 +801,24 @@ describe(
             new Error("simulated media upload failure"),
           );
         }
+        // Final rows can match even if the late detector does all the work. Capture the
+        // real compact document and registry before the queue parses and disposes them.
+        const compactedBatches: { json: string; references: string[] }[] = [];
+        const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+        const preparation = vi
+          .spyOn(otelPreparation, "prepareOtelBatch")
+          .mockImplementation(async (params) => {
+            const result = await prepareOtelBatch(params);
+            if (result?.batch) {
+              compactedBatches.push({
+                json: result.batch.json(),
+                references: result.batch.media.map((media) => media.reference),
+              });
+            }
+            return result;
+          });
+        const captureMediaAssociations = createMediaAssociationCapture();
+        let uploadCursor = 0;
         try {
           const comparison = await runOtelReplayComparison({
             bytes: focusedReplayBytes({
@@ -813,11 +832,32 @@ describe(
             fileKey: `${FILE_KEY}.dual-media-${outcome}`,
             mediaUploadEnabled: true,
             writeMode: "dual",
-            // Rejected upload attempts do not establish media associations.
-            captureSideEffects: uploadFails
-              ? undefined
-              : createMediaAssociationCapture(),
+            captureSideEffects: () => {
+              const uploads =
+                otelReplayMocks.uploadMediaForTrace.mock.calls.slice(
+                  uploadCursor,
+                );
+              uploadCursor =
+                otelReplayMocks.uploadMediaForTrace.mock.calls.length;
+              // Each mode must attempt the upload, including when it fails and the
+              // original inline content is therefore the correct persisted result.
+              expect(uploads.length).toBeGreaterThan(0);
+              for (const [params] of uploads) {
+                expect(params.contentBytes).toEqual(content);
+              }
+              return uploadFails ? [] : captureMediaAssociations();
+            },
           });
+          expect(compactedBatches).toHaveLength(1);
+          for (const batch of compactedBatches) {
+            expect(batch.json).toContain(existingReference);
+            expect(batch.json).not.toContain(dataUri);
+            expect(batch.references.length).toBeGreaterThan(0);
+            for (const reference of batch.references) {
+              expect(reference).not.toBe(existingReference);
+              expect(batch.json).toContain(reference);
+            }
+          }
           expectRawOtelReplayParity(comparison);
           expectLegacyReplayParity(comparison);
           const expectedInput = JSON.stringify([
@@ -839,11 +879,6 @@ describe(
             ]) {
               expect(row?.input, result.mode).toBe(expectedInput);
             }
-          }
-          expect(otelReplayMocks.uploadMediaForTrace).toHaveBeenCalled();
-          for (const [params] of otelReplayMocks.uploadMediaForTrace.mock
-            .calls) {
-            expect(params.contentBytes).toEqual(content);
           }
           if (uploadFails) {
             expect(
@@ -869,6 +904,7 @@ describe(
             );
           }
         } finally {
+          preparation.mockRestore();
           await prisma.project.delete({ where: { id: projectId } });
           await prisma.organization.delete({ where: { id: orgId } });
         }
