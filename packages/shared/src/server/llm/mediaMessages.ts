@@ -189,12 +189,16 @@ export async function compileLangfuseMediaMessages(params: {
   providerMessages: ModelMessage[];
   traceMessages: Array<{ role: string; content: unknown }>;
 }> {
-  const transport =
+  const selectedTransport =
     params.transport ??
     resolveEvaluatorMediaTransport({
       configured: env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
       cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     });
+  const transport =
+    params.adapter === LLMAdapter.Bedrock && selectedTransport === "url"
+      ? "inline"
+      : selectedTransport;
   if (transport === "disabled") {
     const messages = mapChatMessagesToModelMessages(params.messages, {
       adapter: params.adapter,
