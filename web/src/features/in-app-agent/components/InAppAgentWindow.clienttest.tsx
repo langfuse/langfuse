@@ -9,6 +9,7 @@ import {
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
@@ -45,11 +46,34 @@ const controlledAgent = vi.hoisted(() => ({
     pendingToolApprovals: [] as Array<{ id: string }>,
     approveToolCall: vi.fn(),
     rejectToolCall: vi.fn(),
-    selectedConversationId: undefined,
+    selectedConversationId: undefined as string | undefined,
     selectedConversationTitle: null,
     selectConversation: vi.fn(),
     submit: vi.fn(),
     submitFeedback: vi.fn(),
+  },
+}));
+const sessionUser = vi.hoisted(() => ({ admin: false }));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { ...sessionUser, featureFlags: {}, organizations: [] },
+      environment: { enableExperimentalFeatures: false },
+    },
+  }),
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    inAppAgent: {
+      telemetryProject: {
+        useQuery: () => ({
+          data: { projectId: "ai-features-project" },
+          isPending: false,
+        }),
+      },
+    },
   },
 }));
 
@@ -58,7 +82,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/" }),
+  useRouter: () => ({ asPath: "/", query: { projectId: "project-1" } }),
 }));
 
 vi.mock("./InAppAiAgentProvider", () => ({
@@ -396,6 +420,74 @@ describe("ControlledInAppAgentWindow stop", () => {
     // buffered block keeps typing out, which reads as "stop did nothing".
     expect(cancel).toHaveBeenCalledOnce();
     expect(finishAnimation).toHaveBeenCalledOnce();
+  });
+});
+
+describe("ControlledInAppAgentWindow internal session menu", () => {
+  beforeAll(() => {
+    // jsdom has no ResizeObserver; the menu's scroll gradients observe it.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    sessionUser.admin = false;
+    controlledAgent.value.selectedConversationId = undefined;
+  });
+
+  function renderControlledWindow() {
+    return render(
+      <LayerProvider>
+        <TooltipProvider>
+          <ControlledInAppAgentWindow
+            isExpanded={false}
+            onClose={vi.fn()}
+            onDeleteConversation={vi.fn()}
+            onExpandedChange={vi.fn()}
+          />
+        </TooltipProvider>
+      </LayerProvider>,
+    );
+  }
+
+  it("offers session actions in the internal view only", async () => {
+    controlledAgent.value.selectedConversationId = "aconv_1";
+    const external = renderControlledWindow();
+
+    expect(
+      screen.queryByRole("button", { name: "Internal session actions" }),
+    ).not.toBeInTheDocument();
+    external.unmount();
+
+    sessionUser.admin = true;
+    renderControlledWindow();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Internal session actions" }),
+    );
+
+    const menu = await screen.findByRole("menu", {
+      name: "Internal session actions",
+    });
+    expect(within(menu).getByText("Internal")).toBeInTheDocument();
+    expect(within(menu).getByText("Copy session ID")).toBeInTheDocument();
+    const openSession = within(menu).getByRole("link", {
+      name: "Open session in Langfuse",
+    });
+    expect(openSession).toHaveAttribute(
+      "href",
+      "/project/ai-features-project/sessions/aconv_1",
+    );
+    expect(openSession).toHaveAttribute("target", "_blank");
   });
 });
 

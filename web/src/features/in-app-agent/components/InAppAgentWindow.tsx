@@ -910,6 +910,8 @@ export type InAppAgentWindowProps = {
   /** Titles the window. Null until the server has named the conversation,
    * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
+  /** Rendered right after the title. */
+  titleActions?: ReactNode;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -1002,6 +1004,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
     selectedConversationId,
     selectedConversationTitle,
+    titleActions,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -1184,6 +1187,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               Assistant
             </p>
           )}
+          {titleActions ? (
+            <div
+              className="flex shrink-0 items-center"
+              data-movable-resizable-panel-ignore-drag="true"
+            >
+              {titleActions}
+            </div>
+          ) : null}
         </div>
         <div
           className="flex shrink-0 items-center gap-0.5"
