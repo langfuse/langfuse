@@ -150,6 +150,12 @@ assert_line "${preview_workflow}" \
   'ref: \$\{?\{ github\.event\.pull_request\.head\.sha \}\}$' \
   "preview-build.yml must keep the PR head as the Docker build context"
 assert_line "${preview_workflow}" \
+  'id: wizos-ci$' \
+  "preview-build.yml must check whether the PR head already has WizOS CI tooling"
+assert_line "${preview_workflow}" \
+  "if: steps\\.wizos-ci\\.outputs\\.present != 'true'" \
+  "preview-build.yml must skip the base tooling checkout when the PR head already has it"
+assert_line "${preview_workflow}" \
   'ref: \$\{?\{ github\.event\.pull_request\.base\.sha \}\}$' \
   "preview-build.yml must read WizOS CI tooling from the base revision"
 assert_line "${preview_workflow}" \

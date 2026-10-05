@@ -203,8 +203,20 @@ jobs:
       # action or resolver. Copy both from the base revision only when the
       # head is missing either file, then delete the side checkout so it is
       # not part of the Docker build context. A head that already has both
-      # files keeps its own copies.
+      # files keeps its own copies and skips the extra checkout — main does
+      # not contain these paths until this change merges.
+      - name: Check whether the PR head has WizOS CI tooling
+        id: wizos-ci
+        run: |
+          set -euo pipefail
+          if [[ -f .github/actions/wizos-node-base/action.yml && -f scripts/ci/wizos-base-image.sh ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout base WizOS CI tooling
+        if: steps.wizos-ci.outputs.present != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -216,24 +228,21 @@ jobs:
           path: .wizos-ci-base
 
       - name: Use base WizOS CI tooling when the PR head lacks it
+        if: steps.wizos-ci.outputs.present != 'true'
         run: |
           set -euo pipefail
           action=".github/actions/wizos-node-base/action.yml"
           script="scripts/ci/wizos-base-image.sh"
           base_action=".wizos-ci-base/${action}"
           base_script=".wizos-ci-base/${script}"
-          if [[ ! -f "${action}" || ! -f "${script}" ]]; then
-            if [[ ! -f "${base_action}" || ! -f "${base_script}" ]]; then
-              echo "::error::WizOS CI tooling is missing from the PR head and from the base revision."
-              exit 1
-            fi
-            mkdir -p .github/actions/wizos-node-base scripts/ci
-            cp -a "${base_action}" "${action}"
-            cp -a "${base_script}" "${script}"
-            echo "Restored WizOS CI tooling from the base revision."
-          else
-            echo "WizOS CI tooling is present on the PR head."
+          if [[ ! -f "${base_action}" || ! -f "${base_script}" ]]; then
+            echo "::error::WizOS CI tooling is missing from the PR head and from the base revision."
+            exit 1
           fi
+          mkdir -p .github/actions/wizos-node-base scripts/ci
+          cp -a "${base_action}" "${action}"
+          cp -a "${base_script}" "${script}"
+          echo "Restored WizOS CI tooling from the base revision."
           rm -rf .wizos-ci-base
 
       # Preview images follow the Cloud base: digest-pinned WizOS Node via this
