@@ -1,16 +1,53 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
   MarkdownView,
   prependBasePathToInternalHref,
 } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+
+const { externalMediaState, resolveExternalMediaQueryMock } = vi.hoisted(
+  () => ({
+    externalMediaState: { enabled: true },
+    resolveExternalMediaQueryMock: vi.fn(() => ({
+      isError: false,
+      data: { url: "https://signed.example.com/image.png" },
+    })),
+  }),
+);
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ query: {} }),
+  useRouter: () => ({ query: { projectId: "project-1" } }),
 }));
 
 vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ status: "authenticated" }),
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    media: {
+      resolveExternalMedia: {
+        useQuery: resolveExternalMediaQueryMock,
+      },
+    },
+    utilities: {
+      validateImgUrl: {
+        useQuery: () => ({
+          isLoading: false,
+          data: { isValid: true },
+        }),
+      },
+    },
+  },
+}));
+
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: () => externalMediaState.enabled,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -19,6 +56,89 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 
 const renderMarkdown = (markdown: string) =>
   render(<MarkdownView markdown={markdown} />);
+
+describe("MarkdownView external S3 media", () => {
+  beforeEach(() => {
+    externalMediaState.enabled = true;
+    resolveExternalMediaQueryMock.mockClear();
+  });
+
+  it("renders a standalone S3 media URI through the external media tag", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    renderMarkdown(uri);
+
+    expect(
+      screen.getByRole("button", { name: "PNG media" }),
+    ).toBeInTheDocument();
+    expect(resolveExternalMediaQueryMock).toHaveBeenCalledWith(
+      { projectId: "project-1", uri },
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("renders a Markdown S3 image through the external media tag and preserves alt text", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    renderMarkdown(`![Product photo](${uri})`);
+
+    expect(
+      screen.getByRole("button", { name: "Product photo media" }),
+    ).toBeInTheDocument();
+    expect(resolveExternalMediaQueryMock).toHaveBeenCalledWith(
+      { projectId: "project-1", uri },
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("renders an OpenAI image_url S3 URI through the external media tag", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    render(
+      <MarkdownJsonView
+        content={[
+          {
+            type: "image_url",
+            image_url: { url: uri },
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "PNG media" }),
+    ).toBeInTheDocument();
+    expect(resolveExternalMediaQueryMock).toHaveBeenCalledWith(
+      { projectId: "project-1", uri },
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("keeps S3 media raw and disables resolution when the feature flag is off", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+    externalMediaState.enabled = false;
+
+    renderMarkdown(uri);
+
+    expect(screen.getByText(uri)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "PNG media" })).toBeNull();
+    expect(resolveExternalMediaQueryMock).toHaveBeenCalledWith(
+      { projectId: "project-1", uri },
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("keeps rendering HTTP Markdown images through the existing image path", () => {
+    renderMarkdown("![Product photo](https://example.com/photo.png)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Load Image" }));
+
+    expect(
+      screen.getByRole("img", { name: "Product photo" }),
+    ).toBeInTheDocument();
+    expect(resolveExternalMediaQueryMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("MarkdownView link rendering", () => {
   it("renders an external link as a native anchor opening in a new tab", () => {

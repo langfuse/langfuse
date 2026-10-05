@@ -32,11 +32,13 @@ function getS3MediaStatus({
  */
 export function MediaReferenceTag({
   descriptor,
+  label,
 }: {
   descriptor: MediaDescriptor;
+  label?: string;
 }) {
   if (descriptor.kind === "s3") {
-    return <S3MediaTag descriptor={descriptor} />;
+    return <S3MediaTag descriptor={descriptor} label={label} />;
   }
 
   if (descriptor.kind !== "langfuseRef") {
@@ -52,7 +54,13 @@ export function MediaReferenceTag({
   return <LangfuseRefMediaTag descriptor={descriptor} />;
 }
 
-function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
+function S3MediaTag({
+  descriptor,
+  label,
+}: {
+  descriptor: S3Descriptor;
+  label?: string;
+}) {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string"
@@ -85,6 +93,7 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
   return (
     <MediaTag
       contentType={descriptor.contentType}
+      label={label}
       status={status}
       url={resolved.data?.url}
       errorDetail={descriptor.uri}
