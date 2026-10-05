@@ -379,19 +379,25 @@ describe("sign-in page last used SSO email", () => {
     return raw === null ? null : (JSON.parse(raw) as string);
   };
 
-  const ssoCheckReturns = (providerId: string | null) =>
+  const ssoCheckReturns = (providerId: string) =>
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        providerId === null
-          ? new Response(JSON.stringify({ message: "not found" }), {
-              status: 404,
-              headers: { "Content-Type": "application/json" },
-            })
-          : new Response(JSON.stringify({ providerId }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            }),
+        new Response(JSON.stringify({ providerId }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  const ssoCheckFailsWith = (status: number) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: "nope" }), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
       ),
     );
 
@@ -456,7 +462,7 @@ describe("sign-in page last used SSO email", () => {
 
   it("forgets a remembered address once an email falls back to a password", async () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
-    ssoCheckReturns(null);
+    ssoCheckFailsWith(404);
 
     renderTwoStepSignIn();
     continueWithEmail("someone-else@example.com");
@@ -467,5 +473,37 @@ describe("sign-in page last used SSO email", () => {
     });
     expect(storedSsoEmail()).toBe("");
     expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  // 404 is the only status that means "this domain has no SSO provider". A
+  // server or proxy failure says nothing about the domain, so it must not cost
+  // the user an address that was correctly remembered.
+  it("keeps the remembered address when check-sso fails with a server error", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    ssoCheckFailsWith(500);
+
+    renderTwoStepSignIn();
+    continueWithEmail("jane@acme.com");
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    });
+    expect(storedSsoEmail()).toBe("jane@acme.com");
+  });
+
+  // The transport path (fetch rejects) is likewise not a verdict on the domain.
+  it("keeps the remembered address when check-sso cannot be reached", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    renderTwoStepSignIn();
+    continueWithEmail("jane@acme.com");
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Unable to check SSO configuration/),
+      ).toBeInTheDocument();
+    });
+    expect(storedSsoEmail()).toBe("jane@acme.com");
   });
 });

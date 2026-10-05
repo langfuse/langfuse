@@ -768,11 +768,12 @@ export default function SignInPage({
         return; // stop further execution – page redirect expected
       }
 
-      // No SSO – fall back to password step. This address is password-backed,
-      // so it is the password manager's to remember; drop any address kept
-      // from an earlier enterprise SSO sign-in rather than greeting whoever
-      // uses this browser next with it.
-      setLastUsedSsoEmail("");
+      // No SSO – fall back to password step. 404 is the only answer that means
+      // "this domain has no SSO provider"; any other failure status says
+      // nothing about the domain, so it must not discard a remembered address.
+      if (res.status === 404) {
+        setLastUsedSsoEmail("");
+      }
       setShowPasswordStep(true);
 
       // Auto-focus password input when password step becomes visible
