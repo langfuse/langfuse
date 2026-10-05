@@ -117,8 +117,11 @@ Existing topic names remain until their definitions change during **Update topic
 ## Trace-batch connection
 
 After the trace-batch job assembles a transcript, it summarizes that same
-transcript for each current facet of an allowlisted project. It does not load
-the trace from ClickHouse again. Projects outside
+transcript for all current facets of an allowlisted project in one model call:
+the system prompt lists every facet under a key, asks for each to be answered
+independently with short evidence notes, and returns one entry per facet. The
+call's usage is recorded on the first facet's row. It does not load the trace
+from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
 processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
