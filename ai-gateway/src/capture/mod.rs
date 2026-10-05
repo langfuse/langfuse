@@ -165,8 +165,6 @@ impl ExecutionCapture {
         }
     }
 
-    /// Records the request's IDs on the generation and the generation's IDs on
-    /// the request, so the caller's response can link to what gets uploaded.
     pub fn deliver_to(
         &mut self,
         telemetry: telemetry::Telemetry,
