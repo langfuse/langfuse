@@ -76,8 +76,7 @@
   --color-surface-code-header: hsl(var(--surface-code-header));
   --color-surface-sunken: hsl(var(--surface-sunken));
   --color-surface-output: hsl(var(--surface-output));
-  /* Fill for sticky table chrome (headers, footers, filter rail). Defaults to
-     the page background; a host on another surface sets --surface-context. */
+  /* Sticky table chrome; hosts on another surface set --surface-context. */
   --color-surface: var(--surface-context, hsl(var(--background)));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
@@ -322,8 +321,7 @@
 
     --muted: 240 4.8% 95.9%; /* zinc-100 */
     --muted-foreground: 240 3.8% 46.1%; /* zinc-500 */
-    /* Text between body and muted: slate-600. Content that is not a heading
-       and not a label, e.g. JSON values. */
+    /* Text between body and muted: content that is not a heading or label. */
     --foreground-secondary: 240 5.2% 33.9%; /* zinc-600 */
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
@@ -333,9 +331,7 @@
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
-    /* Off-white panel behind detail content (Tailwind zinc-50). */
     --surface-sunken: 0 0% 98%; /* zinc-50 */
-    /* Output blocks in the trace preview (Tailwind zinc-100). */
     --surface-output: 240 4.8% 95.9%; /* zinc-100 */
 
     --popover: 0 0% 100%;
@@ -407,9 +403,7 @@
     --muted-gray: 240 5.9% 90%; /* zinc-200 */
 
     /* Observation type hues: one lightness and chroma so no type outweighs another */
-    /* Observation types: -line for stroked icons and borders (darker so thin
-       strokes keep >=3:1 on light surfaces), -fill for filled tiles and bars
-       under white icons. The un-suffixed set is legacy until callers move. */
+    /* -line: stroked icons and borders. -fill: tiles and bars under white icons. */
     --observation-trace: oklch(68% 0.18 163);
     --observation-trace-line: oklch(55% 0.21 163);
     --observation-trace-fill: oklch(61% 0.2 163);
