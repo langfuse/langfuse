@@ -59,7 +59,7 @@ export function CorrectedOutputField({
   // Diff dialog state
   const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
 
-  // Empty corrections stay collapsed until the user opens the section.
+  // When no correction exists, keep the section collapsed until it is opened.
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Merge cache + server data
@@ -161,7 +161,7 @@ export function CorrectedOutputField({
     setIsEditing(false);
   };
 
-  if (!isExpanded && !hasContent) {
+  if (!isExpanded && !effectiveCorrection) {
     return (
       <div className="px-2 py-2">
         <button

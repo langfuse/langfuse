@@ -89,7 +89,26 @@ describe("CorrectedOutputField visibility", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps an empty correction collapsed", () => {
+  it("shows an existing empty-valued correction without requiring a click", () => {
+    render(
+      <CorrectedOutputField
+        {...baseProps}
+        existingCorrection={
+          {
+            id: "empty-correction-id",
+            longStringValue: "",
+          } as never
+        }
+      />,
+    );
+
+    expect(screen.getByText("Corrected Output")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the section collapsed when no correction exists", () => {
     render(<CorrectedOutputField {...baseProps} existingCorrection={null} />);
 
     expect(
