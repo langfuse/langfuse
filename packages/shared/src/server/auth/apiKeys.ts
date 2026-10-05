@@ -91,12 +91,17 @@ export function createShaHash(privateKey: string, salt: string): string {
 /** createApiKey inserts an api-key row and its single system-role assignment, keyed on the owner. */
 export async function createApiKey(
   prisma: PrismaClient | Prisma.TransactionClient,
-  opts: {
+  {
+    name,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Accept the legacy alias at the compatibility boundary.
+    note,
+    ...opts
+  }: {
     owner: OwnerId;
     role: RoleId;
     createdBy: ApiKeyId | UserId | "system";
     name?: string;
-    /** note is deprecated; use name instead and never provide both. */
+    /** @deprecated Use name instead; name and note are mutually exclusive. */
     note?: string;
     expiresAt?: Date | null;
     isInAppAgentKey?: boolean;
@@ -110,7 +115,7 @@ export async function createApiKey(
   displaySecretKey: string;
   secretKey: string;
 }> {
-  if (opts.name !== undefined && opts.note !== undefined) {
+  if (name !== undefined && note !== undefined) {
     throw new InvalidRequestError("Provide either name or note, not both");
   }
 
@@ -149,7 +154,7 @@ export async function createApiKey(
     hashedSecretKey: await hashSecretKey(sk),
     displaySecretKey: getDisplaySecretKey(sk),
     fastHashedSecretKey: createShaHash(sk, salt),
-    note: opts.name ?? opts.note,
+    note: name ?? note,
     scope,
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
