@@ -10,6 +10,10 @@
 #   WIZOS_NODE_DIGEST       sha256:<64 lowercase hex>
 #   WIZOS_OS_RELEASE_ID     /etc/os-release ID of the WizOS image (not alpine)
 #
+# Optional:
+#   WIZOS_PULL_RETRIES      docker pull attempts (default 5)
+#   WIZOS_PULL_RETRY_DELAY  seconds between pull attempts (default 2)
+#
 # Commands:
 #   construct                         Print the digest-pinned Node base ref
 #   pull-base                         Pull that ref and check its os-release
@@ -133,6 +137,35 @@ read_os_release_from_image() {
   docker run --rm --user 0 --entrypoint cat "${image}" /etc/os-release
 }
 
+pull_image_with_retry() {
+  local image="$1"
+  local retries="${WIZOS_PULL_RETRIES:-5}"
+  local delay="${WIZOS_PULL_RETRY_DELAY:-2}"
+  local attempt=1
+
+  if [[ ! "${retries}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "::error::WIZOS_PULL_RETRIES must be a positive integer." >&2
+    return 1
+  fi
+  if [[ ! "${delay}" =~ ^[0-9]+$ ]]; then
+    echo "::error::WIZOS_PULL_RETRY_DELAY must be a non-negative integer." >&2
+    return 1
+  fi
+
+  while true; do
+    if docker pull "${image}" >&2; then
+      return 0
+    fi
+    if [[ "${attempt}" -ge "${retries}" ]]; then
+      echo "::error::docker pull of the WizOS Node base failed after ${attempt} attempts. Alpine fallback is not allowed." >&2
+      return 1
+    fi
+    echo "docker pull failed (attempt ${attempt}/${retries}); retrying in ${delay}s" >&2
+    sleep "${delay}"
+    attempt=$((attempt + 1))
+  done
+}
+
 cmd="${1:-}"
 case "${cmd}" in
   construct)
@@ -141,7 +174,7 @@ case "${cmd}" in
   pull-base)
     image="$(construct_node_base_image)"
     echo "Pulling WizOS Node base ${image}" >&2
-    docker pull "${image}" >&2
+    pull_image_with_retry "${image}"
     tmp="$(mktemp)"
     read_os_release_from_image "${image}" > "${tmp}"
     check_os_release_file "${tmp}"

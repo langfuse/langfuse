@@ -198,6 +198,44 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
+      # Local actions resolve against this workspace, which is the PR head.
+      # Heads branched before the WizOS tooling exists do not contain the
+      # action or resolver. Copy both from the base revision only when the
+      # head is missing either file, then delete the side checkout so it is
+      # not part of the Docker build context. A head that already has both
+      # files keeps its own copies.
+      - name: Checkout base WizOS CI tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/actions/wizos-node-base/
+            scripts/ci/wizos-base-image.sh
+          path: .wizos-ci-base
+
+      - name: Use base WizOS CI tooling when the PR head lacks it
+        run: |
+          set -euo pipefail
+          action=".github/actions/wizos-node-base/action.yml"
+          script="scripts/ci/wizos-base-image.sh"
+          base_action=".wizos-ci-base/${action}"
+          base_script=".wizos-ci-base/${script}"
+          if [[ ! -f "${action}" || ! -f "${script}" ]]; then
+            if [[ ! -f "${base_action}" || ! -f "${base_script}" ]]; then
+              echo "::error::WizOS CI tooling is missing from the PR head and from the base revision."
+              exit 1
+            fi
+            mkdir -p .github/actions/wizos-node-base scripts/ci
+            cp -a "${base_action}" "${action}"
+            cp -a "${base_script}" "${script}"
+            echo "Restored WizOS CI tooling from the base revision."
+          else
+            echo "WizOS CI tooling is present on the PR head."
+          fi
+          rm -rf .wizos-ci-base
+
       # Preview images follow the Cloud base: digest-pinned WizOS Node via this
       # account's ECR pull-through cache. Required GitHub variables:
       # WIZOS_ECR_REPOSITORY, WIZOS_NODE_TAG, WIZOS_NODE_DIGEST,
