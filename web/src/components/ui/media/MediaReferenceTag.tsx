@@ -71,6 +71,7 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
       staleTime: 4 * 60 * 1000,
       refetchInterval: open ? 4 * 60 * 1000 : false,
       retry: false,
+      meta: { silentHttpCodes: [404] },
     },
   );
   if (!isFeatureEnabled) return descriptor.uri;
@@ -86,6 +87,7 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
       contentType={descriptor.contentType}
       status={status}
       url={resolved.data?.url}
+      errorDetail={descriptor.uri}
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
