@@ -11,7 +11,7 @@ import {
   type SessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
 } from "./useSessionConversationTimelineController";
-import { type SessionObservationActions } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type SessionObservationActionsMenuContent } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionTraceTranscriptState } from "./useSessionTraceTranscripts";
 import { getSessionTranscriptRows } from "./fns/getSessionTranscriptRows";
 
@@ -85,83 +85,81 @@ export function ConnectedSessionConversationTimeline(
                         type: "transcript" as const,
                         result,
                         observations,
-                        observationActions: {
-                          annotate: {
-                            disabled: annotateDisabled,
-                            onSelect: (
-                              observation: Parameters<
-                                SessionObservationActions["annotate"]["onSelect"]
-                              >[0],
-                            ) =>
-                              openAnnotateDrawer({
-                                scoreTarget: {
-                                  type: "trace",
-                                  traceId: observation.traceId,
-                                  observationId: observation.id,
-                                },
-                                analyticsData: {
-                                  type: "trace",
-                                  source: "SessionDetail",
-                                  isV4: true,
-                                },
-                                scoreMetadata: {
-                                  projectId,
-                                  environment: observation.environment,
-                                },
-                              }),
-                          },
-                          comment: {
-                            disabled: commentDisabled,
-                            onSelect: (
-                              observation: Parameters<
-                                SessionObservationActions["comment"]["onSelect"]
-                              >[0],
-                            ) =>
-                              openCommentDrawer({
-                                type: "comments",
-                                objectId: observation.id,
-                                objectType: "OBSERVATION",
-                                objectStartTime: observation.startTime,
-                              }),
-                          },
-                          addToDataset: {
-                            disabled: !hasDatasetAccess,
-                            onSelect: async (
-                              observation: Parameters<
-                                SessionObservationActions["addToDataset"]["onSelect"]
-                              >[0],
-                            ) => {
-                              try {
-                                const [fullObservation] =
-                                  await utils.events.batchIO.fetch({
-                                    projectId,
-                                    traceId: observation.traceId,
-                                    observations: [
-                                      {
-                                        id: observation.id,
-                                        traceId: observation.traceId,
-                                      },
-                                    ],
-                                    minStartTime: observation.startTime,
-                                    maxStartTime: observation.startTime,
-                                    truncated: false,
-                                  });
-                                if (!fullObservation) throw new Error();
-                                openDatasetDialog({
-                                  traceId: observation.traceId,
-                                  observationId: observation.id,
-                                  input: fullObservation.input,
-                                  output: fullObservation.output,
-                                  metadata: fullObservation.metadata,
-                                });
-                              } catch {
-                                showErrorToast(
-                                  "Failed to load observation",
-                                  "Could not fetch the observation's full I/O. Please try again.",
-                                );
-                              }
+                        annotateDisabled,
+                        commentDisabled,
+                        addToDatasetDisabled: !hasDatasetAccess,
+                        onAnnotateObservation: (
+                          observation: Parameters<
+                            ComponentProps<
+                              typeof SessionObservationActionsMenuContent
+                            >["onAnnotateObservation"]
+                          >[0],
+                        ) =>
+                          openAnnotateDrawer({
+                            scoreTarget: {
+                              type: "trace",
+                              traceId: observation.traceId,
+                              observationId: observation.id,
                             },
-                          },
+                            analyticsData: {
+                              type: "trace",
+                              source: "SessionDetail",
+                              isV4: true,
+                            },
+                            scoreMetadata: {
+                              projectId,
+                              environment: observation.environment,
+                            },
+                          }),
+                        onCommentObservation: (
+                          observation: Parameters<
+                            ComponentProps<
+                              typeof SessionObservationActionsMenuContent
+                            >["onCommentObservation"]
+                          >[0],
+                        ) =>
+                          openCommentDrawer({
+                            type: "comments",
+                            objectId: observation.id,
+                            objectType: "OBSERVATION",
+                            objectStartTime: observation.startTime,
+                          }),
+                        onAddObservationToDataset: async (
+                          observation: Parameters<
+                            ComponentProps<
+                              typeof SessionObservationActionsMenuContent
+                            >["onAddObservationToDataset"]
+                          >[0],
+                        ) => {
+                          try {
+                            const [fullObservation] =
+                              await utils.events.batchIO.fetch({
+                                projectId,
+                                traceId: observation.traceId,
+                                observations: [
+                                  {
+                                    id: observation.id,
+                                    traceId: observation.traceId,
+                                  },
+                                ],
+                                minStartTime: observation.startTime,
+                                maxStartTime: observation.startTime,
+                                truncated: false,
+                              });
+                            if (!fullObservation) throw new Error();
+                            openDatasetDialog({
+                              traceId: observation.traceId,
+                              observationId: observation.id,
+                              input: fullObservation.input,
+                              output: fullObservation.output,
+                              metadata: fullObservation.metadata,
+                            });
+                          } catch {
+                            showErrorToast(
+                              "Failed to load observation",
+                              "Could not fetch the observation's full I/O. Please try again.",
+                            );
+                          }
                         },
                       };
                     })();

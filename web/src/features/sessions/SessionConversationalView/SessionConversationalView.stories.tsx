@@ -15,6 +15,15 @@ import {
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 
+const observationActionProps = {
+  onAnnotateObservation: fn(),
+  onCommentObservation: fn(),
+  onAddObservationToDataset: fn(),
+  annotateDisabled: false,
+  commentDisabled: false,
+  addToDatasetDisabled: false,
+};
+
 const traces: TraceProps[] = [
   {
     trace: {
@@ -30,6 +39,7 @@ const traces: TraceProps[] = [
     turnNumber: 1,
     state: {
       type: "transcript",
+      ...observationActionProps,
       result: {
         state: "loaded",
         cutoff: false,
@@ -65,10 +75,15 @@ const traces: TraceProps[] = [
           ],
         },
       },
-      observations: [{ id: "generation-1" }] as Extract<
-        TraceProps["state"],
-        { type: "transcript" }
-      >["observations"],
+      observations: [
+        {
+          id: "generation-1",
+          traceId: "trace-1",
+          name: "Order assistant",
+          startTime: new Date("2026-09-24T12:00:00Z"),
+          environment: "default",
+        },
+      ] as Extract<TraceProps["state"], { type: "transcript" }>["observations"],
     },
     onOpenTrace: () => {},
     onOpenObservation: () => {},
@@ -114,6 +129,7 @@ function SessionConversationalViewStory({
       ...traces[0]!,
       state: {
         type: "transcript",
+        ...observationActionProps,
         observations: [],
         result: {
           state: "loaded",
@@ -175,6 +191,7 @@ function SessionConversationalViewStory({
         ...item,
         state: {
           ...item.state,
+          ...observationActionProps,
           observations: item.state.observations as Extract<
             TraceProps["state"],
             { type: "transcript" }

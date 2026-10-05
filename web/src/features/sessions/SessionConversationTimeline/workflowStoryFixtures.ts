@@ -3,7 +3,7 @@ import { type SessionConversationTimelineTrace } from "./components/SessionConve
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 type TranscriptState = Extract<TraceProps["state"], { type: "transcript" }>;
 type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
-  state: Omit<TranscriptState, "observations"> & {
+  state: Pick<TranscriptState, "type" | "result"> & {
     observations: Array<
       Pick<
         TranscriptState["observations"][number],

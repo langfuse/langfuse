@@ -5,7 +5,6 @@ import { getSessionTranscriptRows } from "../../fns/getSessionTranscriptRows";
 import {
   SessionTimelineToolRow,
   SessionObservationActionsMenuContent,
-  type SessionObservationActions,
 } from "./SessionConversationTimelineTrace";
 import {
   DropdownMenu,
@@ -21,23 +20,32 @@ import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "../../../fns/groupConsecutiveTools";
 
+type ObservationActionProps = Pick<
+  ComponentProps<typeof SessionObservationActionsMenuContent>,
+  | "onAnnotateObservation"
+  | "onCommentObservation"
+  | "onAddObservationToDataset"
+  | "annotateDisabled"
+  | "commentDisabled"
+  | "addToDatasetDisabled"
+>;
+
 export function SessionTranscriptContent({
   result,
   observations,
-  observationActions,
   onOpenObservation,
   scrollTarget,
+  ...observationActionProps
 }: {
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
   observations: RouterOutputs["events"]["sessionAll"]["observations"];
-  observationActions?: SessionObservationActions;
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
     requestId: number;
   } | null;
-}) {
+} & ObservationActionProps) {
   const rows = getSessionTranscriptRows(result.transcript);
   return (
     <div className="ph-no-capture space-y-4">
@@ -58,7 +66,7 @@ export function SessionTranscriptContent({
             rows={rows.filter((row) => row.threadIndex === threadIndex)}
             onOpenObservation={onOpenObservation}
             observations={observations}
-            observationActions={observationActions}
+            {...observationActionProps}
             scrollTarget={scrollTarget}
           />
         </div>
@@ -77,7 +85,7 @@ function SessionTranscriptThread({
   onOpenObservation,
   scrollTarget,
   observations,
-  observationActions,
+  ...observationActionProps
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
   onOpenObservation: (observationId: string) => void;
@@ -87,8 +95,7 @@ function SessionTranscriptThread({
     requestId: number;
   } | null;
   observations: RouterOutputs["events"]["sessionAll"]["observations"];
-  observationActions?: SessionObservationActions;
-}) {
+} & ObservationActionProps) {
   const groups = groupConsecutiveTools(rows, {
     isTool: ({ row }) => row.type === "tool",
     getName: ({ row }) =>
@@ -107,7 +114,7 @@ function SessionTranscriptThread({
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
           observations={observations}
-          observationActions={observationActions}
+          {...observationActionProps}
         />
       );
     }
@@ -118,7 +125,7 @@ function SessionTranscriptThread({
         onOpenObservation={onOpenObservation}
         scrollTarget={scrollTarget}
         observations={observations}
-        observationActions={observationActions}
+        {...observationActionProps}
       />
     );
   });
@@ -129,7 +136,7 @@ function SessionTranscriptRow({
   onOpenObservation,
   scrollTarget,
   observations,
-  observationActions,
+  ...observationActionProps
 }: {
   item: ReturnType<typeof getSessionTranscriptRows>[number];
 } & Omit<ComponentProps<typeof SessionTranscriptThread>, "rows">) {
@@ -140,76 +147,73 @@ function SessionTranscriptRow({
   const observation = observations.find(
     (item) => item.id === row.message.observationId,
   );
-  const metadata = timing &&
-    (isTool ||
-      row.message.role === "system" ||
-      (observationActions && observation?.traceId)) && (
-      <div
-        className={cn(
-          "text-muted-foreground flex items-center gap-2 font-mono text-xs",
-          !isTool &&
-            !isSystem &&
-            "invisible group-focus-within:visible group-hover:visible",
-          !isTool && row.message.role === "user" && "justify-end",
-        )}
-        title="Source observation timing"
-      >
-        {!isTool &&
-          row.message.role === "system" &&
-          row.message.observationId && (
-            <button
-              type="button"
-              className="hover:text-foreground invisible underline group-focus-within:visible group-hover:visible"
-              onClick={() => onOpenObservation(row.message.observationId!)}
-            >
-              Open observation
-            </button>
-          )}
-        {observationActions && observation?.traceId && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`Actions for ${observation.name ?? observation.id}`}
-                className={cn(
-                  isSystem &&
-                    "invisible group-focus-within:visible group-hover:visible",
-                )}
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <SessionObservationActionsMenuContent
-              observation={{
-                id: observation.id,
-                traceId: observation.traceId,
-                name: observation.name,
-                startTime: observation.startTime,
-                environment: observation.environment,
-              }}
-              actions={observationActions}
-            />
-          </DropdownMenu>
-        )}
-        {(isTool || row.message.role === "system") && (
-          <time
-            dateTime={timing.startTime.toISOString()}
-            className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible"
+  const metadata = ((timing && (isTool || isSystem)) ||
+    observation?.traceId) && (
+    <div
+      className={cn(
+        "text-muted-foreground flex items-center gap-2 font-mono text-xs",
+        !isTool &&
+          !isSystem &&
+          "invisible group-focus-within:visible group-hover:visible",
+        !isTool && row.message.role === "user" && "justify-end",
+      )}
+    >
+      {!isTool &&
+        row.message.role === "system" &&
+        row.message.observationId && (
+          <button
+            type="button"
+            className="hover:text-foreground invisible underline group-focus-within:visible group-hover:visible"
+            onClick={() => onOpenObservation(row.message.observationId!)}
           >
-            {timing.startTime.toLocaleTimeString()}
-          </time>
+            Open observation
+          </button>
         )}
-        {isTool && timing.endTime !== null && (
-          <span className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
-            {formatIntervalSeconds(
-              (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
-            )}
-          </span>
-        )}
-      </div>
-    );
+      {observation?.traceId && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Actions for ${observation.name ?? observation.id}`}
+              className={cn(
+                isSystem &&
+                  "invisible group-focus-within:visible group-hover:visible",
+              )}
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <SessionObservationActionsMenuContent
+            observation={{
+              id: observation.id,
+              traceId: observation.traceId,
+              name: observation.name,
+              startTime: observation.startTime,
+              environment: observation.environment,
+            }}
+            {...observationActionProps}
+          />
+        </DropdownMenu>
+      )}
+      {timing && (isTool || isSystem) && (
+        <time
+          dateTime={timing.startTime.toISOString()}
+          className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible"
+        >
+          {timing.startTime.toLocaleTimeString()}
+        </time>
+      )}
+      {isTool && timing && timing.endTime !== null && (
+        <span className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
+          {formatIntervalSeconds(
+            (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
+          )}
+        </span>
+      )}
+    </div>
+  );
   return (
     <div
       key={id}

@@ -32,9 +32,20 @@ const timing = {
 };
 
 describe("SessionConversationTimelineTrace", () => {
-  it("keeps trace and observation navigation in the existing timeline", () => {
+  it("keeps trace and observation navigation and always renders source actions", async () => {
     const onOpenTrace = vi.fn();
     const onOpenObservation = vi.fn();
+    const onAnnotateObservation = vi.fn();
+    const sourceObservation = {
+      id: timing.observationId,
+      traceId: trace.id,
+      name: "Source generation",
+      startTime: timing.startTime,
+      environment: trace.environment,
+    } as Extract<
+      Props["state"],
+      { type: "transcript" }
+    >["observations"][number];
     render(
       <SessionConversationTimelineTrace
         trace={trace}
@@ -44,7 +55,13 @@ describe("SessionConversationTimelineTrace", () => {
         scrollTarget={null}
         state={{
           type: "transcript",
-          observations: [],
+          onAnnotateObservation,
+          onCommentObservation: vi.fn(),
+          onAddObservationToDataset: vi.fn(),
+          annotateDisabled: false,
+          commentDisabled: false,
+          addToDatasetDisabled: false,
+          observations: [sourceObservation],
           result: {
             state: "loaded",
             cutoff: false,
@@ -76,6 +93,7 @@ describe("SessionConversationTimelineTrace", () => {
           },
         }}
       />,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: /trace · trace-1/ }));
@@ -84,6 +102,7 @@ describe("SessionConversationTimelineTrace", () => {
     }).parentElement!;
     const systemTimestamp = systemHeader.querySelector("time");
     expect(systemTimestamp?.dateTime).toBe(timing.startTime.toISOString());
+    expect(systemTimestamp?.classList.contains("invisible")).toBe(true);
     expect(
       systemTimestamp?.parentElement?.classList.contains("invisible"),
     ).toBe(false);
@@ -94,6 +113,13 @@ describe("SessionConversationTimelineTrace", () => {
     expect(onOpenTrace).toHaveBeenCalledOnce();
     expect(screen.getByText("Answer")).toBeInTheDocument();
     expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Actions for Source generation",
+      })[1]!,
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Annotate" }));
+    expect(onAnnotateObservation).toHaveBeenCalledWith(sourceObservation);
     expect(
       screen.queryByRole("button", { name: "Transcript may be incomplete" }),
     ).toBeNull();
@@ -110,6 +136,12 @@ describe("SessionConversationTimelineTrace", () => {
         scrollTarget={null}
         state={{
           type: "transcript",
+          onAnnotateObservation: vi.fn(),
+          onCommentObservation: vi.fn(),
+          onAddObservationToDataset: vi.fn(),
+          annotateDisabled: false,
+          commentDisabled: false,
+          addToDatasetDisabled: false,
           observations: [{ id: "generation-1" }] as Extract<
             Props["state"],
             { type: "transcript" }

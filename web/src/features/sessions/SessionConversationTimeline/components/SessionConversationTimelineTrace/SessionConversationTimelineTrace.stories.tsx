@@ -127,6 +127,15 @@ const sourceObservation = {
   environment: trace.environment,
 } as TranscriptState["observations"][number];
 
+const observationActionProps = {
+  onAnnotateObservation: fn(),
+  onCommentObservation: fn(),
+  onAddObservationToDataset: fn(),
+  annotateDisabled: false,
+  commentDisabled: false,
+  addToDatasetDisabled: false,
+};
+
 function transcriptState({
   messages,
   history,
@@ -138,6 +147,7 @@ function transcriptState({
 }): TranscriptState {
   return {
     type: "transcript",
+    ...observationActionProps,
     result: {
       state: "loaded",
       cutoff: false,
@@ -164,6 +174,7 @@ export const MultipleThreads = meta.story({
     ...commonArgs,
     state: {
       type: "transcript",
+      ...observationActionProps,
       result,
       observations: [{ id: "generation-1" }] as Extract<
         Props["state"],
@@ -177,6 +188,7 @@ export const Cutoff = meta.story({
     ...commonArgs,
     state: {
       type: "transcript",
+      ...observationActionProps,
       result: { ...result, cutoff: true },
       observations: [{ id: "generation-1" }] as Extract<
         Props["state"],
@@ -251,11 +263,7 @@ export const AnnotateSourceObservation = meta.story({
     ...commonArgs,
     state: {
       ...weatherState,
-      observationActions: {
-        annotate: { disabled: false, onSelect: fn() },
-        comment: { disabled: false, onSelect: fn() },
-        addToDataset: { disabled: false, onSelect: fn() },
-      },
+      onAnnotateObservation: fn(),
     },
   },
   play: async ({ args, canvasElement }) => {
@@ -282,9 +290,9 @@ export const AnnotateSourceObservation = meta.story({
     );
     if (args.state.type !== "transcript")
       throw new globalThis.Error("Expected transcript state");
-    await expect(
-      args.state.observationActions?.annotate.onSelect,
-    ).toHaveBeenCalledWith(sourceObservation);
+    await expect(args.state.onAnnotateObservation).toHaveBeenCalledWith(
+      sourceObservation,
+    );
   },
 });
 

@@ -24,26 +24,19 @@ export type PreparedSessionConversationTimelineTraceState =
   | { type: "loading" }
   | { type: "error" }
   | { type: "empty" }
-  | {
+  | ({
       type: "transcript";
       result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
       observations: RouterOutputs["events"]["sessionAll"]["observations"];
-      observationActions?: SessionObservationActions;
-    };
+    } & SessionObservationActionProps);
 
-export type SessionObservationActions = {
-  annotate: {
-    disabled: boolean;
-    onSelect: (observation: ActionObservation) => void;
-  };
-  comment: {
-    disabled: boolean;
-    onSelect: (observation: ActionObservation) => void;
-  };
-  addToDataset: {
-    disabled: boolean;
-    onSelect: (observation: ActionObservation) => void;
-  };
+type SessionObservationActionProps = {
+  onAnnotateObservation: (observation: ActionObservation) => void;
+  onCommentObservation: (observation: ActionObservation) => void;
+  onAddObservationToDataset: (observation: ActionObservation) => void;
+  annotateDisabled: boolean;
+  commentDisabled: boolean;
+  addToDatasetDisabled: boolean;
 };
 
 const toPreviewText = (value: unknown) => {
@@ -59,28 +52,32 @@ const hasPreviewValue = (value: unknown) =>
 
 export function SessionObservationActionsMenuContent({
   observation,
-  actions,
+  onAnnotateObservation,
+  onCommentObservation,
+  onAddObservationToDataset,
+  annotateDisabled,
+  commentDisabled,
+  addToDatasetDisabled,
 }: {
   observation: ActionObservation;
-  actions: SessionObservationActions;
-}) {
+} & SessionObservationActionProps) {
   return (
     <DropdownMenuContent align="end" sideOffset={0}>
       <DropdownMenuItem
-        disabled={actions.annotate.disabled}
-        onSelect={() => actions.annotate.onSelect(observation)}
+        disabled={annotateDisabled}
+        onSelect={() => onAnnotateObservation(observation)}
       >
         Annotate
       </DropdownMenuItem>
       <DropdownMenuItem
-        disabled={actions.comment.disabled}
-        onSelect={() => actions.comment.onSelect(observation)}
+        disabled={commentDisabled}
+        onSelect={() => onCommentObservation(observation)}
       >
         Comments
       </DropdownMenuItem>
       <DropdownMenuItem
-        disabled={actions.addToDataset.disabled}
-        onSelect={() => actions.addToDataset.onSelect(observation)}
+        disabled={addToDatasetDisabled}
+        onSelect={() => onAddObservationToDataset(observation)}
       >
         Add to dataset
       </DropdownMenuItem>
@@ -288,9 +285,7 @@ export function SessionConversationTimelineTrace({
       )}
       {state.type === "transcript" && (
         <SessionTranscriptContent
-          result={state.result}
-          observations={state.observations}
-          observationActions={state.observationActions}
+          {...state}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
         />
