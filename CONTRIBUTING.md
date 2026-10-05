@@ -48,7 +48,7 @@ pnpm run test        # see "Running Unit Tests" below for the setup this needs
 
 `lint` and `typecheck` are cached, so a pass can be a replay of an earlier run. Read turbo's `Cached:` line as well as its `Tasks:` line, and re-run with `pnpm exec turbo run lint --force` if you need to be sure it executed. For a user-visible change, also open the affected screen in a browser and check it — every pull request gets a full preview deployment at `pr-<N>.preview.langfuse.com`.
 
-If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one. `.agents/skills/pr-stack-workflow/SKILL.md` describes where to cut the slices and how to land them.
+If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one.
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
@@ -61,7 +61,7 @@ We recommend checking out DeepWiki to familiarize yourself with the project:
 ### Technologies we use
 
 - Application (this repository)
-  - NextJS 14, pages router
+  - Next.js 16, Pages Router
   - NextAuth.js / Auth.js
   - tRPC: Frontend APIs
   - Prisma ORM
@@ -121,6 +121,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 - `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
+  - `native`: Rust native addon (napi-rs) that the worker loads in-process. See [packages/native/README.md](packages/native/README.md).
   - `config-eslint`: contains eslint configurations which are shared between the above packages.
   - `config-typescript`: contains typescript configurations which are shared between the above packages.
 - `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
@@ -130,7 +131,8 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- pnpm 12.3.1 as specified in `package.json`
+- The pnpm version pinned in `package.json` under `devEngines.packageManager`. The Docker setup uses Corepack 0.36.0; CI reads the same pin through `pnpm/setup`.
+- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker, for the AI gateway (which starts with `pnpm dev`, see [gateway setup](ai-gateway/README.md#run-locally)) and for the worker's native addon (compiled during the worker build, see [packages/native/README.md](packages/native/README.md)). Each crate pins its own toolchain in `rust-toolchain.toml`; rustup installs it on first use.
 - Docker to run the database locally
 - Clickhouse client
 
@@ -191,10 +193,13 @@ The start command waits for web, worker, PostgreSQL, ClickHouse, Redis, and
 MinIO, then seeds the synthetic demo project and checks both application health
 endpoints. Cursor team administrators separately configure the read-only MCP
 catalog described in `.agents/README.md`; credentials and OAuth grants belong
-in Cursor, never in repository files.
+in Cursor, never in repository files. Maintainers who need the issue tracker
+inside Cloud should also set secret `LINEAR_API_KEY` (personal Linear API key)
+in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
 
 After local verification, a Cursor agent should open a same-repo reviewable
-PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
+PR (not a draft), apply the GitHub `cursor` label, and test its
+`pr-<N>.preview.langfuse.com` deployment.
 Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
@@ -214,11 +219,15 @@ This repository keeps the shared agent setup in source control so developers
 using different tools can work against the same instructions, bootstrap, and
 MCP server catalog.
 
+The catalog includes Next DevTools for routes, compilation errors, and logs from
+a running `pnpm run dev:web` server. Run `pnpm run agents:sync`, reload your
+agent's MCP configuration, and select this checkout's server with `nextjs_index`.
+Use Playwright for browser interaction; see the [diagnostics guide](.agents/README.md#nextjs-runtime-diagnostics).
+
 - Canonical shared docs:
   - `.agents/AGENTS.md`
-- Root discovery symlinks:
-  - `AGENTS.md`
-  - `CLAUDE.md`
+- Root discovery symlink: `AGENTS.md` -> `.agents/AGENTS.md`
+- Folder instructions: `AGENTS.md` in the directory they describe
 - Shared agent setup overview: `.agents/README.md`
 - Shared skills: `.agents/skills/`
 - Shared tool/bootstrap/MCP config: `.agents/config.json`
@@ -236,6 +245,10 @@ MCP server catalog.
 - Tool-specific skill projections generated locally and not committed:
   - `.claude/skills/*`
 - Shared bootstrap for agent environments: `bash scripts/agents/setup.sh`
+
+Use a harness that reads `AGENTS.md` directly. For Claude Code, upgrade to
+2.1.277 or later and see the compatibility notes in `.agents/README.md`.
+Folder instructions need no `CLAUDE.md` copy or symlink.
 
 When you change the shared MCP setup:
 
@@ -265,12 +278,7 @@ When you change the shared MCP setup:
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
 
-   The pre-commit hook runs formatting and lint checks. To skip only the lint
-   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
-
-   ```bash
-   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
-   ```
+   The pre-commit hook runs formatting checks.
 
    CI still runs the required checks for pull requests.
 
@@ -336,6 +344,26 @@ pnpm run db:seed:examples
 
 > [!NOTE]
 > If you find yourself stuck and want to clean the repo, execute `pnpm run nuke`. It will remove all node_modules and build files.
+
+### Toolchain diagnostics and dependency maintenance
+
+- Writable installs automatically deduplicate compatible dependency versions; review
+  the lockfile diff as usual. Frozen installs preserve the lockfile.
+- Use `pnpm add <package> --save-types` to add available companion types. For older
+  runtime majors, explicitly select matching `@types` versions: automatic selection
+  uses the catalog or latest eligible typings, not the runtime's major.
+- `pnpm change check` checks that the root, web, and worker package versions
+  agree. CI runs it too; release-it still owns releases and source version constants.
+- Rust build, lint, typecheck, and test scripts share one machine-wide slot across
+  worktrees using the same pnpm state directory. `pnpm tasks status` shows holders
+  and waiters. Persistent dev servers stay outside this group; direct Cargo commands
+  bypass it. This limits concurrent jobs, not compiler threads.
+- Turbo watch respects task inputs: Prisma regenerates on schema changes, not
+  ordinary shared TypeScript edits. Production caches exclude Next development output.
+- Turbo keeps successful task/cache hashes visible with `errors-only` logs. Its
+  shared worktree cache has a 7.5 GB cleanup target; eviction runs in the background.
+- `pnpm --filter web run analyze` opens Next's experimental bundle analyzer;
+  `pnpm --filter web run build-trace` opens a Turbopack trace when one is available.
 
 ## System behavior
 
@@ -424,6 +452,16 @@ CI on `main` and `pull_request`
 CD on `main`
 
 - Publish Docker image to GitHub Packages if CI passes. Done on every push to `main` branch. Only released versions are tagged with `latest`.
+
+### Version tests
+
+Our CI pipeline runs multiple configurations of Langfuse - the "plain" deployment, an "azure" specific deployment, and a "redis-cluster" deployment
+using the specific `docker-compose.dev-*.yml` files at the repository root.
+
+Additionally, we use those files to test different ClickHouse versions.
+- Azure: Use 25.12 for compatibility testing with our lowest supported version.
+- Redis Cluster: Use 26.8 as the latest available ClickHouse release.
+- Plain: Use 26.4 as the current Cloud version.
 
 ## Staging environment
 
@@ -571,7 +609,7 @@ This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:**
 To generate the server SDKs, run:
 
 ```sh
-npx fern-api generate --api server
+pnpm dlx fern-api@3.88.0 generate --api server
 ```
 
 **Note:** You need a signed in fern account to generate SDKs.

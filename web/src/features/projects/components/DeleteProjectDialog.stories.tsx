@@ -1,7 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import preview from "../../../../.storybook/preview";
+import preview from "@/.storybook/preview";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   DeleteProjectDialog,
   type DeleteProjectDialogProps,
@@ -14,26 +14,18 @@ const meta = preview.meta({
 export default meta;
 
 const renderDialog = (args: DeleteProjectDialogProps) => (
-  <Dialog open onOpenChange={fn()}>
-    <DialogContent className="sm:max-w-[425px]">
-      <DeleteProjectDialog {...args} />
-    </DialogContent>
-  </Dialog>
+  <DialogController
+    initialState={() => true}
+    renderDialog={() => <DeleteProjectDialog {...args} />}
+  >
+    {() => null}
+  </DialogController>
 );
 
 export const Default = meta.story({
   args: {
     confirmMessage: "acme/my-project",
     isPending: false,
-    onSubmit: fn(),
-  },
-  render: renderDialog,
-});
-
-export const Loading = meta.story({
-  args: {
-    confirmMessage: "acme/my-project",
-    isPending: true,
     onSubmit: fn(),
   },
   render: renderDialog,

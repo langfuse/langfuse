@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -145,7 +145,7 @@ export const evaluatorRouter = createTRPCRouter({
       });
     }),
 
-  recentExecutions: protectedProjectProcedure
+  executionSummaries: protectedProjectProcedure
     .input(EvaluatorIdsSchema)
     .query(({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -153,7 +153,7 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evalJobExecution:read",
       });
-      return serviceForContext(ctx).listRecent({
+      return serviceForContext(ctx).getExecutionSummaries({
         ...input,
         projectId: ctx.session.projectId,
       });

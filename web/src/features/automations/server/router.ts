@@ -7,7 +7,7 @@ import {
   ActionCreateSchema,
   ActionType,
   JobConfigState,
-  singleFilter,
+  singleFilterList,
   isWebhookActionConfig,
   TriggerEventSource,
   TriggerEventSourceSchema,
@@ -27,14 +27,14 @@ import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 
 const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
   eventAction: z.array(z.string()),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
   actionType: z.enum(ActionType),

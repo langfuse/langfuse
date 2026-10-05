@@ -3,10 +3,12 @@ import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
+import {
+  Chart,
+  ChartLoadingState,
+  type DataPoint,
+  getWidgetMetricPresentation,
+} from "@/src/features/widgets";
 import {
   type FilterState,
   type metricAggregations,
@@ -180,16 +182,17 @@ export const MonitorChartPreview = ({
             // before the real result (or the leading point) arrives.
             isLoading={queryResult.isPending || scalarResult.isPending}
           />
-          <ChartLoadingState
-            isLoading={queryResult.isError}
-            showSpinner={false}
-            showHintImmediately
-            layout="compact"
-            hintText={
-              queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
-            }
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-          />
+          {queryResult.isError && (
+            <ChartLoadingState
+              showSpinner={false}
+              showHintImmediately
+              layout="compact"
+              hintText={
+                queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
+              }
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            />
+          )}
         </div>
       </CardContent>
     </Card>

@@ -5,11 +5,10 @@ import {
 } from "@/src/server/api/trpc";
 import {
   orderBy,
-  singleFilter,
+  singleFilterList,
   optionalPaginationZod,
-  LangfuseConflictError,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
@@ -29,7 +28,7 @@ const CreateDashboardWidgetInput = z.object({
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
@@ -43,7 +42,7 @@ const UpdateDashboardWidgetInput = z.object({
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
@@ -209,25 +208,10 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      try {
-        // Delete the widget using the DashboardService
-        await DashboardService.deleteWidget(input.widgetId, input.projectId);
+      await DashboardService.deleteWidget(input.widgetId, input.projectId);
 
-        return {
-          success: true,
-        };
-      } catch (error) {
-        // If the widget is still referenced in dashboards, throw a CONFLICT error
-        if (error instanceof LangfuseConflictError) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: error.message,
-          });
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: (error as Error)?.message,
-        });
-      }
+      return {
+        success: true,
+      };
     }),
 });

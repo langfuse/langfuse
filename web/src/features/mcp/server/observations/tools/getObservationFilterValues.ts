@@ -8,14 +8,14 @@ import { z } from "zod";
 import {
   getEventFilterNumericRange,
   getEventFilterValuePage,
-} from "@/src/features/events/server/eventsService";
+} from "@/src/features/events/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 
 const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "name",
@@ -164,6 +164,7 @@ export const [
   name: "getObservationFilterValues",
   description:
     "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
+  action: "traces:read",
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
   handler: async (input, context) => {

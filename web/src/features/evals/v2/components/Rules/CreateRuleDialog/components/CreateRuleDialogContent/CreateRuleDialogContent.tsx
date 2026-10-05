@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications";
 import type { EvalTargetObject, FilterState } from "@langfuse/shared";
 import { useRef, useState } from "react";
@@ -19,8 +20,8 @@ import type {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useProject } from "@/src/features/projects";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
@@ -36,6 +37,7 @@ export function CreateRuleDialogContent({
   targetObject,
   evaluatorSearch,
   successNotification,
+  onCreated,
   onEvaluatorSearchChange,
 }: {
   projectId: string;
@@ -48,6 +50,7 @@ export function CreateRuleDialogContent({
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
+  onCreated?: () => void;
   onEvaluatorSearchChange: (search: string) => void;
 }) {
   const capture = usePostHogClientCapture();
@@ -118,6 +121,7 @@ export function CreateRuleDialogContent({
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
     });
+    onCreated?.();
     if (successNotification === "toast") {
       showSuccessToast({
         title: "Rule created",

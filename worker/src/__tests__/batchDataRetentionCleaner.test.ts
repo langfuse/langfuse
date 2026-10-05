@@ -655,7 +655,9 @@ describe("BatchDataRetentionCleaner", () => {
       const extend = vi.fn(async () => {
         const isCandidateStreamActive =
           integrationHooks.activeCandidateStreams > 0;
-        extendedDuringCandidateStream ||= isCandidateStreamActive;
+        if (isCandidateStreamActive) {
+          extendedDuringCandidateStream = true;
+        }
         return isCandidateStreamActive;
       });
       (

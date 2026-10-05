@@ -130,11 +130,7 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: [
-    "@ag-ui/core",
-    "@ag-ui/client",
-    "langfuse",
-  ],
+  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
 };
 
 function serverProject(
@@ -179,6 +175,13 @@ export default defineConfig({
         replacement: join(
           import.meta.dirname,
           "node_modules/next-query-params/dist/pages.esm.js",
+        ),
+      },
+      {
+        find: /^next\/font\/local$/,
+        replacement: join(
+          import.meta.dirname,
+          "src/__tests__/mocks/nextFontLocal.ts",
         ),
       },
     ],
@@ -280,6 +283,11 @@ export default defineConfig({
           globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
         },
       },
+      serverProject(
+        "ai-gateway-e2e-server",
+        ["src/__e2e__/**/ai-gateway.gatewaye2e.{ts,tsx}"],
+        { isolate: true },
+      ),
     ],
   },
 });

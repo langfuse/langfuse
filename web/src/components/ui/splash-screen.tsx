@@ -62,14 +62,28 @@ function VideoPlayer({ videoSrc }: { videoSrc: string }) {
       <video
         src={videoSrc}
         controls
-        autoPlay
         muted
         loop
         playsInline
         controlsList="nodownload"
         className="w-full"
         onError={() => setHasError(true)}
-        onLoadedData={() => setIsLoaded(true)}
+        onLoadedData={(event) => {
+          setIsLoaded(true);
+          // Firefox rejects play() with NotSupportedError when the codec is
+          // unavailable; hide the player. NotAllowedError is autoplay policy.
+          // Other rejections rethrow so they stay visible to error reporting.
+          return event.currentTarget.play().catch((error: unknown) => {
+            if (error instanceof DOMException) {
+              if (error.name === "NotSupportedError") {
+                setHasError(true);
+                return;
+              }
+              if (error.name === "NotAllowedError") return;
+            }
+            throw error;
+          });
+        }}
       />
     </div>
   );
@@ -183,7 +197,7 @@ export function SplashScreen({
                   {step.badge}
                 </div>
                 {step.description && (
-                  <p className="text-muted-foreground text-sm leading-6">
+                  <p className="text-muted-foreground text-sm">
                     {step.description}
                   </p>
                 )}

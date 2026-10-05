@@ -5,6 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
   EXCEPTION_TAG_HEADER_NAME,
+  resolveClickhouseService,
 } from "../clickhouse/client";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
@@ -33,6 +34,8 @@ import {
 } from "../clickhouse/queryTags";
 import {
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryShape,
+  clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
 } from "../clickhouse/queryOutcome";
 
@@ -54,14 +57,23 @@ const ERROR_TYPE_CONFIG: Record<
     discriminators: string[];
   }
 > = {
-  MEMORY_LIMIT: {
-    discriminators: ["memory limit exceeded"],
-  },
+  // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
+  // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
+  // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
   OVERCOMMIT: {
-    discriminators: ["OvercommitTracker"],
+    discriminators: ["overcommittracker"],
+  },
+  MEMORY_LIMIT: {
+    discriminators: [
+      "memory limit exceeded",
+      "memory limit (for query) exceeded",
+      "memory limit (total) exceeded",
+      "memory limit (for user) exceeded",
+      "memory limit",
+    ],
   },
   TIMEOUT: {
-    discriminators: ["Timeout", "timeout", "timed out"],
+    discriminators: ["timeout", "timed out"],
   },
 };
 
@@ -88,11 +100,18 @@ export class ClickHouseResourceError extends Error {
     }
   }
 
+  static is(error: unknown): error is ClickHouseResourceError {
+    return (
+      error instanceof ClickHouseResourceError ||
+      (error instanceof Error && error.name === "ClickHouseResourceError")
+    );
+  }
+
   static wrapIfResourceError(
     originalError: Error,
     tags?: NormalizedClickHouseQueryTags,
   ): Error {
-    const errorMessage = originalError.message || "";
+    const errorMessage = (originalError.message || "").toLowerCase();
 
     for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
       [
@@ -101,7 +120,7 @@ export class ClickHouseResourceError extends Error {
       ]
     >) {
       const hasDiscriminator = config.discriminators.some((discriminator) =>
-        errorMessage.includes(discriminator),
+        errorMessage.includes(discriminator.toLowerCase()),
       );
 
       if (hasDiscriminator) {
@@ -259,7 +278,7 @@ export async function upsertClickhouse<
 }
 
 export async function* queryClickhouseStream<T>(
-  opts: ClickhouseQueryOpts,
+  opts: ClickhouseQueryOpts & { queryId?: string },
 ): AsyncGenerator<T> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
@@ -270,7 +289,7 @@ export async function* queryClickhouseStream<T>(
 
   // Client-generated so failures before/without a response still carry a
   // query_id on errors and spans; system.query_log stays pollable by id.
-  const queryId = randomUUID();
+  const queryId = opts.queryId ?? randomUUID();
 
   try {
     setSpanQueryAttributes(span, opts.query);
@@ -611,6 +630,7 @@ function recordSummaryOnSpan(
 
 function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("ch.query.text", query);
+  span.setAttribute("ch.query.shape", clickHouseQueryShape(query));
   span.setAttribute("db.system", "clickhouse");
   span.setAttribute("db.query.text", query);
   span.setAttribute("db.operation.name", "SELECT");
@@ -684,6 +704,11 @@ export async function queryClickhouse<T>(
 ): Promise<T[]> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  const table = clickHouseQueryTableLabel(opts.query);
+  const shape = clickHouseQueryShape(opts.query);
+  const clickhouseService = resolveClickhouseService(
+    opts.preferredClickhouseService,
+  );
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -745,11 +770,20 @@ export async function queryClickhouse<T>(
             ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
             : "error",
           normalizedTags,
+          table,
+          shape,
+          clickhouseService,
         );
         throw wrapped;
       });
 
-      recordClickHouseQueryOutcome("success", normalizedTags);
+      recordClickHouseQueryOutcome(
+        "success",
+        normalizedTags,
+        table,
+        shape,
+        clickhouseService,
+      );
       return rows;
     },
   );

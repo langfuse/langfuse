@@ -3,12 +3,12 @@ import type {
   MetricOption,
   ScoreCoverageByLevel,
 } from "@/src/features/experiments/types/charts";
-import { normalizeScoreName } from "@/src/features/scores/lib/aggregateScores";
+import { normalizeScoreName } from "@/src/features/scores";
 
 /** Score chart ids are `${level}-score-${dataType}:${scoreName}`. */
-const NUMERIC_SCORE_ID = /^(obs|trace|experiment)-score-numeric:/;
+const NUMERIC_SCORE_ID = /^(obs|experiment)-score-numeric:/;
 
-/** Numeric first: only a numeric average reads as a bar in a 63px band. */
+/** Prefer a numeric quality metric over boolean or categorical distributions. */
 const VALUE_KIND_RANK: Record<
   NonNullable<MetricOption["valueKind"]>,
   number
@@ -40,7 +40,7 @@ const valueKindOf = (
  *
  * Coverage is unknown until the row metrics land; until then the order falls
  * through to the name. A user's explicit pick always wins — see
- * `useExperimentStripMetric`.
+ * `useExperimentCharts`.
  */
 export function pickDefaultStripMetric(
   options: MetricOption[],

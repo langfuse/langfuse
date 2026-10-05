@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { SiSlack } from "react-icons/si";
 import { Webhook, Plus, Pencil, Trash2 } from "lucide-react";
 

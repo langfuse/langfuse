@@ -175,14 +175,16 @@ export async function executeInAppAgentRun(params: {
   const cleanupMcpApiKey = (): Promise<void> => {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
-    mcpApiKeyCleanup ??= (async () => {
-      await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
-      // Pointer is nulled after delete succeeds or the key is already gone.
-      await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
-    })().catch((error: unknown) => {
-      mcpApiKeyCleanup = undefined;
-      throw error;
-    });
+    if (mcpApiKeyCleanup === undefined) {
+      mcpApiKeyCleanup = (async () => {
+        await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
+        // Pointer is nulled after delete succeeds or the key is already gone.
+        await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
+      })().catch((error: unknown) => {
+        mcpApiKeyCleanup = undefined;
+        throw error;
+      });
+    }
     return mcpApiKeyCleanup;
   };
 

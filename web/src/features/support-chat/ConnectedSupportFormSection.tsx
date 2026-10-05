@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/src/utils/api";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { showErrorToast } from "@/src/features/notifications";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
@@ -20,7 +20,7 @@ export function ConnectedSupportFormSection({
   onSuccess: () => void;
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
-  const { initialTopic } = useSupportDrawer();
+  const { initialTopic, initialMessage } = useSupportDrawer();
   const showV4MigrationTopic = useV4UpgradeUiEnabled(project?.id);
   // The support drawer is mounted globally and reachable from pages without an
   // org/project in the URL (home, setup, onboarding, account settings), where
@@ -125,6 +125,7 @@ export function ConnectedSupportFormSection({
       <SupportForm
         canSelectHighSeverity={canSelectHighSeverity}
         initialTopic={initialTopic ?? ""}
+        initialMessage={initialMessage}
         showV4MigrationTopic={showV4MigrationTopic}
         onCancel={onCancel}
         onSuccess={onSuccess}

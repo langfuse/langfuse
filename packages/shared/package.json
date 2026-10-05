@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/clickhouse": {
+      "import": "./dist/src/server/clickhouse/index.js",
+      "require": "./dist/src/server/clickhouse/index.js"
+    },
     "./src/server/clickhouse/clickhouseIdentifiers": {
       "import": "./dist/src/server/clickhouse/clickhouseIdentifiers.js",
       "require": "./dist/src/server/clickhouse/clickhouseIdentifiers.js"
@@ -158,13 +162,14 @@
   "dependencies": {
     "@ag-ui/client": "^0.0.52",
     "@ag-ui/core": "^0.0.52",
-    "@ai-sdk/amazon-bedrock": "^5.0.25",
+    "@ai-sdk/amazon-bedrock": "^5.0.97",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
     "@ai-sdk/google-vertex": "^5.0.8",
     "@ai-sdk/openai": "^4.0.0",
     "@ai-sdk/openai-compatible": "^3.0.3",
+    "@ai-sdk/typesafe-ai": "^3.0.4",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
     "@aws-sdk/client-s3": "catalog:",
@@ -205,12 +210,12 @@
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
     "next-auth": "^4.24.14",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^10.0.9",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",
     "slackify-markdown": "^5.0.0",
-    "undici": "^7.29.0",
+    "undici": "^7.29.1",
     "uuid": "^14.0.2",
     "winston": "^3.15.0",
     "zod": "^4.3.6"
@@ -228,7 +233,7 @@
     "prisma": "^6.19.3",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

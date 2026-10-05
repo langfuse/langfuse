@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -9,6 +10,7 @@ import {
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
@@ -22,7 +24,7 @@ import {
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
@@ -79,16 +81,16 @@ export interface WidgetContentProps {
   /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Opt in on entity-dimension
-   * charts (experiments) whose long names clutter the axis.
+   * charts whose long names clutter the axis.
    */
   hideXAxisLabels?: boolean;
   /**
-   * Colour each bar of a categorical (entity) axis and name it in a legend
-   * below the plot. Off by default; opt in on an entity-dimension bar chart
-   * whose axis labels are hidden (the experiments strip). See
+   * Colour each bar of a categorical (entity) axis. Off by default; opt in on
+   * entity-dimension bar charts such as the experiments strip. See
    * `prepareCategoryBars`.
    */
   colorBarsByCategory?: boolean;
+  legendPosition?: LegendPosition;
   /**
    * Measure bars from zero rather than from a fitted domain. Off by default;
    * see `ChartProps.zeroBaseline`.
@@ -146,6 +148,7 @@ export function WidgetContent({
   entityDimensionLabelMap,
   hideXAxisLabels,
   colorBarsByCategory,
+  legendPosition,
   zeroBaseline,
   emptyState,
 }: WidgetContentProps) {
@@ -426,19 +429,21 @@ export function WidgetContent({
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
         colorBarsByCategory={colorBarsByCategory}
+        legendPosition={legendPosition}
         zeroBaseline={zeroBaseline}
         emptyState={emptyState}
       />
-      <ChartLoadingState
-        isLoading={chartLoadingState.isLoading}
-        showSpinner={chartLoadingState.showSpinner}
-        showHintImmediately={chartLoadingState.showHintImmediately}
-        hintText={chartLoadingState.hintText}
-        onRetry={queryResult.isError ? handleRetry : undefined}
-        progress={loadingProgress}
-        layout={layoutHint}
-        className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-      />
+      {chartLoadingState.isLoading && (
+        <ChartLoadingState
+          showSpinner={chartLoadingState.showSpinner}
+          showHintImmediately={chartLoadingState.showHintImmediately}
+          hintText={chartLoadingState.hintText}
+          onRetry={queryResult.isError ? handleRetry : undefined}
+          progress={loadingProgress}
+          layout={layoutHint}
+          className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+        />
+      )}
     </div>
   );
 }

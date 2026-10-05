@@ -278,6 +278,34 @@ describe("getSafeRedirectPath", () => {
       );
     });
 
+    it("rejects Next.js route patterns that would fail href interpolation", () => {
+      // Pre-hydration asPath on a statically-optimized dynamic route is the
+      // raw pattern. router.replace(that) throws href-interpolation-failed.
+      expect(
+        getSafeRedirectPath("/project/[projectId]/datasets/[datasetId]/items"),
+      ).toBe("/");
+      expect(
+        getSafeRedirectPath("/project/[projectId]/prompts/[[...folder]]"),
+      ).toBe("/");
+      expect(getSafeRedirectPath("/project/[projectId]/traces")).toBe("/");
+      expect(
+        getSafeRedirectPath(
+          "/project/[projectId]/datasets/[datasetId]/items?page=1",
+        ),
+      ).toBe("/");
+    });
+
+    it("still allows interpolated paths and bracketed query values", () => {
+      expect(getSafeRedirectPath("/project/abc123/datasets/ds1/items")).toBe(
+        "/project/abc123/datasets/ds1/items",
+      );
+      // Brackets in the query string are not route params. The WHATWG
+      // serializer may percent-encode the value; the path must not fall back.
+      expect(getSafeRedirectPath("/project/abc123/traces?filter=[x]")).toMatch(
+        /^\/project\/abc123\/traces\?filter=/,
+      );
+    });
+
     it("should handle non-string input gracefully", () => {
       // @ts-expect-error Testing runtime behavior with invalid input
       expect(getSafeRedirectPath(123)).toBe("/");
@@ -406,16 +434,25 @@ describe("stripBasePath", () => {
       expect(stripBasePath("/apps\n\r\u0000/dashboard")).toBe("/dashboard");
     });
 
-    it("does NOT strip Unicode bidi-formatting characters outside the C0 range", () => {
-      // U+202E (RTL-override) is intentionally out of scope for this fix;
-      // it lives at 0x202E, beyond the 0x00-0x1F / 0x7F regex scope. The
-      // result still has a leading "/" so it survives the path-vs-leading-
-      // slash guard; downstream code decides whether to display it.
-      expect(stripBasePath("/apps\u202E/dashboard")).toBe("/\u202E/dashboard");
+    it("does NOT strip when a Unicode bidi character breaks the segment boundary", () => {
+      // U+202E (RTL-override) is outside the C0 control strip. It also
+      // sits between `/apps` and `/`, so the path is not a basePath
+      // segment and must be left alone.
+      expect(stripBasePath("/apps\u202E/dashboard")).toBe(
+        "/apps\u202E/dashboard",
+      );
     });
 
     it("leaves paths without basePath untouched", () => {
       expect(stripBasePath("/no-base")).toBe("/no-base");
+    });
+
+    it("does not strip a longer path that only shares a string prefix", () => {
+      // `/apps` must not eat the front of `/appslication`.
+      expect(stripBasePath("/appslication")).toBe("/appslication");
+      expect(stripBasePath("/appslication/dashboard")).toBe(
+        "/appslication/dashboard",
+      );
     });
   });
 });

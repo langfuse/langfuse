@@ -75,6 +75,7 @@ export {
 export {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_TOP_N,
   EVENTS_APPROX_TOTAL_COUNT_MARKER,
@@ -108,3 +109,7 @@ export {
   type EventsObservationRowSelectionInput,
 } from "./clickhouse-sql/events-observation-row-selection";
 export { extractTimeFilter } from "./clickhouse-sql/filter-utils";
+export {
+  isSeekEligibleFilter,
+  scoreOnlyFiltersAreSeekEligible,
+} from "./clickhouse-sql/score-seek-eligibility";

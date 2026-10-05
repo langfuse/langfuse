@@ -9,13 +9,13 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { InlineFilterState } from "@/src/features/filters";
 import {
   COMPOSER_SURFACE_CLASSES,
   COMPOSER_TEXT_CLASSES,
-} from "@/src/features/search-bar/components/composer-chrome";
-import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+  ComposerTokens,
+  filterStateToQueryText,
+} from "@/src/features/search-bar";
 import { cn } from "@/src/utils/tailwind";
 
 export function RuleFilterPills({
@@ -150,7 +150,7 @@ export function RuleFilterPills({
       renderOverflow={({ overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm" className="font-normal">
+            <Badge variant="secondary" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>

@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
@@ -79,20 +79,6 @@ export const ruleRouter = createTRPCRouter({
     });
     return serviceForContext(ctx).get(ctx.session.projectId, input.ruleId);
   }),
-
-  recentExecutions: protectedProjectProcedure
-    .input(RuleIdsSchema)
-    .query(({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: ctx.session.projectId,
-        scope: "evalJobExecution:read",
-      });
-      return serviceForContext(ctx).listRecent({
-        ...input,
-        projectId: ctx.session.projectId,
-      });
-    }),
 
   costByRuleIds: protectedProjectProcedure
     .input(RuleIdsSchema)

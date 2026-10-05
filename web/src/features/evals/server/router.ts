@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   authenticatedProcedure,
@@ -5,11 +6,12 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   deriveEvaluatorDisplayStateFromExecutionCounts,
-  singleFilter,
+  type singleFilter,
+  singleFilterList,
   variableMapping,
   observationVariableMapping,
   paginationZod,
@@ -90,7 +92,7 @@ const CreateEvalJobSchema = z.object({
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
   target: EvalTargetObjectSchema,
-  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
+  filter: singleFilterList.nullable(),
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   mapping: z.union([
     z.array(variableMapping),
@@ -217,7 +219,7 @@ const assertTemplateCanRunForActivation = async (params: {
 
 const UpdateEvalJobSchema = z.object({
   scoreName: z.string().min(1).optional(),
-  filter: z.array(singleFilter).optional(),
+  filter: singleFilterList.optional(),
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   variableMapping: z
     .union([z.array(variableMapping), z.array(observationVariableMapping)])
@@ -235,14 +237,21 @@ const validateVariableMappingForTarget = ({
   targetObject: string;
   mapping: unknown;
 }) => {
-  const result =
-    targetObject === EvalTargetObject.EVENT ||
-    targetObject === EvalTargetObject.EXPERIMENT
-      ? z.array(observationVariableMapping).safeParse(mapping)
-      : targetObject === EvalTargetObject.TRACE ||
-          targetObject === EvalTargetObject.DATASET
-        ? z.array(variableMapping).safeParse(mapping)
-        : null;
+  const result = (() => {
+    if (
+      targetObject === EvalTargetObject.EVENT ||
+      targetObject === EvalTargetObject.EXPERIMENT
+    ) {
+      return z.array(observationVariableMapping).safeParse(mapping);
+    }
+    if (
+      targetObject === EvalTargetObject.TRACE ||
+      targetObject === EvalTargetObject.DATASET
+    ) {
+      return z.array(variableMapping).safeParse(mapping);
+    }
+    return null;
+  })();
 
   if (!result?.success) {
     throw new TRPCError({
@@ -309,7 +318,7 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(), // Required for protectedProjectProcedure
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         orderBy: orderBy,
         searchQuery: z.string().nullish(),
         ...paginationZod,
@@ -1171,7 +1180,7 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         jobConfigurationId: z.string().optional(),
         ...paginationZod,
       }),

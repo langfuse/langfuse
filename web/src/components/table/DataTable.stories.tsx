@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { expect, fn } from "storybook/test";
@@ -42,7 +43,7 @@ import {
   type LevelCount,
 } from "@/src/components/level-counts-display";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -504,6 +505,10 @@ const pinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map((col) =>
   col.id === "id" ? { ...col, isPinnedLeft: true } : col,
 );
 
+const rightPinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map(
+  (col) => (col.id === "latency" ? { ...col, isPinnedRight: true } : col),
+);
+
 // -----------------------------------------------------------------------------
 // Stateful async wrapper (emulates server pagination without a backend)
 // -----------------------------------------------------------------------------
@@ -568,24 +573,27 @@ function useAsyncPagedData<TRow>({
   const lastPageIndex = Math.ceil(totalCount / pagination.pageSize) - 1;
   const hasNextPage = pagination.pageIndex < lastPageIndex;
 
-  const paginationProp =
-    mode === "none"
-      ? undefined
-      : mode === "offset"
-        ? {
-            totalCount,
-            onChange,
-            state: pagination,
-            options: [10, 20, 50],
-          }
-        : {
-            totalCount: null,
-            hasNextPage,
-            canJumpPages: false,
-            onChange,
-            state: pagination,
-            options: [10, 20, 50],
-          };
+  const paginationProp = (() => {
+    if (mode === "none") {
+      return undefined;
+    }
+    if (mode === "offset") {
+      return {
+        totalCount,
+        onChange,
+        state: pagination,
+        options: [10, 20, 50],
+      };
+    }
+    return {
+      totalCount: null,
+      hasNextPage,
+      canJumpPages: false,
+      onChange,
+      state: pagination,
+      options: [10, 20, 50],
+    };
+  })();
 
   return { data, paginationProp, pagination };
 }
@@ -689,6 +697,13 @@ export const WithPinnedColumn = meta.story({
   args: {
     tableName: "story-pinned-column",
     columns: pinnedColumns,
+  },
+});
+
+export const WithRightPinnedColumn = meta.story({
+  args: {
+    tableName: "story-right-pinned-column",
+    columns: rightPinnedColumns,
   },
 });
 

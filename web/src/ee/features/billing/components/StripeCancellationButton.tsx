@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,7 @@ export const StripeCancellationButton = ({
   variant,
   className,
 }: {
-  orgId: string | undefined;
+  orgId: string;
   variant: "secondary" | "default";
   className?: string;
 }) => {
@@ -57,8 +57,6 @@ export const StripeCancellationButton = ({
         toast.error("Failed to reactivate subscription");
       },
     });
-
-  if (!orgId) return null;
 
   const onReactivate = async () => {
     try {

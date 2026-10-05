@@ -391,5 +391,19 @@ function getDefaultAdapterParams(
         maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
+
+    case LLMAdapter.TypeSafe:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 0, enabled: false },
+        max_tokens: { value: 0, enabled: false },
+        top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
+        providerOptions: { value: {}, enabled: false },
+      };
   }
 }

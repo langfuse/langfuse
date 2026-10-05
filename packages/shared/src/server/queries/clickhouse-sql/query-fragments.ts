@@ -4,6 +4,7 @@
 
 import {
   EventsAggregationQueryBuilder,
+  EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   ExperimentsAggregationFieldSetName,
@@ -362,6 +363,7 @@ export const eventsSessionsAggregation = (params: {
   sessionIds?: string[];
   startTimeFrom?: string | null;
   includeMetadata?: boolean;
+  includeTools?: boolean;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
@@ -369,6 +371,9 @@ export const eventsSessionsAggregation = (params: {
     .selectFieldSet("base")
     .when(Boolean(params.includeMetadata), (builder) =>
       builder.selectFieldSet("metadata"),
+    )
+    .when(Boolean(params.includeTools), (builder) =>
+      builder.selectFieldSet("tools"),
     )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
@@ -438,6 +443,33 @@ export const eventsExperimentsRootSpans = (params: {
   eventsExperimentsForItems(params).whereRaw(
     "e.experiment_item_root_span_id = e.span_id",
   );
+
+/**
+ * Worst observation level per experiment item, computed across the item's
+ * full subtree. Filter tables before joining (query-join-filter-before):
+ * scoped to the experiments in play so the CTE never scans the project.
+ */
+export const experimentItemLevelsAggregation = (params: {
+  projectId: string;
+  experimentIds: string[];
+}): { query: string; params: Record<string, any> } =>
+  new EventsAggQueryBuilder({
+    projectId: params.projectId,
+    groupByColumn: "e.experiment_id, e.experiment_item_id",
+    selectExpression: `e.experiment_id AS experiment_id,
+      e.experiment_item_id AS experiment_item_id,
+      multiIf(
+        countIf(e.level = 'ERROR') > 0, 'ERROR',
+        countIf(e.level = 'WARNING') > 0, 'WARNING',
+        countIf(e.level = 'DEFAULT') > 0, 'DEFAULT',
+        'DEBUG'
+      ) AS aggregated_level`,
+  })
+    .whereRaw("e.experiment_id IN ({itemLevelExperimentIds: Array(String)})", {
+      itemLevelExperimentIds: params.experimentIds,
+    })
+    .whereRaw("e.experiment_id != ''")
+    .buildWithParams();
 
 /**
  * Session-level scores aggregation CTE.
@@ -580,12 +612,15 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
     queryParams.startTimeFrom = params.startTimeFrom;
   }
 
-  const observationFilter =
-    params.level === "any"
-      ? ""
-      : params.level === "trace"
-        ? "AND observation_id IS NULL"
-        : "AND observation_id IS NOT NULL";
+  const observationFilter = (() => {
+    if (params.level === "any") {
+      return "";
+    }
+    if (params.level === "trace") {
+      return "AND observation_id IS NULL";
+    }
+    return "AND observation_id IS NOT NULL";
+  })();
 
   const query = `
     SELECT

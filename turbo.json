@@ -1,6 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "futureFlags": {
+    "errorsOnlyShowHash": true,
+    "watchUsingTaskInputs": true
+  },
+  // Agent guidance is maintained in .agents/AGENTS.md; keep its root symlink.
+  "agentGuidance": false,
   "noUpdateNotifier": true,
+  "cacheMaxSize": "7.5GB",
   "globalDependencies": [".env"],
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
@@ -16,14 +23,14 @@
       // with and without it must not share a cache entry — a cached
       // unchecked build would otherwise replay as a "type-checked" one.
       "env": ["NEXT_IGNORE_BUILD_ERRORS"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"],
       "cache": true,
       "outputLogs": "errors-only"
     },
     "build:test": {
       "dependsOn": ["db:generate", "^build"],
-      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS", "NEXT_DISABLE_BUILD_CACHE"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"],
       "cache": true,
       "outputLogs": "errors-only"
     },
@@ -66,12 +73,11 @@
     // Prisma generate writes client types into node_modules. Turbo cache hits
     // only replay logs and do not restore those side effects on fresh CI runners.
     "db:generate": {
-      "inputs": ["packages/shared/prisma/schema.prisma"],
       "cache": false,
       "dependsOn": ["^db:generate"]
     },
     "@langfuse/shared#db:generate": {
-      "inputs": ["packages/shared/prisma/schema.prisma"],
+      "inputs": ["prisma/schema.prisma"],
       "cache": false,
       "dependsOn": ["^db:generate"],
       "outputLogs": "errors-only"
@@ -99,7 +105,11 @@
     "build:check": {
       "dependsOn": ["db:generate", "^build"],
       "env": ["NEXT_IGNORE_BUILD_ERRORS"],
-      "outputs": [".next-check/**", "!.next-check/cache/**"],
+      "outputs": [
+        ".next-check/**",
+        "!.next-check/cache/**",
+        "!.next-check/dev/**"
+      ],
       "cache": true,
       "outputLogs": "errors-only"
     },
@@ -128,9 +138,33 @@
       "dependsOn": ["build"],
       "cache": false
     },
+    // Worker tests load the compiled addon, which no install step produces.
+    "worker#test": {
+      "dependsOn": ["^test", "db:generate", "@langfuse/native#build"]
+    },
+    // ESLint does not load the native addon, so avoid compiling it during lint.
+    "worker#lint": {
+      "dependsOn": [
+        "@langfuse/shared#build",
+        "@repo/eslint-config#build",
+        "@repo/eslint-plugin#build",
+        "@repo/langfuse-skills#build",
+        "@repo/typescript-config#build"
+      ]
+    },
     "worker#dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      // The worker loads the Rust addon at startup, so it must be compiled
+      // before tsx starts the process.
+      "dependsOn": ["db:generate", "@langfuse/native#build"]
+    },
+    // `napi build` compiles a host-specific binary and Cargo already caches
+    // incrementally in target/, so never replay this task from the turbo cache.
+    "@langfuse/native#build": {
+      "dependsOn": [],
+      "cache": false,
+      "outputs": []
     }
   }
 }

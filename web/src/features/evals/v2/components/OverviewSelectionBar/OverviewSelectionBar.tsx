@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 
 export function OverviewSelectionBar({
   selectedCount,

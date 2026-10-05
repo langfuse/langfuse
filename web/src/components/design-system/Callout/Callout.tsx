@@ -1,10 +1,8 @@
-/* eslint-disable boundaries/dependencies */
 "use client";
 
 import { cva } from "class-variance-authority";
-import { X } from "lucide-react";
-
-import { Button } from "@/src/components/ui/button";
+import { type LucideIcon, X } from "lucide-react";
+import Link from "next/link";
 
 const calloutVariants = cva("relative w-full rounded-lg border p-3", {
   variants: {
@@ -37,11 +35,28 @@ const descriptionVariants = cva(
   },
 );
 
+const actionClasses =
+  "inline-flex h-6 items-center justify-center gap-1.5 rounded-md border border-current bg-transparent px-2.5 text-sm transition-colors hover:bg-black/5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10";
+
+export type CalloutAction =
+  | {
+      type: "button";
+      label: string;
+      icon?: LucideIcon;
+      onClick: () => void;
+    }
+  | {
+      type: "link";
+      label: string;
+      href: string;
+      onClick?: () => void;
+    };
+
 export type CalloutProps = {
   variant: "info" | "warning";
   align: "top" | "middle";
   children: React.ReactElement;
-  actions: React.ReactElement | null;
+  actions: ReadonlyArray<CalloutAction>;
   onDismiss: () => void;
 };
 
@@ -59,21 +74,65 @@ export function Callout({
           className={`${contentVariants({ align })} sm:flex-row sm:justify-between`}
         >
           <div className="text-foreground min-w-0 text-sm">{children}</div>
-          {actions ? (
+          {actions.length > 0 ? (
             <div className="flex shrink-0 items-center gap-2 self-end sm:ml-4 sm:self-auto">
-              {actions}
+              {actions.map((action) => {
+                if (action.type === "button") {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      className={actionClasses}
+                      key={action.label}
+                      onClick={action.onClick}
+                      type="button"
+                    >
+                      {Icon ? <Icon className="size-4" aria-hidden /> : null}
+                      {action.label}
+                    </button>
+                  );
+                }
+
+                const isExternal =
+                  action.href.startsWith("https://") ||
+                  action.href.startsWith("http://");
+
+                if (isExternal) {
+                  return (
+                    <a
+                      className={actionClasses}
+                      href={action.href}
+                      key={action.label}
+                      onClick={action.onClick}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      {action.label}
+                    </a>
+                  );
+                }
+
+                return (
+                  <Link
+                    className={actionClasses}
+                    href={action.href}
+                    key={action.label}
+                    onClick={action.onClick}
+                  >
+                    {action.label}
+                  </Link>
+                );
+              })}
             </div>
           ) : null}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 p-0"
+        <button
           aria-label="Dismiss"
+          className="focus-visible:ring-ring inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden dark:hover:bg-white/10"
+          onClick={onDismiss}
+          type="button"
         >
-          <X className="h-4 w-4" />
-        </Button>
+          <X className="size-4" aria-hidden />
+        </button>
       </div>
     </div>
   );

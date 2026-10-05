@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 
 import { ImageOff, ExternalLink } from "lucide-react";
@@ -18,7 +18,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/validation";
+} from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 
@@ -42,38 +42,42 @@ export const LangfuseMediaView = ({
   // Non-previewable types (e.g. PDF) are always a click-to-open icon.
   variant?: "inline" | "icon" | "preview";
 }) => {
-  let mediaData: {
+  const mediaData = useMemo<{
     id: string;
     type: MediaContentType;
     referenceString?: string;
     source?: string;
-  } | null = null;
+  } | null>(() => {
+    if (mediaReferenceString && typeof mediaReferenceString === "string") {
+      const { success, data: parsedTag } =
+        MediaReferenceStringSchema.safeParse(mediaReferenceString);
+      if (success)
+        return {
+          id: parsedTag.id,
+          type: parsedTag.type as MediaContentType,
+          referenceString: parsedTag.referenceString,
+          source: parsedTag.source,
+        };
+    } else if (
+      mediaReferenceString &&
+      typeof mediaReferenceString !== "string"
+    ) {
+      return {
+        id: mediaReferenceString.id,
+        type: mediaReferenceString.type as MediaContentType,
+        referenceString: mediaReferenceString.referenceString,
+        source: mediaReferenceString.source,
+      };
+    } else if (mediaAPIReturnValue) {
+      return {
+        id: mediaAPIReturnValue.mediaId,
+        type: mediaAPIReturnValue.contentType,
+      };
+    }
+    return null;
+  }, [mediaReferenceString, mediaAPIReturnValue]);
 
   const projectId = useProjectIdFromURL();
-
-  if (mediaReferenceString && typeof mediaReferenceString === "string") {
-    const { success, data: parsedTag } =
-      MediaReferenceStringSchema.safeParse(mediaReferenceString);
-    if (success)
-      mediaData = {
-        id: parsedTag.id,
-        type: parsedTag.type as MediaContentType,
-        referenceString: parsedTag.referenceString,
-        source: parsedTag.source,
-      };
-  } else if (mediaReferenceString && typeof mediaReferenceString !== "string") {
-    mediaData = {
-      id: mediaReferenceString.id,
-      type: mediaReferenceString.type as MediaContentType,
-      referenceString: mediaReferenceString.referenceString,
-      source: mediaReferenceString.source,
-    };
-  } else if (mediaAPIReturnValue) {
-    mediaData = {
-      id: mediaAPIReturnValue.mediaId,
-      type: mediaAPIReturnValue.contentType,
-    };
-  }
 
   if (!mediaData) {
     const text = "Invalid Langfuse Media Tag";
@@ -100,6 +104,7 @@ export const LangfuseMediaView = ({
     },
     {
       enabled: Boolean(projectId) && !isOversizedField,
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -202,20 +207,27 @@ function FileViewer({
     image.src = src;
   };
 
-  const previewContent = isImage ? (
-    <ResizableImage
-      src={src}
-      alt={fileName}
-      isDefaultVisible={true}
-      shouldValidateImageSource={false}
-      fitContent
-      compactWidth={compactImageWidth}
-    />
-  ) : isAudio ? (
-    <AudioPlayer src={src} />
-  ) : isVideo ? (
-    <VideoPlayer src={src} />
-  ) : null;
+  const previewContent = (() => {
+    if (isImage) {
+      return (
+        <ResizableImage
+          src={src}
+          alt={fileName}
+          isDefaultVisible={true}
+          shouldValidateImageSource={false}
+          fitContent
+          compactWidth={compactImageWidth}
+        />
+      );
+    }
+    if (isAudio) {
+      return <AudioPlayer src={src} />;
+    }
+    if (isVideo) {
+      return <VideoPlayer src={src} />;
+    }
+    return null;
+  })();
 
   return (
     <div

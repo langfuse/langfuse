@@ -348,7 +348,9 @@ export class PromptService {
               );
 
             // side-effect: populate adjacency list to return later as well
-            graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
+            if (graph.dependencies[currentPrompt.id] === undefined) {
+              graph.dependencies[currentPrompt.id] = [];
+            }
             graph.dependencies[currentPrompt.id].push({
               id: depPrompt.id,
               name: depPrompt.name,

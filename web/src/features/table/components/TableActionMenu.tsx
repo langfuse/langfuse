@@ -1,7 +1,8 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Trash, Plus } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   type TableAction,
   type CustomDialogTableAction,

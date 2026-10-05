@@ -1,22 +1,16 @@
-/* eslint-disable @repo/no-null-render */
 import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { api } from "@/src/utils/api";
-
-export const PromptBadge = (props: { promptId: string; projectId: string }) => {
-  const prompt = api.prompts.byId.useQuery({
-    id: props.promptId,
-    projectId: props.projectId,
-  });
-
-  if (prompt.isLoading || !prompt.data) return null;
-
-  const text = `Prompt: ${prompt.data.name} - v${prompt.data.version}`;
+export const PromptBadge = (props: {
+  promptName: string;
+  promptVersion: number;
+  projectId: string;
+}) => {
+  const text = `Prompt: ${props.promptName} - v${props.promptVersion}`;
 
   return (
     <Link
-      href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
+      href={`/project/${props.projectId}/prompts/${encodeURIComponent(props.promptName)}?version=${props.promptVersion}`}
       className="inline-flex"
     >
       <Badge text={text} trailingIcon={ExternalLinkIcon} />

@@ -1,6 +1,6 @@
 import capitalize from "lodash/capitalize";
 import router from "next/router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -41,7 +41,7 @@ import { PromptVariableListPreview } from "@/src/features/prompts/components/Pro
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { usePlaygroundCache } from "@/src/features/playground";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
@@ -64,15 +64,16 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
-  let initialPromptVariant: PromptVariant | null;
-  try {
-    initialPromptVariant = PromptVariantSchema.parse({
-      type: initialPrompt?.type,
-      prompt: initialPrompt?.prompt?.valueOf(),
-    });
-  } catch (_err) {
-    initialPromptVariant = null;
-  }
+  const initialPromptVariant = useMemo<PromptVariant | null>(() => {
+    try {
+      return PromptVariantSchema.parse({
+        type: initialPrompt?.type,
+        prompt: initialPrompt?.prompt?.valueOf(),
+      });
+    } catch (_err) {
+      return null;
+    }
+  }, [initialPrompt]);
 
   const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,

@@ -8,7 +8,7 @@ import {
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
   useProjectV4EvalData,
@@ -22,7 +22,7 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass
@@ -152,14 +152,18 @@ export function V4MigrationDelayBadge({
 
   // The hover's action clause echoes the panel section the click opens;
   // multiple delayed paths get the generic clause.
-  const description =
-    actionablePaths > 1
-      ? "Upgrade to v4 for real-time data"
-      : sdkActionable
-        ? "Update your SDK for real-time data"
-        : otelActionable
-          ? "Update your OTel instrumentation for real-time data"
-          : "Upgrade your instrumentation for real-time data";
+  const description = (() => {
+    if (actionablePaths > 1) {
+      return "Upgrade to v4 for real-time data";
+    }
+    if (sdkActionable) {
+      return "Update your SDK for real-time data";
+    }
+    if (otelActionable) {
+      return "Update your OTel instrumentation for real-time data";
+    }
+    return "Upgrade your instrumentation for real-time data";
+  })();
 
   return (
     <V4MigrationBadgeContent

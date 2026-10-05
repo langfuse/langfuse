@@ -9,13 +9,13 @@ import {
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
 } from "@/src/features/rbac";
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { createProjectRoute } from "@/src/features/setup";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 const STARTER_ORGANIZATION_METADATA = {

@@ -13,7 +13,6 @@ import type { FilterState, OrderByState } from "@langfuse/shared";
 export function RulesTableToolbar({
   columns,
   currentQuery,
-  onSearchChange,
   pageRowIds,
   pageSize,
   pageIndex,
@@ -31,7 +30,6 @@ export function RulesTableToolbar({
 }: {
   columns: LangfuseColumnDef<RuleTableRow>[];
   currentQuery: string | undefined;
-  onSearchChange: (query: string) => void;
   pageRowIds: string[];
   pageSize: number;
   pageIndex: number;
@@ -60,12 +58,6 @@ export function RulesTableToolbar({
       orderByState={orderByState}
       currentSearchQuery={currentQuery}
       viewConfig={viewConfig}
-      searchConfig={{
-        metadataSearchFields: ["Name"],
-        currentQuery,
-        tableAllowsFullTextSearch: false,
-        updateQuery: onSearchChange,
-      }}
       multiSelect={{
         selectAll,
         setSelectAll: selectionActions.setSelectAll,

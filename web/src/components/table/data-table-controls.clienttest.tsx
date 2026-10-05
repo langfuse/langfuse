@@ -1,15 +1,28 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { eventsTableCols, type FilterState } from "@langfuse/shared";
+import { useStore } from "zustand";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,
+  DataTableControlsProvider,
   type QueryFilter,
 } from "./data-table-controls";
-import type {
-  CategoricalUIFilter,
-  UIFilter,
+import {
+  useSidebarFilterState,
+  type CategoricalUIFilter,
+  type UIFilter,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
+
+vi.mock("use-query-params", async () => ({
+  ...(await vi.importActual("use-query-params")),
+  useQueryParam: () => [null, () => {}] as const,
+}));
 
 // Spy on the posthog client so capture calls (event name + payload) can be
 // asserted at the wrapper seam.
@@ -31,6 +44,272 @@ beforeAll(() => {
     },
   );
   Element.prototype.scrollIntoView = vi.fn();
+});
+
+function MobileDraftSearchInput() {
+  const { store } = useEventsSearchBar({
+    tableName: "draft-persistence-test",
+    enabled: true,
+    isV4: false,
+    filterState: [],
+    searchQuery: null,
+    searchType: ["id"],
+    observed: undefined,
+    setFilterState: vi.fn(),
+    setSearchQuery: vi.fn(),
+    setSearchType: vi.fn(),
+  });
+  const draft = useStore(store, (state) => state.draft);
+
+  return (
+    <input
+      aria-label="Mobile grammar search"
+      value={draft}
+      onChange={(event) =>
+        store.getState().actions.setDraft(event.target.value)
+      }
+    />
+  );
+}
+
+function TestFilterSidebar({ layout }: { layout?: "panel" | "inline" }) {
+  return <div data-layout={layout}>Facet controls</div>;
+}
+
+describe("delayed sidebar edits and search-bar commits", () => {
+  const config: FilterConfig = {
+    tableName: "observations-events",
+    columnDefinitions: eventsTableCols,
+    defaultExpanded: ["statusMessage", "latency"],
+    facets: [
+      { type: "string", column: "statusMessage", label: "Status Message" },
+      {
+        type: "numeric",
+        column: "latency",
+        label: "Latency",
+        min: 0,
+        max: 100,
+      },
+      { type: "categorical", column: "traceName", label: "Trace Name" },
+    ],
+  };
+
+  function Harness() {
+    const queryFilter = useSidebarFilterState(
+      config,
+      {},
+      { stateLocation: "memory" },
+    );
+    const bar = useEventsSearchBar({
+      projectId: "filter-test-project",
+      tableName: config.tableName,
+      enabled: true,
+      filterState: queryFilter.searchBarFilterState,
+      setFilterState: queryFilter.setFilterState,
+      searchQuery: null,
+      searchType: ["id", "content"],
+      setSearchQuery: () => {},
+      setSearchType: () => {},
+      observed: undefined,
+    });
+    const draft = useStore(bar.store, (state) => state.draft);
+
+    return (
+      <>
+        <DataTableControls queryFilter={queryFilter} />
+        <button
+          onClick={() => {
+            bar.store.getState().actions.setDraft("-traceName:*turn*");
+            bar.commit();
+          }}
+        >
+          Commit trace filter
+        </button>
+        <button onClick={queryFilter.clearAll}>Reset filters</button>
+        <pre data-testid="applied-filters">
+          {JSON.stringify(queryFilter.filterState)}
+        </pre>
+        <pre data-testid="bar-draft">{draft}</pre>
+      </>
+    );
+  }
+
+  it.each([
+    ["string", "string-statusMessage", "timeout", "statusMessage"],
+    ["numeric", "min-latency", "10", "latency"],
+  ])(
+    "preserves the committed trace filter when a delayed %s edit lands",
+    (_, inputId, value, column) => {
+      vi.useFakeTimers();
+      sessionStorage.clear();
+      const { container, unmount } = render(<Harness />, {
+        wrapper: TooltipProvider,
+      });
+      const appliedFilters = (): FilterState =>
+        JSON.parse(screen.getByTestId("applied-filters").textContent ?? "[]");
+      try {
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+
+        const traceFilter = {
+          column: "traceName",
+          type: "string",
+          operator: "does not contain",
+          value: "turn",
+        };
+        expect(appliedFilters()).toEqual([traceFilter]);
+        expect(screen.getByTestId("bar-draft")).toHaveTextContent(
+          "-traceName:*turn*",
+        );
+
+        act(() => vi.advanceTimersByTime(500));
+
+        expect.soft(appliedFilters()).toContainEqual(traceFilter);
+        expect(appliedFilters()).toEqual(
+          expect.arrayContaining([expect.objectContaining({ column })]),
+        );
+        expect
+          .soft(screen.getByTestId("bar-draft"))
+          .toHaveTextContent("-traceName:*turn*");
+
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value: value === "10" ? "20" : "retry" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        expect(appliedFilters()).toEqual([]);
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+        expect(
+          container.querySelector<HTMLInputElement>(`#${inputId}`)?.value,
+        ).toBe("");
+      } finally {
+        unmount();
+        vi.useRealTimers();
+      }
+    },
+  );
+});
+
+describe("DataTableControls numeric conditions", () => {
+  it("renders strict bounds as removable chips instead of a slider", () => {
+    const queryFilter: QueryFilter = {
+      filters: [
+        {
+          type: "numeric",
+          column: "latency",
+          label: "Latency",
+          loading: false,
+          expanded: true,
+          isActive: true,
+          isDisabled: false,
+          onReset: () => {},
+          value: null,
+          conditions: [
+            { column: "latency", type: "number", operator: ">", value: 10 },
+            { column: "latency", type: "number", operator: "<", value: 80 },
+          ],
+          min: 0,
+          max: 100,
+          onChange: () => {},
+          onRemoveCondition: () => {},
+        },
+      ],
+      expanded: ["latency"],
+      onExpandedChange: () => {},
+      clearAll: () => {},
+      draftResetKey: 0,
+      isFiltered: true,
+      setFilterState: () => {},
+    };
+
+    render(<DataTableControls queryFilter={queryFilter} />, {
+      wrapper: TooltipProvider,
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Remove Latency > 10" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Latency < 80" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Min.")).not.toBeInTheDocument();
+  });
+});
+
+describe("mobile searchable filter layout", () => {
+  it("keeps secondary controls inside the Filters sheet", () => {
+    render(
+      <DataTableControlsProvider tableName="mobile-controls-test">
+        <SearchableTableFilterLayout
+          search={<MobileDraftSearchInput />}
+          toolbar={<FilterToggleButton />}
+          mobileControls={<button>Past 30 days</button>}
+        >
+          <TestFilterSidebar />
+          <div>Table content</div>
+        </SearchableTableFilterLayout>
+      </DataTableControlsProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Past 30 days" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("button", { name: "Past 30 days" }),
+    ).toBeInTheDocument();
+  });
+
+  it("preserves an unsubmitted grammar-search draft across sheet close", () => {
+    const layout = (searchKey: string) => (
+      <DataTableControlsProvider tableName="draft-persistence-test">
+        <SearchableTableFilterLayout
+          search={<MobileDraftSearchInput key={searchKey} />}
+          toolbar={<FilterToggleButton />}
+        >
+          <TestFilterSidebar />
+          <div>Table content</div>
+        </SearchableTableFilterLayout>
+      </DataTableControlsProvider>
+    );
+    const { rerender } = render(layout("initial"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+      { target: { value: "level:ERROR" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+    ).toHaveValue("level:ERROR");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    rerender(layout("new-search-scope"));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+    ).toHaveValue("");
+  });
 });
 
 describe("CategoricalFacet", () => {
@@ -88,6 +367,7 @@ describe("CategoricalFacet", () => {
     const label = screen.getByText("gpt-4.1");
     const suffix = screen.getByText("Project default");
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(label).not.toHaveClass("flex-1");
@@ -181,6 +461,7 @@ describe("CategoricalFacet", () => {
     const firstUnselected = screen.getByText("opt-0");
     expect(selected).toBeInTheDocument();
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       selected.compareDocumentPosition(firstUnselected) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -337,6 +618,7 @@ describe("CategoricalFacet", () => {
     const firstKept = screen.getByText("opt-0");
     expect(excluded).toBeInTheDocument();
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       excluded.compareDocumentPosition(firstKept) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -420,6 +702,7 @@ describe("CategoricalFacet", () => {
     const a = screen.getByText("a");
     const c = screen.getByText("c");
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -453,6 +736,7 @@ describe("DataTableControls facet ordering", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -461,6 +745,7 @@ describe("DataTableControls facet ordering", () => {
     const a = screen.getByText(first);
     const b = screen.getByText(second);
     return Boolean(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
     );
   };
@@ -522,6 +807,22 @@ describe("DataTableControls facet ordering", () => {
       </TooltipProvider>,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
+  });
+
+  it("clears drafts and view selection even when no filters are applied", () => {
+    const clearAll = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={{ ...queryFilter([]), clearAll }} />
+      </TooltipProvider>,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
+      key: "Enter",
+    });
+    const clear = screen.getByRole("menuitem", { name: "Clear all filters" });
+    expect(clear).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(clear);
+    expect(clearAll).toHaveBeenCalledOnce();
   });
 
   it("restores catalog order on Clear all, even with an in-list interaction outstanding", () => {
@@ -861,6 +1162,7 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     expanded,
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -972,6 +1274,7 @@ describe("DataTableControls facet catalog", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -1064,6 +1367,7 @@ describe("DataTableControls facet-name search", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -1083,6 +1387,7 @@ describe("DataTableControls facet-name search", () => {
     const a = screen.getByText(first);
     const b = screen.getByText(second);
     return Boolean(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
     );
   };

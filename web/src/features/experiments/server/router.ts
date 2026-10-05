@@ -7,7 +7,8 @@ import {
   ExperimentCreateQueue,
   getCategoricalScoresGroupedByName,
   getBooleanScoresGroupedByName,
-  getDatasetItems,
+  getDatasetItemsCount,
+  countDatasetItemVariableMatches,
   getEventsGroupedByExperimentDatasetId,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
@@ -36,14 +37,12 @@ import {
 } from "@/src/server/api/trpc";
 import {
   extractVariables,
-  validateDatasetItem,
+  isBaseError,
   UnauthorizedError,
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
-  isPresent,
-  type DatasetItemDomain,
-  singleFilter,
+  singleFilterList,
   type FilterState,
   orderBy,
   paginationZod,
@@ -56,11 +55,12 @@ import {
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
+import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
 
 const ExperimentFilterOptions = z.object({
   projectId: z.string(),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   orderBy: orderBy,
   ...paginationZod,
 });
@@ -87,39 +87,6 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
   ValidConfigResponse,
   InvalidConfigResponse,
 ]);
-
-const countValidDatasetItems = (
-  datasetItems: Omit<DatasetItemDomain, "status">[],
-  variables: string[],
-): Record<string, number> => {
-  const variableMap: Record<string, number> = {};
-
-  for (const { input } of datasetItems) {
-    // Step 1: Validate item
-    if (!isPresent(input) || !validateDatasetItem(input, variables)) {
-      continue;
-    }
-
-    // Step 2: Count variable matches
-
-    // String with single variable - count that variable
-    if (typeof input === "string" && variables.length === 1) {
-      variableMap[variables[0]] = (variableMap[variables[0]] || 0) + 1;
-      continue;
-    }
-
-    // For object inputs, count each matching variable
-    if (typeof input === "object" && !Array.isArray(input)) {
-      for (const variable of variables) {
-        if (variable in input) {
-          variableMap[variable] = (variableMap[variable] || 0) + 1;
-        }
-      }
-    }
-  }
-
-  return variableMap;
-};
 
 export const experimentsRouter = createTRPCRouter({
   validateConfig: protectedProjectProcedure
@@ -154,7 +121,23 @@ export const experimentsRouter = createTRPCRouter({
       }
 
       const promptService = new PromptService(ctx.prisma, redis);
-      const resolvedPrompt = await promptService.resolvePrompt(prompt);
+      let resolvedPrompt;
+      try {
+        resolvedPrompt = await promptService.resolvePrompt(prompt);
+      } catch (error) {
+        if (
+          error instanceof SyntaxError ||
+          (isBaseError(error) && error.isUserError())
+        ) {
+          return {
+            isValid: false,
+            message: isBaseError(error)
+              ? error.message
+              : "Selected prompt could not be resolved.",
+          };
+        }
+        throw error;
+      }
 
       if (!resolvedPrompt) {
         return {
@@ -164,9 +147,9 @@ export const experimentsRouter = createTRPCRouter({
       }
 
       const extractedVariables = extractVariables(
-        resolvedPrompt?.type === PromptType.Text
+        resolvedPrompt.type === PromptType.Text
           ? (resolvedPrompt.prompt?.toString() ?? "")
-          : JSON.stringify(resolvedPrompt?.prompt),
+          : JSON.stringify(resolvedPrompt.prompt ?? ""),
       );
 
       const promptMessages =
@@ -187,35 +170,42 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const items = await getDatasetItems({
+      const filterState = createDatasetItemFilterState({
+        datasetIds: [input.datasetId],
+        status: "ACTIVE",
+      });
+
+      const totalItems = await getDatasetItemsCount({
         projectId: input.projectId,
-        filterState: createDatasetItemFilterState({
-          datasetIds: [input.datasetId],
-          status: "ACTIVE",
-        }),
+        filterState,
         version: input.datasetVersion,
       });
 
-      if (!Boolean(items.length)) {
+      if (!Boolean(totalItems)) {
         return {
           isValid: false,
           message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
-      const variablesMap = countValidDatasetItems(items, allVariables);
+      const variablesMap = await countDatasetItemVariableMatches({
+        projectId: input.projectId,
+        filterState,
+        version: input.datasetVersion,
+        variables: allVariables,
+      });
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
           isValid: false,
-          message: "No dataset item contains any variables.",
+          message: describeVariableMismatch(allVariables),
         };
       }
 
       return {
         isValid: true,
-        totalItems: items.length,
-        variablesMap: variablesMap,
+        totalItems,
+        variablesMap,
       };
     }),
 
@@ -347,7 +337,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
         limit: z.number().int().min(1).max(50),
       }),
     )
@@ -358,6 +348,10 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      // Return the server-resolved window so widgets share it without adding
+      // a render-time timestamp to the fallback query input.
+      const to = new Date();
+      const from = addDays(to, -MOST_RECENT_LOOKBACK_DAYS);
       const filter: FilterState = [
         // The selected window is the one that came back empty; every other
         // filter the user applied still holds.
@@ -366,7 +360,7 @@ export const experimentsRouter = createTRPCRouter({
           column: "startTime",
           type: "datetime",
           operator: ">=",
-          value: addDays(new Date(), -MOST_RECENT_LOOKBACK_DAYS),
+          value: from,
         },
       ];
 
@@ -378,7 +372,7 @@ export const experimentsRouter = createTRPCRouter({
         limit: input.limit,
       });
 
-      return { data: experiments };
+      return { data: experiments, dateRange: { from, to } };
     }),
 
   byId: protectedProjectProcedure
@@ -421,7 +415,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -446,7 +440,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         experimentIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -592,9 +586,18 @@ export const experimentsRouter = createTRPCRouter({
         traceNames: string[],
       ): Record<string, ("observation" | "trace")[]> => {
         const out: Record<string, ("observation" | "trace")[]> = {};
-        for (const name of observationNames)
-          (out[name] ??= []).push("observation");
-        for (const name of traceNames) (out[name] ??= []).push("trace");
+        for (const name of observationNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("observation");
+        }
+        for (const name of traceNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("trace");
+        }
         return out;
       };
 
@@ -642,7 +645,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),
@@ -781,7 +784,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),

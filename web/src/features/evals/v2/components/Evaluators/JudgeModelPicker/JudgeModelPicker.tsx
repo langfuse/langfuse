@@ -1,15 +1,16 @@
+/* eslint-disable no-nested-ternary */
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   Plug,
   Settings2,
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { forwardRef, type ReactNode } from "react";
 
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Badge } from "@/src/components/ui/badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
@@ -68,6 +69,7 @@ type JudgeModelPickerTriggerProps = Omit<
   selectedModel: JudgeModel | null;
   disabled: boolean;
   missingDefaultLabel?: string;
+  modelAvailability?: "available" | "missing";
   borderVariant?: "default" | "contrast";
 };
 
@@ -81,6 +83,7 @@ export const JudgeModelPickerTrigger = forwardRef<
       defaultModel,
       selectedModel,
       missingDefaultLabel,
+      modelAvailability = "available",
       // Handled here rather than by `Button`, which swaps its children for the
       // spinner. That would drop the model label mid-mutation and collapse this
       // content-width trigger, shifting everything next to it in the header.
@@ -101,6 +104,18 @@ export const JudgeModelPickerTrigger = forwardRef<
       defaultModel != null &&
       selectedModel.provider === defaultModel.provider &&
       selectedModel.model === defaultModel.model;
+    const modelConnectionMissing =
+      modelAvailability === "missing" &&
+      Boolean(mode === "default" ? defaultModel : selectedModel);
+    const connectionWarning = modelConnectionMissing ? (
+      <>
+        <TriangleAlert
+          aria-hidden="true"
+          className="text-dark-yellow h-3.5 w-3.5 shrink-0"
+        />
+        <span className="sr-only">Model connection missing.</span>
+      </>
+    ) : null;
 
     return (
       <Button
@@ -122,13 +137,14 @@ export const JudgeModelPickerTrigger = forwardRef<
         {mode === "default" ? (
           defaultModel ? (
             <span className="flex min-w-0 items-center gap-2">
+              {connectionWarning}
               <span
                 className="truncate"
                 title={`${defaultModel.provider} / ${defaultModel.model}`}
               >
                 {defaultModel.provider} / {defaultModel.model}
               </span>
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             </span>
@@ -142,11 +158,12 @@ export const JudgeModelPickerTrigger = forwardRef<
           )
         ) : (
           <span className="flex min-w-0 items-center gap-2">
+            {connectionWarning}
             <span className="truncate" title={customSelectionLabel}>
               {customSelectionLabel}
             </span>
             {customSelectionIsDefault ? (
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             ) : null}
@@ -155,7 +172,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         {loading ? (
           <Spinner size="sm" variant="muted" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         )}
       </Button>
     );
@@ -225,11 +242,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                     >
                       {defaultModel.provider} / {defaultModel.model}
                     </span>
-                    <Badge
-                      variant="secondary"
-                      size="sm"
-                      className="ml-auto shrink-0"
-                    >
+                    <Badge variant="secondary" className="ml-auto shrink-0">
                       Project default
                     </Badge>
                   </CommandItem>
@@ -274,7 +287,6 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                       {isProjectDefault ? (
                         <Badge
                           variant="outline"
-                          size="sm"
                           className="text-muted-foreground font-regular ml-auto shrink-0"
                         >
                           default

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Pencil, Trash, FileDiff, Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -8,6 +9,7 @@ import { useCorrectionEditor } from "../hooks/useCorrectionEditor";
 import { useMemo, useState } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
@@ -17,7 +19,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -46,6 +48,7 @@ export function CorrectedOutputField({
   compact = false,
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const capture = usePostHogClientCapture();
 
   // JSON validation toggle (persisted in localStorage)
   const [strictJsonMode, setStrictJsonMode] = useLocalStorage(
@@ -55,6 +58,9 @@ export function CorrectedOutputField({
 
   // Diff dialog state
   const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
+
+  // When no correction exists, keep the section collapsed until it is opened.
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Merge cache + server data
   const { effectiveCorrection, correctionValue } = useCorrectionData(
@@ -153,7 +159,29 @@ export function CorrectedOutputField({
   const handleDeleteWithExitEdit = () => {
     handleDelete();
     setIsEditing(false);
+    setIsExpanded(false);
   };
+
+  if (!isExpanded && !effectiveCorrection) {
+    return (
+      <div className="px-2 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            capture("trace_detail:io_section_collapse_toggle", {
+              section: "corrected_output",
+              collapsed: false,
+            });
+            setIsExpanded(true);
+          }}
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
+        >
+          <Pencil className="size-3 shrink-0" aria-hidden />
+          Correct output
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>

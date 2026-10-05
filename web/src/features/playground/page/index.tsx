@@ -15,7 +15,7 @@ import {
   MessageSearchToolbar,
 } from "@/src/components/ChatMessages/MessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * PlaygroundPage Component
