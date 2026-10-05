@@ -219,7 +219,12 @@ describe("Topics naming boundary", () => {
       { key: "intent_1", facet, builtIn: true },
       { key: "issues_2", facet: issues, builtIn: false },
     ];
-    await summarizeTopicTraceFacets(facets, "RAW_TRANSCRIPT_SENTINEL", config);
+    await summarizeTopicTraceFacets(
+      facets,
+      "RAW_TRANSCRIPT_SENTINEL",
+      config,
+      "json",
+    );
     expect(state.call).toHaveBeenCalledOnce();
     const request = state.call.mock.calls[0][0];
     // Built-in facets end the first cached prefix, custom facets the second; the transcript is uncached.
@@ -258,6 +263,7 @@ describe("Topics naming boundary", () => {
           maxInputTokens: 256,
           summaryModel: "us.openai.gpt-5.6-luna",
         }),
+        "json",
       ),
     ).rejects.toThrow(/above this run's 256-token input limit/);
     expect(state.call).not.toHaveBeenCalled();
