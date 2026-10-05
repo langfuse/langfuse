@@ -298,7 +298,7 @@ export function MultiSelect({
                     </div>
                     <div
                       className={cn(
-                        "min-w-0 flex-1 truncate",
+                        "overflow-x-hidden text-ellipsis whitespace-nowrap",
                         option.value === "" && "text-muted-foreground italic",
                       )}
                       title={displayTitle}

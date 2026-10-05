@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   FormControl,
   FormField,
@@ -20,27 +20,18 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import {
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandList,
-  InputCommand,
-  InputCommandItem,
-} from "@/src/components/ui/input-command";
-import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { Info, CircleCheck, CheckIcon } from "lucide-react";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { cn } from "@/src/utils/tailwind";
+import { Info, CircleCheck } from "lucide-react";
 import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 import { api } from "@/src/utils/api";
 import { format } from "date-fns";
+import { DatasetPicker } from "@/src/features/experiments/components/steps/DatasetPicker";
 
 export const DatasetStep: React.FC<DatasetStepProps> = ({
   projectId,
@@ -56,7 +47,6 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
     validationResult,
   } = datasetState;
   const { selectedPromptName, selectedPromptVersion } = promptInfo;
-  const [datasetPopoverOpen, setDatasetPopoverOpen] = useState(false);
 
   // Fetch dataset versions when a dataset is selected
   const { data: datasetVersions } = api.datasets.listDatasetVersions.useQuery(
@@ -83,61 +73,14 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
           <FormItem>
             <FormLabel>Dataset</FormLabel>
             <div className="flex items-center gap-2">
-              <Popover
-                open={datasetPopoverOpen}
-                onOpenChange={setDatasetPopoverOpen}
-              >
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={datasetPopoverOpen}
-                    className="flex-1 justify-between gap-2 px-2 font-normal"
-                  >
-                    {field.value
-                      ? datasets?.find((d) => d.id === field.value)?.name
-                      : "Select a dataset"}
-                    <DropdownIndicator />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-(--radix-popover-trigger-width) overflow-auto p-0"
-                  align="start"
-                >
-                  <InputCommand>
-                    <InputCommandInput
-                      placeholder="Search datasets..."
-                      className="h-9"
-                      variant="bottom"
-                    />
-                    <InputCommandList>
-                      <InputCommandEmpty>No dataset found.</InputCommandEmpty>
-                      <InputCommandGroup>
-                        {(datasets ?? []).map((dataset) => (
-                          <InputCommandItem
-                            key={dataset.id}
-                            onSelect={() => {
-                              field.onChange(dataset.id);
-                              form.clearErrors("datasetId");
-                              setDatasetPopoverOpen(false);
-                            }}
-                          >
-                            {dataset.name}
-                            <CheckIcon
-                              className={cn(
-                                "ml-auto h-4 w-4",
-                                dataset.id === field.value
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            />
-                          </InputCommandItem>
-                        ))}
-                      </InputCommandGroup>
-                    </InputCommandList>
-                  </InputCommand>
-                </PopoverContent>
-              </Popover>
+              <DatasetPicker
+                datasets={datasets ?? []}
+                selectedDatasetId={field.value}
+                onSelect={(datasetId) => {
+                  field.onChange(datasetId);
+                  form.clearErrors("datasetId");
+                }}
+              />
 
               {selectedPromptName && selectedPromptVersion !== null && (
                 <Popover>
