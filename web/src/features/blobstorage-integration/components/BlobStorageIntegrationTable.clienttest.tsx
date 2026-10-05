@@ -72,9 +72,8 @@ describe("BlobStorageIntegrationTable", () => {
     const secondRow = screen.getByText("second-bucket").closest("tr");
     expect(secondRow).not.toBeNull();
 
-    fireEvent.pointerDown(
+    fireEvent.click(
       within(secondRow!).getByRole("button", { name: "Open actions menu" }),
-      { button: 0, ctrlKey: false },
     );
     fireEvent.click(
       await screen.findByRole("menuitem", {
