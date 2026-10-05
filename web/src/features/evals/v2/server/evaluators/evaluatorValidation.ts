@@ -186,11 +186,21 @@ export async function assertEvaluatorConfigurationValid(params: {
     );
     if (error) throw new EvaluatorModelConfigurationError(error);
   } catch (error) {
-    if (getLLMErrorInfo(error)?.kind === "timeout") {
+    const llmError = getLLMErrorInfo(error);
+    if (llmError?.kind === "timeout") {
       const timeoutSeconds =
         getClientInitiatedNonStreamingLlmTimeoutMs() / 1000;
       throw new EvaluatorConfigurationError(
         `The model did not respond within ${timeoutSeconds} seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.`,
+      );
+    }
+    if (llmError && (llmError.isRetryable || llmError.kind === "abort")) {
+      const message =
+        llmError.kind === "abort"
+          ? "The model request was aborted during evaluator validation."
+          : "The LLM provider could not complete the model request during evaluator validation.";
+      throw new EvaluatorConfigurationError(
+        `${message} The evaluator was not saved. Retry or check your LLM connection and model settings.`,
       );
     }
     throw error;
