@@ -292,6 +292,35 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     );
   });
 
+  it("does not validate a hidden media prefix after external media is disabled", async () => {
+    const onSubmit = vi.fn();
+    const initialValues = buildBlobStorageFormValues(
+      {
+        ...savedConfig,
+        mediaStorageEnabled: true,
+      },
+      exportSourceCtx,
+    );
+    render(ui("disable-media", initialValues, onSubmit, true));
+
+    fireEvent.change(screen.getByLabelText("Media prefix (optional)"), {
+      target: { value: "missing-trailing-slash" },
+    });
+    fireEvent.click(
+      screen.getByRole("switch", { name: "External media storage" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaStorageEnabled: false,
+        mediaPrefix: "missing-trailing-slash",
+      }),
+      expect.anything(),
+    );
+  });
+
   it("shows section actions only while enabled and places delete before save", () => {
     const initialValues = buildBlobStorageFormValues(
       {
