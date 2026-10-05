@@ -134,13 +134,13 @@ export async function auditLog(
   log: AuditLog,
   prisma?: typeof _prisma | Prisma.TransactionClient,
 ) {
-  // Audit logs are an enterprise feature. Skip before any work so that an
-  // unlicensed self-hosted instance pays neither the record nor the extra
-  // api_keys lookup on the apiKeyId path. This also suppresses the application
-  // log mirror below: emitting "Audit log: ..." lines for events that were
-  // never recorded would both mislead and leave the feature fully usable via a
-  // log aggregator.
-  if (!isAuditLogEnabled()) return;
+  // Audit log records are an enterprise feature, so they are only persisted
+  // when the instance is licensed for them. logAuditEvent below is deliberately
+  // NOT gated: it is operator telemetry rather than the audited record itself
+  // (ids only, no before/after diff), it is the sole actor trail for mutations
+  // that have no parallel logger call of their own, and the actor logging added
+  // alongside it elsewhere — batch actions, trace deletion — is ungated too.
+  const persistRecord = isAuditLogEnabled();
 
   const db = prisma ?? _prisma;
   const shared = {
@@ -169,16 +169,18 @@ export async function auditLog(
         ? (apiKey.createdByUserId ?? undefined)
         : undefined;
 
-    await db.auditLog.create({
-      data: {
-        apiKeyId: log.apiKeyId,
-        userId,
-        orgId: log.orgId,
-        projectId: log.projectId,
-        type: AuditLogRecordType.API_KEY,
-        ...shared,
-      },
-    });
+    if (persistRecord) {
+      await db.auditLog.create({
+        data: {
+          apiKeyId: log.apiKeyId,
+          userId,
+          orgId: log.orgId,
+          projectId: log.projectId,
+          type: AuditLogRecordType.API_KEY,
+          ...shared,
+        },
+      });
+    }
 
     logAuditEvent(log, {
       type: AuditLogRecordType.API_KEY,
@@ -193,17 +195,19 @@ export async function auditLog(
   }
 
   if ("session" in log) {
-    await db.auditLog.create({
-      data: {
-        userId: log.session.user.id,
-        orgId: log.session.orgId,
-        userOrgRole: log.session.orgRole,
-        projectId: log.session.projectId,
-        userProjectRole: log.session.projectRole,
-        type: AuditLogRecordType.USER,
-        ...shared,
-      },
-    });
+    if (persistRecord) {
+      await db.auditLog.create({
+        data: {
+          userId: log.session.user.id,
+          orgId: log.session.orgId,
+          userOrgRole: log.session.orgRole,
+          projectId: log.session.projectId,
+          userProjectRole: log.session.projectRole,
+          type: AuditLogRecordType.USER,
+          ...shared,
+        },
+      });
+    }
 
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
@@ -216,17 +220,19 @@ export async function auditLog(
   }
 
   if ("userId" in log) {
-    await db.auditLog.create({
-      data: {
-        userId: log.userId,
-        orgId: log.orgId,
-        userOrgRole: log.orgRole,
-        projectId: log.projectId,
-        userProjectRole: log.projectRole,
-        type: AuditLogRecordType.USER,
-        ...shared,
-      },
-    });
+    if (persistRecord) {
+      await db.auditLog.create({
+        data: {
+          userId: log.userId,
+          orgId: log.orgId,
+          userOrgRole: log.orgRole,
+          projectId: log.projectId,
+          userProjectRole: log.projectRole,
+          type: AuditLogRecordType.USER,
+          ...shared,
+        },
+      });
+    }
 
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,

@@ -1,119 +1,137 @@
 import { randomUUID } from "crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  isAuditLogEnabled: vi.fn(() => true),
+  cloudRegion: undefined as string | undefined,
+  licenseKey: undefined as string | undefined,
 }));
 
-vi.mock("@/src/features/audit-logs/isAuditLogEnabled", () => ({
-  isAuditLogEnabled: mocks.isAuditLogEnabled,
-}));
+// Exercise the real gate rather than mocking it away: spread the real env and
+// override only the two values the gate reads, so the full
+// env -> plan -> entitlement chain runs against a real database.
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const original = (await importOriginal()) as { env: Record<string, unknown> };
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, prop) => {
+        if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
+          return mocks.cloudRegion;
+        if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
+        return Reflect.get(target, prop);
+      },
+    }),
+  };
+});
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 
 /**
- * Audit logs are an enterprise feature, so the write path is gated on the
- * instance holding a license that includes the `audit-logs` entitlement. These
- * tests cover the wiring — that `auditLog()` honours the gate for every actor
- * shape. The gate's own env/plan/entitlement logic is covered by
- * `unit/auditLogLicenseGate.servertest.ts`.
+ * Audit log records are an enterprise feature, so they are only persisted when
+ * the instance is licensed for them. The actor log line that mirrors each
+ * record is operator telemetry and stays on every plan.
  */
 describe("audit log license gate", () => {
-  beforeEach(() => {
-    mocks.isAuditLogEnabled.mockReturnValue(true);
+  let orgId: string;
+  let projectId: string;
+  let apiKeyId: string;
+  const userId = randomUUID();
+
+  beforeEach(async () => {
+    mocks.cloudRegion = undefined;
+    mocks.licenseKey = undefined;
+
+    const org = await createOrgProjectAndApiKey();
+    orgId = org.orgId;
+    projectId = org.projectId;
+    apiKeyId = (
+      await createAndAddApiKeysToDb({
+        prisma,
+        entityId: org.projectId,
+        scope: "PROJECT",
+        note: "License gate test key",
+      })
+    ).id;
   });
 
-  const countRecords = (resourceId: string) =>
-    prisma.auditLog.count({ where: { resourceId } });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-  it("writes no record for any actor shape when audit logs are not licensed", async () => {
-    const { orgId, projectId } = await createOrgProjectAndApiKey();
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "License gate test key",
-    });
-    const userId = randomUUID();
+  /** Writes one record per actor shape, returns how many were persisted. */
+  const auditAllActorShapes = async () => {
+    const resourceIds = [randomUUID(), randomUUID(), randomUUID()];
 
-    mocks.isAuditLogEnabled.mockReturnValue(false);
-
-    const apiKeyResourceId = randomUUID();
     await auditLog({
       action: "create",
       resourceType: "job",
-      resourceId: apiKeyResourceId,
+      resourceId: resourceIds[0],
       orgId,
       projectId,
-      apiKeyId: apiKey.id,
+      apiKeyId,
     });
-
-    const sessionResourceId = randomUUID();
     await auditLog({
       action: "update",
       resourceType: "job",
-      resourceId: sessionResourceId,
+      resourceId: resourceIds[1],
       session: { user: { id: userId }, orgId, projectId },
     });
-
-    const userResourceId = randomUUID();
     await auditLog({
       action: "delete",
       resourceType: "job",
-      resourceId: userResourceId,
+      resourceId: resourceIds[2],
       userId,
       orgId,
       projectId,
     });
 
-    expect(await countRecords(apiKeyResourceId)).toBe(0);
-    expect(await countRecords(sessionResourceId)).toBe(0);
-    expect(await countRecords(userResourceId)).toBe(0);
+    return prisma.auditLog.count({
+      where: { resourceId: { in: resourceIds } },
+    });
+  };
+
+  describe("self-hosted", () => {
+    it("persists records with an enterprise license key", async () => {
+      mocks.licenseKey = "langfuse_ee_test";
+
+      expect(await auditAllActorShapes()).toBe(3);
+    });
+
+    it("persists no records without a license key", async () => {
+      expect(await auditAllActorShapes()).toBe(0);
+    });
+
+    it("persists no records on a pro license key", async () => {
+      // self-hosted:pro does not carry the audit-logs entitlement, so it must
+      // not persist records it cannot view either.
+      mocks.licenseKey = "langfuse_pro_test";
+
+      expect(await auditAllActorShapes()).toBe(0);
+    });
   });
 
-  it("writes a record for every actor shape when audit logs are licensed", async () => {
-    const { orgId, projectId } = await createOrgProjectAndApiKey();
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "License gate test key",
-    });
-    const userId = randomUUID();
+  describe("cloud", () => {
+    it("persists records on every plan", async () => {
+      mocks.cloudRegion = "US";
 
-    const apiKeyResourceId = randomUUID();
-    await auditLog({
-      action: "create",
-      resourceType: "job",
-      resourceId: apiKeyResourceId,
-      orgId,
-      projectId,
-      apiKeyId: apiKey.id,
+      expect(await auditAllActorShapes()).toBe(3);
     });
+  });
 
-    const sessionResourceId = randomUUID();
-    await auditLog({
-      action: "update",
-      resourceType: "job",
-      resourceId: sessionResourceId,
-      session: { user: { id: userId }, orgId, projectId },
-    });
+  it("still logs actor info when records are not persisted", async () => {
+    // The actor log line is operator telemetry, not the audited record: it
+    // carries ids only (no before/after diff) and is the sole actor trail for
+    // mutations that have no parallel logger call of their own.
+    const info = vi.spyOn(logger, "info");
 
-    const userResourceId = randomUUID();
-    await auditLog({
-      action: "delete",
-      resourceType: "job",
-      resourceId: userResourceId,
-      userId,
-      orgId,
-      projectId,
-    });
+    expect(await auditAllActorShapes()).toBe(0);
 
-    expect(await countRecords(apiKeyResourceId)).toBe(1);
-    expect(await countRecords(sessionResourceId)).toBe(1);
-    expect(await countRecords(userResourceId)).toBe(1);
+    const actorLines = info.mock.calls.filter(([message]) =>
+      String(message).startsWith("Audit log: job."),
+    );
+    expect(actorLines).toHaveLength(3);
   });
 });

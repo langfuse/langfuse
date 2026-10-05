@@ -5,7 +5,7 @@ import {
 } from "@/src/features/entitlements/server";
 
 /**
- * Whether audit log records may be written on this instance.
+ * Whether audit log records may be persisted on this instance.
  *
  * Audit logs are an enterprise feature. Reading them is already gated on the
  * `audit-logs` entitlement (see `auditLogs` router and `batchExport`), but the
@@ -15,7 +15,10 @@ import {
  * The self-hosted branch derives from the same entitlement table the read path
  * uses, rather than hardcoding "enterprise license => audit logs", so the two
  * cannot drift apart. Today that means only `langfuse_ee_*` keys
- * (`self-hosted:enterprise`) write records: `self-hosted:pro` and `oss` do not.
+ * (`self-hosted:enterprise`) persist records: `self-hosted:pro` and `oss` do
+ * not. `isEnterpriseLicenseAvailable` in `@langfuse/shared` answers a similar
+ * question for code that also runs in the worker, but hardcodes the license
+ * tier instead of consulting the entitlement table.
  *
  * On Langfuse Cloud records are always written, on every plan. Retaining the
  * trail regardless of plan means upgrading to a plan that includes the audit
