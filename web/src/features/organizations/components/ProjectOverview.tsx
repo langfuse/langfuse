@@ -341,7 +341,7 @@ const SingleOrganizationProjectOverviewTile = ({
     <div key={org.id}>
       <Header
         title={org.name}
-        titleClassName="text-sm leading-5"
+        titleClassName="text-base leading-6"
         className="truncate"
         labelBadge={
           org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
