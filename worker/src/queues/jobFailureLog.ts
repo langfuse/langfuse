@@ -6,11 +6,6 @@ import {
 
 import { isFinalBullmqAttempt } from "../features/integrations/bullmqAttempts";
 
-interface AttemptState {
-  attemptsMade?: number;
-  opts?: { attempts?: number };
-}
-
 /**
  * Log a failed queue attempt. Retryable S3 SlowDown stays a warning until the
  * BullMQ attempt budget is spent, then it is logged as an error.
@@ -54,4 +49,9 @@ function isTerminalAttempt(
     { attemptsMade: observed, opts: job.opts },
     error,
   );
+}
+
+interface AttemptState {
+  attemptsMade?: number;
+  opts?: { attempts?: number };
 }
