@@ -49,6 +49,7 @@ impl Recording {
         let exporter = InMemorySpanExporter::default();
         let provider = SdkTracerProvider::builder()
             .with_simple_exporter(exporter.clone())
+            .with_span_processor(crate::observability::request_spans::RequestIdProcessor)
             .build();
         let output = Buffer::default();
         let buffer = output.clone();
@@ -336,7 +337,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
             assert_generation_context(payload);
         }
     }
-    assert_request_correlation(&response_headers, &recording, server, &observed);
+    assert_request_correlation(&response_headers, &recording, &spans, server, &observed);
 }
 
 type SpanData = opentelemetry_sdk::trace::SpanData;
@@ -498,6 +499,7 @@ fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk:
 fn assert_request_correlation(
     response: &HeaderMap,
     recording: &Recording,
+    spans: &[SpanData],
     server: &SpanData,
     observed: &[(&str, HeaderMap, Value)],
 ) {
@@ -507,7 +509,21 @@ fn assert_request_correlation(
         header("langfuse-trace-id"),
         "4bf92f3577b34da6a3ce929d0e0e4736"
     );
-    assert_attribute(server, "gateway.request.id", request_id.to_owned());
+    // Every span of the request's trace, children included, carries the ID exactly
+    // once; the batched ingestion trace serves many requests and carries none.
+    for span in spans {
+        let ids: Vec<_> = span
+            .attributes
+            .iter()
+            .filter(|attribute| attribute.key.as_str() == "gateway.request.id")
+            .map(|attribute| attribute.value.as_str().into_owned())
+            .collect();
+        if span.span_context.trace_id() == server.span_context.trace_id() {
+            assert_eq!(ids, [request_id], "{}", span.name);
+        } else {
+            assert!(ids.is_empty(), "{}", span.name);
+        }
+    }
     assert_attribute(server, "gateway.client.request.id", "client-request-canary");
     assert_attribute(server, "provider_request_id", "req_upstream");
     let events: Vec<_> = recording

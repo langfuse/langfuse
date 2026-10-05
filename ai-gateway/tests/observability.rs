@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use axum::{Router, body::Bytes, extract::Request, routing::post};
+use axum::{Router, body::Bytes, extract::Request, response::IntoResponse, routing::post};
 use opentelemetry_proto::tonic::collector::{
     metrics::v1::ExportMetricsServiceRequest, trace::v1::ExportTraceServiceRequest,
 };
@@ -28,8 +28,18 @@ struct Gateway {
 
 impl Gateway {
     fn start(endpoint: &str, shutdown_seconds: &str, level: &str) -> Self {
+        Self::start_with(endpoint, shutdown_seconds, level, &[])
+    }
+
+    fn start_with(
+        endpoint: &str,
+        shutdown_seconds: &str,
+        level: &str,
+        settings: &[(&str, &str)],
+    ) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
+            .envs(settings.iter().copied())
             .env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS", "127.0.0.1:0")
             .env(
                 "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS",
@@ -357,4 +367,99 @@ async fn an_unresponsive_collector_does_not_extend_the_shutdown_deadline() {
     gateway.stop().await;
     assert!(start.elapsed() < Duration::from_secs(2));
     server.abort();
+}
+
+#[tokio::test]
+async fn every_span_of_a_request_trace_carries_its_request_id() {
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let receiver = captured.clone();
+    // One fake serves Web resolution, which finds no route, and the OTLP collector.
+    let app = Router::new().route(
+        "/{*path}",
+        post(move |request: Request| {
+            let receiver = receiver.clone();
+            async move {
+                let path = request.uri().path().to_owned();
+                if path == "/api/internal/ai-gateway/v1/resolve" {
+                    return axum::http::StatusCode::NOT_FOUND.into_response();
+                }
+                let body = axum::body::to_bytes(request.into_body(), 1_000_000)
+                    .await
+                    .unwrap();
+                receiver.lock().unwrap().push((path, body));
+                Bytes::new().into_response()
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let mut gateway = Gateway::start_with(
+        &endpoint,
+        "5",
+        "info",
+        &[
+            ("LANGFUSE_AI_GATEWAY_WEB_URL", &endpoint),
+            ("LANGFUSE_AI_GATEWAY_SERVICE_KEY", "test-service-key"),
+        ],
+    );
+    let response = reqwest::Client::new()
+        .post(format!("{}/openai/v1/responses", gateway.url))
+        .bearer_auth("gateway-key")
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 404);
+    let request_id = response.headers()["langfuse-request-id"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    gateway.stop().await;
+    server.abort();
+    let captured = captured.lock().unwrap();
+    let spans: Vec<_> = captured
+        .iter()
+        .filter(|(path, _)| path == "/v1/traces")
+        .flat_map(|(_, body)| {
+            ExportTraceServiceRequest::decode(body.clone())
+                .unwrap()
+                .resource_spans
+        })
+        .flat_map(|resource| resource.scope_spans)
+        .flat_map(|scope| scope.spans)
+        .collect();
+    let server_span = spans
+        .iter()
+        .find(|span| span.name == "POST /openai/v1/responses")
+        .expect("server span");
+    let trace: Vec<_> = spans
+        .iter()
+        .filter(|span| span.trace_id == server_span.trace_id)
+        .collect();
+    let mut names: Vec<_> = trace.iter().map(|span| span.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        ["POST /openai/v1/responses", "resolution", "resolver"]
+    );
+    for span in trace {
+        let ids: Vec<_> = span
+            .attributes
+            .iter()
+            .filter(|attribute| attribute.key == "gateway.request.id")
+            .map(|attribute| {
+                attribute
+                    .value
+                    .as_ref()
+                    .and_then(|value| value.value.clone())
+            })
+            .collect();
+        assert_eq!(
+            ids,
+            [Some(AttributeValue::StringValue(request_id.clone()))],
+            "{}",
+            span.name
+        );
+    }
 }

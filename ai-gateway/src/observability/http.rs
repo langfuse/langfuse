@@ -8,10 +8,12 @@ use axum::{
     middleware::{self, Next},
     response::Response,
 };
-use opentelemetry::{Context, trace::TraceContextExt};
+use opentelemetry::trace::TraceContextExt;
 use tower_http::trace::TraceLayer;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+use crate::correlation::{RequestCorrelation, insert_request_correlation};
 
 /// Instrument application routes; mount health probes outside this router.
 pub fn instrument(router: Router) -> Router {
@@ -21,9 +23,11 @@ pub fn instrument(router: Router) -> Router {
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
                     let (method, route) = request_labels(request);
-                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.request.body.size = tracing::field::Empty, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, gateway.request.id = tracing::field::Empty, gateway.client.request.id = tracing::field::Empty, provider_request_id = tracing::field::Empty, gateway.outcome = tracing::field::Empty, gateway.first_byte_ms = tracing::field::Empty);
+                    let correlation = request.extensions().get::<RequestCorrelation>();
+                    let request_id = correlation.map(RequestCorrelation::id);
+                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.request.body.size = tracing::field::Empty, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, gateway.request.id = request_id, gateway.client.request.id = correlation.and_then(RequestCorrelation::client_id), provider_request_id = tracing::field::Empty, gateway.outcome = tracing::field::Empty, gateway.first_byte_ms = tracing::field::Empty);
                     // Operational tracing has no caller or ambient trace context.
-                    let _ = span.set_parent(Context::new());
+                    let _ = span.set_parent(super::request_spans::root_context(request_id));
                     span
                 })
                 .on_request(())
@@ -49,6 +53,7 @@ pub fn instrument(router: Router) -> Router {
                 })
                 .on_failure(()),
         )
+        .layer(middleware::from_fn(insert_request_correlation))
 }
 
 async fn record_http_duration(request: Request<Body>, next: Next) -> Response {

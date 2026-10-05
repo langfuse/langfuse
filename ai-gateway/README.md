@@ -142,9 +142,14 @@ resolution, 4xx/5xx gateway errors and streams. It appears in:
 | Every response | `langfuse-request-id` header, sent with the initial headers of a stream |
 | Gateway JSON error bodies | Top-level `request_id` in both native envelopes |
 | Gateway JSON log lines for the request | Top-level `request_id` |
-| Operational server span | `gateway.request.id` |
+| Every operational span of the request's trace: the server span and its phase and client spans | `gateway.request.id` |
 | Web resolution call | `langfuse-gateway-request-id` header; Web adds it to its log context |
 | Langfuse generation | `langfuse.gateway.request.id` metadata |
+
+The server span records the ID as a field. A span processor copies it from the
+server span's OpenTelemetry context onto every descendant span, including spans
+that `reqwest-tracing` creates and any phase spans that are added later. The
+batched `telemetry.batch` trace serves many requests and does not carry it.
 
 A caller's `x-request-id` never becomes the gateway request ID. A single printable
 value of at most 256 bytes is recorded separately as the server span's

@@ -2,6 +2,7 @@ mod client;
 mod http;
 mod logs;
 mod metrics;
+mod request_spans;
 
 pub(crate) use client::instrument_client;
 pub use http::instrument;
@@ -50,7 +51,8 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         .with_resource(resource.clone())
         .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
             ratio,
-        ))));
+        ))))
+        .with_span_processor(request_spans::RequestIdProcessor);
     let metrics = if let Some(endpoint) = setting("OTEL_EXPORTER_OTLP_ENDPOINT")? {
         let endpoint =
             reqwest::Url::parse(&endpoint).map_err(|_| "invalid OTEL_EXPORTER_OTLP_ENDPOINT")?;

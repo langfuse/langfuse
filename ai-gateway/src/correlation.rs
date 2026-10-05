@@ -91,17 +91,30 @@ impl RequestCorrelation {
     }
 }
 
-/// Runs inside the server span before any rejection, so every response, log line
-/// and phase span of the request can carry the ID.
-pub(crate) async fn assign_request_id(mut request: Request, next: Next) -> Response {
+/// Runs before the server span exists, so the span starts with the request's ID.
+pub(crate) async fn insert_request_correlation(mut request: Request, next: Next) -> Response {
     let correlation = RequestCorrelation::from_headers(request.headers());
-    let span = tracing::Span::current();
-    span.record("gateway.request.id", correlation.id());
-    if let Some(client_id) = correlation.client_id() {
-        span.record("gateway.client.request.id", client_id);
-    }
-    let value = HeaderValue::from_str(correlation.id()).expect("a UUID is a valid header value");
     request.extensions_mut().insert(correlation);
+    next.run(request).await
+}
+
+/// Runs inside the server span before any rejection, so every response, log line
+/// and phase span of the request can carry the ID. An instrumented router already
+/// assigned it in [`insert_request_correlation`] and started the span with it.
+pub(crate) async fn assign_request_id(mut request: Request, next: Next) -> Response {
+    let correlation = if let Some(correlation) = request.extensions().get::<RequestCorrelation>() {
+        correlation.clone()
+    } else {
+        let correlation = RequestCorrelation::from_headers(request.headers());
+        let span = tracing::Span::current();
+        span.record("gateway.request.id", correlation.id());
+        if let Some(client_id) = correlation.client_id() {
+            span.record("gateway.client.request.id", client_id);
+        }
+        request.extensions_mut().insert(correlation.clone());
+        correlation
+    };
+    let value = HeaderValue::from_str(correlation.id()).expect("a UUID is a valid header value");
     let mut response = next.run(request).await;
     response.headers_mut().insert(REQUEST_ID_HEADER, value);
     response
