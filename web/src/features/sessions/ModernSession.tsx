@@ -21,7 +21,6 @@ type ModernSessionProps = {
     | "outputUsage"
     | "totalTokens"
     | "totalCost"
-    | "environment"
     | "users"
     | "scores"
     | "minTimestamp"
@@ -96,12 +95,12 @@ export function ModernSession({
             <ModernSessionHeader
               projectId={projectId}
               countTraces={session.countTraces}
-              traces={headerTraces}
+              minTimestamp={session.minTimestamp}
+              maxTimestamp={session.maxTimestamp}
               tokensIn={session.inputUsage}
               tokensOut={session.outputUsage}
               totalTokens={session.totalTokens}
               totalCost={session.totalCost ?? 0}
-              environment={session.environment ?? null}
               users={session.users ?? []}
               metadataJsonPaths={metadataJsonPaths}
               scores={session.scores}

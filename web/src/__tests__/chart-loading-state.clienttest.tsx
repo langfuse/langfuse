@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
@@ -197,6 +196,7 @@ describe("ChartLoadingState", () => {
 
     const hint = screen.getByText(SLOW_QUERY_HINT_TEXT);
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       progressText.compareDocumentPosition(hint) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();

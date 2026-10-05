@@ -64,7 +64,7 @@ export type BillingSubscriptionInfo = {
   hasValidPaymentMethod: boolean;
 };
 
-class BillingService {
+export class BillingService {
   constructor(
     private stripe: Stripe,
     private ctx: OrgAuthedContext,
@@ -1187,7 +1187,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription to cancel",
           });
 
@@ -1285,7 +1285,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription to reactivate",
           });
 
@@ -1496,7 +1496,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription found",
           });
 

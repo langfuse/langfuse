@@ -2,6 +2,7 @@ import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
+import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
@@ -42,13 +43,6 @@ const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
-    // Trace playhead transport in the navigation header (and the overflow
-    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
-    // is tree vs timeline at click time; `observationCount` is the loaded
-    // trace size. Metadata only — never a trace/observation id.
-    "playback_play",
-    "playback_pause",
-    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
@@ -162,6 +156,7 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
+  skills: ["new_form_open", "version_create", "version_download", "delete"],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
@@ -180,7 +175,6 @@ const events = {
     "inline_tools_toggled",
     "system_prompt_toggled",
     "metadata_jsonpath_config_changed",
-    "header_detail_visibility_changed",
   ],
   eval_config: [
     "new_form_submit",
@@ -225,6 +219,29 @@ const events = {
     "attach_evaluator",
     "detach_evaluator",
     "filter_reused",
+  ],
+  // Evaluator creation funnel (gallery -> setup page -> saved dialog). Props
+  // are typed in EvalOnboardingEventMap: metadata only, never search text,
+  // prompt content, names or filter values.
+  eval: [
+    "onboarding_started",
+    "onboarding_step_completed",
+    "onboarding_completed",
+    "onboarding_gallery_searched",
+    "onboarding_gallery_section_selected",
+    "onboarding_evaluator_type_changed",
+    "onboarding_preview_toggled",
+    "onboarding_sample_observation_previewed",
+    "onboarding_prompt_modified",
+    "onboarding_llm_connection_tab_opened",
+    "onboarding_model_picker_opened",
+    "onboarding_model_changed",
+    "onboarding_ai_generate_requested",
+    "onboarding_sampling_changed",
+    "onboarding_historic_eval_toggled",
+    "onboarding_scope_changed",
+    "onboarding_create_rule_opened",
+    "onboarding_execution_skipped",
   ],
   // One-shot batch evaluation from the events / experiments tables.
   // Counts and enums only — never mapping contents or observation payloads.
@@ -473,11 +490,10 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
-type EventProperties = AnnotationEventMap & {
-  [E in Exclude<EventName, keyof AnnotationEventMap>]: Record<
-    string,
-    any
-  > | null;
+type TypedEventMap = AnnotationEventMap & EvalOnboardingEventMap;
+
+type EventProperties = TypedEventMap & {
+  [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;
 };
 
 export const usePostHogClientCapture = () => {

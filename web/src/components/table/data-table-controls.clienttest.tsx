@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { eventsTableCols, type FilterState } from "@langfuse/shared";
@@ -7,6 +6,7 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,
+  DataTableControlsProvider,
   type QueryFilter,
 } from "./data-table-controls";
 import {
@@ -16,6 +16,8 @@ import {
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 
 vi.mock("use-query-params", async () => ({
   ...(await vi.importActual("use-query-params")),
@@ -43,6 +45,36 @@ beforeAll(() => {
   );
   Element.prototype.scrollIntoView = vi.fn();
 });
+
+function MobileDraftSearchInput() {
+  const { store } = useEventsSearchBar({
+    tableName: "draft-persistence-test",
+    enabled: true,
+    isV4: false,
+    filterState: [],
+    searchQuery: null,
+    searchType: ["id"],
+    observed: undefined,
+    setFilterState: vi.fn(),
+    setSearchQuery: vi.fn(),
+    setSearchType: vi.fn(),
+  });
+  const draft = useStore(store, (state) => state.draft);
+
+  return (
+    <input
+      aria-label="Mobile grammar search"
+      value={draft}
+      onChange={(event) =>
+        store.getState().actions.setDraft(event.target.value)
+      }
+    />
+  );
+}
+
+function TestFilterSidebar({ layout }: { layout?: "panel" | "inline" }) {
+  return <div data-layout={layout}>Facet controls</div>;
+}
 
 describe("delayed sidebar edits and search-bar commits", () => {
   const config: FilterConfig = {
@@ -218,6 +250,68 @@ describe("DataTableControls numeric conditions", () => {
   });
 });
 
+describe("mobile searchable filter layout", () => {
+  it("keeps secondary controls inside the Filters sheet", () => {
+    render(
+      <DataTableControlsProvider tableName="mobile-controls-test">
+        <SearchableTableFilterLayout
+          search={<MobileDraftSearchInput />}
+          toolbar={<FilterToggleButton />}
+          mobileControls={<button>Past 30 days</button>}
+        >
+          <TestFilterSidebar />
+          <div>Table content</div>
+        </SearchableTableFilterLayout>
+      </DataTableControlsProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Past 30 days" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("button", { name: "Past 30 days" }),
+    ).toBeInTheDocument();
+  });
+
+  it("preserves an unsubmitted grammar-search draft across sheet close", () => {
+    const layout = (searchKey: string) => (
+      <DataTableControlsProvider tableName="draft-persistence-test">
+        <SearchableTableFilterLayout
+          search={<MobileDraftSearchInput key={searchKey} />}
+          toolbar={<FilterToggleButton />}
+        >
+          <TestFilterSidebar />
+          <div>Table content</div>
+        </SearchableTableFilterLayout>
+      </DataTableControlsProvider>
+    );
+    const { rerender } = render(layout("initial"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+      { target: { value: "level:ERROR" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+    ).toHaveValue("level:ERROR");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    rerender(layout("new-search-scope"));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(
+      screen.getByRole("textbox", { name: "Mobile grammar search" }),
+    ).toHaveValue("");
+  });
+});
+
 describe("CategoricalFacet", () => {
   it("uses a custom option hover title", () => {
     render(
@@ -273,6 +367,7 @@ describe("CategoricalFacet", () => {
     const label = screen.getByText("gpt-4.1");
     const suffix = screen.getByText("Project default");
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(label).not.toHaveClass("flex-1");
@@ -366,6 +461,7 @@ describe("CategoricalFacet", () => {
     const firstUnselected = screen.getByText("opt-0");
     expect(selected).toBeInTheDocument();
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       selected.compareDocumentPosition(firstUnselected) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -522,6 +618,7 @@ describe("CategoricalFacet", () => {
     const firstKept = screen.getByText("opt-0");
     expect(excluded).toBeInTheDocument();
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       excluded.compareDocumentPosition(firstKept) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -605,6 +702,7 @@ describe("CategoricalFacet", () => {
     const a = screen.getByText("a");
     const c = screen.getByText("c");
     expect(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -647,6 +745,7 @@ describe("DataTableControls facet ordering", () => {
     const a = screen.getByText(first);
     const b = screen.getByText(second);
     return Boolean(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
     );
   };
@@ -1288,6 +1387,7 @@ describe("DataTableControls facet-name search", () => {
     const a = screen.getByText(first);
     const b = screen.getByText(second);
     return Boolean(
+      // eslint-disable-next-line @repo/no-exotic-operators
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
     );
   };

@@ -1,5 +1,3 @@
-/* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-exotic-operators */
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -837,13 +835,19 @@ export async function getEventFilterOptions(
     score: { name: string; dataType: string },
     level: "observation" | "trace",
   ): void => {
-    const typeClass =
-      score.dataType === "NUMERIC"
-        ? "numeric"
-        : score.dataType === "BOOLEAN"
-          ? "boolean"
-          : "categorical"; // CATEGORICAL + TEXT
-    const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
+    const typeClass = (() => {
+      if (score.dataType === "NUMERIC") {
+        return "numeric";
+      }
+      if (score.dataType === "BOOLEAN") {
+        return "boolean";
+      }
+      return "categorical";
+    })(); // CATEGORICAL + TEXT
+    if (scoreNameLevelsByType[typeClass][score.name] === undefined) {
+      scoreNameLevelsByType[typeClass][score.name] = [];
+    }
+    const levels = scoreNameLevelsByType[typeClass][score.name];
     if (!levels.includes(level)) levels.push(level);
   };
   observationLevelScoreNames.forEach((score) =>

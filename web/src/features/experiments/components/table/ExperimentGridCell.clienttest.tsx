@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { VisibilityState } from "@tanstack/react-table";
+import type { ComponentProps } from "react";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
@@ -34,6 +35,8 @@ const renderGridCell = (
   output: unknown = null,
   onExperimentClick?: (event: React.MouseEvent) => void,
   isBaseline = true,
+  onAnnotate?: () => void,
+  overrides: Partial<ComponentProps<typeof ExperimentGridCell>> = {},
 ) =>
   render(
     <TooltipProvider>
@@ -41,6 +44,7 @@ const renderGridCell = (
         projectId="project-id"
         itemId="item-id"
         onExperimentClick={onExperimentClick}
+        onAnnotate={onAnnotate}
         output={output}
         level="GENERATION"
         startTime={new Date("2026-07-30T10:00:00.000Z")}
@@ -87,11 +91,68 @@ const renderGridCell = (
         }}
         columnVisibility={columnVisibility}
         showScoreLevelLabels={showScoreLevelLabels}
+        {...overrides}
       />
     </TooltipProvider>,
   );
 
 describe("ExperimentGridCell", () => {
+  it("keeps categorical changes compact and only reveals the transition when diffs are enabled", async () => {
+    const key = "accuracy-ANNOTATION-CATEGORICAL";
+    for (const showDiff of [true, false]) {
+      const view = renderGridCell(
+        false,
+        undefined,
+        null,
+        undefined,
+        false,
+        undefined,
+        {
+          showDiff,
+          observationScoreOrder: [key],
+          scores: {
+            [key]: {
+              type: "CATEGORICAL",
+              values: ["Partially Correct"],
+              valueCounts: [{ value: "Partially Correct", count: 1 }],
+              id: "current",
+            },
+          },
+          baselineScores: {
+            [key]: {
+              type: "CATEGORICAL",
+              values: ["Incorrect"],
+              valueCounts: [{ value: "Incorrect", count: 1 }],
+              id: "baseline",
+            },
+          },
+        },
+      );
+      expect(
+        screen.queryByLabelText("Changed compared to baseline") !== null,
+      ).toBe(showDiff);
+      expect(
+        screen.queryByText("← Baseline: Incorrect"),
+      ).not.toBeInTheDocument();
+      fireEvent.pointerEnter(screen.getByText("accuracy"));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 750));
+      });
+      expect(screen.queryByText("← Baseline: Incorrect") !== null).toBe(
+        showDiff,
+      );
+      view.unmount();
+    }
+  });
+  it("opens annotation without also triggering the normal cell click", () => {
+    const onAnnotate = vi.fn();
+    const onExperimentClick = vi.fn();
+    renderGridCell(false, undefined, null, onExperimentClick, true, onAnnotate);
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    expect(onAnnotate).toHaveBeenCalledOnce();
+    expect(onExperimentClick).not.toHaveBeenCalled();
+  });
+
   it("keeps inline score diffs without explanatory native tooltips", () => {
     const { unmount } = renderGridCell(
       false,
@@ -112,8 +173,8 @@ describe("ExperimentGridCell", () => {
   it("shows full labels for every score when both levels are present", () => {
     renderGridCell(true);
 
-    expect(screen.getByText("Observation")).toBeInTheDocument();
-    expect(screen.getByText("Trace")).toBeInTheDocument();
+    expect(screen.getByText("Observation: quality")).toBeInTheDocument();
+    expect(screen.getByText("Trace: correctness")).toBeInTheDocument();
   });
 
   it("omits score level decoration when only one level is present", () => {

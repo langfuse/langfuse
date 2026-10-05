@@ -1,5 +1,4 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -73,6 +72,8 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getObservationFilterValues: "Looking up observation filters",
   getPromptUnresolved: "Inspecting prompt",
   listDashboardWidgets: "Browsing widgets",
+  loadSkill: "Loading skill",
+  loadSkillResource: "Loading skill resource",
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
@@ -623,7 +624,9 @@ export function getDrawerMessages({
         pendingSources = mergeSources(pendingSources, docsSources);
       }
 
-      pendingToolGroupId ??= `tools-${message.id}`;
+      if (pendingToolGroupId === null) {
+        pendingToolGroupId = `tools-${message.id}`;
+      }
       pendingTools.push(...toolContent);
       return;
     }

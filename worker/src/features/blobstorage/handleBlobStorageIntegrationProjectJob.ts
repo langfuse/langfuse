@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
@@ -77,10 +76,6 @@ import { SpanKind } from "@opentelemetry/api";
 import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
-import {
-  recordExportFreshnessLag,
-  windowClassFromBlobFrequency,
-} from "../../services/exportFreshnessLagMetric";
 import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
@@ -502,25 +497,37 @@ const processBlobStorageExport = async (config: {
           (config.table === "observations" ||
             config.table === "observations_v2");
 
-        const exportPath = parquetEligible
-          ? "parquet"
-          : passthroughEligible
-            ? "passthrough"
-            : "standard";
+        const exportPath = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (passthroughEligible) {
+            return "passthrough";
+          }
+          return "standard";
+        })();
 
         const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
-        const extension = parquetEligible
-          ? "parquet"
-          : config.compressed
-            ? `${blobStorageProps.extension}.gz`
-            : blobStorageProps.extension;
+        const extension = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (config.compressed) {
+            return `${blobStorageProps.extension}.gz`;
+          }
+          return blobStorageProps.extension;
+        })();
         const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-        const uploadContentType = parquetEligible
-          ? "application/vnd.apache.parquet"
-          : config.compressed
-            ? "application/gzip"
-            : blobStorageProps.contentType;
+        const uploadContentType = (() => {
+          if (parquetEligible) {
+            return "application/vnd.apache.parquet";
+          }
+          if (config.compressed) {
+            return "application/gzip";
+          }
+          return blobStorageProps.contentType;
+        })();
 
         const exportFieldGroups =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
@@ -880,11 +887,15 @@ const processBlobStorageExport = async (config: {
               )
             : 0;
           // Measured backpressure (gzip / parquet boundary), else duration residual.
-          const uploadWaitMs = gzipStats
-            ? Math.round(gzipStats.backpressureMs)
-            : parquetEligible
-              ? Math.round(sourceStats.backpressureMs)
-              : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          const uploadWaitMs = (() => {
+            if (gzipStats) {
+              return Math.round(gzipStats.backpressureMs);
+            }
+            if (parquetEligible) {
+              return Math.round(sourceStats.backpressureMs);
+            }
+            return Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          })();
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -940,11 +951,15 @@ const processBlobStorageExport = async (config: {
                   Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
                 )
               : 0;
-            const finalUploadWaitMs = gzipStats
-              ? Math.round(gzipStats.backpressureMs)
-              : parquetEligible
-                ? Math.round(sourceStats.backpressureMs)
-                : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            const finalUploadWaitMs = (() => {
+              if (gzipStats) {
+                return Math.round(gzipStats.backpressureMs);
+              }
+              if (parquetEligible) {
+                return Math.round(sourceStats.backpressureMs);
+              }
+              return Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            })();
             span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
             span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
             const finalExportFormat = parquetEligible
@@ -1287,17 +1302,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         lastErrorAt: null,
       },
     });
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-      // Empty window means nothing newer to export: fully caught up.
-      catchup: false,
-    });
     return;
   }
 
@@ -1305,7 +1309,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
   // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-  let watermarkAdvanced = false;
   try {
     // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
@@ -1534,21 +1537,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       return;
     }
 
-    // The export watermark is committed. Catch-up enqueue below can still
-    // fail (Redis); that must not be recorded as an export-freshness failure
-    // against the pre-run lastSyncAt.
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: maxTimestamp,
-      catchup: !caughtUp,
-    });
-    watermarkAdvanced = true;
-
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
       const queue = BlobStorageIntegrationProcessingQueue.getInstance();
@@ -1605,18 +1593,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         throw persistError;
       }
 
-      if (!watermarkAdvanced) {
-        recordExportFreshnessLag({
-          integration: "blob_storage",
-          window: windowClassFromBlobFrequency(
-            blobStorageIntegration.exportFrequency,
-          ),
-          status: "failure",
-          runStartTime,
-          maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-        });
-      }
-
       // Cooldown-gated, not bypassed: the integration stays enabled and the
       // watermark does not advance, so every scheduled run re-attempts the same
       // too-large window and re-enters here. The cooldown caps this to one alert
@@ -1652,18 +1628,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     if (outcome.kind === "integration-deleted") {
       return; // obsolete job: complete it rather than fail it
-    }
-
-    if (!watermarkAdvanced) {
-      recordExportFreshnessLag({
-        integration: "blob_storage",
-        window: windowClassFromBlobFrequency(
-          blobStorageIntegration.exportFrequency,
-        ),
-        status: "failure",
-        runStartTime,
-        maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-      });
     }
 
     switch (outcome.kind) {
@@ -1891,12 +1855,15 @@ function extractStorageErrorMessage(error: unknown): string {
   const errorDetails = (error as unknown as { Details?: unknown }).Details;
   const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
     ?.Details;
-  const details =
-    typeof errorDetails === "string"
-      ? errorDetails
-      : typeof causeDetails === "string"
-        ? causeDetails
-        : undefined;
+  const details = (() => {
+    if (typeof errorDetails === "string") {
+      return errorDetails;
+    }
+    if (typeof causeDetails === "string") {
+      return causeDetails;
+    }
+    return undefined;
+  })();
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);

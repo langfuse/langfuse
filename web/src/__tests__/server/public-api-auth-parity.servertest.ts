@@ -118,6 +118,13 @@ const projectRoutes: Route[] = [
     route: "v2/prompts/[promptName]/versions/[promptVersion]",
     methods: ["PATCH"],
   },
+  { route: "unstable/skills/index", methods: ["GET", "POST"] },
+  { route: "unstable/skills/[skillName]/index", methods: ["GET", "PATCH"] },
+  {
+    route: "unstable/skills/[skillName]/versions/[skillVersion]",
+    methods: ["PATCH", "DELETE"],
+  },
+  { route: "unstable/skills/files/content", methods: ["GET"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
@@ -182,6 +189,9 @@ function queryForRoute(route: string): Record<string, string> {
   const query: Record<string, string> = {};
   for (const match of route.matchAll(/\[([^\]]+)\]/g)) {
     query[match[1]!] = nonexistentId;
+  }
+  if (route === "unstable/skills/files/content") {
+    query.sha256Hashes = Buffer.alloc(32).toString("base64");
   }
   return query;
 }

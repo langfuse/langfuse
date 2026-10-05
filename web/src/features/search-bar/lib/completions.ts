@@ -378,7 +378,18 @@ function matchingFilterOptions(
   for (const f of valueMatchFields) {
     for (const o of observedValues(observed, f.id)) {
       const v = o.value.toLowerCase();
-      const rank = v === q ? 0 : v.startsWith(q) ? 1 : v.includes(q) ? 2 : null;
+      const rank = (() => {
+        if (v === q) {
+          return 0;
+        }
+        if (v.startsWith(q)) {
+          return 1;
+        }
+        if (v.includes(q)) {
+          return 2;
+        }
+        return null;
+      })();
       if (rank === null) continue;
       const insert = `${f.id}:${serializeValue(o.value)}`;
       ranked.push({
@@ -1318,12 +1329,8 @@ export function planInputCompletions(
     const prefix = parse(input.slice(0, start), registry);
     const parsed =
       prefix.ast?.kind === "and" ? prefix.ast.children.at(-1) : prefix.ast;
-    const condition =
-      parsed?.kind === "filter"
-        ? parsed
-        : parsed?.kind === "not" && parsed.child.kind === "filter"
-          ? parsed.child
-          : null;
+    const candidate = parsed?.kind === "not" ? parsed.child : parsed;
+    const condition = candidate?.kind === "filter" ? candidate : null;
     const field = condition ? registry.resolveField(condition.key) : null;
     if (
       !prefix.valid ||
@@ -1474,12 +1481,15 @@ export function planInputCompletions(
         : (() => {
             const ranked = rankFilter(allFields, keyPart);
             const exact = registry.resolveField(keyPart);
-            const exactId =
-              exact?.type === "field"
-                ? exact.field.id
-                : exact?.type === "pseudo" || exact?.type === "searchScope"
-                  ? exact.id
-                  : null;
+            const exactId = (() => {
+              if (exact?.type === "field") {
+                return exact.field.id;
+              }
+              if (exact?.type === "pseudo" || exact?.type === "searchScope") {
+                return exact.id;
+              }
+              return null;
+            })();
             return exactId === null
               ? ranked
               : hoistFieldOption(ranked, exactId, allFields);

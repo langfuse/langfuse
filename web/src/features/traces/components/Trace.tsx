@@ -13,7 +13,6 @@ import {
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
 import {
   TraceGraphDataProvider,
   useTraceGraphData,
@@ -31,14 +30,11 @@ import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
 import { useMemo, type ReactNode } from "react";
-import { useStore } from "zustand";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import {
-  TraceReviewPanelProvider,
-  useTraceReviewPanel,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { TraceReviewPanel } from "./TraceReviewPanel";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -180,9 +176,7 @@ function TraceWithSelection({
       >
         <SearchProvider>
           <JsonExpansionProvider>
-            <PlayheadProvider>
-              <TraceContent desktopLayout={desktopLayout} />
-            </PlayheadProvider>
+            <TraceContent desktopLayout={desktopLayout} />
           </JsonExpansionProvider>
         </SearchProvider>
       </TraceGraphDataProvider>
@@ -243,6 +237,30 @@ function DesktopTraceContent({
       key={`${trace.projectId}:${trace.id}`}
       projectId={trace.projectId}
       initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
+      onOpen={(panel, target) => {
+        const {
+          annotation,
+          comments,
+          commentObjectId,
+          commentObjectType,
+          ...query
+        } = router.query;
+        router.replace(
+          {
+            pathname: router.pathname,
+            query: {
+              ...query,
+              [panel]: "open",
+              ...(target && {
+                commentObjectId: target.objectId,
+                commentObjectType: target.objectType,
+              }),
+            },
+          },
+          undefined,
+          { shallow: true },
+        );
+      }}
     >
       <DesktopTraceReviewWorkspace
         desktopLayout={desktopLayout}
@@ -259,8 +277,10 @@ function DesktopTraceReviewWorkspace({
   desktopLayout: DesktopLayout;
   projectId: string;
 }) {
-  const store = useTraceReviewPanel();
-  const reviewOpen = useStore(store, (state) => state.active !== null);
+  const { query } = useRouter();
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const reviewOpen =
+    (query.annotation === "open" && canAnnotate) || query.comments === "open";
   return (
     <DesktopTraceWorkspace
       desktopLayout={desktopLayout}

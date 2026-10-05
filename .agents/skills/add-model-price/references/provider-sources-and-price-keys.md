@@ -340,6 +340,33 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   applying it to the bare (non-`ft:`) entry — a summarizer can silently pick either table
   when both rows share the same model name.
 
+- **Claude Sonnet 5.5 (added September 29 2026)** — Anthropic released
+  `claude-sonnet-5-5` on September 28, 2026 ("Latest"), confirmed via
+  `https://platform.claude.com/docs/en/about-claude/pricing`,
+  `https://platform.claude.com/docs/en/models/overview`, and its dedicated
+  model page `https://platform.claude.com/docs/en/models/sonnet-5-5/overview`.
+  It supersedes `claude-sonnet-5` as the current Sonnet-tier model (Sonnet 5
+  moved to "Legacy models (still available)"). API ID / alias / Bedrock ID /
+  Google Cloud ID / Microsoft Foundry ID / Claude Platform on AWS ID are all
+  the dateless `claude-sonnet-5-5` / `anthropic.claude-sonnet-5-5` pattern.
+  Pricing is numerically identical to `claude-sonnet-5`: $2/MTok input,
+  $10/MTok output, 5m cache write $2.50/MTok, 1h cache write $4/MTok, cache
+  read $0.20/MTok (standard 0.1x multiplier — the pricing page's cache-hits
+  footnote only lists Fable 5.1/Mythos 5.1 at 0.025x and Opus 5.5 at 0.05x as
+  non-standard, so Sonnet 5.5 is not an exception). On the flat 1M-context
+  list (1M context window, 128K max output, no Large Context tier) since it is
+  a Claude 4.6-or-later-generation model. **No Fast mode**: the Fast mode
+  pricing table lists only Claude Opus 5.5, Claude Opus 5, and Claude Opus
+  4.8 — no Sonnet or Haiku model has ever had a Fast-mode tier. Batch is
+  $1/$5 (50% of standard, matching `claude-sonnet-5`'s Batch row exactly) but,
+  per existing precedent, no Batch tier was added (no Anthropic model in this
+  file has one). Added to the pricing file mirroring `claude-sonnet-5`'s exact
+  key set and to `anthropicModels` in `types.ts` immediately after
+  `claude-sonnet-5`, not as the first entry. matchPattern:
+  `(?i)^((anthropic\/)?claude-sonnet-5-5|(eu\.|us\.|apac\.|au\.|jp\.|global\.)?anthropic\.claude-sonnet-5-5(-v1(:0)?)?)$`
+  — verified via the bundled match-pattern tester that this does not collide
+  with `claude-sonnet-5`'s pattern (both fully anchored with `^...$`, mirroring
+  the `claude-opus-5` / `claude-opus-5-5` precedent).
 - **Premium speed-tier pricing (`service_tier`/`speed`) is documented for far more
   models than the initial rollout covered (implemented 2026-08-20)** — The
   `model_parameters` tier-condition mechanism landed in PR #16204 (2026-08-18) and was
@@ -367,6 +394,16 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
     not individually re-quoted during the audit; all were re-read from the live table
     before implementation). The pricing file now represents these with
     `modelParameters.service_tier in ["flex"]`.
+  - **Ultrafast** (`service_tier: "ultrafast"`, documented September 30 2026) —
+    OpenAI's fastest tier, guide at
+    `https://developers.openai.com/api/docs/guides/ultrafast-mode`. The pricing
+    page's "Ultrafast" tab lists only `gpt-6-astra`: $60/$6/$75/$300 short-context
+    and $120/$12/$150/$450 long-context (>272K) per MTok input / cached input /
+    cache writes / output, i.e. 6x Standard. `gpt-6-astra` carries an `Ultrafast`
+    tier and an `Ultrafast · Large context (>272K)` tier, ordered with the other
+    combined service-tier + large-context tiers ahead of the single-condition
+    tiers. `gpt-5.6-sol` has preview-only Ultrafast access with no published
+    price; do not add a tier for it until the pricing page lists one.
   - **Anthropic has the same class of gap**: the pricing page's "Fast mode pricing"
     section documents Claude Opus 5 / Claude Opus 4.8 Fast mode at $10/$50 per MTok
     input/output (`speed: "fast"` request parameter), but neither `claude-opus-5` nor
@@ -764,6 +801,82 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   and September 17 2026 confirmations respectively. The Daybreak
   cyber/Rosalind restricted family and the AWS Bedrock Public Extended Access
   SKU were not re-checked this run — no new evidence, standing exclusions.
+- **September 28 2026 audit: full re-fetch found no price or catalog drift;
+  resolved a standing Flex-pricing verification gap** — Re-fetched the full
+  Anthropic pricing page (model table, cache-hit footnote, Fast mode and Batch
+  tables), the Anthropic models-overview comparison table, the OpenAI
+  aggregate Standard/Long-Context/Fast-mode/Flex pricing tables, the full
+  OpenAI model catalog, both Gemini pricing pages (3.x and 2.5 families), the
+  Gemini models catalog, and the TypeSafe Jev models page. Every price already
+  in the file — including every `gpt-6-astra`/`gpt-6-sol`/`gpt-6-luna`,
+  `claude-opus-5-5`, and `gemini-3.6/3.7/3.8-flash` tier — matched verbatim; no
+  updates were needed. This run's Flex-table fetch explicitly re-quoted
+  `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`,
+  `gpt-5-nano`, `o3`, and `o4-mini`, which the August 20 2026 audit entry above
+  had flagged as "prices seen but not individually re-quoted during the audit"
+  — all nine matched the pricing file exactly (verified with `jq` against the
+  live JSON), so that caveat is now resolved for these models. `gpt-5.3-codex`
+  and `gpt-5-chat-latest` were not independently re-fetched this run (no drift
+  signal); their prices carry forward from the September 2 and September 17
+  2026 confirmations. The Daybreak cyber/Rosalind restricted family, the AWS
+  Bedrock Public Extended Access SKU, and the legacy Claude 3.x/Gemini 1.x
+  catalog tail were not re-checked this run — no new evidence, standing
+  exclusions.
+- **GPT-6.1 Sol (added September 30 2026)** — OpenAI released `gpt-6.1-sol` as
+  a distinct sibling alongside the existing `gpt-6-sol` (both remain active,
+  separately priced model IDs — the model's own dedicated page directs users
+  from the old page to the new one, but the old `gpt-6-sol` page and pricing
+  row are still live). Confirmed via
+  `https://developers.openai.com/api/docs/pricing` (Standard, Long-Context,
+  Fast mode, and Flex tables, each independently re-quoted for this specific
+  model ID) and `https://developers.openai.com/api/docs/models/gpt-6.1-sol`
+  ("delivers near-Astra performance at a lower cost for complex coding,
+  computer use, and professional work"). Same 1,050,000-token context window
+  (max input 922,000, max output 128,000) and the same >272,000-input-token
+  Large Context threshold as the rest of the GPT-6 family. Pricing is
+  identical to `gpt-6-sol` for input ($2/MTok), cache write ($2.50/MTok), and
+  output ($10/MTok) — but **cached input is $0.10/MTok, half of `gpt-6-sol`'s
+  $0.20/MTok** (confirmed via three independent quotes of the Standard table
+  row: `gpt-6.1-sol | $2.00 | $0.10 | $2.50 | $10.00`). Large Context
+  (2x input/cache, 1.5x output): $4/$0.20/$5.00/$15. Fast mode
+  (`service_tier` in `["fast","priority"]`, 2x applicable tier): $4/$0.20/$5.00/$20
+  standard, $8/$0.40/$10.00/$30 large context (the large-context Fast row was
+  directly quoted from the aggregate table, not just derived from the
+  multiplier). Flex (`service_tier: "flex"`, 0.5x applicable tier):
+  $1.00/$0.05/$1.25/$5.00 standard; no separate Flex-Large-Context row is
+  published for this model (same gap as every other GPT-6-family member), so
+  the Flex·Large-Context tier ($2/$0.10/$2.50/$7.50) was derived by applying
+  the documented 0.5x multiplier to the Large Context tier, following the
+  `gpt-6-sol`/`gpt-6-astra` precedent. No date-stamped snapshot at launch.
+  Added to the pricing file mirroring `gpt-6-sol`'s exact six-tier key set and
+  to `openAIModels` in `types.ts` immediately after `gpt-6-sol` (not as the
+  first entry). matchPattern: `(?i)^(openai/)?(gpt-6.1-sol)$` — verified via
+  the bundled match-pattern tester that it does not collide with `gpt-6-sol`,
+  `gpt-6-luna`, or `gpt-6-astra` (all fully anchored with `^...$`; the
+  unescaped `.` follows this file's existing convention for other dotted
+  version numbers such as `gpt-5.6-sol` and `gemini-3.7-flash`, which likewise
+  do not escape the literal dot).
+- **September 29 2026 audit: Claude Sonnet 5.5 added, released the day before
+  this run; everything else confirmed unchanged** — Re-fetched the full
+  Anthropic pricing page (model table, cache-hits footnote, Fast mode and
+  Batch tables), the Anthropic models-overview comparison table, the dedicated
+  `claude-sonnet-5-5` model page, the OpenAI aggregate Standard/Fast-mode/Flex
+  pricing summary, the full OpenAI model catalog, the dedicated
+  `gpt-5-chat-latest` model page ($1.25/$0.125/$10, 128K context, no
+  large-context tier — unchanged), both Gemini pricing pages (3.x and 2.5
+  families, explicit Free/Paid column separation), and the Gemini models
+  catalog. Every price already in the file — including every
+  `gpt-6-astra`/`gpt-6-sol`/`gpt-6-luna`, `claude-opus-5-5`, and
+  `gemini-3.6/3.7/3.8-flash` tier — matched verbatim; the only drift was the
+  new Sonnet 5.5 model (see its own dedicated entry above). No further new
+  general-purpose text/chat models were found: the Gemini models catalog's new
+  entries this run (`gemini-3.8-live-extended-thinking`, another
+  `gemini-omni-1.1-flash`/`lyria-3.5` mention, more robotics variants) are all
+  Live/voice, video, or robotics endpoints, consistent with the existing
+  modality-specific skip rule. The Daybreak cyber/Rosalind restricted family,
+  the AWS Bedrock Public Extended Access SKU, and the legacy Claude
+  3.x/Gemini 1.x catalog tail were not re-checked this run — no new evidence,
+  standing exclusions.
 
 Capture:
 
@@ -778,17 +891,29 @@ Capture:
 
 Values in `default-model-prices.json` are per token, not per million tokens.
 
-| Provider Price | JSON Value |
-| -------------- | ---------- |
-| `$5 / MTok`    | `5e-6`     |
-| `$25 / MTok`   | `25e-6`    |
-| `$0.50 / MTok` | `0.5e-6`   |
-| `$6.25 / MTok` | `6.25e-6`  |
+Always write per-token prices as `<USD per MTok>e-6`, so the mantissa reads
+directly as the provider's per-million-token price. Keep the `e-6` exponent even
+for sub-dollar and sub-cent prices; never normalize to `1e-7`, `5e-8`, `1.5e-5`,
+or plain decimals like `0.000001`. `0` is fine for free usage types. The only
+exception is non-token usage (Gemini `grounding_queries` / `web_search_queries`
+per-query prices, written as `14e-3` for $14 per 1K queries). The validator
+enforces this on changed and selected entries; older entries may still use other
+notation and are rewritten only when that entry changes for another reason.
+
+| Provider Price  | JSON Value | Not         |
+| --------------- | ---------- | ----------- |
+| `$5 / MTok`     | `5e-6`     |             |
+| `$25 / MTok`    | `25e-6`    | `2.5e-5`    |
+| `$0.50 / MTok`  | `0.5e-6`   | `5e-7`      |
+| `$0.10 / MTok`  | `0.1e-6`   | `1e-7`      |
+| `$0.05 / MTok`  | `0.05e-6`  | `5e-8`      |
+| `$6.25 / MTok`  | `6.25e-6`  | `0.00000625` |
 
 Formula:
 
 ```text
 price_per_token = price_per_mtok / 1_000_000
+json_literal    = "<price_per_mtok>e-6"
 ```
 
 - **TypeSafe Jev pricing (documented September 24 2026)** — `jev` is
