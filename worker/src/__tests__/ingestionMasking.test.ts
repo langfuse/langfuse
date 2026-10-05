@@ -232,6 +232,52 @@ describe("Ingestion Masking", () => {
   });
 
   describe("applyIngestionMasking", () => {
+    it.each(["retry-success", "fail-open", "fail-closed"] as const)(
+      "validates raw masking responses inside retries (%s)",
+      async (outcome) => {
+        const data = Buffer.from(JSON.stringify(sampleSpanData));
+        const testEnv = createTestEnv({
+          LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+            "https://masking.example.com/success",
+          LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
+          LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 1,
+          LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED:
+            outcome === "fail-closed" ? "true" : "false",
+        });
+        let validations = 0;
+        const result = await applyIngestionMasking(
+          { data, projectId: "test-project" },
+          testEnv,
+          {
+            body: (bytes) => new Uint8Array(bytes),
+            read: async (response) => {
+              const bytes = Buffer.from(await response.arrayBuffer());
+              validations++;
+              if (outcome !== "retry-success" || validations === 1) {
+                throw new Error("invalid masked JSON");
+              }
+              return bytes;
+            },
+          },
+        );
+        expect(validations).toBe(2);
+        expect(maskingServer.getReceivedRequests()).toHaveLength(2);
+        for (const request of maskingServer.getReceivedRequests()) {
+          expect(request.body).toEqual(sampleSpanData);
+        }
+        expect(result.success).toBe(outcome !== "fail-closed");
+        expect(result.masked).toBe(outcome === "retry-success");
+        if (outcome === "retry-success") {
+          expect(JSON.parse(result.data.toString())).toEqual(maskedSpanData);
+        } else {
+          expect(result.data).toBe(data);
+          if (outcome === "fail-closed") {
+            expect(result.error).toContain("invalid masked JSON");
+          }
+        }
+      },
+    );
+
     it("should return original data immediately when masking is not configured", async () => {
       const testEnv = createTestEnv();
 

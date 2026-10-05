@@ -29,6 +29,12 @@ export interface ApplyIngestionMaskingParams<T> {
   propagatedHeaders?: Record<string, string>;
 }
 
+/** Representation-specific HTTP handling; response validation runs inside masking retries. */
+export interface IngestionMaskingTransport<T> {
+  body(data: T): NonNullable<Parameters<typeof fetch>[1]>["body"];
+  read(response: Response): Promise<T>;
+}
+
 /**
  * Result of the masking operation.
  */
