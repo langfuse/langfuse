@@ -179,7 +179,10 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
 
   it("expands and collapses scheduled export settings with the enable switch", () => {
     render(
-      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+      ),
     );
 
     const exportsSwitch = screen.getByRole("switch", {
