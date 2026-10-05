@@ -269,14 +269,14 @@ sets `stream_options.include_usage`. When a request has `"stream":true` and does
 set it to `true`, the gateway adds `"include_usage":true` to the upstream copy so the
 generation still gets token usage and cost; other `stream_options` fields and every
 other top-level member keep their original bytes and order. The recorded input and
-model parameters are the caller's own request. On a successful SSE response the
-gateway then removes the usage-only chunk (`"choices":[]` with a `usage` object)
-before relaying, so the caller receives the stream it asked for. Every other event
-is relayed byte for byte. OpenAI also adds `"usage":null` to the other chunks of such
-a stream; these are relayed unchanged. Requests that already ask for usage, JSON
-requests, content-encoded bodies, ambiguous bodies (duplicate `stream` or
-`stream_options` members) and non-streamed requests are forwarded unchanged, as are
-error responses.
+model parameters are the caller's own request. The response stream is relayed byte
+for byte, so a client that did not request usage still receives OpenAI's final usage
+chunk: an extra event with an empty `choices` array and a `usage` object, just before
+`data: [DONE]`. The other chunks of such a stream also carry `"usage":null`. Clients
+must tolerate a chunk without choices, as they already must when they request usage
+themselves. Requests that already ask for usage, content-encoded bodies, ambiguous
+bodies (duplicate `stream` or `stream_options` members) and non-streamed requests are
+forwarded unchanged.
 
 ### Anthropic Messages and Claude Code
 

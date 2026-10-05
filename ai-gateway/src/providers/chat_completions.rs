@@ -1,5 +1,5 @@
 //! Chat Completions only reports streamed usage when the caller opts in, so the
-//! gateway opts in on the caller's behalf and hides the extra chunk again.
+//! gateway opts in on the caller's behalf. The resulting usage chunk is relayed.
 use std::fmt;
 
 use axum::{body::Bytes, http::HeaderMap};

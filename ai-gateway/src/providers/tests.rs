@@ -982,22 +982,19 @@ const CHAT_CONTEXT_HEADERS: [(&str, &str); 8] = [
 ];
 
 #[tokio::test]
-async fn chat_completions_streams_report_usage_without_exposing_the_requested_chunk() {
+async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
     use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry, test_support::upload_json};
 
     const UNREQUESTED: &str = r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true}"#;
     const REQUESTED: &str = r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true,"stream_options":{"include_usage":true}}"#;
-    for (request, forwarded, relayed) in [
+    // Callers receive the usage chunk whether or not they asked for it.
+    let relayed = [CHAT_CONTENT_CHUNK, CHAT_USAGE_CHUNK, CHAT_DONE].concat();
+    for (request, forwarded) in [
         (
             UNREQUESTED,
             r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true,"stream_options":{"include_usage":true}}"#,
-            [CHAT_CONTENT_CHUNK, CHAT_DONE].concat(),
         ),
-        (
-            REQUESTED,
-            REQUESTED,
-            [CHAT_CONTENT_CHUNK, CHAT_USAGE_CHUNK, CHAT_DONE].concat(),
-        ),
+        (REQUESTED, REQUESTED),
     ] {
         let (sent, mut received) = tokio::sync::mpsc::channel(2);
         let sink = FakeServer::start(move |request| {
@@ -1080,62 +1077,43 @@ async fn chat_completions_streams_report_usage_without_exposing_the_requested_ch
 }
 
 #[tokio::test]
-async fn chat_completions_forward_other_bodies_and_error_streams_unchanged() {
+async fn chat_completions_forward_non_streamed_bodies_unchanged() {
     const JSON_REQUEST: &str = r#"{"model":"gpt-4.1-mini", "messages":[]}"#;
     let upstream = FakeServer::start(|request| async move {
-        let body = to_bytes(request.into_body(), 4096).await.unwrap();
-        if body == JSON_REQUEST {
-            Response::builder()
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"id":"chatcmpl-1","choices":[]}"#))
-                .unwrap()
-        } else {
-            // A failed stream is relayed as is, even if it resembles a usage chunk.
-            Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("content-type", "text/event-stream")
-                .body(Body::from(CHAT_USAGE_CHUNK))
-                .unwrap()
-        }
+        assert_eq!(
+            to_bytes(request.into_body(), 4096).await.unwrap(),
+            JSON_REQUEST
+        );
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"id":"chatcmpl-1","choices":[]}"#))
+            .unwrap()
     })
     .await;
     let relay = transport(&upstream);
-    for (request, status, expected) in [
-        (
-            JSON_REQUEST,
-            StatusCode::OK,
-            r#"{"id":"chatcmpl-1","choices":[]}"#,
-        ),
-        (
-            r#"{"model":"gpt-4.1-mini","stream":true}"#,
-            StatusCode::BAD_REQUEST,
-            CHAT_USAGE_CHUNK,
-        ),
-    ] {
-        let response = relay
-            .forward_route(
-                relay.try_admit().unwrap(),
-                resolved_request_context_for(
-                    ApiFormat::OpenAiChatCompletions,
-                    "provider-secret",
-                    "usage",
-                )
-                .await,
-                &headers(&[("content-type", "application/json")]),
-                Bytes::from_static(request.as_bytes()),
-                Route::OpenAiChatCompletions,
-                None,
-                &mut crate::correlation::RequestCorrelation::default(),
+    let response = relay
+        .forward_route(
+            relay.try_admit().unwrap(),
+            resolved_request_context_for(
+                ApiFormat::OpenAiChatCompletions,
+                "provider-secret",
+                "usage",
             )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), status);
-        assert_eq!(
-            to_bytes(response.into_body(), 4096).await.unwrap(),
-            expected
-        );
-    }
-    assert_eq!(upstream.calls(), 2);
+            .await,
+            &headers(&[("content-type", "application/json")]),
+            Bytes::from_static(JSON_REQUEST.as_bytes()),
+            Route::OpenAiChatCompletions,
+            None,
+            &mut crate::correlation::RequestCorrelation::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await.unwrap(),
+        r#"{"id":"chatcmpl-1","choices":[]}"#
+    );
+    assert_eq!(upstream.calls(), 1);
 }
 
 fn assert_chat_upload(payload: &serde_json::Value, request: &str) {

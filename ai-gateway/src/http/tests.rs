@@ -782,7 +782,10 @@ async fn chat_completions_streams_carry_the_request_and_generation_ids() {
         header("langfuse-observation-id"),
     );
     assert_eq!(header("x-request-id"), "req-upstream");
-    assert_eq!(response.text().await.unwrap(), [CONTENT, DONE].concat());
+    assert_eq!(
+        response.text().await.unwrap(),
+        [CONTENT, USAGE, DONE].concat()
+    );
     assert_eq!(resolution_ids.recv().await.unwrap(), id);
 
     let payload = tokio::time::timeout(Duration::from_secs(2), received.recv())
