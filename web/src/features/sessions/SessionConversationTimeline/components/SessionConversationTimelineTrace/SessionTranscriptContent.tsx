@@ -272,7 +272,7 @@ function SessionTranscriptToolGroup({
         />
       </button>
       {isOpen && (
-        <div className="space-y-1 pl-3">
+        <div className="space-y-1">
           {rows.map((item) => (
             <SessionTranscriptRow key={item.id} {...props} item={item} />
           ))}
