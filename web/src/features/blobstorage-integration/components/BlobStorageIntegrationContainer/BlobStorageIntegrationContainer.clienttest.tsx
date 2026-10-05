@@ -59,23 +59,28 @@ vi.mock("@/src/utils/api", () => {
   };
 });
 
-vi.mock("./BlobStorageIntegrationForm", () => ({
-  BlobStorageIntegrationForm: ({
-    deleteAction,
-    scheduledExportActions,
-    mediaStorageActions,
-  }: {
-    deleteAction: ReactNode;
-    scheduledExportActions: ReactNode;
-    mediaStorageActions: ReactNode;
-  }) => (
-    <>
-      <div aria-label="Scheduled export actions">{scheduledExportActions}</div>
-      <div aria-label="Media storage actions">{mediaStorageActions}</div>
-      <div aria-label="Form actions">{deleteAction}</div>
-    </>
-  ),
-}));
+vi.mock(
+  "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm/BlobStorageIntegrationForm",
+  () => ({
+    BlobStorageIntegrationForm: ({
+      deleteAction,
+      scheduledExportActions,
+      mediaStorageActions,
+    }: {
+      deleteAction: ReactNode;
+      scheduledExportActions: ReactNode;
+      mediaStorageActions: ReactNode;
+    }) => (
+      <>
+        <div aria-label="Scheduled export actions">
+          {scheduledExportActions}
+        </div>
+        <div aria-label="Media storage actions">{mediaStorageActions}</div>
+        <div aria-label="Form actions">{deleteAction}</div>
+      </>
+    ),
+  }),
+);
 
 const renderContainer = (
   config: Parameters<typeof BlobStorageIntegrationContainer>[0]["config"],
