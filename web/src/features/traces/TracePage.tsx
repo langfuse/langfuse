@@ -141,7 +141,7 @@ export function TracePage({
               listKey="traces"
               compact
             />
-            <StaleContent stale={trace.isPlaceholderData}>
+            <StaleContent stale={trace.isPlaceholderData} remountOnStale>
               <TraceDetailActions
                 trace={trace.data}
                 traceContext={traceContext}
@@ -155,7 +155,7 @@ export function TracePage({
         // menu rows (Share / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
-          <StaleContent stale={trace.isPlaceholderData}>
+          <StaleContent stale={trace.isPlaceholderData} remountOnStale>
             <TraceDetailActions
               trace={trace.data}
               traceContext={traceContext}

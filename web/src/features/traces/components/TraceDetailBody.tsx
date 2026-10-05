@@ -3,6 +3,7 @@ import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { StaleContent } from "@/src/features/traces/components/StaleContent";
 import { TraceDetailBodySkeleton } from "@/src/features/traces/components/TraceDetailSkeletons";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { useLatched } from "@/src/hooks/useLatched";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
@@ -32,6 +33,12 @@ export function TraceDetailBody({
   /** `trace` is the previous trace, kept while the next one loads. */
   isPlaceholderData?: boolean;
 }) {
+  // Held while placeholder: `keySuffix` already names the next item, and a key
+  // mixing it with the previous trace's id would remount twice per switch.
+  const traceKey = useLatched(
+    keySuffix ? `${trace?.id}-${keySuffix}` : trace?.id,
+    isPlaceholderData,
+  );
   if (!trace)
     return (
       <SkeletonGroup className="h-full w-full">
@@ -46,7 +53,7 @@ export function TraceDetailBody({
   return (
     <StaleContent stale={isPlaceholderData} fill>
       <Trace
-        key={keySuffix ? `${trace.id}-${keySuffix}` : trace.id}
+        key={traceKey}
         trace={trace}
         scores={trace.scores}
         corrections={trace.corrections}

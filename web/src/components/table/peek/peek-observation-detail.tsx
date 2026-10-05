@@ -71,12 +71,12 @@ export const TablePeekViewObservationDetail = (
       hideExpandToggle
       preserveContentAcrossItems
       actions={
-        <StaleContent stale={trace.isPlaceholderData}>
+        <StaleContent stale={trace.isPlaceholderData} remountOnStale>
           <TraceDetailActions {...actionProps} />
         </StaleContent>
       }
       actionsMenu={
-        <StaleContent stale={trace.isPlaceholderData}>
+        <StaleContent stale={trace.isPlaceholderData} remountOnStale>
           <TraceDetailActions {...actionProps} layout="menu" />
         </StaleContent>
       }

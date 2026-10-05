@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { api, sendAsPostOption } from "@/src/utils/api";
+import { useLatched } from "@/src/hooks/useLatched";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
@@ -124,8 +125,14 @@ export function useEventsTraceData(
     },
     {
       ...sendAsPostOption,
+      // Not while the observations are the previous trace's: the request would
+      // pair its root with the new trace id.
       enabled:
-        enabled && !!primaryObservation && !!timeRange && !!eventsQuery.data,
+        enabled &&
+        !!primaryObservation &&
+        !!timeRange &&
+        !!eventsQuery.data &&
+        !eventsQuery.isPlaceholderData,
       staleTime: 60 * 1000,
     },
   );
@@ -134,20 +141,11 @@ export function useEventsTraceData(
   const scoresQuery = api.events.scoresForTrace.useQuery(
     { traceId, projectId, timestamp: props.timestamp },
     {
-      // Fetched after the new observations so the previous trace keeps its own
-      // scores until the switch.
-      enabled: enabled && !!traceId && !eventsQuery.isPlaceholderData,
+      enabled: enabled && !!traceId,
       staleTime: 60 * 1000,
       placeholderData: keepPreviousData,
     },
   );
-
-  // The two queries resolve independently; never pair scores and observations
-  // from different traces.
-  const scoresData =
-    scoresQuery.isPlaceholderData === eventsQuery.isPlaceholderData
-      ? scoresQuery.data
-      : undefined;
 
   // Step 5: Transform and merge data
   const transformed = useMemo(() => {
@@ -155,7 +153,7 @@ export function useEventsTraceData(
 
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({
-      scores: scoresData ?? [],
+      scores: scoresQuery.data ?? [],
       dataTypes: [...ScoreDataTypeArray],
       onParseError: (e) => {
         console.error("[useEventsTraceData] Score validation error:", e);
@@ -190,15 +188,28 @@ export function useEventsTraceData(
       scores: scoresDomain,
       corrections,
     };
-  }, [observations, traceId, rootIOQuery.data, scoresData]);
+  }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
+
+  // After a trace switch the two queries resolve independently, so the previous
+  // trace stays whole (observations, I/O, scores) until both carry the new one.
+  const isPlaceholderData =
+    eventsQuery.isPlaceholderData || scoresQuery.isPlaceholderData;
+  const live = useMemo(
+    () => ({
+      data: transformed ?? undefined,
+      truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
+        ? eventsQuery.data.maxObservationsPerTrace
+        : undefined,
+    }),
+    [transformed, eventsQuery.data],
+  );
+  const shown = useLatched(live, isPlaceholderData);
 
   return {
-    data: transformed ?? undefined,
+    data: shown.data,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
-    truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
-      ? eventsQuery.data.maxObservationsPerTrace
-      : undefined,
-    isPlaceholderData: eventsQuery.isPlaceholderData,
+    truncatedAtObservations: shown.truncatedAtObservations,
+    isPlaceholderData,
   };
 }
