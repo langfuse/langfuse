@@ -61,7 +61,11 @@ export function SessionTimelineCollapsibleRow({
             aria-hidden="true"
           />
         </button>
-        <span className="ml-auto flex shrink-0 items-center gap-2">
+        <div
+          className="border-border invisible mx-3 min-w-0 flex-1 border-t border-dashed group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible"
+          aria-hidden="true"
+        />
+        <span className="flex shrink-0 items-center gap-2">
           {trailingContent}
         </span>
       </div>
