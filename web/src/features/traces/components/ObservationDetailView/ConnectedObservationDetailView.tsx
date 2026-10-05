@@ -432,7 +432,7 @@ export function ConnectedObservationDetailView({
                     selectedTab === "attributes" ||
                     (selectedTab === "preview" && isPrettyViewAvailable)) && (
                     <>
-                      <div className="ml-auto h-fit shrink-0 px-2 py-0.5">
+                      <div className="ml-auto h-fit shrink-0 py-0.5 pr-4 pl-2">
                         <Tabs
                           value={
                             selectedTab === "log" && isLogViewVirtualized
@@ -519,7 +519,7 @@ export function ConnectedObservationDetailView({
             {selectedTab === "messages" && (
               <TabsBarContent
                 value="messages"
-                className="mt-0 min-h-0 flex-1 overflow-auto"
+                className="mt-0 min-h-0 flex-1 overflow-auto px-4"
               >
                 <TraceMessagesView />
               </TabsBarContent>

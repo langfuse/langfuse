@@ -1509,6 +1509,6 @@ export const TestManualIOCellBackground = meta.story({
     if (!row) throw new globalThis.Error("Row not found");
 
     await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
-    await expect(row.cells[outputIndex]).toHaveClass("bg-accent-light-green");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
   },
 });

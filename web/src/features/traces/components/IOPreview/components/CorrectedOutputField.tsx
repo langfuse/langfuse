@@ -164,7 +164,7 @@ export function CorrectedOutputField({
 
   if (!isExpanded && !effectiveCorrection) {
     return (
-      <div className="px-2 py-2">
+      <div className="py-2">
         <button
           type="button"
           onClick={() => {
@@ -193,15 +193,12 @@ export function CorrectedOutputField({
         correctedOutput={value}
         strictJsonMode={strictJsonMode}
       />
-      <div className="px-2">
+      <div className="pt-3">
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
             <div className="flex items-center gap-1">
               <span
-                className={cn(
-                  "text-sm font-bold",
-                  compact ? "text-xs" : "text-sm",
-                )}
+                className={cn("font-bold", compact ? "text-xs" : "text-base")}
               >
                 {compact ? "" : "Corrected Output"}
               </span>
@@ -316,15 +313,13 @@ export function CorrectedOutputField({
               mode={strictJsonMode ? "json" : "text"}
               minHeight={200}
               placeholder="Enter corrected output..."
-              className="bg-accent-light-green"
             />
           ) : (
             <CodeMirrorEditor
               value={displayValue}
               mode={strictJsonMode ? "json" : "text"}
-              minHeight={200}
               editable={false}
-              className="bg-accent-light-green"
+              className="bg-surface-output [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent!"
             />
           )}
         </div>
