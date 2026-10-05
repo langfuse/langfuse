@@ -1,5 +1,4 @@
-/* eslint-disable @repo/no-let-assign-in-react */
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
@@ -139,17 +138,28 @@ export function ExistingSkillPage() {
     ],
   };
 
-  let content = <div className="p-6 text-sm">Skill version not found.</div>;
-  if (error) {
-    content = <div className="ph-no-capture p-6 text-sm">{error.message}</div>;
-  } else if (skill.isPending || history.isPending) {
-    content = (
-      <div className="grid gap-3 p-3">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-[600px] w-full" />
-      </div>
-    );
-  } else if (skill.data && history.data) {
+  const content = useMemo(() => {
+    if (error) {
+      return <div className="ph-no-capture p-6 text-sm">{error.message}</div>;
+    }
+    if (skill.isPending || history.isPending) {
+      return (
+        <div className="grid gap-3 p-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-[600px] w-full" />
+        </div>
+      );
+    }
+    return <div className="p-6 text-sm">Skill version not found.</div>;
+  }, [error, skill.isPending, history.isPending]);
+
+  if (
+    !error &&
+    !skill.isPending &&
+    !history.isPending &&
+    skill.data &&
+    history.data
+  ) {
     return (
       <SkillEditorForInitialValue
         headerProps={headerProps}
