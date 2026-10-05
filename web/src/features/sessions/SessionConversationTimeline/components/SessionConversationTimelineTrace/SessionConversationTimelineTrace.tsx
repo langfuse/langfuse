@@ -227,7 +227,7 @@ export function SessionConversationTimelineTrace({
       )}
       {state.type === "error" && (
         <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
-          Failed to load conversation.
+          Failed to load transcript.
         </div>
       )}
       {state.type === "empty" && (
