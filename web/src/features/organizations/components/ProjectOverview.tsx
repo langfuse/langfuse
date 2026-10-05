@@ -20,7 +20,7 @@ import {
   DropdownMenuController,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import Header, { SubHeaderLabel } from "@/src/components/layouts/header";
+import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
@@ -116,7 +116,7 @@ const OrganizationProjectTiles = ({
                 />
               )}
               <CardHeader className="flex-row items-start justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="truncate text-base" title={project.name}>
+                <CardTitle className="truncate text-lg" title={project.name}>
                   {project.name}
                 </CardTitle>
                 <div className="flex shrink-0 items-center gap-1">
