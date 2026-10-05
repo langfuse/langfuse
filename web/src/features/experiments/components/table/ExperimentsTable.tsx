@@ -76,7 +76,9 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
+import { ExperimentChartsLayout } from "../ExperimentChartsLayout";
+import { metricOptionsFromScoreColumns } from "../../fns/metricOptionsFromScoreColumns";
+import { experimentChartDateRange } from "../../fns/experimentChartDateRange";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
@@ -441,8 +443,11 @@ export default function ExperimentsTable({
     totalCount,
     dataUpdatedAt,
     metricsLoading,
+    metricsError,
+    refetchMetrics,
     isShowingMostRecent,
     mostRecentCount,
+    fallbackDateRange,
   } = useExperimentsTableData({
     projectId,
     filterState,
@@ -515,6 +520,9 @@ export default function ExperimentsTable({
   const {
     scoreColumns: observationItemScoreColumns,
     isLoading: isObservationItemScoreLoading,
+    scoreDefinitions: observationScoreDefinitions,
+    error: observationScoreOptionsError,
+    refetch: refetchObservationScoreOptions,
   } = useScoreColumns<ExperimentsTableRow>({
     rawKey: true,
     displayFormat: "aggregate",
@@ -535,6 +543,9 @@ export default function ExperimentsTable({
   const {
     scoreColumns: experimentScoreColumns,
     isLoading: isExperimentScoreColumnLoading,
+    scoreDefinitions: experimentScoreDefinitions,
+    error: experimentScoreOptionsError,
+    refetch: refetchExperimentScoreOptions,
   } = useScoreColumns<ExperimentsTableRow>({
     scoreColumnKey: "experimentScores",
     projectId,
@@ -549,6 +560,19 @@ export default function ExperimentsTable({
     isFilterDataPending: experiments.status === "loading",
     presentKeys: presentScoreKeys?.experiment,
   });
+
+  const availableMetricOptions = useMemo(
+    () =>
+      metricOptionsFromScoreColumns(
+        observationScoreDefinitions,
+        experimentScoreDefinitions,
+      ),
+    [observationScoreDefinitions, experimentScoreDefinitions],
+  );
+  const chartDateRange = experimentChartDateRange(
+    tableDateRange,
+    fallbackDateRange,
+  );
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
     projectId,
@@ -1043,80 +1067,96 @@ export default function ExperimentsTable({
               {/* Table-width, like the events table's pulse strip: inside the
                   layout so the facet sidebar keeps its full height and the
                   strip resizes with the table. */}
-              {tableDateRange && (
-                <ExperimentMetricStrip
-                  projectId={projectId}
-                  experiments={chartExperiments}
-                  fromTimestamp={tableDateRange.from}
-                  toTimestamp={tableDateRange.to}
-                  isExternalLoading={experiments.status === "loading"}
-                  scoreCoverage={scoreCoverage}
-                />
-              )}
-              <DataTable
-                key={`experiments-table-${dataUpdatedAt}`}
-                tableName="experiments"
-                columns={columns}
-                data={
-                  experiments.status === "loading" || isViewLoading
-                    ? { isLoading: true, isError: false }
-                    : experiments.status === "error"
-                      ? {
-                          isLoading: false,
-                          isError: true,
-                          error: "",
-                        }
-                      : {
-                          isLoading: false,
-                          isError: false,
-                          data: rows,
-                        }
+              <ExperimentChartsLayout
+                projectId={projectId}
+                experiments={chartExperiments}
+                fromTimestamp={chartDateRange?.from}
+                toTimestamp={chartDateRange?.to}
+                isExternalLoading={experiments.status === "loading"}
+                scoreCoverage={scoreCoverage}
+                availableMetricOptions={availableMetricOptions}
+                isMetricOptionsLoading={
+                  metricsLoading ||
+                  isObservationItemScoreLoading ||
+                  isExperimentScoreColumnLoading
                 }
-                pagination={{
-                  totalCount,
-                  onChange: (updater) => {
-                    const newState =
-                      typeof updater === "function"
-                        ? updater({
-                            pageIndex: paginationState.page - 1,
-                            pageSize: paginationState.limit,
-                          })
-                        : updater;
-                    setPaginationState({
-                      page: newState.pageIndex + 1,
-                      limit: newState.pageSize,
-                    });
-                  },
-                  state: {
-                    pageIndex: paginationState.page - 1,
-                    pageSize: paginationState.limit,
-                  },
+                metricOptionsError={
+                  metricsError?.message ??
+                  observationScoreOptionsError?.message ??
+                  experimentScoreOptionsError?.message ??
+                  null
+                }
+                onRetryMetricOptions={() => {
+                  refetchMetrics();
+                  refetchObservationScoreOptions();
+                  refetchExperimentScoreOptions();
                 }}
-                selectionStore={experimentsTableStore}
-                setOrderBy={handleOrderByChange}
-                orderBy={orderByState}
-                columnOrder={columnOrder}
-                onColumnOrderChange={handleColumnOrderChange}
-                columnVisibility={columnVisibility}
-                onColumnVisibilityChange={handleColumnVisibilityChange}
-                rowHeight={rowHeight}
-                onRowClick={(row, event) => {
-                  // Handle Command/Ctrl+click to open experiment in new tab
-                  if (event && (event.metaKey || event.ctrlKey)) {
-                    event.preventDefault();
-                    const experimentId = row.id;
-                    const experimentUrl = `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(experimentId)}`;
-                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
-                    window.open(fullUrl, "_blank");
+              >
+                <DataTable
+                  key={`experiments-table-${dataUpdatedAt}`}
+                  tableName="experiments"
+                  columns={columns}
+                  data={
+                    experiments.status === "loading" || isViewLoading
+                      ? { isLoading: true, isError: false }
+                      : experiments.status === "error"
+                        ? {
+                            isLoading: false,
+                            isError: true,
+                            error: "",
+                          }
+                        : {
+                            isLoading: false,
+                            isError: false,
+                            data: rows,
+                          }
                   }
-                  // For normal clicks, navigate to experiment detail page
-                  else {
-                    router.push(
-                      `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
-                    );
-                  }
-                }}
-              />
+                  pagination={{
+                    totalCount,
+                    onChange: (updater) => {
+                      const newState =
+                        typeof updater === "function"
+                          ? updater({
+                              pageIndex: paginationState.page - 1,
+                              pageSize: paginationState.limit,
+                            })
+                          : updater;
+                      setPaginationState({
+                        page: newState.pageIndex + 1,
+                        limit: newState.pageSize,
+                      });
+                    },
+                    state: {
+                      pageIndex: paginationState.page - 1,
+                      pageSize: paginationState.limit,
+                    },
+                  }}
+                  selectionStore={experimentsTableStore}
+                  setOrderBy={handleOrderByChange}
+                  orderBy={orderByState}
+                  columnOrder={columnOrder}
+                  onColumnOrderChange={handleColumnOrderChange}
+                  columnVisibility={columnVisibility}
+                  onColumnVisibilityChange={handleColumnVisibilityChange}
+                  rowHeight={rowHeight}
+                  onRowClick={(row, event) => {
+                    // Handle Command/Ctrl+click to open experiment in new tab
+                    if (event && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      const experimentId = row.id;
+                      const experimentUrl = `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(experimentId)}`;
+                      const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
+                      window.open(fullUrl, "_blank");
+                    }
+                    // For normal clicks, navigate to experiment detail page
+                    else {
+                      router.push(
+                        `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
+                      );
+                    }
+                  }}
+                />
+              </ExperimentChartsLayout>
             </div>
           </StickySearchableTableFilterLayout>
         </div>

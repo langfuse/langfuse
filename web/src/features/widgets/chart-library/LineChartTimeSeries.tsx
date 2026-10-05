@@ -83,6 +83,7 @@ export function LineChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
+  entityDimensionLabelMap,
 }: ChartProps) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
@@ -176,7 +177,9 @@ export function LineChartTimeSeries({
     };
   }
   const chart =
-    timeAxis.mode === "category" || hasNonTimestampBucket ? (
+    entityDimensionLabelMap ||
+    timeAxis.mode === "category" ||
+    hasNonTimestampBucket ? (
       <DesignSystemLineChart
         data={chartData}
         series={chartSeries}
@@ -190,12 +193,16 @@ export function LineChartTimeSeries({
           type: "category",
           labels: hideXAxisLabels ? "hidden" : "visible",
           tickFormatter: (value) => {
+            if (entityDimensionLabelMap)
+              return entityDimensionLabelMap[value] ?? value;
             const date = parseChartTimestamp(value);
             return date
               ? dateAxis.formatTick(date.getTime())
               : timeAxis.formatTick(value);
           },
           tooltipFormatter: (value) => {
+            if (entityDimensionLabelMap)
+              return entityDimensionLabelMap[value] ?? value;
             const date = parseChartTimestamp(value);
             return date
               ? dateAxis.formatTooltip(date.getTime())

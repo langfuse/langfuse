@@ -64,14 +64,10 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   // Entity (x-axis) order follows the experiments table order, applied
   // client-side in InlineWidget, so no query-side ordering is needed.
   orderBy: null,
-  // Bars, not a line: the axis is a set of discrete experiments, so a segment
-  // drawn between two of them claims a continuity that does not exist. A bar
-  // also makes a metric that only some runs recorded read as absent rather
-  // than as a long line across every other run.
-  chartType: "VERTICAL_BAR",
-  chartConfig: { type: "VERTICAL_BAR" },
+  chartType: "LINE_TIME_SERIES",
+  chartConfig: { type: "LINE_TIME_SERIES" },
   timeDimension: null,
-  entityDimension: { field: "experimentName" },
+  entityDimension: { field: "experimentId" },
   filters: [],
 } as const;
 
@@ -92,7 +88,7 @@ export const EXPERIMENT_LATENCY_WIDGET_CONFIG = {
 } as const;
 
 const BASE_SCORE_CHART_CONFIG = {
-  entityDimension: { field: "experimentName" },
+  entityDimension: { field: "experimentId" },
   timeDimension: null,
   minVersion: "v2",
   // Entity (x-axis) order follows the experiments table order, applied
@@ -104,7 +100,7 @@ export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
   ScoreLevel,
   { field: string }
 > = {
-  obs: { field: "experimentName" },
+  obs: { field: "experimentId" },
   experiment: { field: "datasetRunId" },
 };
 
@@ -114,9 +110,8 @@ export const NUMERIC_SCORE_CHART_CONFIG = {
   dimensions: [],
   metrics: [{ measure: "value", agg: "avg" }],
   filters: [],
-  // See BASE_EXPERIMENT_WIDGET_CONFIG: one bar per experiment, not a line.
-  chartType: "VERTICAL_BAR",
-  chartConfig: { type: "VERTICAL_BAR" },
+  chartType: "LINE_TIME_SERIES",
+  chartConfig: { type: "LINE_TIME_SERIES" },
 } as const;
 
 export const CATEGORICAL_SCORE_CHART_CONFIG = {

@@ -33,7 +33,7 @@ const parseScoreChartId = (
   scoreName: string;
 } | null => {
   const match = chartId.match(
-    /^(obs|trace|experiment)-score-(numeric|categorical):(.+)$/,
+    /^(obs|experiment)-score-(numeric|categorical):(.+)$/,
   );
   if (!match) return null;
   return {
