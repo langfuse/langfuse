@@ -21,7 +21,7 @@ export const BlobStorageStatusSection = ({
 }) => {
   return (
     <>
-      <Header title="Status" />
+      <Header title="Export Status" />
       {config.lastError && (
         <div className="mb-4">
           <Alert variant="destructive">

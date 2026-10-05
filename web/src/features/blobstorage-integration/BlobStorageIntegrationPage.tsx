@@ -1,6 +1,5 @@
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations";
@@ -10,7 +9,6 @@ import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
-import { type BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
 import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer";
 import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
 import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
@@ -19,18 +17,9 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 
-const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
-  up_to_date: "active",
-  running: "running",
-  queued: "queued",
-  idle: "pending",
-  disabled: "disabled",
-  error: "error",
-};
-
 const syncStatusFromConfig = (
   config: RouterOutputs["blobStorageIntegration"]["get"]["configs"][number],
-): BlobStorageSyncStatus =>
+) =>
   deriveSyncStatus({
     enabled: config.enabled,
     lastError: config.lastError,
@@ -97,10 +86,6 @@ export default function BlobStorageIntegrationPage() {
       ? null
       : state.data?.configs.find((config) => config.id === integrationId);
   const showDetails = Boolean(integrationId);
-  const syncStatus =
-    state.isLoading || !canLoadConfig || !selectedConfig
-      ? undefined
-      : syncStatusFromConfig(selectedConfig);
 
   const openIntegration = (id: string) => {
     router.push(
@@ -209,7 +194,6 @@ export default function BlobStorageIntegrationPage() {
                 All integrations
               </Button>
             )}
-            {syncStatus && <StatusBadge type={syncStatusToBadge[syncStatus]} />}
           </>
         ),
         actionButtonsRight: (

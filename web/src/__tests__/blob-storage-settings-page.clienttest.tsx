@@ -53,10 +53,6 @@ vi.mock("@/src/components/layouts/header", () => ({
   default: ({ title }: { title: string }) => <h2>{title}</h2>,
 }));
 
-vi.mock("@/src/components/ui/StatusBadge/StatusBadge", () => ({
-  StatusBadge: () => null,
-}));
-
 vi.mock("@/src/components/ui/button", () => ({
   Button: ({
     asChild,
@@ -301,4 +297,15 @@ describe("BlobStorageIntegrationPage header actions", () => {
       ).toBeInTheDocument();
     },
   );
+
+  it("does not show a sync status badge beside the detail navigation", () => {
+    mocks.routerQuery.integrationId = "integration-id";
+
+    render(<BlobStorageIntegrationPage />);
+
+    expect(
+      screen.getByRole("button", { name: "All integrations" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+  });
 });
