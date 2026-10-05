@@ -39,18 +39,29 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
   return s3MediaStorageClient;
 };
 
+/**
+ * Client for the ingestion event bucket. Adaptive retry slows this client
+ * down after S3 throttles it, instead of retrying at full speed.
+ */
+export function createEventUploadStorageService(
+  bucketName: string,
+): StorageService {
+  return StorageServiceFactory.getInstance({
+    bucketName,
+    accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+    secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+    region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+    forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
+    awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
+    retryMode: "adaptive",
+  });
+}
+
 export const getS3EventStorageClient = (bucketName: string): StorageService => {
   if (!s3EventStorageClient) {
-    s3EventStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
+    s3EventStorageClient = createEventUploadStorageService(bucketName);
   }
   return s3EventStorageClient;
 };

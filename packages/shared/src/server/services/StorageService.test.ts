@@ -7,7 +7,10 @@ import type { S3Client } from "@aws-sdk/client-s3";
 
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
-import { resolveMediaStorageEndpoints } from "../s3";
+import {
+  createEventUploadStorageService,
+  resolveMediaStorageEndpoints,
+} from "../s3";
 import { StorageServiceFactory } from "./StorageService";
 
 // Capture the options handed to lib-storage's Upload so the non-buffered
@@ -86,6 +89,45 @@ describe("S3StorageService region normalization", () => {
       await expect(client.config.region()).resolves.toBe(region);
     },
   );
+});
+
+describe("S3StorageService retry mode", () => {
+  async function resolvedRetryMode(retryMode?: "standard" | "adaptive") {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://localhost:9090",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      retryMode,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+    const configured = client.config.retryMode;
+    return typeof configured === "function" ? configured() : configured;
+  }
+
+  it("keeps the SDK default when retry mode is omitted", async () => {
+    await expect(resolvedRetryMode()).resolves.toBe("standard");
+  });
+
+  it("configures adaptive retry when requested", async () => {
+    await expect(resolvedRetryMode("adaptive")).resolves.toBe("adaptive");
+  });
+
+  it("uses adaptive retry for the event upload bucket client", async () => {
+    const service = createEventUploadStorageService("event-bucket");
+    const client = (service as unknown as { client: S3Client }).client;
+    const configured = client.config.retryMode;
+    const mode =
+      typeof configured === "function" ? await configured() : configured;
+    expect(mode).toBe("adaptive");
+  });
 });
 
 describe("resolveMediaStorageEndpoints", () => {
