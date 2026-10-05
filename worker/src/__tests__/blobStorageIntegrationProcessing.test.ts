@@ -82,7 +82,7 @@ import {
 import { encrypt } from "@langfuse/shared/encryption";
 
 // Skip tests that use Azurite in Azure mode due to known Azurite limitations
-// with multipart uploads. These tests use MinIO explicitly or are skipped.
+// with multipart uploads. These tests use Floci explicitly or are skipped.
 // Unfortunately, this is necessary as we don't have a good way to skip empty file uploads
 // and at least azurite doesn't handle them gracefully.
 const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
@@ -100,9 +100,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   const secretAccessKey = env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY || "";
   const endpoint = env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT || undefined;
   const region = env.LANGFUSE_S3_EVENT_UPLOAD_REGION || undefined;
-  const minioAccessKeyId = "minio";
-  const minioAccessKeySecret = "miniosecret";
-  const minioEndpoint = "http://localhost:9090";
+  const flociAccessKeyId = "minio";
+  const flociAccessKeySecret = "miniosecret";
+  const flociEndpoint = "http://localhost:4566";
 
   beforeAll(async () => {
     storageService = StorageServiceFactory.getInstance({
@@ -114,10 +114,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
     });
     s3StorageService = StorageServiceFactory.getInstance({
-      accessKeyId: minioAccessKeyId,
-      secretAccessKey: minioAccessKeySecret,
+      accessKeyId: flociAccessKeyId,
+      secretAccessKey: flociAccessKeySecret,
       bucketName,
-      endpoint: minioEndpoint,
+      endpoint: flociEndpoint,
       region,
       forcePathStyle: true,
       useAzureBlob: false,
@@ -837,8 +837,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         type: BlobStorageIntegrationType.S3,
         bucketName,
         prefix: s3Prefix,
-        accessKeyId: minioAccessKeyId,
-        secretAccessKey: encrypt(minioAccessKeySecret),
+        accessKeyId: flociAccessKeyId,
+        secretAccessKey: encrypt(flociAccessKeySecret),
         region: region ? region : "auto",
         // endpoint null -> skip the persisted-endpoint preflight; the storage
         // service is mocked anyway, so no real connection is made.
@@ -927,10 +927,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -1225,10 +1225,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -1302,10 +1302,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: "",
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region,
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -1369,10 +1369,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -1479,10 +1479,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             type: BlobStorageIntegrationType.S3,
             bucketName,
             prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
+            accessKeyId: flociAccessKeyId,
+            secretAccessKey: encrypt(flociAccessKeySecret),
             region: region ? region : "auto",
-            endpoint: minioEndpoint,
+            endpoint: flociEndpoint,
             forcePathStyle:
               env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
             enabled: true,
@@ -1576,10 +1576,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -1812,10 +1812,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -1951,10 +1951,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -2082,10 +2082,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -2146,10 +2146,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -2210,10 +2210,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             type: BlobStorageIntegrationType.S3,
             bucketName,
             prefix: s3Prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
+            accessKeyId: flociAccessKeyId,
+            secretAccessKey: encrypt(flociAccessKeySecret),
             region: region ? region : "auto",
-            endpoint: minioEndpoint,
+            endpoint: flociEndpoint,
             forcePathStyle:
               env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
             enabled: true,
@@ -2264,10 +2264,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             type: BlobStorageIntegrationType.S3,
             bucketName,
             prefix: s3Prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
+            accessKeyId: flociAccessKeyId,
+            secretAccessKey: encrypt(flociAccessKeySecret),
             region: region ? region : "auto",
-            endpoint: minioEndpoint,
+            endpoint: flociEndpoint,
             forcePathStyle:
               env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
             enabled: true,
@@ -2328,10 +2328,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             type: BlobStorageIntegrationType.S3,
             bucketName,
             prefix: s3Prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
+            accessKeyId: flociAccessKeyId,
+            secretAccessKey: encrypt(flociAccessKeySecret),
             region: region ? region : "auto",
-            endpoint: minioEndpoint,
+            endpoint: flociEndpoint,
             forcePathStyle:
               env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
             enabled: true,
@@ -2387,10 +2387,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             type: BlobStorageIntegrationType.S3,
             bucketName,
             prefix: s3Prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
+            accessKeyId: flociAccessKeyId,
+            secretAccessKey: encrypt(flociAccessKeySecret),
             region: region ? region : "auto",
-            endpoint: minioEndpoint,
+            endpoint: flociEndpoint,
             forcePathStyle:
               env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
             enabled: true,
@@ -2512,10 +2512,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             type: BlobStorageIntegrationType.S3,
             bucketName,
             prefix: s3Prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
+            accessKeyId: flociAccessKeyId,
+            secretAccessKey: encrypt(flociAccessKeySecret),
             region: region ? region : "auto",
-            endpoint: minioEndpoint,
+            endpoint: flociEndpoint,
             forcePathStyle:
               env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
             enabled: true,
@@ -2575,10 +2575,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
               type: BlobStorageIntegrationType.S3,
               bucketName,
               prefix: s3Prefix,
-              accessKeyId: minioAccessKeyId,
-              secretAccessKey: encrypt(minioAccessKeySecret),
+              accessKeyId: flociAccessKeyId,
+              secretAccessKey: encrypt(flociAccessKeySecret),
               region: region ? region : "auto",
-              endpoint: minioEndpoint,
+              endpoint: flociEndpoint,
               forcePathStyle:
                 env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
               enabled: true,
@@ -2637,10 +2637,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
               type: BlobStorageIntegrationType.S3,
               bucketName,
               prefix: s3Prefix,
-              accessKeyId: minioAccessKeyId,
-              secretAccessKey: encrypt(minioAccessKeySecret),
+              accessKeyId: flociAccessKeyId,
+              secretAccessKey: encrypt(flociAccessKeySecret),
               region: region ? region : "auto",
-              endpoint: minioEndpoint,
+              endpoint: flociEndpoint,
               forcePathStyle:
                 env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
               enabled: true,
@@ -2703,10 +2703,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
               type: BlobStorageIntegrationType.S3,
               bucketName,
               prefix: s3Prefix,
-              accessKeyId: minioAccessKeyId,
-              secretAccessKey: encrypt(minioAccessKeySecret),
+              accessKeyId: flociAccessKeyId,
+              secretAccessKey: encrypt(flociAccessKeySecret),
               region: region ? region : "auto",
-              endpoint: minioEndpoint,
+              endpoint: flociEndpoint,
               forcePathStyle:
                 env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
               enabled: true,
@@ -2819,10 +2819,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -2945,10 +2945,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -2993,7 +2993,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   maybeDescribe("Parquet export (LFE-10463)", () => {
-    // E2e: fileType=PARQUET runs the real handler → MinIO. Parquet magic is
+    // E2e: fileType=PARQUET runs the real handler → Floci. Parquet magic is
     // ASCII, so it survives the string download at both ends of the body.
     const PARQUET_MAGIC = "PAR1";
 
@@ -3015,10 +3015,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: s3Prefix,
-          accessKeyId: minioAccessKeyId,
-          secretAccessKey: encrypt(minioAccessKeySecret),
+          accessKeyId: flociAccessKeyId,
+          secretAccessKey: encrypt(flociAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: minioEndpoint,
+          endpoint: flociEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,

@@ -15,7 +15,7 @@ import { renamedRouteRedirects } from "./redirects.mjs";
 // connect-src must allow AWS S3, Azure Blob Storage, GCS, and the configured
 // S3-compatible endpoint. The endpoint env var is only present at runtime in
 // official Docker images, so static wildcards cover the common providers and
-// the local Docker Compose MinIO endpoint too.
+// the local Docker Compose S3 emulator endpoint too.
 const mediaUploadConnectSrc = (() => {
   const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
   if (!endpoint) return "";

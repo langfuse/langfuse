@@ -23,7 +23,7 @@ pnpm run seed -- support-agent --v4 --id-prefix <hex>  # demo-grade handcrafted 
 pnpm run seed -- incident-session --id-prefix inc-4471-checkout-latency  # demo-grade multi-user v4 SESSION: 7 turns, 4 users, tool calls, nested sub-agent, refusal, typed scores + comments (session timeline videos/screenshots)
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
 pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed / media v4 sessions
-pnpm run seed -- session-shapes --shape media      # messages carrying @@@langfuseMedia:...@@@ refs (needs MinIO)
+pnpm run seed -- session-shapes --shape media      # messages carrying @@@langfuseMedia:...@@@ refs (needs configured S3-compatible storage; Floci by default)
 pnpm run seed -- session-variety --sessions 120 --days 14  # many sessions for the sessions TABLE + its filters/search bar (topic ids, multi user/tag, 4 envs, session metadata, numeric+categorical+boolean scores, comments)
 pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
