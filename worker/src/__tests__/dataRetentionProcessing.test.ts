@@ -36,11 +36,10 @@ import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 type LicenseCheckModule =
   typeof import("@langfuse/shared/src/server/ee/licenseCheck");
 
-// The license check reads the shared env, and that module resolves to a
-// different instance here than it does inside the handler, so overriding the
-// env object directly would not be observed. Wrap the real implementation
-// instead: it keeps the actual key-prefix rules under test while letting a
-// case choose the environment they are evaluated against.
+// Overriding the shared env object is not observed by the license check at
+// runtime here, so cases cannot simulate a deployment that way. Wrap the real
+// implementation instead: it keeps the actual key-prefix rules under test
+// while letting a case choose the environment they are evaluated against.
 vi.mock(
   "@langfuse/shared/src/server/ee/licenseCheck",
   async (importOriginal) => {
@@ -75,6 +74,10 @@ describe("DataRetentionProcessingJob", () => {
 
   beforeEach(() => {
     s3Prefix = `${randomUUID()}/`;
+    // Retention only runs under an enterprise license. Pin that here rather
+    // than inheriting it from the ambient env, so the suite does not depend on
+    // which .env example the run happens to have loaded.
+    vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
   });
 
   afterEach(async () => {
@@ -841,9 +844,7 @@ describe("DataRetentionProcessingJob", () => {
       try {
         await fn();
       } finally {
-        vi.mocked(isEnterpriseLicenseAvailable).mockImplementation(
-          actualIsEnterpriseLicenseAvailable,
-        );
+        vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
       }
     };
 

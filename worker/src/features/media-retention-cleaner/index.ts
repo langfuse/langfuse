@@ -47,17 +47,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
    * Start the media retention cleaner service
    */
   public override start(): void {
-    // Data retention is an enterprise feature. Without a license the setting
-    // cannot be viewed or changed, so stored policies must not be enforced
-    // either: a deployment that loses its license would otherwise keep
-    // deleting data under a policy its operators can no longer reach.
-    if (!isEnterpriseLicenseAvailable()) {
-      logger.info(
-        `Not starting ${this.instanceName} - no enterprise license available. Data retention requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).`,
-      );
-      return;
-    }
-
     logger.info(`Starting ${this.instanceName}`, {
       intervalMs: env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS,
       itemLimit: env.LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT,
@@ -70,6 +59,17 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<number> {
+    // Data retention is an enterprise feature. Without a license the setting
+    // cannot be viewed or changed, so stored policies must not be enforced
+    // either: a deployment that loses its license would otherwise keep
+    // deleting data under a policy its operators can no longer reach.
+    if (!isEnterpriseLicenseAvailable()) {
+      logger.debug(
+        `${this.instanceName}: skipping - no enterprise license available. Data retention requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).`,
+      );
+      return this.defaultIntervalMs;
+    }
+
     // Reset gauge before attempting lock - ensures it doesn't appear stuck
     // if another worker holds the lock
     recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0);
