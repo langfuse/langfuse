@@ -213,7 +213,6 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
     traceIds: ["trace-with/custom-id", "second-trace"],
     facets: latestFacets,
     embeddingConfig: {
-      embeddingModel: "eu.cohere.embed-v4:0",
       embeddingDimensions: 512,
     },
     reuseExistingSummaries: false,
@@ -271,7 +270,6 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
     ruleId: rule.id,
     facets: [{ facetId: "intent", version: 2 }],
     embeddingConfig: {
-      embeddingModel: "eu.cohere.embed-v4:0",
       embeddingDimensions: 512,
     },
     reuseExistingSummaries: true,
@@ -326,7 +324,6 @@ it("updates topics from stored summaries without a trace selection or process-on
     operation: "update",
     facets: latestFacets,
     embeddingConfig: {
-      embeddingModel: "eu.cohere.embed-v4:0",
       embeddingDimensions: 256,
     },
     minimumTraceCount: 30,
