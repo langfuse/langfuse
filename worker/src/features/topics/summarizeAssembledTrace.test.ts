@@ -250,6 +250,28 @@ describe("summarizeAssembledTrace", () => {
     });
   });
 
+  it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "No problems found.", status: "not_applicable" },
+      },
+      ...usage,
+    });
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+    });
+    expect(state.write.mock.calls[0][0][0]).toMatchObject({
+      state: "not_applicable",
+      summary: "",
+    });
+    expect(state.embed).not.toHaveBeenCalled();
+  });
+
   it("propagates a provider failure for the trace outcome", async () => {
     state.summarize.mockRejectedValue(new Error("provider unavailable"));
     await expect(
