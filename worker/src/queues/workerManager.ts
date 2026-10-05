@@ -76,13 +76,10 @@ export class WorkerManager {
       const startTime = Date.now();
       const waitTime = Date.now() - job.timestamp;
 
-      // Trace-batch reads already count attempts and duration on their own series.
-      if (queueName !== QueueName.TraceBatch) {
-        recordIncrement(baseMetric + ".rate", 1, {
-          type: "request",
-          ...shardTag,
-        });
-      }
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "request",
+        ...shardTag,
+      });
 
       recordDistribution(baseMetric + ".time_distribution", waitTime, {
         type: "wait",
@@ -101,14 +98,12 @@ export class WorkerManager {
         processor(job),
       );
 
-      if (queueName !== QueueName.TraceBatch) {
-        const processingTime = Date.now() - startTime;
-        recordDistribution(baseMetric + ".time_distribution", processingTime, {
-          type: "processing",
-          unit: "milliseconds",
-          ...shardTag,
-        });
-      }
+      const processingTime = Date.now() - startTime;
+      recordDistribution(baseMetric + ".time_distribution", processingTime, {
+        type: "processing",
+        unit: "milliseconds",
+        ...shardTag,
+      });
 
       return result;
     };

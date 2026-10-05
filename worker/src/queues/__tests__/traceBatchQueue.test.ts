@@ -635,16 +635,12 @@ describe("trace batch queue", () => {
       discarded: "not_cloud",
     });
     expect(getTraceBatchEventStream).not.toHaveBeenCalled();
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.read_attempts",
+    expect(recordIncrement).toHaveBeenCalledExactlyOnceWith(
+      "langfuse.trace_batch.discarded_jobs",
       1,
-      { outcome: "discard" },
+      { reason: "not_cloud" },
     );
-    expect(recordDistribution).toHaveBeenCalledExactlyOnceWith(
-      "langfuse.trace_batch.read_duration_ms",
-      expect.any(Number),
-      { outcome: "discard" },
-    );
+    expect(recordDistribution).not.toHaveBeenCalled();
     expect(recordGauge).not.toHaveBeenCalled();
     expect(job.opts.removeOnComplete).toBe(true);
     expect(processingSpan.setAttributes).toHaveBeenCalledWith(
@@ -683,18 +679,11 @@ describe("trace batch queue", () => {
       });
     }
     expect(getTraceBatchEventStream).not.toHaveBeenCalled();
-    expect(vi.mocked(recordDistribution).mock.calls).toEqual([
-      [
-        "langfuse.trace_batch.read_duration_ms",
-        expect.any(Number),
-        { outcome: "discard" },
-      ],
-      [
-        "langfuse.trace_batch.read_duration_ms",
-        expect.any(Number),
-        { outcome: "discard" },
-      ],
+    expect(vi.mocked(recordIncrement).mock.calls).toEqual([
+      ["langfuse.trace_batch.discarded_jobs", 1, { reason: "expired" }],
+      ["langfuse.trace_batch.discarded_jobs", 1, { reason: "expired" }],
     ]);
+    expect(recordDistribution).not.toHaveBeenCalled();
     expect(recordGauge).not.toHaveBeenCalled();
     expect(job.opts.removeOnComplete).toBe(true);
   });
@@ -840,17 +829,8 @@ describe("trace batch queue", () => {
       expect(vi.mocked(recordDistribution).mock.calls).toEqual([
         ["langfuse.trace_batch.failed_read_observation_count", 1],
         ["langfuse.trace_batch.failed_read_input_bytes", 5],
-        [
-          "langfuse.trace_batch.read_duration_ms",
-          expect.any(Number),
-          { outcome: "failure" },
-        ],
       ]);
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.trace_batch.read_attempts",
-        1,
-        { outcome: "failure" },
-      );
+      expect(recordIncrement).not.toHaveBeenCalled();
     } finally {
       env.LANGFUSE_TRACE_BATCH_MAX_THREADS =
         originalEnv.LANGFUSE_TRACE_BATCH_MAX_THREADS;
@@ -936,10 +916,7 @@ describe("trace batch queue", () => {
       ["langfuse.trace_batch.active_reads", 1],
       ["langfuse.trace_batch.active_reads", 0],
     ]);
-    expect(vi.mocked(recordIncrement).mock.calls).toEqual([
-      ["langfuse.trace_batch.read_attempts", 1, { outcome: "success" }],
-      ["langfuse.trace_batch.read_attempts", 1, { outcome: "failure" }],
-    ]);
+    expect(recordIncrement).not.toHaveBeenCalled();
   });
   it("counts project/trace pairs with producers disabled and safely repeats reads without retaining payloads", async () => {
     env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "successful-read";

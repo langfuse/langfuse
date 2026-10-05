@@ -268,9 +268,5 @@ export const traceBatchQueueProcessor: Processor<
           : {}),
       });
     }
-    recordIncrement("langfuse.trace_batch.read_attempts", 1, { outcome });
-    recordDistribution("langfuse.trace_batch.read_duration_ms", durationMs, {
-      outcome,
-    });
   }
 };
