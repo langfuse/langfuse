@@ -96,7 +96,7 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
-    // Internal Topics PoC model selection; leave unset outside the experiment.
+    // Internal Topics PoC model selection; not a supported self-hosting setting.
     LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
     LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
     SALT: z.string({

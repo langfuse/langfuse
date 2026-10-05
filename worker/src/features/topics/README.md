@@ -36,6 +36,11 @@ Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both services t
 allow processing for those project IDs. An unset or empty list admits no projects;
 IDs are comma-separated and whitespace is trimmed. Clear the list to pause
 processing while retaining Topics access.
+Topics environment variables and the trace-batch-to-Topics integration are
+internal PoC controls, not a supported self-hosting configuration surface.
+They are omitted from `.env.prod.example`.
+`LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` is a separate general flag and does not
+enable Topics; use the dedicated Topics controls for this experiment.
 UI visibility and read/configuration access additionally use the `langfuseTopics`
 feature flag and project permissions. Trigger/retry and both worker processors
 check deployment enablement and the allowlist; rejected queue jobs fail without retrying or running pipeline
