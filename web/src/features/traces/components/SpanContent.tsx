@@ -86,6 +86,7 @@ export function SpanContent({
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
   const nodeScores = selectNodeScores(mergedScores, node.id);
+  const shouldRenderScores = showScores && nodeScores.length > 0;
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -127,9 +128,9 @@ export function SpanContent({
           </div>
         </div>
 
-        {/* Metrics row */}
-        {shouldRenderAnyMetrics && (
-          <div className="flex flex-wrap gap-x-2">
+        {/* Metrics and scores row */}
+        {(shouldRenderAnyMetrics || shouldRenderScores) && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
               <span
@@ -142,7 +143,7 @@ export function SpanContent({
                   "text-xs",
                   emphasizeDuration
                     ? "text-foreground"
-                    : "text-foreground-tertiary",
+                    : "text-muted-foreground",
                 )}
               >
                 {formatIntervalSeconds(durationMs / 1000)}
@@ -153,7 +154,7 @@ export function SpanContent({
             {shouldRenderCostTokens && tokenTotal ? (
               <span
                 title="Total tokens"
-                className="text-foreground-tertiary text-xs"
+                className="text-muted-foreground text-xs"
               >
                 {numberFormatter(tokenTotal, 0)} tokens
               </span>
@@ -164,22 +165,20 @@ export function SpanContent({
               <span
                 className={cn(
                   "text-xs",
-                  emphasizeCost
-                    ? "text-foreground"
-                    : "text-foreground-tertiary",
+                  emphasizeCost ? "text-foreground" : "text-muted-foreground",
                 )}
               >
                 {usdFormatter(ownCost)}
               </span>
             ) : null}
-          </div>
-        )}
 
-        {/* Scores row. Inline badges are capped; the rest roll into a "+N"
-            pill that opens a table of all scores. */}
-        {showScores && nodeScores.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges scores={nodeScores} />
+            {/* Scores: one badge inline; the rest roll into a "+N" pill that
+                opens a table of all scores. */}
+            {shouldRenderScores && (
+              <span className="flex min-w-0 items-center gap-1">
+                <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+              </span>
+            )}
           </div>
         )}
       </div>
