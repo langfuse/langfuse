@@ -9,8 +9,9 @@ import { showSuccessToast } from "@/src/features/notifications";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 /**
- * Share menu items for a trace or session detail header: Share while private,
- * Copy share link + Unshare while public. Sharing copies the link and toasts.
+ * Publish menu items for a trace or session detail header: Make Public while
+ * private, Copy share link + Unshare while public. Publishing copies the link
+ * and toasts.
  */
 export function useShareMenuItems({
   kind,
@@ -79,7 +80,7 @@ export function useShareMenuItems({
     {
       type: "item",
       id: "share",
-      title: "Share",
+      title: "Make Public",
       icon: Share2,
       disabled,
       onClick: () => toggle(true),

@@ -147,7 +147,7 @@ export function TracePage({
           </>
         ),
         // Mobile compact header: the same trace actions as full-width labeled
-        // menu rows (Share / Delete) for the `⋯` overflow, instead of the
+        // menu rows (Make Public / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions

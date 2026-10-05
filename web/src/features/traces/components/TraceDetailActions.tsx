@@ -23,7 +23,7 @@ type TraceDetailData = NonNullable<
  * Trace-level header actions shared by the peek and the standalone trace page.
  *
  * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
- * holding Share, Copy trace ID, Copy trace name and Delete. `layout="menu"`
+ * holding Make Public, Copy trace ID, Copy trace name and Delete. `layout="menu"`
  * renders the same actions as full-width labeled rows for the mobile header
  * menu.
  *

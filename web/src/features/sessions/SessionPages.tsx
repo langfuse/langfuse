@@ -776,7 +776,9 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   sessionId={sessionId}
                   isPublic={session.data?.public ?? false}
-                  label="Share"
+                  label={
+                    (session.data?.public ?? false) ? "Unshare" : "Make Public"
+                  }
                 />
                 <CopySessionIdButton sessionId={sessionId} layout="menu" />
                 <CommentDrawerController
