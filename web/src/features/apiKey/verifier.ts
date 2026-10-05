@@ -1,5 +1,3 @@
-import crypto from "node:crypto";
-
 import { type ApiKey } from "@langfuse/shared/src/db";
 import {
   type InternalServerError,
@@ -12,6 +10,7 @@ import { env } from "@/src/env.mjs";
 import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import { ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { matchesAdminApiKey } from "@/src/features/apiKey/helpers/matchesAdminApiKey";
 import {
   internalServerError,
   unauthorizedError,
@@ -109,20 +108,11 @@ export class Verifier {
     return privateKey(found.apiKey);
   }
 
-  /** verifyAdminKey resolves a token that timing-safe matches the admin key, or null; the key is ignored unless set and non-empty after trimming. */
+  /** verifyAdminKey recognizes the configured environment admin. */
   private verifyAdminKey(token: string): VerifyApiKeyResult | null {
-    const adminApiKey = this.adminApiKey?.trim();
-    if (!adminApiKey) return null;
-    try {
-      if (
-        crypto.timingSafeEqual(Buffer.from(token), Buffer.from(adminApiKey))
-      ) {
-        return { success: true, authorization: "admin" };
-      }
-    } catch {
-      return null;
-    }
-    return null;
+    return matchesAdminApiKey(token, this.adminApiKey)
+      ? { success: true, authorization: "admin" }
+      : null;
   }
 
   /** verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown. */

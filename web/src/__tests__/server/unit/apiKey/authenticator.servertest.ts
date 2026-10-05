@@ -89,7 +89,7 @@ const resolver = new ContextResolver(
           principalUserId: null,
           ownerProjectId: PRJ,
           ownerOrgId: null,
-          systemRole: "LEGACY_PROJECT_API_KEY",
+          systemRole: "ADMIN",
           createdAt: new Date(0),
           updatedAt: new Date(0),
         },
@@ -435,13 +435,13 @@ describe("Authenticator consolidated context cache", () => {
     }
   });
 
-  it("admin key, route disallows: gated off a cache hit", async () => {
+  it("does not cache environment admin authentication and still enforces route opt-in", async () => {
     const redis = fakeRedis();
     const adminVerifier = new Verifier(store(apiKey()), SALT, KNOWN_SECRET);
     const auth = new Authenticator(
       adminVerifier,
       resolver,
-      new AuthenticatorCache(redis, SALT),
+      new AuthenticatorCache(redis, SALT, ""),
     );
 
     const allowed = await auth.authenticate({
@@ -449,15 +449,91 @@ describe("Authenticator consolidated context cache", () => {
       isAdminApiKeyAuthAllowed: true,
     });
     expect(allowed.success).toBe(true);
-    expect(redis.map.size).toBe(1);
+    expect(redis.map.size).toBe(0);
 
     const verifySpy = vi.spyOn(adminVerifier, "verify");
     const gated = await auth.authenticate(bearer(KNOWN_SECRET));
-    expect(verifySpy).not.toHaveBeenCalled();
+    expect(verifySpy).toHaveBeenCalledOnce();
     expect(gated.success).toBe(false);
     if (!gated.success) {
       expect(gated.error).toBeInstanceOf(UnauthorizedError);
     }
+  });
+
+  it.each(["rotated-admin-secret", ""])(
+    "rejects the old environment admin credential after configuration changes to %j",
+    async (adminApiKey) => {
+      const redis = fakeRedis();
+      const oldAdminKey = "old-admin-secret";
+      const request = {
+        ...bearer(oldAdminKey),
+        isAdminApiKeyAuthAllowed: true,
+      };
+      const oldAuth = new Authenticator(
+        new Verifier(store(apiKey()), SALT, oldAdminKey),
+        resolver,
+        new AuthenticatorCache(redis, SALT, oldAdminKey),
+      );
+      expect((await oldAuth.authenticate(request)).success).toBe(true);
+
+      const newAuth = new Authenticator(
+        new Verifier(store(apiKey()), SALT, adminApiKey),
+        resolver,
+        new AuthenticatorCache(redis, SALT, adminApiKey),
+      );
+      const result = await newAuth.authenticate(request);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(UnauthorizedError);
+      }
+    },
+  );
+
+  it("recognizes a cached database credential as the newly configured environment admin", async () => {
+    const redis = fakeRedis();
+    const auth = new Authenticator(
+      new Verifier(store(apiKey()), SALT, ""),
+      resolver,
+      new AuthenticatorCache(redis, SALT, ""),
+    );
+    const request = {
+      ...bearer(KNOWN_SECRET),
+      isAdminApiKeyAuthAllowed: true,
+    };
+    expect(await auth.authenticate(request)).toMatchObject({
+      success: true,
+      context: { principal: { kind: "apiKey" } },
+    });
+    expect(redis.map.size).toBe(1);
+
+    const adminApiKey = ` ${KNOWN_SECRET} `;
+    const adminVerifier = new Verifier(store(apiKey()), SALT, adminApiKey);
+    const promotedAuth = new Authenticator(
+      adminVerifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT, adminApiKey),
+    );
+    const getSpy = vi.spyOn(redis, "get");
+    const setSpy = vi.spyOn(redis, "set");
+    expect(await promotedAuth.authenticate(request)).toMatchObject({
+      success: true,
+      context: { principal: { kind: "admin" } },
+    });
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(setSpy).not.toHaveBeenCalled();
+
+    const basic = {
+      headers: {
+        authorization: `Basic ${btoa(`unknown:${KNOWN_SECRET}`)}`,
+      },
+    };
+    expect(await promotedAuth.authenticate(basic)).toMatchObject({
+      success: true,
+      context: { principal: { kind: "apiKey" } },
+    });
+    const verifySpy = vi.spyOn(adminVerifier, "verify");
+    expect((await promotedAuth.authenticate(basic)).success).toBe(true);
+    expect(verifySpy).not.toHaveBeenCalled();
   });
 
   it("admin key on a cloud region: 403s even when the route allows it", async () => {

@@ -12,6 +12,7 @@ import {
   type ApiKeyAuthResults,
   type Authenticated,
 } from "@/src/features/apiKey/authenticator";
+import { matchesAdminApiKey } from "@/src/features/apiKey/helpers/matchesAdminApiKey";
 import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
@@ -20,6 +21,7 @@ export class AuthenticatorCache {
   constructor(
     private readonly redis: Redis | Cluster | null = defaultRedis,
     private readonly salt: string = env.SALT,
+    private readonly adminApiKey: string | undefined = env.ADMIN_API_KEY,
   ) {}
 
   /** get returns a cached context, or null on a miss. */
@@ -37,7 +39,7 @@ export class AuthenticatorCache {
     }
   }
 
-  /** keyFor namespaces the hashed credential by presentation. */
+  /** keyFor derives credential cache keys, excluding environment admins. */
   private keyFor(credential: Credential): string | null {
     if (credential.kind === "basic") {
       return createAuthzContextCacheKey(
@@ -46,6 +48,7 @@ export class AuthenticatorCache {
       );
     }
     if (credential.kind === "bearer") {
+      if (matchesAdminApiKey(credential.token, this.adminApiKey)) return null;
       return createAuthzContextCacheKey(
         "bearer",
         createShaHash(credential.token, this.salt),
@@ -54,14 +57,16 @@ export class AuthenticatorCache {
     return null;
   }
 
-  /** set caches successes under a TTL capped at the key's remaining lifetime. */
+  /** set caches database-key successes until their TTL or expiry. */
   async set(
     credential: Credential,
     result: ApiKeyAuthResults,
     expiresAt: Date | null = null,
   ): Promise<boolean> {
     const key = this.keyFor(credential);
-    if (!result.success) return false;
+    if (!result.success || result.context.principal.kind === "admin") {
+      return false;
+    }
     const ttlSeconds = ttlFor(expiresAt);
     const redis = this.redis;
     if (!key || ttlSeconds <= 0 || !cacheEnabled(redis)) {
