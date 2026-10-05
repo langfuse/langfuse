@@ -1,20 +1,14 @@
-import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
-import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer/BlobStorageIntegrationContainer";
-import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
-import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable/BlobStorageIntegrationTable";
+import { BlobStorageSettingsContent } from "@/src/features/blobstorage-integration/components/BlobStorageSettingsContent";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ArrowLeft, Plus } from "lucide-react";
-import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 
 const syncStatusFromConfig = (
@@ -81,10 +75,6 @@ export default function BlobStorageIntegrationPage() {
     },
   });
 
-  const selectedConfig =
-    integrationId === "new"
-      ? null
-      : state.data?.configs.find((config) => config.id === integrationId);
   const showDetails = Boolean(integrationId);
 
   const openIntegration = (id: string) => {
@@ -103,79 +93,6 @@ export default function BlobStorageIntegrationPage() {
       { pathname: router.pathname, query: { projectId } },
       undefined,
       { shallow: true },
-    );
-  };
-
-  const renderSettingsContent = () => {
-    if (!hasEntitlement) {
-      return (
-        <p className="text-sm">
-          This feature is not available in your current plan.
-        </p>
-      );
-    }
-    if (!hasAccess) {
-      return (
-        <p className="text-sm">
-          Your current role does not grant you access to these settings, please
-          reach out to your project admin or owner.
-        </p>
-      );
-    }
-    if (!state.data) return <IntegrationSettingsSkeleton />;
-    if (!showDetails) {
-      return (
-        <ConfirmationDialogController<
-          RouterOutputs["blobStorageIntegration"]["get"]["configs"][number]
-        >
-          title="Delete blob storage integration"
-          text={(integration) =>
-            `Delete the integration for “${integration.bucketName}”? This action cannot be undone.`
-          }
-          confirmLabel="Delete integration"
-          variant="destructive"
-          loading={deleteIntegration.isPending}
-          error={deleteIntegration.error?.message}
-          onAfterDismiss={deleteIntegration.reset}
-          onConfirm={(integration) =>
-            deleteIntegration.mutateAsync({
-              projectId,
-              integrationId: integration.id,
-            })
-          }
-        >
-          {({ openDialog }) => (
-            <BlobStorageIntegrationTable
-              integrations={state.data.configs}
-              showMediaStorage={showMediaStorage}
-              onSelect={(integration) => openIntegration(integration.id)}
-              onDelete={openDialog}
-            />
-          )}
-        </ConfirmationDialogController>
-      );
-    }
-    if (integrationId !== "new" && !selectedConfig) {
-      return (
-        <Card className="p-4 text-sm">
-          This blob storage integration could not be found.
-        </Card>
-      );
-    }
-
-    return (
-      <>
-        {selectedConfig && <BlobStorageStatusSection config={selectedConfig} />}
-        <Header title="Integration details" className="mt-8" />
-        <BlobStorageIntegrationContainer
-          config={selectedConfig ?? null}
-          projectId={projectId}
-          writeMode={state.data.writeMode}
-          showMediaStorage={showMediaStorage}
-          onDeleted={closeIntegration}
-          onSaved={openIntegration}
-        />
-      </>
     );
   };
 
@@ -220,7 +137,23 @@ export default function BlobStorageIntegrationPage() {
         Configure blob storage destinations for scheduled exports
         {showMediaStorage ? " and external media rendering" : ""}.
       </p>
-      {renderSettingsContent()}
+      <BlobStorageSettingsContent
+        projectId={projectId}
+        integrationId={integrationId}
+        hasAccess={hasAccess}
+        hasEntitlement={hasEntitlement}
+        data={state.data}
+        showMediaStorage={showMediaStorage}
+        deleteAction={{
+          isPending: deleteIntegration.isPending,
+          error: deleteIntegration.error?.message,
+          reset: deleteIntegration.reset,
+          execute: (integrationId) =>
+            deleteIntegration.mutateAsync({ projectId, integrationId }),
+        }}
+        onOpenIntegration={openIntegration}
+        onCloseIntegration={closeIntegration}
+      />
     </ContainerPage>
   );
 }
