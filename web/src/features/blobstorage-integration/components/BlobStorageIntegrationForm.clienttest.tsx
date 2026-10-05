@@ -29,6 +29,7 @@ const savedConfig: Partial<BlobStorageIntegration> = {
   bucketName: "seed-bucket",
   region: "us-east-1",
   accessKeyId: "AKIA-SEED",
+  prefix: "exports/",
   fileType: BlobStorageIntegrationFileType.JSONL,
   enabled: true,
 };
