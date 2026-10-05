@@ -22,11 +22,13 @@ evaluation scheduling use controlled test doubles.
 
 Each replay creates isolated Memory tables from the live schema and uses the
 production JSON writer singleton. A thin client adapter substitutes the
-temporary destination table for production table names. The harness drains the
-writer before reading persisted rows. The integration suite also covers dual
-writes by draining only its queued legacy jobs into isolated trace and
-observation tables. The suites keep generated seeds reproducible and disable
-retries. Memory tables cover ClickHouse types, defaults, and serialization;
+temporary destination table for production table names and rejects unmapped
+inserts. Blob-storage file logging and background trace evaluation jobs are
+disabled. The harness drains the writer before reading persisted rows. The
+integration suite also covers dual writes by draining only its queued legacy
+jobs into isolated trace and observation tables and removing those jobs even
+when legacy processing fails. The suites keep generated seeds reproducible and
+disable retries. Memory tables cover ClickHouse types, defaults, and serialization;
 MergeTree deduplication and production materialized views are outside the run.
 
 ## Remote execution

@@ -34,6 +34,8 @@ type LegacyReplayTable =
   | TableName.Observations
   | TableName.ObservationsBatchStaging;
 
+type IngestionQueueJob = Job<TQueueJobTypes[QueueName.IngestionQueue]>;
+
 const legacyReplayTables: LegacyReplayTable[] = [
   TableName.Traces,
   TableName.Observations,
@@ -50,6 +52,7 @@ type RunOtelReplayParams = {
   overflowEnabled?: boolean;
   overflowSizeLimitBytes?: number;
   writeMode?: "events_only" | "dual";
+  failLegacyQueueProcessing?: boolean;
 };
 
 /**
@@ -74,8 +77,13 @@ export async function runOtelReplay(
   });
 
   const uploadedEventJson = new Map<string, string>();
+  let storageDownloadCount = 0;
   const storage = {
     download: vi.fn(async (path?: string) => {
+      storageDownloadCount += 1;
+      if (params.failLegacyQueueProcessing && storageDownloadCount > 1) {
+        throw new Error("simulated legacy ingestion read failure");
+      }
       const uploaded = path ? uploadedEventJson.get(path) : undefined;
       return uploaded ?? Buffer.from(originalBytes).toString("utf8");
     }),
@@ -107,6 +115,9 @@ export async function runOtelReplay(
   }
 
   const createdTables: string[] = [];
+  const pendingReplayJobAdds: Promise<IngestionQueueJob>[] = [];
+  const restoreQueueAddSpies: Array<() => void> = [];
+  let unmappedInsertError: Error | undefined;
   let writer: ReturnType<typeof ClickhouseWriter.getInstance> | undefined;
   let replayResult: OtelReplayResult | undefined;
   let primaryError: Error | undefined;
@@ -126,13 +137,21 @@ export async function runOtelReplay(
 
     const insert = async (
       insertParams: Parameters<ClickhouseClientType["insert"]>[0],
-    ) =>
-      client.insert({
-        ...insertParams,
-        table:
-          isolatedTableNames.get(insertParams.table as TableName) ??
-          insertParams.table,
-      });
+    ) => {
+      const isolatedTable = isolatedTableNames.get(
+        insertParams.table as TableName,
+      );
+      if (!isolatedTable) {
+        const sourceTable = String(insertParams.table);
+        const error = new Error(
+          `OTEL replay attempted an insert into unmapped ClickHouse table ${sourceTable}`,
+        );
+        if (!unmappedInsertError) unmappedInsertError = error;
+        throw error;
+      }
+
+      return client.insert({ ...insertParams, table: isolatedTable });
+    };
     const testClient = new Proxy(client, {
       get(target, property, receiver) {
         if (property === "insert") return insert;
@@ -166,25 +185,37 @@ export async function runOtelReplay(
       },
     } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
 
+    if (writeMode === "dual") {
+      for (const shardName of IngestionQueue.getShardNames()) {
+        const queue = IngestionQueue.getInstance({ shardName });
+        if (!queue) continue;
+
+        const originalAdd = queue.add.bind(queue);
+        const addSpy = vi.spyOn(queue, "add");
+        addSpy.mockImplementation((...args) => {
+          const { payload } = args[1];
+          const { bucketPrefix, fileKey: queuedFileKey } = payload.data;
+          const pendingAdd = originalAdd(...args);
+          // Preserve the real queue add; own only this replay's uploaded files.
+          if (
+            payload.authCheck.scope.projectId === projectId &&
+            uploadedEventJson.has(`${bucketPrefix ?? ""}${queuedFileKey}.json`)
+          ) {
+            pendingReplayJobAdds.push(pendingAdd);
+          }
+          return pendingAdd;
+        });
+        restoreQueueAddSpies.push(() => addSpy.mockRestore());
+      }
+    }
+
     await processor(job, undefined);
     expect(storage.download).toHaveBeenCalledOnce();
 
     if (writeMode === "dual") {
-      // The OTEL processor hands retained legacy writes to the normal queue.
-      // Those jobs have generated S3 keys, so the replay's unique project ID
-      // scopes the drain before the writes land in the isolated tables.
       const legacyProcessor = ingestionQueueProcessorBuilder(false);
-      for (const shardName of IngestionQueue.getShardNames()) {
-        const queue = IngestionQueue.getInstance({ shardName });
-        if (!queue) continue;
-        const jobs = await queue.getJobs(["waiting", "delayed", "prioritized"]);
-        for (const legacyJob of jobs.filter(
-          (candidate) =>
-            candidate.data.payload.authCheck.scope.projectId === projectId,
-        )) {
-          await legacyProcessor(legacyJob, undefined);
-          await legacyJob.remove();
-        }
+      for (const legacyJob of await Promise.all(pendingReplayJobAdds)) {
+        await legacyProcessor(legacyJob, undefined);
       }
     }
 
@@ -237,6 +268,21 @@ export async function runOtelReplay(
     );
   } finally {
     restoreEnvironment();
+    const replayJobAdds = await Promise.allSettled(pendingReplayJobAdds);
+    for (const restoreQueueAddSpy of restoreQueueAddSpies) {
+      restoreQueueAddSpy();
+    }
+    const queueCleanupResults = await Promise.allSettled(
+      replayJobAdds
+        .filter(
+          (result): result is PromiseFulfilledResult<IngestionQueueJob> =>
+            result.status === "fulfilled",
+        )
+        .map(({ value: job }) => job.remove()),
+    );
+    for (const result of queueCleanupResults) {
+      if (result.status === "rejected") cleanupErrors.push(result.reason);
+    }
     storageServiceSpy?.mockRestore();
     vi.mocked(getS3EventStorageClient).mockReset();
     otelReplayMocks.uploadEventJson.mockReset();
@@ -246,6 +292,9 @@ export async function runOtelReplay(
       await ClickhouseWriter.shutdownAll();
     } catch (error) {
       cleanupErrors.push(error);
+    }
+    if (unmappedInsertError) {
+      cleanupErrors.push(unmappedInsertError);
     }
     if (createdTables.length > 0) {
       try {

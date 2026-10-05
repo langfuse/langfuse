@@ -9,6 +9,7 @@ const otelReplayMocks = vi.hoisted(() => ({
   uploadMediaForTrace: vi.fn(),
   getPrompt: vi.fn(),
   fetchObservationEvalRules: vi.fn(),
+  hasNoEvalConfigsCache: vi.fn(),
   createObservationEvalSchedulerDeps: vi.fn(),
   scheduleObservationEvals: vi.fn(),
 }));
@@ -35,6 +36,7 @@ vi.mock("../../env", async (importOriginal) => {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   findModel: otelReplayMocks.findModel,
+  hasNoEvalConfigsCache: otelReplayMocks.hasNoEvalConfigsCache,
   getS3EventStorageClient: otelReplayMocks.getS3EventStorageClient,
   uploadEventJson: otelReplayMocks.uploadEventJson,
   linkMediaToTraceOrObservation: otelReplayMocks.linkMediaToTraceOrObservation,
@@ -77,6 +79,7 @@ export function configureDefaultOtelReplayMocks(): void {
   });
   otelReplayMocks.getPrompt.mockResolvedValue(null);
   otelReplayMocks.fetchObservationEvalRules.mockResolvedValue([]);
+  otelReplayMocks.hasNoEvalConfigsCache.mockResolvedValue(true);
   otelReplayMocks.createObservationEvalSchedulerDeps.mockReturnValue({});
   otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
 }
@@ -104,6 +107,8 @@ export function configureOtelReplayEnvironment(
     LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+    LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG:
+      env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG,
     LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
       env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
     LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES:
@@ -122,6 +127,7 @@ export function configureOtelReplayEnvironment(
       : "false",
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "otel-replay-test",
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "otel-replay/",
+    LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "false",
     LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: options.overflowEnabled
       ? "true"
       : "false",
