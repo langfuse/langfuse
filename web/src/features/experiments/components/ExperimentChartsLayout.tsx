@@ -9,7 +9,10 @@ import {
   ResizablePanelGroup,
   useDefaultLayout,
 } from "@/src/components/ui/resizable";
-import { useExperimentCharts } from "@/src/features/experiments/hooks/useExperimentCharts";
+import {
+  type ExperimentChartSlot,
+  useExperimentCharts,
+} from "@/src/features/experiments/hooks/useExperimentCharts";
 import { ExperimentMetricStrip } from "./ExperimentMetricStrip";
 import {
   type MetricOption,
@@ -71,6 +74,57 @@ function ChartsLayout({
       return `Maximum of ${MAX_EXPERIMENT_CHARTS} charts`;
     return "All available metrics are already shown";
   })();
+  const handleAddChart = () => {
+    addChart();
+    capture("experiment:chart_added", {
+      isV4: true,
+      tableName: "experiments",
+      chartCount: charts.length + 1,
+    });
+  };
+  const renderChart = (slot: ExperimentChartSlot & { metricId: string }) => {
+    const handleRemove = () => {
+      removeChart(slot.id);
+      capture("experiment:chart_removed", {
+        isV4: true,
+        tableName: "experiments",
+        chartCount: charts.length - 1,
+      });
+    };
+    const handleMetricChange = (metricId: string) => {
+      if (metricId === slot.metricId) return;
+      updateChart(slot.id, { metricId });
+      capture(
+        "experiment:chart_metric_changed",
+        chartMetricChangedProps({
+          tableName: "experiments",
+          metricId,
+        }),
+      );
+    };
+    const handleChartTypeChange = (chartType: "line" | "bar") => {
+      if (chartType === slot.chartType) return;
+      updateChart(slot.id, { chartType });
+      capture("experiment:chart_type_changed", {
+        isV4: true,
+        tableName: "experiments",
+        chartType,
+      });
+    };
+    return (
+      <ExperimentMetricStrip
+        key={slot.id}
+        {...chartProps}
+        projectId={projectId}
+        availableMetricOptions={availableMetricOptions}
+        slot={slot}
+        canRemove={charts.length > 1}
+        onRemove={handleRemove}
+        onMetricChange={handleMetricChange}
+        onChartTypeChange={handleChartTypeChange}
+      />
+    );
+  };
   const renderCharts = () => {
     if (metricOptionsError)
       return (
@@ -94,44 +148,7 @@ function ChartsLayout({
     return (
       <div className="flex h-full min-h-0">
         <div className="grid min-w-0 flex-1 auto-cols-[minmax(260px,1fr)] grid-flow-col divide-x overflow-x-auto overflow-y-hidden">
-          {charts.map((slot) => (
-            <ExperimentMetricStrip
-              key={slot.id}
-              {...chartProps}
-              projectId={projectId}
-              availableMetricOptions={availableMetricOptions}
-              slot={slot}
-              canRemove={charts.length > 1}
-              onRemove={() => {
-                removeChart(slot.id);
-                capture("experiment:chart_removed", {
-                  isV4: true,
-                  tableName: "experiments",
-                  chartCount: charts.length - 1,
-                });
-              }}
-              onMetricChange={(metricId) => {
-                if (metricId === slot.metricId) return;
-                updateChart(slot.id, { metricId });
-                capture(
-                  "experiment:chart_metric_changed",
-                  chartMetricChangedProps({
-                    tableName: "experiments",
-                    metricId,
-                  }),
-                );
-              }}
-              onChartTypeChange={(chartType) => {
-                if (chartType === slot.chartType) return;
-                updateChart(slot.id, { chartType });
-                capture("experiment:chart_type_changed", {
-                  isV4: true,
-                  tableName: "experiments",
-                  chartType,
-                });
-              }}
-            />
-          ))}
+          {charts.map(renderChart)}
         </div>
         <div className="shrink-0 border-l pt-1" title={addChartTitle}>
           <IconButton
@@ -139,14 +156,7 @@ function ChartsLayout({
             label="Add chart"
             size="sm"
             disabled={!canAdd}
-            onClick={() => {
-              addChart();
-              capture("experiment:chart_added", {
-                isV4: true,
-                tableName: "experiments",
-                chartCount: charts.length + 1,
-              });
-            }}
+            onClick={handleAddChart}
           />
         </div>
       </div>

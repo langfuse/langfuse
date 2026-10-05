@@ -16,22 +16,6 @@ const INITIAL_CHARTS: ExperimentChartSlot[] = [
   { id: "initial", metricId: null, chartType: "line" },
 ];
 
-function validSlots(value: unknown): value is ExperimentChartSlot[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.length <= MAX_EXPERIMENT_CHARTS &&
-    new Set(value.map((slot) => slot?.id)).size === value.length &&
-    value.every(
-      (slot) =>
-        slot &&
-        typeof slot.id === "string" &&
-        (slot.metricId === null || typeof slot.metricId === "string") &&
-        (slot.chartType === "line" || slot.chartType === "bar"),
-    )
-  );
-}
-
 export function useExperimentCharts({
   projectId,
   availableMetricOptions,
@@ -93,4 +77,20 @@ export function useExperimentCharts({
       );
     },
   };
+}
+
+function validSlots(value: unknown): value is ExperimentChartSlot[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.length <= MAX_EXPERIMENT_CHARTS &&
+    new Set(value.map((slot) => slot?.id)).size === value.length &&
+    value.every(
+      (slot) =>
+        slot &&
+        typeof slot.id === "string" &&
+        (slot.metricId === null || typeof slot.metricId === "string") &&
+        (slot.chartType === "line" || slot.chartType === "bar"),
+    )
+  );
 }

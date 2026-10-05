@@ -132,6 +132,10 @@ export function ExperimentMetricStrip({
     };
   }, [widgetConfig, orderedExperiments, fromTimestamp, toTimestamp]);
 
+  const handleChartTypeChange = (value: string) => {
+    if (value === "line" || value === "bar") onChartTypeChange(value);
+  };
+
   return (
     <section
       className="group/chart flex h-full min-h-[130px] min-w-0 flex-col"
@@ -192,12 +196,7 @@ export function ExperimentMetricStrip({
           </Select>
         </div>
         {!isCategorical && (
-          <Select
-            value={slot.chartType}
-            onValueChange={(value) => {
-              if (value === "line" || value === "bar") onChartTypeChange(value);
-            }}
-          >
+          <Select value={slot.chartType} onValueChange={handleChartTypeChange}>
             <SelectTrigger
               aria-label="Chart type"
               className="h-6 w-auto gap-1 border-0 px-1 text-xs shadow-none"
