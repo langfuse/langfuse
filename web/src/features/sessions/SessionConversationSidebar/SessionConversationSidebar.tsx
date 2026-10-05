@@ -16,6 +16,7 @@ import {
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
 import { cn } from "@/src/utils/tailwind";
+import { groupConsecutiveTools } from "../fns/groupConsecutiveTools";
 
 export type SessionConversationSidebarTrace = {
   trace: EventSessionTrace;
@@ -27,6 +28,7 @@ export type SessionConversationSidebarTrace = {
         observationId: string;
         label: string;
         role: "system" | "user" | "assistant" | "tool";
+        toolGroupId?: string;
       }>
     | null
     | undefined;
@@ -275,7 +277,56 @@ export function SessionConversationSidebar(
                             </p>
                           )}
                           <div className="flex flex-col">
-                            {transcriptRows?.map((row) => {
+                            {groupConsecutiveTools(transcriptRows ?? [], {
+                              isTool: (row) => row.role === "tool",
+                              getName: (row) => row.label,
+                              getBoundary: (row) => row.toolGroupId,
+                            }).map((group) => {
+                              if (group.type === "tools") {
+                                return (
+                                  <details
+                                    key={group.rows[0]!.id}
+                                    className="ph-no-capture group/tool-group min-w-0"
+                                  >
+                                    <summary className="text-muted-foreground hover:bg-foreground/10 -mr-2 -ml-1 flex cursor-pointer list-none items-center gap-2 rounded-sm px-1 py-1 text-[13px] [&::-webkit-details-marker]:hidden">
+                                      <Wrench className="h-3.5 w-3.5 shrink-0" />
+                                      <span
+                                        className="min-w-0 flex-1 truncate"
+                                        title={group.summary}
+                                      >
+                                        {group.summary}
+                                      </span>
+                                      <ChevronDown className="h-3 w-3 shrink-0 -rotate-90 group-open/tool-group:rotate-0" />
+                                    </summary>
+                                    <div className="pl-2">
+                                      {group.rows.map((row) => (
+                                        <button
+                                          key={row.id}
+                                          type="button"
+                                          aria-label={`tool: ${row.label}`}
+                                          onClick={() =>
+                                            props.onSelect(
+                                              turnNumber - 1,
+                                              row.observationId,
+                                              row.id,
+                                            )
+                                          }
+                                          className="ph-no-capture text-muted-foreground hover:bg-foreground/10 flex w-full min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left text-[13px]"
+                                        >
+                                          <Wrench className="h-3.5 w-3.5 shrink-0" />
+                                          <span
+                                            className="min-w-0 flex-1 truncate"
+                                            title={row.label}
+                                          >
+                                            {row.label}
+                                          </span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </details>
+                                );
+                              }
+                              const row = group.row;
                               const Icon = {
                                 user: UserRound,
                                 assistant: Bot,

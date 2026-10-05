@@ -96,9 +96,11 @@ const traces: TraceProps[] = [
 function SessionConversationalViewStory({
   workflowTraces,
   isSearchPending = false,
+  groupedTools = false,
 }: {
   workflowTraces?: typeof supportAgentWorkflow;
   isSearchPending?: boolean;
+  groupedTools?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
@@ -107,7 +109,68 @@ function SessionConversationalViewStory({
   const [scrollTarget, setScrollTarget] =
     useState<SessionConversationTimelineScrollTarget | null>(null);
   const requestId = useRef(0);
-  const displayedTraces = workflowTraces
+  const toolTraces: TraceProps[] = [
+    {
+      ...traces[0]!,
+      state: {
+        type: "transcript",
+        observations: [],
+        result: {
+          state: "loaded",
+          cutoff: false,
+          transcript: {
+            threads: [
+              {
+                conversationHistory: [],
+                currentTurn: {
+                  nestingLevel: 0,
+                  observations: [],
+                  messages: [
+                    Array.from({ length: 5 }, () => "tool_1"),
+                    ["tool_a", "tool_b"],
+                    Array.from(
+                      { length: 7 },
+                      (_, index) => `very_long_tool_name_${index}`,
+                    ),
+                  ].flatMap((names, batchIndex) => {
+                    const provenance = {
+                      observationId: `batch-${batchIndex}`,
+                      traceId: traces[0]!.trace.id,
+                      startTime: traces[0]!.trace.timestamp,
+                      endTime: null,
+                      role: "assistant" as const,
+                      source: "output" as const,
+                    };
+                    return [
+                      {
+                        ...provenance,
+                        parts: [
+                          {
+                            type: "text" as const,
+                            text: `Tool batch ${batchIndex + 1}`,
+                          },
+                        ],
+                      },
+                      {
+                        ...provenance,
+                        parts: names.map((toolName, toolIndex) => ({
+                          type: "tool-call" as const,
+                          toolName,
+                          toolCallId: `${batchIndex}-${toolIndex}`,
+                          input: { toolIndex },
+                        })),
+                      },
+                    ];
+                  }),
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ];
+  const workflowTraceProps = workflowTraces
     ? workflowTraces.map((item) => ({
         ...item,
         state: {
@@ -122,6 +185,7 @@ function SessionConversationalViewStory({
         scrollTarget: null,
       }))
     : traces;
+  const displayedTraces = groupedTools ? toolTraces : workflowTraceProps;
   const controller = useSessionConversationTimelineController(displayedTraces);
   return (
     <div className="@container/session-workspace flex h-screen min-w-[320px]">
@@ -188,6 +252,14 @@ export const SupportAgentWorkflow = meta.story({
         /Your shipping address has been updated/,
       ),
     ).toBeInTheDocument();
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    for (const button of timeline.queryAllByRole("button", {
+      name: /^Show tools:/,
+    })) {
+      await userEvent.click(button);
+    }
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand Get order" }),
     );
@@ -196,6 +268,47 @@ export const SupportAgentWorkflow = meta.story({
       canvas.getByRole("button", { name: "Expand Update shipping address" }),
     );
     await expect(canvas.getByText(/addr_7b19c2/)).toBeInTheDocument();
+  },
+});
+export const ConsecutiveToolGroups = meta.story({
+  name: "(Test) Groups Consecutive Tools",
+  args: { groupedTools: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    for (const summary of ["5× tool_1", "tool_a and tool_b", "7 tools"]) {
+      await expect(sidebar.getByText(summary)).toBeInTheDocument();
+      await expect(
+        timeline.getByRole("button", { name: `Show tools: ${summary}` }),
+      ).toHaveAttribute("aria-expanded", "false");
+    }
+    await userEvent.click(sidebar.getByText("tool_a and tool_b"));
+    await userEvent.click(
+      sidebar.getByRole("button", { name: "tool: tool_b" }),
+    );
+    await expect(
+      timeline.getByRole("button", { name: "Hide tools: tool_a and tool_b" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      timeline.getByRole("button", { name: "Expand tool_b" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      timeline.getByRole("button", { name: "Hide tools: tool_a and tool_b" }),
+    );
+    await expect(
+      timeline.getByRole("button", { name: "Show tools: tool_a and tool_b" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    await userEvent.type(sidebar.getByRole("textbox"), "tool_1");
+    await expect(sidebar.getByText("5× tool_1")).toBeInTheDocument();
+    await expect(
+      sidebar.queryByText("tool_a and tool_b"),
+    ).not.toBeInTheDocument();
+    await expect(
+      timeline.getByRole("button", { name: "Show tools: 7 tools" }),
+    ).toBeInTheDocument();
   },
 });
 export const CodingAgentWorkflow = meta.story({

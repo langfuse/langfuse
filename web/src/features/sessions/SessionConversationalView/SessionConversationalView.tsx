@@ -34,8 +34,11 @@ export function SessionConversationalView(
         if (item.state.type === "error") return null;
         if (item.state.type === "loading") return undefined;
         if (item.state.type === "empty") return [];
+        let toolGroupId: string | undefined;
         return getSessionTranscriptRows(item.state.result.transcript).map(
           ({ id, row }) => {
+            if (row.type !== "tool") toolGroupId = undefined;
+            else if (toolGroupId === undefined) toolGroupId = id;
             const label =
               row.type === "tool"
                 ? (row.call?.toolName ?? row.result?.toolName ?? "Tool")
@@ -51,6 +54,10 @@ export function SessionConversationalView(
                   row.message.role;
             return {
               id,
+              toolGroupId:
+                row.type === "tool"
+                  ? `${id.split(":")[0]}:${toolGroupId}`
+                  : undefined,
               observationId: row.message.observationId,
               label,
               role: row.type === "tool" ? ("tool" as const) : row.message.role,
