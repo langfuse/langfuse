@@ -1,6 +1,4 @@
 /* eslint-disable no-nested-ternary */
-// Langfuse Cloud only
-
 import { useMemo, useState } from "react";
 import { DownloadIcon } from "lucide-react";
 
@@ -10,10 +8,12 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
-import { USAGE_BREAKDOWN_MAX_RANGE_MS } from "@/src/ee/features/billing/constants";
+import {
+  downloadChartDataCsv,
+  VerticalBarChartTimeSeries,
+  type DataPoint,
+} from "@/src/features/widgets";
+import { USAGE_BREAKDOWN_MAX_RANGE_MS } from "@/src/features/organization-usage/constants/usageBreakdown";
 import { api } from "@/src/utils/api";
 import { numberFormatter } from "@/src/utils/numbers";
 import {
@@ -22,9 +22,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import type { RouterOutput } from "@/src/utils/types";
 
-type UsageBreakdown = NonNullable<
-  RouterOutput["cloudBilling"]["getUsageBreakdown"]
->;
+type UsageBreakdown = RouterOutput["organizationUsage"]["breakdown"];
 type GroupBy = "project" | "type";
 
 const TIME_RANGE_PRESETS = [
@@ -131,7 +129,7 @@ const toCsvFileName = (breakdown: UsageBreakdown, from: Date, to: Date) => {
   return `usage-breakdown-${GRANULARITY_LABELS[breakdown.granularity]}-${day(from)}-to-${day(to)}`;
 };
 
-export const BillingUsageBreakdown = ({ orgId }: { orgId: string }) => {
+export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
   });
@@ -142,7 +140,7 @@ export const BillingUsageBreakdown = ({ orgId }: { orgId: string }) => {
     [timeRange],
   );
 
-  const breakdown = api.cloudBilling.getUsageBreakdown.useQuery(
+  const breakdown = api.organizationUsage.breakdown.useQuery(
     {
       orgId,
       from: absoluteTimeRange?.from ?? new Date(),
@@ -166,8 +164,8 @@ export const BillingUsageBreakdown = ({ orgId }: { orgId: string }) => {
           <h3 className="font-bold">Usage breakdown</h3>
           <p className="text-muted-foreground text-sm">
             {chart && breakdown.data
-              ? `${numberFormatter(chart.total, 0)} billable units, ${GRANULARITY_LABELS[breakdown.data.granularity]} buckets (UTC)`
-              : "Billable units (traces, observations, scores)"}
+              ? `${numberFormatter(chart.total, 0)} units, ${GRANULARITY_LABELS[breakdown.data.granularity]} buckets (UTC)`
+              : "Units (traces, observations, scores)"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

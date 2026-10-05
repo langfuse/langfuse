@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
   createObservation,
   createObservationsCh,
@@ -8,7 +8,11 @@ import {
   createTraceScore,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import { getOrgUsageBreakdown } from "@/src/ee/features/billing/server/usageBreakdown";
+import type { Session } from "next-auth";
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { getOrgUsageBreakdown } from "@/src/features/organization-usage/server/usageBreakdown";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const createOrgWithProjects = async (
   projects: { name: string; deleted?: boolean }[],
@@ -29,6 +33,38 @@ const createOrgWithProjects = async (
     ),
   );
   return { orgId: org.id, projectIds: created.map((project) => project.id) };
+};
+
+const callerWithOrgRole = (orgId: string, role: Role) => {
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: false,
+      name: "Demo User",
+      admin: false,
+      organizations: [
+        {
+          id: orgId,
+          name: "Org",
+          role,
+          plan: "oss",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
+          projects: [],
+        },
+      ],
+      featureFlags: testFeatureFlags(),
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "oss",
+    },
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return appRouter.createCaller({ ...ctx, prisma });
 };
 
 const sortRows = <T extends { bucket: string; projectId: string }>(rows: T[]) =>
@@ -168,5 +204,25 @@ describe("getOrgUsageBreakdown", () => {
       },
     ]);
     expect(result.buckets).toContain(result.rows[0].bucket);
+  });
+});
+
+describe("organizationUsage.breakdown", () => {
+  // No entitlement gates this endpoint, so the org role is the only thing
+  // keeping members from seeing usage of projects they cannot access.
+  it("is readable by org admins but not by members", async () => {
+    const { orgId } = await createOrgWithProjects([{ name: "admin-check" }]);
+    const input = {
+      orgId,
+      from: new Date("2026-08-01T00:00:00Z"),
+      to: new Date("2026-08-02T00:00:00Z"),
+    };
+
+    await expect(
+      callerWithOrgRole(orgId, "ADMIN").organizationUsage.breakdown(input),
+    ).resolves.toMatchObject({ granularity: "hour" });
+    await expect(
+      callerWithOrgRole(orgId, "MEMBER").organizationUsage.breakdown(input),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

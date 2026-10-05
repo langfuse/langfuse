@@ -8,7 +8,6 @@ import { useRouter } from "next/router";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { BillingUsageChart } from "./BillingUsageChart";
-import { BillingUsageBreakdown } from "./BillingUsageBreakdown";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
@@ -18,6 +17,7 @@ import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCl
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
@@ -100,7 +100,7 @@ export const BillingSettings = () => {
             plan={organization?.plan ?? "cloud:hobby"}
           />
         )}
-        {organization && <BillingUsageBreakdown orgId={organization.id} />}
+        {organization && <OrganizationUsageBreakdown orgId={organization.id} />}
         <BillingPlanPeriodView />
         {showBillingDiscount && organization && (
           <BillingDiscountView
