@@ -178,9 +178,10 @@ export const BillingSwitchPlanDialog = ({
                               />
                             )}
                             {!cancellation?.isCancelled &&
-                              scheduledPlanSwitch && (
+                              scheduledPlanSwitch &&
+                              organization?.id && (
                                 <StripeKeepPlanButton
-                                  orgId={organization?.id}
+                                  orgId={organization.id}
                                   stripeProductId={product.stripeProductId}
                                   onProcessing={setProcessingPlanId}
                                   processing={
