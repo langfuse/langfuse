@@ -184,14 +184,16 @@ export function CorrectedOutputField({
 
   return (
     <>
-      <CorrectedOutputDiffDialog
-        isOpen={isDiffDialogOpen}
-        setIsOpen={setIsDiffDialogOpen}
-        actualOutput={actualOutput}
-        actualOutputTooLarge={actualOutputTooLarge}
-        correctedOutput={value}
-        strictJsonMode={strictJsonMode}
-      />
+      {isDiffDialogOpen ? (
+        <CorrectedOutputDiffDialog
+          isOpen
+          setIsOpen={setIsDiffDialogOpen}
+          actualOutput={actualOutput}
+          actualOutputTooLarge={actualOutputTooLarge}
+          correctedOutput={value}
+          strictJsonMode={strictJsonMode}
+        />
+      ) : null}
       <div className="px-2">
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
