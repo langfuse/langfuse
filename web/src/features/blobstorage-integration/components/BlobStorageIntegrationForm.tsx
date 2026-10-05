@@ -49,7 +49,9 @@ export const BlobStorageIntegrationForm = ({
   isSaving,
   showMediaStorage,
   onSubmit,
-  children,
+  deleteAction,
+  mediaStorageActions,
+  scheduledExportActions,
 }: {
   initialValues: BlobStorageFormValues;
   exportSourceCtx: ExportSourceContext;
@@ -57,10 +59,9 @@ export const BlobStorageIntegrationForm = ({
   isSaving: boolean;
   showMediaStorage: boolean;
   onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
-  // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
-  // the container next to Save — they act on the persisted entity, not on
-  // this draft.
-  children?: ReactNode;
+  deleteAction: ReactNode;
+  mediaStorageActions: ReactNode;
+  scheduledExportActions: ReactNode;
 }) => {
   // Block the save when the persisted source is no longer selectable rather
   // than silently rewriting it (LFE-10296). The policy context is fixed for
@@ -114,6 +115,7 @@ export const BlobStorageIntegrationForm = ({
               checked={field.value ?? false}
               disabled={false}
               onCheckedChange={field.onChange}
+              actions={scheduledExportActions}
             >
               <FormField
                 control={control}
@@ -178,6 +180,7 @@ export const BlobStorageIntegrationForm = ({
                 checked={field.value ?? false}
                 disabled={storageType === "AZURE_BLOB_STORAGE" && !field.value}
                 onCheckedChange={field.onChange}
+                actions={mediaStorageActions}
               >
                 <p className="text-muted-foreground text-sm">
                   Resolve canonical <code>s3://&lt;bucket&gt;/&lt;key&gt;</code>{" "}
@@ -207,14 +210,16 @@ export const BlobStorageIntegrationForm = ({
           />
         )}
       </form>
-      <div className="mt-8 flex gap-2">
-        <Button
-          loading={isSaving}
-          onClick={blobStorageForm.handleSubmit(onSubmit)}
-        >
-          Save
-        </Button>
-        {children}
+      <div className="mt-8 flex items-center justify-between gap-2">
+        <div>{deleteAction}</div>
+        <div className="flex justify-end">
+          <Button
+            loading={isSaving}
+            onClick={blobStorageForm.handleSubmit(onSubmit)}
+          >
+            Save
+          </Button>
+        </div>
       </div>
     </Form>
   );

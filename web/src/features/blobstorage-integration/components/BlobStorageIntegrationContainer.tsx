@@ -17,9 +17,13 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";
 import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
+import { TestMediaObjectDialog } from "@/src/features/blobstorage-integration/components/TestMediaObjectDialog";
+import { testSignedMediaUrlCors } from "@/src/features/blobstorage-integration/fns/testSignedMediaUrlCors";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 // State layer. Owns everything async and entity-scoped: availability
-// derivation, the four mutations, and the entity-action buttons. The form
+// derivation, mutations, and the entity-action buttons. The form
 // below it is a disposable draft: it is not mounted until every input has
 // resolved, and it is remounted (via key) whenever the entity identity
 // changes — project switch, create, delete. Background refetches of the
@@ -95,6 +99,8 @@ export const BlobStorageIntegrationContainer = ({
       showErrorToast("Validation failed", error.message);
     },
   });
+  const mutTestMediaObject =
+    api.blobStorageIntegration.testExternalMediaObject.useMutation();
 
   // The form is never mounted before its inputs resolve, so there is no
   // mid-flight reset to protect a draft from. The page already gates on the
@@ -129,53 +135,126 @@ export const BlobStorageIntegrationContainer = ({
       isSaving={mut.isPending}
       showMediaStorage={showMediaStorage}
       onSubmit={handleSubmit}
-    >
-      <Button
-        variant="secondary"
-        loading={mutValidate.isPending}
-        disabled={!config}
-        title="Test your saved configuration by uploading a small test file to your storage"
-        onClick={() => {
-          if (config?.id) {
-            mutValidate.mutate({ projectId, integrationId: config.id });
-          }
-        }}
-      >
-        Validate
-      </Button>
-      <Button
-        variant="secondary"
-        loading={mutRunNow.isPending}
-        disabled={!config?.enabled}
-        title="Trigger an immediate export of all data since the last sync"
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
-            )
-          )
-            config?.id &&
-              mutRunNow.mutate({ projectId, integrationId: config.id });
-        }}
-      >
-        Run Now
-      </Button>
-      <Button
-        variant="ghost"
-        loading={mutDelete.isPending}
-        disabled={!config}
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to reset the Blob Storage integration for this project?",
-            )
-          )
-            config?.id &&
-              mutDelete.mutate({ projectId, integrationId: config.id });
-        }}
-      >
-        Reset
-      </Button>
-    </BlobStorageIntegrationForm>
+      scheduledExportActions={
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={mutValidate.isPending}
+            disabled={!config}
+            title="Test your saved configuration by uploading a small test file to your storage"
+            onClick={() => {
+              if (config?.id) {
+                mutValidate.mutate({ projectId, integrationId: config.id });
+              }
+            }}
+          >
+            Test upload
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={mutRunNow.isPending}
+            disabled={!config?.enabled}
+            title="Trigger an immediate export of all data since the last sync"
+            onClick={() => {
+              if (
+                confirm(
+                  "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+                )
+              )
+                config?.id &&
+                  mutRunNow.mutate({ projectId, integrationId: config.id });
+            }}
+          >
+            Run now
+          </Button>
+        </>
+      }
+      mediaStorageActions={
+        <DialogController
+          renderDialog={({ closeDialog }) => (
+            <TestMediaObjectDialog
+              closeDialog={closeDialog}
+              isPending={mutTestMediaObject.isPending}
+              onTest={async (uri) => {
+                if (!config?.id) return false;
+                try {
+                  const { signedUrl } = await mutTestMediaObject.mutateAsync({
+                    projectId,
+                    integrationId: config.id,
+                    uri,
+                  });
+                  try {
+                    await testSignedMediaUrlCors(signedUrl);
+                  } catch (error) {
+                    showErrorToast(
+                      "CORS validation failed",
+                      error instanceof Error
+                        ? error.message
+                        : "The browser could not access the signed URL.",
+                    );
+                    return false;
+                  }
+                  showSuccessToast({
+                    title: "Media object is accessible",
+                    description:
+                      "Server-side storage access and browser CORS access succeeded.",
+                  });
+                  return true;
+                } catch (error) {
+                  showErrorToast(
+                    "Storage access failed",
+                    error instanceof Error
+                      ? error.message
+                      : "The media object could not be read.",
+                  );
+                  return false;
+                }
+              }}
+            />
+          )}
+        >
+          {({ openDialog }) => (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!config?.mediaStorageEnabled}
+              onClick={openDialog}
+            >
+              Test media object
+            </Button>
+          )}
+        </DialogController>
+      }
+      deleteAction={
+        <ConfirmationDialogController
+          title="Delete blob storage integration?"
+          text="This removes the saved integration configuration. Objects already stored in the bucket are not deleted."
+          confirmLabel="Delete integration"
+          variant="destructive"
+          loading={mutDelete.isPending}
+          disabled={!config}
+          onConfirm={async () => {
+            if (!config?.id) return;
+            await mutDelete.mutateAsync({
+              projectId,
+              integrationId: config.id,
+            });
+          }}
+        >
+          {({ openDialog }) => (
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!config}
+              onClick={openDialog}
+            >
+              Delete integration
+            </Button>
+          )}
+        </ConfirmationDialogController>
+      }
+    />
   );
 };

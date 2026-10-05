@@ -11,6 +11,7 @@ export function ToggleableCard({
   checked,
   disabled,
   onCheckedChange,
+  actions,
   children,
 }: {
   id: string;
@@ -18,6 +19,7 @@ export function ToggleableCard({
   checked: boolean;
   disabled: boolean;
   onCheckedChange: (checked: boolean) => void;
+  actions: ReactNode;
   children: ReactNode;
 }) {
   const contentId = `${id}-content`;
@@ -42,6 +44,9 @@ export function ToggleableCard({
         >
           {title}
         </label>
+        {checked ? (
+          <div className="ml-auto flex items-center gap-2">{actions}</div>
+        ) : null}
       </div>
       <CollapsiblePrimitive.Content
         id={contentId}

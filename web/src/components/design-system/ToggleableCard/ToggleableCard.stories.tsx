@@ -14,6 +14,7 @@ function ToggleableCardExample() {
       checked={checked}
       disabled={false}
       onCheckedChange={setChecked}
+      actions={null}
     >
       <p className="text-muted-foreground text-sm">
         Settings controlled by the enabled state.

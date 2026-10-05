@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { type ReactNode } from "react";
 import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
@@ -40,6 +41,11 @@ const ui = (
   initialValues: BlobStorageFormValues,
   onSubmit: (values: unknown) => void = () => {},
   showMediaStorage = false,
+  actions: {
+    deleteAction?: ReactNode;
+    mediaStorageActions?: ReactNode;
+    scheduledExportActions?: ReactNode;
+  } = {},
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
@@ -50,6 +56,9 @@ const ui = (
       isSaving={false}
       showMediaStorage={showMediaStorage}
       onSubmit={onSubmit}
+      deleteAction={actions.deleteAction ?? null}
+      mediaStorageActions={actions.mediaStorageActions ?? null}
+      scheduledExportActions={actions.scheduledExportActions ?? null}
     />
   </TooltipProvider>
 );
@@ -244,5 +253,54 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     expect(
       screen.getByRole("switch", { name: "External media storage" }),
     ).toBeDisabled();
+  });
+
+  it("shows section actions only while enabled and keeps delete separate from save", () => {
+    const initialValues = buildBlobStorageFormValues(
+      {
+        ...savedConfig,
+        mediaStorageEnabled: true,
+      },
+      exportSourceCtx,
+    );
+    render(
+      ui("actions", initialValues, undefined, true, {
+        deleteAction: <button type="button">Delete integration</button>,
+        mediaStorageActions: <button type="button">Test media object</button>,
+        scheduledExportActions: (
+          <>
+            <button type="button">Test upload</button>
+            <button type="button">Run now</button>
+          </>
+        ),
+      }),
+    );
+
+    expect(screen.getByRole("button", { name: "Test upload" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Test media object" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Delete integration" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Save" }).parentElement,
+    ).toHaveClass("justify-end");
+    expect(screen.queryByRole("button", { name: "Reset" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("switch", { name: "Scheduled exports" }));
+    fireEvent.click(
+      screen.getByRole("switch", { name: "External media storage" }),
+    );
+
+    expect(screen.queryByRole("button", { name: "Test upload" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Test media object" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Delete integration" }),
+    ).toBeVisible();
   });
 });
