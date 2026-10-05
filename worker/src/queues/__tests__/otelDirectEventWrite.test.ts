@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { type Job } from "bullmq";
 import {
   getS3EventStorageClient,
+  markProjectIngestFailure,
   OtelIngestionProcessor,
   QueueJobs,
+  recordIncrement,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -28,6 +30,8 @@ import {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getS3EventStorageClient: vi.fn(),
+  markProjectIngestFailure: vi.fn(),
+  recordIncrement: vi.fn(),
 }));
 vi.mock(
   "../../features/evaluation/observationEval",
@@ -157,6 +161,99 @@ describe("direct-v4 trace batch tracking", () => {
       vi.clearAllMocks();
     }
   });
+});
+
+describe("early media extraction rollout", () => {
+  const createJob = (projectId: string) =>
+    ({
+      data: {
+        id: "early-media-rollout",
+        timestamp: new Date(),
+        name: QueueJobs.OtelIngestionJob,
+        payload: {
+          data: { fileKey: "early-media-rollout.json" },
+          authCheck: {
+            validKey: true,
+            scope: {
+              projectId,
+              orgId: "org",
+              accessLevel: "project",
+            },
+          },
+          ingestionVersion: "4",
+        },
+      },
+    }) as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
+
+  it.each([
+    ["reference", "disabled with wildcard", false, ["*"]],
+    ["reference", "disabled with matching project", false, ["project-match"]],
+    ["reference", "enabled with no projects", true, []],
+    [
+      "reference",
+      "enabled with a non-matching project",
+      true,
+      ["other-project"],
+    ],
+    ["early", "enabled with a matching project", true, ["project-match"]],
+    ["early", "enabled for all projects", true, ["*"]],
+  ] as const)(
+    "selects the %s path when %s",
+    async (expectedPath, label, enabled, projectIds) => {
+      const original = {
+        LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+          env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+        LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+          env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+      };
+      const download = vi
+        .fn()
+        .mockRejectedValue(new Error("stop after reference download"));
+      const downloadBytes = vi
+        .fn()
+        .mockRejectedValue(new Error("stop after early download"));
+
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = enabled
+        ? "true"
+        : "false";
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = [...projectIds];
+      vi.mocked(recordIncrement).mockClear();
+      vi.mocked(getS3EventStorageClient).mockReturnValue({
+        download,
+        downloadBytes,
+      } as unknown as ReturnType<typeof getS3EventStorageClient>);
+
+      try {
+        const processor = otelIngestionQueueProcessorBuilder(false);
+        await expect(
+          processor(createJob("project-match"), undefined),
+        ).rejects.toThrow(`stop after ${expectedPath} download`);
+
+        expect(vi.mocked(recordIncrement)).toHaveBeenCalledExactlyOnceWith(
+          "langfuse.ingestion.otel.media_path",
+          1,
+          { path: expectedPath },
+        );
+
+        if (expectedPath === "early") {
+          expect(downloadBytes).toHaveBeenCalledExactlyOnceWith(
+            "early-media-rollout.json",
+          );
+          expect(download).not.toHaveBeenCalled();
+        } else {
+          expect(download).toHaveBeenCalledExactlyOnceWith(
+            "early-media-rollout.json",
+          );
+          expect(downloadBytes).not.toHaveBeenCalled();
+        }
+      } finally {
+        Object.assign(env, original);
+        vi.mocked(getS3EventStorageClient).mockReset();
+        vi.mocked(markProjectIngestFailure).mockClear();
+        vi.mocked(recordIncrement).mockClear();
+      }
+    },
+  );
 });
 
 describe("isOrgPastOtelDirectWriteCutoff", () => {

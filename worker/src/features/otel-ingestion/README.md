@@ -69,3 +69,81 @@ preserve the raw object bytes, then replay against local services with an
 explicit routing/configuration context. Running from a bastion is compatible
 with that model, but pointing this test command at production databases or
 queues is not.
+
+## Early-media rollout
+
+`LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED` is the kill switch.
+`LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS` selects projects by exact ID:
+
+| Enabled | Project IDs | Selected path |
+| --- | --- | --- |
+| `false` | Any valid value | Original TypeScript for everyone |
+| `true` | Unset or empty | Original TypeScript for everyone |
+| `true` | `project-a,project-b` | Early extraction for those projects only |
+| `true` | `*` | Early extraction for everyone |
+
+Whitespace around IDs is ignored. Mixing `*` with IDs fails worker startup,
+including when the toggle is disabled.
+The selection happens before downloading or passing the document to Rust.
+`LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED` and the media bucket configuration still
+control whether media is extracted and uploaded; the selector does not enable
+uploads by itself or change the existing late TypeScript detector.
+
+Start with internal projects and a dedicated secondary OTEL worker pool:
+
+- Primary workers redirect the canary IDs using
+  `LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS` and keep early
+  extraction disabled. That existing redirect list requires IDs without
+  surrounding whitespace. Set
+  `QUEUE_CONSUMER_OTEL_INGESTION_SECONDARY_QUEUE_IS_ENABLED=false` in this pool.
+- Canary workers consume only the secondary OTEL queue, enable early extraction
+  for those same IDs, and start with
+  `LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY=1`.
+  Set `QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED=false` and
+  `QUEUE_CONSUMER_OTEL_INGESTION_SECONDARY_QUEUE_IS_ENABLED=true` in this pool.
+  Concurrency is per queue shard per worker; account for shard count and replicas
+  when sizing the canary pool.
+- Ensure other workers do not consume the secondary queue during this canary.
+  A separate queue without a separate process does not isolate native crashes
+  or out-of-memory failures. Other consumers hosted in the canary process share
+  its fate too.
+
+Broaden the project list after checking both media-heavy and media-poor traffic
+in events-only and dual-write modes. Use `*` only for an intentional full rollout.
+Configuration is read at worker startup: disable the toggle and restart/roll
+workers to stop selecting early extraction for new jobs. In-flight processing is
+not cancelled. Original S3 documents and queue payloads remain unchanged.
+
+### Rollout telemetry
+
+The tagged breakdowns and duration distributions below use Datadog. The existing
+CloudWatch adapter aggregates these counters without their tags and does not
+publish distributions, so it cannot supply these rollout comparisons on its own.
+
+- `langfuse.ingestion.otel.media_path{path=early|reference}` counts selected
+  processing paths per queue attempt, after secondary-queue forwarding. The queue
+  span has the same `langfuse.ingestion.otel.media_path` attribute. Selection does
+  not imply that media was found or that processing completed.
+- `langfuse.ingestion.otel.early_media.preparation` counts one final preparation
+  outcome: `native`, `typescript_fallback`, `masking_drop`, or `error`.
+  `preparation_duration_ms` measures validation, masking, compaction and validator
+  disposal. Both use `outcome` and `extract_media` tags. They exclude S3 download
+  and the subsequent ingestion pipeline. A native result may contain no media.
+- `langfuse.ingestion.otel.native_fallback{reason=representation}` counts
+  compatibility fallbacks during validation/extraction, including masking
+  attempts. It is not a per-job fallback rate; use the preparation outcomes for
+  the final selected result.
+- Existing `langfuse.ingestion.otel.media` counters describe upload/reuse/failure
+  callbacks and associations by `write_path=legacy|direct`. Reuse can avoid an S3
+  upload, and dual writes can report more than one association for the same asset.
+  These counters combine early and reference traffic. The existing media duration
+  covers late detection/resolution/uploads, not native preparation.
+
+Watch queue age/retries, worker RSS/CPU/event-loop delay and restarts alongside
+preparation errors/fallbacks and media outcomes. The dedicated pool provides a
+cohort for resource comparisons without project-ID metric tags. Existing byte
+counters do not measure whole-document compaction savings, and restore outcomes
+have no dedicated counter. The reference S3-size metric counts JavaScript string
+code units while the early path counts bytes; avoid exact cross-path size ratios
+for non-ASCII input. These metrics are rollout diagnostics, not a substitute for
+persisted-row and side-effect parity tests.

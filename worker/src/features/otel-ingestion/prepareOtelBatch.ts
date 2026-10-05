@@ -5,6 +5,7 @@ import {
 } from "@langfuse/native";
 import {
   logger,
+  recordDistribution,
   recordIncrement,
   type ResourceSpan,
 } from "@langfuse/shared/src/server";
@@ -32,6 +33,9 @@ export async function prepareOtelBatch(params: {
   extractMedia: boolean;
 }): Promise<PreparedInput | undefined> {
   const { bytes, extractMedia, ...context } = params;
+  const startedAt = performance.now();
+  let outcome: "native" | "typescript_fallback" | "masking_drop" | "error" =
+    "error";
   const validators: ValidatedOtelJson[] = [];
   try {
     const validated = await validate(bytes);
@@ -60,7 +64,10 @@ export async function prepareOtelBatch(params: {
         },
       },
     );
-    if (!masking.success) return undefined;
+    if (!masking.success) {
+      outcome = "masking_drop";
+      return undefined;
+    }
     // A successful callback can replace a media-heavy body. Drop the superseded Rust copy
     // before compacting the accepted response, rather than retaining both during extraction.
     await Promise.all(
@@ -70,15 +77,42 @@ export async function prepareOtelBatch(params: {
     );
     if (masking.data.validated) {
       try {
-        return { batch: await masking.data.validated.extract(extractMedia) };
+        const batch = await masking.data.validated.extract(extractMedia);
+        outcome = "native";
+        return { batch };
       } catch (error) {
         if (!requiresTypeScriptOtel(error)) throw error;
+        outcome = "typescript_fallback";
         return { spans: fallback(masking.data.bytes, error) };
       }
     }
+    outcome = "typescript_fallback";
     return { spans: masking.data.spans };
+  } catch (error) {
+    outcome = "error";
+    throw error;
   } finally {
-    await Promise.all(validators.map((input) => input.dispose()));
+    await Promise.all(validators.map((input) => input.dispose()))
+      .catch((error) => {
+        outcome = "error";
+        return Promise.reject(error);
+      })
+      .finally(() => {
+        const tags = {
+          outcome,
+          extract_media: extractMedia.toString(),
+        };
+        recordIncrement(
+          "langfuse.ingestion.otel.early_media.preparation",
+          1,
+          tags,
+        );
+        recordDistribution(
+          "langfuse.ingestion.otel.early_media.preparation_duration_ms",
+          performance.now() - startedAt,
+          tags,
+        );
+      });
   }
 
   async function validate(input: Buffer): Promise<ValidatedInput> {

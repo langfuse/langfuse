@@ -495,8 +495,21 @@ export const otelIngestionQueueProcessorBuilder = (
       // Otherwise, we'd probably have to upsert one row per generated event further below.
       // Easy change, but needs alignment.
 
+      const earlyMediaEnabled =
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED === "true" &&
+        (env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS.includes("*") ||
+          env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS.includes(
+            projectId,
+          ));
+      const mediaPath = earlyMediaEnabled ? "early" : "reference";
+      span?.setAttribute("langfuse.ingestion.otel.media_path", mediaPath);
+      // Count selection once per queue attempt, including jobs that later fail or fall back.
+      recordIncrement("langfuse.ingestion.otel.media_path", 1, {
+        path: mediaPath,
+      });
+
       let parsedSpans: ResourceSpan[];
-      if (env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED === "true") {
+      if (earlyMediaEnabled) {
         const bytes = await getS3EventStorageClient(
           env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
         ).downloadBytes(fileKey);
