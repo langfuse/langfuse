@@ -52,8 +52,17 @@ const severityFormat = function () {
 // circular or BigInt values make `JSON.stringify` throw. A logger that throws
 // destroys the diagnostic it was called to emit, so degrade to a marker.
 const stringifyMeta = (meta: Record<string, unknown>) => {
+  // Track visited Error instances to break cyclic cause chains.
+  // JSON.stringify's own circular check is keyed on object identity, but the
+  // replacer returns a *new* plain object each time it unwraps an Error, so
+  // the built-in check never fires and recursion runs until the V8 stack is
+  // exhausted. A WeakSet here caps the cost at one visit per Error instance.
+  const visitedErrors = new WeakSet<Error>();
+
   const replacer = (_key: string, value: unknown) => {
     if (value instanceof Error) {
+      if (visitedErrors.has(value)) return "[Circular]";
+      visitedErrors.add(value);
       return {
         ...value, // keeps fields an SDK attached to its own error type
         name: value.name,
