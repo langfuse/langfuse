@@ -457,7 +457,7 @@ export default function EvaluatorsPage() {
       createUserTableColumn<EvaluatorRow>({
         accessorKey: "createdByUser",
         header: "Created by",
-        size: 180,
+        size: 90,
         enableHiding: true,
         variant: "text",
         emptyValue: "API",
@@ -485,7 +485,7 @@ export default function EvaluatorsPage() {
         accessorKey: "actions",
         id: "actions",
         header: "Actions",
-        size: 170,
+        size: 130,
         isFixedPosition: true,
         isPinnedRight: true,
         enableSorting: false,
