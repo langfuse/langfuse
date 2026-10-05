@@ -41,6 +41,10 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
+- Early OTEL media extraction requires both `LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED`
+  and `LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS`. Empty selects nobody;
+  `*` explicitly selects everyone. Rollout controls and telemetry semantics:
+  `src/features/otel-ingestion/README.md`.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
