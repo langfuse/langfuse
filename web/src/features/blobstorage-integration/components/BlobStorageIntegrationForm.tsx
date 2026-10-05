@@ -92,7 +92,7 @@ export const BlobStorageIntegrationForm = ({
   return (
     <Form {...blobStorageForm}>
       <form
-        className="space-y-3"
+        className="space-y-4"
         onSubmit={blobStorageForm.handleSubmit(onSubmit)}
       >
         <Card>
