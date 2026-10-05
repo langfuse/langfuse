@@ -1,12 +1,13 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
+import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { LightbulbIcon } from "lucide-react";
@@ -86,6 +87,7 @@ import {
 } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
+import { useExperimentItemsScoreCache } from "@/src/features/experiments/hooks/useExperimentItemsScoreCache";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import {
   useExperimentItemsFilterOptions,
@@ -178,7 +180,7 @@ function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
 /**
  * One summary per score column: the primary experiment's aggregate over the
  * items in view, and the same for the comparison it is read against. Built once
- * per fetch rather than per header render.
+ * per score snapshot rather than per header render.
  */
 function buildScoreColumnSummaries({
   rows,
@@ -526,6 +528,7 @@ export default function ExperimentItemsTable({
   hideControls = false,
   toolbarSettings,
 }: ExperimentItemsTableProps) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -631,7 +634,7 @@ export default function ExperimentItemsTable({
   // Fetch score filter options scoped to selected experiments
   const {
     filterOptions: scoreFilterOptions,
-    scoreColumns: scoreColumnDefs,
+    scoreColumns: serverScoreColumnDefs,
     isLoading: isFilterOptionsLoading,
   } = useExperimentItemsFilterOptions({
     projectId,
@@ -799,6 +802,9 @@ export default function ExperimentItemsTable({
       itemVisibility,
     });
 
+  const { rows: scoreRows, scoreColumns: scoreColumnDefs } =
+    useExperimentItemsScoreCache(items.rows, serverScoreColumnDefs);
+
   // Running items without an expected output is common, so don't spend a column
   // on it before loaded IO confirms there is expected output to display.
   //
@@ -844,7 +850,7 @@ export default function ExperimentItemsTable({
   // columns don't disappear and come back on each fetch.
   const presentScoreKeys = useMemo(() => {
     if (items.status !== "success") return undefined;
-    const experimentsInView = (items.rows ?? []).flatMap(
+    const experimentsInView = (scoreRows ?? []).flatMap(
       (row) => row.experiments,
     );
     return {
@@ -855,10 +861,9 @@ export default function ExperimentItemsTable({
         experimentsInView.map((exp) => exp.traceScores),
       ),
     };
-  }, [items]);
+  }, [items.status, scoreRows]);
 
-  // Create score columns from the shared filter options data
-  // This ensures sidebar filters and column visibility use the same data source
+  // Column visibility and both table layouts share the cache-inclusive score columns.
   const observationScoreColumns = useMemo(
     () =>
       createScoreColumns<ExperimentItemData>({
@@ -1024,7 +1029,7 @@ export default function ExperimentItemsTable({
   );
 
   const scoreColumnSummaries = useMemo(() => {
-    const rowsInView = items.rows ?? [];
+    const rowsInView = scoreRows ?? [];
     return {
       observationScores: buildScoreColumnSummaries({
         rows: rowsInView,
@@ -1042,7 +1047,7 @@ export default function ExperimentItemsTable({
       }),
     };
   }, [
-    items.rows,
+    scoreRows,
     scoreDataTypesByKey,
     primaryExperimentId,
     primaryComparisonId,
@@ -1665,6 +1670,10 @@ export default function ExperimentItemsTable({
       "timestamp",
       "traceId",
       "peekExperimentId",
+      "annotation",
+      "comments",
+      "commentObjectType",
+      "commentObjectId",
     ],
     tableName: experimentItemsFilterConfig.tableName,
     isV4: true,
@@ -1754,18 +1763,37 @@ export default function ExperimentItemsTable({
       itemType: "TRACE",
       detailNavigationKey: "experiment-items",
       ...peekNavigationProps,
+      resolveDetailNavigationPath: (entry) =>
+        peekNavigationProps.resolveDetailNavigationPath({
+          ...entry,
+          params: {
+            ...entry.params,
+            ...(router.query.annotation === "open"
+              ? { annotation: "open" }
+              : {}),
+            ...(router.query.annotation !== "open" &&
+            router.query.comments === "open"
+              ? { comments: "open" }
+              : {}),
+          },
+        }),
     };
-  }, [peekNavigationProps, canUsePeek]);
+  }, [
+    peekNavigationProps,
+    canUsePeek,
+    router.query.annotation,
+    router.query.comments,
+  ]);
 
-  // The page as fetched. The score column header aggregates — and the score
-  // matrix, which reads the same ones — deliberately describe this whole page,
+  // The fetched page with local score writes. The column header aggregates and
+  // the score matrix deliberately describe this whole page,
   // so the movement a comparison filter was built from stays readable while
   // that filter is applied.
   const unfilteredRows: ExperimentItemsTableRow[] = useMemo(() => {
-    if (items.status !== "success" || !items.rows) return [];
+    if (items.status !== "success" || !scoreRows) return [];
     // Add 'id' field for DataTable row identification (peek view requires it)
-    return items.rows.map((row) => ({ ...row, id: row.itemId }));
-  }, [items]);
+    return scoreRows.map((row) => ({ ...row, id: row.itemId }));
+  }, [items.status, scoreRows]);
 
   // The score comparison filters narrow the page here rather than in the
   // query — see `useScoreComparisonFilters` for why.
@@ -1976,111 +2004,122 @@ export default function ExperimentItemsTable({
       tableName={experimentItemsFilterConfig.tableName}
     >
       <div className="flex h-full w-full flex-col">
-        {!hideControls && (
-          <TableSearchBar
-            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-            projectId={projectId}
-            tableName="experiment-items"
-            registry={searchRegistry}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={queryFilter.setFilterState}
-            observed={toObservedOptions(
-              scoreFilterOptions,
-              isFilterOptionsLoading,
-            )}
-            isV4={true}
-          />
-        )}
-        {/* Toolbar spanning full width */}
-        {!hideControls && (
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.filterState}
-            viewConfig={{
-              tableName: TableViewPresetTableName.ExperimentItems,
-              projectId,
-              controllers: {
-                ...viewControllers,
-                applyViewState: (
-                  ...args: Parameters<typeof viewControllers.applyViewState>
-                ) => {
-                  setFilterTargetState({ filters: [], targets: {} });
-                  viewControllers.applyViewState(...args);
-                },
-              },
-            }}
-            tableName={experimentItemsFilterConfig.tableName}
-            isV4={true}
-            onColumnGroupToggle={handleColumnGroupToggle}
-            columnsWithCustomSelect={["datasetItemId"]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            toolbarSettings={toolbarSettings}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds:
-                Object.keys(selectedRows).filter((itemId) =>
-                  items.rows
-                    ?.map((item: ExperimentItemsTableRow) => item.itemId)
-                    .includes(itemId),
-                ) ?? [],
-              setRowSelection: setSelectedRows,
-              totalCount,
-              pageSize: paginationState.pageSize,
-              pageIndex: paginationState.pageIndex,
-            }}
-            actionButtons={
-              (selectAll || selectedItemCount > 0) && tableActions.length > 0
-                ? [
-                    <TableActionMenu
-                      key="experiment-items-multi-select-actions"
-                      projectId={projectId}
-                      actions={tableActions}
-                      tableName={BatchExportTableName.Sessions}
-                      selectedCount={selectAll ? totalCount : selectedItemCount}
-                      onClearSelection={() => {
-                        setSelectedRows({});
-                        setSelectAll(false);
-                      }}
-                      onCustomAction={(actionId) => {
-                        if (actionId === ActionId.ObservationBatchEvaluation) {
-                          setShowRunEvaluationDialog(true);
-                        }
-                      }}
-                    />,
-                  ]
-                : undefined
-            }
-          />
-        )}
+        <SearchableTableFilterLayout
+          search={
+            hideControls ? null : (
+              <TableSearchBar
+                key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                projectId={projectId}
+                tableName="experiment-items"
+                registry={searchRegistry}
+                filterState={queryFilter.searchBarFilterState}
+                setFilterState={queryFilter.setFilterState}
+                observed={toObservedOptions(
+                  scoreFilterOptions,
+                  isFilterOptionsLoading,
+                )}
+                isV4={true}
+              />
+            )
+          }
+          toolbar={
+            <>
+              {!hideControls && (
+                <DataTableToolbar
+                  columns={columns}
+                  filterState={queryFilter.filterState}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.ExperimentItems,
+                    projectId,
+                    controllers: {
+                      ...viewControllers,
+                      applyViewState: (
+                        ...args: Parameters<
+                          typeof viewControllers.applyViewState
+                        >
+                      ) => {
+                        setFilterTargetState({ filters: [], targets: {} });
+                        viewControllers.applyViewState(...args);
+                      },
+                    },
+                  }}
+                  tableName={experimentItemsFilterConfig.tableName}
+                  isV4={true}
+                  onColumnGroupToggle={handleColumnGroupToggle}
+                  columnsWithCustomSelect={["datasetItemId"]}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  orderByState={orderByState}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  toolbarSettings={toolbarSettings}
+                  multiSelect={{
+                    selectAll,
+                    setSelectAll,
+                    selectedRowIds:
+                      Object.keys(selectedRows).filter((itemId) =>
+                        items.rows
+                          ?.map((item: ExperimentItemsTableRow) => item.itemId)
+                          .includes(itemId),
+                      ) ?? [],
+                    setRowSelection: setSelectedRows,
+                    totalCount,
+                    pageSize: paginationState.pageSize,
+                    pageIndex: paginationState.pageIndex,
+                  }}
+                  actionButtons={
+                    (selectAll || selectedItemCount > 0) &&
+                    tableActions.length > 0
+                      ? [
+                          <TableActionMenu
+                            key="experiment-items-multi-select-actions"
+                            projectId={projectId}
+                            actions={tableActions}
+                            tableName={BatchExportTableName.Sessions}
+                            selectedCount={
+                              selectAll ? totalCount : selectedItemCount
+                            }
+                            onClearSelection={() => {
+                              setSelectedRows({});
+                              setSelectAll(false);
+                            }}
+                            onCustomAction={(actionId) => {
+                              if (
+                                actionId === ActionId.ObservationBatchEvaluation
+                              ) {
+                                setShowRunEvaluationDialog(true);
+                              }
+                            }}
+                          />,
+                        ]
+                      : undefined
+                  }
+                />
+              )}
 
-        {/* Score comparison filters — evaluated over the loaded page */}
-        {scoreComparisonPills.length > 0 && (
-          <ScoreComparisonFilterPills
-            pills={scoreComparisonPills}
-            onRemove={removeScoreComparisonFilter}
-          />
-        )}
+              {/* Score comparison filters — evaluated over the loaded page */}
+              {scoreComparisonPills.length > 0 && (
+                <ScoreComparisonFilterPills
+                  pills={scoreComparisonPills}
+                  onRemove={removeScoreComparisonFilter}
+                />
+              )}
 
-        {/* Filter Pills with Experiment Targeting */}
-        {filtersByExperiment.length > 0 && (
-          <ExperimentFilterPills
-            selectedExperimentNames={selectedExperimentNames}
-            filtersByExperiment={filtersByExperiment}
-            onFilterTargetChange={handleFilterTargetChange}
-            onFilterRemove={handleFilterRemove}
-            className="border-b"
-          />
-        )}
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+              {/* Filter Pills with Experiment Targeting */}
+              {filtersByExperiment.length > 0 && (
+                <ExperimentFilterPills
+                  selectedExperimentNames={selectedExperimentNames}
+                  filtersByExperiment={filtersByExperiment}
+                  onFilterTargetChange={handleFilterTargetChange}
+                  onFilterRemove={handleFilterRemove}
+                  className="border-b"
+                />
+              )}
+            </>
+          }
+        >
           {!hideControls && (
             <DataTableControls
               key={viewControllers.filterEditorResetKey}
@@ -2182,7 +2221,7 @@ export default function ExperimentItemsTable({
               />
             )}
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
 
         {/* Peek view panel */}
         {peekConfig && (

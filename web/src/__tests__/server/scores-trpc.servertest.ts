@@ -46,6 +46,7 @@ import {
   BatchActionQueue,
   QueueJobs,
   createOrgProjectAndApiKey,
+  getScoreById,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
@@ -799,6 +800,29 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scores.deleteAnnotationScore", () => {
+    it("deletes a correction ingested via the API", async () => {
+      const correction = createTraceScore({
+        project_id: projectId,
+        name: "output",
+        source: "API",
+        data_type: "CORRECTION",
+        value: 0,
+        long_string_value: "corrected response",
+      });
+      await createScoresCh([correction]);
+
+      await caller.scores.deleteAnnotationScore({
+        projectId,
+        id: correction.id,
+      });
+
+      expect(
+        await getScoreById({ projectId, scoreId: correction.id }),
+      ).toBeUndefined();
+    });
+  });
+
   describe("scores.deleteMany", () => {
     it("should delete scores by ids", async () => {
       // Setup
@@ -1024,6 +1048,43 @@ describe("scores trpc", () => {
 
       expect(tiedIds).toEqual(configIds.slice().sort());
       expect(new Set(tiedIds).size).toBe(configIds.length);
+    });
+  });
+
+  describe("scoreConfigs.byId", () => {
+    it("returns NOT_FOUND when the config is missing in the project", async () => {
+      await expect(
+        caller.scoreConfigs.byId({
+          projectId,
+          id: randomUUID(),
+        }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "No score config with this id in this project.",
+      });
+    });
+
+    it("returns the config when it exists in the project", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `byid-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.byId({
+          projectId,
+          id: config.id,
+        }),
+      ).resolves.toMatchObject({
+        id: config.id,
+        name: config.name,
+        dataType: ScoreConfigDataType.NUMERIC,
+      });
     });
   });
 

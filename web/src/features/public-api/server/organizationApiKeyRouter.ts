@@ -8,6 +8,7 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   apiKeyRolesAcceptedForScope,
@@ -139,13 +140,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         scope: "organization:CRUD_apiKeys",
       });
 
-      await ctx.prisma.apiKey.findFirstOrThrow({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.keyId,
           orgId: input.orgId,
           isInAppAgentKey: false,
         },
       });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       await auditLog({
         session: ctx.session,
@@ -181,13 +186,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.id,
           orgId: input.orgId,
           scope: "ORGANIZATION",
         },
       });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       if (apiKey.isInAppAgentKey) return false;
 

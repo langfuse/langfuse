@@ -10,7 +10,10 @@ import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAna
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { AnnotationPanelContent } from "./AnnotationPanelContent";
-import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import {
+  useTraceReviewPanelOptional,
+  useReviewPanelOpen,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
@@ -38,6 +41,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   children,
   projectId,
 }: AnnotateDrawerControllerProps<Target>) {
+  const onOpen = useReviewPanelOpen();
   const capture = usePostHogClientCapture();
   const reviewPanel = useTraceReviewPanelOptional();
   const isMobile = useIsMobile();
@@ -90,6 +94,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
                 .getState()
                 .actions.rememberTrigger(triggerRef.current);
               reviewPanel.getState().actions.openAnnotation(payload);
+              onOpen?.("annotation");
             } else openDrawer(payload);
           },
         })

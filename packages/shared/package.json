@@ -170,7 +170,7 @@
   "dependencies": {
     "@ag-ui/client": "^0.0.52",
     "@ag-ui/core": "^0.0.52",
-    "@ai-sdk/amazon-bedrock": "^5.0.25",
+    "@ai-sdk/amazon-bedrock": "^5.0.97",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
@@ -218,7 +218,7 @@
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
     "next-auth": "^4.24.14",
-    "nodemailer": "^10.0.5",
+    "nodemailer": "^10.0.9",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",

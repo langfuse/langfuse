@@ -4,7 +4,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useState } from "react";
 
 export const ExperimentMetadataSection = ({
@@ -24,9 +24,9 @@ export const ExperimentMetadataSection = ({
           >
             <span className="text-sm font-bold">Metadata</span>
             {isOpen ? (
-              <ChevronDown className="text-muted-foreground h-4 w-4" />
+              <DropdownIndicator />
             ) : (
-              <ChevronRight className="text-muted-foreground h-4 w-4" />
+              <DropdownIndicator direction="right" />
             )}
           </button>
         </CollapsibleTrigger>

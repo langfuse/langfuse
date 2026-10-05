@@ -10,8 +10,12 @@ import {
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { JudgeModelConfigurationDialog } from "@/src/features/evals/v2/components/Evaluators/JudgeModelConfigurationDialog/JudgeModelConfigurationDialog";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import {
+  isJudgeModelAvailable,
+  type JudgeModel,
+} from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 
 export function ModelSelector({
   projectId,
@@ -19,6 +23,7 @@ export function ModelSelector({
   defaultModel,
   providerGroups,
   providerAdapters,
+  connectionsPending,
   canSetProjectDefault,
   onConfigureProviders,
   onSetProjectDefault,
@@ -28,11 +33,20 @@ export function ModelSelector({
   defaultModel: JudgeModel | null;
   providerGroups: Array<[string, string[]]>;
   providerAdapters: Record<string, LLMAdapter>;
+  connectionsPending: boolean;
   canSetProjectDefault: boolean;
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
 }) {
   const [configurationOpen, setConfigurationOpen] = useState(false);
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
+  const trackModelChange = (modelMode: "default" | "custom") => {
+    onboardingAnalytics?.track("eval:onboarding_model_changed", { modelMode });
+    onboardingAnalytics?.completeStep({
+      stepName: "model_selected",
+      modelMode,
+    });
+  };
   const state = useStore(
     store,
     useShallow((state) => ({
@@ -54,18 +68,41 @@ export function ModelSelector({
           modelParams: state.modelParams ?? {},
         }
       : null;
+  const effectiveModel =
+    state.mode === "default" ? defaultModel : state.selectedModel;
+  const modelAvailability =
+    !connectionsPending &&
+    effectiveModel &&
+    !isJudgeModelAvailable(effectiveModel, providerGroups)
+      ? "missing"
+      : "available";
 
   return (
     <>
       <JudgeModelPicker
         open={state.open}
-        onOpenChange={state.actions.setModelPickerOpen}
+        onOpenChange={(open) => {
+          if (open && !state.open) {
+            onboardingAnalytics?.track(
+              "eval:onboarding_model_picker_opened",
+              {},
+            );
+          }
+          state.actions.setModelPickerOpen(open);
+        }}
         mode={state.mode}
         defaultModel={defaultModel}
         providerGroups={providerGroups}
         selectedModel={state.selectedModel}
-        onModeChange={state.actions.setModelMode}
-        onSelectCustom={state.actions.selectModel}
+        onModeChange={(mode) => {
+          const hasChanged = mode !== state.mode;
+          state.actions.setModelMode(mode);
+          if (hasChanged) trackModelChange(mode);
+        }}
+        onSelectCustom={(model) => {
+          state.actions.selectModel(model);
+          trackModelChange("custom");
+        }}
         onConfigureProviders={onConfigureProviders}
         onConfigureModel={() => setConfigurationOpen(true)}
         hasModelConfiguration={
@@ -82,6 +119,7 @@ export function ModelSelector({
             mode={state.mode}
             defaultModel={defaultModel}
             selectedModel={state.selectedModel}
+            modelAvailability={modelAvailability}
             disabled={false}
           />
         </PopoverTrigger>

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -310,7 +309,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
-    (it("should fetch the latest prompt if label is latest", async () => {
+    it("should fetch the latest prompt if label is latest", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const promptName = "latestPrompt_" + nanoid();
 
@@ -368,51 +367,51 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       }
 
       testPromptEquality(productionPromptParams, fetchedDefaultPrompt.body);
-    }),
-      it("should fetch the production prompt if no version or label set", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
-        const promptName = "prompt_" + nanoid();
+    });
+    it("should fetch the production prompt if no version or label set", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const promptName = "prompt_" + nanoid();
 
-        const nonProductionPromptParams: CreatePromptInDBParams = {
-          name: promptName,
-          prompt: "prompt",
-          labels: ["staging"],
-          version: 1,
-          config: {
-            temperature: 0.1,
-          },
-          projectId,
-          createdBy: "user-1",
-        };
+      const nonProductionPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["staging"],
+        version: 1,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
 
-        const productionPromptParams: CreatePromptInDBParams = {
-          name: promptName,
-          prompt: "prompt",
-          labels: ["production"],
-          version: 2,
-          config: {
-            temperature: 0.1,
-          },
-          projectId,
-          createdBy: "user-1",
-        };
+      const productionPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["production"],
+        version: 2,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
 
-        await createPromptInDB(productionPromptParams);
-        await createPromptInDB(nonProductionPromptParams);
+      await createPromptInDB(productionPromptParams);
+      await createPromptInDB(nonProductionPromptParams);
 
-        const fetchedPrompt = await makeAPICall<Prompt>(
-          "GET",
-          `${baseURI}/${encodeURIComponent(promptName)}`,
-          undefined,
-          auth,
-        );
+      const fetchedPrompt = await makeAPICall<Prompt>(
+        "GET",
+        `${baseURI}/${encodeURIComponent(promptName)}`,
+        undefined,
+        auth,
+      );
 
-        if (!isPrompt(fetchedPrompt.body)) {
-          throw new Error("Expected body to be a prompt");
-        }
+      if (!isPrompt(fetchedPrompt.body)) {
+        throw new Error("Expected body to be a prompt");
+      }
 
-        testPromptEquality(productionPromptParams, fetchedPrompt.body);
-      }));
+      testPromptEquality(productionPromptParams, fetchedPrompt.body);
+    });
 
     it("should return a 404 if prompt does not exist", async () => {
       const fetchedPrompt = await makeAPICall<Prompt>(

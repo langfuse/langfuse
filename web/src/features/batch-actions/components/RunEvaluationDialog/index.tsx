@@ -232,7 +232,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   });
   const mappingRunDisabledReason = (() => {
     if (selectedCount === 0) {
-      return "Attach at least one evaluator.";
+      return "Select at least one evaluator.";
     }
     if (mappingsComplete) {
       return null;
@@ -425,7 +425,16 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
             <div className="flex items-center gap-2">
               {step !== "confirm" ? (
-                <CreateEvaluatorButton href={createEvaluatorHref} />
+                <CreateEvaluatorButton
+                  href={createEvaluatorHref}
+                  onClick={() => {
+                    // The legacy (v3) editor is not part of the onboarding funnel.
+                    if (forceV3Experience) return;
+                    capture("eval:onboarding_started", {
+                      entryPoint: "batch_evaluation",
+                    });
+                  }}
+                />
               ) : null}
               {showMappingEditor ? (
                 <MappingRunButton
@@ -460,11 +469,18 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   );
 }
 
-function CreateEvaluatorButton({ href }: { href: string }) {
+function CreateEvaluatorButton({
+  href,
+  onClick,
+}: {
+  href: string;
+  onClick: () => void;
+}) {
   return (
     <Button variant="secondary" className="gap-1.5" asChild>
       <Link
         href={href}
+        onClick={onClick}
         target="_blank"
         rel="noreferrer"
         aria-label="Create new Evaluator (opens in a new tab)"

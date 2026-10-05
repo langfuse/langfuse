@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
-import { ChevronDownIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
@@ -65,7 +65,7 @@ const BreadcrumbComponent = ({
                       {planLabels[organization.plan]}
                     </Badge>
                   )}
-                <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
+                <DropdownIndicator size="sm" nudge />
               </button>
             )}
           </OrganizationDropdownMenu>
@@ -95,7 +95,7 @@ const BreadcrumbComponent = ({
                   {...getTriggerProps()}
                 >
                   {project.name}
-                  <ChevronDownIcon className="text-foreground-tertiary size-3 translate-y-px" />
+                  <DropdownIndicator size="sm" nudge />
                 </button>
               )}
             </ProjectDropdownMenu>

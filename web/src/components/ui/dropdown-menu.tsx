@@ -4,13 +4,8 @@
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cva } from "class-variance-authority";
-import {
-  Check,
-  ChevronRight,
-  Circle,
-  Minus,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, Circle, Minus, type LucideIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
@@ -55,7 +50,11 @@ const DropdownMenuSubTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    {!hasCustomIcon && <ChevronRight className="ml-auto h-4 w-4" />}
+    {!hasCustomIcon && (
+      <span className="ml-auto flex">
+        <DropdownIndicator direction="right" />
+      </span>
+    )}
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName =
@@ -392,13 +391,12 @@ const DropdownMenuItemWithSecondaryAction = (
       </span>
     </>
   );
-  let secondaryActionContent: React.ReactNode = null;
-
-  // The secondary action is intentionally pointer-only and cannot be targeted
-  // with the keyboard; the parent remains the row's sole menu item.
-  if (secondaryAction && SecondaryActionIcon) {
+  const secondaryActionContent = React.useMemo(() => {
+    // The secondary action is intentionally pointer-only and cannot be targeted
+    // with the keyboard; the parent remains the row's sole menu item.
+    if (!secondaryAction || !SecondaryActionIcon) return null;
     if (secondaryAction.href !== undefined) {
-      secondaryActionContent = (
+      return (
         <Link
           href={secondaryAction.href}
           target={secondaryAction.target}
@@ -429,24 +427,23 @@ const DropdownMenuItemWithSecondaryAction = (
           <SecondaryActionIcon size={12} />
         </Link>
       );
-    } else {
-      secondaryActionContent = (
-        <button
-          type="button"
-          aria-label={secondaryAction.ariaLabel}
-          disabled={isDisabled}
-          className={dropdownMenuItemSecondaryActionVariants()}
-          onClick={(event) => {
-            event.stopPropagation();
-            secondaryAction.onBeforeAction?.();
-            secondaryAction.onClick();
-          }}
-        >
-          <SecondaryActionIcon size={12} />
-        </button>
-      );
     }
-  }
+    return (
+      <button
+        type="button"
+        aria-label={secondaryAction.ariaLabel}
+        disabled={isDisabled}
+        className={dropdownMenuItemSecondaryActionVariants()}
+        onClick={(event) => {
+          event.stopPropagation();
+          secondaryAction.onBeforeAction?.();
+          secondaryAction.onClick();
+        }}
+      >
+        <SecondaryActionIcon size={12} />
+      </button>
+    );
+  }, [secondaryAction, SecondaryActionIcon, isDisabled]);
 
   return (
     <DropdownMenuItem

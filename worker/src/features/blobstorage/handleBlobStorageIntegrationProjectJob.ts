@@ -77,10 +77,6 @@ import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
-  recordExportFreshnessLag,
-  windowClassFromBlobFrequency,
-} from "../../services/exportFreshnessLagMetric";
-import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
   formatBlobExportTimestamp,
@@ -1306,17 +1302,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         lastErrorAt: null,
       },
     });
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-      // Empty window means nothing newer to export: fully caught up.
-      catchup: false,
-    });
     return;
   }
 
@@ -1324,7 +1309,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
   // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-  let watermarkAdvanced = false;
   try {
     // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
@@ -1553,21 +1537,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       return;
     }
 
-    // The export watermark is committed. Catch-up enqueue below can still
-    // fail (Redis); that must not be recorded as an export-freshness failure
-    // against the pre-run lastSyncAt.
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: maxTimestamp,
-      catchup: !caughtUp,
-    });
-    watermarkAdvanced = true;
-
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
       const queue = BlobStorageIntegrationProcessingQueue.getInstance();
@@ -1624,18 +1593,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         throw persistError;
       }
 
-      if (!watermarkAdvanced) {
-        recordExportFreshnessLag({
-          integration: "blob_storage",
-          window: windowClassFromBlobFrequency(
-            blobStorageIntegration.exportFrequency,
-          ),
-          status: "failure",
-          runStartTime,
-          maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-        });
-      }
-
       // Cooldown-gated, not bypassed: the integration stays enabled and the
       // watermark does not advance, so every scheduled run re-attempts the same
       // too-large window and re-enters here. The cooldown caps this to one alert
@@ -1671,18 +1628,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     if (outcome.kind === "integration-deleted") {
       return; // obsolete job: complete it rather than fail it
-    }
-
-    if (!watermarkAdvanced) {
-      recordExportFreshnessLag({
-        integration: "blob_storage",
-        window: windowClassFromBlobFrequency(
-          blobStorageIntegration.exportFrequency,
-        ),
-        status: "failure",
-        runStartTime,
-        maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-      });
     }
 
     switch (outcome.kind) {

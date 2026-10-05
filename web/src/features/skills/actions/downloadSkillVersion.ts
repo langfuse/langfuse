@@ -19,12 +19,12 @@ export async function downloadSkillVersion(params: {
     version: number;
   }) => Promise<{
     createdAt: Date;
-    files: Array<{ id: string; path: string }>;
+    files: Array<{ sha256Hash: string; path: string }>;
   }>;
-  getFileContent: (input: {
+  getFileContents: (input: {
     projectId: string;
-    fileId: string;
-  }) => Promise<{ content: string }>;
+    sha256Hashes: string[];
+  }) => Promise<{ data: Array<{ sha256Hash: string; content: string }> }>;
   saveArchive?: (archive: Blob, filename: string) => void;
 }): Promise<{ fileCount: number }> {
   const skill = await params.getVersion({
@@ -37,11 +37,11 @@ export async function downloadSkillVersion(params: {
   await Promise.all(
     Array.from({ length: Math.min(4, skill.files.length) }, async () => {
       for (const file of pendingFiles) {
-        const { content } = await params.getFileContent({
+        const { data } = await params.getFileContents({
           projectId: params.projectId,
-          fileId: file.id,
+          sha256Hashes: [file.sha256Hash],
         });
-        files[file.path] = new TextEncoder().encode(content);
+        files[file.path] = new TextEncoder().encode(data[0]!.content);
       }
     }),
   );

@@ -34,38 +34,50 @@ type NeutralBadgeVariant = Extract<
   "default" | "secondary" | "tertiary"
 >;
 
-type GetBadge<TData extends RowData, TVariant extends BadgeVariant> = (
-  value: string,
-  context: CellContext<TData, string[] | null | undefined>,
+type GetBadge<TData extends RowData, TItem, TVariant extends BadgeVariant> = (
+  value: TItem,
+  context: CellContext<TData, TItem[] | null | undefined>,
 ) => {
   value: string;
   variant: TVariant;
-  icon?: LucideIcon;
-};
+  icon?:
+    | LucideIcon
+    | React.ElementType<{ className?: string; "aria-hidden"?: boolean }>;
+  ariaLabel?: string;
+} & ([TItem] extends [string] ? { key?: string } : { key: string });
 
-type BadgeListTableColumnOptions<TData extends RowData> =
-  | (TableColumnOptions<TData, string[]> & {
-      range: "decorative";
-      getBadge: GetBadge<TData, DecorativeBadgeVariant>;
-    })
-  | (TableColumnOptions<TData, string[]> & {
-      range?: "neutral";
-      getBadge?: GetBadge<TData, NeutralBadgeVariant>;
-    })
-  | (TableColumnOptions<TData, string[]> & {
-      range: "semantic";
-      getBadge: GetBadge<TData, SemanticBadgeVariant>;
-    });
+type BadgeListTableColumnOptions<
+  TData extends RowData,
+  TItem,
+> = TableColumnOptions<TData, TItem[]> &
+  (
+    | {
+        range: "decorative";
+        getBadge: GetBadge<TData, TItem, DecorativeBadgeVariant>;
+      }
+    | ({
+        range?: "neutral";
+      } & ([TItem] extends [string]
+        ? { getBadge?: GetBadge<TData, TItem, NeutralBadgeVariant> }
+        : { getBadge: GetBadge<TData, TItem, NeutralBadgeVariant> }))
+    | {
+        range: "semantic";
+        getBadge: GetBadge<TData, TItem, SemanticBadgeVariant>;
+      }
+  );
 
-export function createBadgeListTableColumn<TData extends RowData>({
+export function createBadgeListTableColumn<
+  TData extends RowData,
+  TItem = string,
+>({
   getBadge,
   nullValue,
   range,
   ...options
-}: BadgeListTableColumnOptions<TData> & {
+}: BadgeListTableColumnOptions<TData, TItem> & {
   nullValue?: string;
 }) {
-  return createTableColumn<TData, string[]>({
+  return createTableColumn<TData, TItem[]>({
     ...options,
     loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
     renderCell: (values, context) => {
@@ -76,8 +88,10 @@ export function createBadgeListTableColumn<TData extends RowData>({
         ...(range === "semantic" || range === "decorative"
           ? getBadge(value, context)
           : (getBadge?.(value, context) ?? {
-              value,
+              value: String(value),
               variant: "secondary" as const,
+              icon: undefined,
+              ariaLabel: undefined,
             })),
       }));
       const renderBadge = (badge: (typeof badges)[number]) => {
@@ -87,9 +101,10 @@ export function createBadgeListTableColumn<TData extends RowData>({
             variant={badge.variant}
             className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
             title={badge.value}
+            aria-label={badge.ariaLabel}
           >
             {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-            <span className="truncate" title={badge.value}>
+            <span className="truncate leading-normal" title={badge.value}>
               {badge.value}
             </span>
           </Badge>

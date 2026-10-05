@@ -108,7 +108,7 @@ export const ConfiguredMetadata = meta.story({
       source: {
         state: "ready",
         metadata: {
-          langfuse_user_email: "danielm@nexite.io",
+          langfuse_user_email: "daniel.mueller-schmidt@enterprise.nexite.io",
           cloud_region: "EU",
         },
         metadataTruncated: false,
@@ -151,7 +151,7 @@ export const TestSearchesHiddenPills = meta.story({
     await expect(
       overflowButton.getBoundingClientRect().left -
         lastVisiblePill.getBoundingClientRect().right,
-    ).toBeLessThanOrEqual(24);
+    ).toBeLessThanOrEqual(16);
     const overflowButtonRect = overflowButton.getBoundingClientRect();
     const lastVisiblePillRect = lastVisiblePill.getBoundingClientRect();
     await expect(
@@ -168,7 +168,7 @@ export const TestSearchesHiddenPills = meta.story({
       trailingButton.getBoundingClientRect().left -
       overflowButton.getBoundingClientRect().right;
     await expect(trailingGap).toBeGreaterThanOrEqual(0);
-    await expect(trailingGap).toBeLessThanOrEqual(24);
+    await expect(trailingGap).toBeLessThanOrEqual(16);
 
     await userEvent.click(overflowButton);
 

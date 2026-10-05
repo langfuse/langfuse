@@ -130,12 +130,15 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "user",
                 source: "input",
                 parts: [{ type: "text", text: "Task" }],
                 observationId: first.id,
+                startTime: first.startTime,
+                endTime: first.endTime,
                 traceId: "trace",
               },
               {
@@ -143,6 +146,8 @@ describe("Topics transcript renderer", () => {
                 source: "output",
                 parts: [{ type: "text", text: "Draft" }],
                 observationId: first.id,
+                startTime: first.startTime,
+                endTime: first.endTime,
                 traceId: "trace",
               },
             ],
@@ -158,12 +163,15 @@ describe("Topics transcript renderer", () => {
             },
           ],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "assistant",
                 source: "output",
                 parts: [{ type: "text", text: "Second" }],
                 observationId: second.id,
+                startTime: second.startTime,
+                endTime: second.endTime,
                 traceId: "trace",
               },
             ],
@@ -214,12 +222,15 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "system",
                 source: "input",
                 parts: [{ type: "text", text: "Summarize the data" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
               {
@@ -227,6 +238,8 @@ describe("Topics transcript renderer", () => {
                 source: "output",
                 parts: [{ type: "text", text: "Draft" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
             ],
@@ -266,6 +279,8 @@ describe("Topics transcript renderer", () => {
       source: "output" as const,
       parts: [{ type: "text" as const, text: value }],
       observationId,
+      startTime: new Date("2026-01-01T00:00:00Z"),
+      endTime: null,
       traceId: "trace",
     });
     const transcript: Transcript = {
@@ -273,6 +288,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               message(first.id, "First"),
               message(second.id, "Second"),
@@ -286,6 +302,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [message(other.id, "Other")],
             observations: [{ id: other.id, traceId: "trace" }],
           },
@@ -319,6 +336,8 @@ describe("Topics transcript renderer", () => {
         source: "input",
         parts: [{ type: "text", text: "Search" }],
         observationId: generation.id,
+        startTime: generation.startTime,
+        endTime: generation.endTime,
         traceId: "trace",
       },
       {
@@ -333,6 +352,8 @@ describe("Topics transcript renderer", () => {
           },
         ],
         observationId: generation.id,
+        startTime: generation.startTime,
+        endTime: generation.endTime,
         traceId: "trace",
       },
       {
@@ -348,6 +369,8 @@ describe("Topics transcript renderer", () => {
           },
         ],
         observationId: tool.id,
+        startTime: tool.startTime,
+        endTime: tool.endTime,
         traceId: "trace",
       },
     ];
@@ -356,6 +379,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages,
             observations: [
               { id: generation.id, traceId: "trace" },
@@ -381,6 +405,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: messages.slice(0, 2),
             observations: [{ id: generation.id, traceId: "trace" }],
           },
@@ -405,12 +430,15 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "system",
                 source: "input",
                 parts: [{ type: "text", text: "System instructions" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
               {
@@ -418,6 +446,8 @@ describe("Topics transcript renderer", () => {
                 source: "input",
                 parts: [{ type: "text", text: "Project data" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
               {
@@ -425,6 +455,8 @@ describe("Topics transcript renderer", () => {
                 source: "input",
                 parts: [{ type: "text", text: "Find the errors" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
               {
@@ -432,6 +464,8 @@ describe("Topics transcript renderer", () => {
                 source: "output",
                 parts: [{ type: "text", text: "Done" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
             ],
@@ -465,12 +499,15 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "user",
                 source: "input",
                 parts: [{ type: "text", text: "Summarize the import" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
               {
@@ -478,6 +515,8 @@ describe("Topics transcript renderer", () => {
                 source: "output",
                 parts: [{ type: "text", text: "Summary" }],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
             ],
@@ -511,6 +550,7 @@ describe("Topics transcript renderer", () => {
         {
           conversationHistory: [],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "assistant",
@@ -524,6 +564,8 @@ describe("Topics transcript renderer", () => {
                   },
                 ],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
               {
@@ -538,6 +580,8 @@ describe("Topics transcript renderer", () => {
                   },
                 ],
                 observationId: tool.id,
+                startTime: tool.startTime,
+                endTime: tool.endTime,
                 traceId: "trace",
               },
             ],
@@ -584,12 +628,15 @@ describe("Topics transcript renderer", () => {
             },
           ],
           currentTurn: {
+            nestingLevel: 0,
             messages: [
               {
                 role: "assistant",
                 source: "output",
                 parts: [call],
                 observationId: generation.id,
+                startTime: generation.startTime,
+                endTime: generation.endTime,
                 traceId: "trace",
               },
               {
@@ -604,6 +651,8 @@ describe("Topics transcript renderer", () => {
                   },
                 ],
                 observationId: tool.id,
+                startTime: tool.startTime,
+                endTime: tool.endTime,
                 traceId: "trace",
               },
             ],

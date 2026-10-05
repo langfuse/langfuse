@@ -1,5 +1,13 @@
+import { type AnnotationPanelData } from "@/src/features/scores/types";
+import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
+import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useTraceData } from "../contexts/TraceDataContext";
+import { useSelection } from "../contexts/SelectionContext";
+import { useReadPath } from "@/src/features/events";
+import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { useStore } from "zustand";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter, type NextRouter } from "next/router";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -11,8 +19,9 @@ import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
-  if (router.query.comments !== "open") return;
-  const { comments, commentObjectType, commentObjectId, ...query } =
+  if (router.query.comments !== "open" && router.query.annotation !== "open")
+    return;
+  const { comments, commentObjectType, commentObjectId, annotation, ...query } =
     router.query;
   router.replace({ pathname: router.pathname, query }, undefined, {
     shallow: true,
@@ -36,13 +45,43 @@ function CloseReviewPanelButton() {
 
 function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const store = useTraceReviewPanel();
-  const target = useStore(store, (state) => state.comments!.target);
-  const sessionKey = useStore(store, (state) => state.comments!.key);
-  const onCommentChange = useStore(
-    store,
-    (state) => state.comments!.onCommentChange,
+  const router = useRouter();
+  const { trace, observations } = useTraceData();
+  const { selectedNodeId } = useSelection();
+  const observation = observations.find((item) => item.id === selectedNodeId);
+  const session = useStore(store, (state) => state.comments);
+  const active =
+    router.query.comments === "open" && router.query.annotation !== "open";
+  const target: CommentTarget = (!active ? session?.target : undefined) ??
+    getCommentDrawerInitialStateFromUrl(router.query) ?? {
+      type: "comments" as const,
+      objectId: observation?.id ?? trace.id,
+      objectType: observation ? ("OBSERVATION" as const) : ("TRACE" as const),
+      objectStartTime: observation?.startTime ?? trace.timestamp,
+    };
+  return (
+    <CommentsPanel projectId={projectId} target={target} active={active} />
   );
-  const active = useStore(store, (state) => state.active === "comments");
+}
+
+function CommentsPanel({
+  projectId,
+  target,
+  active,
+}: {
+  projectId: string;
+  target: CommentTarget;
+  active: boolean;
+}) {
+  const store = useTraceReviewPanel();
+  const session = useStore(store, (state) => state.comments);
+  const matchingSession =
+    session?.target.objectId === target.objectId &&
+    session.target.objectType === target.objectType
+      ? session
+      : null;
+  const sessionKey = matchingSession?.key ?? -1;
+  const onCommentChange = matchingSession?.onCommentChange;
   const actions = store.getState().actions;
   return (
     <section
@@ -56,12 +95,17 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
       </div>
       <div className="min-h-0 flex-1">
         <CommentList
+          key={`${target.objectType}:${target.objectId}`}
           projectId={projectId}
           objectId={target.objectId}
           objectType={target.objectType}
-          objectStartTime={target.objectStartTime}
+          objectStartTime={
+            matchingSession?.target.objectStartTime ?? target.objectStartTime
+          }
           pendingSelection={
-            target.type === "inline-comment" ? target.selection : null
+            matchingSession?.target.type === "inline-comment"
+              ? matchingSession.target.selection
+              : null
           }
           onSelectionUsed={() => actions.consumeCommentsSelection(sessionKey)}
           onDraftChange={(hasDraft) =>
@@ -80,9 +124,52 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
 }
 
 function TraceAnnotationPanel() {
+  const { trace, observations, serverScores } = useTraceData();
+  const { selectedNodeId } = useSelection();
+  const { isV4 } = useReadPath();
+  const observation = observations.find((item) => item.id === selectedNodeId);
+  const active = useRouter().query.annotation === "open";
+  if (selectedNodeId && selectedNodeId !== trace.id && !observation) {
+    return (
+      <div className="p-4 text-sm" hidden={!active}>
+        Loading annotation…
+      </div>
+    );
+  }
+  const data = prepareTraceAnnotation({
+    traceId: trace.id,
+    projectId: trace.projectId,
+    environment: observation?.environment ?? trace.environment,
+    observationId: observation?.id,
+    scores: serverScores,
+    isV4,
+  });
+  return (
+    <AnnotationPanel
+      key={observation?.id ?? trace.id}
+      data={{
+        ...data,
+        companionTrace:
+          observation && isV4
+            ? {
+                environment: trace.environment,
+                scores: serverScores.filter((score) => !score.observationId),
+              }
+            : undefined,
+      }}
+      active={active}
+    />
+  );
+}
+
+function AnnotationPanel({
+  data,
+  active,
+}: {
+  data: AnnotationPanelData;
+  active: boolean;
+}) {
   const store = useTraceReviewPanel();
-  const annotation = useStore(store, (state) => state.annotation!);
-  const active = useStore(store, (state) => state.active === "annotate");
   return (
     <section
       aria-label="Annotate"
@@ -90,7 +177,7 @@ function TraceAnnotationPanel() {
       hidden={!active}
     >
       <AnnotationPanelContent
-        data={annotation.data}
+        data={data}
         refreshRef={store.annotationFormRef}
         actionButtons={<CloseReviewPanelButton />}
         isActive={active}
@@ -101,10 +188,63 @@ function TraceAnnotationPanel() {
 
 export function TraceReviewPanel({ projectId }: { projectId: string }) {
   const store = useTraceReviewPanel();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const active = useStore(store, (state) => state.active);
   const commentsKey = useStore(store, (state) => state.comments?.key);
-  const annotationKey = useStore(store, (state) => state.annotation?.key);
+  const hasAnnotation = useStore(store, (state) => state.annotation !== null);
+  const { query } = useRouter();
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const annotationOpen = query.annotation === "open" && canAnnotate;
+  return (
+    <ReviewPanel
+      active={
+        annotationOpen ? "annotate" : query.comments === "open" && "comments"
+      }
+    >
+      {(commentsKey !== undefined || query.comments === "open") && (
+        <TraceCommentsPanel key={commentsKey} projectId={projectId} />
+      )}
+      {canAnnotate && (hasAnnotation || annotationOpen) && (
+        <TraceAnnotationPanel />
+      )}
+    </ReviewPanel>
+  );
+}
+
+export function SessionReviewPanel({ projectId }: { projectId: string }) {
+  const store = useTraceReviewPanel();
+  const active = useStore(store, (state) => state.active);
+  const comments = useStore(store, (state) => state.comments);
+  const annotation = useStore(store, (state) => state.annotation);
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
+  return (
+    <ReviewPanel active={active}>
+      {comments && (
+        <CommentsPanel
+          key={comments.key}
+          projectId={projectId}
+          target={comments.target}
+          active={active === "comments"}
+        />
+      )}
+      {annotation && canAnnotate && (
+        <AnnotationPanel
+          key={annotation.key}
+          data={annotation.data}
+          active={active === "annotate"}
+        />
+      )}
+    </ReviewPanel>
+  );
+}
+
+function ReviewPanel({
+  active,
+  children,
+}: {
+  active: "annotate" | "comments" | false | null;
+  children: ReactNode;
+}) {
+  const store = useTraceReviewPanel();
+  const rootRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -143,12 +283,7 @@ export function TraceReviewPanel({ projectId }: { projectId: string }) {
       className="bg-background h-full min-h-0 overflow-hidden"
       data-trace-review-panel
     >
-      {commentsKey !== undefined ? (
-        <TraceCommentsPanel key={commentsKey} projectId={projectId} />
-      ) : null}
-      {annotationKey !== undefined ? (
-        <TraceAnnotationPanel key={annotationKey} />
-      ) : null}
+      {children}
     </div>
   );
 }
