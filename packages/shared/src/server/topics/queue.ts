@@ -4,7 +4,10 @@ import { QueueJobs, QueueName, type TQueueJobTypes } from "../queues";
 import { createBullMQQueueOptionsWithRedis, redis } from "../redis/redis";
 import { logger } from "../logger";
 import { isTopicsEnabled } from "./config";
-import { readTopicExecutionSummary, writeTopicExecution } from "./journal";
+import {
+  readTopicExecutionSummary,
+  writeTopicExecution,
+} from "./execution-store";
 import type {
   TopicOperation,
   TopicProcessBatchState,

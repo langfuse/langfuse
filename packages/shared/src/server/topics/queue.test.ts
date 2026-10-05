@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   exists: vi.fn(),
   get: vi.fn(),
 }));
-vi.mock("./journal", () => ({
+vi.mock("./execution-store", () => ({
   readTopicExecutionSummary: mocks.read,
   writeTopicExecution: mocks.write,
 }));

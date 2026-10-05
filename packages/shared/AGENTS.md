@@ -75,9 +75,9 @@
     Facet versions use `(projectId, facetId, version)`. Reads require a time
     range; replacement includes the source minute, with run/origin suffixes
     for assignments. Definition bounds retain original creation dates on reuse.
-  - `journal.ts`: one BatchAction per request, compact counters and run references.
+  - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
-    Trace inputs and paid outputs belong outside the journal.
+    Trace inputs and paid outputs belong outside the execution store.
   - `trace-selection.ts`: shared bounded observation selection for web previews,
     ID-only processing requests and worker backfills; retain identical sampling.
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted

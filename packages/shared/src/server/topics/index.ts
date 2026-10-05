@@ -1,4 +1,4 @@
-export * from "./journal";
+export * from "./execution-store";
 export * from "./postgres";
 export * from "./clickhouse";
 export * from "./queue";

@@ -5,7 +5,7 @@ import {
   readTopicExecutionSummary,
   listTopicExecutions,
   writeTopicExecution,
-} from "./journal";
+} from "./execution-store";
 import { type TopicExecutionInput } from "../../topics";
 
 const state = vi.hoisted(() => ({
@@ -130,7 +130,7 @@ beforeEach(() => {
   state.writes.mockClear();
 });
 
-describe("Topics journal application contract", () => {
+describe("Topics execution store application contract", () => {
   it("returns uncapped trace input to the caller but persists only settings and aggregate progress", async () => {
     const traceIds = Array.from(
       { length: 2001 },
