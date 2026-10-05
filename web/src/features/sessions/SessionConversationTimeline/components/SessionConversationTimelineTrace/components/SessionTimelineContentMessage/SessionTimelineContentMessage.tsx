@@ -12,7 +12,8 @@ const rolePresentation = {
     label: "User",
     icon: UserRound,
     wrapper: "justify-end",
-    container: "bg-muted max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
+    container:
+      "bg-blue-50 dark:bg-slate-800 max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
   },
   assistant: {
     label: "Assistant",
