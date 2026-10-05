@@ -28,6 +28,26 @@ import { env } from "../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...actual,
+    commandClickhouse: (opts: Parameters<typeof actual.commandClickhouse>[0]) =>
+      actual.commandClickhouse({
+        ...opts,
+        clickhouseSettings: /^\s*DELETE FROM topic_facet_summaries\b/.test(
+          opts.query,
+        )
+          ? {
+              lightweight_delete_mode: "lightweight_update_force",
+              ...opts.clickhouseSettings,
+            }
+          : opts.clickhouseSettings,
+      }),
+  };
+});
+
 describe("trace deletion", () => {
   let eventStorageService: StorageService;
   let mediaStorageService: StorageService;
@@ -86,7 +106,7 @@ describe("trace deletion", () => {
     expect(scores).toHaveLength(0);
   });
 
-  it("deletes Topics results while processing is disabled without affecting other traces or projects", async ({
+  it("deletes Topics results when patch deletes are forced by default and processing is disabled without affecting other traces or projects", async ({
     onTestFinished,
   }) => {
     // The built Topics entrypoint reads the CommonJS env singleton.

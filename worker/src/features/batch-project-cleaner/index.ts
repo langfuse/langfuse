@@ -327,6 +327,11 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       clickhouseConfigs: {
         request_timeout: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
       },
+      // Patch parts disable the summary projection until they are materialized.
+      clickhouseSettings:
+        this.tableName === "topic_facet_summaries"
+          ? { lightweight_delete_mode: "alter_update" }
+          : undefined,
     });
   }
 }

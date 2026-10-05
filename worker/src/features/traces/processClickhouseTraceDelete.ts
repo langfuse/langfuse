@@ -55,6 +55,11 @@ const deleteTopicResultsForTraces = async (
           maxTimestamp: bounds.max_timestamp,
         },
         clickhouseConfigs,
+        // Patch parts disable the summary projection until they are materialized.
+        clickhouseSettings:
+          table === "topic_facet_summaries"
+            ? { lightweight_delete_mode: "alter_update" }
+            : undefined,
         tags: { projectId },
       });
     }),
