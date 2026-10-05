@@ -89,9 +89,9 @@ export function InAppAgentToolCallCard({
                 }}
               >
                 {activeDecision === "once" ? (
-                  <Loader2 className="mr-1 animate-spin" />
+                  <Loader2 className="icon-base mr-1 animate-spin" />
                 ) : (
-                  <Check className="mr-1" />
+                  <Check className="icon-base mr-1" />
                 )}
                 Approve
               </Button>
@@ -112,7 +112,7 @@ export function InAppAgentToolCallCard({
                   }}
                 >
                   {activeDecision === "conversation" ? (
-                    <Loader2 className="mr-1 animate-spin" />
+                    <Loader2 className="icon-base mr-1 animate-spin" />
                   ) : null}
                   Always approve*
                 </Button>
@@ -131,7 +131,7 @@ export function InAppAgentToolCallCard({
                 }}
               >
                 {activeDecision === "reject" ? (
-                  <Loader2 className="mr-1 animate-spin" />
+                  <Loader2 className="icon-base mr-1 animate-spin" />
                 ) : null}
                 Decline
               </Button>

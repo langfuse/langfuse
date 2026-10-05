@@ -41,7 +41,7 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
     >
       {saveLabel}
       {props.mode === "create" ? (
-        <ArrowRight className="shrink-0" aria-hidden="true" />
+        <ArrowRight className="icon-base shrink-0" aria-hidden="true" />
       ) : null}
     </Button>
   );

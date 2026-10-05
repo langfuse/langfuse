@@ -146,7 +146,9 @@ export function MultiSelectKeyValues<
         >
           {option.value}
         </span>
-        {option.isArchived && <Archive className="text-foreground/50 ml-2" />}
+        {option.isArchived && (
+          <Archive className="icon-base text-foreground/50 ml-2" />
+        )}
         {option.count !== undefined && (
           <span className="ml-auto font-mono text-xs">{option.count}</span>
         )}
@@ -256,7 +258,7 @@ export function MultiSelectKeyValues<
             return (
               <DropdownMenuSub key={group.label}>
                 <DropdownMenuSubTrigger className="flex w-full items-center select-none">
-                  <Component className="mr-2 opacity-50" />
+                  <Component className="icon-base mr-2 opacity-50" />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">

@@ -242,7 +242,7 @@ export const TemplateSelector = ({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
-                                    <ExternalLinkIcon />
+                                    <ExternalLinkIcon className="icon-base" />
                                     Configure default model
                                   </Link>
                                 </TooltipContent>
@@ -275,7 +275,7 @@ export const TemplateSelector = ({
                                 }
                                 disabled={isInvalid || disabled}
                               >
-                                <Cog />
+                                <Cog className="icon-sm" />
                               </Button>
                             )}
                           </InputCommandItem>
@@ -336,7 +336,7 @@ export const TemplateSelector = ({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  <ExternalLinkIcon />
+                                  <ExternalLinkIcon className="icon-base" />
                                   Configure default model
                                 </Link>
                               </TooltipContent>
@@ -369,7 +369,7 @@ export const TemplateSelector = ({
                               }
                               disabled={isInvalid || disabled}
                             >
-                              <Cog />
+                              <Cog className="icon-sm" />
                             </Button>
                           )}
                         </InputCommandItem>

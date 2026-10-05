@@ -206,7 +206,7 @@ function FilterPanels({
                         emitMobileClose("header");
                       }}
                     >
-                      <X />
+                      <X className="icon-base" />
                     </Button>
                   </div>
                   {mobileSearch && (

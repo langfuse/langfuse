@@ -61,7 +61,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
           aria-label={`View ${title}`}
           size="sm"
         >
-          <LockIcon />
+          <LockIcon className="icon-base" />
           {showLabel && <span>Schema enforced</span>}
         </Button>
       </HoverCardTrigger>
@@ -103,7 +103,11 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
                 onClick={handleCopyExample}
                 className="h-7 px-2"
               >
-                {copied ? <Check /> : <Copy />}
+                {copied ? (
+                  <Check className="icon-base" />
+                ) : (
+                  <Copy className="icon-base" />
+                )}
               </Button>
             </div>
             <div className="mt-2">

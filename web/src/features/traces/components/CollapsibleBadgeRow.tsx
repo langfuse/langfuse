@@ -58,7 +58,11 @@ export function CollapsibleBadgeRow({
         className="mt-0.5 shrink-0"
         onClick={() => setExpanded((prev) => !prev)}
       >
-        {expanded ? <ChevronUp /> : <ChevronDown />}
+        {expanded ? (
+          <ChevronUp className="icon-sm" />
+        ) : (
+          <ChevronDown className="icon-sm" />
+        )}
       </Button>
     </div>
   );

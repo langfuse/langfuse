@@ -79,9 +79,9 @@ export function ChatMessage({
         className="hover:bg-border -mr-2"
       >
         {showTableView ? (
-          <ListChevronsDownUp className="text-primary" />
+          <ListChevronsDownUp className="icon-sm text-primary" />
         ) : (
-          <ListChevronsUpDown />
+          <ListChevronsUpDown className="icon-sm" />
         )}
       </Button>
     ) : undefined;

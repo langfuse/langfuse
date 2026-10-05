@@ -455,6 +455,7 @@ export default [
         "error",
         {
           exceptions: ["src/components/design-system/Spinner/Spinner.tsx"],
+          requireSize: true,
         },
       ],
       "@repo/no-arbitrary-colors": "error",

@@ -526,8 +526,8 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        {checked === "indeterminate" && <Minus />}
-        {checked === true && <Check />}
+        {checked === "indeterminate" && <Minus className="icon-base" />}
+        {checked === true && <Check className="icon-base" />}
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}

@@ -40,7 +40,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
 ## Icons
 
 - Icon sizes come only from the scale: `icon-sm` (12px), `icon-base` (14px), `icon-lg` (20px), `icon-xl` (28px). `icon-lg` is for headers, toasts and illustrations; icons inside buttons and menu rows are `icon-base`. No raw `h-*`/`w-*`/`size-*` classes or `size` props on icons, and no `strokeWidth`; every icon uses the lucide default stroke.
-- Primitives (Button, menu items, Badge, sidebar rows) set the icon size and `text-icon-foreground` on their svg children. Call sites do not size or colour icons inside them.
+- Every icon sets its size explicitly with an `icon-*` class, also inside primitives (Button, menu items, Badge, sidebar rows). Primitives keep a default size only as a fallback, and set `text-icon-foreground` on their svg children; call sites do not colour icons inside them. The lint rule reports icons without a size.
 - An icon paired with a short single-line label is centre-aligned with that label, not baseline-aligned. Geometric centring is the start, not the end: some glyphs need a nudge of a pixel or two so the pair reads balanced. Icons beside multi-line text, such as a title with a subtitle, follow the layout of that block.
 - An icon paired with text is the same colour as the text or one step lighter, never darker; `text-icon-foreground` is the default, status colours are the only exception.
 

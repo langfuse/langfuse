@@ -198,7 +198,7 @@ export function MultiSelectCombobox<T>({
               className="absolute top-1 right-2 h-7 w-7 p-0"
               onClick={() => onSearchChange("")}
             >
-              <X />
+              <X className="icon-base" />
             </Button>
           )}
         </div>

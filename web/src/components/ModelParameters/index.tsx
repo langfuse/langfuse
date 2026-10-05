@@ -125,7 +125,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           className="relative h-7 w-7"
           disabled={formDisabled}
         >
-          <Settings2 />
+          <Settings2 className="icon-base" />
           {modelSettingsUsed && (
             <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}
@@ -714,7 +714,7 @@ function AddLlmConnectionSelectAction({ onOpen }: { onOpen: () => void }) {
     <>
       <SelectSeparator />
       <Button type="button" variant="secondary" onClick={onOpen}>
-        <PlusIcon className="mr-1.5 -ml-0.5" aria-hidden="true" />
+        <PlusIcon className="icon-base mr-1.5 -ml-0.5" aria-hidden="true" />
         Add LLM Connection
       </Button>
     </>

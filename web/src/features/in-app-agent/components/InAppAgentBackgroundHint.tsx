@@ -32,7 +32,7 @@ export function InAppAgentBackgroundHint({
           className="-my-0.5 h-5 shrink-0 gap-1 px-1"
           onClick={onMinimize}
         >
-          <Minus />
+          <Minus className="icon-base" />
           <span className="hidden md:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>

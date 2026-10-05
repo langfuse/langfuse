@@ -371,7 +371,7 @@ function WebCalloutEndpointDialog(props: {
                             size="icon"
                             onClick={() => remove(index)}
                           >
-                            <X />
+                            <X className="icon-base" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Remove header</TooltipContent>
@@ -391,7 +391,7 @@ function WebCalloutEndpointDialog(props: {
                   })
                 }
               >
-                <Plus className="mr-1" />
+                <Plus className="icon-base mr-1" />
                 Add header
               </Button>
             </div>

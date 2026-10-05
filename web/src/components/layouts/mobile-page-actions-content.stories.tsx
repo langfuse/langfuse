@@ -32,18 +32,18 @@ export const MixedPageControls = meta.story({
         <div className="flex flex-col gap-1">
           <span className="text-muted-foreground px-2 text-xs">Dashboard</span>
           <Button variant="outline" className="w-full justify-start gap-2">
-            <LayoutDashboard />
+            <LayoutDashboard className="icon-base" />
             Langfuse Home
           </Button>
           <Button variant="ghost" className="w-full justify-start gap-2">
-            <PencilIcon />
+            <PencilIcon className="icon-base" />
             Edit dashboard
           </Button>
         </div>
         <div className="flex flex-col gap-1 border-t pt-2">
           <span className="text-muted-foreground px-2 text-xs">Data</span>
           <Button variant="outline" className="w-full justify-start gap-2">
-            <SlidersHorizontal />
+            <SlidersHorizontal className="icon-base" />
             Environment and filters
           </Button>
         </div>

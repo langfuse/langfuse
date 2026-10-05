@@ -167,7 +167,7 @@ const MetadataJsonPathRemoveButton = ({
       className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
       onClick={() => onRemove(path)}
     >
-      <X className="h-3 w-3" />
+      <X className="icon-sm" />
     </button>
   </span>
 );
@@ -448,7 +448,7 @@ export function ModernSessionHeader({
             <PopoverTrigger asChild>
               <BadgeShell asChild data-session-header-pill="true">
                 <button type="button" aria-label="Add metadata JSONPath">
-                  <Plus />
+                  <Plus className="icon-sm" />
                 </button>
               </BadgeShell>
             </PopoverTrigger>

@@ -24,7 +24,7 @@ export const SupportButton = () => {
         }, 1);
       }}
     >
-      <LifeBuoy />
+      <LifeBuoy className="icon-base" />
       Support
     </SidebarMenuButton>
   );

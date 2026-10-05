@@ -429,7 +429,7 @@ function SessionTimelineToolRow({
                   className="text-muted-foreground hover:text-foreground shrink-0"
                   aria-label={`Actions for ${observation.name ?? observation.id}`}
                 >
-                  <MoreHorizontal aria-hidden="true" />
+                  <MoreHorizontal className="icon-sm" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
               <SessionObservationActionsMenuContent
@@ -594,7 +594,7 @@ function SessionTimelineConversationObservation({
                     className="text-muted-foreground hover:text-foreground shrink-0"
                     aria-label={`Actions for ${observation.name ?? observation.id}`}
                   >
-                    <MoreHorizontal aria-hidden="true" />
+                    <MoreHorizontal className="icon-sm" aria-hidden="true" />
                   </Button>
                 </DropdownMenuTrigger>
                 <SessionObservationActionsMenuContent
@@ -1016,9 +1016,9 @@ function LoadedSessionConversationTimeline({
                     }}
                   >
                     {isCollapsed ? (
-                      <ChevronsUpDown aria-hidden="true" />
+                      <ChevronsUpDown className="icon-sm" aria-hidden="true" />
                     ) : (
-                      <ChevronDown aria-hidden="true" />
+                      <ChevronDown className="icon-sm" aria-hidden="true" />
                     )}
                   </Button>
                   {isCollapsed ? (

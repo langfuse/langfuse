@@ -474,7 +474,7 @@ function AnnotationQueueRunContent({
                   )}
                   aria-label="Previous item"
                 >
-                  <ArrowLeft />
+                  <ArrowLeft className="icon-base" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowLeft"]} />
                   </span>
@@ -522,7 +522,7 @@ function AnnotationQueueRunContent({
                   variant="outline"
                   aria-label="Skip to next item"
                 >
-                  <ArrowRight />
+                  <ArrowRight className="icon-base" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowRight"]} />
                   </span>

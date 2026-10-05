@@ -143,7 +143,7 @@ function VariableMappingCardShell({
               title={`Rename ${variable}`}
               onClick={() => rename.onRenamingChange(true)}
             >
-              <TextCursorInput />
+              <TextCursorInput className="icon-sm" />
             </Button>
           ) : null}
           <Button
@@ -159,7 +159,11 @@ function VariableMappingCardShell({
             disabled={isRenaming}
             onClick={() => onEditingChange(!isEditing)}
           >
-            {isEditing ? <X /> : <Pencil />}
+            {isEditing ? (
+              <X className="icon-sm" />
+            ) : (
+              <Pencil className="icon-sm" />
+            )}
           </Button>
           {onDelete ? (
             <Button
@@ -174,7 +178,7 @@ function VariableMappingCardShell({
               }
               onClick={onDelete}
             >
-              <Trash2 />
+              <Trash2 className="icon-sm" />
             </Button>
           ) : null}
         </span>

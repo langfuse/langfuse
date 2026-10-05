@@ -421,7 +421,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 onClick={() => handleRemoveFilter(index)}
                 className="h-8 w-8 p-0"
               >
-                <X />
+                <X className="icon-base" />
               </Button>
             </div>
 
@@ -563,7 +563,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         variant="outline"
         className="w-full"
       >
-        <Plus className="mr-2" />
+        <Plus className="icon-base mr-2" />
         Add filter
       </Button>
     </div>

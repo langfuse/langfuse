@@ -90,7 +90,7 @@ function FilterPillWithTarget({
       variant="secondary"
       className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
     >
-      <ListFilter className="shrink-0" />
+      <ListFilter className="icon-sm shrink-0" />
       <span className="truncate" title={filterLabel}>
         {filterLabel}
       </span>
@@ -148,7 +148,7 @@ function FilterPillWithTarget({
           onRemove();
         }}
       >
-        <X />
+        <X className="icon-base" />
       </Button>
     </Badge>
   );

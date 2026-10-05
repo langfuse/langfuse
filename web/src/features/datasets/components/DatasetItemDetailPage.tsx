@@ -217,7 +217,7 @@ export const DatasetItemDetailPage = ({
                   href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
                   title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
                 >
-                  <ListTree />
+                  <ListTree className="icon-sm" />
                 </Link>
               </Button>
             )}
@@ -257,7 +257,7 @@ export const DatasetItemDetailPage = ({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
-                  <MoreVertical />
+                  <MoreVertical className="icon-base" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -265,7 +265,7 @@ export const DatasetItemDetailPage = ({
                   onClick={() => setEditDialogOpen(true)}
                   disabled={!hasAccess || isViewingOldVersion || !item.data}
                 >
-                  <Pencil className="mr-2" />
+                  <Pencil className="icon-base mr-2" />
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -278,7 +278,7 @@ export const DatasetItemDetailPage = ({
                   }
                   className="text-destructive"
                 >
-                  <Trash2 className="mr-2" />
+                  <Trash2 className="icon-base mr-2" />
                   {mutDelete.isPending ? "Deleting..." : "Delete"}
                 </DropdownMenuItem>
               </DropdownMenuContent>

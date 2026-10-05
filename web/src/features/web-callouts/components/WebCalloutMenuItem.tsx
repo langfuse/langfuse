@@ -92,7 +92,7 @@ export function WebCalloutButton({
           action.invokeCallout().catch(() => undefined);
         }}
       >
-        <Webhook className="shrink-0" />
+        <Webhook className="icon-base shrink-0" />
         <span className="min-w-0 truncate text-sm" title={label}>
           {label}
         </span>
@@ -113,7 +113,7 @@ export function WebCalloutButton({
             action.invokeCallout().catch(() => undefined);
           }}
         >
-          <Webhook />
+          <Webhook className="icon-base" />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

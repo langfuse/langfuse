@@ -52,7 +52,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           onClick={goToPrev}
           title="Previous experiment"
         >
-          <ArrowLeft />
+          <ArrowLeft className="icon-base" />
         </Button>
         <span className="text-muted-foreground px-1 font-mono text-[10px] tabular-nums">
           {currentIndex + 1}/{total}
@@ -64,7 +64,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
           onClick={goToNext}
           title="Next experiment"
         >
-          <ArrowRight />
+          <ArrowRight className="icon-base" />
         </Button>
       </div>
     </div>

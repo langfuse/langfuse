@@ -59,7 +59,7 @@ export function VersionUpdateBannerView({
         Langfuse just got an update
       </span>
       <Button size="sm" className="rounded-full" onClick={onReload}>
-        <RotateCw className="mr-1.5" />
+        <RotateCw className="icon-base mr-1.5" />
         Reload
       </Button>
       <Button
@@ -70,7 +70,7 @@ export function VersionUpdateBannerView({
         aria-label="Dismiss"
         title="Dismiss"
       >
-        <X />
+        <X className="icon-base" />
       </Button>
     </div>
   );

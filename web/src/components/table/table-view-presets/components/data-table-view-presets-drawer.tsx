@@ -597,7 +597,7 @@ function TableViewPresetsDrawerContentBody({
             </DrawerTitle>
             <DrawerClose asChild>
               <Button variant="outline" size="icon">
-                <X />
+                <X className="icon-base" />
               </Button>
             </DrawerClose>
           </DrawerHeader>
@@ -754,7 +754,7 @@ function TableViewPresetsDrawerContentBody({
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >
-                          <Link />
+                          <Link className="icon-base" />
                         </Button>
                         <DropdownMenu
                           open={dropdownId === view.id}
@@ -771,7 +771,7 @@ function TableViewPresetsDrawerContentBody({
                               }}
                               className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
                             >
-                              <MoreVertical />
+                              <MoreVertical className="icon-base" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -806,9 +806,9 @@ function TableViewPresetsDrawerContentBody({
                                         disabled={!hasWriteAccess}
                                       >
                                         {hasWriteAccess ? (
-                                          <Pen className="mr-2" />
+                                          <Pen className="icon-base mr-2" />
                                         ) : (
-                                          <Lock className="mr-2" />
+                                          <Lock className="icon-base mr-2" />
                                         )}
                                         Rename
                                       </Button>
@@ -898,7 +898,9 @@ function TableViewPresetsDrawerContentBody({
                               ) : (
                                 <>Set as project default</>
                               )}
-                              {!hasWriteAccess && <Lock className="ml-auto" />}
+                              {!hasWriteAccess && (
+                                <Lock className="icon-base ml-auto" />
+                              )}
                             </DropdownMenuItem>
                             {!isSystemView && (
                               <>
@@ -965,7 +967,7 @@ function TableViewPresetsDrawerContentBody({
                 variant="ghost"
                 className="w-full justify-start px-1"
               >
-                <Plus className="mr-2" />
+                <Plus className="icon-base mr-2" />
                 Create Custom View
               </Button>
             </DrawerClose>
@@ -1039,7 +1041,7 @@ function TableViewPresetsDrawerContentBody({
                     !hasWriteAccess
                   }
                 >
-                  {!hasWriteAccess && <Lock className="mr-2" />}
+                  {!hasWriteAccess && <Lock className="icon-base mr-2" />}
                   {createMutation.isPending ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>

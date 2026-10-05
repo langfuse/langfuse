@@ -132,7 +132,7 @@ export const PlaygroundToolsPopover = ({
                   });
                 }}
               >
-                <PencilIcon />
+                <PencilIcon className="icon-base" />
               </Button>
             </CommandItem>
           ))}
@@ -150,7 +150,7 @@ export const PlaygroundToolsPopover = ({
             })
           }
         >
-          <PlusIcon className="mr-2" />
+          <PlusIcon className="icon-base mr-2" />
           Create new tool
         </Button>
       </div>
@@ -290,7 +290,7 @@ export const PlaygroundTools = ({ onOpenToolDialog }: PlaygroundToolsProps) => {
                     handleRemoveTool(tool.id);
                   }}
                 >
-                  <MinusCircle />
+                  <MinusCircle className="icon-base" />
                 </Button>
                 <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
                   <WrenchIcon className="text-muted-foreground icon-base mt-0.5 shrink-0" />

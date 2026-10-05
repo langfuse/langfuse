@@ -1245,7 +1245,7 @@ function TracesTableInternal({
                   }
                   onSelect={() => openDeleteTraceDialog(traceId)}
                 >
-                  <Trash2 className="mr-2" />
+                  <Trash2 className="icon-base mr-2" />
                   Delete
                 </DropdownMenuItem>
               ) : null,

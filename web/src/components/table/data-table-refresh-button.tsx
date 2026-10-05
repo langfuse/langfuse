@@ -56,7 +56,7 @@ export function DataTableRefreshButton({
         )}
         title="Refresh"
       >
-        <RefreshCw className={cn(isSpinning && "animate-spin")} />
+        <RefreshCw className={cn("icon-base", isSpinning && "animate-spin")} />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -68,7 +68,7 @@ export function DataTableRefreshButton({
               compact && isActive && "border-primary text-primary",
             )}
           >
-            <ChevronDown />
+            <ChevronDown className="icon-base" />
             {compact ? (
               // Drop the "Off" label; surface the interval only when set.
               isActive && (

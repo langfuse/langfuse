@@ -168,7 +168,7 @@ const PromptHistoryTraceNode = (props: {
                         }}
                         title="Compare with selected prompt"
                       >
-                        <FileDiffIcon />
+                        <FileDiffIcon className="icon-base" />
                       </Button>
                     ) : null
                   }

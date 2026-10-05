@@ -81,9 +81,9 @@ export function Icons() {
             illustrations; icons inside buttons and menu rows are icon-base.
             icon-xl covers 28 to 36px illustrations. Icons at 40px and above
             (chart and analytics empty states, the crash page) keep their raw
-            sizes: illustration sizes, decision deferred. Primitives (Button,
-            menu items, Badge, sidebar rows) set the size on their svg children;
-            call sites inside them do not size icons.
+            sizes: illustration sizes, decision deferred. Every icon sets its
+            size explicitly, also inside primitives (Button, menu items, Badge,
+            sidebar rows); the primitive default is only a fallback.
           </p>
         </PageSection>
 

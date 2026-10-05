@@ -356,7 +356,7 @@ export function ScoreOutputSection({
                     aria-label="Add category"
                     title="Add category"
                   >
-                    <Plus />
+                    <Plus className="icon-base" />
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

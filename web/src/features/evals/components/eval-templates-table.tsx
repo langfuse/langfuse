@@ -165,7 +165,7 @@ const EvalTemplateRowActionsMenu = ({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-xs" aria-label="actions">
             <span className="sr-only relative">Open menu</span>
-            <MoreVertical />
+            <MoreVertical className="icon-sm" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -179,7 +179,7 @@ const EvalTemplateRowActionsMenu = ({
                 onClone();
               }}
             >
-              <Copy className="mr-2" />
+              <Copy className="icon-base mr-2" />
               Clone
             </DropdownMenuItem>
           ) : null}
@@ -193,7 +193,7 @@ const EvalTemplateRowActionsMenu = ({
                   onEdit();
                 }}
               >
-                <Pen className="mr-2" />
+                <Pen className="icon-base mr-2" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -207,7 +207,7 @@ const EvalTemplateRowActionsMenu = ({
                   setIsDeleteDialogOpen(true);
                 }}
               >
-                <Trash className="mr-2" />
+                <Trash className="icon-base mr-2" />
                 Delete
               </DropdownMenuItem>
             </>

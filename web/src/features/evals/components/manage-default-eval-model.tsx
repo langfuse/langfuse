@@ -77,6 +77,7 @@ export function ManageDefaultEvalModel({
           >
             <Pencil
               className={cn(
+                "icon-base",
                 variant === "color-coded" &&
                   !defaultModel &&
                   "text-dark-yellow",

@@ -178,7 +178,11 @@ export default function PlaygroundPage() {
                     : "Execute all playground windows simultaneously"
                 }
               >
-                {globalIsExecutingAll ? <Spinner size="xxs" /> : <Play />}
+                {globalIsExecutingAll ? (
+                  <Spinner size="xxs" />
+                ) : (
+                  <Play className="icon-base" />
+                )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
                   <span>Run All</span>
                   <KeyboardShortcut keys={["Mod", "Enter"]} />

@@ -531,7 +531,7 @@ export function SupportForm({
                             className="p-0"
                           >
                             <span className="sr-only">Remove file</span>
-                            <Trash2 />
+                            <Trash2 className="icon-sm" />
                           </Button>
                           {file.name}
                         </div>

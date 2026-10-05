@@ -216,7 +216,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <Gauge className="text-muted-foreground" />
+                      <Gauge className="icon-base text-muted-foreground" />
                       Score
                     </Button>
                   ) : null}
@@ -235,7 +235,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                         )
                       }
                     >
-                      <DollarSign className="text-muted-foreground" />
+                      <DollarSign className="icon-base text-muted-foreground" />
                       Cost
                     </Button>
                   ) : null}
@@ -255,7 +255,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                       )
                     }
                   >
-                    <Gauge className="text-muted-foreground" />
+                    <Gauge className="icon-base text-muted-foreground" />
                     <div>
                       <p>Score threshold</p>
                       <p className="text-muted-foreground text-xs">
@@ -277,7 +277,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                       )
                     }
                   >
-                    <DollarSign className="text-muted-foreground" />
+                    <DollarSign className="icon-base text-muted-foreground" />
                     <div>
                       <p>Cost threshold</p>
                       <p className="text-muted-foreground text-xs">
@@ -316,13 +316,13 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
           >
             {isLoading ? (
               <LoaderCircle
-                className="mr-1 shrink-0 animate-spin"
+                className="icon-base mr-1 shrink-0 animate-spin"
                 aria-hidden="true"
               />
             ) : alertCount > 0 ? (
-              <Bell className="mr-1 shrink-0" aria-hidden="true" />
+              <Bell className="icon-base mr-1 shrink-0" aria-hidden="true" />
             ) : (
-              <Plus className="mr-1 shrink-0" aria-hidden="true" />
+              <Plus className="icon-base mr-1 shrink-0" aria-hidden="true" />
             )}
             <span className="flex-1 text-left">
               {alertCount > 0 ? "Alerts" : "Add alert"}

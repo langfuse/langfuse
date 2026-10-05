@@ -186,7 +186,7 @@ export function SkillLabelsSelect({
                   "opacity-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:none)]:opacity-100",
               )}
             >
-              <CircleFadingArrowUp />
+              <CircleFadingArrowUp className="icon-base" />
             </Button>
           </div>
         </Trigger>
@@ -269,7 +269,7 @@ export function SkillTagsSelect({
                 }
               >
                 {tag}
-                <X className="ml-1" />
+                <X className="icon-base ml-1" />
               </Button>
             ))}
             <Input
@@ -294,7 +294,7 @@ export function SkillTagsSelect({
                 className="w-full justify-start px-2 font-normal"
                 onClick={() => setPendingTags([...pendingTags, tag])}
               >
-                <Plus className="mr-2" />
+                <Plus className="icon-base mr-2" />
                 {tag}
               </Button>
             ))}
@@ -333,14 +333,14 @@ export function SkillTagsSelect({
           >
             {value.map((tag) => (
               <Badge key={tag} variant="tertiary" className="h-6 gap-1">
-                <TagIcon />
+                <TagIcon className="icon-sm" />
                 <span className="max-w-36 truncate" title={tag}>
                   {tag}
                 </span>
               </Badge>
             ))}
             <Badge variant="tertiary" className="h-6">
-              <TagIcon />
+              <TagIcon className="icon-sm" />
             </Badge>
           </div>
         </Trigger>
@@ -369,9 +369,9 @@ function SelectionRow({
       onClick={onSelect}
     >
       {selected ? (
-        <CircleCheckIcon className="mr-2" />
+        <CircleCheckIcon className="icon-base mr-2" />
       ) : (
-        <CircleIcon className="mr-2 opacity-20" />
+        <CircleIcon className="icon-base mr-2 opacity-20" />
       )}
       {value}
     </Button>
@@ -392,7 +392,7 @@ function CreateRow({
       className="text-muted-foreground w-full justify-start px-2 font-normal"
       onClick={onCreate}
     >
-      <Plus className="mr-2" />
+      <Plus className="icon-base mr-2" />
       Create new: “{value}”
     </Button>
   );

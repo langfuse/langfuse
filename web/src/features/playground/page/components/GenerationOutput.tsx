@@ -74,7 +74,7 @@ export const GenerationOutput = () => {
           }}
           title="Toggle Input/Output JSON"
         >
-          <BracesIcon />
+          <BracesIcon className="icon-base" />
         </Button>
 
         <Button

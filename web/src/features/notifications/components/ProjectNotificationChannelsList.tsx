@@ -70,7 +70,7 @@ export function ProjectNotificationChannelsList({
                   onClick={() => onEdit(channel)}
                   title="Edit channel"
                 >
-                  <Pencil />
+                  <Pencil className="icon-base" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -79,7 +79,7 @@ export function ProjectNotificationChannelsList({
                   onClick={() => onDelete(channel.id)}
                   title="Delete channel"
                 >
-                  <Trash2 />
+                  <Trash2 className="icon-base" />
                 </Button>
               </div>
             </div>
@@ -91,7 +91,7 @@ export function ProjectNotificationChannelsList({
       {!isLoading && !channels?.length && (
         <div>
           <Button variant="secondary" onClick={onAdd}>
-            <Plus className="mr-2" />
+            <Plus className="icon-base mr-2" />
             Add channel
           </Button>
         </div>

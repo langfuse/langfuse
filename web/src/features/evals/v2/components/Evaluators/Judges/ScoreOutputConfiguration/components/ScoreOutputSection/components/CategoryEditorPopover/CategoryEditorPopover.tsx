@@ -73,7 +73,7 @@ export function CategoryEditorPopover({
                   aria-label="Delete category"
                   onClick={onDelete}
                 >
-                  <Trash2 className="mr-1.5" />
+                  <Trash2 className="icon-base mr-1.5" />
                   Delete
                 </Button>
               </PopoverClose>

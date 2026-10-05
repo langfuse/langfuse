@@ -73,7 +73,7 @@ export function DeletePromptVersion({
             event.stopPropagation();
           }}
         >
-          <Trash className="mr-2" />
+          <Trash className="icon-base mr-2" />
           Delete version
         </Button>
       </PopoverTrigger>

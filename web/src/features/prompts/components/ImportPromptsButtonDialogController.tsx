@@ -204,7 +204,7 @@ const ImportPromptsDialogContent: React.FC<{
         >
           {isImportPending ? (
             <>
-              <Loader2 className="mr-2 animate-spin" />
+              <Loader2 className="icon-base mr-2 animate-spin" />
               Importing…
             </>
           ) : (

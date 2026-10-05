@@ -84,7 +84,7 @@ export function Button(props: ButtonProps) {
         >
           {Icon ? <Icon className="shrink-0" aria-hidden /> : null}
           {props.text}
-          <ExternalLink aria-hidden />
+          <ExternalLink className="icon-sm" aria-hidden />
         </a>
       );
     }

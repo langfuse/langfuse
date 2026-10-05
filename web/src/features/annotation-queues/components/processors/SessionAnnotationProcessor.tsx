@@ -155,10 +155,10 @@ export const SessionAnnotationProcessor: React.FC<
                 className="gap-1"
               >
                 {disabled ? (
-                  <MessageSquareOff className="text-muted-foreground" />
+                  <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare />
+                    <MessageSquare className="icon-base" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,

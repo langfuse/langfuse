@@ -152,7 +152,7 @@ export default function PromptsPage() {
                     disabled={isExporting}
                     {...getTriggerProps()}
                   >
-                    <UploadIcon className="mr-1" />
+                    <UploadIcon className="icon-base mr-1" />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
@@ -167,7 +167,7 @@ export default function PromptsPage() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="mr-1" />
+                    <Download className="icon-base mr-1" />
                     Import
                   </Button>
                 )}

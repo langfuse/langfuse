@@ -43,7 +43,7 @@ export function EvaluatorActionsCell({
         onClick={handlePrimaryAction}
       >
         View scores
-        <SquarePercent className="ml-1" />
+        <SquarePercent className="icon-base ml-1" />
       </Button>
       <DropdownMenu
         placement="bottom-end"
@@ -92,7 +92,7 @@ export function EvaluatorActionsCell({
             {...getTriggerProps()}
           >
             <span className="sr-only">Open menu</span>
-            <MoreVertical />
+            <MoreVertical className="icon-sm" />
           </Button>
         )}
       </DropdownMenu>

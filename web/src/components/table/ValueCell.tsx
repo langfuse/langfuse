@@ -294,11 +294,11 @@ function ValueCellActionsMenuContent({
   return (
     <>
       <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
-        <Copy className="mr-2 shrink-0" />
+        <Copy className="icon-base mr-2 shrink-0" />
         {hasChildren ? "Copy structure" : "Copy value"}
       </DropdownMenuItem>
       <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
-        <Copy className="mr-2 shrink-0" />
+        <Copy className="icon-base mr-2 shrink-0" />
         Copy path
       </DropdownMenuItem>
       {isScalarLeaf && (
@@ -308,7 +308,7 @@ function ValueCellActionsMenuContent({
             className="text-xs"
             onSelect={() => navigateWithFilter(includeOperator)}
           >
-            <Filter className="mr-2 shrink-0" />
+            <Filter className="icon-base mr-2 shrink-0" />
             <span className="flex min-w-0 flex-col">
               <span>Include in filter</span>
               <span
@@ -323,7 +323,7 @@ function ValueCellActionsMenuContent({
             className="text-xs"
             onSelect={() => navigateWithFilter(excludeOperator)}
           >
-            <FilterX className="mr-2 shrink-0" />
+            <FilterX className="icon-base mr-2 shrink-0" />
             <span className="flex min-w-0 flex-col">
               <span>Exclude from filter</span>
               <span
@@ -562,7 +562,7 @@ export const ValueCell = memo(
                   )}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <EllipsisVertical />
+                  <EllipsisVertical className="icon-base" />
                 </Button>
               </Trigger>
             )}
@@ -576,7 +576,11 @@ export const ValueCell = memo(
             title="Copy value"
             aria-label="Copy cell value"
           >
-            {showCopySuccess ? <Check /> : <Copy />}
+            {showCopySuccess ? (
+              <Check className="icon-base" />
+            ) : (
+              <Copy className="icon-base" />
+            )}
           </Button>
         )}
       </div>

@@ -32,7 +32,7 @@ export const AutomationFailureBanner = ({
               onClick={onDismiss}
               className="ml-4 h-6 w-6 p-0"
             >
-              <X />
+              <X className="icon-base" />
             </Button>
           </div>
         </Alert.Description>

@@ -327,7 +327,7 @@ export const ObservationDetailViewHeader = memo(
                                   ref: mobileActionsTriggerRef,
                                 })}
                               >
-                                <MoreHorizontal />
+                                <MoreHorizontal className="icon-base" />
                               </Button>
                             )}
                           </DropdownMenu>
@@ -366,7 +366,7 @@ export const ObservationDetailViewHeader = memo(
                       className="gap-1"
                       {...getTriggerProps()}
                     >
-                      <PlusIcon />
+                      <PlusIcon className="icon-base" />
                       <span>Add to</span>
                       <DropdownIndicator size="sm" nudge />
                     </Button>
@@ -396,9 +396,9 @@ export const ObservationDetailViewHeader = memo(
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="mr-1.5" />
+                        <LockIcon className="icon-base mr-1.5" />
                       ) : (
-                        <SquarePen className="mr-1.5" />
+                        <SquarePen className="icon-base mr-1.5" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -414,10 +414,10 @@ export const ObservationDetailViewHeader = memo(
                 className="gap-1"
               >
                 {commentDrawerControl.disabled ? (
-                  <MessageSquareOff className="text-muted-foreground" />
+                  <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare />
+                    <MessageSquare className="icon-base" />
                     <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
@@ -457,7 +457,7 @@ export const ObservationDetailViewHeader = memo(
                     variant="secondary"
                     {...getTriggerProps()}
                   >
-                    <EllipsisVertical />
+                    <EllipsisVertical className="icon-base" />
                   </Button>
                 )}
               </ConnectedDetailHeaderActionsMenuController>

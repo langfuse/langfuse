@@ -346,7 +346,7 @@ export const CreateExperimentsForm = ({
                       title="Edit remote trigger settings"
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
-                      <Cog />
+                      <Cog className="icon-base" />
                     </Button>
                   </div>
                 ) : (

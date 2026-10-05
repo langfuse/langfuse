@@ -301,7 +301,7 @@ function CodeEvalSourceLink({
         rel="noopener noreferrer"
       >
         Edit source code
-        <ExternalLink className="ml-1" />
+        <ExternalLink className="icon-base ml-1" />
       </Link>
     </Button>
   ) : (
@@ -311,7 +311,7 @@ function CodeEvalSourceLink({
       title="Only user-managed templates can be edited"
     >
       Edit source code
-      <ExternalLink className="ml-1" />
+      <ExternalLink className="icon-base ml-1" />
     </Button>
   );
 

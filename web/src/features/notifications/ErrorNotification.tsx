@@ -68,7 +68,11 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               aria-label="Copy error ID"
               title="Copy error ID"
             >
-              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+              {isCopied ? (
+                <Check className="icon-base" />
+              ) : (
+                <Copy className="icon-base" />
+              )}
             </button>
           </div>
         )}

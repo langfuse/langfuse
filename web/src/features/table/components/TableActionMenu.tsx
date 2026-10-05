@@ -102,7 +102,7 @@ export function TableActionMenu({
             className="h-8 w-8"
             onClick={onClearSelection}
           >
-            <X />
+            <X className="icon-base" />
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">

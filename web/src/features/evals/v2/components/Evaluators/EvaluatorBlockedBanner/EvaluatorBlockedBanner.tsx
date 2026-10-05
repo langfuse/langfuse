@@ -96,7 +96,7 @@ export function EvaluatorBlockedBanner({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm" className="h-8 px-3">
               <Link href={resolutionAction.href}>
-                <ExternalLinkIcon className="mr-1.5" />
+                <ExternalLinkIcon className="icon-base mr-1.5" />
                 {resolutionAction.label}
               </Link>
             </Button>
@@ -110,7 +110,7 @@ export function EvaluatorBlockedBanner({
                 onClick={onReactivate}
                 className="h-8 px-3"
               >
-                <RefreshCcw className="mr-1.5" />
+                <RefreshCcw className="icon-base mr-1.5" />
                 Reactivate
               </Button>
             ) : null}

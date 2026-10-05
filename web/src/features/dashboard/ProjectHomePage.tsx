@@ -396,7 +396,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
                   onClick={handleEditDashboard}
                 >
-                  <PencilIcon />
+                  <PencilIcon className="icon-base" />
                   <span className="sr-only">
                     Edit this dashboard in Dashboards
                   </span>
@@ -411,7 +411,10 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   </Link>
                 ) : (
                   <Button disabled>
-                    <LockIcon className="mr-2 -ml-0.5" aria-hidden="true" />
+                    <LockIcon
+                      className="icon-base mr-2 -ml-0.5"
+                      aria-hidden="true"
+                    />
                     Configure Tracing
                   </Button>
                 ))}
@@ -456,7 +459,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                       closeMenu();
                     }}
                   >
-                    <PencilIcon />
+                    <PencilIcon className="icon-base" />
                     Edit dashboard
                   </Link>
                 </Button>
@@ -482,7 +485,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                       size="sm"
                       className="w-full justify-start gap-2 font-normal"
                     >
-                      <LockIcon aria-hidden="true" />
+                      <LockIcon className="icon-base" aria-hidden="true" />
                       Configure tracing
                     </Button>
                   ))}

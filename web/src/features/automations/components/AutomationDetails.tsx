@@ -135,7 +135,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             actionButtons={
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleEdit}>
-                  <Edit className="mr-2" />
+                  <Edit className="icon-base mr-2" />
                   Edit
                 </Button>
                 <DeleteAutomationDialogController

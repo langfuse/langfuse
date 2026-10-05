@@ -125,7 +125,7 @@ function EvaluatorsOverviewSelectionBar({
         className="h-8"
         onClick={() => onDeleteSelection({ selectAll, selectedIds })}
       >
-        <Trash2 className="sm:mr-2" />
+        <Trash2 className="icon-base sm:mr-2" />
         <span className="hidden sm:inline">Delete</span>
       </Button>
     </OverviewSelectionBar>
@@ -615,7 +615,7 @@ export default function EvaluatorsPage() {
         },
         mobileActionButtons: showOnboarding ? (
           <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-base mr-2" />
             New evaluator
           </Button>
         ) : undefined,
@@ -673,7 +673,7 @@ export default function EvaluatorsPage() {
               />
             )}
             <Button onClick={openGalleryFromNewEvaluatorButton}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="icon-base mr-2" />
               New evaluator
             </Button>
           </div>

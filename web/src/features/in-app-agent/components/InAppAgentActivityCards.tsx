@@ -87,7 +87,7 @@ export function InAppAgentActivityCards({
                 onDismiss(card);
               }}
             >
-              <X />
+              <X className="icon-sm" />
             </Button>
           </div>
         );

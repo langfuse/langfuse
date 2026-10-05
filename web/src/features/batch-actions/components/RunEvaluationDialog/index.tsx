@@ -416,7 +416,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 onClick={() => setStep("select-evaluator")}
                 disabled={runEvaluationMutation.isPending}
               >
-                <ChevronLeft className="mr-1" />
+                <ChevronLeft className="icon-base mr-1" />
                 Back
               </Button>
             ) : (
@@ -485,9 +485,9 @@ function CreateEvaluatorButton({
         rel="noreferrer"
         aria-label="Create new Evaluator (opens in a new tab)"
       >
-        <Plus className="shrink-0" aria-hidden="true" />
+        <Plus className="icon-base shrink-0" aria-hidden="true" />
         Create new Evaluator
-        <ExternalLink className="shrink-0" aria-hidden="true" />
+        <ExternalLink className="icon-base shrink-0" aria-hidden="true" />
       </Link>
     </Button>
   );

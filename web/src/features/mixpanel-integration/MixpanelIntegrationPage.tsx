@@ -336,7 +336,7 @@ const MixpanelIntegrationSettingsForm = ({
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
-                          <ExternalLink />
+                          <ExternalLink className="icon-sm" />
                         </a>
                       </div>
                     </TooltipContent>

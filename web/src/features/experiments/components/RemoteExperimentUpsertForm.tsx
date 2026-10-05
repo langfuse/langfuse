@@ -457,9 +457,9 @@ export const RemoteExperimentUpsertForm = ({
                               }
                             >
                               {isSecret ? (
-                                <Lock className="text-orange-500" />
+                                <Lock className="icon-base text-orange-500" />
                               ) : (
-                                <LockOpen className="text-muted-foreground" />
+                                <LockOpen className="icon-base text-muted-foreground" />
                               )}
                             </Button>
                             <Button
@@ -468,7 +468,7 @@ export const RemoteExperimentUpsertForm = ({
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <X />
+                              <X className="icon-base" />
                             </Button>
                           </div>
                         );
@@ -487,7 +487,7 @@ export const RemoteExperimentUpsertForm = ({
                         }
                         className="mt-2"
                       >
-                        <Plus className="mr-1" />
+                        <Plus className="icon-base mr-1" />
                         Add Custom Header
                       </Button>
                     </div>

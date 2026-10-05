@@ -86,7 +86,7 @@ export function GatewayProvidersTable({
                   if (targetId) onMove(row.original.id, targetId);
                 }}
               >
-                <ArrowUp />
+                <ArrowUp className="icon-sm" />
               </Button>
               <Button
                 size="icon-xs"
@@ -102,7 +102,7 @@ export function GatewayProvidersTable({
                   if (targetId) onMove(row.original.id, targetId);
                 }}
               >
-                <ArrowDown />
+                <ArrowDown className="icon-sm" />
               </Button>
             </div>
           </div>

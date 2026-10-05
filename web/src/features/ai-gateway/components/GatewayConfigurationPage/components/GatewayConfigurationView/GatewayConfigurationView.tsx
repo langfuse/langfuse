@@ -294,7 +294,7 @@ function CreateIngestionProjectDialog({
       {({ openDialog }) =>
         showIcon ? (
           <Button onClick={openDialog}>
-            <Plus className="mr-1.5" />
+            <Plus className="icon-base mr-1.5" />
             {triggerLabel}
           </Button>
         ) : (
@@ -324,7 +324,11 @@ function GatewayUrl({ gatewayBaseUrl }: { gatewayBaseUrl: string }) {
         aria-label="Copy gateway base URL"
         onClick={() => copy(gatewayBaseUrl)}
       >
-        {isCopied ? <Check /> : <Copy />}
+        {isCopied ? (
+          <Check className="icon-sm" />
+        ) : (
+          <Copy className="icon-sm" />
+        )}
       </Button>
     </div>
   );

@@ -331,7 +331,7 @@ export function IOPreview({
               }}
               title="Dismiss"
             >
-              <X />
+              <X className="icon-base" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">

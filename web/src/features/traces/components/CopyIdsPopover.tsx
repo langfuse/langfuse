@@ -40,9 +40,9 @@ export const CopyIdsPopover = ({
         onClick={() => handleCopy(idItems[0].id)}
       >
         {copiedId === idItems[0].id ? (
-          <CheckIcon className="text-muted-green" />
+          <CheckIcon className="icon-base text-muted-green" />
         ) : (
-          <CopyIcon />
+          <CopyIcon className="icon-base" />
         )}
         <span className="ml-1 text-xs">ID</span>
       </Button>
@@ -57,7 +57,7 @@ export const CopyIdsPopover = ({
           title="Copy ID"
           className={cn("h-fit px-1", className)}
         >
-          <CopyIcon />
+          <CopyIcon className="icon-base" />
           <span className="ml-1 text-xs">ID</span>
         </Button>
       </PopoverTrigger>
@@ -89,9 +89,9 @@ export const CopyIdsPopover = ({
                 onClick={() => handleCopy(item.id)}
               >
                 {copiedId === item.id ? (
-                  <CheckIcon className="text-muted-green" />
+                  <CheckIcon className="icon-base text-muted-green" />
                 ) : (
-                  <CopyIcon />
+                  <CopyIcon className="icon-base" />
                 )}
               </Button>
             </div>

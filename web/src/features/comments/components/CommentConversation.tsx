@@ -141,7 +141,7 @@ export function CommentConversation({
                 className="absolute top-1/2 right-2 -translate-y-1/2"
                 onClick={() => setSearchQuery("")}
               >
-                <X />
+                <X className="icon-sm" />
               </Button>
             )}
           </div>
@@ -208,7 +208,7 @@ export function CommentConversation({
                         });
                     }}
                   >
-                    <Trash />
+                    <Trash className="icon-sm" />
                   </Button>
                 ) : null
               }

@@ -114,7 +114,7 @@ export function ExperimentBaselineControls({
           title="Clear baseline"
           aria-label="Clear baseline"
         >
-          <X />
+          <X className="icon-base" />
         </Button>
       )}
     </div>

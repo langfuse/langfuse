@@ -162,7 +162,7 @@ export function EvaluatorGalleryView({
                     onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)
                   }
                 >
-                  <Sparkles aria-hidden="true" />
+                  <Sparkles className="icon-base" aria-hidden="true" />
                   New LLM-as-a-judge
                 </Button>
                 <Button
@@ -171,7 +171,7 @@ export function EvaluatorGalleryView({
                   className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
                   onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
                 >
-                  <Code2 aria-hidden="true" />
+                  <Code2 className="icon-base" aria-hidden="true" />
                   New code evaluator
                 </Button>
                 <Button
@@ -183,7 +183,7 @@ export function EvaluatorGalleryView({
                     onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
                   }
                 >
-                  <Scale aria-hidden="true" />
+                  <Scale className="icon-base" aria-hidden="true" />
                   New decision model evaluator
                 </Button>
               </div>

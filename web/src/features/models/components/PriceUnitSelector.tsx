@@ -24,7 +24,7 @@ export const PriceUnitSelector = () => {
     <Popover>
       <PopoverTrigger asChild>
         <Button size="icon" variant="ghost">
-          <ChevronDownIcon />
+          <ChevronDownIcon className="icon-base" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0">

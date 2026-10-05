@@ -156,7 +156,7 @@ export const MobilePageTitle = ({
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
-                <MoreHorizontal />
+                <MoreHorizontal className="icon-base" />
               </Button>
             </PopoverTrigger>
             <MobilePageActionsContent

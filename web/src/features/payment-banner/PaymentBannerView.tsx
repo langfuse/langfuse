@@ -67,7 +67,7 @@ export function PaymentBannerView({
         className="shrink-0 self-end sm:self-auto"
       >
         <Link href={billingSettingsHref}>
-          <CreditCard className="mr-2" />
+          <CreditCard className="icon-base mr-2" />
           Update Payment
         </Link>
       </Button>

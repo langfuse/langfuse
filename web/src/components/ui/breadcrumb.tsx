@@ -84,7 +84,7 @@ const BreadcrumbSeparator = ({
     className={cn("[&>svg]:icon-sm", className)}
     {...props}
   >
-    {children ?? <ChevronRight />}
+    {children ?? <ChevronRight className="icon-sm" />}
   </li>
 );
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator";

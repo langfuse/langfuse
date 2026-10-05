@@ -70,7 +70,7 @@ export function TierAccordionItem({
                   remove(index);
                 }}
               >
-                <Trash2 />
+                <Trash2 className="icon-base" />
               </Button>
             )}
           </div>

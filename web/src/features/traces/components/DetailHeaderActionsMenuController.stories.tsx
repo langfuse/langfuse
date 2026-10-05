@@ -19,7 +19,7 @@ function DetailHeaderActionsMenuStory() {
           variant="ghost"
           {...getTriggerProps()}
         >
-          <EllipsisVertical />
+          <EllipsisVertical className="icon-sm" />
         </Button>
       )}
     </DetailHeaderActionsMenuController>

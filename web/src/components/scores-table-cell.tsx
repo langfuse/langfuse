@@ -109,7 +109,11 @@ export const ScoresTableCell = ({
                   className="hover:bg-accent rounded p-1"
                   aria-label={copied ? "Copied" : "Copy to clipboard"}
                 >
-                  {copied ? <Check /> : <Copy />}
+                  {copied ? (
+                    <Check className="icon-sm" />
+                  ) : (
+                    <Copy className="icon-sm" />
+                  )}
                 </Button>
               </div>
               <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">

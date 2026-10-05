@@ -205,7 +205,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                 </>
               ) : (
                 <>
-                  <Unlink className="mr-2" />
+                  <Unlink className="icon-base mr-2" />
                   Disconnect
                 </>
               )}

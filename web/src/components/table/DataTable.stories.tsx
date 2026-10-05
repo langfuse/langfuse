@@ -443,7 +443,7 @@ function buildTraceColumns(
       isFixedPosition: true,
       renderMenu: () => (
         <DropdownMenuItem className="text-destructive">
-          <Trash className="mr-2" />
+          <Trash className="icon-base mr-2" />
           Delete trace
         </DropdownMenuItem>
       ),
@@ -1289,17 +1289,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Copy />
+              <Copy className="icon-sm" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
-              <Trash />
+              <Trash className="icon-sm" />
             </Button>
           </div>
         );
       }
       return (
         <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
-          <Trash />
+          <Trash className="icon-sm" />
         </Button>
       );
     },

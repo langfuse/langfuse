@@ -479,7 +479,11 @@ function CopyableCallbackUrl({ value }: { value: string }) {
           button.focus();
         }}
       >
-        {isCopied ? <Check /> : <Copy />}
+        {isCopied ? (
+          <Check className="icon-sm" />
+        ) : (
+          <Copy className="icon-sm" />
+        )}
       </Button>
     </div>
   );

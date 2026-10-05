@@ -855,7 +855,7 @@ export const MonitorForm = ({
                               size="sm"
                               className="gap-1"
                             >
-                              <Plus />
+                              <Plus className="icon-base" />
                               Add tag
                             </Button>
                           }

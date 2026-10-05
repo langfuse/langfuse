@@ -129,7 +129,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   onClick={() => onSearchQueryChange("")}
                   aria-label="Clear evaluator search"
                 >
-                  <X />
+                  <X className="icon-base" />
                 </Button>
               ) : null}
             </div>
@@ -154,7 +154,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                               className="hover:bg-muted rounded p-0.5"
                               onClick={() => onToggleEvaluator(evaluator.id)}
                             >
-                              <X />
+                              <X className="icon-sm" />
                             </button>
                           </Badge>
                         </div>
@@ -203,7 +203,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             onClick={(event) => event.stopPropagation()}
                             aria-label={`Preview ${item.scoreName}`}
                           >
-                            <Eye />
+                            <Eye className="icon-base" />
                           </Button>
                         }
                       />

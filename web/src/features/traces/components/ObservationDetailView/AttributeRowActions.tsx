@@ -74,7 +74,7 @@ export function AttributeRowActions({
           copyTextToClipboard(getCopyValue(value));
         }}
       >
-        <Copy className="mr-2 shrink-0" />
+        <Copy className="icon-base mr-2 shrink-0" />
         {hasChildren ? "Copy structure" : "Copy value"}
       </DropdownMenuItem>
       {filter && includeText ? (
@@ -87,7 +87,7 @@ export function AttributeRowActions({
               navigate(filter.include, filter.target);
             }}
           >
-            <Filter className="mr-2 shrink-0" />
+            <Filter className="icon-base mr-2 shrink-0" />
             <span className="flex min-w-0 flex-col">
               <span>Include in filter</span>
               <span
@@ -106,7 +106,7 @@ export function AttributeRowActions({
                 navigate(excludeClause, filter.target);
               }}
             >
-              <FilterX className="mr-2 shrink-0" />
+              <FilterX className="icon-base mr-2 shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span>Exclude from filter</span>
                 <span

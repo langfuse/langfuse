@@ -131,7 +131,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 className="h-auto min-h-24 w-full justify-start gap-3 px-4 py-4 text-left whitespace-normal sm:w-[360px]"
                 onClick={() => handleOpenCreateEvaluator(EvalTemplateType.CODE)}
               >
-                <Code2 className="shrink-0" />
+                <Code2 className="icon-base shrink-0" />
                 <span className="flex flex-col gap-1">
                   <span className="font-bold">Code evaluator</span>
                   <span className="text-muted-foreground text-sm font-normal">
@@ -148,7 +148,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
               }
             >
-              <Bot className="shrink-0" />
+              <Bot className="icon-base shrink-0" />
               <span className="flex flex-col gap-1">
                 <span className="font-bold">LLM as a judge evaluator</span>
                 <span className="text-muted-foreground text-sm font-normal">

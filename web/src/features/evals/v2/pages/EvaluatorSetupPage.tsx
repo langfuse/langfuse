@@ -860,7 +860,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="mr-2" />
+              <History className="icon-base mr-2" />
               Version history
             </Button>
             <Button
@@ -869,7 +869,7 @@ export function EvaluatorSetupPage(
               title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="text-destructive" />
+              <Trash2 className="icon-base text-destructive" />
             </Button>
           </div>
         ) : undefined,

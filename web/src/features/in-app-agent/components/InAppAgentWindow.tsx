@@ -198,7 +198,7 @@ function InAppAgentQuickActionPicker({
               </span>
               <ArrowRight
                 aria-hidden="true"
-                className="text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5"
+                className="icon-base text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5"
               />
             </Button>
           );
@@ -823,7 +823,7 @@ function ConversationScroller({
             );
           }}
         >
-          <ArrowDown />
+          <ArrowDown className="icon-base" />
           Latest
         </Button>
       ) : null}
@@ -1199,7 +1199,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 onClick={onNewConversation}
                 aria-label="Start new conversation"
               >
-                <Plus />
+                <Plus className="icon-base" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
@@ -1226,7 +1226,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     // nested badge aria-label is ignored once the parent has one.
                     aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
-                    <History />
+                    <History className="icon-base" />
                     {/* Launcher badge, scaled to the 24px trigger. Visual only —
                         accessible name is on the button. */}
                     {historyAttentionCount > 0 && (
@@ -1299,7 +1299,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           onDeleteConversation(conversation);
                         }}
                       >
-                        <Trash2 />
+                        <Trash2 className="icon-sm" />
                       </Button>
                     </DropdownMenuItem>
                   );
@@ -1332,7 +1332,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     onExpandedChange(!isExpanded);
                   }}
                 >
-                  {isExpanded ? <Minimize2 /> : <Maximize2 />}
+                  {isExpanded ? (
+                    <Minimize2 className="icon-base" />
+                  ) : (
+                    <Maximize2 className="icon-base" />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -1355,7 +1359,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   }
                   onClick={props.onClose}
                 >
-                  {isHandheld ? <X /> : <Minus />}
+                  {isHandheld ? (
+                    <X className="icon-base" />
+                  ) : (
+                    <Minus className="icon-base" />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -1635,7 +1643,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="text-muted-foreground fill-current" />
+                  <Square className="icon-base text-muted-foreground fill-current" />
                 </Button>
               ) : (
                 <Button
@@ -1645,7 +1653,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   aria-label="Send message"
                   disabled={isSubmitDisabled || !input.trim()}
                 >
-                  <SendHorizontal />
+                  <SendHorizontal className="icon-base" />
                 </Button>
               )}
             </div>

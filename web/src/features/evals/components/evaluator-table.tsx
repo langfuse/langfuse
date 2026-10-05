@@ -275,7 +275,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               );
             }}
           >
-            <ExternalLinkIcon className="mr-1" />
+            <ExternalLinkIcon className="icon-base mr-1" />
             View
           </Button>
         );

@@ -50,7 +50,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         onClick={openSearch}
         aria-label="Find in messages"
       >
-        <Search />
+        <Search className="icon-base" />
         <span className="hidden lg:inline">Find</span>
       </Button>
     );

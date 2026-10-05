@@ -691,7 +691,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
             onClick={expandDetailPanel}
             className="h-7 w-7 shrink-0"
           >
-            <PanelRightOpen />
+            <PanelRightOpen className="icon-base" />
           </Button>
         </div>
       )}

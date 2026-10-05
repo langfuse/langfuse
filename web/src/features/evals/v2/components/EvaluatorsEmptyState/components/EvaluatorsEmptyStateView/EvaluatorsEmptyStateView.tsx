@@ -57,7 +57,7 @@ function DetectTopicsStartingPointCard({
                 "pointer-events-auto relative shrink-0 gap-1 px-2 text-xs",
               )}
             >
-              <BotMessageSquare />
+              <BotMessageSquare className="icon-base" />
               Set up with AI
             </Button>
           </div>

@@ -637,7 +637,7 @@ export function DataTableToolbar<TData, TValue>({
                       size="sm"
                       className="flex h-8 items-center gap-2 text-sm md:hidden"
                     >
-                      <Filter />
+                      <Filter className="icon-base" />
                       <span>Filters</span>
                       {filterState.length > 0 && (
                         <span className="bg-input ml-1 rounded-sm px-1.5 text-xs shadow-xs">
@@ -666,7 +666,7 @@ export function DataTableToolbar<TData, TValue>({
                           emitLegacyMobileFiltersToggled(false, "header");
                         }}
                       >
-                        <X />
+                        <X className="icon-base" />
                       </Button>
                     </div>
                     <div className="shrink-0 border-b px-2 py-2">

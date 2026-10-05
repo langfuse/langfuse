@@ -359,3 +359,62 @@ ruleTester.run("no-raw-icon-size", rule, {
     },
   ],
 });
+
+const requireSize = [{ requireSize: true }] as const;
+
+ruleTester.run("no-raw-icon-size requireSize", rule, {
+  valid: [
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info className="icon-base mr-2" />;`,
+      options: requireSize,
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info className={cn("text-muted-foreground", open ? "icon-sm" : "icon-lg")} />;`,
+      options: requireSize,
+    },
+    // Illustrations and container-driven sizes are explicit.
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <><Info className="h-12 w-12" /><Info className="size-full" /><Info size={48} /></>;`,
+      options: requireSize,
+    },
+    // Values that cannot be resolved statically are left alone.
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <><Info className={className} /><Info {...props} /><Info className={cn("mr-2", className)} /></>;`,
+      options: requireSize,
+    },
+    // Without the option, a bare icon is allowed.
+    `import { Info } from "lucide-react";
+     const x = <Info />;`,
+  ],
+  invalid: [
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info className={cn("mr-2", active && "text-primary")} />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info className={open ? "icon-sm" : "mr-2"} />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    // A raw size is reported once, not also as missing.
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info className="h-4 w-4" />;`,
+      options: requireSize,
+      errors: [{ messageId: "unexpected" }],
+    },
+  ],
+});

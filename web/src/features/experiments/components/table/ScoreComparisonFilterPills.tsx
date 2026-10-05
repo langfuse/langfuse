@@ -43,7 +43,7 @@ export const ScoreComparisonFilterPills = ({
             variant="secondary"
             className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
           >
-            <GitCompareArrows className="shrink-0" />
+            <GitCompareArrows className="icon-sm shrink-0" />
             <span className="truncate" title={label}>
               {label}
             </span>
@@ -69,7 +69,7 @@ export const ScoreComparisonFilterPills = ({
                 onRemove(filter);
               }}
             >
-              <X />
+              <X className="icon-base" />
             </Button>
           </Badge>
         );

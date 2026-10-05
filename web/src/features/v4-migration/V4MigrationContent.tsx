@@ -331,7 +331,11 @@ function CodeBlockWithCopy({
         title={copied ? "Copied" : copyLabel}
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
-        {copied ? <Check /> : <Copy />}
+        {copied ? (
+          <Check className="icon-base" />
+        ) : (
+          <Copy className="icon-base" />
+        )}
       </Button>
     </div>
   );
@@ -770,7 +774,7 @@ export function V4MigrationEvalsSection({
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
-                  <BotMessageSquare className="mr-1.5" />
+                  <BotMessageSquare className="icon-base mr-1.5" />
                   Use Assistant
                 </>
               ) : (

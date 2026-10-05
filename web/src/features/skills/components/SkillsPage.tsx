@@ -325,14 +325,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="mr-1.5" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="mr-1.5" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Link>
     </Button>
   );

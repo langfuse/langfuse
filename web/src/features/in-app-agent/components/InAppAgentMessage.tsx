@@ -764,7 +764,7 @@ function RedirectActionButton({
       }}
     >
       {content.label}
-      <ArrowRight className="ml-1" />
+      <ArrowRight className="icon-base ml-1" />
     </Button>
   );
 }

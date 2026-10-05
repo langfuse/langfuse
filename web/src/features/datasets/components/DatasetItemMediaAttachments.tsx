@@ -202,7 +202,11 @@ function DatasetItemMediaUploadButton({
         title="Attach media"
         onClick={() => inputRef.current?.click()}
       >
-        {isUploading ? <Loader2 className="animate-spin" /> : <Paperclip />}
+        {isUploading ? (
+          <Loader2 className="icon-sm animate-spin" />
+        ) : (
+          <Paperclip className="icon-sm" />
+        )}
       </Button>
     </>
   );
@@ -229,7 +233,7 @@ function CopyFieldValueButton({ value }: { value: string }) {
         setTimeout(() => setCopied(false), 1000);
       }}
     >
-      {copied ? <Check /> : <Copy />}
+      {copied ? <Check className="icon-sm" /> : <Copy className="icon-sm" />}
     </Button>
   );
 }

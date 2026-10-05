@@ -162,7 +162,7 @@ export function CategoricalScoreInput({
               title="Add new category"
               onClick={() => setPendingLabel("")}
             >
-              <Plus />
+              <Plus className="icon-sm" />
             </Button>
           ) : null}
         </div>

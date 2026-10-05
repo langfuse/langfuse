@@ -125,7 +125,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   variant="ghost"
                   {...getTriggerProps()}
                 >
-                  <EllipsisVertical />
+                  <EllipsisVertical className="icon-sm" />
                 </Button>
               )}
             </ConnectedDetailHeaderActionsMenuController>
@@ -230,7 +230,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                 ref: mobileActionsTriggerRef,
                               })}
                             >
-                              <MoreHorizontal />
+                              <MoreHorizontal className="icon-base" />
                             </Button>
                           )}
                         </DropdownMenu>
@@ -261,7 +261,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   className="gap-1"
                   {...getTriggerProps()}
                 >
-                  <PlusIcon />
+                  <PlusIcon className="icon-base" />
                   <span>Add to</span>
                   <DropdownIndicator size="sm" nudge />
                 </Button>
@@ -288,9 +288,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     }
                   >
                     {disabled ? (
-                      <LockIcon className="mr-1.5" />
+                      <LockIcon className="icon-base mr-1.5" />
                     ) : (
-                      <SquarePen className="mr-1.5" />
+                      <SquarePen className="icon-base mr-1.5" />
                     )}
                     <span>Annotate</span>
                   </Button>
@@ -306,10 +306,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               className="gap-1"
             >
               {commentDrawerControl.disabled ? (
-                <MessageSquareOff className="text-muted-foreground" />
+                <MessageSquareOff className="icon-base text-muted-foreground" />
               ) : (
                 <>
-                  <MessageSquare />
+                  <MessageSquare className="icon-base" />
                   <span>{commentActionLabel}</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />

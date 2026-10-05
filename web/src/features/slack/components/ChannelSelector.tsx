@@ -19,6 +19,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
+import { cn } from "@/src/utils/tailwind";
 
 export type { SlackChannel };
 
@@ -279,7 +280,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               ) : (
                 <span className="text-muted-foreground">{placeholder}</span>
               )}
-              <Search className="ml-2 shrink-0 opacity-50" />
+              <Search className="icon-base ml-2 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-full p-0" align="start">
@@ -371,9 +372,10 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             disabled={disabled || isRefreshing || isLoadingChannels}
           >
             <RefreshCw
-              className={
-                isRefreshing || isLoadingChannels ? "animate-spin" : ""
-              }
+              className={cn(
+                "icon-base",
+                (isRefreshing || isLoadingChannels) && "animate-spin",
+              )}
             />
           </Button>
         )}

@@ -31,7 +31,11 @@ export function EvaluatorTestPanel({
           title={open ? "Collapse test panel" : "Expand test panel"}
           onClick={() => onOpenChange(!open)}
         >
-          {open ? <PanelRightClose /> : <PanelRightOpen />}
+          {open ? (
+            <PanelRightClose className="icon-base" />
+          ) : (
+            <PanelRightOpen className="icon-base" />
+          )}
         </Button>
       </div>
       {open ? (

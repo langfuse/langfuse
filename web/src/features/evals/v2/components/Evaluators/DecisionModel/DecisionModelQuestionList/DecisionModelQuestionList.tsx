@@ -121,7 +121,7 @@ export function DecisionModelQuestionList({
                   size="sm"
                   onClick={() => onAddExample(type)}
                 >
-                  <Sparkles className="mr-1" />
+                  <Sparkles className="icon-base mr-1" />
                   {copy.label}: “
                   {QUESTION_EXAMPLES[type].instructions.replace(/`/g, "")}”
                 </Button>
@@ -159,7 +159,7 @@ export function DecisionModelQuestionList({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" variant="outline" size="sm" onClick={onAdd}>
-          <Plus className="mr-1" />
+          <Plus className="icon-base mr-1" />
           Add question
         </Button>
         <span className="text-muted-foreground text-xs">

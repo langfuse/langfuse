@@ -162,7 +162,11 @@ export const ResizableImage = ({
                 size="icon"
                 onClick={() => setIsZoomedIn(!isZoomedIn)}
               >
-                {isZoomedIn ? <Maximize2></Maximize2> : <Minimize2></Minimize2>}
+                {isZoomedIn ? (
+                  <Maximize2 className="icon-base"></Maximize2>
+                ) : (
+                  <Minimize2 className="icon-base"></Minimize2>
+                )}
               </Button>
             </>
           ) : (

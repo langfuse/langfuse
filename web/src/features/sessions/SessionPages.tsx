@@ -171,7 +171,7 @@ function SessionUsers({
               <span className="truncate" title={userBadgeText}>
                 {userBadgeText}
               </span>
-              <ExternalLinkIcon className="ml-1" />
+              <ExternalLinkIcon className="icon-sm ml-1" />
             </Badge>
           </Link>
         );
@@ -208,7 +208,7 @@ function SessionUsers({
                           <span className="truncate" title={userBadgeText}>
                             {userBadgeText}
                           </span>
-                          <ExternalLinkIcon className="ml-1" />
+                          <ExternalLinkIcon className="icon-sm ml-1" />
                         </Badge>
                       </Link>
                     );
@@ -397,7 +397,11 @@ const CopySessionIdButton: React.FC<{
         className="w-full justify-start gap-2 font-normal"
         onClick={onCopy}
       >
-        {isCopied ? <CheckIcon className="text-muted-green" /> : <CopyIcon />}
+        {isCopied ? (
+          <CheckIcon className="icon-base text-muted-green" />
+        ) : (
+          <CopyIcon className="icon-base" />
+        )}
         <span className="text-sm">Copy session ID</span>
       </Button>
     );
@@ -411,7 +415,11 @@ const CopySessionIdButton: React.FC<{
       aria-label="Copy session ID"
       onClick={onCopy}
     >
-      {isCopied ? <CheckIcon className="text-muted-green" /> : <CopyIcon />}
+      {isCopied ? (
+        <CheckIcon className="icon-sm text-muted-green" />
+      ) : (
+        <CopyIcon className="icon-sm" />
+      )}
     </Button>
   );
 };
@@ -630,7 +638,7 @@ export const SessionPage: React.FC<{
                   onClick={onDownloadSessionAsJson}
                   title="Download session as JSON"
                 >
-                  <Download />
+                  <Download className="icon-base" />
                 </Button>
                 {!router.query.peek && (
                   <DetailPageNav
@@ -662,10 +670,10 @@ export const SessionPage: React.FC<{
                       className="gap-1"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground" />
+                        <MessageSquareOff className="icon-base text-muted-foreground" />
                       ) : (
                         <>
-                          <MessageSquare />
+                          <MessageSquare className="icon-base" />
                           <span>
                             {getNumberFromMap(
                               sessionCommentCounts.data,
@@ -716,9 +724,9 @@ export const SessionPage: React.FC<{
                         }
                       >
                         {disabled ? (
-                          <LockIcon className="mr-1.5" />
+                          <LockIcon className="icon-base mr-1.5" />
                         ) : (
-                          <SquarePen className="mr-1.5" />
+                          <SquarePen className="icon-base mr-1.5" />
                         )}
                         <span>Annotate</span>
                       </Button>
@@ -735,7 +743,7 @@ export const SessionPage: React.FC<{
                         className="gap-1.5"
                         {...getTriggerProps()}
                       >
-                        <Plus />
+                        <Plus className="icon-base" />
                         <span>Add to</span>
                         {totalCount > 0 && (
                           <ActionButtonCountBadge count={totalCount} />
@@ -792,9 +800,9 @@ export const SessionPage: React.FC<{
                       className="w-full justify-start gap-2 font-normal"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground" />
+                        <MessageSquareOff className="icon-base text-muted-foreground" />
                       ) : (
-                        <MessageSquare />
+                        <MessageSquare className="icon-base" />
                       )}
                       <span className="text-sm">
                         {getNumberFromMap(sessionCommentCounts.data, sessionId)
@@ -837,7 +845,11 @@ export const SessionPage: React.FC<{
                     });
                   }}
                 >
-                  {annotateDisabled ? <LockIcon /> : <SquarePen />}
+                  {annotateDisabled ? (
+                    <LockIcon className="icon-base" />
+                  ) : (
+                    <SquarePen className="icon-base" />
+                  )}
                   <span className="text-sm">Annotate</span>
                 </Button>
                 <AnnotationQueueItemDropdownMenuController
@@ -854,7 +866,7 @@ export const SessionPage: React.FC<{
                         disabled={disabled !== undefined}
                         className="w-full justify-start gap-2 font-normal"
                       >
-                        <Plus />
+                        <Plus className="icon-base" />
                         <span className="text-sm">Add to</span>
                         {totalCount > 0 && (
                           <AnnotationQueueItemCountBadge
@@ -875,7 +887,7 @@ export const SessionPage: React.FC<{
                   onClick={onDownloadSessionAsJson}
                   className="w-full justify-start gap-2 font-normal"
                 >
-                  <Download />
+                  <Download className="icon-base" />
                   <span className="text-sm">Download JSON</span>
                 </Button>
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
@@ -1713,7 +1725,7 @@ const LoadedSessionEventsPage: React.FC<{
                       className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
                       {...getTriggerProps()}
                     >
-                      <Plus aria-hidden="true" />
+                      <Plus className="icon-base" aria-hidden="true" />
                       Add to
                       {totalCount > 0 && (
                         <ActionButtonCountBadge count={totalCount} />
@@ -1745,7 +1757,11 @@ const LoadedSessionEventsPage: React.FC<{
                         })
                       }
                     >
-                      {disabled ? <LockIcon /> : <Plus />}
+                      {disabled ? (
+                        <LockIcon className="icon-base" />
+                      ) : (
+                        <Plus className="icon-base" />
+                      )}
                       Score
                       {isModernSessionEnabled && annotationCount > 0 ? (
                         <ActionButtonCountBadge count={annotationCount} />
@@ -1773,7 +1789,11 @@ const LoadedSessionEventsPage: React.FC<{
                         })
                       }
                     >
-                      {disabled ? <MessageSquareOff /> : <MessageSquare />}
+                      {disabled ? (
+                        <MessageSquareOff className="icon-base" />
+                      ) : (
+                        <MessageSquare className="icon-base" />
+                      )}
                       {getNumberFromMap(sessionCommentCounts.data, sessionId)
                         ? "Comments"
                         : "Comment"}

@@ -306,7 +306,7 @@ export function PopoverFilterBuilder({
               variant="ghost"
               className="relative"
             >
-              <FilterIcon />
+              <FilterIcon className="icon-base" />
               {filterState.length > 0 && (
                 <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
@@ -340,7 +340,7 @@ export function PopoverFilterBuilder({
                 size="icon"
                 className="ml-0.5"
               >
-                <X />
+                <X className="icon-base" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -355,7 +355,7 @@ export function PopoverFilterBuilder({
                 size="icon-xs"
                 className="hover:bg-background ml-0.5"
               >
-                <X />
+                <X className="icon-sm" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -1125,7 +1125,7 @@ function FilterBuilderForm({
         disabled={disabled}
         size="xs"
       >
-        <X />
+        <X className="icon-sm" />
       </Button>
     );
 
@@ -1197,11 +1197,11 @@ function FilterBuilderForm({
             }
             className="text-muted-foreground w-full justify-start"
           >
-            <WandSparkles className="mr-2" />
+            <WandSparkles className="icon-base mr-2" />
             {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink className="ml-2" />
+                <ExternalLink className="icon-base ml-2" />
               </>
             ) : showAiFilter ? (
               "Cancel"
@@ -1281,7 +1281,9 @@ function FilterBuilderForm({
               variant={subtleAddButton ? "ghost" : "outline"}
               size="sm"
             >
-              <Plus className={cn("shrink-0", !subtleAddButton && "mr-2")} />
+              <Plus
+                className={cn("icon-base shrink-0", !subtleAddButton && "mr-2")}
+              />
               Add filter
             </Button>
           ) : null}

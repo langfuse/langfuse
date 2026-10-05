@@ -205,7 +205,11 @@ export function JSONView(props: {
                 className="hover:bg-border -mr-2"
                 title={isFullyCollapsed ? "Expand all" : "Collapse all"}
               >
-                {isFullyCollapsed ? <UnfoldVertical /> : <FoldVertical />}
+                {isFullyCollapsed ? (
+                  <UnfoldVertical className="icon-sm" />
+                ) : (
+                  <FoldVertical className="icon-sm" />
+                )}
               </Button>
             </>
           }
@@ -301,7 +305,7 @@ export function CodeView(props: {
               onClick={handleCopy}
               className=""
             >
-              {isCopied ? CopySuccessIcon : <Copy />}
+              {isCopied ? CopySuccessIcon : <Copy className="icon-sm" />}
             </Button>
           </div>
         ) : undefined}
@@ -319,7 +323,7 @@ export function CodeView(props: {
             onClick={handleCopy}
             className="absolute top-2 right-2 z-10"
           >
-            {isCopied ? CopySuccessIcon : <Copy />}
+            {isCopied ? CopySuccessIcon : <Copy className="icon-sm" />}
           </Button>
         )}
         <code
@@ -340,7 +344,11 @@ export function CodeView(props: {
         {props.defaultCollapsed ? (
           <div className="flex gap-2 py-2 pr-2">
             <Button variant="secondary" size="xs" onClick={handleShowAll}>
-              {isCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+              {isCollapsed ? (
+                <ChevronsUpDown className="icon-sm" />
+              ) : (
+                <ChevronsDownUp className="icon-sm" />
+              )}
             </Button>
           </div>
         ) : undefined}

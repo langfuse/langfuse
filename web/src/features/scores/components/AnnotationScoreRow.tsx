@@ -88,7 +88,7 @@ function CommentField({
                   onValueChange(null);
                 }}
               >
-                <Trash />
+                <Trash className="icon-sm" />
               </Button>
             </PopoverClose>
           )}
@@ -295,7 +295,11 @@ export function AnnotationScoreRow({
                     (config.isArchived && !score.comment)
                   }
                 >
-                  {score.comment ? <MessageCircleMore /> : <MessageCircle />}
+                  {score.comment ? (
+                    <MessageCircleMore className="icon-sm" />
+                  ) : (
+                    <MessageCircle className="icon-sm" />
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -579,7 +583,7 @@ export function AnnotationScoreRow({
                     aria-label={`Score actions for ${score.name}${showTarget ? ` (${target.label})` : ""}`}
                     title="Score actions"
                   >
-                    <MoreHorizontal />
+                    <MoreHorizontal className="icon-sm" />
                   </Button>
                 </Trigger>
               )}

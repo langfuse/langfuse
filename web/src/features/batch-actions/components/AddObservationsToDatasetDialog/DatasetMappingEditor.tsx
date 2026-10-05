@@ -80,7 +80,7 @@ export function DatasetMappingEditor({
                 onClick={() => actions.setScreen("create")}
                 disabled={pending}
               >
-                <Plus />
+                <Plus className="icon-base" />
                 Create dataset
               </Button>
             </div>

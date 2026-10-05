@@ -300,12 +300,12 @@ const Base = (props: {
                   <Button variant="outline" size="sm" onClick={copyUrl}>
                     {isCopied ? (
                       <>
-                        <CheckIcon className="mr-1" />
+                        <CheckIcon className="icon-base mr-1" />
                         Copied
                       </>
                     ) : (
                       <>
-                        <Link className="mr-1" />
+                        <Link className="icon-base mr-1" />
                         Copy
                       </>
                     )}

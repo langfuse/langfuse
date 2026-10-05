@@ -531,7 +531,7 @@ export function ExperimentComparisonSelector({
                 className="hover:bg-muted ml-0.5 rounded-full"
                 aria-label={`Remove ${option.experimentName}`}
               >
-                <X />
+                <X className="icon-sm" />
               </button>
             </Badge>
           );

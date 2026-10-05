@@ -234,9 +234,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 title={isSecret ? "Make header public" : "Make header secret"}
               >
                 {isSecret ? (
-                  <Lock className="text-orange-500" />
+                  <Lock className="icon-base text-orange-500" />
                 ) : (
-                  <LockOpen className="text-muted-foreground" />
+                  <LockOpen className="icon-base text-muted-foreground" />
                 )}
               </Button>
               <Button
@@ -246,7 +246,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 onClick={() => removeHeader(originalIndex)}
                 disabled={disabled}
               >
-                <X />
+                <X className="icon-base" />
               </Button>
             </div>
           );
@@ -259,7 +259,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           disabled={disabled}
           className="mt-2"
         >
-          <Plus className="mr-1" />
+          <Plus className="icon-base mr-1" />
           Add Custom Header
         </Button>
       </div>

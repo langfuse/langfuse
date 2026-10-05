@@ -126,7 +126,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                       {allVariablesMapped ? (
                         <Check
                           aria-label="All variables mapped"
-                          className="text-dark-green"
+                          className="icon-base text-dark-green"
                         />
                       ) : hasInvalidMappings ? (
                         <span
@@ -152,7 +152,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
             disabled={disabled}
             onClick={() => detachEvaluator(evaluatorId)}
           >
-            <Unlink />
+            <Unlink className="icon-base" />
             Disconnect
           </Button>
         </div>

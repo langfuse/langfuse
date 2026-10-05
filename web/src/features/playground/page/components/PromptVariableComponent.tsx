@@ -57,7 +57,7 @@ export const PromptVariableComponent: React.FC<{
           onClick={handleDeleteVariable}
           className="p-0"
         >
-          {!isUsed && <TrashIcon />}
+          {!isUsed && <TrashIcon className="icon-base" />}
         </Button>
       </div>
 

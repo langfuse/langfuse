@@ -48,7 +48,7 @@ export function CreateLLMApiKeyDialog({
       {!hideTrigger && (
         <DialogTrigger asChild>
           <Button variant="secondary">
-            <PlusIcon className="mr-1.5 -ml-0.5" aria-hidden="true" />
+            <PlusIcon className="icon-base mr-1.5 -ml-0.5" aria-hidden="true" />
             Add LLM Connection
           </Button>
         </DialogTrigger>

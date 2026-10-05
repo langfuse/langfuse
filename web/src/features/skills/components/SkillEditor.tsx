@@ -358,9 +358,9 @@ export function SkillEditor({
           aria-label={`Download version ${baseVersion}`}
         >
           {isDownloading ? (
-            <Loader2 className="mr-1.5 animate-spin" />
+            <Loader2 className="icon-base mr-1.5 animate-spin" />
           ) : (
-            <Download className="mr-1.5" />
+            <Download className="icon-base mr-1.5" />
           )}
           Download
         </Button>
@@ -401,7 +401,7 @@ export function SkillEditor({
             setIsDraft(true);
           }}
         >
-          <Plus className="mr-1.5" />
+          <Plus className="icon-base mr-1.5" />
           New version
         </Button>
       ) : (
@@ -420,7 +420,7 @@ export function SkillEditor({
           }
           title={createButtonTitle}
         >
-          <Save className="mr-1.5" />
+          <Save className="icon-base mr-1.5" />
           Save
         </Button>
       )}

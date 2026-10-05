@@ -825,7 +825,7 @@ export function DataTableControls({
                 className="text-xs"
                 disabled={addableFilters.length === 0}
               >
-                <Plus className="mr-1.5" />
+                <Plus className="icon-base mr-1.5" />
                 Add filter
               </Button>
             </PopoverTrigger>
@@ -902,7 +902,7 @@ export function DataTableControls({
                 aria-label="Show filters"
                 className="h-6 w-6"
               >
-                <PanelLeftOpen />
+                <PanelLeftOpen className="icon-base" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">Show filters</TooltipContent>
@@ -984,7 +984,7 @@ export function DataTableControls({
                 aria-label="Close filters"
                 className="-ml-1 h-6 w-6"
               >
-                <X />
+                <X className="icon-base" />
               </Button>
             ) : (
               <Tooltip>
@@ -999,7 +999,7 @@ export function DataTableControls({
                     aria-label="Hide filters"
                     className="-ml-1 h-6 w-6"
                   >
-                    <PanelLeftClose />
+                    <PanelLeftClose className="icon-base" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Hide filters</TooltipContent>
@@ -1023,7 +1023,7 @@ export function DataTableControls({
                   <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <WandSparkles />
+                        <WandSparkles className="icon-base" />
                       </Button>
                     </PopoverTrigger>
                   </TooltipTrigger>
@@ -1076,9 +1076,9 @@ export function DataTableControls({
                   }
                 >
                   {expandedVisibleCount === 0 ? (
-                    <UnfoldVertical />
+                    <UnfoldVertical className="icon-base" />
                   ) : (
-                    <FoldVertical />
+                    <FoldVertical className="icon-base" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1098,7 +1098,7 @@ export function DataTableControls({
                       className="h-6 w-6"
                       aria-label="Filter options"
                     >
-                      <MoreVertical />
+                      <MoreVertical className="icon-base" />
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
@@ -1145,7 +1145,7 @@ export function DataTableControls({
                   }}
                 >
                   Show only active
-                  {showOnlyActive && <Check className="ml-auto" />}
+                  {showOnlyActive && <Check className="icon-base ml-auto" />}
                 </DropdownMenuItem>
                 {/* "Collapse sidebar" is desktop-rail chrome — there's no rail
                     on mobile (either sheet), where the header X / sheet footer
@@ -1221,7 +1221,7 @@ export function DataTableControls({
                   aria-label="Clear filter search"
                   className="absolute top-1/2 right-0.5 h-5 w-5 -translate-y-1/2"
                 >
-                  <IconX />
+                  <IconX className="icon-base" />
                 </Button>
               )}
             </div>
@@ -2179,7 +2179,7 @@ function NumericFacet({
                   onClick={() => onRemoveCondition(index)}
                   className="text-muted-foreground hover:text-foreground h-5 w-5 shrink-0 p-0"
                 >
-                  <X />
+                  <X className="icon-base" />
                 </Button>
               </div>
             ))}

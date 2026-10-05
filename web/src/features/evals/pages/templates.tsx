@@ -58,9 +58,9 @@ export default function TemplatesPage() {
                 }
               >
                 {hasWriteAccess ? (
-                  <Plus className="mr-2" />
+                  <Plus className="icon-base mr-2" />
                 ) : (
-                  <Lock className="mr-2" />
+                  <Lock className="icon-base mr-2" />
                 )}
                 Custom Evaluator
               </Link>

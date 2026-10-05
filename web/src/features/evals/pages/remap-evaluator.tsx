@@ -348,7 +348,7 @@ export default function RemapEvaluatorPage() {
                               className="mt-3 rounded-l-none rounded-r-md border-l-2"
                               {...getTriggerProps()}
                             >
-                              <ChevronDown />
+                              <ChevronDown className="icon-base" />
                             </Button>
                           )}
                         </DropdownMenu>

@@ -14,6 +14,7 @@ import type {
   MappingTarget,
 } from "../types";
 import { isJsonPath } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
 
 type CustomMappingEditorProps = {
   config: CustomMappingConfig;
@@ -230,7 +231,7 @@ export function CustomMappingEditor({
             onClick={handleAddEntry}
             className="w-full"
           >
-            <Plus className="mr-2" />
+            <Plus className="icon-base mr-2" />
             Add field
           </Button>
         </div>
@@ -301,9 +302,12 @@ function KeyValueEntryRow({
             }
           >
             <Trash2
-              className={
-                canRemove ? "text-muted-foreground" : "text-muted-foreground/30"
-              }
+              className={cn(
+                "icon-base",
+                canRemove
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground/30",
+              )}
             />
           </Button>
         </div>

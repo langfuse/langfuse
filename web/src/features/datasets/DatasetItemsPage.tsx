@@ -133,7 +133,7 @@ function DatasetItemsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical />
+                  <MoreVertical className="icon-base" />
                 </Button>
               )}
             </DatasetActionMenu>
@@ -143,7 +143,7 @@ function DatasetItemsView({
               onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
               title="Version History"
             >
-              <History />
+              <History className="icon-base" />
             </Button>
           </>
         ),

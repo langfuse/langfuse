@@ -177,7 +177,7 @@ function ObservationListRows({
                   className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
                   aria-label={`Actions for ${observation.name}`}
                 >
-                  <MoreHorizontal />
+                  <MoreHorizontal className="icon-base" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={0}>
@@ -523,7 +523,7 @@ export function ModernSessionSidebar(
                 className="relative h-7 w-7 shrink-0 rounded-sm"
                 aria-label="Filter observations"
               >
-                <ListFilter />
+                <ListFilter className="icon-base" />
               </Button>
             </DropdownMenuTrigger>
             <ModernSessionViewDropdownMenu controls={filterControls} />
@@ -576,7 +576,7 @@ export function ModernSessionSidebar(
                         aria-label="Save filters as view"
                         onClick={filterControls.onOpenFilterDialog}
                       >
-                        <Save />
+                        <Save className="icon-sm" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Save as view</TooltipContent>
@@ -592,7 +592,7 @@ export function ModernSessionSidebar(
                       aria-label="Edit filters"
                       onClick={filterControls.onOpenFilterDialog}
                     >
-                      <Pencil />
+                      <Pencil className="icon-sm" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Edit filters</TooltipContent>
@@ -607,7 +607,7 @@ export function ModernSessionSidebar(
                       aria-label="Clear filters"
                       onClick={filterControls.onClearFilters}
                     >
-                      <X />
+                      <X className="icon-sm" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Clear filters</TooltipContent>

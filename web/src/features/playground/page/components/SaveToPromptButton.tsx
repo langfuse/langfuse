@@ -104,7 +104,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                   className,
                 )}
               >
-                <Save />
+                <Save className="icon-base" />
                 <span className="sr-only">Save as prompt</span>
               </Button>
             </PopoverTrigger>
@@ -119,7 +119,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
               className,
             )}
           >
-            <Save />
+            <Save className="icon-base" />
             <span>Save as prompt</span>
           </Button>
         </PopoverTrigger>
