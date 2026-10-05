@@ -745,7 +745,14 @@ describe("Topics local execution access and publication", () => {
     const request = { ...execution().input, minimumTraceCount: 31 };
     await caller().trigger(request);
     expect(mocks.createTopicExecution).toHaveBeenCalledWith(
-      request,
+      expect.objectContaining({
+        ...request,
+        requestId: expect.any(String),
+        embeddingConfig: {
+          ...request.embeddingConfig,
+          embeddingModel: "eu.cohere.embed-v4:0",
+        },
+      }),
       expect.any(String),
       "user-a",
     );

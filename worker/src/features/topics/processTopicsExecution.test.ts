@@ -299,6 +299,10 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
 });
 vi.mock("./models", () => ({
   TOPICS_NAMING_MODEL: "us.openai.gpt-5.6-terra",
+  requireTopicsModelConfig: () => ({
+    summaryModel: "gpt-4.1-nano",
+    embeddingModel: "eu.cohere.embed-v4:0",
+  }),
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
   nameTopicGroup: (...args: unknown[]) => state.name(...args),
@@ -762,12 +766,12 @@ describe("Topics execution", () => {
   it("rejects frozen legacy summary models before reusing or relabeling results", async () => {
     await processSelection("source", 1);
     const summary = [...state.summaries.values()][0];
-    summary.summaryModel = "gpt-4.1-nano";
+    summary.summaryModel = "legacy-summary-model";
     const original = structuredClone(summary);
     const legacy = execution("legacy", 1);
     legacy.input.reuseExistingSummaries = true;
     Object.assign(legacy.input.processingConfig, {
-      summaryModel: "gpt-4.1-nano",
+      summaryModel: "legacy-summary-model",
     });
     state.executions.set(legacy.id, legacy);
     vi.clearAllMocks();
@@ -779,7 +783,7 @@ describe("Topics execution", () => {
 
     expect(state.executions.get(legacy.id)).toMatchObject({
       status: "failed",
-      error: expect.stringContaining("Start a new execution"),
+      error: expect.stringContaining("start a new Topics execution"),
     });
     expect([...state.summaries.values()]).toEqual([original]);
     expect(state.resultReads).not.toHaveBeenCalled();
