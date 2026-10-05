@@ -102,13 +102,14 @@ describe("SessionConversationTimelineTrace", () => {
     }).parentElement!;
     const systemTimestamp = systemHeader.querySelector("time");
     expect(systemTimestamp?.dateTime).toBe(timing.startTime.toISOString());
-    expect(systemTimestamp?.classList.contains("invisible")).toBe(true);
     expect(
       systemTimestamp?.parentElement?.classList.contains("invisible"),
-    ).toBe(false);
+    ).toBe(true);
     const systemObservationButton =
       systemHeader.querySelector("button.underline")!;
-    expect(systemObservationButton.classList.contains("invisible")).toBe(true);
+    expect(
+      systemObservationButton.parentElement?.classList.contains("invisible"),
+    ).toBe(true);
     fireEvent.click(systemObservationButton);
     expect(onOpenTrace).toHaveBeenCalledOnce();
     expect(screen.getByText("Answer")).toBeInTheDocument();

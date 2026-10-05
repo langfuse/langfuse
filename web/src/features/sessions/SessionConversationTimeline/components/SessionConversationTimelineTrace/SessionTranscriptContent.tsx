@@ -6,8 +6,7 @@ import {
   SessionTimelineToolRow,
   SessionObservationActionsMenu,
 } from "./SessionConversationTimelineTrace";
-import { Button } from "@/src/components/ui/button";
-import { ChevronDown, MoreHorizontal, Wrench } from "lucide-react";
+import { ChevronDown, Wrench } from "lucide-react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "../../useSessionTraceTranscripts";
 import { SessionTimelineContentMessage } from "./components/SessionTimelineContentMessage/SessionTimelineContentMessage";
@@ -155,23 +154,6 @@ function SessionTranscriptRow({
       {...observationActionProps}
     >
       {({ getTriggerProps }) => {
-        if (isTool || isSystem) {
-          return (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Actions for ${observation.name ?? observation.id}`}
-              className={cn(
-                isSystem &&
-                  "invisible group-focus-within:visible group-hover:visible",
-              )}
-              {...getTriggerProps()}
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </Button>
-          );
-        }
         return (
           <button
             type="button"
@@ -188,33 +170,30 @@ function SessionTranscriptRow({
     </SessionObservationActionsMenu>
   );
   const metadata = (isTool || isSystem) && (timing || actionsMenu) && (
-    <div className="text-muted-foreground flex items-center gap-2 font-mono text-xs">
+    <div className="text-muted-foreground invisible flex items-center gap-3 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-has-[[data-session-actions-trigger][aria-expanded=true]]/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
       {!isTool &&
         row.message.role === "system" &&
         row.message.observationId && (
           <button
             type="button"
-            className="hover:text-foreground invisible underline group-focus-within:visible group-hover:visible"
+            className="hover:text-foreground underline"
             onClick={() => onOpenObservation(row.message.observationId!)}
           >
             Open observation
           </button>
         )}
       {actionsMenu}
-      {timing && (isTool || isSystem) && (
-        <time
-          dateTime={timing.startTime.toISOString()}
-          className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible"
-        >
-          {timing.startTime.toLocaleTimeString()}
-        </time>
-      )}
       {isTool && timing && timing.endTime !== null && (
-        <span className="invisible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
+        <span>
           {formatIntervalSeconds(
             (timing.endTime.getTime() - timing.startTime.getTime()) / 1000,
           )}
         </span>
+      )}
+      {timing && (isTool || isSystem) && (
+        <time dateTime={timing.startTime.toISOString()}>
+          {timing.startTime.toLocaleTimeString()}
+        </time>
       )}
     </div>
   );

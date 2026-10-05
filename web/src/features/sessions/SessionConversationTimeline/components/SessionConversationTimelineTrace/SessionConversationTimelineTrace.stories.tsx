@@ -176,10 +176,7 @@ export const MultipleThreads = meta.story({
       type: "transcript",
       ...observationActionProps,
       result,
-      observations: [{ id: "generation-1" }] as Extract<
-        Props["state"],
-        { type: "transcript" }
-      >["observations"],
+      observations: [sourceObservation],
     },
   },
 });
@@ -190,10 +187,7 @@ export const Cutoff = meta.story({
       type: "transcript",
       ...observationActionProps,
       result: { ...result, cutoff: true },
-      observations: [{ id: "generation-1" }] as Extract<
-        Props["state"],
-        { type: "transcript" }
-      >["observations"],
+      observations: [sourceObservation],
     },
   },
 });
@@ -248,6 +242,18 @@ export const ExpandTool = meta.story({
     );
     await expect(canvas.getByText(/"city": "Berlin"/)).toBeInTheDocument();
     await expect(canvas.getByText(/"temperature": 12/)).toBeInTheDocument();
+    const toolRow = canvas
+      .getByRole("button", { name: "Collapse weather" })
+      .closest("section")!;
+    const toolActions = within(toolRow).getByRole("button", {
+      name: "Actions for Weather assistant",
+    });
+    await expect(toolActions).toHaveTextContent("Actions");
+    await userEvent.click(toolActions);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.hover(page.getByRole("menu"));
+    await expect(toolActions).toBeVisible();
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse weather" }),
     );

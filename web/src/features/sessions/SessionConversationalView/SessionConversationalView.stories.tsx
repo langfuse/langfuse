@@ -130,7 +130,16 @@ function SessionConversationalViewStory({
       state: {
         type: "transcript",
         ...observationActionProps,
-        observations: [],
+        observations: Array.from({ length: 3 }, (_, batchIndex) => ({
+          id: `batch-${batchIndex}`,
+          traceId: traces[0]!.trace.id,
+          name: `Tool batch ${batchIndex + 1}`,
+          startTime: traces[0]!.trace.timestamp,
+          environment: traces[0]!.trace.environment,
+        })) as Extract<
+          TraceProps["state"],
+          { type: "transcript" }
+        >["observations"],
         result: {
           state: "loaded",
           cutoff: false,
