@@ -1,9 +1,11 @@
 import { type NextApiRequest } from "next";
 
-import { ApiError, type BaseError } from "@langfuse/shared";
+import { ApiError, isBaseError, type BaseError } from "@langfuse/shared";
 import {
   type ApiAccessLevel,
   type ApiAccessScope,
+  logger,
+  redactLangfuseSecretKeys,
   redis,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -32,6 +34,7 @@ import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff"
 import { authorize } from "@/src/features/rbac/authorize";
 import {
   forbiddenError,
+  internalServerError,
   serviceUnavailableError,
   unauthorizedError,
   type AuthorizationContext,
@@ -52,8 +55,50 @@ export async function shadowAuth(
 }
 
 /** enforceOnly authorizes solely with the new pipeline and returns its scope or error. */
-function enforceOnly(params: ShadowAuthParams): Promise<ShadowAuthResult> {
-  return runNewAuth(params);
+async function enforceOnly(
+  params: ShadowAuthParams,
+): Promise<ShadowAuthResult> {
+  try {
+    const result = await runNewAuth(params);
+    if (result.success || result.error.httpCode < 500) return result;
+    return enforceInfrastructureError(result.error);
+  } catch (error) {
+    if (isBaseError(error) && error.isUserError()) throw error;
+    return enforceInfrastructureError(error);
+  }
+}
+
+/** enforceInfrastructureError logs diagnostics and returns a generic failure. */
+function enforceInfrastructureError(error: unknown): ErrorResult<BaseError> {
+  logAuthenticationError(error);
+  return genericInfrastructureError(infrastructureHttpCode(error));
+}
+
+function logAuthenticationError(error: unknown): void {
+  logger.error("Public API authentication failed", {
+    error: redactLangfuseSecretKeys(errorDiagnostic(error)),
+  });
+}
+
+function errorDiagnostic(error: unknown): string {
+  return error instanceof Error
+    ? (error.stack ?? error.message)
+    : String(error);
+}
+
+/** infrastructureHttpCode preserves typed statuses and maps Prisma failures to 503. */
+function infrastructureHttpCode(error: unknown): number {
+  const fallbackCode = isPrismaException(error) ? 503 : 500;
+  return isBaseError(error) ? error.httpCode : fallbackCode;
+}
+
+function genericInfrastructureError(httpCode: number): ErrorResult<BaseError> {
+  if (httpCode === 503) return serviceUnavailableError();
+  if (httpCode === 500) return internalServerError();
+  return {
+    success: false,
+    error: new ApiError("Internal Server Error", httpCode),
+  };
 }
 
 /** legacyWithShadow lets legacy decide while the new pipeline records parity. */
