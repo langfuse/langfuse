@@ -3,16 +3,8 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { DiffLabel } from "@/src/features/datasets";
-import {
-  getScoreDataTypeExplanation,
-  splitScoreDataTypeIcon,
-} from "@/src/features/scores";
+import { splitScoreDataTypeIcon } from "@/src/features/scores";
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,
@@ -27,26 +19,6 @@ const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
   BOOLEAN: "true-rate",
   CATEGORICAL: "modal value",
 };
-
-/** The type, quietly: the marker the column already had, now explained. */
-const ScoreDataTypeMarker = ({
-  icon,
-  dataType,
-}: {
-  icon: string;
-  dataType: ScoreColumnDataType;
-}) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <span className="text-muted-foreground shrink-0 cursor-default">
-        {icon}
-      </span>
-    </TooltipTrigger>
-    <TooltipContent className="max-w-[280px]">
-      {getScoreDataTypeExplanation(dataType)}
-    </TooltipContent>
-  </Tooltip>
-);
 
 const SummaryRow = ({
   label,
@@ -97,15 +69,6 @@ export const ScoreColumnHeaderSummary = ({
   const hasMovementCounts = Boolean(
     movement && (movement.improved || movement.regressed || movement.changed),
   );
-  // The counts are the part a narrow column clips, so they say the same thing
-  // in words on hover.
-  const movementCountsTitle = [
-    movement?.improved ? `${movement.improved} improved` : null,
-    movement?.regressed ? `${movement.regressed} regressed` : null,
-    movement?.changed ? `${movement.changed} changed` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
 
   return (
     // The filter menu sits outside the hover-card trigger so its own popover is
@@ -115,10 +78,10 @@ export const ScoreColumnHeaderSummary = ({
         <HoverCardTrigger asChild>
           <div className="flex min-w-0 flex-1 cursor-default flex-col gap-0.5 py-0.5">
             <span className="flex min-w-0 items-baseline gap-1">
-              {icon && <ScoreDataTypeMarker icon={icon} dataType={dataType} />}
-              <span className="truncate" title={label}>
-                {nameLabel}
-              </span>
+              {icon && (
+                <span className="text-muted-foreground shrink-0">{icon}</span>
+              )}
+              <span className="truncate">{nameLabel}</span>
             </span>
             {/* The values: this column's aggregate, and the one it moved from.
               The item count is deliberately NOT here — of the numbers competing
@@ -133,10 +96,7 @@ export const ScoreColumnHeaderSummary = ({
                 in an ellipsis: a value that stops with no mark reads as the
                 whole value. */}
               {baseline ? (
-                <span
-                  className="text-foreground min-w-0 truncate font-bold"
-                  title={formatScoreColumnAggregate(baseline)}
-                >
+                <span className="text-foreground min-w-0 truncate font-bold">
                   {formatScoreColumnAggregate(baseline)}
                 </span>
               ) : (
@@ -146,10 +106,7 @@ export const ScoreColumnHeaderSummary = ({
                 comparison recorded and this run has not yet is exactly the
                 case worth seeing. */}
               {comparison && (
-                <span
-                  className="min-w-0 truncate"
-                  title={`vs ${formatScoreColumnAggregate(comparison)}`}
-                >
+                <span className="min-w-0 truncate">
                   vs {formatScoreColumnAggregate(comparison)}
                 </span>
               )}
@@ -181,10 +138,7 @@ export const ScoreColumnHeaderSummary = ({
                   // Not a flex row: `text-overflow` only applies to a block
                   // box's inline content, and it is what drops a count whole
                   // and marks it, instead of clipping `↘141` into `↘1`.
-                  <span
-                    className="min-w-0 truncate"
-                    title={movementCountsTitle}
-                  >
+                  <span className="min-w-0 truncate">
                     {movement && movement.improved > 0 && (
                       <span className="text-dark-green pr-1 font-bold">
                         ↗{movement.improved}
@@ -208,10 +162,6 @@ export const ScoreColumnHeaderSummary = ({
           align="start"
           className="flex w-64 flex-col gap-1 p-3 font-normal"
         >
-          <span className="text-xs font-bold break-all">{label}</span>
-          <span className="text-muted-foreground text-[10px]">
-            {getScoreDataTypeExplanation(dataType)}
-          </span>
           <SummaryRow
             label={`${
               hasBaseline ? "Baseline experiment" : "This experiment"
@@ -247,12 +197,6 @@ export const ScoreColumnHeaderSummary = ({
               )}
               <SummaryRow label="Unchanged" value={movement.unchanged} />
               <SummaryRow label="Not scored" value={movement.notComparable} />
-              <span className="text-muted-foreground text-[10px]">
-                Not scored: only one of the two experiments has a score for the
-                item — or, for a categorical score, the item has no single value
-                to compare — so it counts as neither an improvement nor a
-                regression.
-              </span>
             </>
           )}
         </HoverCardContent>
