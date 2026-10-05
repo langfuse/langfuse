@@ -6,6 +6,7 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { useCorrectionData } from "../hooks/useCorrectionData";
 import { useCorrectionMutations } from "../hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "../hooks/useCorrectionEditor";
+import { useCorrectionScope } from "../hooks/useCorrectionScope";
 import { useMemo, useState } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -50,11 +51,9 @@ export function CorrectedOutputField({
   traceCorrection,
   ...props
 }: CorrectedOutputFieldProps) {
-  const [selectedScope, setSelectedScope] = useState<CorrectionScope | null>(
-    null,
+  const [scope, setSelectedScope] = useCorrectionScope(
+    Boolean(props.existingCorrection),
   );
-  const scope =
-    selectedScope ?? (props.existingCorrection ? "observation" : "trace");
   const hasScopeSelector = Boolean(traceCorrection && props.observationId);
 
   return (

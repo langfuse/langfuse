@@ -36,3 +36,17 @@ export function isCorrectionOutputTooLarge(
     JSON_VIEW_RENDER_ROW_LIMIT
   );
 }
+
+export function prepareTraceCorrectionOutput(output: unknown) {
+  if (probeJsonField(output).size > JSON_VIEW_RENDER_CHAR_LIMIT) {
+    return { actualOutput: undefined, actualOutputTooLarge: true };
+  }
+
+  const parsedOutput = deepParseJson(output);
+  const actualOutputTooLarge =
+    countJsonRows(parsedOutput) > JSON_VIEW_RENDER_ROW_LIMIT;
+  return {
+    actualOutput: actualOutputTooLarge ? undefined : parsedOutput,
+    actualOutputTooLarge,
+  };
+}

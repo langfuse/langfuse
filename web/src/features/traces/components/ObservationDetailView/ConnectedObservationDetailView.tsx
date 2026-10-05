@@ -49,6 +49,7 @@ import { ScoresTable } from "@/src/features/scores";
 import {
   selectOutputCorrections,
   isCorrectionOutputTooLarge,
+  prepareTraceCorrectionOutput,
 } from "./correctionData";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
@@ -313,10 +314,11 @@ export function ConnectedObservationDetailView({
       isCorrectionOutputTooLarge(observationWithIORaw?.output, parsedOutput),
     [traceOutputCorrection, observationWithIORaw?.output, parsedOutput],
   );
-  const traceCorrectionOutputTooLarge = useMemo(
+  const traceCorrectionOutput = useMemo(
     () =>
-      Boolean(traceOutputCorrection) &&
-      isCorrectionOutputTooLarge(trace.output),
+      traceOutputCorrection
+        ? prepareTraceCorrectionOutput(trace.output)
+        : undefined,
     [traceOutputCorrection, trace.output],
   );
 
@@ -633,10 +635,9 @@ export function ConnectedObservationDetailView({
                     existingCorrection={outputCorrection}
                     traceCorrection={{
                       existingCorrection: traceOutputCorrection,
-                      actualOutput: traceCorrectionOutputTooLarge
-                        ? undefined
-                        : trace.output,
-                      actualOutputTooLarge: traceCorrectionOutputTooLarge,
+                      actualOutput: traceCorrectionOutput?.actualOutput,
+                      actualOutputTooLarge:
+                        traceCorrectionOutput?.actualOutputTooLarge,
                       environment: trace.environment,
                     }}
                   />

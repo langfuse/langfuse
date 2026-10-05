@@ -3,6 +3,7 @@ import { type ScoreDomain } from "@langfuse/shared";
 import {
   selectOutputCorrections,
   isCorrectionOutputTooLarge,
+  prepareTraceCorrectionOutput,
 } from "./correctionData";
 
 const correction = (
@@ -13,6 +14,35 @@ const correction = (
   ({ id, observationId, timestamp: new Date(seconds * 1000) }) as ScoreDomain;
 
 describe("correction data", () => {
+  it.each([
+    ['"hello"', "hello"],
+    [
+      '{"message":"hello","id":9007199254740993}',
+      { message: "hello", id: "9007199254740993" },
+    ],
+    ["null", null],
+    ["false", false],
+    ["42", "42"],
+    [undefined, undefined],
+  ])("decodes trace output %s for the correction diff", (raw, expected) => {
+    expect(prepareTraceCorrectionOutput(raw)).toEqual({
+      actualOutput: expected,
+      actualOutputTooLarge: false,
+    });
+  });
+
+  it("excludes trace output above either size limit", () => {
+    for (const raw of [
+      JSON.stringify("x".repeat(2_000_000)),
+      JSON.stringify(Array.from({ length: 3333 }, () => 1)),
+    ]) {
+      expect(prepareTraceCorrectionOutput(raw)).toEqual({
+        actualOutput: undefined,
+        actualOutputTooLarge: true,
+      });
+    }
+  });
+
   it("keeps trace-only corrections on their owner and separate from observation corrections", () => {
     const traceCorrection = correction("trace", null, 1);
     expect(selectOutputCorrections([traceCorrection], "root", true)).toEqual({
