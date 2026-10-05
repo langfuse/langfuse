@@ -60,6 +60,8 @@ describe("ingestion queue S3 SlowDown handling", () => {
       region: "us-east-1",
       endpoint: "http://127.0.0.1:1",
       forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
     });
     const slowDown = Object.assign(
       new Error("Please reduce your request rate."),
