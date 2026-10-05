@@ -28,9 +28,11 @@
   `LANGFUSE_TOPICS_ENABLED` gates all routes and effective session flags.
   Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
   use the `langfuseTopics` flag and project permissions. Storage, retry and setup
-  details: `../worker/src/features/topics/README.md`.
-  Preview and trigger selection share `topics/server`'s bounded trace selector
-  with worker backfills; preserve sampling and the frozen submission range.
+  details: `../worker/src/features/topics/README.md`. Preview and trigger
+  selection share `topics/server`'s bounded trace selector with worker
+  backfills; preserve sampling and the frozen submission range. Internal PoC
+  model selection requires `LANGFUSE_TOPICS_SUMMARY_MODEL` and
+  `LANGFUSE_TOPICS_EMBEDDING_MODEL` on both web and worker, with no defaults.
   The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
   directly, using the same character cap as worker inference.
 - Reusable UI components: `src/components/*`

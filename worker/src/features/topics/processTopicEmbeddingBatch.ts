@@ -32,6 +32,7 @@ export async function processTopicEmbeddingBatch(
             return await embedTopicSummary(
               summary.summary,
               staged.embeddingConfig.embeddingDimensions,
+              staged.embeddingConfig.embeddingModel!,
             );
           } catch (error) {
             throw error instanceof TopicsProviderUnavailable

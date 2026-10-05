@@ -50,16 +50,23 @@ dev commands also build it):
 pnpm --filter @langfuse/native run build
 ```
 
-The worker reads `LANGFUSE_AI_AWS_BEDROCK_REGION` for all Topics model calls
-through the normal `.env` loader.
-Use a region supporting both the global OpenAI inference profiles and Cohere
-Embed v4, such as `eu-west-1` or `us-east-1`. Bedrock uses the default AWS
-credential chain; the worker role needs `bedrock:InvokeModel` access to
-`global.openai.gpt-5.6-luna`, `global.openai.gpt-5.6-terra`, their routed
-foundation models, and `cohere.embed-v4:0`.
-Locally, set `LANGFUSE_TOPICS_AWS_PROFILE=playground` to use the SSO profile
-without changing credentials for local object storage. `AWS_PROFILE` takes
-precedence when set. Restart the worker's parent dev command after changing env.
+The worker reads `LANGFUSE_AI_AWS_BEDROCK_REGION` for Topics model calls.
+Set `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` on
+both web and worker to Bedrock model IDs. Neither has a default; Topics
+processing is unavailable until both are set. Changing either requires a new
+execution, and changing the embedding model requires rebuilding the map from
+the new vectors. These are internal Topics PoC settings, not part of the
+self-hosted configuration surface. Topic naming continues to use
+`global.openai.gpt-5.6-terra`.
+
+Bedrock uses the default AWS credential chain; the worker role needs
+`bedrock:InvokeModel` access to the selected summary and embedding models,
+`global.openai.gpt-5.6-terra` for topic naming, and any routed foundation models.
+Usage is retained for custom models, but cost estimates are only available for
+the built-in summary, naming and embedding model IDs. Locally, set
+`LANGFUSE_TOPICS_AWS_PROFILE=playground` to use the SSO profile without changing
+credentials for local object storage. `AWS_PROFILE` takes precedence when set.
+Restart web and worker after changing these values.
 Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
 Summary and assignment records use `trace_id` as their source when present;
@@ -120,7 +127,9 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 | `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                                                                                                                                                                              |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise.                                                                                                                                                             |
 | `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset defaults to the demo project. These projects bypass trace-batch sampling at ingestion, so every trace is summarized automatically; set `LANGFUSE_TRACE_BATCH_SAMPLING_RATE=0` to run the flow for them only. |
-| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries and embeddings.                                                                                                                                                                                                         |
+| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries, naming, and embeddings.                                                                                                                                                                                                |
+| `LANGFUSE_TOPICS_SUMMARY_MODEL`               | Required internal PoC setting; Bedrock model ID used for trace summaries.                                                                                                                                                                            |
+| `LANGFUSE_TOPICS_EMBEDDING_MODEL`             | Required internal PoC setting; Bedrock embedding model ID.                                                                                                                                                                                           |
 | `LANGFUSE_TOPICS_AWS_PROFILE`                 | Optional local AWS profile. `AWS_PROFILE` takes precedence.                                                                                                                                                                                          |
 
 ## Run the experiment

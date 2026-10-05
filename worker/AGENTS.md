@@ -32,9 +32,11 @@
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
   Model calls use `generateTopicText` and `generateTopicEmbedding` from
   `@langfuse/shared/topics/server` to keep Bedrock transport on shared's AI SDK
-  version. Summaries use OpenAI Luna and naming uses Terra via global inference
-  profiles; embeddings use Cohere Embed v4. Local AWS auth uses
-  `LANGFUSE_TOPICS_AWS_PROFILE`; region/setup details live in the Topics README.
+  version. Internal PoC model selection uses required, default-free
+  `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` values
+  shared by web and worker; topic naming still uses the fixed Terra profile.
+  Local AWS auth uses `LANGFUSE_TOPICS_AWS_PROFILE`; region/setup details live
+  in the Topics README.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation

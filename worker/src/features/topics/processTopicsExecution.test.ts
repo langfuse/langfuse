@@ -72,6 +72,10 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
     isTopicsEnabled: () => true,
+    getTopicsModelConfig: () => ({
+      summaryModel: "gpt-4.1-nano",
+      embeddingModel: "cohere.embed-v4:0",
+    }),
     TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
@@ -397,10 +401,14 @@ function execution<T extends "process" | "update" = "process">(
     operation,
     facets: facets.map(({ facetId, version }) => ({ facetId, version })),
     embeddingConfig: {
+      embeddingModel: "cohere.embed-v4:0",
       embeddingDimensions,
     },
     ...(operation === "process"
-      ? { traceIds: Array.from({ length: count }, (_, i) => `trace${i}`) }
+      ? {
+          traceIds: Array.from({ length: count }, (_, i) => `trace${i}`),
+          processingConfig: { summaryModel: "gpt-4.1-nano" },
+        }
       : {
           timeRange: {
             from: new Date("2026-01-01T00:00:00.000Z"),

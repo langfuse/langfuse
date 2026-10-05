@@ -91,9 +91,12 @@
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
     retain their original version. Token counting belongs to worker model calls.
   - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
-    while trace/project cleanup always runs. Processing also requires
-    `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default);
-    reads/configuration remain feature-flag/RBAC controlled.
+    including cleanup. Processing also requires
+    `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default); reads/configuration
+    remain feature-flag/RBAC controlled.
+    The internal Topics PoC model IDs come from the default-free
+    `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` env vars;
+    keep them out of the production env template.
 
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with
   `orderObservations`, then pass the enriched result and optional

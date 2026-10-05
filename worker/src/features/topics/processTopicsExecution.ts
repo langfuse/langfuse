@@ -22,6 +22,7 @@ import {
   enqueueTopicEmbeddingBatch,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   TOPICS_TRANSCRIPT_VERSION,
+  getTopicsModelConfig,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import {
@@ -34,8 +35,6 @@ import {
   type TopicDefinition,
   type TopicProcessBatchState,
   type TopicTimeRange,
-  TOPICS_SUMMARY_MODEL,
-  TOPICS_EMBEDDING_MODEL,
   sameTopicGeometry,
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
@@ -134,8 +133,8 @@ async function summarizeTrace(
     embedding: [],
     transcriptId: "poc",
     transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-    summaryModel: TOPICS_SUMMARY_MODEL,
-    embeddingModel: TOPICS_EMBEDDING_MODEL,
+    summaryModel: execution.input.processingConfig.summaryModel!,
+    embeddingModel: execution.input.embeddingConfig.embeddingModel!,
     providedUsageDetails: {},
     usageDetails: {},
     providedCostDetails: {},
@@ -164,7 +163,8 @@ async function summarizeTrace(
     metrics.result("summary", "cached");
     const reuseEmbedding =
       reusable.state === "complete" &&
-      reusable.embeddingModel === TOPICS_EMBEDDING_MODEL &&
+      reusable.embeddingModel ===
+        execution.input.embeddingConfig.embeddingModel &&
       reusable.embedding.length ===
         execution.input.embeddingConfig.embeddingDimensions;
     summary = {
@@ -430,7 +430,7 @@ async function clusterFacet(
   const config = {
     ...numericConfig,
     exploratory: execution.input.exploratory,
-    embeddingModel: TOPICS_EMBEDDING_MODEL,
+    embeddingModel: execution.input.embeddingConfig.embeddingModel!,
     dimensions: execution.input.embeddingConfig.embeddingDimensions,
     classifierVersion: "original-cosine-loo95-rival05-eps1e-12-v2",
     timeRange: {
@@ -1129,13 +1129,24 @@ export async function processTopicsExecution({
   const phase = execution.phase === "embedding" ? "embedding" : "summarizing";
   await save(processing ? phase : "selecting");
   try {
+    const configuredModels = getTopicsModelConfig();
+    if (!configuredModels.summaryModel || !configuredModels.embeddingModel)
+      throw new TopicsProviderUnavailable(
+        "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before running Topics.",
+        "authentication",
+      );
     if (execution.input.operation === "process") {
       if (
-        execution.input.processingConfig.summaryModel !== TOPICS_SUMMARY_MODEL
+        !execution.input.processingConfig.summaryModel ||
+        !execution.input.embeddingConfig.embeddingModel ||
+        execution.input.processingConfig.summaryModel !==
+          configuredModels.summaryModel ||
+        execution.input.embeddingConfig.embeddingModel !==
+          configuredModels.embeddingModel
       )
         throw new TopicsProviderUnavailable(
-          "This execution uses an unsupported summary model. Start a new execution to use the current Topics model.",
-          "invalid_input",
+          "Configure matching LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL values on web and worker, then start a new Topics execution.",
+          "authentication",
         );
       await processTraces(
         metrics,
@@ -1145,7 +1156,17 @@ export async function processTopicsExecution({
         retryFailed,
         save,
       );
-    } else await updateTopics(metrics, execution as UpdateExecution);
+    } else {
+      if (
+        execution.input.embeddingConfig.embeddingModel !==
+        configuredModels.embeddingModel
+      )
+        throw new TopicsProviderUnavailable(
+          "LANGFUSE_TOPICS_EMBEDDING_MODEL changed after this execution was created. Start a new Topics execution.",
+          "authentication",
+        );
+      await updateTopics(metrics, execution as UpdateExecution);
+    }
     execution.status = execution.facets.some(
       (facet) => facet.outcome === "failed" || facet.counts.failed > 0,
     )

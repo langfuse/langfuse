@@ -96,6 +96,9 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    // Internal Topics PoC model selection; leave unset outside the experiment.
+    LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+    LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -792,6 +795,9 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_TOPICS_SUMMARY_MODEL: process.env.LANGFUSE_TOPICS_SUMMARY_MODEL,
+    LANGFUSE_TOPICS_EMBEDDING_MODEL:
+      process.env.LANGFUSE_TOPICS_EMBEDDING_MODEL,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:

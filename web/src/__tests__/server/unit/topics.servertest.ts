@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   loadTopicTranscript: vi.fn<typeof topicsServer.loadTopicTranscript>(),
   isTopicsEnabled: vi.fn(),
   isTopicsProjectEnabled: vi.fn(),
+  getTopicsModelConfig: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
@@ -78,8 +79,12 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   facets: selectedFacets,
   traceIds: ["trace-a"],
   reuseExistingSummaries: false,
-  processingConfig: topicProcessingConfigSchema.parse({}),
-  embeddingConfig: topicEmbeddingConfigSchema.parse({}),
+  processingConfig: topicProcessingConfigSchema.parse({
+    summaryModel: "global.openai.gpt-5.6-luna",
+  }),
+  embeddingConfig: topicEmbeddingConfigSchema.parse({
+    embeddingModel: "cohere.embed-v4:0",
+  }),
 };
 
 function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
@@ -182,6 +187,10 @@ beforeEach(() => {
   mocks.queryClickhouse.mockResolvedValue([]);
   mocks.isTopicsEnabled.mockReturnValue(true);
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
+  mocks.getTopicsModelConfig.mockReturnValue({
+    summaryModel: "global.openai.gpt-5.6-luna",
+    embeddingModel: "cohere.embed-v4:0",
+  });
   mocks.getTopicFacetVersion.mockResolvedValue({
     facetId,
     version: facetVersion,

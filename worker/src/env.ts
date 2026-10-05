@@ -311,6 +311,9 @@ const EnvSchema = z.object({
   AWS_PROFILE: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
   LANGFUSE_TOPICS_AWS_PROFILE: z.string().optional(),
+  // Internal Topics PoC model selection; leave unset outside the experiment.
+  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

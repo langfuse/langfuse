@@ -6,8 +6,6 @@ import {
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
-  TOPICS_EMBEDDING_MODEL,
-  TOPICS_SUMMARY_MODEL,
   topicEmbeddingConfigSchema,
   topicProcessingConfigSchema,
   type TopicFacetVersion,
@@ -18,6 +16,7 @@ import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { embedTopicSummary, summarizeTopicTrace } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import { mergeTopicModelUsage, topicSummaryOutputError } from "./summaryResult";
+import { getTopicsModelConfig } from "@langfuse/shared/topics/server";
 
 /**
  * Summarizes one trace from the transcript the batch job already assembled.
@@ -33,12 +32,23 @@ export async function summarizeAssembledTrace(input: {
 }): Promise<"disabled" | "unchanged" | "summarized"> {
   if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
   let prepared: ReturnType<typeof prepareAssembledTopicTranscript> | undefined;
+  const models = getTopicsModelConfig();
+  if (!models.summaryModel || !models.embeddingModel)
+    throw new TopicsProviderUnavailable(
+      "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before processing Topics traces.",
+      "authentication",
+    );
   const facets = await ensureDefaultTopicFacets(input.projectId);
   const versions = facets.flatMap((facet) =>
     facet.projectId === input.projectId ? facet.versions.slice(0, 1) : [],
   );
-  const config = topicProcessingConfigSchema.parse({});
-  const dimensions = topicEmbeddingConfigSchema.parse({}).embeddingDimensions;
+  const config = topicProcessingConfigSchema.parse({
+    summaryModel: models.summaryModel,
+  });
+  const embeddingConfig = topicEmbeddingConfigSchema.parse({
+    embeddingModel: models.embeddingModel,
+  });
+  const dimensions = embeddingConfig.embeddingDimensions;
   const timestamp = Date.parse(input.traceTimestamp);
   const timeRange = {
     from: new Date(timestamp),
@@ -64,6 +74,7 @@ export async function summarizeAssembledTrace(input: {
       hasContent: prepared.hasContent,
       config,
       dimensions,
+      embeddingModel: embeddingConfig.embeddingModel,
     });
     await writeTopicSummaries([summary]);
     recordIncrement("langfuse.topics.facet_summaries", 1, {
@@ -85,6 +96,7 @@ async function summarizeFacet(input: {
   hasContent: boolean;
   config: ReturnType<typeof topicProcessingConfigSchema.parse>;
   dimensions: number;
+  embeddingModel?: string;
 }): Promise<TopicSummary> {
   const source = {
     projectId: input.projectId,
@@ -104,8 +116,8 @@ async function summarizeFacet(input: {
     embedding: [],
     transcriptId: "trace-batch",
     transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-    summaryModel: TOPICS_SUMMARY_MODEL,
-    embeddingModel: TOPICS_EMBEDDING_MODEL,
+    summaryModel: input.config.summaryModel!,
+    embeddingModel: input.embeddingModel!,
     providedUsageDetails: {},
     usageDetails: {},
     providedCostDetails: {},
@@ -136,7 +148,11 @@ async function summarizeFacet(input: {
       costDetails: result.costDetails,
     };
   }
-  const embedded = await embedTopicSummary(summary, input.dimensions);
+  const embedded = await embedTopicSummary(
+    summary,
+    input.dimensions,
+    input.embeddingModel!,
+  );
   return {
     ...base,
     state: "complete",

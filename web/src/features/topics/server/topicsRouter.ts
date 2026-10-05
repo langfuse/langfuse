@@ -4,6 +4,7 @@ import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { Transcript } from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
+  topicExecutionInputSchema,
   topicIdSchema,
   topicFacetRefSchema,
   topicTraceIdSchema,
@@ -35,6 +36,7 @@ import {
   loadTopicTranscript,
   isTopicsEnabled,
   isTopicsProjectEnabled,
+  getTopicsModelConfig,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "@langfuse/shared/topics/server";
@@ -316,10 +318,18 @@ export const topicsRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       await requireFacetVersions(input.projectId, input.facets);
+      const { embeddingModel } = getTopicsModelConfig();
+      if (!embeddingModel)
+        throw new InvalidRequestError(
+          "Set LANGFUSE_TOPICS_EMBEDDING_MODEL on web and worker to use Topics.",
+        );
       return getTopicSummaryCounts(
         input.projectId,
         input.facets,
-        input.embeddingConfig,
+        topicEmbeddingConfigSchema.parse({
+          ...input.embeddingConfig,
+          embeddingModel,
+        }),
         input.timeRange,
       );
     }),
@@ -350,8 +360,13 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Topics processing is not enabled for this project.",
         );
+      const models = getTopicsModelConfig();
+      if (!models.summaryModel || !models.embeddingModel)
+        throw new InvalidRequestError(
+          "Set LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL on web and worker to run Topics.",
+        );
       const requestHash = createHash("sha256")
-        .update(JSON.stringify(input))
+        .update(JSON.stringify({ input, models }))
         .digest("hex");
       const existing = await readTopicExecutionForRequest(
         input.projectId,
@@ -391,8 +406,24 @@ export const topicsRouter = createTRPCRouter({
             "This Topic rule changed. Reload it and preview the traces again.",
           );
       }
+      const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
+      const configuredInput = topicExecutionInputSchema.parse({
+        ...resolvedInput,
+        embeddingConfig: {
+          ...resolvedInput.embeddingConfig,
+          embeddingModel: models.embeddingModel,
+        },
+        ...(resolvedInput.operation === "process"
+          ? {
+              processingConfig: {
+                ...resolvedInput.processingConfig,
+                summaryModel: models.summaryModel,
+              },
+            }
+          : {}),
+      });
       const execution = await createTopicExecution(
-        await resolveTopicTraceSelection(input, ctx.prisma),
+        configuredInput,
         requestHash,
         ctx.session.user.id,
       );

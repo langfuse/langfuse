@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
 
-export const TOPICS_SUMMARY_MODEL = "global.openai.gpt-5.6-luna";
-export const TOPICS_EMBEDDING_MODEL = "cohere.embed-v4:0";
-
 export const topicIdSchema = z
   .string()
   .min(1)
@@ -18,9 +15,7 @@ export const topicTimeRangeSchema = z
   });
 export type TopicTimeRange = z.infer<typeof topicTimeRangeSchema>;
 export const topicEmbeddingConfigSchema = z.object({
-  embeddingModel: z
-    .literal(TOPICS_EMBEDDING_MODEL)
-    .default(TOPICS_EMBEDDING_MODEL),
+  embeddingModel: z.string().trim().min(1).optional(),
   embeddingDimensions: z
     .number()
     .refine((value) => [256, 512, 1024, 1536].includes(value), {
@@ -30,7 +25,7 @@ export const topicEmbeddingConfigSchema = z.object({
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
 export const topicProcessingConfigSchema = z.object({
-  summaryModel: z.literal(TOPICS_SUMMARY_MODEL).default(TOPICS_SUMMARY_MODEL),
+  summaryModel: z.string().trim().min(1).optional(),
   maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });

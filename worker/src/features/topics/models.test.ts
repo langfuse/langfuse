@@ -58,7 +58,9 @@ describe("Topics naming boundary", () => {
     const result = await summarizeTopicTrace(
       facet,
       "RAW_TRANSCRIPT_SENTINEL",
-      topicProcessingConfigSchema.parse({}),
+      topicProcessingConfigSchema.parse({
+        summaryModel: "global.openai.gpt-5.6-luna",
+      }),
     );
     expect(result.output).toEqual({
       summary: "A billing request.",
@@ -93,7 +95,9 @@ describe("Topics naming boundary", () => {
       summarizeTopicTrace(
         facet,
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({}),
+        topicProcessingConfigSchema.parse({
+          summaryModel: "global.openai.gpt-5.6-luna",
+        }),
       ),
     ).rejects.toMatchObject({ reason: "authentication" });
     expect(state.call).not.toHaveBeenCalled();
@@ -104,7 +108,9 @@ describe("Topics naming boundary", () => {
       output: { summary: "A billing request.", status: "applicable" },
       usage: { inputTokens: 100 },
     });
-    const config = topicProcessingConfigSchema.parse({});
+    const config = topicProcessingConfigSchema.parse({
+      summaryModel: "global.openai.gpt-5.6-luna",
+    });
     const result = await summarizeTopicTrace(
       facet,
       "A request for an invoice.",
@@ -130,7 +136,10 @@ describe("Topics naming boundary", () => {
       summarizeTopicTrace(
         facet,
         "Trace evidence. ".repeat(1000),
-        topicProcessingConfigSchema.parse({ maxInputTokens: 256 }),
+        topicProcessingConfigSchema.parse({
+          maxInputTokens: 256,
+          summaryModel: "global.openai.gpt-5.6-luna",
+        }),
       ),
     ).rejects.toThrow(
       /are \d+ tokens, above this run's 256-token input limit\. No model call was made; the transcript is never shortened per facet\./,
@@ -198,7 +207,7 @@ describe("Topics naming boundary", () => {
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embedding: [], tokens: 12 });
     await expect(
-      embedTopicSummary("An invoice request.", 256),
+      embedTopicSummary("An invoice request.", 256, "cohere.embed-v4:0"),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
@@ -218,7 +227,7 @@ describe("Topics naming boundary", () => {
         embedding: Array(256).fill(0.25),
         tokens,
       });
-      await embedTopicSummary("An invoice request.", 256);
+      await embedTopicSummary("An invoice request.", 256, "cohere.embed-v4:0");
       expect(state.increment.mock.calls).toEqual([
         [
           "langfuse.topics.token_usage_missing",

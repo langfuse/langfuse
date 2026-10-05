@@ -13,6 +13,10 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: () => state.enabled,
+  getTopicsModelConfig: () => ({
+    summaryModel: "global.openai.gpt-5.6-luna",
+    embeddingModel: "cohere.embed-v4:0",
+  }),
   ensureDefaultTopicFacets: (...args: unknown[]) => state.facets(...args),
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
