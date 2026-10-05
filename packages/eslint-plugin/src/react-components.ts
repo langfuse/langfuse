@@ -14,6 +14,12 @@ type ResolveReturnExpression = (
 ) => TSESTree.Expression;
 
 type ReturnExpressionCallbacks = {
+  onComponentFunction?: (
+    node:
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionDeclaration
+      | TSESTree.FunctionExpression,
+  ) => void;
   onReturnExpression?: (
     node: TSESTree.Expression,
     resolve?: ResolveReturnExpression,
@@ -509,6 +515,7 @@ export function createComponentReturnExpressionVisitors(
       node.expression
     ) {
       if (!expressionReturnsJsxOrNull(node.body)) return;
+      callbacks.onComponentFunction?.(node);
       const resolve = (expression: TSESTree.Expression) => expression;
       callbacks.onComponentReturns?.([node.body], resolve);
       callbacks.onReturnExpression?.(node.body, resolve);
@@ -531,6 +538,7 @@ export function createComponentReturnExpressionVisitors(
       });
     }
     if (!returnExpressions.some(expressionReturnsJsxOrNull)) return;
+    callbacks.onComponentFunction?.(node);
     callbacks.onComponentReturns?.(returnExpressions, resolve);
     if (!callbacks.onReturnExpression) return;
     for (const expression of returnExpressions) {

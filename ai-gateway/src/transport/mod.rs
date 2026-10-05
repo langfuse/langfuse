@@ -122,6 +122,19 @@ pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> Hea
     }
 }
 
+/// The provider's own request ID, bounded like other captured provider facts.
+pub(crate) fn provider_request_id(headers: &HeaderMap, api_format: ApiFormat) -> Option<&str> {
+    let name = match api_format {
+        ApiFormat::OpenAiResponses => "x-request-id",
+        ApiFormat::AnthropicMessages => "request-id",
+    };
+    headers
+        .get(name)?
+        .to_str()
+        .ok()
+        .filter(|value| value.len() <= 512)
+}
+
 pub(crate) fn relay<T: Send + 'static>(
     upstream: reqwest::Response,
     deadline: Instant,

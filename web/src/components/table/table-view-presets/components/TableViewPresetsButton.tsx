@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 
 type TableViewPresetsButtonProps = Pick<
@@ -41,7 +41,7 @@ export function TableViewPresetsButton({
         {label}
       </span>
       {selectedView ? (
-        <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+        <DropdownIndicator nudge />
       ) : (
         <span className="bg-input rounded-sm px-1 text-xs">{count}</span>
       )}

@@ -39,9 +39,6 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
   FoldVertical,
   MoreVertical,
   PanelLeftClose,
@@ -54,6 +51,7 @@ import {
   WandSparkles,
   InfoIcon,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1384,7 +1382,7 @@ const FilterAccordionTrigger = ({
       )}
       {...props}
     >
-      <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform" />
+      <DropdownIndicator direction="right" nudge />
       {children}
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
@@ -2006,9 +2004,9 @@ function CategoricalSelectContent({
                       variant="ghost"
                       size="sm"
                       onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
                     >
-                      <ChevronUp className="mr-1 h-3 w-3" />
+                      <DropdownIndicator direction="up" size="sm" nudge />
                       Show fewer values
                     </Button>
                   )}
@@ -2021,9 +2019,9 @@ function CategoricalSelectContent({
                           (current) => current + SHOW_MORE_INCREMENT,
                         )
                       }
-                      className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
+                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
                     >
-                      <ChevronDown className="mr-1 h-3 w-3" />
+                      <DropdownIndicator size="sm" nudge />
                       Show more values
                     </Button>
                   )}

@@ -17,6 +17,7 @@ export function EvaluatorSetupEditor({
   defaultModel,
   providerGroups,
   providerAdapters,
+  connectionsPending,
   canSetProjectDefault,
   nameAIAssistance,
   descriptionAIAssistance,
@@ -31,6 +32,7 @@ export function EvaluatorSetupEditor({
   defaultModel: JudgeModel | null;
   providerGroups: Array<[string, string[]]>;
   providerAdapters: Record<string, LLMAdapter>;
+  connectionsPending: boolean;
   canSetProjectDefault: boolean;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   descriptionAIAssistance: ComponentProps<
@@ -52,6 +54,7 @@ export function EvaluatorSetupEditor({
         defaultModel={defaultModel}
         providerGroups={providerGroups}
         providerAdapters={providerAdapters}
+        connectionsPending={connectionsPending}
         canSetProjectDefault={canSetProjectDefault}
         onStepOpenChange={onStepOpenChange}
         onConfigureProviders={onConfigureProviders}

@@ -1,13 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   Plug,
   Settings2,
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { forwardRef, type ReactNode } from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
@@ -69,6 +69,7 @@ type JudgeModelPickerTriggerProps = Omit<
   selectedModel: JudgeModel | null;
   disabled: boolean;
   missingDefaultLabel?: string;
+  modelAvailability?: "available" | "missing";
   borderVariant?: "default" | "contrast";
 };
 
@@ -82,6 +83,7 @@ export const JudgeModelPickerTrigger = forwardRef<
       defaultModel,
       selectedModel,
       missingDefaultLabel,
+      modelAvailability = "available",
       // Handled here rather than by `Button`, which swaps its children for the
       // spinner. That would drop the model label mid-mutation and collapse this
       // content-width trigger, shifting everything next to it in the header.
@@ -102,6 +104,18 @@ export const JudgeModelPickerTrigger = forwardRef<
       defaultModel != null &&
       selectedModel.provider === defaultModel.provider &&
       selectedModel.model === defaultModel.model;
+    const modelConnectionMissing =
+      modelAvailability === "missing" &&
+      Boolean(mode === "default" ? defaultModel : selectedModel);
+    const connectionWarning = modelConnectionMissing ? (
+      <>
+        <TriangleAlert
+          aria-hidden="true"
+          className="text-dark-yellow h-3.5 w-3.5 shrink-0"
+        />
+        <span className="sr-only">Model connection missing.</span>
+      </>
+    ) : null;
 
     return (
       <Button
@@ -123,6 +137,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         {mode === "default" ? (
           defaultModel ? (
             <span className="flex min-w-0 items-center gap-2">
+              {connectionWarning}
               <span
                 className="truncate"
                 title={`${defaultModel.provider} / ${defaultModel.model}`}
@@ -143,6 +158,7 @@ export const JudgeModelPickerTrigger = forwardRef<
           )
         ) : (
           <span className="flex min-w-0 items-center gap-2">
+            {connectionWarning}
             <span className="truncate" title={customSelectionLabel}>
               {customSelectionLabel}
             </span>
@@ -156,7 +172,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         {loading ? (
           <Spinner size="sm" variant="muted" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         )}
       </Button>
     );

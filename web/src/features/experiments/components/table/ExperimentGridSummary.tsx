@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { decomposeAggregateScoreKey } from "@/src/features/scores";
 import { summariseScoreColumn } from "../../fns/summariseScoreColumn";
 import {
@@ -105,9 +105,9 @@ export function ExperimentGridSummaryValues({
             className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex h-6 items-center gap-1 rounded text-left text-[10px] font-normal focus-visible:ring-2 focus-visible:outline-none"
           >
             {expanded ? (
-              <ChevronDown className="size-3" />
+              <DropdownIndicator size="sm" nudge />
             ) : (
-              <ChevronRight className="size-3" />
+              <DropdownIndicator direction="right" size="sm" nudge />
             )}
             SUMMARY · this page ({rows.length} items)
           </button>
@@ -167,7 +167,7 @@ export function ExperimentGridSummaryValues({
               {!isLoading && movement && (
                 <div
                   className="flex shrink-0 items-center gap-2 text-xs font-normal"
-                  title={`${movement.unchanged} unchanged; ${movement.notComparable} not comparable`}
+                  title={`${movement.changed} items changed compared to baseline; ${movement.unchanged} unchanged; ${movement.notComparable} uncomparable`}
                 >
                   {dataType === "CATEGORICAL" ? (
                     <span aria-label={`${movement.changed} changed items`}>

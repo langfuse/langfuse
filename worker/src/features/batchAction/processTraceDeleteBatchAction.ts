@@ -389,12 +389,18 @@ export const processTraceDeleteBatchAction = async ({
         });
       }
 
-      logger.info("Processing trace delete batch action page", {
-        batchActionId,
-        projectId: batchAction.projectId,
-        source: state.config.source,
-        traceCount: inFlightBatch.traceIds.length,
-      });
+      logger.info(
+        `Processing trace delete batch action page requested by user ${batchAction.userId}`,
+        {
+          batchActionId,
+          projectId: batchAction.projectId,
+          source: state.config.source,
+          traceCount: inFlightBatch.traceIds.length,
+          traceIds: inFlightBatch.traceIds,
+          actorType: "USER",
+          userId: batchAction.userId,
+        },
+      );
 
       if (
         await shouldSkipDeletion(

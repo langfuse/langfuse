@@ -184,6 +184,100 @@ impl Gateway {
     fn models(&self) -> reqwest::RequestBuilder {
         reqwest::Client::new().get(format!("{}/openai/v1/models", self.url))
     }
+
+    fn messages(&self) -> reqwest::RequestBuilder {
+        reqwest::Client::new().post(format!("{}/anthropic/v1/messages", self.url))
+    }
+}
+
+/// Returns the response's `langfuse-request-id` after checking it is a canonical `UUIDv7`.
+fn request_id(response: &reqwest::Response) -> String {
+    let id = response.headers()["langfuse-request-id"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(id.len(), 36, "{id}");
+    for (index, byte) in id.bytes().enumerate() {
+        if [8, 13, 18, 23].contains(&index) {
+            assert_eq!(byte, b'-', "{id}");
+        } else {
+            assert!(matches!(byte, b'0'..=b'9' | b'a'..=b'f'), "{id}");
+        }
+    }
+    assert_eq!(id.as_bytes()[14], b'7', "{id}");
+    assert!(
+        matches!(id.as_bytes()[19], b'8' | b'9' | b'a' | b'b'),
+        "{id}"
+    );
+    id
+}
+
+#[tokio::test]
+async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() {
+    let web = FakeServer::start(|request| async move {
+        if request.headers().get(header::AUTHORIZATION)
+            == Some(&header::HeaderValue::from_static("Bearer valid"))
+        {
+            return resolution_response("provider-secret");
+        }
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let unconfigured = Gateway::start(None).await;
+    let configured = Gateway::start(Some(inference(&web, &provider))).await;
+    let mut seen = std::collections::HashSet::new();
+    for (request, status, anthropic) in [
+        (unconfigured.post(), StatusCode::SERVICE_UNAVAILABLE, false),
+        (
+            unconfigured.messages(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            true,
+        ),
+        (configured.post(), StatusCode::UNAUTHORIZED, false),
+        (
+            configured.post().bearer_auth("rejected"),
+            StatusCode::UNAUTHORIZED,
+            false,
+        ),
+        (
+            configured.messages().header("x-api-key", "rejected"),
+            StatusCode::UNAUTHORIZED,
+            true,
+        ),
+        (
+            configured
+                .post()
+                .bearer_auth("valid")
+                .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
+            StatusCode::PAYLOAD_TOO_LARGE,
+            false,
+        ),
+    ] {
+        let response = request
+            .header("x-request-id", "client-request")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status);
+        let id = request_id(&response);
+        assert!(!response.headers().contains_key("langfuse-trace-id"));
+        assert!(!response.headers().contains_key("langfuse-observation-id"));
+        let body: serde_json::Value =
+            serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
+        assert_eq!(body["request_id"], id.as_str());
+        if anthropic {
+            assert_eq!(body["type"], "error");
+            assert!(body["error"]["type"].is_string());
+        } else {
+            assert!(body["error"]["code"].is_string());
+        }
+        assert!(seen.insert(id), "request IDs must be unique");
+    }
+    assert_eq!(provider.calls(), 0);
 }
 
 impl Drop for Gateway {
@@ -549,13 +643,23 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
             .await
             .unwrap();
         assert_eq!(response.status(), expected);
+        let id = request_id(&response);
+        let header = |name: &str| response.headers()[name].to_str().unwrap().to_owned();
+        let (trace_id, observation_id) = (
+            header("langfuse-trace-id"),
+            header("langfuse-observation-id"),
+        );
+        let status = response.status();
+        let body: Value = serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
+        assert_eq!(body["request_id"], id.as_str());
         let payload = tokio::time::timeout(Duration::from_secs(2), received.recv())
             .await
             .unwrap()
             .unwrap();
-        let attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
-            .as_array()
-            .unwrap();
+        let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+        assert_eq!(span["traceId"], trace_id.as_str());
+        assert_eq!(span["spanId"], observation_id.as_str());
+        let attrs = span["attributes"].as_array().unwrap();
         let metadata: Value = serde_json::from_str(
             attrs
                 .iter()
@@ -567,8 +671,9 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
         .unwrap();
         assert_eq!(
             metadata["langfuse.gateway.response.status_code"],
-            response.status().as_u16()
+            status.as_u16()
         );
+        assert_eq!(metadata["langfuse.gateway.request.id"], id.as_str());
         assert!(
             metadata
                 .get("langfuse.gateway.upstream.request.id")
@@ -653,6 +758,8 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
         .send()
         .await
         .unwrap();
+    // The stream is still open, so the ID was sent with the initial headers.
+    request_id(&response);
     assert_eq!(response.chunk().await.unwrap().unwrap(), "data: first\n\n");
     assert_eq!(
         gateway

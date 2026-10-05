@@ -505,6 +505,10 @@ const pinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map((col) =>
   col.id === "id" ? { ...col, isPinnedLeft: true } : col,
 );
 
+const rightPinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map(
+  (col) => (col.id === "latency" ? { ...col, isPinnedRight: true } : col),
+);
+
 // -----------------------------------------------------------------------------
 // Stateful async wrapper (emulates server pagination without a backend)
 // -----------------------------------------------------------------------------
@@ -693,6 +697,13 @@ export const WithPinnedColumn = meta.story({
   args: {
     tableName: "story-pinned-column",
     columns: pinnedColumns,
+  },
+});
+
+export const WithRightPinnedColumn = meta.story({
+  args: {
+    tableName: "story-right-pinned-column",
+    columns: rightPinnedColumns,
   },
 });
 

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 // This file exports the prisma db connection, the Prisma Object, and the Typescript types.
 // This is not imported in the index.ts file of this package, as we must not import this into FE code.
 
@@ -65,7 +64,9 @@ declare const globalThis: {
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
 if (process.env.NODE_ENV === "development") {
-  globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
+  if (globalThis.prismaGlobal === undefined) {
+    globalThis.prismaGlobal = createPrismaInstance();
+  }
 }
 
 export const prisma =
