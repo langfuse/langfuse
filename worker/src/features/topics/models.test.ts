@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   embed: vi.fn(),
   increment: vi.fn(),
   region: vi.fn(),
+  summaryModel: "us.openai.gpt-5.6-luna",
 }));
 vi.mock("../../env", () => ({
   env: { LANGFUSE_TOPICS_AWS_PROFILE: "topics-test" },
@@ -16,7 +17,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicsModelConfig: () => ({
-    summaryModel: "us.openai.gpt-5.6-luna",
+    summaryModel: state.summaryModel,
     embeddingModel: "eu.cohere.embed-v4:0",
   }),
   generateTopicText: (...args: unknown[]) => state.call(...args),
@@ -51,6 +52,7 @@ beforeEach(() => {
   state.embed.mockReset();
   state.increment.mockReset();
   state.region.mockReset().mockReturnValue("eu-west-1");
+  state.summaryModel = "us.openai.gpt-5.6-luna";
 });
 
 describe("Topics naming boundary", () => {
@@ -91,6 +93,23 @@ describe("Topics naming boundary", () => {
     });
     expect(request.messages[0].content).toContain(facet.prompt);
     expect(request.messages[1].content).toContain("RAW_TRANSCRIPT_SENTINEL");
+  });
+
+  it("records GPT-6 Luna summary cost at its own rates", async () => {
+    state.summaryModel = "us.openai.gpt-6-luna";
+    state.call.mockResolvedValue({
+      output: { summary: "A billing request.", status: "applicable" },
+      usage: { inputTokens: 100, outputTokens: 30 },
+    });
+    const result = await summarizeTopicTrace(
+      facet,
+      "RAW_TRANSCRIPT_SENTINEL",
+      topicProcessingConfigSchema.parse({
+        summaryModel: "us.openai.gpt-6-luna",
+      }),
+    );
+    expect(result.costDetails.summary_input).toBeCloseTo(0.000011, 10);
+    expect(result.costDetails.summary_output).toBeCloseTo(0.0000165, 10);
   });
 
   it("rejects missing Bedrock configuration before calling the provider", async () => {

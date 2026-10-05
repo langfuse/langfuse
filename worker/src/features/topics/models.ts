@@ -23,7 +23,14 @@ import {
 } from "./provider-error";
 
 export const TOPICS_NAMING_MODEL = "us.openai.gpt-5.6-terra";
-const TOPICS_SUMMARY_COST_MODEL = "us.openai.gpt-5.6-luna";
+// USD per million tokens for summary models with known rates; others record no cost.
+const TOPICS_SUMMARY_RATES: Record<string, { input: number; output: number }> =
+  {
+    "us.openai.gpt-5.6-luna": { input: 0.2, output: 1.2 },
+    // Bedrock GPT-6 Luna model card: US geo profile carries a 10% premium.
+    "us.openai.gpt-6-luna": { input: 0.11, output: 0.55 },
+    "global.openai.gpt-6-luna": { input: 0.1, output: 0.5 },
+  };
 const TOPICS_EMBEDDING_COST_MODELS = new Set([
   "us.cohere.embed-v4:0",
   "eu.cohere.embed-v4:0",
@@ -90,13 +97,10 @@ async function structuredCall<T>(
     { role: "user" as const, content: input },
   ];
   // Bedrock global rates apply to the entire request above 272k input tokens.
-  const rates = (tokens: number) =>
-    stage === "naming"
-      ? {
-          input: tokens > 272_000 ? 4 : 2,
-          output: tokens > 272_000 ? 18 : 12,
-        }
-      : { input: 0.2, output: 1.2 };
+  const namingRates = (tokens: number) => ({
+    input: tokens > 272_000 ? 4 : 2,
+    output: tokens > 272_000 ? 18 : 12,
+  });
   const result = await generateTopicText({
     ...connection,
     model,
@@ -111,9 +115,9 @@ async function structuredCall<T>(
     throw topicProviderError(error);
   });
   const actualRates =
-    stage === "naming" || model === TOPICS_SUMMARY_COST_MODEL
-      ? rates(result.usage.inputTokens ?? inputLimit)
-      : null;
+    stage === "naming"
+      ? namingRates(result.usage.inputTokens ?? inputLimit)
+      : (TOPICS_SUMMARY_RATES[model] ?? null);
   recordTopicTokenUsage(stage, {
     input: result.usage.inputTokens,
     output: result.usage.outputTokens,
