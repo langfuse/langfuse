@@ -19,16 +19,16 @@ export type AssembledTurn = Pick<Turn, "messages"> & {
 export type ThreadState = {
   /** Every message of the thread in one list; `splitTurn` derives the public shape. */
   thread: AssembledTurn;
-  messages: KeyedMessage[];
-  shownCounts: Map<string, number>;
-  shownReasoningCounts: Map<string, number>;
+  matchingMessages: KeyedMessage[];
+  shownMessageCounts: Map<string, number>;
+  shownReasoningGroupCounts: Map<string, number>;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
 /** Provider annotations, property order, and provenance do not define identity. */
-function contentKey(message: NormalizedMessage): string {
+function fullContentKey(message: NormalizedMessage): string {
   const parts = message.parts.map(
     ({ providerMetadata: _metadata, ...part }) => {
       if (part.type === "tool-call") {
@@ -49,12 +49,13 @@ function contentKey(message: NormalizedMessage): string {
   );
 }
 
-const hasContent = (message: NormalizedMessage) =>
+const hasContinuityContent = (message: NormalizedMessage) =>
+  message.role !== "system" &&
   message.parts.some(({ type }) => type !== "reasoning");
 
 /** Reasoning is retained separately, but does not establish continuity. */
-export function messageKey(message: NormalizedMessage): string {
-  return contentKey({
+export function continuityKey(message: NormalizedMessage): string {
+  return fullContentKey({
     ...message,
     parts: message.parts.filter(({ type }) => type !== "reasoning"),
   });
@@ -63,20 +64,71 @@ export function messageKey(message: NormalizedMessage): string {
 /** Find a thread that matches the input messages. */
 export function findThread(states: ThreadState[], input: KeyedMessage[]) {
   const inputKeys = new Set(
-    input.filter(({ message }) => hasContent(message)).map(({ key }) => key),
+    input
+      .filter(({ message }) => hasContinuityContent(message))
+      .map(({ key }) => key),
   );
   return states.findLast(
-    ({ messages }) =>
-      messages.some(
-        ({ message }) => message.role !== "system" && hasContent(message),
-      ) &&
-      messages.every(
-        ({ message, key }) =>
-          message.role === "system" ||
-          !hasContent(message) ||
-          inputKeys.has(key),
-      ),
+    ({ matchingMessages }) =>
+      matchingMessages.length > 0 &&
+      matchingMessages.every(({ key }) => inputKeys.has(key)),
   );
+}
+
+function countOccurrence(counts: Map<string, number>, key: string): number {
+  const count = (counts.get(key) ?? 0) + 1;
+  counts.set(key, count);
+  return count;
+}
+
+/** Deduplicate input content and whole reasoning groups without changing provenance. */
+function removeReplayedParts(
+  { message, key }: KeyedMessage,
+  state: ThreadState,
+  inputCounts: {
+    messages: Map<string, number>;
+    reasoningGroups: Map<string, number>;
+  },
+  isNewThread: boolean,
+) {
+  const isOutput = message.source === "output";
+  const alwaysKeep = isOutput || isNewThread;
+  // System messages are deduplicated too, even though they do not establish continuity.
+  const hasMessageContent = message.parts.some(
+    ({ type }) => type !== "reasoning",
+  );
+  const occurrence =
+    !isOutput && hasMessageContent
+      ? countOccurrence(inputCounts.messages, key)
+      : 0;
+  const keepMessage =
+    hasMessageContent &&
+    (alwaysKeep || occurrence > (state.shownMessageCounts.get(key) ?? 0));
+
+  const reasoning = message.parts.filter(({ type }) => type === "reasoning");
+  const reasoningKey = reasoning.length
+    ? fullContentKey({ ...message, parts: reasoning })
+    : undefined;
+  const reasoningOccurrence =
+    !isOutput && reasoningKey !== undefined
+      ? countOccurrence(inputCounts.reasoningGroups, reasoningKey)
+      : 0;
+  const keepReasoning =
+    reasoningKey !== undefined &&
+    (alwaysKeep ||
+      keepMessage ||
+      reasoningOccurrence >
+        (state.shownReasoningGroupCounts.get(reasoningKey) ?? 0));
+
+  if (keepMessage) countOccurrence(state.shownMessageCounts, key);
+  if (keepReasoning)
+    countOccurrence(state.shownReasoningGroupCounts, reasoningKey);
+  return {
+    parts: message.parts.filter(({ type }) =>
+      type === "reasoning" ? keepReasoning : keepMessage,
+    ),
+    addsContinuityContent: keepMessage && hasContinuityContent(message),
+  };
 }
 
 /** Append messages to a thread. */
@@ -88,9 +140,11 @@ export function append(
   isNewThread: boolean,
   toolCalls: ReturnType<typeof createToolCallRegistry>,
 ) {
-  const { thread, messages, shownCounts, shownReasoningCounts } = state;
-  const inputCounts = new Map<string, number>();
-  const inputReasoningCounts = new Map<string, number>();
+  const { thread, matchingMessages } = state;
+  const inputCounts = {
+    messages: new Map<string, number>(),
+    reasoningGroups: new Map<string, number>(),
+  };
   const replayCalls = new Map<string, number>();
   const replayTotals = new Map<string, number>();
   // Count first so a truncated replay cannot attach a result to the wrong call.
@@ -128,45 +182,24 @@ export function append(
       )
         emitted.parts.push(part);
     }
+    const key =
+      emitted.parts.length === message.parts.length
+        ? originalKey
+        : continuityKey(emitted);
+    const retained = removeReplayedParts(
+      { message: emitted, key },
+      state,
+      inputCounts,
+      isNewThread,
+    );
+    emitted.parts = retained.parts;
     if (!emitted.parts.length) {
       if (isOutput) thread.messages.splice(thread.messages.indexOf(emitted), 1);
       continue;
     }
-    const key =
-      emitted.parts.length === message.parts.length
-        ? originalKey
-        : messageKey(emitted);
-    const containsContent = hasContent(emitted);
-    let isReplay = false;
-    if (!isOutput && containsContent) {
-      const occurrence = (inputCounts.get(key) ?? 0) + 1;
-      inputCounts.set(key, occurrence);
-      isReplay = !isNewThread && occurrence <= (shownCounts.get(key) ?? 0);
-    }
-    // A replay may add reasoning without adding another copy of its text or calls.
-    // Keep newly seen reasoning at the observation where it was recorded.
-    emitted.parts = emitted.parts.filter((part) => {
-      if (part.type !== "reasoning") return !isReplay;
-      const reasoningKey = contentKey({ ...message, parts: [part] });
-      const shown = shownReasoningCounts.get(reasoningKey) ?? 0;
-      const occurrence = (inputReasoningCounts.get(reasoningKey) ?? 0) + 1;
-      if (!isOutput) inputReasoningCounts.set(reasoningKey, occurrence);
-      if (
-        !isOutput &&
-        !isNewThread &&
-        (!containsContent || isReplay) &&
-        occurrence <= shown
-      )
-        return false;
-      shownReasoningCounts.set(reasoningKey, shown + 1);
-      return true;
-    });
-    if (!emitted.parts.length) continue;
     if (!isOutput) thread.messages.push(emitted);
-    if (containsContent && !isReplay) {
-      messages.push({ message: emitted, key });
-      shownCounts.set(key, (shownCounts.get(key) ?? 0) + 1);
-    }
+    if (retained.addsContinuityContent)
+      matchingMessages.push({ message: emitted, key });
     addContributor(thread, observation);
   }
 }

@@ -5,7 +5,7 @@ import type { Transcript } from "./types";
 import {
   append,
   findThread,
-  messageKey,
+  continuityKey,
   splitTurn,
   type ThreadState,
 } from "./threads";
@@ -31,7 +31,7 @@ function normalize(observation: OrderedObservation) {
     },
   });
   return partition(
-    messages.map((message) => ({ message, key: messageKey(message) })),
+    messages.map((message) => ({ message, key: continuityKey(message) })),
     ({ message }) => message.source === "input",
   );
 }
@@ -72,9 +72,9 @@ export function assembleTranscript(
       // Open new thread
       state = {
         thread: { messages: [], observations: [] },
-        messages: [],
-        shownCounts: new Map(),
-        shownReasoningCounts: new Map(),
+        matchingMessages: [],
+        shownMessageCounts: new Map(),
+        shownReasoningGroupCounts: new Map(),
       };
       states.push(state);
     }

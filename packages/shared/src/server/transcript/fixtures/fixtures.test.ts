@@ -243,7 +243,7 @@ describe("transcript fixtures", () => {
     expect(assembleTranscript([first, second])?.threads).toHaveLength(2);
   });
 
-  it("retains additional reasoning occurrences and deduplicates later standalone replay", () => {
+  it("retains a changed reasoning group in full and deduplicates its later replay", () => {
     const reasoning = { type: "reasoning", text: "Consider the choices." };
     const first = {
       ...generation("1", ["A"], []),
@@ -269,7 +269,7 @@ describe("transcript fixtures", () => {
       messages
         .flatMap(({ parts }) => parts)
         .filter(({ type }) => type === "reasoning"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(messages[2]).toMatchObject({ observationId: "2", source: "input" });
     expect(transcript?.threads[0].currentTurn.observations).toEqual([
       { id: "1", traceId },

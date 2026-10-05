@@ -161,9 +161,11 @@ are included.
 - **Inputs:** append only occurrences beyond the number already shown in the
   thread, so replayed history disappears but additional identical copies survive (eg user responds "Thank you" twice).
 - **Outputs:** always append, then count them so subsequent inputs do not repeat them.
-- **Reasoning:** preserve it in new messages. On replay, retain only additional
-  occurrences of each reasoning part, counted separately by role and content
-  within the thread. Newly seen reasoning in a repeated message is appended on
+- **Reasoning:** compare all reasoning parts in a message as one ordered group,
+  counted by role and content within the thread. Preserve reasoning in new messages;
+  on replay, retain only additional occurrences of the whole group. A changed group
+  is retained in full, without deduplicating its individual parts. Newly seen
+  reasoning in a repeated message is appended on
   its own with the input observation's provenance; it does not duplicate the
   accompanying text or calls or rewrite an earlier output. The same history/current
   turn split applies to these messages.
@@ -203,6 +205,7 @@ are included.
 - **Identical conversations:** unrelated conversations with matching history can join.
 - **Whole-message matching:** equivalent content split into different messages
   or parts may not match. Reordering parts within a message also changes identity.
+  Splitting or regrouping reasoning can retain repeated reasoning content.
   Registered tool responses are the exception: replay is matched by call ID
   within the thread (and occurrence for reused IDs), even when grouped with other parts.
 - **Name matching is best-effort:** same-name parallel executions can start in a
