@@ -6,14 +6,28 @@ import {
   beforeAll,
   afterAll,
   afterEach,
+  vi,
 } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse, delay } from "msw";
 import type { SharedEnv } from "@langfuse/shared/src/env";
+import { prepareOtelBatch } from "../features/otel-ingestion/prepareOtelBatch";
+import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
 import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/ingestionMasking",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof masking>();
+    return {
+      ...actual,
+      applyIngestionMasking: vi.fn(actual.applyIngestionMasking),
+    };
+  },
+);
 
 // Sample OTEL span data for testing
 const sampleSpanData = [
@@ -232,6 +246,106 @@ describe("Ingestion Masking", () => {
   });
 
   describe("applyIngestionMasking", () => {
+    it.each(["success", "fail-open", "fail-closed"] as const)(
+      "compacts only the accepted raw masking input (%s)",
+      async (outcome) => {
+        const original = { input: "data:image/png;base64,b3JpZ2luYWw=" };
+        const masked = { input: "data:image/png;base64,bWFza2Vk" };
+        const overrides = createTestEnv({
+          LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+            "https://masking.example.com/raw",
+          LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
+          LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
+          LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED:
+            outcome === "fail-closed" ? "true" : "false",
+        });
+        const configuredMasking = vi.mocked(masking.applyIngestionMasking);
+        const applyMasking = configuredMasking.getMockImplementation()!;
+        configuredMasking.mockImplementation((params, _env, transport) =>
+          applyMasking(params, overrides, transport),
+        );
+        const fetch = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            new Response(outcome === "success" ? JSON.stringify(masked) : "{"),
+          );
+        let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> = undefined;
+        try {
+          prepared = await prepareOtelBatch({
+            bytes: Buffer.from(JSON.stringify(original)),
+            projectId: "test-project",
+            extractMedia: true,
+          });
+          // Masking sees the original inline content, before reference substitution.
+          const body = fetch.mock.calls[0]?.[1]?.body;
+          expect(body).toBeInstanceOf(Uint8Array);
+          expect(
+            JSON.parse(Buffer.from(body as Uint8Array).toString()),
+          ).toEqual(original);
+          if (outcome === "fail-closed") {
+            expect(prepared).toBeUndefined();
+            return;
+          }
+          const batch = prepared?.batch;
+          expect(batch).toBeDefined();
+          expect(batch!.media).toHaveLength(1);
+          expect((await batch!.mediaBody(0)).toString()).toBe(
+            outcome === "success" ? "masked" : "original",
+          );
+          expect(JSON.parse(batch!.json()).input).toBe(
+            batch!.media[0].reference,
+          );
+        } finally {
+          await prepared?.batch?.dispose();
+          fetch.mockRestore();
+          configuredMasking.mockImplementation(applyMasking);
+        }
+      },
+    );
+
+    it("serializes the TypeScript fallback before sending invalid UTF-8 to masking", async () => {
+      const originalBytes = Buffer.concat([
+        Buffer.from('[{"input":"'),
+        Buffer.from([0xff]),
+        Buffer.from('"}]'),
+      ]);
+      const fallbackSpans = [{ input: "�" }];
+      const overrides = createTestEnv({
+        LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+          "https://masking.example.com/raw",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
+        LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
+      });
+      const configuredMasking = vi.mocked(masking.applyIngestionMasking);
+      const applyMasking = configuredMasking.getMockImplementation()!;
+      configuredMasking.mockImplementation((params, _env, transport) =>
+        applyMasking(params, overrides, transport),
+      );
+      const fetch = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(new Response(JSON.stringify(fallbackSpans)));
+
+      let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> = undefined;
+      try {
+        prepared = await prepareOtelBatch({
+          bytes: originalBytes,
+          projectId: "test-project",
+          extractMedia: false,
+        });
+        expect(prepared).toMatchObject({ batch: expect.anything() });
+        const body = fetch.mock.calls[0]?.[1]?.body;
+        const sentBytes =
+          typeof body === "string"
+            ? Buffer.from(body)
+            : Buffer.from(body as Uint8Array);
+        expect(sentBytes).toEqual(Buffer.from(JSON.stringify(fallbackSpans)));
+      } finally {
+        await prepared?.batch?.dispose();
+        fetch.mockRestore();
+        configuredMasking.mockImplementation(applyMasking);
+      }
+    });
+
     it.each(["retry-success", "fail-open", "fail-closed"] as const)(
       "validates raw masking responses inside retries (%s)",
       async (outcome) => {

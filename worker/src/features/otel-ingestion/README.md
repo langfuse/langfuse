@@ -15,11 +15,12 @@ schema and create, insert into, select from, and drop the test tables. An
 unavailable ClickHouse server fails the run.
 
 The corpus, integration, and property suites serialize their fixtures to S3
-document bytes and pass those bytes to the production OTEL queue processor. The
-queue performs the normal download and JSON decoding; normalization, enrichment,
-tokenization, media and overflow handling, and ClickHouse persistence use the
-TypeScript implementations. Model and prompt lookups, media uploads, and
-evaluation scheduling use controlled test doubles.
+document bytes and replay identical bytes through the production OTEL queue in
+both the original TypeScript path and the early-media TypeScript path. The
+harness checks the selected S3 download method and compares persisted rows after
+each run. Both paths use TypeScript normalization, enrichment, tokenization,
+media and overflow handling, and the production JSON writer. Model and prompt
+lookups, media uploads, and evaluation scheduling use controlled test doubles.
 
 Each replay creates isolated Memory tables from the live schema and uses the
 production JSON writer singleton. A thin client adapter substitutes the

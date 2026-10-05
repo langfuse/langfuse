@@ -116,6 +116,9 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

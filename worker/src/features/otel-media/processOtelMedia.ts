@@ -1,3 +1,8 @@
+import type { EarlyOtelBatch } from "@langfuse/native";
+import {
+  resolveExtractedMedia,
+  restoreInlineMedia,
+} from "./resolveExtractedMedia";
 import {
   getClickhouseEntityType,
   instrumentAsync,
@@ -32,6 +37,7 @@ const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
  * media extraction cannot reject the enclosing OTEL ingestion job.
  */
 export async function processOtelEventMedia(params: {
+  earlyBatch?: EarlyOtelBatch;
   targets: OtelMediaTarget[];
   writePath: OtelMediaWritePath;
   projectId: string;
@@ -78,6 +84,23 @@ export async function processOtelEventMedia(params: {
                 origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
               }),
           });
+
+          if (params.earlyBatch) {
+            const early = await resolveExtractedMedia({
+              batch: params.earlyBatch,
+              targets,
+              projectId,
+              mediaBucket,
+              mediaPrefix,
+              writePath,
+            });
+            result.uploaded += early.uploaded;
+            result.reused += early.reused;
+            result.failed += early.failed;
+            result.candidates += early.candidates;
+            result.bytesProcessed += early.bytesProcessed;
+            result.bytesRemoved += early.bytesRemoved;
+          }
 
           span.setAttributes({
             "langfuse.ingestion.otel.media.uploaded": result.uploaded,
@@ -127,6 +150,16 @@ export async function processOtelEventMedia(params: {
       },
     );
   } catch (error) {
+    if (params.earlyBatch) {
+      // Unexpected detector failures must not leave pending references in persisted payloads.
+      await restoreInlineMedia(
+        params.earlyBatch,
+        targets.map(({ payload }) => payload),
+        {
+          includePayloads: true,
+        },
+      );
+    }
     logger.warn(
       "OTEL media processing failed; continuing ingestion with original span values",
       { projectId, fileKey, error },

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { validateOtelJson } from "@langfuse/native";
 
 const mocks = vi.hoisted(() => {
   const span = { setAttributes: vi.fn() };
@@ -11,7 +12,9 @@ const mocks = vi.hoisted(() => {
     ),
     logger: { warn: vi.fn() },
     recordDistribution: vi.fn(),
+    recordIncrement: vi.fn(),
     span,
+    linkMediaToTraceOrObservation: vi.fn(),
     uploadMediaForTrace: vi.fn(),
   };
 });
@@ -23,6 +26,8 @@ vi.mock("@langfuse/shared/src/server", () => ({
   logger: mocks.logger,
   processOtelMedia: vi.fn(),
   recordDistribution: mocks.recordDistribution,
+  recordIncrement: mocks.recordIncrement,
+  linkMediaToTraceOrObservation: mocks.linkMediaToTraceOrObservation,
   uploadMediaForTrace: mocks.uploadMediaForTrace,
 }));
 
@@ -33,6 +38,7 @@ import {
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
 } from "./processOtelMedia";
+import { resolveExtractedMedia } from "./resolveExtractedMedia";
 
 const processResult = {
   uploaded: 1,
@@ -196,6 +202,39 @@ describe("processOtelEventMedia", () => {
     );
   });
 
+  it("restores extracted media if the residual detector fails before reference resolution", async () => {
+    const original = {
+      traceId: "trace-id",
+      spanId: "observation-id",
+      input: "data:image/png;base64,aGVsbG8=",
+    };
+    const validated = await validateOtelJson(
+      Buffer.from(JSON.stringify(original)),
+    );
+    const batch = await validated.extract(true);
+    try {
+      const payload = JSON.parse(batch.json());
+      expect(payload.input).not.toBe(original.input);
+      await processOtelEventMedia({
+        earlyBatch: batch,
+        targets: createDirectOtelMediaTargets([payload]),
+        writePath: "direct",
+        projectId: "project-id",
+        fileKey: "file-key",
+        mediaBucket: "media-bucket",
+        mediaPrefix: "media/",
+        processMedia: vi
+          .fn()
+          .mockRejectedValue(new Error("residual detector failed")),
+      });
+      expect(payload).toEqual(original);
+      expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+    } finally {
+      await batch.dispose();
+      await validated.dispose();
+    }
+  });
+
   it("creates legacy targets that retain trace and observation body references", () => {
     const traceBody = {
       id: "trace-id",
@@ -231,5 +270,274 @@ describe("processOtelEventMedia", () => {
         payload: observationBody,
       },
     ]);
+  });
+
+  it("restores early references outside the legacy detector boundary", async () => {
+    const reference =
+      "@@@langfuseMedia:type=image/png|id=provider|source=bytes@@@";
+    mocks.uploadMediaForTrace.mockResolvedValue({
+      outcome: "uploaded",
+      mediaId: "uploaded",
+    });
+    const batch = {
+      media: [
+        {
+          index: 0,
+          reference,
+          contentType: "image/png",
+          sha256Hash: "hash",
+          kind: "anthropic",
+          originalByteLength: 4,
+        },
+      ],
+      mediaBody: vi.fn().mockResolvedValue(Buffer.from("media")),
+      originalMedia: vi.fn().mockResolvedValue("aGk="),
+    } as never;
+    const deep = { value: reference } as Record<string, unknown>;
+    let cursor = deep;
+    for (let index = 0; index < 12; index++) {
+      const next = { value: reference } as Record<string, unknown>;
+      cursor.value = next;
+      cursor = next;
+    }
+    const payload = {
+      traceId: "trace-id",
+      spanId: "observation-id",
+      input: {
+        provider: {
+          type: "base64",
+          media_type: "image/png",
+          data: reference,
+          unrelated: reference,
+        },
+        nested: JSON.stringify({
+          type: "base64",
+          media_type: "image/png",
+          data: reference,
+        }),
+        deep,
+        [reference]: "object key stays structural",
+      },
+    };
+
+    const result = await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([payload]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "direct",
+    });
+
+    expect(result.uploaded).toBe(1);
+    expect(payload.input.provider.data).toBe(
+      "@@@langfuseMedia:type=image/png|id=uploaded|source=bytes@@@",
+    );
+    expect(payload.input.provider.unrelated).toBe("aGk=");
+    expect(JSON.parse(payload.input.nested as string).data).toBe("aGk=");
+    expect(JSON.stringify(payload.input.deep)).not.toContain(reference);
+    expect(payload.input[reference]).toBe("object key stays structural");
+    expect(batch.originalMedia).toHaveBeenCalledOnce();
+  });
+
+  it("reuses a decoded upload across targets while linking each destination", async () => {
+    const reference =
+      "@@@langfuseMedia:type=image/png|id=provider|source=bytes@@@";
+    mocks.uploadMediaForTrace.mockResolvedValue({
+      outcome: "uploaded",
+      mediaId: "uploaded",
+    });
+    mocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
+    const batch = {
+      media: [
+        {
+          index: 0,
+          reference,
+          contentType: "image/png",
+          sha256Hash: "hash",
+          kind: "anthropic",
+          originalByteLength: 4,
+        },
+      ],
+      mediaBody: vi.fn().mockResolvedValue(Buffer.from("media")),
+      originalMedia: vi.fn().mockResolvedValue("aGk="),
+    } as never;
+    const providerInput = () => ({
+      type: "base64",
+      media_type: "image/png",
+      data: reference,
+    });
+    const firstTarget = {
+      traceId: "trace-id",
+      spanId: "legacy-observation",
+      input: providerInput(),
+    };
+    const secondTarget = {
+      traceId: "trace-id",
+      spanId: "direct-observation",
+      input: providerInput(),
+    };
+
+    const first = await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([firstTarget]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "legacy",
+    });
+    const second = await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([secondTarget]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "direct",
+    });
+
+    expect(first).toMatchObject({ uploaded: 1, reused: 0, bytesProcessed: 5 });
+    expect(second).toMatchObject({ uploaded: 0, reused: 1, bytesProcessed: 5 });
+    expect(batch.mediaBody).toHaveBeenCalledOnce();
+    expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
+    expect(mocks.linkMediaToTraceOrObservation).toHaveBeenCalledWith({
+      projectId: "project-id",
+      traceId: "trace-id",
+      observationId: "direct-observation",
+      mediaId: "uploaded",
+      field: "input",
+      origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+    });
+    expect(secondTarget.input).toMatchObject({
+      data: "@@@langfuseMedia:type=image/png|id=uploaded|source=bytes@@@",
+    });
+  });
+
+  it("restores a failed cache-hit link without poisoning a later destination", async () => {
+    const reference =
+      "@@@langfuseMedia:type=image/png|id=provider|source=bytes@@@";
+    mocks.uploadMediaForTrace.mockResolvedValue({
+      outcome: "uploaded",
+      mediaId: "uploaded",
+    });
+    mocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
+    const batch = {
+      media: [
+        {
+          index: 0,
+          reference,
+          contentType: "image/png",
+          sha256Hash: "hash",
+          kind: "anthropic",
+          originalByteLength: 4,
+        },
+      ],
+      mediaBody: vi.fn().mockResolvedValue(Buffer.from("media")),
+      originalMedia: vi.fn().mockResolvedValue("original-value"),
+    } as never;
+    const target = (spanId: string) => ({
+      traceId: "trace-id",
+      spanId,
+      input: {
+        type: "base64",
+        media_type: "image/png",
+        data: reference,
+      },
+    });
+
+    await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([target("first")]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "legacy",
+    });
+    mocks.linkMediaToTraceOrObservation.mockRejectedValueOnce(
+      new Error("link failed"),
+    );
+    const failedTarget = target("failed");
+    const failed = await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([failedTarget]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "direct",
+    });
+    const recoveredTarget = target("recovered");
+    const recovered = await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([recoveredTarget]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "direct",
+    });
+
+    expect(failed).toMatchObject({ failed: 1, uploaded: 0, reused: 0 });
+    expect(failedTarget.input).toMatchObject({ data: "original-value" });
+    expect(recovered).toMatchObject({ failed: 0, uploaded: 0, reused: 1 });
+    expect(recoveredTarget.input).toMatchObject({
+      data: "@@@langfuseMedia:type=image/png|id=uploaded|source=bytes@@@",
+    });
+    expect(batch.mediaBody).toHaveBeenCalledOnce();
+    expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
+  });
+
+  it("evicts a failed upload so a later occurrence can retry", async () => {
+    const reference =
+      "@@@langfuseMedia:type=image/png|id=provider|source=bytes@@@";
+    mocks.uploadMediaForTrace
+      .mockRejectedValueOnce(new Error("upload failed"))
+      .mockResolvedValueOnce({ outcome: "uploaded", mediaId: "retry" });
+    const batch = {
+      media: [
+        {
+          index: 0,
+          reference,
+          contentType: "image/png",
+          sha256Hash: "hash",
+          kind: "anthropic",
+          originalByteLength: 4,
+        },
+      ],
+      mediaBody: vi.fn().mockResolvedValue(Buffer.from("media")),
+      originalMedia: vi.fn().mockResolvedValue("original-value"),
+    } as never;
+    const target = () => ({
+      traceId: "trace-id",
+      spanId: "observation-id",
+      input: {
+        type: "base64",
+        media_type: "image/png",
+        data: reference,
+      },
+    });
+
+    const failed = await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([target()]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "direct",
+    });
+    const retriedTarget = target();
+    const retried = await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([retriedTarget]),
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      writePath: "direct",
+    });
+
+    expect(failed).toMatchObject({ failed: 1, uploaded: 0 });
+    expect(retried).toMatchObject({ failed: 0, uploaded: 1 });
+    expect(batch.mediaBody).toHaveBeenCalledTimes(2);
+    expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
+    expect(retriedTarget.input).toMatchObject({
+      data: "@@@langfuseMedia:type=image/png|id=retry|source=bytes@@@",
+    });
   });
 });
