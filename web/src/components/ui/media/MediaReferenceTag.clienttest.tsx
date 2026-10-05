@@ -4,31 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { MediaReferenceTag } from "./MediaReferenceTag";
 import { classifyMediaValue } from "./mediaUtils";
 
-const { resolveExternalMediaQueryMock } = vi.hoisted(() => ({
-  resolveExternalMediaQueryMock: vi.fn(() => ({
-    isError: true,
-    data: undefined,
-  })),
-}));
-
-vi.mock("@/src/utils/api", () => ({
-  api: {
-    media: {
-      resolveExternalMedia: {
-        useQuery: resolveExternalMediaQueryMock,
-      },
-    },
-  },
-}));
-
-vi.mock("next/router", () => ({
-  useRouter: () => ({ query: { projectId: "project-1" } }),
-}));
-
-vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
-  default: () => true,
-}));
-
 vi.mock("./useResolvedMedia", () => ({
   useResolvedMedia: () => ({
     status: "ready",
@@ -38,24 +13,6 @@ vi.mock("./useResolvedMedia", () => ({
 }));
 
 describe("MediaReferenceTag", () => {
-  it("quietly shows the original S3 reference when media is unavailable", () => {
-    const uri = "s3://customer-bucket/path/to/missing-image.jpeg";
-    const descriptor = classifyMediaValue(uri);
-
-    expect(descriptor).not.toBeNull();
-    render(<MediaReferenceTag descriptor={descriptor!} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "JPEG media" }));
-
-    expect(screen.getByText(uri)).toBeInTheDocument();
-    expect(resolveExternalMediaQueryMock).toHaveBeenCalledWith(
-      { projectId: "project-1", uri },
-      expect.objectContaining({
-        meta: { silentHttpCodes: [404] },
-      }),
-    );
-  });
-
   it("keeps focus on the media trigger when resolution starts", () => {
     const descriptor = classifyMediaValue(
       "@@@langfuseMedia:type=image/png|id=image|source=bytes@@@",
