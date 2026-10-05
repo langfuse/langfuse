@@ -4,6 +4,15 @@ import { type ComponentProps } from "react";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
 
+vi.stubGlobal(
+  "ResizeObserver",
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
+
 type Integration = ComponentProps<
   typeof BlobStorageIntegrationTable
 >["integrations"][number];
