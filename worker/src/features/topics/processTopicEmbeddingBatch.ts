@@ -7,7 +7,7 @@ import {
   writeTopicSummaries,
   type TopicEmbeddingBatch,
 } from "@langfuse/shared/topics/server";
-import { embedTopicSummary } from "./models";
+import { embedTopicSummary, requireTopicsModelConfig } from "./models";
 import { TopicMetrics } from "./metrics";
 import { mergeTopicModelUsage } from "./summaryResult";
 import {
@@ -22,9 +22,15 @@ export async function processTopicEmbeddingBatch(
   const metrics = new TopicMetrics();
   const pending: TopicSummary[] = [];
   try {
+    const models = requireTopicsModelConfig();
     for (const ref of batch.summaries) {
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
+      if (staged.embeddingConfig.embeddingModel !== models.embeddingModel)
+        throw new TopicsProviderUnavailable(
+          "LANGFUSE_TOPICS_EMBEDDING_MODEL changed after this batch was created. Start a new Topics execution.",
+          "authentication",
+        );
       let { summary } = staged;
       if (summary.state === "summarized") {
         const result = await metrics.measure("embedding", async () => {
