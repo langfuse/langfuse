@@ -124,7 +124,6 @@ export default function BlobStorageIntegrationPage() {
       return (
         <BlobStorageIntegrationTable
           integrations={state.data.configs}
-          showMediaStorage={showMediaStorage}
           onSelect={(integration) => openIntegration(integration.id)}
           onCreate={() => openIntegration("new")}
         />

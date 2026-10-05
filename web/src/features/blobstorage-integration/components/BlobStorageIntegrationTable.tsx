@@ -8,6 +8,8 @@ import {
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
+import { type BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type BlobStorageIntegration =
@@ -26,16 +28,23 @@ const getProviderLabel = (type: string | null | undefined) => {
   }
 };
 
+const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
+  up_to_date: "active",
+  running: "running",
+  queued: "queued",
+  idle: "pending",
+  disabled: "disabled",
+  error: "error",
+};
+
 export function BlobStorageIntegrationTable({
   integrations,
   onSelect,
   onCreate,
-  showMediaStorage,
 }: {
   integrations: BlobStorageIntegration[];
   onSelect: (integration: BlobStorageIntegration) => void;
   onCreate: () => void;
-  showMediaStorage: boolean;
 }) {
   const columns = useMemo<LangfuseColumnDef<BlobStorageIntegration>[]>(
     () => [
@@ -48,22 +57,21 @@ export function BlobStorageIntegrationTable({
         header: "Provider",
         mapValue: getProviderLabel,
       }),
-      createStatusTableColumn<BlobStorageIntegration, boolean>({
-        accessorKey: "enabled",
-        header: "Exports",
-        getStatus: (enabled) => (enabled ? "active" : "disabled"),
+      createStatusTableColumn<BlobStorageIntegration, BlobStorageSyncStatus>({
+        id: "status",
+        accessorFn: (integration) =>
+          deriveSyncStatus({
+            enabled: integration.enabled,
+            lastError: integration.lastError,
+            lastSyncAt: integration.lastSyncAt,
+            nextSyncAt: integration.nextSyncAt,
+            runStartedAt: integration.runStartedAt,
+          }),
+        header: "Status",
+        getStatus: (status) => (status ? syncStatusToBadge[status] : undefined),
       }),
-      ...(showMediaStorage
-        ? [
-            createStatusTableColumn<BlobStorageIntegration, boolean>({
-              accessorKey: "mediaStorageEnabled",
-              header: "Media",
-              getStatus: (enabled) => (enabled ? "active" : "disabled"),
-            }),
-          ]
-        : []),
     ],
-    [showMediaStorage],
+    [],
   );
   const toolbarActions: SettingsTableProps<BlobStorageIntegration>["toolbarActions"] =
     [
