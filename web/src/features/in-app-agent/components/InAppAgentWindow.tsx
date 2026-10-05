@@ -423,6 +423,9 @@ function buildConversationDisplayItems(
         turnMessage.content.type === "reasoning" &&
         (redirectIndex === -1 || turnIndex < redirectIndex),
     );
+    const finalReasoningIndex = turnMessages.findLastIndex(
+      (turnMessage) => turnMessage.content.type === "reasoning",
+    );
     // Reasoning after a redirect does not turn the preceding answer into work.
     // A proposed redirect is always actionable, so it stays out of the drawer.
     const isAnswerPart = (
@@ -432,7 +435,10 @@ function buildConversationDisplayItems(
       !isInProgress &&
       (turnMessage.content.type === "redirectAction" ||
         (turnMessage.content.type === "text" &&
-          turnIndex > lastReasoningIndex));
+          ((redirectIndex !== -1 &&
+            turnIndex <= redirectIndex &&
+            turnIndex > lastReasoningIndex) ||
+            turnIndex > finalReasoningIndex)));
     const answerMessages = turnMessages.filter(isAnswerPart);
     const activityMessages = turnMessages.filter(
       (turnMessage, turnIndex) => !isAnswerPart(turnMessage, turnIndex),

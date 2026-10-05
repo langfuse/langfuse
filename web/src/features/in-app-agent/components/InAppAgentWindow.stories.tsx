@@ -2603,9 +2603,15 @@ export const RedirectStaysActionableAfterMoreThinking = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Open the latency dashboard" }),
     ).toBeVisible();
+    await expect(
+      canvas.queryByText("The dashboard shows the same spike."),
+    ).not.toBeInTheDocument();
 
     // ...and opening the drawer must not offer the same action a second time.
     await userEvent.click(drawer);
+    await expect(
+      canvas.getByText("The dashboard shows the same spike."),
+    ).toBeVisible();
     await expect(
       canvas.getAllByRole("button", { name: "Open the latency dashboard" }),
     ).toHaveLength(1);

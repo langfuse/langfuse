@@ -858,6 +858,8 @@ describe("InAppAgentWindow message actions", () => {
     vi.stubGlobal("ClipboardItem", undefined);
 
     const analysis = "The traces are synthetic seed data, not real traffic.";
+    const intermediate =
+      "I should check whether the link needs another filter.";
     const closer = "I've prepared a link to the error-level traces.";
 
     render(
@@ -901,6 +903,14 @@ describe("InAppAgentWindow message actions", () => {
             },
           },
           {
+            id: "assistant-intermediate",
+            role: "assistant" as const,
+            content: {
+              type: "text" as const,
+              text: intermediate,
+            },
+          },
+          {
             id: "assistant-post-redirect-reasoning",
             role: "assistant" as const,
             content: {
@@ -929,6 +939,7 @@ describe("InAppAgentWindow message actions", () => {
     expect(activityTrigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText(analysis)).toBeVisible();
     expect(screen.getByText(closer)).toBeVisible();
+    expect(screen.queryByText(intermediate)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Open error traces" }),
     ).toBeVisible();
@@ -938,6 +949,7 @@ describe("InAppAgentWindow message actions", () => {
 
     fireEvent.click(activityTrigger);
     expect(screen.getAllByText("Thought")).toHaveLength(2);
+    expect(screen.getByText(intermediate)).toBeVisible();
     expect(screen.getByText(analysis)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
