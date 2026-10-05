@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { FlaskConical, PlusIcon } from "lucide-react";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { StringParam, useQueryParams, withDefault } from "use-query-params";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -75,17 +75,18 @@ export function ConnectedModelDefinitionsTable({
     scope: "models:CUD",
   });
 
-  let data: AsyncTableData<ModelTableRow[]>;
-  if (models.isPending) {
-    data = { status: "loading" };
-  } else if (models.isError) {
-    data = { status: "error", error: models.error.message };
-  } else {
-    data = {
+  const data = useMemo<AsyncTableData<ModelTableRow[]>>(() => {
+    if (models.isPending) {
+      return { status: "loading" };
+    }
+    if (models.isError) {
+      return { status: "error", error: models.error.message };
+    }
+    return {
       status: "success",
       data: (models.data?.models ?? []).map(convertToTableRow),
     };
-  }
+  }, [models.isPending, models.isError, models.error, models.data]);
 
   return (
     <DialogController
