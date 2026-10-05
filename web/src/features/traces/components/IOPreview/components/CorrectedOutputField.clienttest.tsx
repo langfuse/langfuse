@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("../hooks/useCorrectionData", () => ({
   useCorrectionData: (existingCorrection?: { longStringValue?: string }) => ({
@@ -101,6 +101,28 @@ describe("CorrectedOutputField visibility", () => {
         }
       />,
     );
+
+    expect(screen.getByText("Corrected Output")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the section open after deleting an auto-shown correction", () => {
+    const { rerender } = render(
+      <CorrectedOutputField
+        {...baseProps}
+        existingCorrection={
+          {
+            id: "correction-id",
+            longStringValue: "corrected response",
+          } as never
+        }
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("Delete corrected output"));
+    rerender(<CorrectedOutputField {...baseProps} existingCorrection={null} />);
 
     expect(screen.getByText("Corrected Output")).toBeInTheDocument();
     expect(
