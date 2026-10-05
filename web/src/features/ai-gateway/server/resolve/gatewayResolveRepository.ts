@@ -44,6 +44,7 @@ export class GatewayResolveRepository {
                   take: 1,
                   select: {
                     id: true,
+                    name: true,
                     provider: true,
                     encryptedCredential: true,
                   },
