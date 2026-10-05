@@ -124,6 +124,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         sessionTimeline: false,
+        externalMediaStorage: false,
       },
       management: {
         allowed: false,
@@ -151,6 +152,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         sessionTimeline: false,
+        externalMediaStorage: false,
       },
       management: { allowed: true },
     });
@@ -187,6 +189,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         sessionTimeline: false,
+        externalMediaStorage: false,
       },
       management: { allowed: true },
     });
@@ -196,11 +199,12 @@ describe("UserFeaturePreviewsControl", () => {
     });
     fireEvent.click(sessions);
 
-    // Its own row only. The counterpart assertion — that every OTHER row stays
-    // interactive — needs a second registered preview, which the registry does
-    // not have between one preview reaching GA and the next one landing. Add it
-    // back with the next preview; `isToggling` is per-flag, not per-list.
     expect(sessions).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle External media storage for user",
+      }),
+    ).toBeEnabled();
   });
 
   it("refetches without capturing analytics when the mutation fails", async () => {
@@ -214,6 +218,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         sessionTimeline: false,
+        externalMediaStorage: false,
       },
       management: { allowed: true },
     });
