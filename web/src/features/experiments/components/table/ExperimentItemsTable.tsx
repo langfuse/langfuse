@@ -57,6 +57,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { type FieldRef } from "@/src/features/search-bar/lib/fields";
 
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
 
@@ -1638,7 +1639,7 @@ export default function ExperimentItemsTable({
           ).textClass,
         })),
       ],
-      supports: (field) =>
+      supports: (field: FieldRef) =>
         field.type === "scores" ||
         (field.type === "field" && field.field.id === "level"),
     },

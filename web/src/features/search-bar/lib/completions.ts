@@ -1398,7 +1398,7 @@ export function planInputCompletions(
       // show a loading row while they stream in (lazy mode). Metadata keys are
       // not server-enumerated — they come from the client-side observed-metadata
       // map (lib/metadata-paths.ts) — so there is nothing to request there.
-      if (!path.kind.column) {
+      if (path.kind.canonical !== "metadata.") {
         const scoreColumns =
           path.kind.level === "trace"
             ? SCORE_COLUMNS.trace
