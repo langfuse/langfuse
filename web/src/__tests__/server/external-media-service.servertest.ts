@@ -182,6 +182,34 @@ describe("external media service", () => {
       );
     });
 
+    it("keeps candidate selection and credential loading tenant-scoped", async () => {
+      const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        getSignedUrl,
+      });
+      const suffix = randomUUID();
+      const { project } = await prepareIntegration({
+        id: `z-${suffix}`,
+        mediaPrefix: "customer/",
+        accessKeyId: "tenant-integration",
+      });
+      await prepareIntegration({
+        id: `a-${suffix}`,
+        mediaPrefix: "customer/",
+        accessKeyId: "other-tenant-integration",
+      });
+
+      await resolveExternalMediaUrl({
+        prisma,
+        projectId: project.id,
+        uri: "s3://media-bucket/customer/image.png",
+      });
+
+      expect(StorageServiceFactory.getInstance).toHaveBeenCalledWith(
+        expect.objectContaining({ accessKeyId: "tenant-integration" }),
+      );
+    });
+
     it("uses integration id as the tie-break for equal prefixes", async () => {
       const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
       (StorageServiceFactory.getInstance as Mock).mockReturnValue({
