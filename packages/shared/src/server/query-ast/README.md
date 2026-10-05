@@ -30,8 +30,9 @@ changing how it emits SQL.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers: `arrayJoin`, `mapKeys`, `mapValues`,
   `limitBy`, `useFinal`, `metadataValue`.
-- `catalog.ts` / `views.ts` / `dedup.ts` — catalog, virtual views as CTEs, and
-  per-table dedup lowering.
+- `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
+- `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
+  dialect's expressivity.
 - `catalog.golden.test.ts` — catalog SQL baselines.
 
 The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures

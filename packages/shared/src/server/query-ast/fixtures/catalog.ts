@@ -1,7 +1,7 @@
 import type { SqlBool } from "kysely";
 
-import type { ClickhouseCompilable } from "./compile";
-import { getClickhouseKysely } from "./dialect";
+import type { ClickhouseCompilable } from "../compile";
+import { getClickhouseKysely } from "../dialect";
 import {
   arrayJoin,
   limitBy,
@@ -9,7 +9,7 @@ import {
   mapValues,
   metadataValue,
   useFinal,
-} from "./extensions";
+} from "../extensions";
 
 type CatalogTier = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
