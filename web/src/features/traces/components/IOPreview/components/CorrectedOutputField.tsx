@@ -225,7 +225,7 @@ export function CorrectedOutputField({
                 </HoverCardContent>
               </HoverCard>
             </div>
-            <div className="-mr-1 flex items-center">
+            <div className="flex items-center">
               <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                 {!isValidJson && isEditing && hasContent && (
                   <span className="mr-2 text-xs text-red-500">
