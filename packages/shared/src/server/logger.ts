@@ -48,61 +48,22 @@ const severityFormat = function () {
   })();
 };
 
-/**
- * Render one `text`-format line: `<timestamp> <level> <message>`, then any
- * structured metadata the caller attached, then the stack when present.
- *
- * Callers supply that metadata as a second argument —
- * `logger.error("msg", { projectId, error })` — and winston merges those keys
- * onto `info`, so they belong on the line. `text` is the default
- * `LANGFUSE_LOG_FORMAT`; the `json` format carries the same keys through
- * `winston.format.json()`.
- *
- * Exported so the rendering can be asserted directly, without going through
- * the console transport.
- */
-export const formatTextLogLine = (info: winston.Logform.TransformableInfo) => {
-  // `splat` is winston's positional-args carrier and is never meant for
-  // output; destructuring it here drops it from `meta`.
-  const { timestamp, level, message, stack, splat, ...meta } = info;
-
-  const line = `${timestamp} ${level} ${message}`;
-  const rendered = Object.keys(meta).length
-    ? ` ${safeStringifyMeta(meta)}`
-    : "";
-  const withMeta = `${line}${rendered}`;
-  return stack ? `${withMeta}\n${stack}` : withMeta;
-};
-
-/**
- * Metadata is arbitrary caller-supplied data, so it can be circular or hold a
- * BigInt — both of which make `JSON.stringify` throw. A logger that throws
- * while reporting an error destroys the diagnostic it was called to emit, so
- * degrade to a marker instead. `Error` values are unwrapped by hand because
- * they serialise to `{}` — including their `cause` chain and any fields an SDK
- * attached, since those are frequently the diagnostic part.
- */
-const safeStringifyMeta = (meta: Record<string, unknown>) => {
+// Metadata is arbitrary caller-supplied data: `Error` serialises to `{}`, and
+// circular or BigInt values make `JSON.stringify` throw. A logger that throws
+// destroys the diagnostic it was called to emit, so degrade to a marker.
+const stringifyMeta = (meta: Record<string, unknown>) => {
   const replacer = (_key: string, value: unknown) => {
     if (value instanceof Error) {
-      // Spread first so the canonical three always win, and carry `cause`
-      // explicitly because the constructor sets it non-enumerable. The spread
-      // keeps provider-specific fields an SDK attaches to its errors, which is
-      // often the only part that identifies the failure. Nested errors unwrap
-      // too: `JSON.stringify` walks what a replacer returns, so it re-enters
-      // here for a `cause` that is itself an Error.
       return {
-        ...value,
+        ...value, // keeps fields an SDK attached to its own error type
         name: value.name,
         message: value.message,
         stack: value.stack,
+        // non-enumerable, so the spread above misses it
         ...(value.cause === undefined ? {} : { cause: value.cause }),
       };
     }
-    if (typeof value === "bigint") {
-      return value.toString();
-    }
-    return value;
+    return typeof value === "bigint" ? value.toString() : value;
   };
 
   try {
@@ -120,7 +81,15 @@ const getWinstonLogger = (
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
     winston.format.align(),
-    winston.format.printf(formatTextLogLine),
+    winston.format.printf((info) => {
+      // `splat` is winston's positional-args carrier, not output.
+      const { timestamp, level, message, stack, splat, ...meta } = info;
+      const rendered = Object.keys(meta).length
+        ? ` ${stringifyMeta(meta)}`
+        : "";
+      const logMessage = `${timestamp} ${level} ${message}${rendered}`;
+      return stack ? `${logMessage}\n${stack}` : logMessage;
+    }),
   );
 
   const jsonLoggerFormat = winston.format.combine(
