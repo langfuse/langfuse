@@ -461,6 +461,7 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
   for (const row of rows) {
     if (
       !topicSourceSchema.safeParse(row).success ||
+      typeof row.environment !== "string" ||
       !row.embedding.every(Number.isFinite) ||
       (row.state === "complete" && !row.embedding.length) ||
       row.state === "summarized"
@@ -502,6 +503,7 @@ export async function writeTopicAssignments(
   for (const row of rows) {
     if (
       !topicSourceSchema.safeParse(row).success ||
+      typeof row.environment !== "string" ||
       (row.topicId === null) !== (row.topicVersionId === null) ||
       (row.distance !== null && !Number.isFinite(row.distance)) ||
       (row.runnerUpDistance !== null &&

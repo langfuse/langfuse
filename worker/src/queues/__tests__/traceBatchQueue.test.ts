@@ -491,6 +491,7 @@ describe("trace batch queue", () => {
             yield {
               project_id: "project",
               trace_id: traceId,
+              environment: "default",
               span_id: `span-${index}`,
               parent_span_id: null,
               start_time: "2026-09-11 00:00:00.000000",
@@ -599,6 +600,7 @@ describe("trace batch queue", () => {
         yield {
           project_id: projectId,
           trace_id: "trace",
+          environment: "default",
           span_id: "span",
           parent_span_id: null,
           start_time: "2026-09-11 00:00:00.000000",
@@ -668,6 +670,7 @@ describe("trace batch queue", () => {
     const row = {
       project_id: "a",
       trace_id: "shared-trace",
+      environment: "production",
       span_id: "first",
       parent_span_id: null,
       start_time: "2026-09-11 00:00:00.000000",
@@ -696,10 +699,21 @@ describe("trace batch queue", () => {
       };
       yield row;
       expect(tokenCountAsync).not.toHaveBeenCalled();
-      yield { ...row, project_id: "b", type: "SPAN" };
+      yield {
+        ...row,
+        project_id: "b",
+        environment: "staging",
+        type: "SPAN",
+      };
       // The first trace is processed before requesting more stream rows.
       expect(tokenCountAsync).toHaveBeenCalledTimes(1);
-      yield { ...row, project_id: "b", type: "SPAN", span_id: "second" };
+      yield {
+        ...row,
+        project_id: "b",
+        environment: "staging",
+        type: "SPAN",
+        span_id: "second",
+      };
     });
     const job = {
       data: {
@@ -718,6 +732,15 @@ describe("trace batch queue", () => {
       },
     } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
     await traceBatchQueueProcessor(job, undefined);
+    expect(
+      vi.mocked(summarizeAssembledTrace).mock.calls.map(([input]) => ({
+        projectId: input.projectId,
+        environment: input.environment,
+      })),
+    ).toEqual([
+      { projectId: "a", environment: "production" },
+      { projectId: "b", environment: "staging" },
+    ]);
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
     expect(estimates).toHaveLength(5);
     const serializedTranscript = JSON.stringify(estimates[0][0].text);
@@ -885,6 +908,7 @@ describe("trace batch queue", () => {
       yield {
         project_id: "project",
         trace_id: "trace",
+        environment: "default",
         span_id: "span",
         parent_span_id: null,
         start_time: "2026-09-11 00:00:00.000000",
@@ -1150,6 +1174,7 @@ describe("trace batch queue", () => {
             yield {
               project_id: projectId,
               trace_id: traceId,
+              environment: "default",
               span_id: `span-${yieldedRows}`,
               parent_span_id: null,
               start_time: "2026-09-11 00:00:00.000000",
@@ -1273,6 +1298,7 @@ describe("trace batch queue", () => {
           yield {
             project_id: "project",
             trace_id: "trace",
+            environment: "default",
             span_id: "span",
             parent_span_id: null,
             start_time: "2026-09-11 00:00:00.000000",

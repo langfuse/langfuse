@@ -242,7 +242,6 @@ export const traceBatchQueueProcessor: Processor<
             id: event.span_id,
             parent_observation_id: event.parent_span_id,
             // These required converter fields are not used by the transcript.
-            environment: "default",
             created_at: event.event_ts,
             updated_at: event.event_ts,
             is_deleted: 0,

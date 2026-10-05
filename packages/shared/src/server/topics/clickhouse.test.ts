@@ -305,22 +305,20 @@ describe("Topics summary storage", () => {
   it.each([
     { traceId: null, sessionId: null },
     { traceId: "", sessionId: "" },
-  ])(
-    "rejects missing source identity before inserting: %j",
-    async (identity) => {
-      await expect(
-        writeTopicSummaries([
-          { ...summaryFixture, ...identity } as unknown as TopicSummary,
-        ]),
-      ).rejects.toThrow("Invalid Topics summary");
-      await expect(
-        writeTopicAssignments([
-          { ...assignmentFixture, ...identity } as unknown as TopicAssignment,
-        ]),
-      ).rejects.toThrow("Invalid Topics assignment");
-      expect(mocks.insert).not.toHaveBeenCalled();
-    },
-  );
+    { environment: undefined },
+  ])("rejects invalid source metadata before inserting: %j", async (source) => {
+    await expect(
+      writeTopicSummaries([
+        { ...summaryFixture, ...source } as unknown as TopicSummary,
+      ]),
+    ).rejects.toThrow("Invalid Topics summary");
+    await expect(
+      writeTopicAssignments([
+        { ...assignmentFixture, ...source } as unknown as TopicAssignment,
+      ]),
+    ).rejects.toThrow("Invalid Topics assignment");
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
 
   it("rejects an unfinished summary before sending any rows to ClickHouse", async () => {
     await expect(
@@ -460,6 +458,7 @@ describe("Topics summary storage", () => {
     { traceId: "trace-a", sessionId: null },
     { traceId: "trace-a", sessionId: "session-a" },
     { traceId: null, sessionId: "session-a" },
+    { traceId: "trace-a", sessionId: null, environment: "" },
   ] as const)(
     "roundtrips summary identity and provenance: %j",
     async (identity) => {
@@ -597,6 +596,7 @@ describe("Topics classifications", () => {
   it.each([
     { traceId: "trace-a", sessionId: "session-a" },
     { traceId: null, sessionId: "session-a" },
+    { traceId: "trace-a", sessionId: "session-a", environment: "" },
   ] as const)(
     "serializes and reads a published map outlier's source metadata and summary timestamp: %j",
     async (source) => {

@@ -83,8 +83,8 @@ TypeScript) is the first observation's start time for the processed source. Summ
 attempt while keeping the previous published map available.
 
 Summaries snapshot source environment and trace name; assignments copy that
-snapshot. Reprocessing refreshes metadata even when text is reused; session
-results have no trace name.
+snapshot, including empty environment strings. Reprocessing refreshes metadata
+even when text is reused; session results have no trace name.
 
 The summary model is selected with `LANGFUSE_TOPICS_SUMMARY_MODEL`. Topic
 naming uses `us.openai.gpt-5.6-terra` through Bedrock Converse with reasoning
