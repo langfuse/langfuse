@@ -84,10 +84,13 @@ function S3MediaTag({
   );
   if (!isFeatureEnabled) return descriptor.uri;
 
+  const isSignedUrlExpired =
+    resolved.data?.expiresAt !== undefined &&
+    resolved.data.expiresAt.getTime() <= Date.now();
   const status = getS3MediaStatus({
     armed,
     isError: resolved.isError,
-    hasData: Boolean(resolved.data),
+    hasData: Boolean(resolved.data) && !isSignedUrlExpired,
   });
 
   return (
@@ -95,12 +98,15 @@ function S3MediaTag({
       contentType={descriptor.contentType}
       label={label}
       status={status}
-      url={resolved.data?.url}
+      url={isSignedUrlExpired ? undefined : resolved.data?.url}
       errorDetail={descriptor.uri}
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (nextOpen) setArmed(true);
+        if (nextOpen) {
+          if (armed && isSignedUrlExpired) void resolved.refetch();
+          setArmed(true);
+        }
       }}
     />
   );
