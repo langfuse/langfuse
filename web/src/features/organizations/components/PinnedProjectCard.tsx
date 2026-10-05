@@ -47,7 +47,7 @@ export const PinnedProjectCard = ({
             onToggle={onToggleStar}
           />
         </div>
-        <span className="text-muted-foreground font-mono text-xs">
+        <span className="text-muted-foreground text-xs">
           {formatLastTrace(project.lastTraceAt)}
         </span>
       </Card>
