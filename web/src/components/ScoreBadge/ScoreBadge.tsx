@@ -33,7 +33,7 @@ export const ScoreBadge = <
           </span>
           <span className="py-0.5">:</span>
         </span>
-        <span className="text-foreground flex max-w-2/3 shrink-0 items-center gap-1 font-mono text-nowrap">
+        <span className="text-foreground flex min-w-0 items-center gap-1 font-mono text-nowrap">
           {scores.map((score, index) => {
             return (
               <span
