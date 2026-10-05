@@ -6,6 +6,8 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  getLLMErrorInfo,
   isDecisionModelAdapter,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
@@ -167,21 +169,32 @@ export async function assertEvaluatorConfigurationValid(params: {
     }
   }
 
-  const error = await getEvaluatorDefinitionPreflightError(
-    {
-      projectId: params.projectId,
-      template: {
-        name: params.name,
-        type: params.definition.type,
-        provider: params.definition.provider,
-        model: params.definition.model,
-        modelParams: params.definition.modelParams,
-        outputDefinition: params.definition.outputDefinition,
+  try {
+    const error = await getEvaluatorDefinitionPreflightError(
+      {
+        projectId: params.projectId,
+        template: {
+          name: params.name,
+          type: params.definition.type,
+          provider: params.definition.provider,
+          model: params.definition.model,
+          modelParams: params.definition.modelParams,
+          outputDefinition: params.definition.outputDefinition,
+        },
       },
-    },
-    { throwOnOperationalError: true },
-  );
-  if (error) throw new EvaluatorModelConfigurationError(error);
+      { throwOnOperationalError: true },
+    );
+    if (error) throw new EvaluatorModelConfigurationError(error);
+  } catch (error) {
+    if (getLLMErrorInfo(error)?.kind === "timeout") {
+      const timeoutSeconds =
+        getClientInitiatedNonStreamingLlmTimeoutMs() / 1000;
+      throw new EvaluatorConfigurationError(
+        `The model did not respond within ${timeoutSeconds} seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.`,
+      );
+    }
+    throw error;
+  }
 }
 
 export async function getDecisionModelConfigurationError(params: {

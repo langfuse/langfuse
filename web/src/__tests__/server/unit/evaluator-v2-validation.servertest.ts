@@ -20,6 +20,11 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
 
 import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 import {
+  EvaluatorConfigurationError,
+  EvaluatorModelConfigurationError,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
+import { toStructuredPublicApiError } from "@/src/features/public-api/server/structuredPublicApiErrorContract";
+import {
   CreateEvaluatorSchema,
   ListEvaluatorsSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
@@ -137,6 +142,43 @@ describe("evaluator configuration validation", () => {
     ).resolves.toBeUndefined();
 
     expect(mocks.getEvaluatorDefinitionPreflightError).toHaveBeenCalledOnce();
+  });
+
+  it("returns a precondition error without blocking the evaluator when model validation times out", async () => {
+    mocks.getEvaluatorDefinitionPreflightError.mockRejectedValue(
+      new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      ),
+    );
+
+    const error = await assertEvaluatorConfigurationValid({
+      projectId: "project-id",
+      name: "LLM evaluator",
+      definition: {
+        type: EvalTemplateType.LLM_AS_JUDGE,
+        promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+        provider: null,
+        model: null,
+        modelParams: null,
+        vars: ["output"],
+        variableMapping: null,
+        outputDefinition: {
+          dataType: "NUMERIC",
+          score: { description: "Quality" },
+          reasoning: { description: "Reasoning" },
+        },
+      },
+    }).catch((error: unknown) => error);
+
+    expect(error).toBeInstanceOf(EvaluatorConfigurationError);
+    expect(error).not.toBeInstanceOf(EvaluatorModelConfigurationError);
+    expect(toStructuredPublicApiError(error)).toMatchObject({
+      httpCode: 412,
+      code: "invalid_request",
+      message:
+        "The model did not respond within 95 seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
+    });
   });
 
   it("propagates transient model preflight failures", async () => {
