@@ -474,9 +474,11 @@ function TracePreviewTable({
   const excludedIds = new Set(excluded);
   const selectedCount = traces.length - excludedIds.size;
   const pageCount = Math.max(1, Math.ceil(traces.length / 20));
-  let allChecked: boolean | "indeterminate" =
-    selectedCount > 0 ? "indeterminate" : false;
-  if (selectedCount === traces.length && traces.length > 0) allChecked = true;
+  const allChecked: boolean | "indeterminate" = (() => {
+    if (selectedCount === traces.length && traces.length > 0) return true;
+    if (selectedCount > 0) return "indeterminate";
+    return false;
+  })();
   const columns: ColumnDef<TracePreview>[] = [
     {
       id: "selected",

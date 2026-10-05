@@ -513,12 +513,16 @@ function ExecutionPanel({
     : `${Math.max(0, ...execution.facets.map((facet) => facet.counts.requested)).toLocaleString()} selected traces`;
   const facetCount = execution.facets.length;
   const operationLabel = operationLabels[execution.input.operation];
-  let modeLabel = "Assign to current topics";
-  if (execution.input.operation === "update")
-    modeLabel = execution.input.exploratory ? "Small sample" : "Standard";
-  let selectionPrefix = "Run selection: ";
-  if (execution.status === "running") selectionPrefix = "Running on ";
-  else if (execution.status === "queued") selectionPrefix = "Queued for ";
+  const modeLabel = (() => {
+    if (execution.input.operation !== "update")
+      return "Assign to current topics";
+    return execution.input.exploratory ? "Small sample" : "Standard";
+  })();
+  const selectionPrefix = (() => {
+    if (execution.status === "running") return "Running on ";
+    if (execution.status === "queued") return "Queued for ";
+    return "Run selection: ";
+  })();
   return (
     <section className="flex w-full min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
