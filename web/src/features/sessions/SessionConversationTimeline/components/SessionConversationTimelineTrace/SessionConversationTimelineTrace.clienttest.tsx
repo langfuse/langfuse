@@ -113,11 +113,15 @@ describe("SessionConversationTimelineTrace", () => {
     expect(onOpenTrace).toHaveBeenCalledOnce();
     expect(screen.getByText("Answer")).toBeInTheDocument();
     expect(onOpenObservation).toHaveBeenCalledWith("generation-1");
-    fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "Actions for Source generation",
-      })[1]!,
-    );
+    const messageActions = screen.getAllByRole("button", {
+      name: "Actions for Source generation",
+    })[1]!;
+    expect(messageActions.textContent).toBe("Actions");
+    expect(messageActions.closest("article")).not.toBeNull();
+    expect(
+      messageActions.parentElement?.parentElement?.querySelector("time"),
+    ).not.toBeNull();
+    fireEvent.click(messageActions);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Annotate" }));
     expect(onAnnotateObservation).toHaveBeenCalledWith(sourceObservation);
     expect(

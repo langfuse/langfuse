@@ -267,13 +267,22 @@ export const AnnotateSourceObservation = meta.story({
     },
   },
   play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(
-      canvas.getAllByRole("button", {
-        name: "Actions for Weather assistant",
-      })[0]!,
-    );
+    const bubble = canvasElement.querySelector("article");
+    if (!bubble) throw new globalThis.Error("Expected a chat bubble");
+    await userEvent.hover(bubble);
+    const messageActions = within(bubble).getByRole("button", {
+      name: "Actions for Weather assistant",
+    });
+    await expect(messageActions).toBeVisible();
+    await expect(messageActions).toHaveTextContent("Actions");
+    await userEvent.click(messageActions);
+    await userEvent.unhover(bubble);
+    await userEvent.hover(page.getByRole("menu"));
+    await expect(messageActions).toBeVisible();
+    await expect(
+      within(bubble).getByRole("button", { name: "Open observation" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("menuitem", { name: "Annotate" }),
     ).toBeInTheDocument();

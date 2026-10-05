@@ -42,12 +42,14 @@ export function SessionTimelineContentMessage({
   senderName,
   timestamp,
   onOpenObservation,
+  trailingContent,
 }: {
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
   timestamp?: Date | null;
   onOpenObservation?: () => void;
+  trailingContent?: React.ReactNode;
 }) {
   const presentation = rolePresentation[role];
   const Icon = presentation.icon;
@@ -173,30 +175,43 @@ export function SessionTimelineContentMessage({
                   ))}
                 </div>
               ) : null}
-              {timestamp && groupIndex === groups.length - 1 && (
-                <div
-                  className={cn(
-                    "text-muted-foreground mt-1 flex items-center gap-2 font-mono text-[10px]",
-                    role === "user" ? "justify-end" : "justify-start",
-                  )}
-                >
-                  {onOpenObservation && (
-                    <button
-                      type="button"
-                      className={cn(
-                        "hover:text-foreground invisible group-focus-within/bubble:visible group-hover/bubble:visible hover:underline",
-                        role !== "user" && "order-1",
-                      )}
-                      onClick={onOpenObservation}
-                    >
-                      Open observation
-                    </button>
-                  )}
-                  <time dateTime={timestamp.toISOString()}>
-                    {timestamp.toLocaleTimeString()}
-                  </time>
-                </div>
-              )}
+              {(timestamp || trailingContent || onOpenObservation) &&
+                groupIndex === groups.length - 1 && (
+                  <div
+                    className={cn(
+                      "text-muted-foreground mt-1 flex items-center gap-3 font-mono text-[10px]",
+                      role === "user" ? "justify-end" : "justify-start",
+                    )}
+                  >
+                    {onOpenObservation && (
+                      <button
+                        type="button"
+                        className={cn(
+                          "hover:text-foreground invisible group-focus-within/bubble:visible group-hover/bubble:visible group-has-[[data-session-actions-trigger][aria-expanded=true]]/bubble:visible hover:underline",
+                          role !== "user" && "order-1",
+                        )}
+                        onClick={onOpenObservation}
+                      >
+                        Open observation
+                      </button>
+                    )}
+                    {timestamp && (
+                      <time dateTime={timestamp.toISOString()}>
+                        {timestamp.toLocaleTimeString()}
+                      </time>
+                    )}
+                    {trailingContent && (
+                      <span
+                        className={cn(
+                          "invisible group-focus-within/bubble:visible group-hover/bubble:visible group-has-[[data-session-actions-trigger][aria-expanded=true]]/bubble:visible",
+                          role === "user" ? "-order-1" : "order-2",
+                        )}
+                      >
+                        {trailingContent}
+                      </span>
+                    )}
+                  </div>
+                )}
             </article>
           </div>
         );

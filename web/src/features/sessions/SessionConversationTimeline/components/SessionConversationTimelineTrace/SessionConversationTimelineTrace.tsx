@@ -1,13 +1,10 @@
 import { CircleAlert, MessageSquareOff } from "lucide-react";
-import { type ReactNode } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
@@ -50,7 +47,7 @@ const toPreviewText = (value: unknown) => {
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
 
-export function SessionObservationActionsMenuContent({
+export function SessionObservationActionsMenu({
   observation,
   onAnnotateObservation,
   onCommentObservation,
@@ -58,30 +55,47 @@ export function SessionObservationActionsMenuContent({
   annotateDisabled,
   commentDisabled,
   addToDatasetDisabled,
+  children,
 }: {
   observation: ActionObservation;
+  children: ComponentProps<typeof DropdownMenu>["children"];
 } & SessionObservationActionProps) {
   return (
-    <DropdownMenuContent align="end" sideOffset={0}>
-      <DropdownMenuItem
-        disabled={annotateDisabled}
-        onSelect={() => onAnnotateObservation(observation)}
-      >
-        Annotate
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={commentDisabled}
-        onSelect={() => onCommentObservation(observation)}
-      >
-        Comments
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={addToDatasetDisabled}
-        onSelect={() => onAddObservationToDataset(observation)}
-      >
-        Add to dataset
-      </DropdownMenuItem>
-    </DropdownMenuContent>
+    <DropdownMenu
+      placement="bottom-end"
+      ariaLabel={`Actions for ${observation.name ?? observation.id}`}
+      items={[
+        {
+          type: "item",
+          id: "annotate",
+          title: "Annotate",
+          disabled: annotateDisabled
+            ? { reason: "Annotation is unavailable." }
+            : undefined,
+          onClick: () => onAnnotateObservation(observation),
+        },
+        {
+          type: "item",
+          id: "comments",
+          title: "Comments",
+          disabled: commentDisabled
+            ? { reason: "Comments are unavailable." }
+            : undefined,
+          onClick: () => onCommentObservation(observation),
+        },
+        {
+          type: "item",
+          id: "add-to-dataset",
+          title: "Add to dataset",
+          disabled: addToDatasetDisabled
+            ? { reason: "Dataset access is unavailable." }
+            : undefined,
+          onClick: () => onAddObservationToDataset(observation),
+        },
+      ]}
+    >
+      {children}
+    </DropdownMenu>
   );
 }
 

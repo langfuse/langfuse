@@ -4,12 +4,8 @@ import { type TranscriptMessageGroup } from "../../fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "../../fns/getSessionTranscriptRows";
 import {
   SessionTimelineToolRow,
-  SessionObservationActionsMenuContent,
+  SessionObservationActionsMenu,
 } from "./SessionConversationTimelineTrace";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDown, MoreHorizontal, Wrench } from "lucide-react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
@@ -21,7 +17,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "../../../fns/groupConsecutiveTools";
 
 type ObservationActionProps = Pick<
-  ComponentProps<typeof SessionObservationActionsMenuContent>,
+  ComponentProps<typeof SessionObservationActionsMenu>,
   | "onAnnotateObservation"
   | "onCommentObservation"
   | "onAddObservationToDataset"
@@ -147,17 +143,52 @@ function SessionTranscriptRow({
   const observation = observations.find(
     (item) => item.id === row.message.observationId,
   );
-  const metadata = ((timing && (isTool || isSystem)) ||
-    observation?.traceId) && (
-    <div
-      className={cn(
-        "text-muted-foreground flex items-center gap-2 font-mono text-xs",
-        !isTool &&
-          !isSystem &&
-          "invisible group-focus-within:visible group-hover:visible",
-        !isTool && row.message.role === "user" && "justify-end",
-      )}
+  const actionsMenu = observation?.traceId && (
+    <SessionObservationActionsMenu
+      observation={{
+        id: observation.id,
+        traceId: observation.traceId,
+        name: observation.name,
+        startTime: observation.startTime,
+        environment: observation.environment,
+      }}
+      {...observationActionProps}
     >
+      {({ getTriggerProps }) => {
+        if (isTool || isSystem) {
+          return (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Actions for ${observation.name ?? observation.id}`}
+              className={cn(
+                isSystem &&
+                  "invisible group-focus-within:visible group-hover:visible",
+              )}
+              {...getTriggerProps()}
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </Button>
+          );
+        }
+        return (
+          <button
+            type="button"
+            aria-label={`Actions for ${observation.name ?? observation.id}`}
+            className="hover:text-foreground inline-flex items-center gap-0.5 hover:underline"
+            data-session-actions-trigger=""
+            {...getTriggerProps()}
+          >
+            Actions
+            <ChevronDown className="h-3 w-3" aria-hidden="true" />
+          </button>
+        );
+      }}
+    </SessionObservationActionsMenu>
+  );
+  const metadata = (isTool || isSystem) && (timing || actionsMenu) && (
+    <div className="text-muted-foreground flex items-center gap-2 font-mono text-xs">
       {!isTool &&
         row.message.role === "system" &&
         row.message.observationId && (
@@ -169,34 +200,7 @@ function SessionTranscriptRow({
             Open observation
           </button>
         )}
-      {observation?.traceId && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Actions for ${observation.name ?? observation.id}`}
-              className={cn(
-                isSystem &&
-                  "invisible group-focus-within:visible group-hover:visible",
-              )}
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <SessionObservationActionsMenuContent
-            observation={{
-              id: observation.id,
-              traceId: observation.traceId,
-              name: observation.name,
-              startTime: observation.startTime,
-              environment: observation.environment,
-            }}
-            {...observationActionProps}
-          />
-        </DropdownMenu>
-      )}
+      {actionsMenu}
       {timing && (isTool || isSystem) && (
         <time
           dateTime={timing.startTime.toISOString()}
@@ -241,11 +245,10 @@ function SessionTranscriptRow({
       ) : (
         <SessionTranscriptMessage
           message={row.message}
-          trailingContent={isSystem ? metadata : null}
+          trailingContent={isSystem ? metadata : actionsMenu}
           onOpenObservation={onOpenObservation}
         />
       )}
-      {row.type !== "tool" && !isSystem && metadata}
     </div>
   );
 }
@@ -352,6 +355,7 @@ function SessionTranscriptMessage({
       parts={message.parts}
       senderName={message.senderName}
       timestamp={message.timing?.startTime ?? null}
+      trailingContent={trailingContent}
       onOpenObservation={
         message.observationId
           ? () => onOpenObservation(message.observationId!)

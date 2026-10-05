@@ -11,7 +11,7 @@ import {
   type SessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
 } from "./useSessionConversationTimelineController";
-import { type SessionObservationActionsMenuContent } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type SessionObservationActionsMenu } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionTraceTranscriptState } from "./useSessionTraceTranscripts";
 import { getSessionTranscriptRows } from "./fns/getSessionTranscriptRows";
 
@@ -91,7 +91,7 @@ export function ConnectedSessionConversationTimeline(
                         onAnnotateObservation: (
                           observation: Parameters<
                             ComponentProps<
-                              typeof SessionObservationActionsMenuContent
+                              typeof SessionObservationActionsMenu
                             >["onAnnotateObservation"]
                           >[0],
                         ) =>
@@ -114,7 +114,7 @@ export function ConnectedSessionConversationTimeline(
                         onCommentObservation: (
                           observation: Parameters<
                             ComponentProps<
-                              typeof SessionObservationActionsMenuContent
+                              typeof SessionObservationActionsMenu
                             >["onCommentObservation"]
                           >[0],
                         ) =>
@@ -127,7 +127,7 @@ export function ConnectedSessionConversationTimeline(
                         onAddObservationToDataset: async (
                           observation: Parameters<
                             ComponentProps<
-                              typeof SessionObservationActionsMenuContent
+                              typeof SessionObservationActionsMenu
                             >["onAddObservationToDataset"]
                           >[0],
                         ) => {
