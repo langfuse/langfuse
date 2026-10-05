@@ -30,7 +30,10 @@ export function resolveFilterTarget(
   return { id: matches[0].id };
 }
 
-/** The run this filter binds to, or undefined when the field is not targetable. */
+/**
+ * Resolve the registry target this filter binds to, or undefined when the
+ * field is not targetable and the node carries no explicit target.
+ */
 export function resolveAttachedTarget(
   node: FilterNode,
   registry: FieldRegistry,

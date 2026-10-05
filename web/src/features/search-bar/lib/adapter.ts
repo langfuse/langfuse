@@ -382,30 +382,7 @@ function lowerFilter(
     errors.push(target.error);
     return;
   }
-  const conditions: SingleEventsFilter[] = [];
-  lowerUntargetedFilter(
-    node,
-    negated,
-    conditions,
-    errors,
-    scoreTypes,
-    registry,
-  );
-  out.push(
-    ...conditions.map((condition) =>
-      target ? { ...condition, target: target.id } : condition,
-    ),
-  );
-}
 
-function lowerUntargetedFilter(
-  node: FilterNode,
-  negated: boolean,
-  out: SingleEventsFilter[],
-  errors: string[],
-  scoreTypes?: ScoreTypeContext,
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): void {
   if (node.values.length === 0) {
     // The parser already flags every empty-value FilterNode at this span — and
     // with the exact wording for each shape (bare key, operator prefix
@@ -434,33 +411,49 @@ function lowerUntargetedFilter(
     }
   }
 
+  // One node can emit several conditions (multi-value, score expansion), so
+  // stamp a resolved target onto each before appending.
+  const conditions: SingleEventsFilter[] = [];
   switch (ref.type) {
     case "pseudo":
       // Global search scopes are handled by lowerFilterNode.
-      lowerHas(node, negated, out, errors, registry);
-      return;
+      lowerHas(node, negated, conditions, errors, registry);
+      break;
     case "metadata":
-      lowerMetadata(node, ref.key, negated, out, errors);
-      return;
+      lowerMetadata(node, ref.key, negated, conditions, errors);
+      break;
     case "scores":
-      lowerScores(node, ref.key, ref.level, negated, out, errors, scoreTypes);
-      return;
+      lowerScores(
+        node,
+        ref.key,
+        ref.level,
+        negated,
+        conditions,
+        errors,
+        scoreTypes,
+      );
+      break;
     case "field":
       switch (ref.field.kind) {
         case "number":
-          lowerNumber(node, ref.field, negated, out, errors);
-          return;
+          lowerNumber(node, ref.field, negated, conditions, errors);
+          break;
         case "datetime":
-          lowerDatetime(node, ref.field, negated, out, errors);
-          return;
+          lowerDatetime(node, ref.field, negated, conditions, errors);
+          break;
         case "boolean":
-          lowerBoolean(node, ref.field, negated, out, errors);
-          return;
+          lowerBoolean(node, ref.field, negated, conditions, errors);
+          break;
         case "text":
-          lowerText(node, ref.field, negated, out, errors);
-          return;
+          lowerText(node, ref.field, negated, conditions, errors);
+          break;
       }
   }
+  out.push(
+    ...conditions.map((condition) =>
+      target ? { ...condition, target: target.id } : condition,
+    ),
+  );
 }
 
 /** AST string op -> Langfuse string filter operator (positive polarity). */
