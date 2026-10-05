@@ -1,6 +1,6 @@
 import {
   BookOpen,
-  Ellipsis,
+  EllipsisVertical,
   LockIcon,
   MessageSquareText,
   Settings,
@@ -236,7 +236,7 @@ const OrganizationActionButtons = ({
                 size="icon"
                 aria-label="Organization actions"
               >
-                <Ellipsis className="h-4 w-4" aria-hidden="true" />
+                <EllipsisVertical className="h-4 w-4" aria-hidden="true" />
               </Button>
             </Trigger>
           )}
