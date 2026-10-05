@@ -199,7 +199,7 @@ export function ExperimentMetricStrip({
           <Select value={slot.chartType} onValueChange={handleChartTypeChange}>
             <SelectTrigger
               aria-label="Chart type"
-              className="h-6 w-auto gap-1 border-0 px-1 text-xs shadow-none"
+              className="h-6 w-auto gap-1 border-0 px-1 text-xs opacity-0 shadow-none group-focus-within/chart:opacity-100 group-hover/chart:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
             >
               <SelectValue />
             </SelectTrigger>
