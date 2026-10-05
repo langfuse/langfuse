@@ -24,13 +24,19 @@ vi.mock("@langfuse/shared/src/server", () => ({
   recordIncrement: vi.fn(),
   recordDistribution: vi.fn(),
 }));
-vi.mock("./models", () => ({ embedTopicSummary: mocks.embed }));
+vi.mock("./models", () => ({
+  embedTopicSummary: mocks.embed,
+  requireTopicsModelConfig: () => ({
+    summaryModel: "us.openai.gpt-5.6-luna",
+    embeddingModel: "eu.cohere.embed-v4:0",
+  }),
+}));
 
 import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
 import { TopicsProviderUnavailable } from "./provider-error";
 
 const embeddingConfig: TopicEmbeddingConfig = {
-  embeddingModel: "cohere.embed-v4:0",
+  embeddingModel: "eu.cohere.embed-v4:0",
   embeddingDimensions: 256,
 };
 const summary = (id = "summary"): TopicSummary => ({

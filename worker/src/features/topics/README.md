@@ -88,9 +88,11 @@ and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-c
 currently list `us.` geographic inference profiles in commercial Regions, but
 no `eu.` profiles; these profiles route within the US geography, including when
 invoked from `eu-west-1`.
-Embeddings use Cohere Embed v4
-(`cohere.embed-v4:0`) on Amazon Bedrock, with float output, `clustering` input
-type for both discovery and assignment, and truncation disabled. Default: 1,024
+Embeddings use a regional Cohere Embed v4 inference profile on Amazon Bedrock:
+set `LANGFUSE_TOPICS_EMBEDDING_MODEL` to `eu.cohere.embed-v4:0` for EU routing
+or `us.cohere.embed-v4:0` for US routing. Avoid the global profile when
+geographic residency matters. Calls use float output, `clustering` input type
+for both discovery and assignment, and truncation disabled. Default: 1,024
 dimensions; supported choices: 256, 512, 1,024, 1,536. Calls embed one summary at a
 time, retaining per-summary Redis checkpointing.
 Embedding settings are independent of immutable facet versions; changing them

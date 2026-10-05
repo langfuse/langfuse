@@ -194,7 +194,7 @@ describe("Topics eval-backed configuration", () => {
       facets: [{ facetId: facet.id, version: 1 }],
       timeRange: { from: new Date("2026-09-01"), to: new Date("2026-10-01") },
       embeddingConfig: {
-        embeddingModel: "cohere.embed-v4:0",
+        embeddingModel: "eu.cohere.embed-v4:0",
         embeddingDimensions: 256,
       },
       exploratory: false,
@@ -285,7 +285,7 @@ describe("Topics definition persistence", () => {
       transcriptId: "poc",
       transcriptVersion: "poc",
       summaryModel: "test",
-      embeddingModel: "cohere.embed-v4:0",
+      embeddingModel: "eu.cohere.embed-v4:0",
       providedUsageDetails: {},
       usageDetails: {},
       providedCostDetails: {},
@@ -425,7 +425,7 @@ describe("Topics definition persistence", () => {
     };
     await writeTopicSummaries([moved, summary]);
     const embedding = {
-      embeddingModel: "cohere.embed-v4:0" as const,
+      embeddingModel: "eu.cohere.embed-v4:0" as const,
       embeddingDimensions: 256 as const,
     };
     expect(

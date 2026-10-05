@@ -519,7 +519,7 @@ describe("Topics embedding queue handoff", () => {
         executionId: batch.executionId,
         summary: accepted,
         embeddingConfig: {
-          embeddingModel: "cohere.embed-v4:0",
+          embeddingModel: "eu.cohere.embed-v4:0",
           embeddingDimensions: 256,
         },
       };

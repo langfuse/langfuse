@@ -83,7 +83,7 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
     summaryModel: "us.openai.gpt-5.6-luna",
   }),
   embeddingConfig: topicEmbeddingConfigSchema.parse({
-    embeddingModel: "cohere.embed-v4:0",
+    embeddingModel: "eu.cohere.embed-v4:0",
   }),
 };
 
@@ -189,7 +189,7 @@ beforeEach(() => {
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
   mocks.getTopicsModelConfig.mockReturnValue({
     summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "cohere.embed-v4:0",
+    embeddingModel: "eu.cohere.embed-v4:0",
   });
   mocks.getTopicFacetVersion.mockResolvedValue({
     facetId,

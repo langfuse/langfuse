@@ -15,6 +15,10 @@ vi.mock("@langfuse/shared/src/server", () => ({
   recordIncrement: state.increment,
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
+  getTopicsModelConfig: () => ({
+    summaryModel: "us.openai.gpt-5.6-luna",
+    embeddingModel: "eu.cohere.embed-v4:0",
+  }),
   generateTopicText: (...args: unknown[]) => state.call(...args),
   generateTopicEmbedding: (...args: unknown[]) => state.embed(...args),
 }));
@@ -205,7 +209,7 @@ describe("Topics naming boundary", () => {
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embedding: [], tokens: 12 });
     await expect(
-      embedTopicSummary("An invoice request.", 256, "cohere.embed-v4:0"),
+      embedTopicSummary("An invoice request.", 256, "eu.cohere.embed-v4:0"),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
@@ -225,7 +229,11 @@ describe("Topics naming boundary", () => {
         embedding: Array(256).fill(0.25),
         tokens,
       });
-      await embedTopicSummary("An invoice request.", 256, "cohere.embed-v4:0");
+      await embedTopicSummary(
+        "An invoice request.",
+        256,
+        "eu.cohere.embed-v4:0",
+      );
       expect(state.increment.mock.calls).toEqual([
         [
           "langfuse.topics.token_usage_missing",

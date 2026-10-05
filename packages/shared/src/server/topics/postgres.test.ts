@@ -103,13 +103,13 @@ describe("Topics serving maps", () => {
         id: "intent-map",
         facetId: "intent",
         facetVersion: 2,
-        config: { embeddingModel: "cohere.embed-v4:0", dimensions: 256 },
+        config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 256 },
       },
       {
         id: "outcome-map",
         facetId: "outcome",
         facetVersion: 1,
-        config: { embeddingModel: "cohere.embed-v4:0", dimensions: 512 },
+        config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 512 },
       },
     ]);
     expect(
@@ -120,7 +120,7 @@ describe("Topics serving maps", () => {
           { facetId: "intent", version: 2 },
           { facetId: "outcome", version: 1 },
         ],
-        { embeddingModel: "cohere.embed-v4:0", embeddingDimensions: 256 },
+        { embeddingModel: "eu.cohere.embed-v4:0", embeddingDimensions: 256 },
       ),
     ).toEqual([
       { facetId: "intent", facetVersion: 1, runId: null },

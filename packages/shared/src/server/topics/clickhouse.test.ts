@@ -67,7 +67,7 @@ const summaryFixture: TopicSummary = {
   transcriptId: "poc",
   transcriptVersion: "poc",
   summaryModel: "gpt-4.1-nano",
-  embeddingModel: "cohere.embed-v4:0",
+  embeddingModel: "eu.cohere.embed-v4:0",
   providedUsageDetails: {
     summary_input: 10,
     summary_output: 5,
@@ -118,7 +118,7 @@ const timeRange = {
 it("bounds Topics payload reads by their storage timestamp", async () => {
   const facet = { facetId: "facet-a", version: 1 };
   const embedding = {
-    embeddingModel: "cohere.embed-v4:0" as const,
+    embeddingModel: "eu.cohere.embed-v4:0" as const,
     embeddingDimensions: 256,
   };
   const reads = [
@@ -379,7 +379,7 @@ describe("Topics summary storage", () => {
       "project-a",
       facets,
       {
-        embeddingModel: "cohere.embed-v4:0",
+        embeddingModel: "eu.cohere.embed-v4:0",
         embeddingDimensions: 256,
       },
       timeRange,

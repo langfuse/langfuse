@@ -24,6 +24,10 @@ import {
 
 export const TOPICS_NAMING_MODEL = "us.openai.gpt-5.6-terra";
 const TOPICS_SUMMARY_COST_MODEL = "us.openai.gpt-5.6-luna";
+const TOPICS_EMBEDDING_COST_MODELS = new Set([
+  "us.cohere.embed-v4:0",
+  "eu.cohere.embed-v4:0",
+]);
 
 export function requireTopicsModelConfig() {
   const models = getTopicsModelConfig();
@@ -284,7 +288,7 @@ export async function embedTopicSummary(
   const costDetails: Record<string, number> = {};
   if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
     usageDetails.embedding_input = usageDetails.total = result.tokens;
-    if (model === "cohere.embed-v4:0")
+    if (TOPICS_EMBEDDING_COST_MODELS.has(model))
       costDetails.embedding_input = costDetails.total =
         (result.tokens * 0.12) / 1_000_000;
   } else {

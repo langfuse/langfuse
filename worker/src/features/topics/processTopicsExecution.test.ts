@@ -74,7 +74,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
     isTopicsEnabled: () => true,
     getTopicsModelConfig: () => ({
       summaryModel: "gpt-4.1-nano",
-      embeddingModel: "cohere.embed-v4:0",
+      embeddingModel: "eu.cohere.embed-v4:0",
     }),
     TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
@@ -401,7 +401,7 @@ function execution<T extends "process" | "update" = "process">(
     operation,
     facets: facets.map(({ facetId, version }) => ({ facetId, version })),
     embeddingConfig: {
-      embeddingModel: "cohere.embed-v4:0",
+      embeddingModel: "eu.cohere.embed-v4:0",
       embeddingDimensions,
     },
     ...(operation === "process"

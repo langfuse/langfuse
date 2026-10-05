@@ -15,7 +15,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: () => state.enabled,
   getTopicsModelConfig: () => ({
     summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "cohere.embed-v4:0",
+    embeddingModel: "eu.cohere.embed-v4:0",
   }),
   ensureDefaultTopicFacets: (...args: unknown[]) => state.facets(...args),
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
@@ -144,7 +144,7 @@ describe("summarizeAssembledTrace", () => {
       state: "complete",
       summary: "Export monthly sales.",
       summaryModel: "us.openai.gpt-5.6-luna",
-      embeddingModel: "cohere.embed-v4:0",
+      embeddingModel: "eu.cohere.embed-v4:0",
       environment: "default",
       traceName: "agent-turn",
       providedUsageDetails: {
