@@ -86,14 +86,15 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none inline-flex items-baseline justify-center gap-1 rounded-sm font-mono leading-none font-normal select-none",
+  "pointer-events-none inline-flex justify-center gap-1 rounded-sm font-mono leading-none font-normal select-none",
   {
     variants: {
       variant: {
-        default: "bg-transparent text-foreground-tertiary",
-        subtle: "bg-transparent text-foreground-tertiary",
-        inverse: "bg-transparent text-primary-foreground",
-        keycap: "border bg-muted px-1 text-muted-foreground",
+        default: "items-baseline bg-transparent text-foreground-tertiary",
+        subtle: "items-baseline bg-transparent text-foreground-tertiary",
+        inverse: "items-baseline bg-transparent text-primary-foreground",
+        keycap:
+          "items-center border bg-muted px-1 align-middle text-muted-foreground",
       },
       size: {
         default: "h-5 min-w-5 text-xs",
@@ -133,6 +134,7 @@ export function KeyboardShortcut({
   const inTooltip = React.useContext(KeyboardShortcutInTooltipContext);
   const variant = variantProp ?? (inTooltip ? "keycap" : "default");
   const isMac = useIsMac();
+  const letterClass = variant === "keycap" ? undefined : "-translate-y-0.5";
 
   return (
     <kbd
@@ -148,7 +150,7 @@ export function KeyboardShortcut({
           <span
             key={index}
             className={
-              isSymbol ? symbolSizeClass[size ?? "default"] : "-translate-y-0.5"
+              isSymbol ? symbolSizeClass[size ?? "default"] : letterClass
             }
           >
             {label}
