@@ -170,9 +170,9 @@ export const BillingSwitchPlanDialog = ({
                         {isCurrentPlan && (
                           <>
                             {/* Reactivate button when cancellation is scheduled on current plan */}
-                            {cancellation?.isCancelled && (
+                            {cancellation?.isCancelled && organization?.id && (
                               <StripeCancellationButton
-                                orgId={organization?.id}
+                                orgId={organization.id}
                                 variant="default"
                                 className="w-full"
                               />
