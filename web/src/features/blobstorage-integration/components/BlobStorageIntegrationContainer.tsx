@@ -140,6 +140,7 @@ export const BlobStorageIntegrationContainer = ({
           <Button
             type="button"
             variant="secondary"
+            aria-label="Test scheduled export upload"
             loading={mutValidate.isPending}
             disabled={!config}
             title="Test your saved configuration by uploading a small test file to your storage"
@@ -149,7 +150,7 @@ export const BlobStorageIntegrationContainer = ({
               }
             }}
           >
-            Test upload
+            Test
           </Button>
           <Button
             type="button"
@@ -173,12 +174,11 @@ export const BlobStorageIntegrationContainer = ({
       }
       mediaStorageActions={
         <DialogController
-          renderDialog={({ closeDialog }) => (
+          renderDialog={() => (
             <TestMediaObjectDialog
-              closeDialog={closeDialog}
               isPending={mutTestMediaObject.isPending}
               onTest={async (uri) => {
-                if (!config?.id) return false;
+                if (!config?.id) return null;
                 try {
                   const { signedUrl } = await mutTestMediaObject.mutateAsync({
                     projectId,
@@ -194,14 +194,14 @@ export const BlobStorageIntegrationContainer = ({
                         ? error.message
                         : "The browser could not access the signed URL.",
                     );
-                    return false;
+                    return null;
                   }
                   showSuccessToast({
                     title: "Media object is accessible",
                     description:
                       "Server-side storage access and browser CORS access succeeded.",
                   });
-                  return true;
+                  return signedUrl;
                 } catch (error) {
                   showErrorToast(
                     "Storage access failed",
@@ -209,7 +209,7 @@ export const BlobStorageIntegrationContainer = ({
                       ? error.message
                       : "The media object could not be read.",
                   );
-                  return false;
+                  return null;
                 }
               }}
             />
@@ -219,10 +219,11 @@ export const BlobStorageIntegrationContainer = ({
             <Button
               type="button"
               variant="secondary"
+              aria-label="Test external media object"
               disabled={!config?.mediaStorageEnabled}
               onClick={openDialog}
             >
-              Test media object
+              Test
             </Button>
           )}
         </DialogController>

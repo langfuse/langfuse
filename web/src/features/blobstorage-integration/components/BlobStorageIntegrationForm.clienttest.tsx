@@ -266,21 +266,29 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     render(
       ui("actions", initialValues, undefined, true, {
         deleteAction: <button type="button">Delete integration</button>,
-        mediaStorageActions: <button type="button">Test media object</button>,
+        mediaStorageActions: (
+          <button type="button" aria-label="Test external media object">
+            Test
+          </button>
+        ),
         scheduledExportActions: (
           <>
-            <button type="button">Test upload</button>
+            <button type="button" aria-label="Test scheduled export upload">
+              Test
+            </button>
             <button type="button">Run now</button>
           </>
         ),
       }),
     );
 
-    expect(screen.getByRole("button", { name: "Test upload" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Test scheduled export upload" }),
+    ).toHaveTextContent("Test");
     expect(screen.getByRole("button", { name: "Run now" })).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Test media object" }),
-    ).toBeVisible();
+      screen.getByRole("button", { name: "Test external media object" }),
+    ).toHaveTextContent("Test");
     expect(
       screen.getByRole("button", { name: "Delete integration" }),
     ).toBeVisible();
@@ -294,10 +302,12 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
       screen.getByRole("switch", { name: "External media storage" }),
     );
 
-    expect(screen.queryByRole("button", { name: "Test upload" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Test scheduled export upload" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Test media object" }),
+      screen.queryByRole("button", { name: "Test external media object" }),
     ).toBeNull();
     expect(
       screen.getByRole("button", { name: "Delete integration" }),
