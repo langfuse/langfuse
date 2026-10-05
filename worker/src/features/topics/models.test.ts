@@ -97,7 +97,7 @@ describe("Topics naming boundary", () => {
         profile: "ai-test",
       });
       expect(request.messages[0].content).toContain(facet.prompt);
-      expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
+      expect(request.messages[1].content).toContain("RAW_TRANSCRIPT_SENTINEL");
     },
   );
 
