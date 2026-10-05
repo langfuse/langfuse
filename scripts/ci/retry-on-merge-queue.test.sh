@@ -94,6 +94,67 @@ run_case "unset-event-no-retry"   ""            1     1     1      1        no
 # off a specific code still sees it.
 run_case "propagates-exit-status"  pull_request 1     42    42     1        no
 
+# A signal death (128+N) is not retried: it is an OOM kill or a job teardown,
+# and a second full run would hit the same limit.
+signal_dir="$tmpdir/signal-case"
+mkdir -p "$signal_dir"
+cat <<'EOF' >"$signal_dir/cmd.sh"
+#!/usr/bin/env bash
+count_file="$(dirname "$0")/count"
+attempts=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))
+echo "$attempts" > "$count_file"
+if [[ "$attempts" -le 1 ]]; then
+  kill -KILL $$
+fi
+exit 0
+EOF
+chmod +x "$signal_dir/cmd.sh"
+GITHUB_EVENT_NAME=merge_group GITHUB_STEP_SUMMARY="" \
+  bash "$script" "$signal_dir/cmd.sh" >/dev/null 2>&1
+signal_status=$?
+signal_attempts="$(cat "$signal_dir/count" 2>/dev/null || echo 0)"
+if [[ "$signal_status" -ne 137 ]]; then
+  fail "signal-death-not-retried: exit status was $signal_status, want 137"
+elif [[ "$signal_attempts" -ne 1 ]]; then
+  fail "signal-death-not-retried: ran $signal_attempts time(s), want 1"
+else
+  pass "signal-death-not-retried"
+fi
+
+# Arguments containing spaces must reach the command intact, not word-split.
+args_dir="$tmpdir/args-case"
+mkdir -p "$args_dir"
+cat <<EOF >"$args_dir/cmd.sh"
+#!/usr/bin/env bash
+printf '%s\n' "\$#" > "$args_dir/argc"
+printf '%s\n' "\$2" > "$args_dir/arg2"
+exit 0
+EOF
+chmod +x "$args_dir/cmd.sh"
+GITHUB_EVENT_NAME=merge_group GITHUB_STEP_SUMMARY="" \
+  bash "$script" "$args_dir/cmd.sh" --flag "two words" '*' >/dev/null 2>&1
+if [[ "$(cat "$args_dir/argc")" != "3" ]]; then
+  fail "preserves-argv: command saw $(cat "$args_dir/argc") args, want 3"
+elif [[ "$(cat "$args_dir/arg2")" != "two words" ]]; then
+  fail "preserves-argv: second arg was '$(cat "$args_dir/arg2")', want 'two words'"
+else
+  pass "preserves-argv"
+fi
+
+# A step summary that cannot be written must not turn a passing retry into a
+# failure — the whole point is to keep a green suite in the merge queue.
+unwritable_dir="$tmpdir/unwritable-case"
+mkdir -p "$unwritable_dir"
+make_command "$unwritable_dir/cmd.sh" 1 1
+GITHUB_EVENT_NAME=merge_group GITHUB_STEP_SUMMARY="$unwritable_dir/nonexistent-dir/summary.md" \
+  bash "$script" "$unwritable_dir/cmd.sh" >/dev/null 2>&1
+unwritable_status=$?
+if [[ "$unwritable_status" -ne 0 ]]; then
+  fail "unwritable-summary-still-passes: exit status was $unwritable_status, want 0"
+else
+  pass "unwritable-summary-still-passes"
+fi
+
 # No command at all is a usage error, not a silent success.
 if bash "$script" >/dev/null 2>&1; then
   fail "no-arguments: expected a non-zero exit"

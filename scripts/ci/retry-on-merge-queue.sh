@@ -24,6 +24,11 @@
 # Worst case this is no worse than not retrying: if the second attempt fails
 # too, the original exit status is propagated and the job fails exactly as it
 # would have before.
+#
+# The second attempt runs against whatever state the first one left behind —
+# the databases are already seeded and the app is still up. A suite that is not
+# idempotent can therefore fail the retry deterministically, which is why this
+# wraps only suites with no retry of their own rather than everything in sight.
 
 # No `set -e`: the whole point is to observe a non-zero exit and carry on.
 set -uo pipefail
@@ -47,6 +52,14 @@ if [[ "${GITHUB_EVENT_NAME:-}" != "merge_group" ]]; then
   exit "${status}"
 fi
 
+# 128+N means the command was killed by signal N — an OOM kill, or the runner
+# tearing the job down. Re-running the whole suite would hit the same wall and
+# eat the job's remaining time budget, so take the failure as it stands.
+if [[ "${status}" -ge 128 ]]; then
+  echo "::warning title=Not retrying::Command was killed by a signal (exit ${status}); a retry would hit the same limit: $*"
+  exit "${status}"
+fi
+
 echo "::warning title=Retrying a failed merge-queue step::Command failed with exit ${status}; retrying once before failing the merge queue: $*"
 
 "$@"
@@ -63,3 +76,8 @@ echo "${FLAKY_MARKER} job=${GITHUB_JOB:-unknown} command=$*"
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf '⚠️ Flaky step: `%s` failed with exit %s and passed on retry.\n' "$*" "${status}" >>"${GITHUB_STEP_SUMMARY}"
 fi
+
+# The command passed. Say so explicitly: without this the exit status would be
+# whatever the summary append above returned, so a full disk could fail a step
+# whose tests are green — exactly the dequeue this script exists to prevent.
+exit 0

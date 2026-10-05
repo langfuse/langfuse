@@ -517,7 +517,7 @@ jobs:
       - name: Install playwright
         run: bash scripts/ci/install-playwright.sh
       - name: run Storybook tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter web run test-storybook
+        run: pnpm --filter web run test-storybook
       - name: build Storybook
         run: pnpm --filter web run build-storybook
 
@@ -905,7 +905,7 @@ jobs:
         # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
 
   tests-web-client:
     timeout-minutes: 10
@@ -947,7 +947,7 @@ jobs:
         run: pnpm turbo run build --filter=web^...
       - name: run test-client
         working-directory: web
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm run test-client
+        run: pnpm run test-client
 
   tests-worker:
     timeout-minutes: 20
@@ -1054,7 +1054,7 @@ jobs:
           pnpm --filter @langfuse/native run test
           pnpm --filter worker run test:native-codec
       - name: run tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=worker run test:exclude-llm-connections
+        run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
 
@@ -1250,7 +1250,7 @@ jobs:
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run llm connection tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=worker run test:llm-connections-only
+        run: pnpm --filter=worker run test:llm-connections-only
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
@@ -1500,7 +1500,7 @@ jobs:
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=web run test:e2e:server
+        run: pnpm --filter=web run test:e2e:server
 
   test-ai-gateway-e2e:
     timeout-minutes: 25
@@ -1592,7 +1592,7 @@ jobs:
       - name: Check server health
         run: timeout 30 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run AI Gateway end-to-end tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=web run test:e2e:ai-gateway
+        run: pnpm --filter=web run test:e2e:ai-gateway
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
@@ -1688,27 +1688,52 @@ jobs:
           set +o pipefail
 
           # Keep in sync with FLAKY_MARKER in scripts/ci/retry-on-merge-queue.sh.
-          MARKER="LANGFUSE_CI_FLAKY_RETRY_SUCCEEDED"
+          # Split so this job's own log — the runner echoes `run:` bodies into
+          # it — can never match the marker and report this job as flaky.
+          MARKER="LANGFUSE_CI_FLAKY""_RETRY_SUCCEEDED"
           FLAKY=""
+          # A failed lookup must not read as "nothing was retried" — that would
+          # silently drop the very report this job exists to produce. Track it
+          # and fail the job at the end, after reporting whatever was found.
+          INCOMPLETE=0
+
+          JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate)"
+          if [ "$?" -ne 0 ] || [ -z "$JOBS_JSON" ]; then
+            echo "::error title=Flaky-CI check failed::Could not list this run's jobs; a flaky retry may have gone unreported."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
 
           # Only succeeded jobs can have been rescued by a retry; a job that
           # failed anyway is already reported through the normal failure path.
+          JOBS_TSV="$(jq -r '.jobs[] | select(.conclusion == "success") | "\(.id)\t\(.name)"' <<<"$JOBS_JSON")"
+          if [ "$?" -ne 0 ]; then
+            echo "::error title=Flaky-CI check failed::Could not parse this run's job list; a flaky retry may have gone unreported."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
+
           while IFS=$'\t' read -r JOB_ID JOB_NAME; do
             [ -n "$JOB_ID" ] || continue
-            if gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null | grep -qF "$MARKER"; then
+            JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null)"
+            if [ "$?" -ne 0 ]; then
+              echo "::error title=Flaky-CI check incomplete::Could not download the log for '$JOB_NAME'; if it was retried, that went unreported."
+              INCOMPLETE=1
+              continue
+            fi
+            if grep -qF "$MARKER" <<<"$JOB_LOG"; then
               if [ -n "$FLAKY" ]; then
                 FLAKY="$(printf '%s\n• %s' "$FLAKY" "$JOB_NAME")"
               else
                 FLAKY="• $JOB_NAME"
               fi
             fi
-          done < <(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate \
-            | jq -r '.jobs[] | select(.conclusion == "success") | "\(.id)\t\(.name)"')
+          done <<<"$JOBS_TSV"
 
           if [ -z "$FLAKY" ]; then
             echo "No retried steps in this run."
             echo "flaky=false" >>"$GITHUB_OUTPUT"
-            exit 0
+            exit "$INCOMPLETE"
           fi
 
           echo "Flaky jobs in this run:"
@@ -1729,8 +1754,12 @@ jobs:
             echo
             printf '%s\n' "$FLAKY"
           } >>"$GITHUB_STEP_SUMMARY"
+
+          exit "$INCOMPLETE"
+      # always(): an incomplete collection fails the step above on purpose, but
+      # the flakes it did find still need to reach Slack.
       - name: Notify Slack
-        if: ${{ steps.flaky.outputs.flaky == 'true' }}
+        if: ${{ always() && steps.flaky.outputs.flaky == 'true' }}
         uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
         with:
           webhook: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
