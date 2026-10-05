@@ -355,6 +355,10 @@ async fn multiple_choices_merge_independently_and_a_gap_drops_only_its_choice() 
         observer.push_bytes(delta(1, json!({ "content": fragment }), Value::Null).as_bytes());
     }
     observer.push_bytes(delta(1, json!({"content":"!"}), json!("stop")).as_bytes());
+    // The dropped choice's budget returns to its siblings; this only fits after that.
+    for _ in 0..2 {
+        observer.push_bytes(delta(0, json!({ "content": fragment }), Value::Null).as_bytes());
+    }
     observer.push_bytes(delta(0, json!({"content":"a"}), json!("stop")).as_bytes());
     observer.push_bytes(DONE.as_bytes());
     observer.end_body();
@@ -364,7 +368,7 @@ async fn multiple_choices_merge_independently_and_a_gap_drops_only_its_choice() 
         facts.output,
         Some(json!({"choices":[{
             "index":0,"finish_reason":"stop",
-            "message":{"role":"assistant","content":"Aa"},
+            "message":{"role":"assistant","content":format!("A{fragment}{fragment}a")},
         }]}))
     );
 }

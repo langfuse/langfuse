@@ -44,9 +44,14 @@ impl UsageChunkFilter {
         Bytes::from(relayed)
     }
 
-    /// Bytes of an event the upstream never terminated.
+    /// Bytes of an event the upstream never terminated, unless it is the usage chunk.
     pub fn finish(&mut self) -> Bytes {
-        Bytes::from(std::mem::take(&mut self.event))
+        let event = std::mem::take(&mut self.event);
+        if self.passthrough || !is_usage_chunk(&event) {
+            Bytes::from(event)
+        } else {
+            Bytes::new()
+        }
     }
 
     fn keep(&mut self, byte: u8, relayed: &mut Vec<u8>) {
@@ -133,9 +138,17 @@ mod tests {
             "data: {\"choices\":[],\"usage\":null}\n\n",
             "data: {\"error\":{\"message\":\"failed\"}}\n\n",
             "data: not json\n\n",
-            "data: {\"choices\":[],\"usage\":{\"total_tokens\":3}}",
+            "data: {\"choices\":[],\"usage\":{\"tota",
         );
         assert_eq!(relay_in_pieces(input, 5), input);
+    }
+
+    #[test]
+    fn an_unterminated_usage_chunk_at_eof_stays_hidden() {
+        for tail in [USAGE.to_owned(), format!("{USAGE}\n")] {
+            let input = format!("data: [DONE]\n\n{tail}");
+            assert_eq!(relay_in_pieces(&input, 3), "data: [DONE]\n\n", "{tail:?}");
+        }
     }
 
     #[test]

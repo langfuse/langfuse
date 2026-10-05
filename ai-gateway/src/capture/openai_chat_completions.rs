@@ -71,6 +71,8 @@ struct Choice {
     fields: Map<String, Value>,
     message: Map<String, Value>,
     tool_calls: BTreeMap<u64, Map<String, Value>>,
+    /// This choice's share of the retained-output budget.
+    bytes: usize,
     broken: bool,
 }
 
@@ -84,9 +86,16 @@ impl Choices {
         if entry.broken {
             return Err(Gap);
         }
+        let before = self.bytes;
         let merged = Self::merge_choice(entry, choice, &mut self.bytes);
+        entry.bytes += self.bytes - before;
         if merged.is_err() {
-            entry.broken = true;
+            // A dropped choice is not recorded, so it releases its budget to its siblings.
+            self.bytes -= entry.bytes;
+            *entry = Choice {
+                broken: true,
+                ..Choice::default()
+            };
         }
         merged
     }
