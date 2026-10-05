@@ -3,6 +3,7 @@ import { assertUnreachable } from "@langfuse/shared";
 export const featurePreviewFlags = [
   "modernSession",
   "sessionTimeline",
+  "externalMediaStorage",
 ] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
@@ -38,6 +39,7 @@ export const filterFeaturePreviewFlags = (
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
   sessionTimeline: "Session Timeline",
+  externalMediaStorage: "External media storage",
 } satisfies Record<FeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
@@ -50,6 +52,10 @@ export const isFeaturePreviewAvailable = (
 ) => {
   if (flag === "modernSession" || flag === "sessionTimeline") {
     return context.v4BetaEnabled;
+  }
+
+  if (flag === "externalMediaStorage") {
+    return true;
   }
 
   return assertUnreachable(flag);
@@ -65,5 +71,4 @@ export const availableFlags = [
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
-  "externalMediaStorage",
 ] as const;

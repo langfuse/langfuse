@@ -227,13 +227,11 @@ describe("organization feature preview defaults", () => {
       members.memberships.find((membership) => membership.userId === member.id)
         ?.featurePreviews,
     ).toEqual({
-      // The member's opt-out beats the organization default, and neither
-      // default was copied onto the user (asserted above). `futurePreview` is
-      // not a registered preview, so it is filtered out rather than surfacing
-      // here. Asserting that two REGISTERED defaults resolve differently needs
-      // a second preview; add that half back with the next one.
+      // The member's opt-out beats the organization default. `futurePreview`
+      // is not registered, so it is filtered out.
       modernSession: false,
       sessionTimeline: false,
+      externalMediaStorage: false,
     });
   });
 
@@ -494,6 +492,7 @@ describe("organization member feature preview overrides", () => {
     expect(row?.featurePreviews).toEqual({
       modernSession: true,
       sessionTimeline: false,
+      externalMediaStorage: false,
     });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");

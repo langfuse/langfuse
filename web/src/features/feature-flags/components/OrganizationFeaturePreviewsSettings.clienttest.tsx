@@ -175,6 +175,11 @@ describe("OrganizationFeaturePreviewsSettings", () => {
         name: "Toggle Session Timeline organization default",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle External media storage organization default",
+      }),
+    ).toBeInTheDocument();
     switches.forEach((featureSwitch) => {
       expect(featureSwitch).toBeChecked();
       expect(featureSwitch).toBeDisabled();
@@ -187,9 +192,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.orgDefaults = [];
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    // The contrast half — a row the admin HAS enabled personally stays live —
-    // needs a second registered preview, and there is one between one preview
-    // reaching GA and the next landing. Add it back with the next preview.
     expect(
       screen.getByRole("checkbox", {
         name: "Toggle Compact Session View organization default",
