@@ -14,7 +14,7 @@ import { SelectInput } from "@/src/components/design-system/SelectInput/SelectIn
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { BlobStorageIntegrationType } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/fns/buildBlobStorageFormValues";
+import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/types/blobStorageFormValues";
 
 // Provider selection plus the connection fields whose labels and visibility
 // depend on it: bucket/container, endpoint, region, path style, and credentials.

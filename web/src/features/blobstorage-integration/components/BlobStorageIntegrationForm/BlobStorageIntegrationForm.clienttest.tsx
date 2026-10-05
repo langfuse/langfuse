@@ -9,10 +9,8 @@ import {
 } from "@langfuse/shared";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
-import {
-  buildBlobStorageFormValues,
-  type BlobStorageFormValues,
-} from "@/src/features/blobstorage-integration/fns/buildBlobStorageFormValues";
+import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/fns/buildBlobStorageFormValues";
+import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/types/blobStorageFormValues";
 
 // EVENTS-only context (post-cutoff Cloud project, new row): single selectable
 // source, selector hidden — keeps the rendered tree small and the submit

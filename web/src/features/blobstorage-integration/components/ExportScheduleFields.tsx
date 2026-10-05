@@ -13,7 +13,7 @@ import {
   BlobStorageExportMode,
   BlobStorageIntegrationFileType,
 } from "@langfuse/shared";
-import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/fns/buildBlobStorageFormValues";
+import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/types/blobStorageFormValues";
 
 // Frequency, file type, and export mode (with the custom start date when the
 // mode requires one).

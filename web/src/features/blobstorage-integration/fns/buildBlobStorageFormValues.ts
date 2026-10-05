@@ -1,5 +1,3 @@
-import { type Control } from "react-hook-form";
-import { type z } from "zod";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -9,23 +7,8 @@ import {
   type ObservationFieldGroupFull,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import type {
-  blobStorageIntegrationFormSchema,
-  BlobStorageIntegrationFormSchema,
-} from "@/src/features/blobstorage-integration/types";
 import { getExportSourceFormValue } from "@/src/features/analytics-integrations";
-
-// Pre-parse (input) shape of the form; zod defaults make some fields optional.
-export type BlobStorageFormValues = z.input<
-  typeof blobStorageIntegrationFormSchema
->;
-
-// Control handle shared by the form's field-group components.
-export type BlobStorageFormControl = Control<
-  BlobStorageFormValues,
-  unknown,
-  BlobStorageIntegrationFormSchema
->;
+import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/types/blobStorageFormValues";
 
 export function buildBlobStorageFormValues(
   state: Partial<BlobStorageIntegration> | undefined,
