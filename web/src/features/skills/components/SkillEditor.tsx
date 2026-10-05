@@ -1,4 +1,10 @@
-import { type ComponentProps, useMemo, useState } from "react";
+import {
+  type ComponentProps,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useMediaQuery } from "react-responsive";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
@@ -53,6 +59,7 @@ import {
   SKILL_NAME_RULES,
 } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
 
 export function SkillEditor({
   projectId,
@@ -160,6 +167,20 @@ export function SkillEditor({
     pendingEntry: null,
   }));
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const showUpload = canEditFiles && isUploadOpen;
+  const uploadPanelRef = useRef<HTMLElement | null>(null);
+  const focusUploadPanel = useCallback((node: HTMLElement | null) => {
+    uploadPanelRef.current = node;
+    if (!node) return;
+    const previousFocus = document.activeElement;
+    node.focus();
+    return () => {
+      uploadPanelRef.current = null;
+      requestAnimationFrame(() => {
+        if (previousFocus instanceof HTMLElement) previousFocus.focus();
+      });
+    };
+  }, []);
   const cancelUpload = () => {
     if (!store.getState().isImporting) setIsUploadOpen(false);
   };
@@ -181,6 +202,7 @@ export function SkillEditor({
       (!createNew && (hasNameChanged || !store.getState().dirty))
     )
       return false;
+    setIsUploadOpen(false);
     setIsSaving(true);
     try {
       const created = await createSkillVersionFromDraft({
@@ -436,64 +458,85 @@ export function SkillEditor({
               ),
           }}
         >
-          <Dropzone
-            src={undefined}
-            variant="panel"
-            accept={undefined}
-            maxFiles={MAX_SKILL_FILES}
-            maxSize={undefined}
-            minSize={undefined}
-            isDisabled={!canEditFiles}
-            open={canEditFiles && isUploadOpen}
-            onOpenChange={setIsUploadOpen}
-            onKeyDownCapture={(event) => {
-              if (event.key === "Escape" && isUploadOpen) {
-                event.preventDefault();
-                event.stopPropagation();
-                cancelUpload();
-              }
-            }}
-            header={
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold">Upload files or folders</p>
-                  {isImporting ? (
-                    <p role="status" className="text-muted-foreground text-sm">
-                      Adding files to draft…
-                    </p>
-                  ) : null}
+          <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1">
+            {showUpload ? (
+              <section
+                ref={focusUploadPanel}
+                tabIndex={-1}
+                aria-label="Upload files"
+                aria-busy={isImporting}
+                className="bg-background flex min-h-0 flex-col gap-3 p-4 outline-none [grid-area:1/1]"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    cancelUpload();
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold">Upload files or folders</p>
+                    {isImporting ? (
+                      <p
+                        role="status"
+                        className="text-muted-foreground text-sm"
+                      >
+                        Adding files to draft…
+                      </p>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={isImporting}
+                    onClick={cancelUpload}
+                  >
+                    Cancel
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isImporting}
-                  onClick={cancelUpload}
-                >
-                  Cancel
-                </Button>
-              </div>
-            }
-            onProcessingChange={(isImporting) =>
-              store.setState({ isImporting })
-            }
-            onError={(error) => {
-              setIsUploadOpen(true);
-              showErrorToast("Could not add files", error.message);
-            }}
-            onDrop={async (files) => {
-              const paths = await importSkillFiles(store, files);
-              setTreeState((current) => ({
-                selectedFolder: "",
-                pendingEntry: null,
-                expandedFolders: new Set([
-                  ...current.expandedFolders,
-                  ...getParentFolderPaths(paths),
-                ]),
-              }));
-              setIsUploadOpen(false);
-            }}
-          >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden">
+                <div className="flex min-h-0 flex-1">
+                  <Dropzone
+                    src={undefined}
+                    variant="panel"
+                    accept={undefined}
+                    maxFiles={MAX_SKILL_FILES}
+                    maxSize={undefined}
+                    minSize={undefined}
+                    isDisabled={isImporting}
+                    onError={(error) => {
+                      showErrorToast("Could not add files", error.message);
+                      uploadPanelRef.current?.focus();
+                    }}
+                    onDrop={async (files) => {
+                      store.setState({ isImporting: true });
+                      try {
+                        const paths = await importSkillFiles(store, files);
+                        setTreeState((current) => ({
+                          selectedFolder: "",
+                          pendingEntry: null,
+                          expandedFolders: new Set([
+                            ...current.expandedFolders,
+                            ...getParentFolderPaths(paths),
+                          ]),
+                        }));
+                        setIsUploadOpen(false);
+                      } finally {
+                        store.setState({ isImporting: false });
+                      }
+                    }}
+                  />
+                </div>
+              </section>
+            ) : null}
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col overflow-y-auto [grid-area:1/1] md:overflow-hidden",
+                showUpload && "invisible",
+              )}
+              inert={showUpload}
+              aria-hidden={showUpload}
+            >
               <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
                 {history.kind === "versions" ? (
                   <SkillVersionHistory
@@ -542,7 +585,7 @@ export function SkillEditor({
                 </div>
               </div>
             </div>
-          </Dropzone>
+          </div>
         </Page>
       )}
     </DialogController>
