@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-let-assign-in-react */
 "use client";
 
 import {
@@ -14,6 +13,7 @@ import {
   Fragment,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FocusEvent,
@@ -137,20 +137,28 @@ export function ChartTooltip({
   const chartAnchored =
     placementStrategy === "chart-bottom" &&
     activeTooltip?.anchor.type === "chart-column";
-  let fallbackPlacements: Array<"top" | "bottom" | "left" | "right"> = [
-    "bottom",
-    "left",
-    "right",
-  ];
-  if (placementStrategy === "horizontal") {
-    fallbackPlacements = ["left", "top", "bottom"];
-  } else if (chartAnchored) {
-    fallbackPlacements = [activeTooltip.side === "top" ? "bottom" : "top"];
-  }
-  let placement: "top" | "bottom" | "left" | "right" = "top";
-  if (placementStrategy === "horizontal") placement = "right";
-  if (chartAnchored) placement = activeTooltip.side ?? "bottom";
-  if (activeTooltip?.placement) placement = activeTooltip.placement;
+  const fallbackPlacements = useMemo<
+    Array<"top" | "bottom" | "left" | "right">
+  >(() => {
+    if (placementStrategy === "horizontal") {
+      return ["left", "top", "bottom"];
+    }
+    if (chartAnchored) {
+      return [activeTooltip?.side === "top" ? "bottom" : "top"];
+    }
+    return ["bottom", "left", "right"];
+  }, [placementStrategy, chartAnchored, activeTooltip?.side]);
+  const placement = useMemo<"top" | "bottom" | "left" | "right">(() => {
+    if (activeTooltip?.placement) return activeTooltip.placement;
+    if (chartAnchored) return activeTooltip?.side ?? "bottom";
+    if (placementStrategy === "horizontal") return "right";
+    return "top";
+  }, [
+    activeTooltip?.placement,
+    activeTooltip?.side,
+    chartAnchored,
+    placementStrategy,
+  ]);
   const { floatingStyles, refs } = useFloating({
     elements: { reference: activeTooltip?.reference },
     placement,
@@ -384,40 +392,43 @@ export function ChartTooltip({
     };
   };
 
-  const tooltipRows: Array<
-    TooltipItem & {
-      id: string;
-      emphasis: "default" | "emphasized" | "dimmed";
-      kind: "peer" | "primary" | "detail";
-    }
-  > = [];
-  if (activeTooltip?.type === "items") {
-    for (const item of activeTooltip.items) {
-      let emphasis: "default" | "emphasized" | "dimmed" = "dimmed";
-      if (activeTooltip.emphasizedItemId === undefined) emphasis = "default";
-      else if (activeTooltip.emphasizedItemId === item.id) {
-        emphasis = "emphasized";
+  const tooltipRows = useMemo(() => {
+    const tooltipRows: Array<
+      TooltipItem & {
+        id: string;
+        emphasis: "default" | "emphasized" | "dimmed";
+        kind: "peer" | "primary" | "detail";
       }
-      tooltipRows.push({ ...item, emphasis, kind: "peer" });
+    > = [];
+    if (activeTooltip?.type === "items") {
+      for (const item of activeTooltip.items) {
+        let emphasis: "default" | "emphasized" | "dimmed" = "dimmed";
+        if (activeTooltip.emphasizedItemId === undefined) emphasis = "default";
+        else if (activeTooltip.emphasizedItemId === item.id) {
+          emphasis = "emphasized";
+        }
+        tooltipRows.push({ ...item, emphasis, kind: "peer" });
+      }
+    } else if (activeTooltip?.type === "primary") {
+      tooltipRows.push({
+        id: "primary",
+        label: activeTooltip.label,
+        value: activeTooltip.value,
+        color: activeTooltip.color,
+        emphasis: "default",
+        kind: "primary",
+      });
+      tooltipRows.push(
+        ...(activeTooltip.details ?? []).map((item, index) => ({
+          ...item,
+          id: `detail-${index}`,
+          emphasis: "default" as const,
+          kind: "detail" as const,
+        })),
+      );
     }
-  } else if (activeTooltip?.type === "primary") {
-    tooltipRows.push({
-      id: "primary",
-      label: activeTooltip.label,
-      value: activeTooltip.value,
-      color: activeTooltip.color,
-      emphasis: "default",
-      kind: "primary",
-    });
-    tooltipRows.push(
-      ...(activeTooltip.details ?? []).map((item, index) => ({
-        ...item,
-        id: `detail-${index}`,
-        emphasis: "default" as const,
-        kind: "detail" as const,
-      })),
-    );
-  }
+    return tooltipRows;
+  }, [activeTooltip]);
 
   const activeCopyStatus =
     copyFeedback?.index === activeTooltip?.index
