@@ -35,8 +35,8 @@
   version. Internal PoC model selection uses required, default-free
   `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` values
   shared by web and worker; topic naming still uses the fixed Terra profile.
-  Local AWS auth uses `LANGFUSE_TOPICS_AWS_PROFILE`; region/setup details live
-  in the Topics README.
+  Local AWS auth uses shared `LANGFUSE_AI_FEATURES_AWS_PROFILE`; region/setup
+  details live in the Topics README.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
@@ -126,9 +126,11 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
-- Worker env owns queue concurrency, sandbox configuration, and the
-  development-only in-app-agent AWS profile. Enablement is
-  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
+- Worker env owns queue concurrency and sandbox configuration. Shared env owns
+  the local AI profile (`LANGFUSE_AI_FEATURES_AWS_PROFILE`, with the legacy
+  `LANGFUSE_IN_APP_AGENT_AWS_PROFILE` fallback); `AWS_PROFILE` takes precedence.
+  Enablement is `LANGFUSE_IN_APP_AGENT_ENABLED` via
+  `isInAppAgentInstanceEnabled()`. Optional
   `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
   `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role
   worker out of the queue consumer (and nested DLQ retry) or integrity runner.

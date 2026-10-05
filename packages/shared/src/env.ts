@@ -627,6 +627,10 @@ const EnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Local AI credentials; production normally uses the AWS role chain.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),
+  // Legacy local profile alias.
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
   LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),

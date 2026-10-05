@@ -309,12 +309,6 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // The ambient host profile takes precedence over the agent-specific default
-  // so local developer credentials win when both are configured.
-  AWS_PROFILE: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
-  // Local development only; production should use the AWS credential chain.
-  LANGFUSE_TOPICS_AWS_PROFILE: z.string().optional(),
   // Internal Topics PoC model selection; not a supported self-hosting setting.
   LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),

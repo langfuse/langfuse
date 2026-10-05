@@ -68,7 +68,7 @@ Cohere offers AWS/Azure/OCI alternatives. **Region availability and ZDR require 
 
 ## Switch and evaluate
 
-Implemented: Bedrock adapter, explicit region/auth, model/dimension validation, UI disclosure, finite/nonzero Float32 checks, provider-reported usage and cost. Local profile: `LANGFUSE_TOPICS_AWS_PROFILE`; region: `LANGFUSE_AI_AWS_BEDROCK_REGION`.
+Implemented: Bedrock adapter, explicit region/auth, model/dimension validation, UI disclosure, finite/nonzero Float32 checks, provider-reported usage and cost. Local profile: `LANGFUSE_AI_FEATURES_AWS_PROFILE`; region: `LANGFUSE_AI_AWS_BEDROCK_REGION`.
 
 1. Drain old jobs; **Process traces → Reuse stored summaries**, then **Update topics**. Rebuild vectors, maps, centroids and assignment radii; no summary inference when configuration matches.
 2. Throughput follow-up: [queue worker](../worker/src/features/topics/processTopicEmbeddingBatch.ts) still sends single-summary requests for per-result checkpointing. Batch up to 96 only while preserving order and retry semantics.

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { env } from "../../../../env";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../../../interfaces/customLLMProviderConfigSchemas";
@@ -11,7 +11,7 @@ vi.mock("@aws-sdk/credential-providers", () => ({
 
 import {
   assertValidBedrockRegion,
-  createDefaultBedrockProviderAuth,
+  buildBedrockModel,
   resolveBedrockProviderAuth,
   translateBedrockProviderOptions,
 } from "./bedrock";
@@ -93,32 +93,46 @@ describe("assertValidBedrockRegion", () => {
   });
 });
 
-describe("createDefaultBedrockProviderAuth", () => {
+describe("Bedrock profile selection", () => {
+  const originalEnv = {
+    AWS_PROFILE: env.AWS_PROFILE,
+    LANGFUSE_AI_FEATURES_AWS_PROFILE: env.LANGFUSE_AI_FEATURES_AWS_PROFILE,
+    LANGFUSE_IN_APP_AGENT_AWS_PROFILE: env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
+    LANGFUSE_AI_AWS_BEDROCK_REGION: env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  };
+
   beforeEach(() => {
     fromNodeProviderChain.mockClear();
+    env.AWS_PROFILE = undefined;
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "legacy";
+    env.LANGFUSE_AI_AWS_BEDROCK_REGION = "eu-west-1";
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
   });
 
-  it("passes the local AWS profile when no profile argument is given", () => {
-    const original = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
-    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
-
-    createDefaultBedrockProviderAuth();
-
-    expect(fromNodeProviderChain).toHaveBeenCalledWith({
-      profile: "playground",
-    });
-    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = original;
+  afterEach(() => {
+    Object.assign(env, originalEnv);
   });
 
-  it("prefers an explicit profile over the environment", () => {
-    const original = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
-    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
-
-    createDefaultBedrockProviderAuth({ profile: "other" });
-
-    expect(fromNodeProviderChain).toHaveBeenCalledWith({ profile: "other" });
-    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = original;
-  });
+  it.each([
+    ["ai", "langfuse", "ai"],
+    [undefined, "langfuse", "legacy"],
+    ["ai", "user", undefined],
+  ] as const)(
+    "AI profile %s with %s credentials selects %s",
+    (profile, credentialSource, expected) => {
+      env.LANGFUSE_AI_FEATURES_AWS_PROFILE = profile;
+      buildBedrockModel({
+        modelId: "test-model",
+        apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        config: { region: "eu-west-1" },
+        credentialSource,
+      });
+      expect(fromNodeProviderChain).toHaveBeenCalledWith(
+        expected ? { profile: expected } : {},
+      );
+    },
+  );
 });
 
 describe("resolveBedrockProviderAuth", () => {

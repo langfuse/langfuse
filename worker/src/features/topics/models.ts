@@ -2,6 +2,7 @@ import { get_encoding } from "tiktoken";
 import { z } from "zod";
 import {
   logger,
+  getLangfuseAIAwsProfile,
   getLangfuseAIBedrockRegion,
 } from "@langfuse/shared/src/server";
 import {
@@ -14,7 +15,6 @@ import {
   type TopicFacetVersion,
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
-import { env } from "../../env";
 import { recordTopicTokenUsage } from "./metrics";
 import type { TopicModelUsage } from "./summaryResult";
 import {
@@ -48,7 +48,7 @@ function bedrockConfig() {
     );
   return {
     region,
-    profile: env.AWS_PROFILE ?? env.LANGFUSE_TOPICS_AWS_PROFILE,
+    profile: getLangfuseAIAwsProfile(),
   };
 }
 

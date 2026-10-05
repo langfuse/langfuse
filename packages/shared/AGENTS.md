@@ -116,7 +116,10 @@
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
   `streamLLMText`), Bedrock default-credential provider auth
-  (`createDefaultBedrockProviderAuth`), and server test utilities.
+  (`createDefaultBedrockProviderAuth`), and server test utilities. Langfuse AI
+  callers select their local profile through `getLangfuseAIAwsProfile`;
+  generic Bedrock auth only uses an explicitly supplied profile or the normal
+  AWS credential chain.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same

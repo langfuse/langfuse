@@ -6,10 +6,8 @@ const state = vi.hoisted(() => ({
   increment: vi.fn(),
   region: vi.fn(),
 }));
-vi.mock("../../env", () => ({
-  env: { LANGFUSE_TOPICS_AWS_PROFILE: "topics-test" },
-}));
 vi.mock("@langfuse/shared/src/server", () => ({
+  getLangfuseAIAwsProfile: () => "ai-test",
   getLangfuseAIBedrockRegion: () => state.region(),
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
@@ -87,7 +85,7 @@ describe("Topics naming boundary", () => {
     expect(request).toMatchObject({
       model: "us.openai.gpt-5.6-luna",
       region: "eu-west-1",
-      profile: "topics-test",
+      profile: "ai-test",
     });
     expect(request.messages[0].content).toContain(facet.prompt);
     expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
