@@ -560,7 +560,9 @@ export const traceRouter = createTRPCRouter({
           ),
         );
 
-        await traceDeletionProcessor(input.projectId, input.traceIds);
+        await traceDeletionProcessor(input.projectId, input.traceIds, {
+          actor: { type: "USER", userId: ctx.session.user.id },
+        });
       }
     }),
   bookmark: protectedProjectProcedure
