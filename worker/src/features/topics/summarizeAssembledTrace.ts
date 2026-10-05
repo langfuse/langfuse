@@ -13,7 +13,14 @@ import {
 } from "@langfuse/shared/topics";
 import { recordIncrement, type Transcript } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
-import { embedTopicSummary, summarizeTopicTraceFacets } from "./models";
+import {
+  embedTopicSummary,
+  summarizeTopicTraceFacets,
+  type TopicTranscriptFormat,
+} from "./models";
+
+// Bump when the Topics text rendering changes what the summarizer sees.
+const TOPICS_TEXT_VERSION = "topics-text-v1";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
@@ -45,6 +52,8 @@ export async function summarizeAssembledTrace(input: {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
+  /** Rendered Topics text of the same transcript; undefined if rendering failed. */
+  topicsText?: string;
 }): Promise<"disabled" | "unchanged" | "summarized"> {
   if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
   const models = getTopicsModelConfig();
@@ -83,9 +92,15 @@ export async function summarizeAssembledTrace(input: {
   }
   if (!pending.length) return "unchanged";
 
-  const prepared = prepareAssembledTopicTranscript(input.transcript);
+  // The rendered Topics text is the summary input; the JSON projection is the fallback.
+  const format: TopicTranscriptFormat =
+    input.topicsText === undefined ? "json" : "text";
+  const prepared =
+    format === "text"
+      ? { text: input.topicsText ?? "", hasContent: !!input.topicsText?.trim() }
+      : prepareAssembledTopicTranscript(input.transcript);
   const bases = pending.map(({ version }) =>
-    baseSummary(input, version, config, embeddingModel),
+    baseSummary(input, version, config, embeddingModel, format),
   );
   let rows = bases;
   if (prepared.hasContent) {
@@ -97,6 +112,7 @@ export async function summarizeAssembledTrace(input: {
       keyed,
       prepared.text,
       config,
+      format,
     );
     const outputs = result.output as Record<string, FacetOutput>;
     rows = [];
@@ -129,6 +145,7 @@ function baseSummary(
   facet: TopicFacetVersion,
   config: ReturnType<typeof topicProcessingConfigSchema.parse>,
   embeddingModel: string,
+  format: TopicTranscriptFormat,
 ): TopicSummary {
   return {
     projectId: input.projectId,
@@ -144,12 +161,15 @@ function baseSummary(
     summary: "",
     embedding: [],
     transcriptId: "trace-batch",
-    transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+    transcriptVersion:
+      format === "text" ? TOPICS_TEXT_VERSION : TOPICS_TRANSCRIPT_VERSION,
     summaryModel: config.summaryModel!,
     embeddingModel,
     ...NO_USAGE,
     processedAt: new Date().toISOString(),
-    metadata: { input: "assembled-transcript" },
+    metadata: {
+      input: format === "text" ? "topics-text" : "assembled-transcript",
+    },
   };
 }
 
