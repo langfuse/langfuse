@@ -24,7 +24,7 @@ export function ModelBadge({
     return (
       <Link
         href={`/project/${projectId}/settings/models/${internalModelId}`}
-        className="inline-flex"
+        className="inline-flex font-mono"
         title="View model details"
       >
         <Badge color="ghost" text={model} trailingIcon={ExternalLinkIcon} />
@@ -57,7 +57,7 @@ export function ModelBadge({
         <button
           type="button"
           title="Create model definition"
-          className="inline-flex cursor-pointer"
+          className="inline-flex cursor-pointer font-mono"
           onClick={openDialog}
         >
           <Badge color="ghost" interactive text={model} />

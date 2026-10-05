@@ -1,6 +1,7 @@
 /**
  * Tooltip-based metadata badges for ObservationDetailView
  * These badges use BreakdownTooltip to show detailed cost/usage information
+ * Metric values render in mono; `contents` keeps the wrapper out of layout.
  */
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -23,17 +24,23 @@ export function CostBadge({
   costSource?: CostSource;
 }) {
   if (!hasBreakdown(costDetails)) {
-    return <Badge color="ghost" text={usdFormatter(totalCost)} />;
+    return (
+      <span className="contents font-mono">
+        <Badge color="ghost" text={usdFormatter(totalCost)} />
+      </span>
+    );
   }
   return (
-    <BreakdownTooltip
-      details={costDetails}
-      isCost={true}
-      priceSource={priceSource}
-      costSource={costSource}
-    >
-      <Badge color="ghost" interactive text={usdFormatter(totalCost)} />
-    </BreakdownTooltip>
+    <span className="contents font-mono">
+      <BreakdownTooltip
+        details={costDetails}
+        isCost={true}
+        priceSource={priceSource}
+        costSource={costSource}
+      >
+        <Badge color="ghost" interactive text={usdFormatter(totalCost)} />
+      </BreakdownTooltip>
+    </span>
   );
 }
 
@@ -51,12 +58,18 @@ export function UsageBadge({
   const tokenText = `${numberFormatter(totalUsage, 0)} tokens`;
 
   if (!hasBreakdown(usageDetails)) {
-    return <Badge color="ghost" text={tokenText} />;
+    return (
+      <span className="contents font-mono">
+        <Badge color="ghost" text={tokenText} />
+      </span>
+    );
   }
 
   return (
-    <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge color="ghost" interactive text={tokenText} />
-    </BreakdownTooltip>
+    <span className="contents font-mono">
+      <BreakdownTooltip details={usageDetails} isCost={false}>
+        <Badge color="ghost" interactive text={tokenText} />
+      </BreakdownTooltip>
+    </span>
   );
 }

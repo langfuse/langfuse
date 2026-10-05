@@ -23,6 +23,11 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { type ObservationType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
@@ -68,16 +73,16 @@ const iconMap = {
 const iconVariants = cva("shrink-0", {
   variants: {
     type: {
-      TRACE: "text-observation-trace",
-      GENERATION: "text-observation-generation",
-      EVENT: "text-observation-event",
-      SPAN: "text-observation-span",
-      AGENT: "text-observation-agent",
-      TOOL: "text-observation-tool",
-      CHAIN: "text-observation-chain",
-      RETRIEVER: "text-observation-retriever",
-      EMBEDDING: "text-observation-embedding",
-      GUARDRAIL: "text-observation-guardrail",
+      TRACE: "text-observation-trace-line",
+      GENERATION: "text-observation-generation-line",
+      EVENT: "text-observation-event-line",
+      SPAN: "text-observation-span-line",
+      AGENT: "text-observation-agent-line",
+      TOOL: "text-observation-tool-line",
+      CHAIN: "text-observation-chain-line",
+      RETRIEVER: "text-observation-retriever-line",
+      EMBEDDING: "text-observation-embedding-line",
+      GUARDRAIL: "text-observation-guardrail-line",
       SESSION: "text-primary-accent",
       USER: "text-primary-accent",
       QUEUE_ITEM: "text-primary-accent",
@@ -86,7 +91,7 @@ const iconVariants = cva("shrink-0", {
       DATASET_ITEM: "text-primary-accent",
       ANNOTATION_QUEUE: "text-primary-accent",
       PROMPT: "text-primary-accent",
-      EVALUATOR: "text-observation-evaluator",
+      EVALUATOR: "text-observation-evaluator-line",
       RUNNING_EVALUATOR: "text-primary-accent",
       EXPERIMENT: "text-primary-accent",
     },
@@ -104,6 +109,63 @@ export function ItemTypeIcon({
   const Icon = iconMap[type];
   return (
     <Icon className={cn("icon-base", iconVariants({ type }), className)} />
+  );
+}
+
+const tileVariants = cva("", {
+  variants: {
+    type: {
+      TRACE: "bg-observation-trace-fill",
+      GENERATION: "bg-observation-generation-fill",
+      EVENT: "bg-observation-event-fill",
+      SPAN: "bg-observation-span-fill",
+      AGENT: "bg-observation-agent-fill",
+      TOOL: "bg-observation-tool-fill",
+      CHAIN: "bg-observation-chain-fill",
+      RETRIEVER: "bg-observation-retriever-fill",
+      EMBEDDING: "bg-observation-embedding-fill",
+      GUARDRAIL: "bg-observation-guardrail-fill",
+      SESSION: "bg-primary-accent",
+      USER: "bg-primary-accent",
+      QUEUE_ITEM: "bg-primary-accent",
+      DATASET: "bg-primary-accent",
+      DATASET_RUN: "bg-primary-accent",
+      DATASET_ITEM: "bg-primary-accent",
+      ANNOTATION_QUEUE: "bg-primary-accent",
+      PROMPT: "bg-primary-accent",
+      EVALUATOR: "bg-observation-evaluator-fill",
+      RUNNING_EVALUATOR: "bg-primary-accent",
+      EXPERIMENT: "bg-primary-accent",
+    },
+  },
+});
+
+/** The type icon on a filled square in the type's colour; anchors headers. */
+export function ItemTypeTile({
+  type,
+  className,
+}: {
+  type: LangfuseItemType;
+  className?: string;
+}) {
+  const Icon = iconMap[type] || ListTree;
+  const { displayLabel } = getItemTypeLabels(type);
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-label={displayLabel}
+          className={cn(
+            "inline-flex size-6 shrink-0 items-center justify-center rounded-sm",
+            tileVariants({ type }),
+            className,
+          )}
+        >
+          <Icon className="size-3.5 text-white" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{displayLabel}</TooltipContent>
+    </Tooltip>
   );
 }
 

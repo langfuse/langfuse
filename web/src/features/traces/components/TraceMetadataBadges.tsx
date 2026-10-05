@@ -44,7 +44,7 @@ export function UserIdBadge({
   return (
     <Link
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="ph-no-capture inline-flex"
+      className="ph-no-capture inline-flex font-mono"
     >
       <Badge
         color="ghost"
@@ -84,13 +84,25 @@ export function TargetTraceBadge({
 }
 
 export function EnvironmentBadge({ environment }: { environment: string }) {
-  return <Badge color="ghost" label="env" text={environment} />;
+  return (
+    <span className="contents font-mono">
+      <Badge color="ghost" label="env" text={environment} />
+    </span>
+  );
 }
 
 export function ReleaseBadge({ release }: { release: string }) {
-  return <Badge color="ghost" label="release" text={release} />;
+  return (
+    <span className="contents font-mono">
+      <Badge color="ghost" label="release" text={release} />
+    </span>
+  );
 }
 
 export function VersionBadge({ version }: { version: string }) {
-  return <Badge color="ghost" label="version" text={version} />;
+  return (
+    <span className="contents font-mono">
+      <Badge color="ghost" label="version" text={version} />
+    </span>
+  );
 }

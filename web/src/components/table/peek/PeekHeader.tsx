@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -13,11 +12,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  ItemBadge,
-  getItemTypeLabels,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { EntityTitle } from "@/src/components/EntityTitle";
 import {
   DetailPageNav,
   type ListEntry,
@@ -53,12 +49,11 @@ type PeekHeaderProps = {
 };
 
 // The title keeps at least this much width before anything else collapses; the
-// type badge falls back to this width when icon-only; the "…" trigger is an
-// icon button. Tuned by eye — planner `safety` covers inter-control gaps.
+// type tile is fixed-width; the "…" trigger is an icon button. Tuned by eye —
+// planner `safety` covers inter-control gaps.
 const MIN_TITLE_PX = 240;
 const BADGE_ICON_PX = 32;
 const MORE_BUTTON_PX = 36;
-const BADGE_LABEL_FALLBACK_PX = 72;
 const NAV_FALLBACK_PX = 68;
 
 const samePlan = (a: PeekHeaderPlan, b: PeekHeaderPlan) =>
@@ -104,7 +99,6 @@ export function PeekHeader({
   // controls settle (or data loads) after the first measurement — observe the
   // control cluster too, whose width does change, to re-trigger the plan.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
-  const badgeRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -115,7 +109,6 @@ export function PeekHeader({
   const widthsRef = useRef<{
     actions?: number;
     openInTab?: number;
-    badgeLabel?: number;
     navFull?: number;
     navCompact?: number;
     otherPinned?: number;
@@ -134,9 +127,6 @@ export function PeekHeader({
       headerRef.current?.getBoundingClientRect().width ?? headerSize?.width;
     if (!width) return;
 
-    if (plan.badgeShowLabel && badgeRef.current) {
-      widthsRef.current.badgeLabel = badgeRef.current.offsetWidth;
-    }
     if (hasActions && !plan.foldActions && actionsRef.current) {
       widthsRef.current.actions = actionsRef.current.offsetWidth;
     }
@@ -158,7 +148,7 @@ export function PeekHeader({
     const next = planPeekHeaderLayout({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
-      badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
+      badgeLabelWidth: BADGE_ICON_PX,
       badgeIconWidth: BADGE_ICON_PX,
       navFullWidth: hasNav ? (widthsRef.current.navFull ?? NAV_FALLBACK_PX) : 0,
       navCompactWidth: hasNav
@@ -188,25 +178,15 @@ export function PeekHeader({
     <TooltipProvider>
       <div
         ref={headerRef}
-        className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
+        className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-2 pb-1.5 pl-4"
       >
-        <div className="flex min-w-0 flex-row items-center gap-2">
-          {/* Type never truncates: the word when it fits, the icon when not. */}
-          <div ref={badgeRef} className="shrink-0">
-            {plan.badgeShowLabel ? (
-              <Badge text={getItemTypeLabels(itemType).displayLabel} />
-            ) : (
-              <ItemBadge type={itemType} />
-            )}
-          </div>
-          <span
-            className="truncate text-sm font-bold focus:outline-hidden"
-            tabIndex={0}
-            title={typeof title === "string" ? title : undefined}
-          >
-            {title}
-          </span>
-        </div>
+        <EntityTitle
+          as="span"
+          type={itemType}
+          title={title}
+          titleText={typeof title === "string" ? title : undefined}
+          isFocusable
+        />
         <div
           ref={clusterRef}
           className="flex shrink-0 flex-row items-center gap-1"

@@ -28,7 +28,9 @@ export function CollapsibleBadgeRow({
   // Desktop: unchanged full wrapped badge row.
   if (!isMobile) {
     return (
-      <div className={cn("flex flex-wrap items-center gap-4", className)}>
+      <div
+        className={cn("flex flex-wrap items-center gap-x-4 gap-y-1", className)}
+      >
         {children}
       </div>
     );
