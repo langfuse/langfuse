@@ -160,8 +160,8 @@ const RAIL_SQUARE_MAX = 5;
 const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
 /** Indent per level once the gutter is open, matching the production gutter. */
 const GUTTER_INDENT = 14;
-/** The ItemBadge box at `isSmall`, which is square. */
-const GUTTER_ICON = 16;
+/** Type icon size in the gutter, same as the tree rows. */
+const GUTTER_ICON = 12;
 /** A name needs at least this much to be worth indenting away from. */
 const GUTTER_NAME_MIN = 48;
 /**
@@ -1927,18 +1927,18 @@ function GutterContent({
         : null}
       {showName && depth > 0 ? (
         <>
+          {node.isLastSibling ? null : (
+            <div
+              className="bg-border-contrast absolute inset-y-0 w-px"
+              style={{ left: `${parentRailX}px` }}
+            />
+          )}
           <div
-            className={cn(
-              "bg-border-contrast absolute top-0 w-px",
-              node.isLastSibling ? "h-1/2" : "bottom-0",
-            )}
-            style={{ left: `${parentRailX}px` }}
-          />
-          <div
-            className="bg-border-contrast absolute top-1/2 h-px"
+            className="border-border-contrast absolute top-0 rounded-bl-md border-b border-l mask-r-from-40%"
             style={{
               left: `${parentRailX}px`,
-              width: `${Math.max(indent - parentRailX, 0)}px`,
+              height: "calc(50% + 0.5px)",
+              width: `${Math.max(indent - parentRailX - 1, 0)}px`,
             }}
           />
         </>
@@ -1946,10 +1946,10 @@ function GutterContent({
       {/* This row's own spine, descending from below its icon to its children. */}
       {showName && node.hasChildren && !node.isCollapsed ? (
         <div
-          className="bg-border-contrast absolute bottom-0 w-px"
+          className="bg-border-contrast absolute bottom-0 w-px mask-t-from-[calc(100%-var(--spacing)*2)]"
           style={{
             left: `${railX}px`,
-            top: `calc(50% + ${GUTTER_ICON / 2}px)`,
+            top: `calc(50% + ${GUTTER_ICON / 2 + 1}px)`,
           }}
         />
       ) : null}
@@ -1973,7 +1973,7 @@ function GutterContent({
           <span className="shrink-0">
             <ItemTypeIcon
               type={node.type as LangfuseItemType}
-              className="size-4"
+              className="size-3"
             />
           </span>
           <span
