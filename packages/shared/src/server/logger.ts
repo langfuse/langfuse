@@ -52,17 +52,9 @@ const severityFormat = function () {
 // circular or BigInt values make `JSON.stringify` throw. A logger that throws
 // destroys the diagnostic it was called to emit, so degrade to a marker.
 const stringifyMeta = (meta: Record<string, unknown>) => {
-  // Track visited Error instances to break cyclic cause chains.
-  // JSON.stringify's own circular check is keyed on object identity, but the
-  // replacer returns a *new* plain object each time it unwraps an Error, so
-  // the built-in check never fires and recursion runs until the V8 stack is
-  // exhausted. A WeakSet here caps the cost at one visit per Error instance.
-  //
-  // Side-effect: the same Error object appearing in two sibling metadata keys
-  // is collapsed to "[Circular]" for the second occurrence. This is a
-  // consequence of JSON.stringify's single-pass replacer API not providing a
-  // post-visit callback — fixing it cleanly would require full custom
-  // traversal. In practice the first occurrence is always fully serialised.
+  // Breaks cyclic `cause` chains: the replacer hands back a new object for
+  // every Error, so JSON.stringify's identity-based circular check never
+  // fires. An Error seen twice renders as "[Circular]" the second time.
   const visitedErrors = new WeakSet<Error>();
 
   const replacer = (_key: string, value: unknown) => {
@@ -74,9 +66,8 @@ const stringifyMeta = (meta: Record<string, unknown>) => {
         name: value.name,
         message: value.message,
         stack: value.stack,
-        // cause and errors are non-enumerable, so the spread above misses them
+        // `cause` and `errors` are non-enumerable, so the spread misses them
         ...(value.cause === undefined ? {} : { cause: value.cause }),
-        // AggregateError bundles sub-errors in a non-enumerable .errors array
         ...(value instanceof AggregateError ? { errors: value.errors } : {}),
       };
     }
