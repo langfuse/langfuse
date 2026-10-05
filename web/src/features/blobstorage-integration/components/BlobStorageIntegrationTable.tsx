@@ -78,7 +78,7 @@ export function BlobStorageIntegrationTable({
       {
         id: "delete",
         type: "item",
-        title: "Delete integration",
+        title: "Delete",
         icon: Trash2,
         variant: "destructive",
         onClick: () => onDelete(integration),

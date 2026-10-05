@@ -192,7 +192,7 @@ export const BlobStorageIntegrationForm = ({
                   name="mediaPrefix"
                   render={({ field: prefixField }) => (
                     <FormItem>
-                      <FormLabel>Media Prefix</FormLabel>
+                      <FormLabel>Media prefix (optional)</FormLabel>
                       <FormControl>
                         <Input {...prefixField} placeholder="langfuse-media/" />
                       </FormControl>

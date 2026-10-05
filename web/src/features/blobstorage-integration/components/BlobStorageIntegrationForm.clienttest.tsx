@@ -222,7 +222,7 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     fireEvent.click(
       screen.getByRole("switch", { name: "External media storage" }),
     );
-    expect(screen.getByLabelText("Media Prefix")).toHaveValue("");
+    expect(screen.getByLabelText("Media prefix (optional)")).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));

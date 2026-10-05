@@ -64,7 +64,7 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
   });
   const [armed, setArmed] = useState(false);
   const [open, setOpen] = useState(false);
-  const resolved = api.blobStorageIntegration.resolveExternalMedia.useQuery(
+  const resolved = api.media.resolveExternalMedia.useQuery(
     { projectId: projectId ?? "", uri: descriptor.uri },
     {
       enabled: armed && isFeatureEnabled && Boolean(projectId),

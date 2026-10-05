@@ -12,8 +12,37 @@ import {
   type MediaReturnType,
 } from "@/src/features/media/server";
 import { type MediaEnabledFields } from "@/src/features/media/validation";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { resolveExternalMediaUrl } from "@/src/features/blobstorage-integration/externalMediaService";
 
 export const mediaRouter = createTRPCRouter({
+  resolveExternalMedia: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), uri: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const projectId = ctx.session.projectId;
+      const isEnabled =
+        ctx.session.environment.enableExperimentalFeatures ||
+        getContextualFeatureFlags(ctx.session.user, {
+          projectId,
+        })?.externalMediaStorage === true;
+      if (!isEnabled) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      try {
+        return await resolveExternalMediaUrl({
+          prisma: ctx.prisma,
+          projectId,
+          uri: input.uri,
+        });
+      } catch {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "External media is not available",
+        });
+      }
+    }),
+
   getById: protectedProjectProcedure
     .input(z.object({ mediaId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {

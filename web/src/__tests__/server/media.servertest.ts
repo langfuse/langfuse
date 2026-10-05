@@ -803,6 +803,27 @@ describe("Media Upload API", () => {
   });
 
   describe("tRPC media reader", () => {
+    it("requires authenticated project membership for external media reads", async () => {
+      await expect(
+        caller.media.resolveExternalMedia({
+          projectId: `unowned-project-${crypto.randomUUID()}`,
+          uri: "s3://test-bucket/test/image.png",
+        }),
+      ).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        message: "User is not a member of this project",
+      });
+    });
+
+    it("does not expose the external media resolver when the feature flag is disabled", async () => {
+      await expect(
+        caller.media.resolveExternalMedia({
+          projectId,
+          uri: "s3://test-bucket/test/image.png",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
     it("ignores media link rows without a media parent", async () => {
       const traceId = `trace-${crypto.randomUUID()}`;
       const observationTraceId = `trace-${crypto.randomUUID()}`;

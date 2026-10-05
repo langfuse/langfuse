@@ -84,7 +84,7 @@ describe("BlobStorageIntegrationTable", () => {
     );
     fireEvent.click(
       await screen.findByRole("menuitem", {
-        name: "Delete integration",
+        name: "Delete",
       }),
     );
 

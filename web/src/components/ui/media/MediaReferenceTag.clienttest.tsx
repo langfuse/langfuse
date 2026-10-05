@@ -13,7 +13,7 @@ const { resolveExternalMediaQueryMock } = vi.hoisted(() => ({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    blobStorageIntegration: {
+    media: {
       resolveExternalMedia: {
         useQuery: resolveExternalMediaQueryMock,
       },
