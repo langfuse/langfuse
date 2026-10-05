@@ -9,6 +9,7 @@ import {
   recordIncrement,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
@@ -46,6 +47,17 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
    * Start the media retention cleaner service
    */
   public override start(): void {
+    // Data retention is an enterprise feature. Without a license the setting
+    // cannot be viewed or changed, so stored policies must not be enforced
+    // either: a deployment that loses its license would otherwise keep
+    // deleting data under a policy its operators can no longer reach.
+    if (!isEnterpriseLicenseAvailable()) {
+      logger.info(
+        `Not starting ${this.instanceName} - no enterprise license available. Data retention requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).`,
+      );
+      return;
+    }
+
     logger.info(`Starting ${this.instanceName}`, {
       intervalMs: env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS,
       itemLimit: env.LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT,

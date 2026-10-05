@@ -16,6 +16,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
 import { isMissingInAppAgentMcpApiKeyError } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env, v4WritesToEventsTable } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
@@ -25,6 +26,17 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+  }
+
+  // Data retention is an enterprise feature, and the license is read from the
+  // environment at startup. Jobs enqueued while licensed survive in Redis
+  // across the restart that removes the key, so the license has to be checked
+  // here as well as at scheduling time.
+  if (!isEnterpriseLicenseAvailable()) {
+    logger.info(
+      `[Data Retention] Skipping project ${projectId} - no enterprise license available. Data retention requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).`,
+    );
+    return;
   }
 
   // CRITICAL FIX: Re-fetch current retention setting from database
