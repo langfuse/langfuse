@@ -6,7 +6,7 @@ import { type ComponentPropsWithoutRef } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-none font-normal [&_svg:not([class*='icon-'])]:icon-sm",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-none font-normal",
   {
     variants: {
       size: {
@@ -103,7 +103,7 @@ export function Badge({
         <TrailingIcon
           aria-hidden
           className={cn(
-            "shrink-0",
+            "icon-sm shrink-0",
             trailingIconTone === "link"
               ? "text-foreground-tertiary -ml-0.5"
               : "text-foreground-tertiary",

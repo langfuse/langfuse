@@ -147,7 +147,7 @@ export const StructuredOutputSchemaPopover = ({
                   });
                 }}
               >
-                <PencilIcon className="icon-base" />
+                <PencilIcon className="icon-base text-icon-foreground" />
               </Button>
             </CommandItem>
           ))}
@@ -161,7 +161,7 @@ export const StructuredOutputSchemaPopover = ({
           className="w-full"
           onClick={() => onOpenSchemaDialog({ onSave: handleSelectSchema })}
         >
-          <PlusIcon className="icon-base mr-2" />
+          <PlusIcon className="icon-base text-icon-foreground mr-2" />
           Create new schema
         </Button>
       </div>
@@ -298,7 +298,7 @@ export const StructuredOutputSchemaSection = ({
                 handleRemoveSchema();
               }}
             >
-              <MinusCircle className="icon-base" />
+              <MinusCircle className="icon-base text-icon-foreground" />
             </Button>
             <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
               <BoxIcon className="text-muted-foreground icon-base mt-0.5 shrink-0" />

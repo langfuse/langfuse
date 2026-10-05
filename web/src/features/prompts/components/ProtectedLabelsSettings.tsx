@@ -141,7 +141,7 @@ export default function ProtectedLabelsSettings({
                     }
                   }}
                 >
-                  <XIcon className="icon-base" />
+                  <XIcon className="icon-base text-icon-foreground" />
                 </Button>
               )}
             </StatusBadge>

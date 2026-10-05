@@ -96,7 +96,7 @@ export default function EvaluatorsPage() {
             <ActionButton
               hasAccess={hasWriteAccess}
               href={`/project/${projectId}/evals/legacy/new`}
-              icon={<Plus className="icon-base" />}
+              icon={<Plus className="icon-base text-icon-foreground" />}
               trackingEventName="eval_config:new_form_open"
               variant="default"
               usageLimit={

@@ -62,7 +62,7 @@ export function TierConditionsEditor({
             })
           }
         >
-          <PlusCircle className="icon-base mr-1" />
+          <PlusCircle className="icon-base text-icon-foreground mr-1" />
           Add Condition
         </Button>
       </div>
@@ -90,7 +90,7 @@ export function TierConditionsEditor({
                 size="sm"
                 onClick={() => remove(conditionIndex)}
               >
-                <Trash2 className="icon-base" />
+                <Trash2 className="icon-base text-icon-foreground" />
               </Button>
             </div>
 

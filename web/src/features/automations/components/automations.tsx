@@ -396,7 +396,7 @@ export default function AutomationsPage() {
         ],
         actionButtonsRight: (
           <Button onClick={handleCreateAutomation}>
-            <Plus className="icon-base mr-2" />
+            <Plus className="icon-base text-icon-foreground mr-2" />
             Create Automation
           </Button>
         ),

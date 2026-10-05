@@ -317,7 +317,7 @@ export function ScoreOutputSection({
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
                             <TriangleAlert
-                              className="icon-base"
+                              className="icon-base text-icon-foreground"
                               aria-hidden="true"
                             />
                           </span>
@@ -356,7 +356,7 @@ export function ScoreOutputSection({
                     aria-label="Add category"
                     title="Add category"
                   >
-                    <Plus className="icon-base" />
+                    <Plus className="icon-base text-icon-foreground" />
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

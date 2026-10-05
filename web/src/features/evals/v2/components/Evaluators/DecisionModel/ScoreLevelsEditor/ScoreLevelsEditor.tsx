@@ -97,7 +97,7 @@ export function ScoreLevelsEditor({
           disabled={levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels}
           onClick={() => onChange([...levels, { description: "" }])}
         >
-          <Plus className="icon-base mr-1" />
+          <Plus className="icon-base text-icon-foreground mr-1" />
           Add level
         </Button>
         <span className="text-muted-foreground text-xs">

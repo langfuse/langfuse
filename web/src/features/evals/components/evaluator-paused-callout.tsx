@@ -126,7 +126,7 @@ export function EvaluatorPausedCallout({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLinkIcon className="icon-base mr-1.5" />
+                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
                 {resolutionActionLabel}
               </Link>
             </Button>
@@ -147,7 +147,7 @@ export function EvaluatorPausedCallout({
                 }
                 className="h-8 px-3"
               >
-                <RefreshCcw className="icon-base mr-1.5" />
+                <RefreshCcw className="icon-base text-icon-foreground mr-1.5" />
                 Reactivate
               </Button>
             ) : null}

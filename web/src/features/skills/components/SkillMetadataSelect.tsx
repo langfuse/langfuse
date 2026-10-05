@@ -186,7 +186,7 @@ export function SkillLabelsSelect({
                   "opacity-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:none)]:opacity-100",
               )}
             >
-              <CircleFadingArrowUp className="icon-base" />
+              <CircleFadingArrowUp className="icon-base text-icon-foreground" />
             </Button>
           </div>
         </Trigger>
@@ -294,7 +294,7 @@ export function SkillTagsSelect({
                 className="w-full justify-start px-2 font-normal"
                 onClick={() => setPendingTags([...pendingTags, tag])}
               >
-                <Plus className="icon-base mr-2" />
+                <Plus className="icon-base text-icon-foreground mr-2" />
                 {tag}
               </Button>
             ))}
@@ -369,9 +369,9 @@ function SelectionRow({
       onClick={onSelect}
     >
       {selected ? (
-        <CircleCheckIcon className="icon-base mr-2" />
+        <CircleCheckIcon className="icon-base text-icon-foreground mr-2" />
       ) : (
-        <CircleIcon className="icon-base mr-2 opacity-20" />
+        <CircleIcon className="icon-base text-icon-foreground mr-2 opacity-20" />
       )}
       {value}
     </Button>
@@ -392,7 +392,7 @@ function CreateRow({
       className="text-muted-foreground w-full justify-start px-2 font-normal"
       onClick={onCreate}
     >
-      <Plus className="icon-base mr-2" />
+      <Plus className="icon-base text-icon-foreground mr-2" />
       Create new: “{value}”
     </Button>
   );

@@ -1289,17 +1289,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Copy className="icon-sm" />
+              <Copy className="icon-sm text-icon-foreground" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
-              <Trash className="icon-sm" />
+              <Trash className="icon-sm text-icon-foreground" />
             </Button>
           </div>
         );
       }
       return (
         <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
-          <Trash className="icon-sm" />
+          <Trash className="icon-sm text-icon-foreground" />
         </Button>
       );
     },

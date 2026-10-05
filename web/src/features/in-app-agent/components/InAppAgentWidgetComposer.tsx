@@ -100,7 +100,7 @@ export function InAppAgentWidgetComposer({
           aria-label="Add with Langfuse Assistant"
           disabled={!request.trim()}
         >
-          <SendHorizontal className="icon-base" />
+          <SendHorizontal className="icon-base text-icon-foreground" />
         </Button>
       </div>
     </form>

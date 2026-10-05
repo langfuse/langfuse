@@ -201,7 +201,7 @@ export function SettingsTable<TData extends object>({
                     title="Row height"
                     aria-label="Row height"
                   >
-                    <Rows3 className="icon-base" />
+                    <Rows3 className="icon-base text-icon-foreground" />
                   </Button>
                 )}
               </DropdownMenu>

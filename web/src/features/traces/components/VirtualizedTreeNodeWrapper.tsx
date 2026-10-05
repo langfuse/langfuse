@@ -166,7 +166,7 @@ export function VirtualizedTreeNodeWrapper({
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="icon-base" />
+                <ChevronRight className="icon-base text-icon-foreground" />
               </span>
             </Button>
           )}

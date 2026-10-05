@@ -21,7 +21,7 @@ export const TestResultTraceActionsTrigger = forwardRef<
       size="icon-xs"
       title={title}
     >
-      <MoreVertical className="icon-sm" />
+      <MoreVertical className="icon-sm text-icon-foreground" />
     </Button>
   );
 });
@@ -46,7 +46,7 @@ export function TestResultTraceActions({
       <DropdownMenuContent align="end">
         {openExecutionTrace ? (
           <DropdownMenuItem onClick={openExecutionTrace}>
-            <ExternalLink className="icon-base mr-2" />
+            <ExternalLink className="icon-base text-icon-foreground mr-2" />
             Open execution trace
           </DropdownMenuItem>
         ) : null}

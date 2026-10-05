@@ -316,13 +316,19 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
           >
             {isLoading ? (
               <LoaderCircle
-                className="icon-base mr-1 shrink-0 animate-spin"
+                className="icon-base text-icon-foreground mr-1 shrink-0 animate-spin"
                 aria-hidden="true"
               />
             ) : alertCount > 0 ? (
-              <Bell className="icon-base mr-1 shrink-0" aria-hidden="true" />
+              <Bell
+                className="icon-base text-icon-foreground mr-1 shrink-0"
+                aria-hidden="true"
+              />
             ) : (
-              <Plus className="icon-base mr-1 shrink-0" aria-hidden="true" />
+              <Plus
+                className="icon-base text-icon-foreground mr-1 shrink-0"
+                aria-hidden="true"
+              />
             )}
             <span className="flex-1 text-left">
               {alertCount > 0 ? "Alerts" : "Add alert"}

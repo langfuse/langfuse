@@ -390,7 +390,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                         aria-label={`View schema ${selectedSchema.name}`}
                         onClick={() => openSchemaDialog(selectedSchema)}
                       >
-                        <EyeIcon className="icon-base" />
+                        <EyeIcon className="icon-base text-icon-foreground" />
                       </Button>
                     )}
                   </div>
@@ -400,7 +400,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     className="w-full"
                     onClick={() => openSchemaDialog(null)}
                   >
-                    <PlusIcon className="icon-base mr-2" />
+                    <PlusIcon className="icon-base text-icon-foreground mr-2" />
                     Add schema
                   </Button>
                 )}

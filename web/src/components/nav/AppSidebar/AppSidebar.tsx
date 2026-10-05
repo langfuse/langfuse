@@ -384,7 +384,7 @@ function SidebarNotifications({
             onClick={() => state.onDismiss(frontNotification.id)}
             title="Dismiss"
           >
-            <X className="icon-base" />
+            <X className="icon-base text-icon-foreground" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
             <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
@@ -632,7 +632,9 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             />
           )}
           {update && !backgroundMigrationStatus && (
-            <ArrowUp className={color} />
+            <ArrowUp
+              className={cn("icon-sm", color ?? "text-icon-foreground")}
+            />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -676,14 +678,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             href="https://github.com/langfuse/langfuse/releases"
             target="_blank"
           >
-            <SiGithub className="icon-base mr-2" />
+            <SiGithub className="icon-base text-icon-foreground mr-2" />
             Releases
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
-              <ArrowUp10 className="icon-base mr-2" />
+              <ArrowUp10 className="icon-base text-icon-foreground mr-2" />
               Background Migrations
               {backgroundMigrationStatus && (
                 <StatusBadge
@@ -697,20 +699,20 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper className="icon-base mr-2" />
+            <Newspaper className="icon-base text-icon-foreground mr-2" />
             Changelog
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map className="icon-base mr-2" />
+            <Map className="icon-base text-icon-foreground mr-2" />
             Roadmap
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info className="icon-base mr-2" />
+              <Info className="icon-base text-icon-foreground mr-2" />
               Compare Versions
             </Link>
           </DropdownMenuItem>
@@ -723,7 +725,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                 href="https://langfuse.com/docs/deployment/self-host#update"
                 target="_blank"
               >
-                <HardDriveDownload className="icon-base mr-2" />
+                <HardDriveDownload className="icon-base text-icon-foreground mr-2" />
                 Update
               </Link>
             </DropdownMenuItem>

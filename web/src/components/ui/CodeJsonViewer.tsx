@@ -206,9 +206,9 @@ export function JSONView(props: {
                 title={isFullyCollapsed ? "Expand all" : "Collapse all"}
               >
                 {isFullyCollapsed ? (
-                  <UnfoldVertical className="icon-sm" />
+                  <UnfoldVertical className="icon-sm text-icon-foreground" />
                 ) : (
-                  <FoldVertical className="icon-sm" />
+                  <FoldVertical className="icon-sm text-icon-foreground" />
                 )}
               </Button>
             </>
@@ -305,7 +305,11 @@ export function CodeView(props: {
               onClick={handleCopy}
               className=""
             >
-              {isCopied ? CopySuccessIcon : <Copy className="icon-sm" />}
+              {isCopied ? (
+                CopySuccessIcon
+              ) : (
+                <Copy className="icon-sm text-icon-foreground" />
+              )}
             </Button>
           </div>
         ) : undefined}

@@ -16,7 +16,7 @@ export function ColumnVisibilityHeader({
           className="bg-accent gap-1.5 text-xs"
           onClick={onRestoreDefaults}
         >
-          <RotateCcw className="icon-base" />
+          <RotateCcw className="icon-base text-icon-foreground" />
           Restore Defaults
         </Button>
       )}

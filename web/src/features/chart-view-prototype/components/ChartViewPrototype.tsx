@@ -78,7 +78,7 @@ export function ChartViewPrototype({
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <Button variant="outline" size="sm" disabled className="h-7 gap-1.5">
-            <SlidersHorizontal className="icon-base" />
+            <SlidersHorizontal className="icon-base text-icon-foreground" />
             Filters
           </Button>
           <span>{events.length.toLocaleString()} events · last 24h</span>

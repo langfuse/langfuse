@@ -280,7 +280,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               ) : (
                 <span className="text-muted-foreground">{placeholder}</span>
               )}
-              <Search className="icon-base ml-2 shrink-0 opacity-50" />
+              <Search className="icon-base text-icon-foreground ml-2 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-full p-0" align="start">
@@ -373,7 +373,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
           >
             <RefreshCw
               className={cn(
-                "icon-base",
+                "icon-base text-icon-foreground",
                 (isRefreshing || isLoadingChannels) && "animate-spin",
               )}
             />

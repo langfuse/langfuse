@@ -158,7 +158,7 @@ export const SessionAnnotationProcessor: React.FC<
                   <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare className="icon-base" />
+                    <MessageSquare className="icon-base text-icon-foreground" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,

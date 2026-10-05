@@ -131,7 +131,7 @@ export function UsageDetailsEditor({
                 size="sm"
                 onClick={() => handleRemoveRow(index)}
               >
-                <Trash2 className="icon-base" />
+                <Trash2 className="icon-base text-icon-foreground" />
               </Button>
             </div>
           ))}
@@ -144,7 +144,7 @@ export function UsageDetailsEditor({
         onClick={handleAddRow}
         className="w-full"
       >
-        <PlusCircle className="icon-base mr-2" />
+        <PlusCircle className="icon-base text-icon-foreground mr-2" />
         Add Usage Type
       </Button>
     </div>

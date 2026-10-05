@@ -30,7 +30,7 @@ export function TestRunButton({
       className={disabledReason ? "pointer-events-none" : undefined}
       onClick={onRun}
     >
-      <Play className="icon-base mr-1.5" />
+      <Play className="icon-base text-icon-foreground mr-1.5" />
       Run test on this sample
     </Button>
   );

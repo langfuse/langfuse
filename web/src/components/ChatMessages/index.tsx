@@ -291,7 +291,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
           className="flex-1 rounded-r-none border-r-0"
           onClick={addRegularMessage}
         >
-          <PlusCircleIcon className="icon-base mr-2" />
+          <PlusCircleIcon className="icon-base text-icon-foreground mr-2" />
           <p>Message</p>
         </Button>
         <DropdownMenu>
@@ -301,7 +301,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               variant="outline"
               className="rounded-l-none border-l px-2"
             >
-              <ChevronDownIcon className="icon-base" />
+              <ChevronDownIcon className="icon-base text-icon-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -357,7 +357,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               className="flex-1"
               onClick={addPlaceholderMessage}
             >
-              <PlusCircleIcon className="icon-base mr-2" />
+              <PlusCircleIcon className="icon-base text-icon-foreground mr-2" />
               <p>Placeholder</p>
             </Button>
           </TooltipTrigger>

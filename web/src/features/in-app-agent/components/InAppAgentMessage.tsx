@@ -764,7 +764,7 @@ function RedirectActionButton({
       }}
     >
       {content.label}
-      <ArrowRight className="icon-base ml-1" />
+      <ArrowRight className="icon-base text-icon-foreground ml-1" />
     </Button>
   );
 }
@@ -1231,9 +1231,9 @@ function TableCopyButton({
       )}
     >
       {isCopied ? (
-        <Check className="size-3.5" />
+        <Check className="icon-base" />
       ) : (
-        <Copy className="size-3.5" />
+        <Copy className="icon-base" />
       )}
       <span>{caption}</span>
     </button>

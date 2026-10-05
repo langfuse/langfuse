@@ -100,7 +100,9 @@ function UserDetailView({
             <ActionButton
               href={`/project/${projectId}?filter=user%3Bstring%3B%3B%3D%3B${userId}`} // dashboard filter serialization
               variant="secondary"
-              icon={<LayoutDashboard className="icon-base" />}
+              icon={
+                <LayoutDashboard className="icon-base text-icon-foreground" />
+              }
             >
               Dashboard
             </ActionButton>

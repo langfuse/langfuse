@@ -860,7 +860,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="icon-base mr-2" />
+              <History className="icon-base text-icon-foreground mr-2" />
               Version history
             </Button>
             <Button

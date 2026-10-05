@@ -75,7 +75,7 @@ export default function ExperimentsPage() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base" />
+                  <FlaskConical className="icon-base text-icon-foreground" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>

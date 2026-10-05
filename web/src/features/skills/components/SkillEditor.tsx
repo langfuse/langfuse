@@ -358,9 +358,9 @@ export function SkillEditor({
           aria-label={`Download version ${baseVersion}`}
         >
           {isDownloading ? (
-            <Loader2 className="icon-base mr-1.5 animate-spin" />
+            <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
           ) : (
-            <Download className="icon-base mr-1.5" />
+            <Download className="icon-base text-icon-foreground mr-1.5" />
           )}
           Download
         </Button>

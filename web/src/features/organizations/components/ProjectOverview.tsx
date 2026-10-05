@@ -148,7 +148,7 @@ const OrganizationProjectTiles = ({
                   </Button>
                   <Button asChild variant="ghost">
                     <Link href={`/project/${project.id}/settings`}>
-                      <Settings className="icon-base" />
+                      <Settings className="icon-base text-icon-foreground" />
                     </Link>
                   </Button>
                 </CardFooter>
@@ -214,13 +214,13 @@ const OrganizationActionButtons = ({
     <>
       <Button asChild variant="ghost">
         <Link href={`/organization/${orgId}/settings`}>
-          <Settings className="icon-base" />
+          <Settings className="icon-base text-icon-foreground" />
         </Link>
       </Button>
       {membersViewAccess && (
         <Button asChild variant="ghost">
           <Link href={`/organization/${orgId}/settings/members`}>
-            <Users className="icon-base" />
+            <Users className="icon-base text-icon-foreground" />
           </Link>
         </Button>
       )}
@@ -381,7 +381,10 @@ export const OrganizationProjectOverview = () => {
             {canCreateOrg && (
               <Button data-testid="create-organization-btn" asChild>
                 <Link href={createOrganizationRoute}>
-                  <PlusIcon className="icon-base mr-1.5" aria-hidden="true" />
+                  <PlusIcon
+                    className="icon-base text-icon-foreground mr-1.5"
+                    aria-hidden="true"
+                  />
                   New Organization
                 </Link>
               </Button>

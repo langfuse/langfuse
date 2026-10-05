@@ -70,7 +70,7 @@ export function AnnotationQueueItemMenuContent({
       <DropdownMenuSeparator />
       <DropdownMenuItem className="hover:bg-accent" asChild>
         <div>
-          <ExternalLink className="icon-base mr-2" />
+          <ExternalLink className="icon-base text-icon-foreground mr-2" />
           <Link
             href={`/project/${projectId}/annotation-queues`}
             onClick={onManageClick}

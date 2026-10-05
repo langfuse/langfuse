@@ -64,7 +64,7 @@ export function TraceSearchList() {
             size="sm"
             onClick={() => setSearchInputValue("")}
           >
-            <XIcon className="icon-base mr-2" />
+            <XIcon className="icon-base text-icon-foreground mr-2" />
             Clear search
           </Button>
         </div>

@@ -234,7 +234,7 @@ const PageHeader = ({
                 )}
               </div>
               {actionButtonsLeft && (
-                <div className="[&_svg:not([class*='icon-'])]:icon-base [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground flex flex-wrap items-center gap-1 self-center">
+                <div className="flex flex-wrap items-center gap-1 self-center">
                   {actionButtonsLeft}
                 </div>
               )}
@@ -244,7 +244,7 @@ const PageHeader = ({
                 when wrapped actions should retain a shared right edge. */}
             <div
               className={cn(
-                "[&_svg:not([class*='icon-'])]:icon-base [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground flex flex-wrap items-center gap-1",
+                "flex flex-wrap items-center gap-1",
                 actionButtonsRightClassName,
               )}
             >

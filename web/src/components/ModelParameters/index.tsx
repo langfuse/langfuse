@@ -125,7 +125,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           className="relative h-7 w-7"
           disabled={formDisabled}
         >
-          <Settings2 className="icon-base" />
+          <Settings2 className="icon-base text-icon-foreground" />
           {modelSettingsUsed && (
             <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}

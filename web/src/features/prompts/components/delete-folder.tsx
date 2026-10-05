@@ -67,7 +67,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
     >
       <DialogTrigger asChild>
         <Button variant="ghost" size="xs" disabled={!hasAccess}>
-          <Trash className="icon-sm" />
+          <Trash className="icon-sm text-icon-foreground" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">

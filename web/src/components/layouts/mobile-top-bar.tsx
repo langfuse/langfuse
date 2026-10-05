@@ -47,7 +47,7 @@ export const MobileTopBar = ({
             aria-label="Open menu"
             onClick={() => toggleSidebar()}
           >
-            <Menu className="icon-lg" />
+            <Menu className="icon-lg text-icon-foreground" />
           </Button>
         ) : (
           leadingControl

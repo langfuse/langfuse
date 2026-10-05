@@ -42,7 +42,7 @@ const OptionItem = ({
 }) => (
   <DropdownMenuItem onClick={onSelect} disabled={disabled}>
     {selected ? (
-      <Check className="icon-base mr-2 shrink-0" />
+      <Check className="icon-base text-icon-foreground mr-2 shrink-0" />
     ) : (
       <span className="mr-2 h-4 w-4 shrink-0" />
     )}
@@ -75,7 +75,7 @@ export function ExperimentDisplaySettings({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="h-8 px-2.5 text-xs">
-          <Settings2 className="icon-base" />
+          <Settings2 className="icon-base text-icon-foreground" />
           <span className="ml-2">Display</span>
         </Button>
       </DropdownMenuTrigger>

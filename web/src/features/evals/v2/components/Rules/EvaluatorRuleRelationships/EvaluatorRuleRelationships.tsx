@@ -268,7 +268,7 @@ function EvaluatorRuleRelationshipsSheet({
                           })
                         }
                       >
-                        <Unlink className="icon-base" />
+                        <Unlink className="icon-base text-icon-foreground" />
                         Disconnect
                       </Button>
                     </li>
@@ -355,7 +355,7 @@ function EvaluatorRuleRelationshipsSheet({
                         className="text-foreground hover:text-foreground h-auto w-full justify-start px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
                         disabled={!hasWriteAccess}
                       >
-                        <Plus className="icon-base mr-1.5" />
+                        <Plus className="icon-base text-icon-foreground mr-1.5" />
                         Attach another rule
                       </Button>
                     )}

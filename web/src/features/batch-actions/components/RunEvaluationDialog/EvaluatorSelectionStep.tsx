@@ -129,7 +129,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   onClick={() => onSearchQueryChange("")}
                   aria-label="Clear evaluator search"
                 >
-                  <X className="icon-base" />
+                  <X className="icon-base text-icon-foreground" />
                 </Button>
               ) : null}
             </div>
@@ -203,7 +203,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             onClick={(event) => event.stopPropagation()}
                             aria-label={`Preview ${item.scoreName}`}
                           >
-                            <Eye className="icon-base" />
+                            <Eye className="icon-base text-icon-foreground" />
                           </Button>
                         }
                       />

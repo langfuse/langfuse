@@ -82,14 +82,14 @@ export function Icons() {
             icon-xl covers 28 to 36px illustrations. Icons at 40px and above
             (chart and analytics empty states, the crash page) keep their raw
             sizes: illustration sizes, decision deferred. Every icon sets its
-            size explicitly, also inside primitives (Button, menu items, Badge,
-            sidebar rows); the primitive default is only a fallback.
+            size on the element itself; primitives do not size their svg
+            children.
           </p>
         </PageSection>
 
         <PageSection
           title="Colour"
-          blurb="text-icon-foreground is the default; it shares its value with muted-foreground. An icon paired with text is the same colour as the text or one step lighter, never darker. Status colours are the only exception."
+          blurb="text-icon-foreground is the default, set on the icon element, never through a container selector; it shares its value with muted-foreground. An icon paired with text is the same colour as the text or one step lighter, never darker. Status colours are the only exception."
           aside={<InlineCode>text-icon-foreground</InlineCode>}
         >
           <div className="grid gap-4 lg:grid-cols-2">

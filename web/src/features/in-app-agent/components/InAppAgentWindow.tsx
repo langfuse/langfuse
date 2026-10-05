@@ -183,7 +183,10 @@ function InAppAgentQuickActionPicker({
               }}
             >
               <span className="bg-muted text-primary-accent flex size-7 shrink-0 items-center justify-center rounded-md">
-                <ActionIcon aria-hidden="true" />
+                <ActionIcon
+                  className="icon-base text-icon-foreground"
+                  aria-hidden="true"
+                />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="text-foreground block text-xs leading-snug font-bold">
@@ -823,7 +826,7 @@ function ConversationScroller({
             );
           }}
         >
-          <ArrowDown className="icon-base" />
+          <ArrowDown className="icon-base text-icon-foreground" />
           Latest
         </Button>
       ) : null}
@@ -1199,7 +1202,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 onClick={onNewConversation}
                 aria-label="Start new conversation"
               >
-                <Plus className="icon-base" />
+                <Plus className="icon-base text-icon-foreground" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
@@ -1226,7 +1229,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     // nested badge aria-label is ignored once the parent has one.
                     aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
-                    <History className="icon-base" />
+                    <History className="icon-base text-icon-foreground" />
                     {/* Launcher badge, scaled to the 24px trigger. Visual only —
                         accessible name is on the button. */}
                     {historyAttentionCount > 0 && (
@@ -1299,7 +1302,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           onDeleteConversation(conversation);
                         }}
                       >
-                        <Trash2 className="icon-sm" />
+                        <Trash2 className="icon-sm text-icon-foreground" />
                       </Button>
                     </DropdownMenuItem>
                   );
@@ -1333,9 +1336,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   }}
                 >
                   {isExpanded ? (
-                    <Minimize2 className="icon-base" />
+                    <Minimize2 className="icon-base text-icon-foreground" />
                   ) : (
-                    <Maximize2 className="icon-base" />
+                    <Maximize2 className="icon-base text-icon-foreground" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1360,9 +1363,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   onClick={props.onClose}
                 >
                   {isHandheld ? (
-                    <X className="icon-base" />
+                    <X className="icon-base text-icon-foreground" />
                   ) : (
-                    <Minus className="icon-base" />
+                    <Minus className="icon-base text-icon-foreground" />
                   )}
                 </Button>
               </TooltipTrigger>

@@ -70,7 +70,7 @@ export function VersionUpdateBannerView({
         aria-label="Dismiss"
         title="Dismiss"
       >
-        <X className="icon-base" />
+        <X className="icon-base text-icon-foreground" />
       </Button>
     </div>
   );

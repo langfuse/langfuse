@@ -706,7 +706,7 @@ function IOPreviewJSONInner({
               onClick={handlePreviousMatch}
               title="Previous match (Shift+Enter)"
             >
-              <ChevronUp className="icon-base" />
+              <ChevronUp className="icon-base text-icon-foreground" />
             </Button>
             <Button
               variant="ghost"
@@ -715,7 +715,7 @@ function IOPreviewJSONInner({
               onClick={handleNextMatch}
               title="Next match (Enter)"
             >
-              <ChevronDown className="icon-base" />
+              <ChevronDown className="icon-base text-icon-foreground" />
             </Button>
           </>
         )}
@@ -739,7 +739,7 @@ function IOPreviewJSONInner({
           onClick={handleCopy}
           title="Copy to clipboard"
         >
-          <Copy className="icon-base" />
+          <Copy className="icon-base text-icon-foreground" />
         </Button>
       </div>
 

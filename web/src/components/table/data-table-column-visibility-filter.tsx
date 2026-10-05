@@ -211,7 +211,7 @@ function ColumnVisibilityListItem<TData, TValue>({
           title="Drag and drop to reorder columns"
           className="invisible shrink-0 group-focus-within:visible group-hover:visible"
         >
-          <Menu className="icon-sm" />
+          <Menu className="icon-sm text-icon-foreground" />
         </Button>
       )}
     </div>
@@ -299,7 +299,7 @@ function GroupVisibilityHeader<TData, TValue>({
               title="Drag and drop to reorder columns"
               className="invisible group-focus-within:visible group-hover:visible"
             >
-              <Menu className="icon-sm" />
+              <Menu className="icon-sm text-icon-foreground" />
             </Button>
           )}
         </div>

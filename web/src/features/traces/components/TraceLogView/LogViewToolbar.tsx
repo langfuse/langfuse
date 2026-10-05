@@ -216,9 +216,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   disabled={isVirtualized}
                 >
                   {allRowsExpanded && !isVirtualized ? (
-                    <FoldVertical className="icon-base" />
+                    <FoldVertical className="icon-base text-icon-foreground" />
                   ) : (
-                    <UnfoldVertical className="icon-base" />
+                    <UnfoldVertical className="icon-base text-icon-foreground" />
                   )}
                 </Button>
               </span>
@@ -251,9 +251,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     {isCopyOrDownloadLoading ? (
                       <Spinner size="xs" />
                     ) : isCopied ? (
-                      <Check className="icon-base" />
+                      <Check className="icon-base text-icon-foreground" />
                     ) : (
-                      <Copy className="icon-base" />
+                      <Copy className="icon-base text-icon-foreground" />
                     )}
                   </Button>
                 </TooltipTrigger>

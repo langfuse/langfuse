@@ -57,7 +57,7 @@ export function EvaluatorSetupLoadingState({
               disabled
               aria-label="Collapse test panel"
             >
-              <PanelRightClose className="icon-base" />
+              <PanelRightClose className="icon-base text-icon-foreground" />
             </Button>
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden p-6">

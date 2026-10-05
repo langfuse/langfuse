@@ -57,12 +57,29 @@ const menuBodyVariants = cva(
   },
 );
 
+const menuItemIconVariants = cva("", {
+  variants: {
+    variant: {
+      default: "text-icon-foreground",
+      destructive: "",
+    },
+    position: {
+      primary: "icon-base mr-1.5",
+      secondary: "icon-sm",
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+    position: "primary",
+  },
+});
+
 const menuItemVariants = cva(
-  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors [&_svg:not([class*='icon-'])]:icon-base",
+  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
       variant: {
-        default: "[&_svg:not([class*='text-'])]:text-icon-foreground",
+        default: "",
         destructive:
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
@@ -452,7 +469,7 @@ function DropdownMenuNode({
                             <span className={primaryActionVariants()}>
                               {ItemIcon ? (
                                 <ItemIcon
-                                  className="mr-1.5"
+                                  className={menuItemIconVariants()}
                                   aria-hidden="true"
                                 />
                               ) : null}
@@ -509,7 +526,10 @@ function DropdownMenuNode({
                       >
                         <span className={primaryActionVariants()}>
                           {ItemIcon ? (
-                            <ItemIcon className="mr-1.5" aria-hidden="true" />
+                            <ItemIcon
+                              className={menuItemIconVariants()}
+                              aria-hidden="true"
+                            />
                           ) : null}
                           <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
                             {item.title}
@@ -564,7 +584,10 @@ function DropdownMenuNode({
                           {...interactionProps}
                         >
                           <SecondaryIcon
-                            className="icon-sm"
+                            className={menuItemIconVariants({
+                              variant: item.variant,
+                              position: "secondary",
+                            })}
                             aria-hidden="true"
                           />
                         </Link>
@@ -586,7 +609,10 @@ function DropdownMenuNode({
                           {...interactionProps}
                         >
                           <SecondaryIcon
-                            className="icon-sm"
+                            className={menuItemIconVariants({
+                              variant: item.variant,
+                              position: "secondary",
+                            })}
                             aria-hidden="true"
                           />
                         </button>
@@ -654,7 +680,12 @@ function DropdownMenuNode({
                           }}
                         >
                           {ItemIcon ? (
-                            <ItemIcon className="mr-1.5" aria-hidden="true" />
+                            <ItemIcon
+                              className={menuItemIconVariants({
+                                variant: item.variant,
+                              })}
+                              aria-hidden="true"
+                            />
                           ) : null}
                           <span
                             className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
@@ -678,7 +709,12 @@ function DropdownMenuNode({
                           }}
                         >
                           {ItemIcon ? (
-                            <ItemIcon className="mr-1.5" aria-hidden="true" />
+                            <ItemIcon
+                              className={menuItemIconVariants({
+                                variant: item.variant,
+                              })}
+                              aria-hidden="true"
+                            />
                           ) : null}
                           <span
                             className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"

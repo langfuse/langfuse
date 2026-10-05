@@ -126,7 +126,7 @@ export const UserAssignmentSection = ({
                 className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
                 onClick={onRemove}
               >
-                <X className="icon-base" />
+                <X className="icon-base text-icon-foreground" />
               </Button>
             </div>
           );
@@ -200,7 +200,7 @@ export const UserAssignmentSection = ({
                           }
                           onClick={() => handleUserRemove(user.id)}
                         >
-                          <X className="icon-base" />
+                          <X className="icon-base text-icon-foreground" />
                         </Button>
                       </div>
                       {(index <

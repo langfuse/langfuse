@@ -115,7 +115,7 @@ export const ScoreColumnFilterMenu = ({
                 onClick={() => onSelect(operator, targets[0].experimentId)}
               >
                 {isActive(operator, targets[0].experimentId) ? (
-                  <Check className="icon-base mr-2 shrink-0" />
+                  <Check className="icon-base text-icon-foreground mr-2 shrink-0" />
                 ) : (
                   <span className="mr-2 h-4 w-4 shrink-0" />
                 )}
@@ -139,7 +139,7 @@ export const ScoreColumnFilterMenu = ({
                         onClick={() => onSelect(operator, target.experimentId)}
                       >
                         {isActive(operator, target.experimentId) ? (
-                          <Check className="icon-base mr-2 shrink-0" />
+                          <Check className="icon-base text-icon-foreground mr-2 shrink-0" />
                         ) : (
                           <span className="mr-2 h-4 w-4 shrink-0" />
                         )}

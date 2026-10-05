@@ -194,7 +194,7 @@ export function CreateGatewayApiKeyDialogController({
                               )
                             }
                           >
-                            <X className="icon-sm" />
+                            <X className="icon-sm text-icon-foreground" />
                           </Button>
                         </div>
                       ))}

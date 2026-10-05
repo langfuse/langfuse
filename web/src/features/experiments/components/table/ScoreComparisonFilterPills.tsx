@@ -69,7 +69,7 @@ export const ScoreComparisonFilterPills = ({
                 onRemove(filter);
               }}
             >
-              <X className="icon-base" />
+              <X className="icon-base text-icon-foreground" />
             </Button>
           </Badge>
         );

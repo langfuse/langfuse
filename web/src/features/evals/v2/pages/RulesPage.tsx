@@ -39,7 +39,7 @@ export function RulesPage() {
             disabled={!hasWriteAccess}
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="icon-base mr-2" /> New rule
+            <Plus className="icon-base text-icon-foreground mr-2" /> New rule
           </Button>
         ),
         tabsProps: {

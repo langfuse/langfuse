@@ -81,7 +81,7 @@ export function ChatMessage({
         {showTableView ? (
           <ListChevronsDownUp className="icon-sm text-primary" />
         ) : (
-          <ListChevronsUpDown className="icon-sm" />
+          <ListChevronsUpDown className="icon-sm text-icon-foreground" />
         )}
       </Button>
     ) : undefined;

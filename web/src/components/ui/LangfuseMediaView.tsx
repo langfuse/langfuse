@@ -254,7 +254,7 @@ function FileViewer({
             title={`Open ${fileName} in new tab`}
             className="shrink-0"
           >
-            <ExternalLink className="icon-base" />
+            <ExternalLink className="icon-base text-icon-foreground" />
           </Button>
         </div>
       ) : (

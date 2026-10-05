@@ -158,9 +158,9 @@ export function DeleteButton({
               }}
             >
               {hasAccess ? (
-                <TrashIcon className="icon-base mr-2" />
+                <TrashIcon className="icon-base text-icon-foreground mr-2" />
               ) : (
-                <LockIcon className="icon-base mr-2" />
+                <LockIcon className="icon-base text-icon-foreground mr-2" />
               )}
               Delete
             </Button>
@@ -224,9 +224,9 @@ export function DeleteButton({
             }}
           >
             {hasAccess ? (
-              <TrashIcon className="icon-base mr-2" />
+              <TrashIcon className="icon-base text-icon-foreground mr-2" />
             ) : (
-              <LockIcon className="icon-base mr-2" />
+              <LockIcon className="icon-base text-icon-foreground mr-2" />
             )}
             Delete
           </Button>

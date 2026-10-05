@@ -264,7 +264,7 @@ export function SkillFileExplorer({
           aria-label={`Create new ${label}`}
           disabled={moveDisabled}
         >
-          <Check className="icon-base" />
+          <Check className="icon-base text-icon-foreground" />
         </Button>
         <Button
           type="button"
@@ -273,7 +273,7 @@ export function SkillFileExplorer({
           aria-label={`Cancel new ${label}`}
           onClick={() => setPendingEntry(null)}
         >
-          <X className="icon-base" />
+          <X className="icon-base text-icon-foreground" />
         </Button>
       </form>
     );
@@ -374,7 +374,7 @@ export function SkillFileExplorer({
                   disabled={moveDisabled}
                   onClick={() => startEntry("file")}
                 >
-                  <FilePlus2 className="icon-base" />
+                  <FilePlus2 className="icon-base text-icon-foreground" />
                 </Button>
                 <Button
                   type="button"
@@ -385,7 +385,7 @@ export function SkillFileExplorer({
                   disabled={moveDisabled}
                   onClick={() => startEntry("folder")}
                 >
-                  <FolderPlus className="icon-base" />
+                  <FolderPlus className="icon-base text-icon-foreground" />
                 </Button>
               </div>
             ) : null}
@@ -551,7 +551,7 @@ function DraggableSkillFile({
           onClick={onDelete}
           className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
         >
-          <Trash2 className="icon-base" />
+          <Trash2 className="icon-base text-icon-foreground" />
         </Button>
       ) : null}
     </div>
@@ -638,7 +638,7 @@ function DraggableSkillFolder({
             onClick={onDelete}
             className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
           >
-            <Trash2 className="icon-base" />
+            <Trash2 className="icon-base text-icon-foreground" />
           </Button>
         ) : null}
       </div>

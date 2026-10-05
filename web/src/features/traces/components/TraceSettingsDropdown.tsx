@@ -41,7 +41,7 @@ export function TraceSettingsDropdown() {
           title="View Options"
           className="h-7 w-7"
         >
-          <Settings2 className="icon-base" />
+          <Settings2 className="icon-base text-icon-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

@@ -231,7 +231,7 @@ export function CustomMappingEditor({
             onClick={handleAddEntry}
             className="w-full"
           >
-            <Plus className="icon-base mr-2" />
+            <Plus className="icon-base text-icon-foreground mr-2" />
             Add field
           </Button>
         </div>

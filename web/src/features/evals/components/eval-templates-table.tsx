@@ -106,7 +106,7 @@ const TemplateTypeBadge = ({
 
     return (
       <Badge className="w-fit gap-1.5" variant="outline-solid">
-        {Icon ? <Icon aria-hidden="true" /> : null}
+        {Icon ? <Icon className="icon-sm" aria-hidden="true" /> : null}
         {label}
       </Badge>
     );
@@ -165,7 +165,7 @@ const EvalTemplateRowActionsMenu = ({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-xs" aria-label="actions">
             <span className="sr-only relative">Open menu</span>
-            <MoreVertical className="icon-sm" />
+            <MoreVertical className="icon-sm text-icon-foreground" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -179,7 +179,7 @@ const EvalTemplateRowActionsMenu = ({
                 onClone();
               }}
             >
-              <Copy className="icon-base mr-2" />
+              <Copy className="icon-base text-icon-foreground mr-2" />
               Clone
             </DropdownMenuItem>
           ) : null}
@@ -193,7 +193,7 @@ const EvalTemplateRowActionsMenu = ({
                   onEdit();
                 }}
               >
-                <Pen className="icon-base mr-2" />
+                <Pen className="icon-base text-icon-foreground mr-2" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -207,7 +207,7 @@ const EvalTemplateRowActionsMenu = ({
                   setIsDeleteDialogOpen(true);
                 }}
               >
-                <Trash className="icon-base mr-2" />
+                <Trash className="icon-base text-icon-foreground mr-2" />
                 Delete
               </DropdownMenuItem>
             </>

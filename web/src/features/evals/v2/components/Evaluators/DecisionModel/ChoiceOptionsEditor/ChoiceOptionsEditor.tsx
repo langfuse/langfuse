@@ -95,7 +95,7 @@ export function ChoiceOptionsEditor({
           disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
           onClick={() => onChange([...options, { value: "", description: "" }])}
         >
-          <Plus className="icon-base mr-1" />
+          <Plus className="icon-base text-icon-foreground mr-1" />
           Add option
         </Button>
       </div>

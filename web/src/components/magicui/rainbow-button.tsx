@@ -13,7 +13,7 @@ const rainbowButtonVariants = cva(
     "rounded-sm outline-hidden focus-visible:ring-[3px] aria-invalid:border-destructive",
     "text-sm font-bold whitespace-nowrap",
     "disabled:pointer-events-none disabled:opacity-50",
-    "[&_svg]:pointer-events-none [&_svg:not([class*='icon-'])]:icon-base [&_svg]:shrink-0",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
   ),
   {
     variants: {

@@ -110,7 +110,10 @@ export function EvaluatorAssignmentsEditor({
               pickerWidth === "trigger" && "w-full justify-start",
             )}
           >
-            <Plus className="icon-base shrink-0" aria-hidden="true" />
+            <Plus
+              className="icon-base text-icon-foreground shrink-0"
+              aria-hidden="true"
+            />
             {additionalActionLabel}
           </Button>
         )}

@@ -38,7 +38,7 @@ function CloseReviewPanelButton() {
       aria-label="Close side panel"
       onClick={() => closeReviewPanel(store, router)}
     >
-      <X className="icon-sm" />
+      <X className="icon-sm text-icon-foreground" />
     </Button>
   );
 }

@@ -258,7 +258,7 @@ export function MultiSelectKeyValues<
             return (
               <DropdownMenuSub key={group.label}>
                 <DropdownMenuSubTrigger className="flex w-full items-center select-none">
-                  <Component className="icon-base mr-2 opacity-50" />
+                  <Component className="icon-base text-icon-foreground mr-2 opacity-50" />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">

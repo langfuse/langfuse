@@ -99,7 +99,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
           {isExporting ? (
             <Spinner size="sm" />
           ) : (
-            <Download className="icon-base" />
+            <Download className="icon-base text-icon-foreground" />
           )}
         </Button>
       </DropdownMenuTrigger>

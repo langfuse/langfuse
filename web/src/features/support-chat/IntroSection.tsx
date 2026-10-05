@@ -189,7 +189,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <SiGithub className="icon-base mr-2" /> Get Help ↗
+                <SiGithub className="icon-base text-icon-foreground mr-2" /> Get
+                Help ↗
               </a>
             </Button>
             <Button variant="outline" asChild>
@@ -198,7 +199,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <Lightbulb className="icon-base mr-2" /> Feature request ↗
+                <Lightbulb className="icon-base text-icon-foreground mr-2" />{" "}
+                Feature request ↗
               </a>
             </Button>
             <Button variant="outline" asChild>
@@ -207,7 +209,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <Bug className="icon-base mr-2" /> Report a bug ↗
+                <Bug className="icon-base text-icon-foreground mr-2" /> Report a
+                bug ↗
               </a>
             </Button>
           </div>
@@ -231,7 +234,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <SiGithub className="icon-base mr-2" /> GitHub ↗
+                <SiGithub className="icon-base text-icon-foreground mr-2" />{" "}
+                GitHub ↗
               </a>
             </Button>
             <Button asChild variant="ghost" className="justify-start px-1.5">
@@ -241,7 +245,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 rel="noopener"
                 className="flex items-center"
               >
-                <SiDiscord className="icon-base mr-2" /> Discord ↗
+                <SiDiscord className="icon-base text-icon-foreground mr-2" />{" "}
+                Discord ↗
               </a>
             </Button>
             <Button asChild variant="ghost" className="justify-start px-1.5">
@@ -252,7 +257,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 className="flex items-center"
                 onClick={() => capture("support_chat:community_hours_click")}
               >
-                <Calendar className="icon-base mr-2" /> Community Hours ↗
+                <Calendar className="icon-base text-icon-foreground mr-2" />{" "}
+                Community Hours ↗
               </a>
             </Button>
 
@@ -264,7 +270,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                   rel="noopener"
                   className="flex items-center"
                 >
-                  <Radio className="icon-base mr-2" /> Status Page ↗
+                  <Radio className="icon-base text-icon-foreground mr-2" />{" "}
+                  Status Page ↗
                 </a>
               </Button>
             )}

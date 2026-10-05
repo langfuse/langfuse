@@ -377,7 +377,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             className="h-5 w-5 shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
             aria-label="Delete message"
           >
-            <MinusCircleIcon className="icon-base" />
+            <MinusCircleIcon className="icon-base text-icon-foreground" />
           </Button>
         </CardContent>
       </div>

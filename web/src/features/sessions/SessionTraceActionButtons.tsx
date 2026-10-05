@@ -79,7 +79,7 @@ export function SessionTraceActionButtons({
               className="gap-1.5"
               {...getTriggerProps()}
             >
-              <PlusIcon className="icon-base" />
+              <PlusIcon className="icon-base text-icon-foreground" />
               <span>Add to</span>
               <DropdownIndicator size="sm" nudge />
             </Button>
@@ -110,9 +110,9 @@ export function SessionTraceActionButtons({
               }
             >
               {disabled ? (
-                <LockIcon className="icon-sm mr-1.5" />
+                <LockIcon className="icon-sm text-icon-foreground mr-1.5" />
               ) : (
-                <SquarePen className="icon-base mr-1.5" />
+                <SquarePen className="icon-base text-icon-foreground mr-1.5" />
               )}
               <span>Annotate</span>
             </Button>
@@ -139,7 +139,7 @@ export function SessionTraceActionButtons({
               <MessageSquareOff className="text-muted-foreground icon-base" />
             ) : (
               <>
-                <MessageSquare className="icon-base" />
+                <MessageSquare className="icon-base text-icon-foreground" />
                 <span>{commentCount ? "Comments" : "Comment"}</span>
                 {!!commentCount ? (
                   <ActionButtonCountBadge count={commentCount} />

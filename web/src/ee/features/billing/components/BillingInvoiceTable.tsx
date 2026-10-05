@@ -205,14 +205,16 @@ export function BillingInvoiceTable() {
             {hostedInvoiceUrl ? (
               <a href={hostedInvoiceUrl} target="_blank" rel="noreferrer">
                 <Button size="sm" variant="ghost">
-                  <ExternalLink className="icon-base mr-1" /> View
+                  <ExternalLink className="icon-base text-icon-foreground mr-1" />{" "}
+                  View
                 </Button>
               </a>
             ) : null}
             {invoicePdfUrl ? (
               <a href={invoicePdfUrl} target="_blank" rel="noreferrer">
                 <Button size="sm" variant="ghost">
-                  <Download className="icon-base mr-1" /> PDF
+                  <Download className="icon-base text-icon-foreground mr-1" />{" "}
+                  PDF
                 </Button>
               </a>
             ) : null}

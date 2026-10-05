@@ -41,7 +41,7 @@ export function EvaluatorGalleryDecisionModelBanner({
         aria-label="Dismiss"
         onClick={onDismiss}
       >
-        <X className="icon-sm" />
+        <X className="icon-sm text-icon-foreground" />
       </Button>
     </div>
   );

@@ -72,7 +72,7 @@ export function LargeStringFallback({
         </pre>
         <div>
           <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download className="icon-base mr-1" />
+            <Download className="icon-base text-icon-foreground mr-1" />
             Download full value
           </Button>
         </div>

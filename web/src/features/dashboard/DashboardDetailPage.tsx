@@ -1268,7 +1268,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         )}
                         {hasRbacCUDAccess && (
                           <Button onClick={handleAddWidget}>
-                            <PlusIcon className="icon-base mr-1" />
+                            <PlusIcon className="icon-base text-icon-foreground mr-1" />
                             Add Widget
                           </Button>
                         )}
@@ -1278,7 +1278,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             onClick={handleCloneDashboard}
                             disabled={mutateCloneDashboard.isPending}
                           >
-                            <Copy className="icon-base mr-1" />
+                            <Copy className="icon-base text-icon-foreground mr-1" />
                             Clone
                           </Button>
                         )}
@@ -1290,7 +1290,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                 size="icon"
                                 aria-label="More actions"
                               >
-                                <MoreVertical className="icon-base" />
+                                <MoreVertical className="icon-base text-icon-foreground" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -1301,7 +1301,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                     pasteWidgetFromClipboard("dashboard_menu")
                                   }
                                 >
-                                  <ClipboardPasteIcon className="icon-base mr-2" />
+                                  <ClipboardPasteIcon className="icon-base text-icon-foreground mr-2" />
                                   Paste widget
                                 </DropdownMenuItem>
                               )}
@@ -1326,14 +1326,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                   });
                                 }}
                               >
-                                <HomeIcon className="icon-base mr-2" />
+                                <HomeIcon className="icon-base text-icon-foreground mr-2" />
                                 {isCurrentHome
                                   ? "Shown on Home"
                                   : "Use as Home"}
                               </DropdownMenuItem>
                               {hasCUDAccess && (
                                 <DropdownMenuItem onSelect={openEditDialog}>
-                                  <PencilIcon className="icon-base mr-2" />
+                                  <PencilIcon className="icon-base text-icon-foreground mr-2" />
                                   Edit name & description
                                 </DropdownMenuItem>
                               )}

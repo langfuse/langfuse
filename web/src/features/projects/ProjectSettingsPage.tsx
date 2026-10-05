@@ -496,7 +496,7 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
-            <SiSlack className="text-foreground h-5 w-5" />
+            <SiSlack className="text-foreground icon-lg" />
             <span className="font-bold">Slack</span>
           </div>
           <p className="text-primary mb-4 text-sm">

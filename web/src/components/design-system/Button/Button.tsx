@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type MouseEventHandler, type Ref } from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { cn } from "@/src/utils/tailwind";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
@@ -15,13 +16,11 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground [&:not(.text-destructive)_svg:not([class*='text-'])]:text-icon-foreground",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
       },
       size: {
-        default:
-          "h-8 px-3 py-1 text-sm [&_svg:not([class*='icon-'])]:icon-base",
-        sm: "h-7 px-2 text-xs [&_svg:not([class*='icon-'])]:icon-base",
+        default: "h-8 px-3 py-1 text-sm",
+        sm: "h-7 px-2 text-xs",
       },
     },
     defaultVariants: {
@@ -30,6 +29,20 @@ const buttonVariants = cva(
     },
   },
 );
+
+const buttonIconVariants = cva("icon-base shrink-0", {
+  variants: {
+    variant: {
+      primary: "",
+      secondary: "",
+      destructive: "",
+      ghost: "text-icon-foreground",
+    },
+  },
+  defaultVariants: {
+    variant: "primary",
+  },
+});
 
 type ButtonProps = {
   text: string;
@@ -63,6 +76,7 @@ export function Button(props: ButtonProps) {
     variant: props.variant,
     size: props.size,
   });
+  const iconClassName = buttonIconVariants({ variant: props.variant });
 
   if (props.href !== undefined) {
     const Icon = props.icon;
@@ -82,16 +96,22 @@ export function Button(props: ButtonProps) {
           target="_blank"
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
-          {Icon ? <Icon className="shrink-0" aria-hidden /> : null}
+          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
           {props.text}
-          <ExternalLink className="icon-sm" aria-hidden />
+          <ExternalLink
+            className={cn(
+              "icon-sm",
+              props.variant === "ghost" && "text-icon-foreground",
+            )}
+            aria-hidden
+          />
         </a>
       );
     }
 
     return (
       <Link className={className} href={props.href} ref={props.ref}>
-        {Icon ? <Icon className="shrink-0" aria-hidden /> : null}
+        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
         {props.text}
       </Link>
     );
@@ -116,7 +136,7 @@ export function Button(props: ButtonProps) {
         </span>
       ) : (
         <>
-          {Icon ? <Icon className="shrink-0" aria-hidden /> : null}
+          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
           {props.text}
         </>
       )}

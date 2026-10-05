@@ -125,7 +125,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   variant="ghost"
                   {...getTriggerProps()}
                 >
-                  <EllipsisVertical className="icon-sm" />
+                  <EllipsisVertical className="icon-sm text-icon-foreground" />
                 </Button>
               )}
             </ConnectedDetailHeaderActionsMenuController>
@@ -230,7 +230,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                 ref: mobileActionsTriggerRef,
                               })}
                             >
-                              <MoreHorizontal className="icon-base" />
+                              <MoreHorizontal className="icon-base text-icon-foreground" />
                             </Button>
                           )}
                         </DropdownMenu>

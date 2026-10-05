@@ -703,7 +703,7 @@ export const MultiStepExperimentForm = ({
                 }}
                 disabled={activeStep === "prompt"}
               >
-                <ChevronLeft className="icon-base mr-2" />
+                <ChevronLeft className="icon-base text-icon-foreground mr-2" />
                 Previous
               </Button>
 

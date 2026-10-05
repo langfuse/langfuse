@@ -386,6 +386,25 @@ ruleTester.run("no-raw-icon-size requireSize", rule, {
        const x = <><Info className={className} /><Info {...props} /><Info className={cn("mr-2", className)} /></>;`,
       options: requireSize,
     },
+    // Imported components named *Icon are not treated as icons.
+    {
+      code: `import { ItemTypeIcon } from "./ItemTypeIcon";
+       const x = <ItemTypeIcon type="SPAN" />;`,
+      options: requireSize,
+    },
+    {
+      code: `const StatusIcon = ({ status }) => <span>{status}</span>;
+       const x = <StatusIcon status="ok" />;`,
+      options: requireSize,
+    },
+    {
+      code: `const x = <SelectPrimitive.Icon asChild><span /></SelectPrimitive.Icon>;`,
+      options: requireSize,
+    },
+    {
+      code: `const Row = ({ icon: Icon }) => <Icon className="icon-base" />;`,
+      options: requireSize,
+    },
     // Without the option, a bare icon is allowed.
     `import { Info } from "lucide-react";
      const x = <Info />;`,
@@ -406,6 +425,28 @@ ruleTester.run("no-raw-icon-size requireSize", rule, {
     {
       code: `import { Info } from "lucide-react";
        const x = <Info className={open ? "icon-sm" : "mr-2"} />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    // Icon components passed in as props.
+    {
+      code: `const Row = ({ icon: Icon }) => <Icon className="shrink-0" />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    {
+      code: `function Badge({ trailingIcon: TrailingIcon }) { return <TrailingIcon className="size-3" />; }`,
+      options: requireSize,
+      errors: [{ messageId: "unexpected" }],
+    },
+    {
+      code: `const x = items.map((item) => <item.icon />);`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    {
+      code: `import { SiGithub } from "react-icons/si";
+       const x = <SiGithub />;`,
       options: requireSize,
       errors: [{ messageId: "missingSize" }],
     },

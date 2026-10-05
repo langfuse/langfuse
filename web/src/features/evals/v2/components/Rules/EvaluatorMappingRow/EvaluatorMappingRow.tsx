@@ -134,7 +134,10 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                           title="Some variables are not mapped correctly"
                           className="text-dark-yellow inline-flex shrink-0"
                         >
-                          <TriangleAlert className="icon-base" aria-hidden />
+                          <TriangleAlert
+                            className="icon-base text-icon-foreground"
+                            aria-hidden
+                          />
                         </span>
                       ) : null}
                     </span>
@@ -152,7 +155,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
             disabled={disabled}
             onClick={() => detachEvaluator(evaluatorId)}
           >
-            <Unlink className="icon-base" />
+            <Unlink className="icon-base text-icon-foreground" />
             Disconnect
           </Button>
         </div>

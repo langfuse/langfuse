@@ -225,7 +225,7 @@ export function TestModelMatchDialogContent({
                       target="_blank"
                     >
                       View Model Details
-                      <SquareArrowOutUpRight className="icon-base ml-2" />
+                      <SquareArrowOutUpRight className="icon-base text-icon-foreground ml-2" />
                     </Link>
                   </Button>
                 </div>

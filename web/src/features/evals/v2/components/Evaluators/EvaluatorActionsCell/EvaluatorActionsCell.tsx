@@ -92,7 +92,7 @@ export function EvaluatorActionsCell({
             {...getTriggerProps()}
           >
             <span className="sr-only">Open menu</span>
-            <MoreVertical className="icon-sm" />
+            <MoreVertical className="icon-sm text-icon-foreground" />
           </Button>
         )}
       </DropdownMenu>

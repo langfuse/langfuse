@@ -269,7 +269,7 @@ export function PeekHeader({
                       aria-label="More actions"
                       className="text-foreground-secondary hover:text-foreground-secondary"
                     >
-                      <MoreHorizontal className="icon-base" />
+                      <MoreHorizontal className="icon-base text-icon-foreground" />
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>

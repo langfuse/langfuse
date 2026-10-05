@@ -125,7 +125,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
               aria-label="Collapse panel"
               onClick={() => setOpen(false)}
             >
-              <ChevronRight className="icon-sm" />
+              <ChevronRight className="icon-sm text-icon-foreground" />
             </Button>
           </div>
           <PanelField label="Chart type">
@@ -177,7 +177,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
             aria-label="Expand panel"
             onClick={() => setOpen(true)}
           >
-            <ChevronLeft className="icon-sm" />
+            <ChevronLeft className="icon-sm text-icon-foreground" />
           </Button>
         </div>
       )}

@@ -275,7 +275,7 @@ export const TemplateSelector = ({
                                 }
                                 disabled={isInvalid || disabled}
                               >
-                                <Cog className="icon-sm" />
+                                <Cog className="icon-sm text-icon-foreground" />
                               </Button>
                             )}
                           </InputCommandItem>
@@ -369,7 +369,7 @@ export const TemplateSelector = ({
                               }
                               disabled={isInvalid || disabled}
                             >
-                              <Cog className="icon-sm" />
+                              <Cog className="icon-sm text-icon-foreground" />
                             </Button>
                           )}
                         </InputCommandItem>

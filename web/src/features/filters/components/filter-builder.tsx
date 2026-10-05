@@ -306,7 +306,7 @@ export function PopoverFilterBuilder({
               variant="ghost"
               className="relative"
             >
-              <FilterIcon className="icon-base" />
+              <FilterIcon className="icon-base text-icon-foreground" />
               {filterState.length > 0 && (
                 <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
@@ -340,7 +340,7 @@ export function PopoverFilterBuilder({
                 size="icon"
                 className="ml-0.5"
               >
-                <X className="icon-base" />
+                <X className="icon-base text-icon-foreground" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -355,7 +355,7 @@ export function PopoverFilterBuilder({
                 size="icon-xs"
                 className="hover:bg-background ml-0.5"
               >
-                <X className="icon-sm" />
+                <X className="icon-sm text-icon-foreground" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -1125,7 +1125,7 @@ function FilterBuilderForm({
         disabled={disabled}
         size="xs"
       >
-        <X className="icon-sm" />
+        <X className="icon-sm text-icon-foreground" />
       </Button>
     );
 
@@ -1197,11 +1197,11 @@ function FilterBuilderForm({
             }
             className="text-muted-foreground w-full justify-start"
           >
-            <WandSparkles className="icon-base mr-2" />
+            <WandSparkles className="icon-base text-icon-foreground mr-2" />
             {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink className="icon-base ml-2" />
+                <ExternalLink className="icon-base text-icon-foreground ml-2" />
               </>
             ) : showAiFilter ? (
               "Cancel"
@@ -1282,7 +1282,10 @@ function FilterBuilderForm({
               size="sm"
             >
               <Plus
-                className={cn("icon-base shrink-0", !subtleAddButton && "mr-2")}
+                className={cn(
+                  "icon-base text-icon-foreground shrink-0",
+                  !subtleAddButton && "mr-2",
+                )}
               />
               Add filter
             </Button>

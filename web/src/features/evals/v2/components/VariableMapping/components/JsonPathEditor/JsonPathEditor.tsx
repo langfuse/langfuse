@@ -61,7 +61,7 @@ export function JsonPathEditor({
           title="Apply JSONPath"
           onClick={() => apply(query)}
         >
-          <Check className="icon-sm" />
+          <Check className="icon-sm text-icon-foreground" />
         </Button>
         <Button
           type="button"
@@ -70,7 +70,7 @@ export function JsonPathEditor({
           title="Cancel"
           onClick={onCancel}
         >
-          <X className="icon-sm" />
+          <X className="icon-sm text-icon-foreground" />
         </Button>
       </div>
       <CommandList>

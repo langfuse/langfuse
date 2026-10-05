@@ -314,7 +314,7 @@ const AddAutomationDropdown = ({
             className={fullWidth ? "w-full" : undefined}
             {...getTriggerProps()}
           >
-            <Plus className="icon-base mr-2" />
+            <Plus className="icon-base text-icon-foreground mr-2" />
             Automation
           </Button>
         )}

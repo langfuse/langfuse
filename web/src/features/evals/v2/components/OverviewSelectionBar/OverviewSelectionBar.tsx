@@ -27,7 +27,7 @@ export function OverviewSelectionBar({
             aria-label="Clear selection"
             onClick={onClear}
           >
-            <X className="icon-base" />
+            <X className="icon-base text-icon-foreground" />
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">{children}</div>

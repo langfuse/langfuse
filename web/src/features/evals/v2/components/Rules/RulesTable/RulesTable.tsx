@@ -439,7 +439,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="icon-sm" />
+                    <MoreVertical className="icon-sm text-icon-foreground" />
                   </Button>
                 )}
               </DropdownMenu>

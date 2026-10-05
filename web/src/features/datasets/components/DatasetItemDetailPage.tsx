@@ -217,7 +217,7 @@ export const DatasetItemDetailPage = ({
                   href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
                   title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
                 >
-                  <ListTree className="icon-sm" />
+                  <ListTree className="icon-sm text-icon-foreground" />
                 </Link>
               </Button>
             )}
@@ -245,7 +245,7 @@ export const DatasetItemDetailPage = ({
                     aria-label="Copy item"
                     onClick={() => openDialog(datasetItemDialogPayload)}
                   >
-                    <CopyIcon className="icon-sm" />
+                    <CopyIcon className="icon-sm text-icon-foreground" />
                   </ActionButton>
                 )}
               </NewDatasetItemFromExistingObjectDialogController>
@@ -257,7 +257,7 @@ export const DatasetItemDetailPage = ({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
-                  <MoreVertical className="icon-base" />
+                  <MoreVertical className="icon-base text-icon-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -265,7 +265,7 @@ export const DatasetItemDetailPage = ({
                   onClick={() => setEditDialogOpen(true)}
                   disabled={!hasAccess || isViewingOldVersion || !item.data}
                 >
-                  <Pencil className="icon-base mr-2" />
+                  <Pencil className="icon-base text-icon-foreground mr-2" />
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -278,7 +278,7 @@ export const DatasetItemDetailPage = ({
                   }
                   className="text-destructive"
                 >
-                  <Trash2 className="icon-base mr-2" />
+                  <Trash2 className="icon-base text-icon-foreground mr-2" />
                   {mutDelete.isPending ? "Deleting..." : "Delete"}
                 </DropdownMenuItem>
               </DropdownMenuContent>

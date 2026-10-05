@@ -177,7 +177,7 @@ function ObservationListRows({
                   className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
                   aria-label={`Actions for ${observation.name}`}
                 >
-                  <MoreHorizontal className="icon-base" />
+                  <MoreHorizontal className="icon-base text-icon-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={0}>
@@ -523,7 +523,7 @@ export function ModernSessionSidebar(
                 className="relative h-7 w-7 shrink-0 rounded-sm"
                 aria-label="Filter observations"
               >
-                <ListFilter className="icon-base" />
+                <ListFilter className="icon-base text-icon-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <ModernSessionViewDropdownMenu controls={filterControls} />
@@ -576,7 +576,7 @@ export function ModernSessionSidebar(
                         aria-label="Save filters as view"
                         onClick={filterControls.onOpenFilterDialog}
                       >
-                        <Save className="icon-sm" />
+                        <Save className="icon-sm text-icon-foreground" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Save as view</TooltipContent>
@@ -592,7 +592,7 @@ export function ModernSessionSidebar(
                       aria-label="Edit filters"
                       onClick={filterControls.onOpenFilterDialog}
                     >
-                      <Pencil className="icon-sm" />
+                      <Pencil className="icon-sm text-icon-foreground" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Edit filters</TooltipContent>
@@ -607,7 +607,7 @@ export function ModernSessionSidebar(
                       aria-label="Clear filters"
                       onClick={filterControls.onClearFilters}
                     >
-                      <X className="icon-sm" />
+                      <X className="icon-sm text-icon-foreground" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Clear filters</TooltipContent>

@@ -30,7 +30,7 @@ export function ReactionPicker({
           className="h-6 gap-1 px-1.5 text-xs opacity-50 transition-opacity hover:opacity-100"
           disabled={disabled}
         >
-          <SmilePlusIcon className="icon-base" />
+          <SmilePlusIcon className="icon-base text-icon-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent

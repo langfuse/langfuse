@@ -240,7 +240,13 @@ export function CategoryPresetChips({
                     "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground",
                 )}
               >
-                <Icon aria-hidden />
+                <Icon
+                  aria-hidden
+                  className={cn(
+                    "icon-base",
+                    !isCategoryActive && "text-icon-foreground",
+                  )}
+                />
                 {label}
               </Button>
             </PopoverTrigger>

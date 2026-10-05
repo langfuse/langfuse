@@ -145,7 +145,7 @@ export function EvaluatorMigrationDialog({
                     className="h-auto justify-start gap-3 p-4 text-left"
                     onClick={handleAssistantClick}
                   >
-                    <BotMessageSquare className="icon-base shrink-0" />
+                    <BotMessageSquare className="icon-base text-icon-foreground shrink-0" />
                     <span className="flex flex-col gap-1">
                       <span className="font-bold">Use Assistant</span>
                       <span className="text-muted-foreground text-sm font-normal">
@@ -160,7 +160,7 @@ export function EvaluatorMigrationDialog({
                   className="h-auto justify-start gap-3 p-4 text-left"
                   onClick={handleManualClick}
                 >
-                  <Wrench className="icon-base shrink-0" />
+                  <Wrench className="icon-base text-icon-foreground shrink-0" />
                   <span className="flex flex-col gap-1">
                     <span className="font-bold">
                       {isSingleEvaluator

@@ -277,7 +277,7 @@ const DatasetAggregateCellContent = ({
                 title="View trace/observation"
                 onClick={handleOpenPeek}
               >
-                <ListTree className="icon-base" />
+                <ListTree className="icon-base text-icon-foreground" />
               </Button>
             </div>
           )}

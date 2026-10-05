@@ -231,7 +231,7 @@ export default function ModelDetailPage() {
                           className="text-muted-foreground hover:text-accent-foreground inline-flex h-auto items-center gap-1.5 p-0 text-xs hover:bg-transparent"
                           size="sm"
                         >
-                          <InfoIcon className="icon-base" />
+                          <InfoIcon className="icon-base text-icon-foreground" />
                           <span>Conditions</span>
                         </Button>
                       </HoverCardTrigger>
@@ -307,7 +307,7 @@ export default function ModelDetailPage() {
                   className="flex items-center gap-1"
                 >
                   <span className="text-sm">View all</span>
-                  <SquareArrowOutUpRight className="icon-base" />
+                  <SquareArrowOutUpRight className="icon-base text-icon-foreground" />
                 </Link>
               </Button>
             </CardTitle>

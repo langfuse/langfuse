@@ -88,7 +88,7 @@ function CommentField({
                   onValueChange(null);
                 }}
               >
-                <Trash className="icon-sm" />
+                <Trash className="icon-sm text-icon-foreground" />
               </Button>
             </PopoverClose>
           )}
@@ -583,7 +583,7 @@ export function AnnotationScoreRow({
                     aria-label={`Score actions for ${score.name}${showTarget ? ` (${target.label})` : ""}`}
                     title="Score actions"
                   >
-                    <MoreHorizontal className="icon-sm" />
+                    <MoreHorizontal className="icon-sm text-icon-foreground" />
                   </Button>
                 </Trigger>
               )}

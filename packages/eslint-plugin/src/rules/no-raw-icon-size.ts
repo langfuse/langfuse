@@ -31,6 +31,11 @@ const SVG_SELECTOR_VARIANT = /\[&[^\]]*svg/;
 const ICON_CLASS_HOLDER_NAME =
   /^icon(?:class(?:name)?|cls|variants?|styles?)?$|iconclass(?:name)?$/i;
 const ICON_CLASS_PROP_NAME = /iconclass(?:name)?$/i;
+const ICON_IMPORT_SOURCE = /^(?:lucide-react|react-icons\/.+)$/;
+// Icon components passed in as props or variables: `Icon`, `TrailingIcon`.
+const LOCAL_ICON_COMPONENT_NAME = /^(?:[A-Z]\w*)?Icon$/;
+// Icon components read from an object: `item.icon`, `group.icon`.
+const MEMBER_ICON_PROPERTY_NAME = /^(?:icon|\w*Icon)$/;
 
 type Options = [{ exceptions?: string[]; requireSize?: boolean }];
 type MessageIds = "unexpected" | "strokeWidth" | "svgSelector" | "missingSize";
@@ -147,7 +152,7 @@ const rule = createRule<Options, MessageIds>({
     type: "problem",
     docs: {
       description:
-        "Disallow raw Tailwind size utilities, numeric `size` props and `strokeWidth` on lucide-react icons; sizes come from the icon scale (icon-sm/icon-base/icon-lg/icon-xl). Illustrations at 40px and above keep raw sizes.",
+        "Disallow raw Tailwind size utilities, numeric `size` props and `strokeWidth` on icons (lucide-react, react-icons, and icon components passed in as props); sizes come from the icon scale (icon-sm/icon-base/icon-lg/icon-xl). Illustrations at 40px and above keep raw sizes.",
     },
     schema: [
       {
@@ -187,7 +192,7 @@ const rule = createRule<Options, MessageIds>({
     }
 
     const sourceCode = context.sourceCode;
-    const lucideLocalNames = new Set<string>();
+    const iconImportNames = new Set<string>();
     // Reported at the declaration; a later use on an icon is the same finding.
     const reportedInits = new Set<TSESTree.Node>();
 
@@ -444,6 +449,25 @@ const rule = createRule<Options, MessageIds>({
       return combineSizeStates(states);
     }
 
+    function isIconComponent(name: TSESTree.JSXIdentifier): boolean {
+      if (iconImportNames.has(name.name)) return true;
+      if (!LOCAL_ICON_COMPONENT_NAME.test(name.name)) return false;
+      const variable = ASTUtils.findVariable(
+        sourceCode.getScope(name),
+        name.name,
+      );
+      const definition = variable?.defs[0];
+      if (!definition) return false;
+      if (definition.type === "Parameter") return true;
+      if (definition.type !== "Variable") return false;
+      // A component defined in the file sizes its own icon.
+      const init = definition.node.init;
+      return (
+        init?.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
+        init?.type !== AST_NODE_TYPES.FunctionExpression
+      );
+    }
+
     function hasForbiddenClassName(attribute: TSESTree.JSXAttribute): boolean {
       const expression = attributeExpression(attribute);
       return expression !== null && expressionHasForbiddenSize(expression);
@@ -458,11 +482,11 @@ const rule = createRule<Options, MessageIds>({
 
     return {
       ImportDeclaration(node) {
-        if (node.source.value !== "lucide-react") return;
+        if (!ICON_IMPORT_SOURCE.test(String(node.source.value))) return;
 
         for (const specifier of node.specifiers) {
           if (specifier.type !== AST_NODE_TYPES.ImportSpecifier) continue;
-          lucideLocalNames.add(specifier.local.name);
+          iconImportNames.add(specifier.local.name);
         }
       },
       Literal(node) {
@@ -508,8 +532,18 @@ const rule = createRule<Options, MessageIds>({
       },
       JSXOpeningElement(node) {
         const name = node.name;
-        if (name.type !== AST_NODE_TYPES.JSXIdentifier) return;
-        const isLucide = lucideLocalNames.has(name.name);
+        let isIcon: boolean;
+        if (name.type === AST_NODE_TYPES.JSXIdentifier) {
+          isIcon = isIconComponent(name);
+        } else if (name.type === AST_NODE_TYPES.JSXMemberExpression) {
+          // `SelectPrimitive.Icon` is a component namespace, not an icon.
+          isIcon =
+            name.object.type === AST_NODE_TYPES.JSXIdentifier &&
+            /^[a-z]/.test(name.object.name) &&
+            MEMBER_ICON_PROPERTY_NAME.test(name.property.name);
+        } else {
+          return;
+        }
         let reportedSize = false;
 
         for (const attribute of node.attributes) {
@@ -525,7 +559,7 @@ const rule = createRule<Options, MessageIds>({
             continue;
           }
 
-          if (!isLucide) continue;
+          if (!isIcon) continue;
 
           if (
             attributeName === "className" &&
@@ -548,7 +582,7 @@ const rule = createRule<Options, MessageIds>({
         }
 
         if (
-          isLucide &&
+          isIcon &&
           options.requireSize &&
           !reportedSize &&
           iconSizeState(node) === "unsized"

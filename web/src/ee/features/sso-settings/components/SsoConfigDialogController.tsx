@@ -480,9 +480,9 @@ function CopyableCallbackUrl({ value }: { value: string }) {
         }}
       >
         {isCopied ? (
-          <Check className="icon-sm" />
+          <Check className="icon-sm text-icon-foreground" />
         ) : (
-          <Copy className="icon-sm" />
+          <Copy className="icon-sm text-icon-foreground" />
         )}
       </Button>
     </div>

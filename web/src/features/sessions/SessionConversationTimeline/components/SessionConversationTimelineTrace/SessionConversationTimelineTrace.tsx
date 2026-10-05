@@ -154,7 +154,7 @@ function SessionTimelineMarkerIcon({
           role="img"
           aria-label={label}
         >
-          <Icon className="h-3 w-3" aria-hidden="true" />
+          <Icon className="icon-sm" aria-hidden="true" />
         </span>
       )}
     </DSTooltip>
@@ -429,7 +429,10 @@ function SessionTimelineToolRow({
                   className="text-muted-foreground hover:text-foreground shrink-0"
                   aria-label={`Actions for ${observation.name ?? observation.id}`}
                 >
-                  <MoreHorizontal className="icon-sm" aria-hidden="true" />
+                  <MoreHorizontal
+                    className="icon-sm text-icon-foreground"
+                    aria-hidden="true"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <SessionObservationActionsMenuContent
@@ -594,7 +597,10 @@ function SessionTimelineConversationObservation({
                     className="text-muted-foreground hover:text-foreground shrink-0"
                     aria-label={`Actions for ${observation.name ?? observation.id}`}
                   >
-                    <MoreHorizontal className="icon-sm" aria-hidden="true" />
+                    <MoreHorizontal
+                      className="icon-sm text-icon-foreground"
+                      aria-hidden="true"
+                    />
                   </Button>
                 </DropdownMenuTrigger>
                 <SessionObservationActionsMenuContent
@@ -1016,9 +1022,15 @@ function LoadedSessionConversationTimeline({
                     }}
                   >
                     {isCollapsed ? (
-                      <ChevronsUpDown className="icon-sm" aria-hidden="true" />
+                      <ChevronsUpDown
+                        className="icon-sm text-icon-foreground"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      <ChevronDown className="icon-sm" aria-hidden="true" />
+                      <ChevronDown
+                        className="icon-sm text-icon-foreground"
+                        aria-hidden="true"
+                      />
                     )}
                   </Button>
                   {isCollapsed ? (

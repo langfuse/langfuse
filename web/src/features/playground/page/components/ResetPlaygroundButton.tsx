@@ -20,7 +20,7 @@ export const ResetPlaygroundButton: React.FC = () => {
       onClick={handleClick}
       className="gap-1"
     >
-      <ListRestartIcon className="icon-base" />
+      <ListRestartIcon className="icon-base text-icon-foreground" />
       <span className="hidden lg:inline">Reset playground</span>
     </Button>
   );

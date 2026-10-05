@@ -123,7 +123,7 @@ export function DecisionModelStateEditor({
 
       <div>
         <Button type="button" variant="outline" size="sm" onClick={onAddField}>
-          <Plus className="icon-base mr-1" />
+          <Plus className="icon-base text-icon-foreground mr-1" />
           Add field
         </Button>
       </div>

@@ -109,7 +109,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
         id ? (
           <>
             <DropdownMenuItem onClick={() => setEditingAlert(id)}>
-              <Edit className="icon-base mr-2" />
+              <Edit className="icon-base text-icon-foreground mr-2" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem

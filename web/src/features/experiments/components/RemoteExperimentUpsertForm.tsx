@@ -468,7 +468,7 @@ export const RemoteExperimentUpsertForm = ({
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <X className="icon-base" />
+                              <X className="icon-base text-icon-foreground" />
                             </Button>
                           </div>
                         );
@@ -487,7 +487,7 @@ export const RemoteExperimentUpsertForm = ({
                         }
                         className="mt-2"
                       >
-                        <Plus className="icon-base mr-1" />
+                        <Plus className="icon-base text-icon-foreground mr-1" />
                         Add Custom Header
                       </Button>
                     </div>

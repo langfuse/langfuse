@@ -212,7 +212,7 @@ function PlaygroundWindowContent({
                         onClick={handleCopy}
                         className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
                       >
-                        <Plus className="icon-base" />
+                        <Plus className="icon-base text-icon-foreground" />
                         <span className="sr-only">New split window</span>
                       </Button>
                     </TooltipTrigger>
@@ -225,7 +225,7 @@ function PlaygroundWindowContent({
                     onClick={handleCopy}
                     className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
                   >
-                    <Plus className="icon-base" />
+                    <Plus className="icon-base text-icon-foreground" />
                     <span>New split window</span>
                   </Button>
                 </>

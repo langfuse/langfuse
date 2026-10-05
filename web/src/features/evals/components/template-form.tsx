@@ -912,7 +912,7 @@ const InnerEvalTemplateForm = (props: {
                         disabled={!props.isEditing}
                         onClick={() => append({ value: "" })}
                       >
-                        <PlusIcon className="icon-base mr-1.5" />
+                        <PlusIcon className="icon-base text-icon-foreground mr-1.5" />
                         Add category
                       </Button>
                       <FormField

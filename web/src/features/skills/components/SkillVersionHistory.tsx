@@ -87,9 +87,9 @@ export function SkillVersionHistory(
           onClick={() => setIsCollapsed((collapsed) => !collapsed)}
         >
           {isCollapsed ? (
-            <PanelLeftOpen className="icon-base" />
+            <PanelLeftOpen className="icon-base text-icon-foreground" />
           ) : (
-            <PanelLeftClose className="icon-base" />
+            <PanelLeftClose className="icon-base text-icon-foreground" />
           )}
         </Button>
       </div>

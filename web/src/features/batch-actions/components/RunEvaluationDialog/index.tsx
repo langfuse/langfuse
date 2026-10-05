@@ -416,7 +416,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 onClick={() => setStep("select-evaluator")}
                 disabled={runEvaluationMutation.isPending}
               >
-                <ChevronLeft className="icon-base mr-1" />
+                <ChevronLeft className="icon-base text-icon-foreground mr-1" />
                 Back
               </Button>
             ) : (

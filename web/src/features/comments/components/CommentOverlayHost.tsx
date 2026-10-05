@@ -187,7 +187,7 @@ function CommentDrawerContent({
         <DrawerTitle>Comments</DrawerTitle>
         <DrawerClose asChild>
           <Button variant="ghost" size="icon" title="Close comments">
-            <X className="icon-base" />
+            <X className="icon-base text-icon-foreground" />
           </Button>
         </DrawerClose>
       </DrawerHeader>

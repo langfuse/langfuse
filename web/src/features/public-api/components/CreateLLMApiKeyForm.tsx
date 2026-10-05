@@ -472,7 +472,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => remove(index)}
               >
-                <TrashIcon className="icon-base" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </span>
           ))}
@@ -482,7 +482,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => append({ value: "" })}
             className="w-full"
           >
-            <PlusIcon className="icon-base mr-1.5 -ml-0.5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add custom model name
           </Button>
         </FormItem>
@@ -524,7 +527,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => removeHeader(index)}
               >
-                <TrashIcon className="icon-base" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </div>
           ))}
@@ -535,7 +538,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => appendHeader({ key: "", value: "" })}
             className="w-full"
           >
-            <PlusIcon className="icon-base mr-1.5 -ml-0.5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add Header
           </Button>
         </FormItem>

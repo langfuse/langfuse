@@ -57,7 +57,7 @@ export function DatePicker({
               className,
             )}
           >
-            <CalendarIcon className="icon-base mr-2" />
+            <CalendarIcon className="icon-base text-icon-foreground mr-2" />
             {date ? (
               format(date, includeTimePicker ? "PPP pp" : "PPP")
             ) : (
@@ -84,7 +84,7 @@ export function DatePicker({
           onClick={() => onChange(undefined)}
           title="reset date"
         >
-          <X className="icon-base" />
+          <X className="icon-base text-icon-foreground" />
         </Button>
       )}
     </div>
@@ -236,7 +236,7 @@ export function DatePickerWithRange({
               !internalDateRange && "text-muted-foreground",
             )}
           >
-            <CalendarIcon className="icon-base mr-2" />
+            <CalendarIcon className="icon-base text-icon-foreground mr-2" />
             {internalDateRange?.from ? (
               internalDateRange.to ? (
                 <>

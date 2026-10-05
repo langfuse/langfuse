@@ -78,12 +78,7 @@ const BreadcrumbSeparator = ({
   className,
   ...props
 }: React.ComponentProps<"li">) => (
-  <li
-    role="presentation"
-    aria-hidden="true"
-    className={cn("[&>svg]:icon-sm", className)}
-    {...props}
-  >
+  <li role="presentation" aria-hidden="true" className={className} {...props}>
     {children ?? <ChevronRight className="icon-sm" />}
   </li>
 );

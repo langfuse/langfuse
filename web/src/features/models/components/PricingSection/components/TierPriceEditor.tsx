@@ -127,7 +127,7 @@ export function TierPriceEditor({
                 disabled={usageTypeRows.length <= 1}
                 onClick={() => onRemoveUsageType(index)}
               >
-                <MinusCircle className="icon-base" />
+                <MinusCircle className="icon-base text-icon-foreground" />
               </Button>
             )}
           </div>
@@ -140,7 +140,7 @@ export function TierPriceEditor({
           onClick={onAddUsageType}
           className="flex items-center gap-1"
         >
-          <PlusCircle className="icon-base" />
+          <PlusCircle className="icon-base text-icon-foreground" />
           <span>Add Price</span>
         </Button>
       )}

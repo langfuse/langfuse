@@ -213,7 +213,7 @@ function CloneFirstDialogContent({
                   );
                 }}
               >
-                <ExternalLinkIcon className="icon-base mr-1" />
+                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1" />
                 Open it instead
               </Button>
             </div>

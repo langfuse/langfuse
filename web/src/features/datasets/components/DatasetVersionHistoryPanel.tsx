@@ -184,7 +184,7 @@ export function DatasetVersionHistoryPanel({
               className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
               onClick={(e) => e.stopPropagation()}
             >
-              <MoreVertical className="icon-base" />
+              <MoreVertical className="icon-base text-icon-foreground" />
               <span className="sr-only">Version actions</span>
             </Button>
           </DropdownMenuTrigger>
@@ -195,7 +195,7 @@ export function DatasetVersionHistoryPanel({
                 copyVersionTimestamp(version);
               }}
             >
-              <Copy className="icon-base mr-2" />
+              <Copy className="icon-base text-icon-foreground mr-2" />
               Copy version timestamp (UTC)
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -204,7 +204,7 @@ export function DatasetVersionHistoryPanel({
                 openDocumentation();
               }}
             >
-              <ExternalLink className="icon-base mr-2" />
+              <ExternalLink className="icon-base text-icon-foreground mr-2" />
               How to use in experiments
             </DropdownMenuItem>
           </DropdownMenuContent>

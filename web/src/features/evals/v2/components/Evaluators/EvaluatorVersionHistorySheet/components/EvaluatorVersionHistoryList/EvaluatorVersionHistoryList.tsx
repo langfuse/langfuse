@@ -151,7 +151,7 @@ export function EvaluatorVersionHistoryList({
                     title={`Restore version ${version.version}`}
                     onClick={() => onRestoreVersion(version)}
                   >
-                    <RotateCcw className="icon-sm" />
+                    <RotateCcw className="icon-sm text-icon-foreground" />
                   </Button>
                 </span>
               )

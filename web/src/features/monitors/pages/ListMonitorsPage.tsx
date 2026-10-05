@@ -101,7 +101,12 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <FilterToggleButton className="md:hidden" />
               <AutomationButton projectId={projectId} />
               <ActionButton
-                icon={<PlusIcon className="icon-base" aria-hidden="true" />}
+                icon={
+                  <PlusIcon
+                    className="icon-base text-icon-foreground"
+                    aria-hidden="true"
+                  />
+                }
                 hasAccess={hasCUDAccess}
                 usageLimit={
                   typeof monitorEntitlementLimit === "number"

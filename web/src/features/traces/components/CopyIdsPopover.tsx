@@ -42,7 +42,7 @@ export const CopyIdsPopover = ({
         {copiedId === idItems[0].id ? (
           <CheckIcon className="icon-base text-muted-green" />
         ) : (
-          <CopyIcon className="icon-base" />
+          <CopyIcon className="icon-base text-icon-foreground" />
         )}
         <span className="ml-1 text-xs">ID</span>
       </Button>
@@ -57,7 +57,7 @@ export const CopyIdsPopover = ({
           title="Copy ID"
           className={cn("h-fit px-1", className)}
         >
-          <CopyIcon className="icon-base" />
+          <CopyIcon className="icon-base text-icon-foreground" />
           <span className="ml-1 text-xs">ID</span>
         </Button>
       </PopoverTrigger>
@@ -91,7 +91,7 @@ export const CopyIdsPopover = ({
                 {copiedId === item.id ? (
                   <CheckIcon className="icon-base text-muted-green" />
                 ) : (
-                  <CopyIcon className="icon-base" />
+                  <CopyIcon className="icon-base text-icon-foreground" />
                 )}
               </Button>
             </div>

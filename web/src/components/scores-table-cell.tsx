@@ -110,9 +110,9 @@ export const ScoresTableCell = ({
                   aria-label={copied ? "Copied" : "Copy to clipboard"}
                 >
                   {copied ? (
-                    <Check className="icon-sm" />
+                    <Check className="icon-sm text-icon-foreground" />
                   ) : (
-                    <Copy className="icon-sm" />
+                    <Copy className="icon-sm text-icon-foreground" />
                   )}
                 </Button>
               </div>

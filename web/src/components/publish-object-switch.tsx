@@ -262,13 +262,21 @@ const Base = (props: {
                 >
                   {props.isPublic ? (
                     <Globe
-                      className={props.label ? "icon-base" : "icon-base"}
+                      className={
+                        props.label
+                          ? "icon-base text-icon-foreground"
+                          : "icon-base"
+                      }
                       fill="#b3d9ff"
                       stroke="#4d94ff"
                     />
                   ) : (
                     <Share2
-                      className={props.label ? "icon-base" : "icon-base"}
+                      className={
+                        props.label
+                          ? "icon-base text-icon-foreground"
+                          : "icon-base"
+                      }
                     />
                   )}
                   {props.label ? (
@@ -300,12 +308,12 @@ const Base = (props: {
                   <Button variant="outline" size="sm" onClick={copyUrl}>
                     {isCopied ? (
                       <>
-                        <CheckIcon className="icon-base mr-1" />
+                        <CheckIcon className="icon-base text-icon-foreground mr-1" />
                         Copied
                       </>
                     ) : (
                       <>
-                        <Link className="icon-base mr-1" />
+                        <Link className="icon-base text-icon-foreground mr-1" />
                         Copy
                       </>
                     )}

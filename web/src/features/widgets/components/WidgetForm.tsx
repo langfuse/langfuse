@@ -908,7 +908,7 @@ export function WidgetForm({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm">
-                        <Sparkles className="icon-base mr-2" />
+                        <Sparkles className="icon-base text-icon-foreground mr-2" />
                         Presets
                       </Button>
                     </PopoverTrigger>
@@ -1525,7 +1525,7 @@ function PivotMetricsField({
             onClick={addSlot}
             className="w-full"
           >
-            <Plus className="icon-base mr-1" />
+            <Plus className="icon-base text-icon-foreground mr-1" />
             Add Metric {metrics.length + 1}
           </Button>
         )}

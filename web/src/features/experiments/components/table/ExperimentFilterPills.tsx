@@ -148,7 +148,7 @@ function FilterPillWithTarget({
           onRemove();
         }}
       >
-        <X className="icon-base" />
+        <X className="icon-base text-icon-foreground" />
       </Button>
     </Badge>
   );

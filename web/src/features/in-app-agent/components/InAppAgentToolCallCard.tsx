@@ -112,7 +112,7 @@ export function InAppAgentToolCallCard({
                   }}
                 >
                   {activeDecision === "conversation" ? (
-                    <Loader2 className="icon-base mr-1 animate-spin" />
+                    <Loader2 className="icon-base text-icon-foreground mr-1 animate-spin" />
                   ) : null}
                   Always approve*
                 </Button>
@@ -131,7 +131,7 @@ export function InAppAgentToolCallCard({
                 }}
               >
                 {activeDecision === "reject" ? (
-                  <Loader2 className="icon-base mr-1 animate-spin" />
+                  <Loader2 className="icon-base text-icon-foreground mr-1 animate-spin" />
                 ) : null}
                 Decline
               </Button>

@@ -51,9 +51,9 @@ function CopyableSnippet({
         onClick={() => handleCopy()}
       >
         {copied ? (
-          <Check className="icon-base" />
+          <Check className="icon-base text-icon-foreground" />
         ) : (
-          <Copy className="icon-base" />
+          <Copy className="icon-base text-icon-foreground" />
         )}
         {copied ? "Copied" : "Copy prompt"}
       </Button>

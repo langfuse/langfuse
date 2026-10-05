@@ -474,7 +474,7 @@ export const PromptDetail = ({
                   variant="outline"
                   className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
                 >
-                  <History className="icon-base shrink-0" />
+                  <History className="icon-base text-icon-foreground shrink-0" />
                   <span className="shrink-0">Version #{prompt.version}</span>
                   <span
                     className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
@@ -553,7 +553,7 @@ export const PromptDetail = ({
                             : "cursor-pointer",
                         )}
                       >
-                        <Terminal className="icon-base" />
+                        <Terminal className="icon-base text-icon-foreground" />
                         <span className="hidden md:inline">Playground</span>
                         <DropdownIndicator size="sm" nudge />
                       </Button>
@@ -571,7 +571,7 @@ export const PromptDetail = ({
                         disabled={!hasExperimentWriteAccess}
                         onClick={() => capture("dataset_run:new_form_open")}
                       >
-                        <FlaskConical className="icon-base" />
+                        <FlaskConical className="icon-base text-icon-foreground" />
                         <span className="hidden md:ml-2 md:inline">
                           Run experiment
                         </span>
@@ -622,7 +622,7 @@ export const PromptDetail = ({
                         <MessageSquareOff className="icon-base text-muted-foreground" />
                       ) : (
                         <>
-                          <MessageSquare className="icon-base" />
+                          <MessageSquare className="icon-base text-icon-foreground" />
                           <span>Add comment</span>
                           {getNumberFromMap(commentCounts, prompt.id) ? (
                             <ActionButtonCountBadge
@@ -639,7 +639,7 @@ export const PromptDetail = ({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">
-                      <MoreVertical className="icon-base" />
+                      <MoreVertical className="icon-base text-icon-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
