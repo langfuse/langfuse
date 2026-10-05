@@ -190,6 +190,15 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     for (key, value) in &facts.inference.request_metadata {
         metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
     }
+    // Inserted after caller request metadata so the gateway's own ID always wins.
+    for (source, target) in [
+        ("request_id", "request.id"),
+        ("client_request_id", "client.request.id"),
+    ] {
+        if let Some(value) = facts.metadata.get(source) {
+            metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
+        }
+    }
     if let Some(omission) = facts.inference.input_omission {
         metadata.insert(
             "langfuse.gateway.request.input_omitted".into(),

@@ -49,6 +49,12 @@ pnpm --filter @langfuse/native run lint         # cargo fmt --check && cargo cli
 pnpm --filter @langfuse/native run test         # Rust tests; uses ClickHouse when available
 ```
 
+These commands delegate to `rust:*` scripts in the `langfuse-rust` pnpm
+concurrency group, shared with the gateway across worktrees using the same
+pnpm `stateDir`. This limits concurrent Rust tasks, including tasks launched
+by Turbo; each compiler still controls its own threads. Run `pnpm tasks status`
+to inspect running and waiting tasks. Direct Cargo commands bypass the group.
+
 `pnpm run dev`, `pnpm run build`, `pnpm run test`, and the worker's
 `typecheck`/`lint` tasks build this package first through turbo, so the addon
 is always present when the worker starts or its tests run. A direct

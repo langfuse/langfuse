@@ -150,6 +150,11 @@ const submit = () =>
   fireEvent.click(screen.getByRole("button", { name: /^(Save|Submit)$/ }));
 
 describe("UpsertModelFormDialogController price editor", () => {
+  afterEach(async () => {
+    cleanup();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
   beforeAll(() => {
     vi.stubGlobal(
       "ResizeObserver",

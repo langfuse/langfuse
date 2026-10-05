@@ -973,12 +973,16 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      // Fetch the current score from Clickhouse
-      const clickhouseScore = await getScoreById({
+      // Corrections can be ingested via the API and are still deletable in the UI
+      const fetchedScore = await getScoreById({
         projectId: input.projectId,
         scoreId: input.id,
-        source: ScoreSourceEnum.ANNOTATION,
       });
+      const clickhouseScore =
+        fetchedScore?.source === ScoreSourceEnum.ANNOTATION ||
+        fetchedScore?.dataType === ScoreDataTypeEnum.CORRECTION
+          ? fetchedScore
+          : undefined;
       if (!clickhouseScore) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,

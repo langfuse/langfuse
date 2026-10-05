@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -21,7 +21,7 @@ export const StripeKeepPlanButton = ({
   onProcessing,
   processing,
 }: {
-  orgId: string | undefined;
+  orgId: string;
   stripeProductId: string;
   onProcessing: (id: string | null) => void;
   processing: boolean;
@@ -41,8 +41,6 @@ export const StripeKeepPlanButton = ({
       toast.error("Failed to keep current plan");
     },
   });
-
-  if (!orgId) return null;
 
   return (
     <Dialog>

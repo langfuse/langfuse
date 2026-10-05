@@ -1,5 +1,4 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-null-render */
 // Langfuse Cloud only
 
 import { useHasOrganizationAccess } from "@/src/features/rbac";
@@ -60,16 +59,6 @@ export const BillingSettings = () => {
     organization?.cloudConfig?.stripe?.activeSubscriptionId &&
     billingProvider !== "clickhouse",
   );
-
-  // Don't render billing settings if cloud billing is not available
-  if (!isCloudBillingAvailable) {
-    return null;
-  }
-
-  // Handle conditional rendering without early returns
-  if (!isCloudBillingEntitled) {
-    return null;
-  }
 
   if (!hasAccess) {
     return (

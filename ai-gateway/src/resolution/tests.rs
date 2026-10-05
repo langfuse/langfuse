@@ -23,6 +23,7 @@ const NOW: u64 = 1_800_000_000;
 const NOW_TIME: Duration = Duration::from_secs(NOW);
 const SERVICE_KEY: &str = "gateway-web-test-secret-not-for-production";
 const GATEWAY_KEY: &str = "gw_test_alice";
+const REQUEST_ID: &str = "0b0c3b5e-6d7a-4f1e-9c2d-8a1b2c3d4e5f";
 
 struct FakeWeb {
     url: String,
@@ -118,6 +119,7 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
         assert_eq!(request.uri(), "/api/internal/ai-gateway/v1/resolve");
         assert_eq!(request.headers()[header::AUTHORIZATION], "Bearer gw_test_alice");
         assert_eq!(request.headers()[header::CONTENT_TYPE], "application/json");
+        assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
         assert_eq!(request.headers()["langfuse-gateway-authorization"],
             "HMAC timestamp=1800000000,signature=e104b6baa50d9b766b036e27876683aa1f4bff7f31bb6af66dce6b636a53b2bd");
         assert_eq!(to_bytes(request.into_body(), 1024).await.unwrap(),
@@ -127,7 +129,12 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
 
     let context = web
         .control_plane()
-        .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            NOW_TIME,
+            REQUEST_ID,
+        )
         .await
         .unwrap();
     assert_eq!(context.connection().id(), "connection-1");
@@ -173,7 +180,12 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
         .await;
         let error = web
             .control_plane()
-            .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                NOW_TIME,
+                REQUEST_ID,
+            )
             .await
             .unwrap_err();
         assert!(match status {
@@ -205,7 +217,12 @@ async fn never_follows_redirects_with_credentials() {
     .await;
     assert!(
         web.control_plane()
-            .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                NOW_TIME,
+                REQUEST_ID
+            )
             .await
             .is_err()
     );
@@ -231,7 +248,12 @@ async fn rejects_oversized_declared_and_chunked_responses() {
         .await;
         let result = web
             .control_plane_with_limits(Duration::from_secs(2), 128)
-            .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                NOW_TIME,
+                REQUEST_ID,
+            )
             .await;
         assert!(matches!(result, Err(ResolutionError::ResponseTooLarge)));
         assert_eq!(web.calls(), 1);
@@ -258,7 +280,12 @@ async fn deadline_covers_response_headers_and_body() {
         let result = tokio::time::timeout(
             Duration::from_millis(500),
             web.control_plane_with_limits(Duration::from_millis(30), 256 * 1024)
-                .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME),
+                .resolve_at(
+                    GATEWAY_KEY,
+                    ApiFormat::OpenAiResponses,
+                    NOW_TIME,
+                    REQUEST_ID,
+                ),
         )
         .await
         .expect("resolver must enforce its deadline");
@@ -273,7 +300,7 @@ async fn malformed_credentials_never_reach_web() {
     for key in ["", "has space", "has\r\nheader", "has\ttab"] {
         let result = web
             .control_plane()
-            .resolve_at(key, ApiFormat::OpenAiResponses, NOW_TIME)
+            .resolve_at(key, ApiFormat::OpenAiResponses, NOW_TIME, REQUEST_ID)
             .await;
         assert!(matches!(result, Err(ResolutionError::InvalidCredential)));
     }
@@ -295,6 +322,7 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             NOW_TIME + Duration::from_millis(900),
+            REQUEST_ID,
         )
         .await;
     assert!(matches!(result, Err(ResolutionError::InvalidResponse)));
@@ -316,8 +344,18 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
     .await;
     let control_plane = web.control_plane();
     let (alice, bob) = tokio::join!(
-        control_plane.resolve_at("gw_test_alice", ApiFormat::OpenAiResponses, NOW_TIME),
-        control_plane.resolve_at("gw_test_bob", ApiFormat::OpenAiResponses, NOW_TIME),
+        control_plane.resolve_at(
+            "gw_test_alice",
+            ApiFormat::OpenAiResponses,
+            NOW_TIME,
+            REQUEST_ID
+        ),
+        control_plane.resolve_at(
+            "gw_test_bob",
+            ApiFormat::OpenAiResponses,
+            NOW_TIME,
+            REQUEST_ID
+        ),
     );
     let alice = alice.unwrap();
     let bob = bob.unwrap();
@@ -360,7 +398,12 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
 
     let context = web
         .control_plane()
-        .resolve_at(GATEWAY_KEY, ApiFormat::AnthropicMessages, NOW_TIME)
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::AnthropicMessages,
+            NOW_TIME,
+            REQUEST_ID,
+        )
         .await
         .unwrap();
     assert_eq!(context.connection().id(), "connection-anthropic");
@@ -540,7 +583,12 @@ async fn rejects_ingestion_tokens_that_authorize_a_different_tenant() {
     .await;
     assert!(
         web.control_plane()
-            .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                NOW_TIME,
+                REQUEST_ID
+            )
             .await
             .is_ok()
     );
@@ -558,7 +606,7 @@ async fn assert_invalid_context_for(body: Value, api_format: ApiFormat) {
     .await;
     let result = web
         .control_plane()
-        .resolve_at(GATEWAY_KEY, api_format, NOW_TIME)
+        .resolve_at(GATEWAY_KEY, api_format, NOW_TIME, REQUEST_ID)
         .await;
     assert!(matches!(result, Err(ResolutionError::InvalidResponse)));
     assert_eq!(web.calls(), 1);
@@ -572,7 +620,12 @@ async fn rejects_malformed_json_without_exposing_response_contents() {
     .await;
     let error = web
         .control_plane()
-        .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            NOW_TIME,
+            REQUEST_ID,
+        )
         .await
         .unwrap_err();
     assert!(matches!(error, ResolutionError::InvalidResponse));

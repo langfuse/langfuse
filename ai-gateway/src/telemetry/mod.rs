@@ -81,6 +81,13 @@ impl DeliveryContext {
             generation: GenerationContext::from_request(headers, client_metadata),
         }
     }
+
+    pub fn generation_ids(&self) -> crate::correlation::GenerationIds {
+        crate::correlation::GenerationIds {
+            trace_id: self.generation.trace_id.clone(),
+            observation_id: self.generation.observation_id.clone(),
+        }
+    }
 }
 
 #[derive(Default)]

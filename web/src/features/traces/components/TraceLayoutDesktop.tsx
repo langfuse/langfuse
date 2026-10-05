@@ -1,3 +1,4 @@
+import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   Group,
@@ -185,9 +186,16 @@ type TraceLayoutDesktopProps = {
 };
 
 export function TraceLayoutDesktop(props: TraceLayoutDesktopProps) {
+  const router = useRouter();
   const { reviewPanel, ...layoutProps } = props;
   return (
-    <TraceReviewLayout open={props.reviewOpen} review={reviewPanel}>
+    <TraceReviewLayout
+      open={props.reviewOpen}
+      review={reviewPanel}
+      collapseNavigationOnEntry={
+        router.query.annotation === "open" ? true : undefined
+      }
+    >
       {({ collapsed, toggle }) => (
         <TraceNavigationDetailLayout
           {...layoutProps}
