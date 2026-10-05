@@ -174,6 +174,8 @@ const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
 ): CSSProperties => {
   const isPinned = column.getIsPinned();
+  const coversRightScrollbarGutter =
+    isPinned === "right" && column.getIsLastColumn("right");
 
   return {
     left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
@@ -182,6 +184,16 @@ const getCommonPinningStyles = <TData,>(
     width: column.getSize(),
     zIndex: isPinned ? 10 : 0,
     backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+    // Repeated outer shadows paint through the stable scrollbar gutter even
+    // when a table cell clips its contents. Only the outermost right-pinned
+    // column owns them, so adjacent pinned columns retain their normal offsets.
+    boxShadow: coversRightScrollbarGutter
+      ? [
+          "16px 0 0 hsl(var(--background))",
+          "32px 0 0 hsl(var(--background))",
+          "48px 0 0 hsl(var(--background))",
+        ].join(", ")
+      : undefined,
   };
 };
 
@@ -190,13 +202,8 @@ const getPinningClasses = <TData,>(column: Column<TData>): string => {
   const isPinned = column.getIsPinned();
   const isLastLeftPinnedColumn =
     isPinned === "left" && column.getIsLastColumn("left");
-  const isFirstRightPinnedColumn =
-    isPinned === "right" && column.getIsFirstColumn("right");
 
-  return cn(
-    isLastLeftPinnedColumn && "border-r border-border",
-    isFirstRightPinnedColumn && "border-l border-border",
-  );
+  return cn(isLastLeftPinnedColumn && "border-r border-border");
 };
 
 const getCellPaddingClassName = (padding: DataTableCellPadding) => {
@@ -313,7 +320,9 @@ export function DataTable<TData extends object, TValue>({
       left: columns
         .filter((col) => col.isPinnedLeft)
         .map((col) => col.id || col.accessorKey),
-      right: [],
+      right: columns
+        .filter((col) => col.isPinnedRight)
+        .map((col) => col.id || col.accessorKey),
     }),
     [columns],
   );
