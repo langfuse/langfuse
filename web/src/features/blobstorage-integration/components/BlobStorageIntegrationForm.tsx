@@ -22,6 +22,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
+  BlobStorageIntegrationType,
   type ExportSourceContext,
 } from "@langfuse/shared";
 import {
@@ -90,6 +91,14 @@ export const BlobStorageIntegrationForm = ({
   const control = blobStorageForm.control;
   const fileType = useWatch({ control, name: "fileType" });
   const storageType = useWatch({ control, name: "type" });
+  const handleProviderChange = (provider: BlobStorageIntegrationType) => {
+    if (provider === BlobStorageIntegrationType.AZURE_BLOB_STORAGE) {
+      blobStorageForm.setValue("mediaStorageEnabled", false, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  };
 
   return (
     <Form {...blobStorageForm}>
@@ -102,7 +111,10 @@ export const BlobStorageIntegrationForm = ({
             <CardTitle className="text-base">Credentials</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <StorageProviderFields control={control} />
+            <StorageProviderFields
+              control={control}
+              onProviderChange={handleProviderChange}
+            />
           </CardContent>
         </Card>
         <FormField

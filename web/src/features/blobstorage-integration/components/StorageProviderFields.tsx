@@ -20,8 +20,10 @@ import { type BlobStorageFormControl } from "@/src/features/blobstorage-integrat
 // depend on it: bucket/container, endpoint, region, path style, and credentials.
 export const StorageProviderFields = ({
   control,
+  onProviderChange,
 }: {
   control: BlobStorageFormControl;
+  onProviderChange: (provider: BlobStorageIntegrationType) => void;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   // Check if this is a self-hosted instance (no cloud region set)
@@ -40,7 +42,10 @@ export const StorageProviderFields = ({
             <FormControl>
               <SelectInput
                 value={field.value}
-                onValueChange={field.onChange}
+                onValueChange={(provider) => {
+                  field.onChange(provider);
+                  onProviderChange(provider);
+                }}
                 placeholder="Select provider"
                 options={[
                   { value: BlobStorageIntegrationType.S3, label: "Amazon S3" },

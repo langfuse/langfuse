@@ -255,6 +255,45 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     ).toBeDisabled();
   });
 
+  it("turns off external media when the provider changes to Azure", async () => {
+    const onSubmit = vi.fn();
+    const initialValues = buildBlobStorageFormValues(
+      {
+        ...savedConfig,
+        mediaStorageEnabled: true,
+      },
+      exportSourceCtx,
+    );
+    render(ui("provider-change", initialValues, onSubmit, true));
+
+    expect(
+      screen.getByRole("switch", { name: "External media storage" }),
+    ).toBeChecked();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Storage Provider" }));
+    fireEvent.click(screen.getByRole("option", { name: "Azure Blob Storage" }));
+
+    expect(
+      screen.getByRole("switch", { name: "External media storage" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("switch", { name: "Scheduled exports" }),
+    ).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+        enabled: true,
+        mediaStorageEnabled: false,
+        mediaPrefix: "media/",
+      }),
+      expect.anything(),
+    );
+  });
+
   it("shows section actions only while enabled and keeps delete separate from save", () => {
     const initialValues = buildBlobStorageFormValues(
       {
