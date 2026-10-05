@@ -1,8 +1,8 @@
 import { type Control } from "react-hook-form";
 import { type z } from "zod";
-import {
+import type {
   blobStorageIntegrationFormSchema,
-  type BlobStorageIntegrationFormSchema,
+  BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
 
 // Pre-parse (input) shape of the form; zod defaults make some fields optional.
