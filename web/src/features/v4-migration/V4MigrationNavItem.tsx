@@ -9,7 +9,9 @@ import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOp
 export function useV4MigrationNavItemProject() {
   const { project } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
-  const { actionNeeded } = useProjectV4MigrationActions(project?.id);
+  const { actionNeeded } = useProjectV4MigrationActions(
+    v4UpgradeUiEnabled ? project?.id : undefined,
+  );
   if (!v4UpgradeUiEnabled || !project || !actionNeeded) {
     return null;
   }
