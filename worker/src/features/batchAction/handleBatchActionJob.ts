@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
@@ -98,13 +99,17 @@ async function processActionChunk(
   chunkIds: string[],
   projectId: string,
   targetId?: string,
+  userId?: string,
 ): Promise<void> {
   try {
     switch (actionId) {
       case "trace-delete":
         // Legacy queue path. Durable trace-delete BatchActions are processed
         // by TraceDeleteBatchActionRunner.
-        await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
+        await traceDeletionProcessor(projectId, chunkIds, {
+          delayMs: 0,
+          actor: userId ? { type: "USER", userId } : undefined,
+        });
         break;
 
       case "trace-add-to-annotation-queue":
@@ -128,10 +133,18 @@ async function processActionChunk(
         break;
 
       case "score-delete":
+        logger.info(
+          `Batch deleting ${chunkIds.length} scores in project ${projectId} requested by user ${userId ?? "unknown"}`,
+          { projectId, scoreIds: chunkIds, actorType: "USER", userId },
+        );
         await processClickhouseScoreDelete(projectId, chunkIds);
         break;
 
       case "dataset-delete":
+        logger.info(
+          `Batch deleting ${chunkIds.length} datasets in project ${projectId} requested by user ${userId ?? "unknown"}`,
+          { projectId, datasetIds: chunkIds, actorType: "USER", userId },
+        );
         await processDeleteDatasets(projectId, chunkIds);
         break;
 
@@ -212,8 +225,20 @@ export const handleBatchActionJob = async (
     actionId === "score-delete" ||
     actionId === "dataset-delete"
   ) {
-    const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
-      batchActionEvent;
+    const {
+      projectId,
+      tableName,
+      query,
+      cutoffCreatedAt,
+      targetId,
+      type,
+      userId,
+    } = batchActionEvent;
+
+    logger.info(
+      `Processing batch action ${actionId} in project ${projectId} requested by user ${userId ?? "unknown"}`,
+      { projectId, actionId, actorType: "USER", userId },
+    );
 
     if (type === BatchActionType.Create && !targetId) {
       throw new Error(`Target ID is required for create action`);
@@ -279,6 +304,7 @@ export const handleBatchActionJob = async (
         batch.map((r) => r.id),
         projectId,
         targetId,
+        userId,
       );
     }
   } else if (actionId === "eval-create") {
@@ -476,6 +502,9 @@ export const handleBatchActionJob = async (
       evaluatorIds,
       batchActionId,
       evalVersion,
+      evaluatorMappings,
+      sampling = 1,
+      rowLimit = env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
     } = batchActionEvent;
 
     if (!batchActionId) {
@@ -514,6 +543,12 @@ export const handleBatchActionJob = async (
         });
 
         evaluatorLabels = stableEvaluators.map(({ name }) => name);
+        const mappingByEvaluatorId = new Map(
+          (evaluatorMappings ?? []).map((mapping) => [
+            mapping.evaluatorId,
+            mapping.variableMapping,
+          ]),
+        );
         // A batch run addresses the evaluator directly (`ruleId` stays null),
         // but uses a deterministic associated rule as its legacy execution
         // anchor so existing readers can still find it.
@@ -524,14 +559,14 @@ export const handleBatchActionJob = async (
           ruleId: null,
           projectId,
           filter: [] as [],
-          sampling: new Decimal(1),
+          sampling: new Decimal(sampling),
           status: JobConfigState.ACTIVE,
           targetObject: EvalTargetObject.EVENT,
           assignments: [
             {
               id: evaluator.id,
               evaluatorId: evaluator.id,
-              variableMapping: null,
+              variableMapping: mappingByEvaluatorId.get(evaluator.id) ?? null,
               evaluator: {
                 id: evaluator.id,
                 projectId: evaluator.projectId,
@@ -579,7 +614,7 @@ export const handleBatchActionJob = async (
               | typeof EvalTargetObject.EXPERIMENT,
             filter: [],
           }),
-          sampling: new Decimal(1),
+          sampling: new Decimal(sampling),
         }));
       }
     } catch (error) {
@@ -612,7 +647,10 @@ export const handleBatchActionJob = async (
       filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
-      rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      rowLimit: Math.min(
+        rowLimit,
+        env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      ),
     });
 
     await processBatchedObservationEval({

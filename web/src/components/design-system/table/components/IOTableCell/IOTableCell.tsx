@@ -10,13 +10,21 @@ import {
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
 import { cn } from "@/src/utils/tailwind";
-import { Fragment, memo, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  memo,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 
 export type IOTableCellVariant = "default" | "input" | "output";
 type IOTableCellSize = "default" | "compact";
@@ -123,6 +131,122 @@ export const IOTableCell = memo(function IOTableCell({
   const [isPointerOverMediaTag, setIsPointerOverMediaTag] = useState(false);
   const isPointerOverMediaTagRef = useRef(false);
 
+  const { data } = state;
+  const stringifiedJson =
+    data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
+  const shouldTruncate =
+    stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
+  const singleLineText = stringifiedJson
+    ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+    : "";
+
+  // The multi-line branches scroll inside the cell, so their scrollport is
+  // marked `scrollbar-visible`: a region that scrolls without ever painting a
+  // scrollbar is indistinguishable from one whose content was cut off, and
+  // nobody reaches for the wheel on content they read as truncated.
+  const content = useMemo(() => {
+    if (!stringifiedJson) {
+      // The payload arrived and is empty. Handing that to the JSON viewer renders
+      // the word `null` (or a bare pair of quotes), which a reader takes for a
+      // value, and a blank cell says nothing at all — so it gets the shared
+      // empty treatment. A payload that is only PARTLY empty is untouched: a
+      // `null` nested in a document is content and still renders as `null`.
+      return (
+        <div
+          className={cn(
+            "h-full w-full self-stretch rounded-sm",
+            paddingClassName,
+            variantClassName,
+          )}
+        >
+          <EmptyValue />
+        </div>
+      );
+    }
+    if (singleLine) {
+      return (
+        <div
+          className={cn(
+            "ph-no-capture h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
+            paddingClassName,
+            variantClassName,
+          )}
+          title={
+            enableExpandOnHover || isPointerOverMediaTag
+              ? undefined
+              : singleLineText
+          }
+          onPointerOver={
+            enableExpandOnHover
+              ? undefined
+              : (event) =>
+                  setIsPointerOverMediaTag(
+                    Boolean(
+                      (event.target as Element).closest("[data-media-tag]"),
+                    ),
+                  )
+          }
+        >
+          {renderStringWithMediaReferences(
+            singleLineText,
+            renderMediaReference,
+          )}
+        </div>
+      );
+    }
+    if (shouldTruncate) {
+      return (
+        <div className="grid h-full grid-cols-1">
+          <JSONView
+            json={decodeUnicodeEscapesOnly(
+              stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
+                `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
+              true,
+            )}
+            className={cn(
+              "h-full w-full self-stretch overflow-hidden rounded-sm",
+              variantClassName,
+            )}
+            codeClassName={cn(
+              "scrollbar-visible min-h-0 h-full overflow-y-auto",
+              paddingClassName,
+            )}
+            collapseStringsAfterLength={null}
+            borderless
+          />
+          <div className="text-muted-foreground text-xs">
+            Content was truncated.
+          </div>
+        </div>
+      );
+    }
+    return (
+      <JSONView
+        json={decodeUnicodeEscapesOnly(stringifiedJson, true)}
+        className={cn(
+          "h-full w-full self-stretch overflow-hidden rounded-sm",
+          variantClassName,
+        )}
+        codeClassName={cn(
+          "scrollbar-visible min-h-0 h-full overflow-y-auto",
+          paddingClassName,
+        )}
+        collapseStringsAfterLength={null}
+        borderless
+      />
+    );
+  }, [
+    stringifiedJson,
+    singleLine,
+    shouldTruncate,
+    paddingClassName,
+    variantClassName,
+    enableExpandOnHover,
+    isPointerOverMediaTag,
+    singleLineText,
+    renderMediaReference,
+  ]);
+
   if (state.isLoading) {
     return (
       <JsonSkeleton
@@ -137,90 +261,10 @@ export const IOTableCell = memo(function IOTableCell({
     );
   }
 
-  const { data } = state;
-  const stringifiedJson =
-    data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
-  const shouldTruncate =
-    stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
-  const singleLineText = stringifiedJson
-    ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-    : stringifiedJson;
-
-  let content: ReactNode;
-  if (singleLine) {
-    content = (
-      <div
-        className={cn(
-          "ph-no-capture h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
-          paddingClassName,
-          variantClassName,
-        )}
-        title={
-          enableExpandOnHover || isPointerOverMediaTag
-            ? undefined
-            : singleLineText
-        }
-        onPointerOver={
-          enableExpandOnHover
-            ? undefined
-            : (event) =>
-                setIsPointerOverMediaTag(
-                  Boolean(
-                    (event.target as Element).closest("[data-media-tag]"),
-                  ),
-                )
-        }
-      >
-        {singleLineText
-          ? renderStringWithMediaReferences(
-              singleLineText,
-              renderMediaReference,
-            )
-          : null}
-      </div>
-    );
-  } else if (shouldTruncate) {
-    content = (
-      <div className="grid h-full grid-cols-1">
-        <JSONView
-          json={decodeUnicodeEscapesOnly(
-            stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
-              `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
-            true,
-          )}
-          className={cn(
-            "h-full w-full self-stretch overflow-hidden rounded-sm",
-            variantClassName,
-          )}
-          codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
-          collapseStringsAfterLength={null}
-          borderless
-        />
-        <div className="text-muted-foreground text-xs">
-          Content was truncated.
-        </div>
-      </div>
-    );
-  } else {
-    content = (
-      <JSONView
-        json={
-          stringifiedJson
-            ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-            : data
-        }
-        className={cn(
-          "h-full w-full self-stretch overflow-hidden rounded-sm",
-          variantClassName,
-        )}
-        codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
-        collapseStringsAfterLength={null}
-        borderless
-      />
-    );
-  }
-
-  if (!enableExpandOnHover) {
+  // The expand card renders `data` itself, so an empty payload would come back
+  // as `null` on hover even though the cell body shows the empty treatment.
+  // Nothing to expand, no card.
+  if (!enableExpandOnHover || !stringifiedJson) {
     return content;
   }
 

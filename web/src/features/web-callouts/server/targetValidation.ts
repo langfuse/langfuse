@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
 import { type WebCalloutInvokeInput } from "@/src/features/web-callouts/types";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   getObservationById,
@@ -52,11 +53,18 @@ export const assertTargetBelongsToProject = async ({
       });
     }
 
+    // The observation belongs to this trace, so the trace timestamp is a tight
+    // lower bound for its start_time and lets the lookup prune events_full. On a
+    // genuine miss the lookup retries unbounded internally: trace.timestamp is
+    // an independent SDK-supplied field that can post-date a child observation's
+    // start_time, and legitimate backfills mean an observation can be older than
+    // any project-derived floor, so no safe fallback bound exists.
     const observation = await getObservationForProject({
       observationId: input.observationId,
       traceId: input.traceId,
       projectId: input.projectId,
       useEventsTable,
+      startTimeLowerBound: trace?.timestamp,
     });
 
     if (!observation) {
@@ -115,38 +123,130 @@ const getTraceForProject = async ({
   return undefined;
 };
 
+// Validation only needs the observation's existence, so the lookup keeps just
+// its identity — this stays assignable from both the observations- and
+// events-table getters, whose full return shapes differ.
+type WebCalloutObservation = { id: string };
+
+// A single-source lookup either resolves to an observation, a genuine not-found
+// (undefined observation, transientError false), or a transient failure
+// (transientError true) that the helpers swallow so the caller can decide
+// whether to retry.
+type ObservationLookupResult = {
+  observation?: WebCalloutObservation;
+  transientError: boolean;
+};
+
+// The aggregate result of running the source chain at one bound. cleanMiss is
+// true when at least one source returned a genuine not-found under the bound —
+// the signal that an unbounded retry is worthwhile.
+type ObservationChainResult = {
+  observation?: WebCalloutObservation;
+  cleanMiss: boolean;
+};
+
 const getObservationForProject = async ({
   observationId,
   traceId,
   projectId,
   useEventsTable,
+  startTimeLowerBound,
 }: {
   observationId: string;
   traceId: string;
   projectId: string;
   useEventsTable: boolean;
+  startTimeLowerBound?: Date;
 }) => {
-  if (useEventsTable) {
-    const observation = await tryGetObservationFromEvents({
-      observationId,
-      traceId,
-      projectId,
-    });
-    if (observation) return observation;
-  }
-
-  const observation = await tryGetObservation({
+  const bounded = await runObservationLookup({
     observationId,
     traceId,
     projectId,
+    useEventsTable,
+    startTimeLowerBound,
   });
-  if (observation) return observation;
+  if (bounded.observation) return bounded.observation;
 
-  if (shouldTryEventsTableFallback(useEventsTable)) {
-    return tryGetObservationFromEvents({ observationId, traceId, projectId });
+  // Retry unbounded only when at least one bounded source produced a genuine
+  // clean miss: the observation could legitimately be older than the bound
+  // (backfills, or trace.timestamp post-dating a child observation). If every
+  // source instead transient-errored (timeout, ClickHouse unavailable) the
+  // bounded pass told us nothing, so skip the second expensive unbounded scan
+  // and fail fast — matching the pre-bounding behavior.
+  if (startTimeLowerBound && bounded.cleanMiss) {
+    const unbounded = await runObservationLookup({
+      observationId,
+      traceId,
+      projectId,
+      useEventsTable,
+      startTimeLowerBound: undefined,
+    });
+    if (unbounded.observation) return unbounded.observation;
   }
 
   return undefined;
+};
+
+const runObservationLookup = async ({
+  observationId,
+  traceId,
+  projectId,
+  useEventsTable,
+  startTimeLowerBound,
+}: {
+  observationId: string;
+  traceId: string;
+  projectId: string;
+  useEventsTable: boolean;
+  startTimeLowerBound?: Date;
+}): Promise<ObservationChainResult> => {
+  // Remember a genuine clean miss from any source, even if a later source in the
+  // chain transient-errors: the earlier clean miss still means the observation
+  // could exist outside the bound, so the unbounded retry must stay eligible.
+  let cleanMiss = false;
+
+  const consider = (result: ObservationLookupResult) => {
+    if (!result.observation && !result.transientError) {
+      cleanMiss = true;
+    }
+    return result.observation;
+  };
+
+  if (useEventsTable) {
+    const observation = consider(
+      await tryGetObservationFromEvents({
+        observationId,
+        traceId,
+        projectId,
+        startTimeLowerBound,
+      }),
+    );
+    if (observation) return { observation, cleanMiss };
+  }
+
+  const observation = consider(
+    await tryGetObservation({
+      observationId,
+      traceId,
+      projectId,
+      startTimeLowerBound,
+    }),
+  );
+  if (observation) return { observation, cleanMiss };
+
+  if (shouldTryEventsTableFallback(useEventsTable)) {
+    const fallback = consider(
+      await tryGetObservationFromEvents({
+        observationId,
+        traceId,
+        projectId,
+        startTimeLowerBound,
+      }),
+    );
+    if (fallback) return { observation: fallback, cleanMiss };
+  }
+
+  return { cleanMiss };
 };
 
 const tryGetTrace = async ({
@@ -204,25 +304,40 @@ const tryGetObservation = async ({
   observationId,
   traceId,
   projectId,
+  startTimeLowerBound,
 }: {
   observationId: string;
   traceId: string;
   projectId: string;
-}) => {
+  startTimeLowerBound?: Date;
+}): Promise<ObservationLookupResult> => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Per customer requirement, web callouts should also work on v3.
-    return await getObservationById({
+    const observation = await getObservationById({
       id: observationId,
       projectId,
       traceId,
+      startTimeLowerBound,
       fetchWithInputOutput: false,
       renderingProps: {
         truncated: true,
         shouldJsonParse: false,
       },
     });
-  } catch {
-    return undefined;
+    return { observation, transientError: false };
+  } catch (error) {
+    if (error instanceof LangfuseNotFoundError) {
+      return { transientError: false };
+    }
+    logger.warn(
+      "Failed to validate web callout observation via observations table",
+      {
+        projectId,
+        observationId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    );
+    return { transientError: true };
   }
 };
 
@@ -230,29 +345,36 @@ const tryGetObservationFromEvents = async ({
   observationId,
   traceId,
   projectId,
+  startTimeLowerBound,
 }: {
   observationId: string;
   traceId: string;
   projectId: string;
-}) => {
+  startTimeLowerBound?: Date;
+}): Promise<ObservationLookupResult> => {
   try {
-    return await getObservationByIdFromEventsTable({
+    const observation = await getObservationByIdFromEventsTable({
       id: observationId,
       projectId,
       traceId,
+      startTimeLowerBound,
       fetchWithInputOutput: false,
       renderingProps: {
         truncated: true,
         shouldJsonParse: false,
       },
     });
+    return { observation, transientError: false };
   } catch (error) {
+    if (error instanceof LangfuseNotFoundError) {
+      return { transientError: false };
+    }
     logger.warn("Failed to validate web callout observation via events table", {
       projectId,
       observationId,
       error: error instanceof Error ? error.message : "Unknown error",
     });
-    return undefined;
+    return { transientError: true };
   }
 };
 

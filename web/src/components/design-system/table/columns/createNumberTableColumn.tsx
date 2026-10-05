@@ -1,6 +1,7 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { numberFormatter } from "@/src/utils/numbers";
 import {
@@ -17,6 +18,10 @@ export function createNumberTableColumn<
   getValue,
   ...options
 }: TableColumnOptions<TData, TValue> & {
+  /**
+   * A word to show instead of the shared empty treatment, e.g. "Unknown".
+   * An empty string keeps the cell deliberately blank.
+   */
   emptyValue?: string;
   formatter?: (
     value: TValue,
@@ -34,7 +39,8 @@ export function createNumberTableColumn<
     loadingCell,
     renderCell: (value, context) => {
       if (!getValue) {
-        if (value === null || value === undefined) return emptyValue ?? null;
+        if (value === null || value === undefined)
+          return emptyValue ?? <EmptyValue />;
         return (
           <span>{formatter?.(value, context) ?? numberFormatter(value)}</span>
         );
@@ -42,7 +48,7 @@ export function createNumberTableColumn<
 
       const resolvedValue = getValue(value, context);
 
-      if (resolvedValue === undefined) return emptyValue ?? null;
+      if (resolvedValue === undefined) return emptyValue ?? <EmptyValue />;
       if (
         typeof resolvedValue !== "number" &&
         typeof resolvedValue !== "bigint"

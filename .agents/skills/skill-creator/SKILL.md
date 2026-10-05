@@ -45,23 +45,48 @@ Match the level of specificity to the task's fragility and variability:
 
 Think of Codex as exploring a path: a narrow bridge with cliffs needs specific guardrails (low freedom), while an open field allows many routes (high freedom).
 
-### Require Human Review for Ticket Writes
+### Propose Ticket Updates; Mark Every Write
 
-For skills that create Linear tickets, update Linear tickets, or add evidence to
-existing tickets, require human review before any write. The skill must present
-all findings in a table, ask the human which findings to create or update in
-Linear, and wait for an explicit selection before making changes.
+Skills that write to the issue tracker follow
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md) — the **single
+authority**. Do not restate its rules in a new skill — point at it, so there is
+one text to keep correct.
 
-Use this table structure unless the domain needs additional columns:
+In summary, a skill may use three shapes, each labelled and marked as
+agent-written in the text:
 
-| ID | Finding | Evidence | Impact / Scope | Existing Ticket Match | Proposed Linear Action | Confidence | Human Decision |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| F1 | Concise symptom or bug claim | Measured counts, deltas, links, traces, logs, or "No measurements found" | Affected env, service, route, customer segment, or blast radius supported by evidence | Existing issue key/link, duplicate candidate, or "None found" | Create new ticket, add evidence comment, update status/labels, or no action | High/medium/low plus one short reason | Leave blank for the human to choose |
+1. **Comment** — only when a human must be told something now; show the body,
+   get a yes, then post.
+2. **Edit a description** — append a clearly separated agent block that never
+   rewrites the human's prose; show the block, get a yes, then append. This is
+   where durable context belongs.
+3. **Create a ticket** — a subticket of an existing ticket needs no permission; a
+   ticket with no parent needs the human's yes first, and then the skill files it
+   itself. Default the body to a short human description.
 
-In the skill instructions, state that Codex must not create tickets, comment on
-tickets, edit ticket fields, or add evidence until the human chooses one or more
-row IDs and actions. If the human asks for an automated sweep, still pause at
-this review table before writing to Linear.
+An explicit ask ("write the handover", "comment on the ticket") **is** the
+go-ahead. Assigning, moving state, closing, estimating, re-prioritising,
+deleting, projects, and new labels still belong to a human — surface those as
+suggestions only.
+
+At wrap-up, skills that leave durable reasoning should close with a clear ask
+(wording close to "Should I update the ticket(s) with the results of this
+session so they are preserved?") rather than writing silently or skipping
+preservation — detail lives in `linear-agent-writes`.
+
+Two consequences worth designing for:
+
+- **Batch the ask.** A skill that reviews a whole queue should present filings
+  and description appends as one table and take **one** go-ahead for the set —
+  or for named rows — then write those rows and report what it wrote.
+- **State that the write happened.** Because the tracker's API authenticates as
+  the human who configured it, an unmarked agent write is indistinguishable from
+  something that person typed. Require the skill to mark authorship in the text,
+  not only with the label.
+
+If the tracker is not reachable in the environment, the skill must **say so and
+return the content it would have written**, ready to paste. It must not skip the
+step silently.
 
 ### Protect Validation Integrity
 

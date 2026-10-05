@@ -312,7 +312,10 @@ describe("processObservationEval", () => {
             projectId,
             evaluationRuleId: rule.id,
             evaluatorId: evaluator.id,
-            evaluator: { projectId, type: "LLM_AS_JUDGE" },
+            evaluator: {
+              projectId,
+              type: { in: ["LLM_AS_JUDGE", "DECISION_MODEL"] },
+            },
           },
         }),
       );
@@ -504,6 +507,44 @@ describe("processObservationEval", () => {
             evaluationRuleId: evaluator.id,
             evaluatorExecutionIsTest: false,
           },
+        }),
+      );
+    });
+
+    it("uses a queue mapping override for a batch-run evaluator without a rule", async () => {
+      const variableMapping = [
+        { templateVariable: "output", selectedColumnId: "input" },
+      ];
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(
+        createMockJobExecution({
+          id: jobExecutionId,
+          projectId,
+          jobConfigurationId: evaluator.id,
+          jobTemplateId: null,
+        }),
+      );
+      (prisma.evaluator.findFirst as Mock).mockResolvedValue(evaluator);
+
+      await processObservationEval({
+        event: {
+          ...baseEvent,
+          executionMode: "MANUAL",
+          evaluatorId: evaluator.id,
+          variableMapping,
+        },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps: createMockProcessorDeps(),
+      });
+
+      expect(
+        prisma.evaluationRuleEvaluatorAssignment.findFirst,
+      ).not.toHaveBeenCalled();
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ variableMapping }),
+          executionMetadata: expect.not.objectContaining({
+            evaluation_rule_assignment_id: expect.anything(),
+          }),
         }),
       );
     });
@@ -875,7 +916,12 @@ describe("processObservationEval", () => {
             evaluationRuleId: config.id,
             evaluator: {
               projectId,
-              type: EvalTemplateType.LLM_AS_JUDGE,
+              type: {
+                in: [
+                  EvalTemplateType.LLM_AS_JUDGE,
+                  EvalTemplateType.DECISION_MODEL,
+                ],
+              },
             },
           }),
         }),

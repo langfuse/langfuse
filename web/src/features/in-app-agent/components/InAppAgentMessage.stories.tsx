@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { InAppAgentMessage } from "./InAppAgentMessage";
 
 const meta = preview.meta({
@@ -709,5 +709,100 @@ export const UserTextWithoutActionsInteraction = meta.story({
     expect(
       canvas.queryByTestId("in-app-agent-message-actions"),
     ).not.toBeInTheDocument();
+  },
+});
+
+const tableAndCodeMessage = [
+  "Proposed metric",
+  "",
+  "| Priority | Status | Note |",
+  "| --- | --- | --- |",
+  '| 1 | New | say "hi", please |',
+  "| 2 | Open | a\\|b |",
+  "",
+  "```ts",
+  "const bottleneck = 'document-reranking';",
+  "```",
+].join("\n");
+
+export const TableAndCode = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: tableAndCodeMessage,
+    },
+    timestamp: storyTimestamp,
+    onSubmitFeedback: fn(),
+  },
+});
+
+export const CopyTableAndCodeInteraction = meta.story({
+  name: "(Test) Copy Table And Code",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: tableAndCodeMessage,
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const csvButton = canvas.getByRole("button", { name: "Copy table as CSV" });
+    const markdownButton = canvas.getByRole("button", {
+      name: "Copy table as Markdown",
+    });
+    const codeButton = canvas.getByRole("button", { name: "Copy code" });
+    const table = canvas.getByRole("table");
+    const codeBlock = canvasElement.querySelector("pre");
+    if (!codeBlock) {
+      throw new Error("Missing code block");
+    }
+
+    try {
+      await expect(csvButton).not.toBeVisible();
+      await expect(markdownButton).not.toBeVisible();
+      await expect(codeButton).not.toBeVisible();
+
+      csvButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        [
+          "Priority,Status,Note",
+          '1,New,"say ""hi"", please"',
+          "2,Open,a|b",
+        ].join("\n"),
+      );
+
+      markdownButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        [
+          "| Priority | Status | Note |",
+          "| --- | --- | --- |",
+          '| 1 | New | say "hi", please |',
+          "| 2 | Open | a\\|b |",
+        ].join("\n"),
+      );
+
+      codeButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        "const bottleneck = 'document-reranking';\n",
+      );
+
+      const block = table.parentElement?.parentElement;
+      if (!block) {
+        throw new Error("Missing table block");
+      }
+      const { clipboardData } = copySelectedNode(
+        block,
+        canvasElement.ownerDocument,
+      );
+      expect(clipboardData.getData("text/html")).not.toContain("button");
+      expect(clipboardData.getData("text/html")).not.toContain(".csv");
+      expect(clipboardData.getData("text/html")).not.toContain(".md");
+    } finally {
+      copy.mockRestore();
+    }
   },
 });

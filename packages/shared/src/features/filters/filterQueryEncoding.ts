@@ -1,5 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { type FilterState } from "../../types";
-import { singleFilter } from "../../interfaces/filters";
+import {
+  coerceLegacyEmptyMetadataFilters,
+  singleFilter,
+} from "../../interfaces/filters";
 import { type SingleValueOption } from "../../tableDefinitions/types";
 import { normalizeLegacySessionPositionInTraceKey } from "./sessionPositionInTrace";
 
@@ -219,8 +223,11 @@ export function decodeFiltersGeneric(query: string): FilterState {
       }
     }
 
-    // Validate with zod
-    const parsed = singleFilter.safeParse(filter);
+    // Coerce the legacy `contains ""` presence spelling to `is set` so a
+    // bookmarked/shared link carrying it survives instead of being dropped.
+    const [coerced] = coerceLegacyEmptyMetadataFilters([filter]) as unknown[];
+
+    const parsed = singleFilter.safeParse(coerced);
     if (parsed.success) {
       filters.push(parsed.data);
     } else {

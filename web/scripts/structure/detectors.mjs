@@ -251,6 +251,47 @@ export function rule20(modules) {
 // Rule 6 — a file used by one feature lives in that feature. Resolves shared
 // folder files' dependents transitively through other shared files to the
 // ultimate consuming features (same method as the pre-RFC survey).
+//
+// Pages drive features: when a shared file is imported (transitively) from a
+// Next.js page, the destination is `src/features/<route-slug>`, not whatever
+// other feature happens to reuse it. Filtering pages out of the consumer set
+// and treating the remaining feature as the sole owner is how a page-owned
+// UI (e.g. session detail) can be parked under a secondary consumer.
+/** Strip a page filename to a feature slug, or null when it is not one.
+ * @param {string} segment
+ * @returns {string | null}
+ */
+function featureSlugFromRouteSegment(segment) {
+  const base = segment.replace(/\.(tsx?|jsx?)$/, "");
+  if (!base || base === "index" || base.startsWith("[")) return null;
+  return base;
+}
+
+/** Map a pages route to the feature slug it owns.
+ * @param {string} pagePath
+ * @returns {string | null}
+ */
+export function pageOwnedFeatureSlug(pagePath) {
+  if (
+    !/^src\/pages\//.test(pagePath) ||
+    /^src\/pages\/(api\/|_)/.test(pagePath)
+  )
+    return null;
+  const parts = pagePath.slice("src/pages/".length).split("/");
+  // project/[projectId]/sessions/... → sessions; project/.../models.tsx → models
+  if (parts[0] === "project" && parts.length >= 3)
+    return featureSlugFromRouteSegment(parts[2]);
+  // organization/[organizationId]/settings/... → settings
+  if (parts[0] === "organization" && parts.length >= 3)
+    return featureSlugFromRouteSegment(parts[2]);
+  // account/settings → settings; prefer the leaf resource
+  if (parts[0] === "account" && parts.length >= 2)
+    return featureSlugFromRouteSegment(parts[1]);
+  // auth/sign-in → auth
+  if (parts[0] === "auth") return "auth";
+  return featureSlugFromRouteSegment(parts[0] ?? "");
+}
+
 /** @param {Module[]} modules @returns {Violation[]} */
 export function rule6(modules) {
   const SHARED =
@@ -279,9 +320,41 @@ export function rule6(modules) {
     stack.delete(p);
     return homes;
   };
+  /** Page-owned feature slugs reachable through shared dependents. */
+  /** @type {(p: string, stack?: Set<string>) => Set<string>} */
+  const pageSlugs = (p, stack = new Set()) => {
+    if (stack.has(p)) return new Set();
+    stack.add(p);
+    const slugs = new Set();
+    for (const d of bySource.get(p)?.dependents ?? []) {
+      if (isTestish(d)) continue;
+      if (d.startsWith("src/pages/")) {
+        const s = pageOwnedFeatureSlug(d);
+        if (s) slugs.add(s);
+        continue;
+      }
+      // Walk through other shared files; stop at features (they are not pages).
+      if (SHARED.test(d)) for (const s of pageSlugs(d, stack)) slugs.add(s);
+    }
+    stack.delete(p);
+    return slugs;
+  };
   const out = [];
   for (const m of modules) {
     if (!SHARED.test(m.source) || isTestish(m.source)) continue;
+    const slugs = [...pageSlugs(m.source)];
+    // Unambiguous page ownership wins over "only used by feature X".
+    if (slugs.length === 1) {
+      const dest = `src/features/${slugs[0]}`;
+      out.push(
+        v(
+          `${m.source} -> page-owned feature ${slugs[0]} (pages drive features)`,
+          m.source,
+          dest,
+        ),
+      );
+      continue;
+    }
     const homes = [...eff(m.source)];
     const feats = homes.filter((h) => h !== "pages" && h !== "other");
     const rest = homes.filter((h) => h === "other");

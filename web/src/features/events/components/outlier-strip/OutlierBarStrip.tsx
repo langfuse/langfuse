@@ -1,9 +1,10 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
   formatBucketRange,
   OUTLIER_STRIP_METRICS,

@@ -1,5 +1,6 @@
 import { env } from "../../env";
 import { queryClickhouse } from "../repositories";
+import { quoteClickhouseString } from "./clickhouseIdentifiers";
 
 // ============================================================================
 // Types
@@ -24,10 +25,11 @@ export function systemTableRef(
   table: "system.processes" | "system.query_log",
 ): string {
   if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
+    const clusterName = quoteClickhouseString(env.CLICKHOUSE_CLUSTER_NAME);
     if (table === "system.query_log") {
-      return `clusterAllReplicas('${env.CLICKHOUSE_CLUSTER_NAME}', merge(system, '^query_log*'))`;
+      return `clusterAllReplicas(${clusterName}, merge(system, '^query_log*'))`;
     }
-    return `clusterAllReplicas('${env.CLICKHOUSE_CLUSTER_NAME}', '${table}')`;
+    return `clusterAllReplicas(${clusterName}, '${table}')`;
   }
   return table;
 }

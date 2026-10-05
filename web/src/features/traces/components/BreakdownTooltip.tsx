@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable no-nested-ternary */
 import {
   Tooltip,
   TooltipContent,
@@ -21,12 +21,16 @@ export interface PriceSource {
   pricingTierName: string;
 }
 
+export type CostSource = "calculated" | "provided";
+
 interface BreakdownTooltipProps {
   details: Details | Details[];
   children: React.ReactNode;
   isCost?: boolean;
   pricingTierName?: string;
   priceSource?: PriceSource;
+  /** Whether cost was calculated by Langfuse or provided at ingestion. */
+  costSource?: CostSource;
 }
 
 export const BreakdownTooltip = ({
@@ -35,6 +39,7 @@ export const BreakdownTooltip = ({
   isCost = false,
   pricingTierName,
   priceSource,
+  costSource,
 }: BreakdownTooltipProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -50,8 +55,43 @@ export const BreakdownTooltip = ({
       }, {})
     : details;
 
-  const formatValue = (value: number) =>
-    isCost ? usdFormatter(value, 2, 12) : value ? value.toLocaleString() : "0";
+  const entries = Object.entries(aggregatedDetails);
+  const inputEntries = sortEntriesByValue(
+    entries.filter(([key]) => key.includes("input")),
+  );
+  const outputEntries = sortEntriesByValue(
+    entries.filter(([key]) => key.includes("output")),
+  );
+  const otherEntries = entries
+    .filter(
+      ([key]) =>
+        !key.includes("input") && !key.includes("output") && key !== "total",
+    )
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+  const otherTotal = otherEntries.reduce((acc, [, value]) => {
+    if (typeof value !== "number") return acc;
+
+    return acc + value;
+  }, 0);
+  const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
+  const costFractionDigits = getCostFractionDigits(entries);
+  const formatValue = (value: number | Decimal) => {
+    if (!isCost) {
+      const numericValue = value instanceof Decimal ? value.toNumber() : value;
+      return numericValue ? numericValue.toLocaleString() : "0";
+    }
+
+    return new Decimal(value).isZero()
+      ? "—"
+      : usdFormatter(value, costFractionDigits, costFractionDigits);
+  };
+  const waterfallSegments = createWaterfallSegments(contributionEntries);
+  const displayedTotal =
+    aggregatedDetails.total ??
+    (isCost ? sumEntries(contributionEntries) : new Decimal(0));
+
+  const resolvedCostSource =
+    costSource ?? (isCost && priceSource ? "calculated" : undefined);
 
   return (
     <TooltipProvider>
@@ -62,14 +102,20 @@ export const BreakdownTooltip = ({
         >
           {children}
         </TooltipTrigger>
-        <TooltipContent className="w-max max-w-80 min-w-52 p-4">
-          <div className="flex min-w-0 flex-col gap-4">
-            <div className="flex flex-col gap-1">
+        <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-4">
+          <div className="grid min-w-0 grid-cols-[max-content_7rem_max-content] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_max-content]">
+            <div className="col-span-3 flex min-w-0 flex-col gap-1">
               <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
 
-              {isCost && priceSource && (
+              {isCost && resolvedCostSource === "provided" ? (
+                <span className="text-muted-foreground text-xs italic">
+                  Provided at ingestion
+                </span>
+              ) : null}
+
+              {isCost && resolvedCostSource === "calculated" && priceSource ? (
                 <Link
                   href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
                   className="text-muted-foreground flex min-w-0 flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
@@ -78,13 +124,20 @@ export const BreakdownTooltip = ({
                 >
                   <span
                     className="min-w-0 truncate"
-                    title={`${priceSource.pricingTierName} Tier Pricing`}
+                    title={`Calculated · ${priceSource.pricingTierName} Tier Pricing`}
                   >
-                    {priceSource.pricingTierName} Tier Pricing
+                    Calculated · {priceSource.pricingTierName} Tier Pricing
                   </span>
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </Link>
-              )}
+              ) : null}
+
+              {isCost && resolvedCostSource === "calculated" && !priceSource ? (
+                <span className="text-muted-foreground text-xs italic">
+                  Calculated from model pricing
+                </span>
+              ) : null}
+
               {Array.isArray(details) && details.length > 0 && (
                 <span className="text-muted-foreground text-xs italic">
                   Aggregate across {details.length}{" "}
@@ -103,30 +156,43 @@ export const BreakdownTooltip = ({
             {/* Input Section */}
             <Section
               title={isCost ? "Input cost" : "Input usage"}
-              details={aggregatedDetails}
-              filterFn={(key) => key.includes("input")}
+              entries={inputEntries}
               formatValue={formatValue}
+              waterfallSegments={waterfallSegments}
             />
 
             {/* Output Section */}
             <Section
               title={isCost ? "Output cost" : "Output usage"}
-              details={aggregatedDetails}
-              filterFn={(key) => key.includes("output")}
+              entries={outputEntries}
               formatValue={formatValue}
+              waterfallSegments={waterfallSegments}
             />
 
             {/* Other Section */}
-            <OtherSection
-              details={aggregatedDetails}
-              isCost={isCost}
-              formatValue={formatValue}
-            />
+            {otherEntries.length > 0 && (
+              <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
+                <BreakdownRow
+                  label={isCost ? "Other cost" : "Other usage"}
+                  value={formatValue(otherTotal)}
+                  variant="section"
+                />
+                {otherEntries.map(([key, value]) => (
+                  <BreakdownRow
+                    key={key}
+                    label={key}
+                    value={formatValue(value ?? 0)}
+                    variant="item"
+                    waterfallSegment={waterfallSegments.get(key)}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Total */}
             <BreakdownRow
               label={isCost ? "Total cost" : "Total usage"}
-              value={formatValue(aggregatedDetails.total ?? 0)}
+              value={formatValue(displayedTotal)}
               variant="total"
             />
           </div>
@@ -136,8 +202,12 @@ export const BreakdownTooltip = ({
   );
 };
 
-const breakdownRowVariants = cva("flex min-w-0 items-center gap-3 text-xs", {
+const breakdownRowVariants = cva("min-w-0 items-center text-xs", {
   variants: {
+    layout: {
+      default: "col-span-3 flex gap-3",
+      waterfall: "col-span-3 grid grid-cols-subgrid",
+    },
     variant: {
       item: "text-muted-foreground",
       section: "border-b pb-1 font-bold",
@@ -145,26 +215,78 @@ const breakdownRowVariants = cva("flex min-w-0 items-center gap-3 text-xs", {
     },
   },
   defaultVariants: {
+    layout: "default",
     variant: "item",
   },
 });
+
+const breakdownLabelVariants = cva("min-w-0 truncate", {
+  variants: {
+    layout: {
+      default: "flex-1",
+      waterfall: "max-w-52",
+    },
+  },
+});
+
+const waterfallSegmentVariants = cva("bg-primary/60 absolute h-full", {
+  variants: {
+    edge: {
+      only: "rounded-sm",
+      first: "rounded-l-sm",
+      middle: "",
+      last: "rounded-r-sm",
+    },
+  },
+});
+
+interface WaterfallSegment {
+  left: number;
+  width: number;
+  edge: NonNullable<VariantProps<typeof waterfallSegmentVariants>["edge"]>;
+}
 
 function BreakdownRow({
   label,
   value,
   variant,
+  waterfallSegment,
 }: {
   label: string;
   value: string;
   variant: NonNullable<VariantProps<typeof breakdownRowVariants>["variant"]>;
+  waterfallSegment?: WaterfallSegment;
 }) {
+  const layout = waterfallSegment ? "waterfall" : "default";
+
   return (
-    <div className={breakdownRowVariants({ variant })}>
-      <span className="min-w-0 flex-1 truncate" title={label}>
+    <div
+      className={breakdownRowVariants({
+        layout,
+        variant,
+      })}
+    >
+      <span className={breakdownLabelVariants({ layout })} title={label}>
         {label}
       </span>
+      {waterfallSegment ? (
+        <span
+          className="bg-muted relative h-2 overflow-hidden rounded-sm"
+          aria-hidden="true"
+        >
+          <span
+            className={waterfallSegmentVariants({
+              edge: waterfallSegment.edge,
+            })}
+            style={{
+              left: `${waterfallSegment.left}%`,
+              width: `${waterfallSegment.width}%`,
+            }}
+          />
+        </span>
+      ) : null}
       <span
-        className="max-w-[50%] min-w-0 truncate text-right font-mono tabular-nums"
+        className="text-right font-mono whitespace-nowrap tabular-nums"
         title={value}
       >
         {value}
@@ -175,78 +297,113 @@ function BreakdownRow({
 
 interface SectionProps {
   title: string;
-  details: Details;
-  filterFn: (key: string) => boolean;
-  formatValue: (value: number) => string;
+  entries: [string, number | undefined][];
+  formatValue: (value: number | Decimal) => string;
+  waterfallSegments: Map<string, WaterfallSegment>;
 }
 
-const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
-  const filteredEntries = Object.entries(details)
-    .filter(([key]) => filterFn(key))
-    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
-
-  const sectionTotal = filteredEntries.reduce(
-    (sum, [_, value]) =>
-      new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
-    0,
-  );
+const Section = ({
+  title,
+  entries,
+  formatValue,
+  waterfallSegments,
+}: SectionProps) => {
+  const sectionTotal = sumEntries(entries);
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
       <BreakdownRow
         label={title}
         value={formatValue(sectionTotal)}
         variant="section"
       />
-      {filteredEntries.map(([key, value]) => (
+      {entries.map(([key, value]) => (
         <BreakdownRow
           key={key}
           label={key}
           value={formatValue(value ?? 0)}
           variant="item"
+          waterfallSegment={waterfallSegments.get(key)}
         />
       ))}
     </div>
   );
 };
 
-interface OtherSectionProps {
-  details: Details;
-  isCost: boolean;
-  formatValue: (value: number) => string;
+function sortEntriesByValue(entries: [string, number | undefined][]) {
+  return entries.toSorted(([, a], [, b]) => (b ?? 0) - (a ?? 0));
 }
 
-const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
-  const otherEntries = Object.entries(details)
-    .filter(
-      ([key]) =>
-        !key.includes("input") && !key.includes("output") && key !== "total",
-    )
-    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
-
-  if (otherEntries.length === 0) return null;
-
-  const otherTotal = otherEntries.reduce((acc, val) => {
-    if (typeof val[1] !== "number") return acc;
-
-    return acc + (val[1] ?? 0);
-  }, 0);
-
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <BreakdownRow
-        label={isCost ? "Other cost" : "Other usage"}
-        value={formatValue(otherTotal)}
-        variant="section"
-      />
-      {otherEntries.map(([key, value]) => (
-        <BreakdownRow
-          key={key}
-          label={key}
-          value={formatValue(value ?? 0)}
-          variant="item"
-        />
-      ))}
-    </div>
+function sumEntries(entries: [string, number | undefined][]) {
+  return entries.reduce(
+    (sum, [, value]) => sum.plus(value ?? 0),
+    new Decimal(0),
   );
-};
+}
+
+function getCostFractionDigits(entries: [string, number | undefined][]) {
+  return Math.max(
+    2,
+    ...entries
+      .map(([, value]) => value)
+      .filter((value): value is number => Boolean(value))
+      .map(getArtifactFreeFractionDigits),
+  );
+}
+
+function getArtifactFreeFractionDigits(value: number) {
+  const decimalValue = new Decimal(value);
+
+  for (let fractionDigits = 2; fractionDigits <= 12; fractionDigits++) {
+    const roundingUnit = new Decimal(10).pow(-fractionDigits);
+    const distanceToRoundedValue = decimalValue
+      .minus(decimalValue.toDecimalPlaces(fractionDigits))
+      .abs();
+
+    // Treat values within 1/10,000 of a decimal grid point as transport noise.
+    if (distanceToRoundedValue.lte(roundingUnit.div(10_000))) {
+      return fractionDigits;
+    }
+  }
+
+  return 12;
+}
+
+function createWaterfallSegments(
+  entries: [string, number | undefined][],
+): Map<string, WaterfallSegment> {
+  const total = entries.reduce(
+    (sum, [, value]) => sum + Math.max(value ?? 0, 0),
+    0,
+  );
+  const contributionCount = entries.reduce(
+    (count, [, value]) => count + ((value ?? 0) > 0 ? 1 : 0),
+    0,
+  );
+
+  if (total === 0) return new Map();
+
+  let cumulative = 0;
+  let contributionIndex = 0;
+  return new Map(
+    entries.map(([key, value]) => {
+      const contribution = Math.max(value ?? 0, 0);
+      const edge: WaterfallSegment["edge"] =
+        contributionCount === 1
+          ? "only"
+          : contributionIndex === 0
+            ? "first"
+            : contributionIndex === contributionCount - 1
+              ? "last"
+              : "middle";
+      const segment = {
+        left: (cumulative / total) * 100,
+        width: (contribution / total) * 100,
+        edge,
+      };
+      cumulative += contribution;
+      if (contribution > 0) contributionIndex += 1;
+      return [key, segment];
+    }),
+  );
+}

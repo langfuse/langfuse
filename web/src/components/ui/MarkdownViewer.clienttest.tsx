@@ -1,9 +1,9 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { render } from "@testing-library/react";
 import {
   MarkdownView,
   prependBasePathToInternalHref,
 } from "@/src/components/ui/MarkdownViewer";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: {} }),
@@ -18,11 +18,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 const renderMarkdown = (markdown: string) =>
-  render(
-    <MarkdownContextProvider>
-      <MarkdownView markdown={markdown} />
-    </MarkdownContextProvider>,
-  );
+  render(<MarkdownView markdown={markdown} />);
 
 describe("MarkdownView link rendering", () => {
   it("renders an external link as a native anchor opening in a new tab", () => {
@@ -161,19 +157,13 @@ describe("MarkdownView code blocks", () => {
   it("reuses the same code block instance across re-renders", () => {
     const markdown = "```js\nconst x = 1;\n```";
     const { container, rerender } = render(
-      <MarkdownContextProvider>
-        <MarkdownView markdown={markdown} />
-      </MarkdownContextProvider>,
+      <MarkdownView markdown={markdown} />,
     );
 
     const codeblock = container.querySelector(".codeblock");
     expect(codeblock).not.toBeNull();
 
-    rerender(
-      <MarkdownContextProvider>
-        <MarkdownView markdown={markdown} />
-      </MarkdownContextProvider>,
-    );
+    rerender(<MarkdownView markdown={markdown} />);
 
     expect(container.querySelector(".codeblock")).toBe(codeblock);
   });

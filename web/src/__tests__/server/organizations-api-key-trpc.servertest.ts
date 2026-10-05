@@ -1,10 +1,10 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 
 // Session fixture sub-object types; casts keep the runtime fixtures unchanged
 // while satisfying newer required fields on the session user type.
 type SessionUser = NonNullable<Session["user"]>;
 type SessionOrg = SessionUser["organizations"][number];
-type SessionFeatureFlags = SessionUser["featureFlags"];
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -52,10 +52,7 @@ describe("organization API keys trpc", () => {
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      } as SessionFeatureFlags,
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,
@@ -78,10 +75,7 @@ describe("organization API keys trpc", () => {
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      } as SessionFeatureFlags,
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as any,
@@ -104,10 +98,7 @@ describe("organization API keys trpc", () => {
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      } as SessionFeatureFlags,
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as any,
@@ -153,10 +144,7 @@ describe("organization API keys trpc", () => {
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      } as SessionFeatureFlags,
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as any,
@@ -366,6 +354,16 @@ describe("organization API keys trpc", () => {
       expect(updatedKey?.note).toBe("Updated Note");
     });
 
+    it("returns NOT_FOUND for a missing API key", async () => {
+      await expect(
+        ownerCaller.organizationApiKeys.updateNote({
+          orgId: organizationId,
+          keyId: randomUUID(),
+          note: "Updated Note",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
     it("does not update in-app agent API keys", async () => {
       const inAppAgentKey = await createAndAddApiKeysToDb({
         prisma,
@@ -445,6 +443,15 @@ describe("organization API keys trpc", () => {
 
       const deletedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
       expect(deletedKey).toBeUndefined();
+    });
+
+    it("returns NOT_FOUND for a missing API key", async () => {
+      await expect(
+        ownerCaller.organizationApiKeys.delete({
+          orgId: organizationId,
+          id: randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
 
     it("does not delete in-app agent API keys", async () => {

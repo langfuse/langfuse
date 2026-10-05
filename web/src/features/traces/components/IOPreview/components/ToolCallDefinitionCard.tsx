@@ -1,9 +1,10 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
-import { ChevronRight, ChevronDown, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";
@@ -233,9 +234,9 @@ function ToolGroupSummary({
           {expanded ? "hide" : "show"}
         </Badge>
         {expanded ? (
-          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+          <DropdownIndicator />
         ) : (
-          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+          <DropdownIndicator direction="right" />
         )}
       </div>
     </button>
@@ -359,9 +360,9 @@ function ToolDefinitionRow({
           />
 
           {isExpanded ? (
-            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+            <DropdownIndicator />
           ) : (
-            <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+            <DropdownIndicator direction="right" />
           )}
         </div>
       </button>
@@ -369,22 +370,19 @@ function ToolDefinitionRow({
       {isExpanded && (
         <div className="border-border bg-muted/30 relative border-t px-4 py-3">
           <div className="absolute top-1 right-4">
-            <Tabs
-              className="h-fit py-0.5"
-              value={currentView}
-              onValueChange={(value) =>
-                setCurrentView(value as "formatted" | "json")
-              }
-            >
-              <TabsList className="h-fit p-0.5">
-                <TabsTrigger value="formatted" className="h-fit px-1 text-xs">
-                  Formatted
-                </TabsTrigger>
-                <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                  JSON
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="h-fit py-0.5">
+              <Tabs
+                value={currentView}
+                onValueChange={(value) =>
+                  setCurrentView(value as "formatted" | "json")
+                }
+              >
+                <Tabs.List size="sm">
+                  <Tabs.Trigger value="formatted" size="sm" label="Formatted" />
+                  <Tabs.Trigger value="json" size="sm" label="Raw" />
+                </Tabs.List>
+              </Tabs>
+            </div>
           </div>
 
           {currentView === "formatted" && (

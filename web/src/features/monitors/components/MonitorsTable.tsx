@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
 import Link from "next/link";
@@ -8,7 +9,7 @@ import { useMediaQuery } from "react-responsive";
 import { DeleteMonitorButton } from "@/src/components/deleteButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -18,17 +19,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  getMonitorFilterConfig,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
 import {
   type ListMonitorFilter,
   ListMonitorFilterSchema,
@@ -38,6 +41,16 @@ import {
 } from "@langfuse/shared/monitors";
 
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
+import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;
@@ -130,10 +143,13 @@ export function MonitorsTable() {
   );
 
   /** queryFilter is the bound sidebar filter state, synced to the URL and to session storage per project. */
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
   const queryFilter = useSidebarFilterState(
     monitorFilterConfig,
     newFilterOptions,
     {
+      onExplicitFilterStateChange,
       loading: filterOptions.isPending,
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId ?? null,
@@ -248,16 +264,92 @@ export function MonitorsTable() {
     },
   ];
 
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<MonitorRow>("monitorsColumnVisibility", columns);
+  const [columnOrder, setColumnOrder] = useColumnOrder<MonitorRow>(
+    "monitorsColumnOrder",
+    columns,
+  );
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Monitors,
+    projectId,
+    stateUpdaters: {
+      setColumnOrder,
+      setColumnVisibility,
+      setOrderBy: setOrderByState,
+      setFilters: (filters) =>
+        queryFilter.setFilterState(filters, { origin: "saved_view" }),
+      setExpandedFilters: queryFilter.onExpandedChange,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: monitorFilterConfig.columnDefinitions,
+      expandableFilterColumns: monitorFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
+    },
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
+  });
+  viewControllersRef.current = viewControllers;
+  const handleColumnOrderChange: typeof setColumnOrder = (next) => {
+    const value = typeof next === "function" ? next(columnOrder) : next;
+    viewControllers.handleUserStateChange(columnOrder, value);
+    setColumnOrder(value);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (next) => {
+    const value = typeof next === "function" ? next(columnVisibility) : next;
+    viewControllers.handleUserStateChange(columnVisibility, value);
+    setColumnVisibility(value);
+  };
+
   return (
     <div className="flex h-full w-full flex-col">
-      <ResizableFilterLayout>
-        <DataTableControls queryFilter={queryFilter} />
+      <SearchableTableFilterLayout
+        search={
+          <TableSearchBar
+            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+            projectId={projectId}
+            tableName="monitors"
+            registry={monitorsFieldRegistry(monitorFilterConfig)}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={queryFilter.setFilterState}
+            observed={toObservedOptions(
+              newFilterOptions,
+              filterOptions.isPending,
+            )}
+            isV4={false}
+          />
+        }
+        toolbar={
+          <DataTableToolbar
+            tableName="monitors"
+            columns={columns}
+            filterState={queryFilter.explicitFilterState}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={handleColumnVisibilityChange}
+            columnOrder={columnOrder}
+            setColumnOrder={handleColumnOrderChange}
+            orderByState={orderByState}
+            isV4={false}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Monitors,
+              projectId,
+              controllers: viewControllers,
+            }}
+          />
+        }
+      >
+        <DataTableControls
+          key={viewControllers.filterEditorResetKey}
+          queryFilter={queryFilter}
+        />
         <div className="flex flex-1 flex-col overflow-hidden">
           <DataTable
             tableName="monitors"
             columns={columns}
             data={
-              monitors.isLoading
+              monitors.isLoading || isViewLoading
                 ? { isLoading: true, isError: false }
                 : monitors.isError
                   ? {
@@ -272,7 +364,14 @@ export function MonitorsTable() {
                     }
             }
             orderBy={orderByState}
-            setOrderBy={setOrderByState}
+            setOrderBy={(next) => {
+              viewControllers.handleUserStateChange(orderByState, next);
+              setOrderByState(next);
+            }}
+            columnOrder={columnOrder}
+            onColumnOrderChange={handleColumnOrderChange}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={handleColumnVisibilityChange}
             pagination={{
               totalCount: monitors.data?.totalCount ?? null,
               onChange: setPaginationState,
@@ -285,7 +384,7 @@ export function MonitorsTable() {
             cellPadding="comfortable"
           />
         </div>
-      </ResizableFilterLayout>
+      </SearchableTableFilterLayout>
     </div>
   );
 }

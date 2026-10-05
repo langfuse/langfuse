@@ -82,6 +82,9 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         ...(params.evaluationRuleId
           ? { evaluationRuleId: params.evaluationRuleId }
           : {}),
+        ...(params.variableMapping != null
+          ? { variableMapping: params.variableMapping }
+          : {}),
       };
 
       if (params.evalTemplateType === EvalTemplateType.CODE) {
@@ -101,6 +104,13 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           { delay: params.delay },
         );
         return;
+      }
+
+      if (
+        params.evalTemplateType !== EvalTemplateType.LLM_AS_JUDGE &&
+        params.evalTemplateType !== EvalTemplateType.DECISION_MODEL
+      ) {
+        throw new Error("Evaluator type cannot use observation eval queues");
       }
 
       const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });

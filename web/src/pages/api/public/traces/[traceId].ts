@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
@@ -26,7 +27,7 @@ import {
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
@@ -34,6 +35,7 @@ export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Single Trace",
+      action: "traces:read",
       deprecation: TRACES_DEPRECATION,
       rateLimitResource: "public-api-legacy",
       querySchema: GetTraceV1Query,
@@ -161,16 +163,24 @@ export default withMiddlewares(
           .filter((t) => t)
           .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
 
-        const latencyMs =
-          obsStartTimes.length > 0
-            ? obsEndTimes.length > 0
-              ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+        const latencyMs = (() => {
+          if (obsStartTimes.length > 0) {
+            if (obsEndTimes.length > 0) {
+              return (
+                (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
                 obsStartTimes[0]!.getTime()
-              : obsStartTimes.length > 1
-                ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-                  obsStartTimes[0]!.getTime()
-                : undefined
-            : undefined;
+              );
+            }
+            if (obsStartTimes.length > 1) {
+              return (
+                obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                obsStartTimes[0]!.getTime()
+              );
+            }
+            return undefined;
+          }
+          return undefined;
+        })();
         return {
           ...trace,
           externalId: null,
@@ -198,6 +208,7 @@ export default withMiddlewares(
 
     DELETE: createAuthedProjectAPIRoute({
       name: "Delete Single Trace",
+      action: "traces:delete",
       querySchema: DeleteTraceV1Query,
       responseSchema: DeleteTraceV1Response,
       rateLimitResource: "trace-delete",
@@ -213,7 +224,13 @@ export default withMiddlewares(
           orgId: auth.scope.orgId,
         });
 
-        await traceDeletionProcessor(auth.scope.projectId, [traceId]);
+        await traceDeletionProcessor(auth.scope.projectId, [traceId], {
+          actor: {
+            type: "API_KEY",
+            apiKeyId: auth.scope.apiKeyId,
+            publicKey: auth.scope.publicKey,
+          },
+        });
 
         return { message: "Trace deleted successfully" };
       },

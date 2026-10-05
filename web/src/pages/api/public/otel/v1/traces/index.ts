@@ -26,9 +26,11 @@ export const config = {
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "OTel Traces",
+    action: "traces:create",
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
+    allowGatewayIngestionToken: true,
     fn: async ({ req, res, auth }) => {
       // Check if ingestion is suspended due to usage threshold
       if (auth.scope.isIngestionSuspended) {
@@ -41,12 +43,26 @@ export default withMiddlewares({
       await markProjectAsOtelUser(auth.scope.projectId);
 
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
+      // Start reading before shadow work so a fast request cannot finish while
+      // the stream is still unobserved.
+      const bodyResultPromise = readOtelRequestBody(req, maxBodyBytes).then(
+        (body) => ({ success: true as const, body }),
+        (error: unknown) => ({ success: false as const, error }),
+      );
+
+      if (env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED === "true") {
+        const { startOtelIngestionWorkerAdmissionShadow } =
+          await import("@/src/server/otel/otelIngestionWorkerShadow");
+        startOtelIngestionWorkerAdmissionShadow(res, auth.scope.projectId);
+      }
 
       let body: Buffer;
       let encodedBodyBytes: number;
       let bodyFailureMessage = "Failed to read request body";
       try {
-        body = await readOtelRequestBody(req, maxBodyBytes);
+        const bodyResult = await bodyResultPromise;
+        if (!bodyResult.success) throw bodyResult.error;
+        body = bodyResult.body;
         encodedBodyBytes = body.byteLength;
 
         if (req.headers["content-encoding"]?.includes("gzip")) {

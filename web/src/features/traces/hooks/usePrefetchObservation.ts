@@ -1,5 +1,5 @@
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 export type UsePrefetchObservationParams = {
   projectId: string;

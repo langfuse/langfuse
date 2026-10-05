@@ -27,6 +27,35 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+// ClickHouse rejects unknown settings on every query, so a malformed value
+// must fail the process at startup instead.
+const clickhouseExtraSettingsSchema = (name: string) =>
+  z
+    .string()
+    .transform((value, ctx) => {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        ctx.addIssue({ code: "custom", message: `${name} must be valid JSON` });
+        return z.NEVER;
+      }
+    })
+    .pipe(
+      z.record(
+        z
+          .string()
+          .regex(
+            /^[A-Za-z_][A-Za-z0-9_]*$/,
+            `${name} keys must be ClickHouse setting names`,
+          ),
+        z.union([z.string(), z.number(), z.boolean()]),
+        {
+          error: `${name} must be a JSON object of setting names to string, number, or boolean values`,
+        },
+      ),
+    )
+    .optional();
+
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
 const EnvSchema = z.object({
@@ -154,12 +183,29 @@ const EnvSchema = z.object({
   CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
     .enum(["auto", "true", "false"])
     .default("auto"),
+  // Read-time skip-index evaluation, applied only from the version that fixes
+  // the patch-part read bug. See the compatibility rule for details.
+  CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
     .number()
     .default(32_000_000_000), // ~32GB
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
+  // JSON objects of ClickHouse setting name to value. Every client gets
+  // CLICKHOUSE_EXTRA_SETTINGS; the service variants add to it for clients of
+  // that service. Settings set by Langfuse itself take precedence.
+  CLICKHOUSE_EXTRA_SETTINGS: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS",
+  ),
+  CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY",
+  ),
+  CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY",
+  ),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
@@ -529,7 +575,12 @@ const EnvSchema = z.object({
   // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
   // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
   // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
-  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+  // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+  // authenticates through the instance credential chain (GCP application
+  // default credentials) and takes no key.
+  LANGFUSE_AI_PROVIDER: z
+    .enum(["bedrock", "anthropic", "openai", "vertex"])
+    .optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
@@ -557,6 +608,7 @@ const EnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
   LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
     .enum(["url", "inline", "disabled"])

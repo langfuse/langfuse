@@ -3,6 +3,7 @@ import {
   EvalTemplateType,
 } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
+import { coverEvaluatorPromptVariables } from "./coverEvaluatorPromptVariables";
 import { prepareModernRuleVariableMapping } from "./prepareModernRuleVariableMapping";
 
 describe("prepareModernRuleVariableMapping", () => {
@@ -98,5 +99,27 @@ describe("prepareModernRuleVariableMapping", () => {
       defaultVariableMapping: [],
       initialVariableMapping: null,
     });
+  });
+});
+
+describe("coverEvaluatorPromptVariables", () => {
+  it("adds empty rows for prompt variables missing from the stored mapping", () => {
+    expect(
+      coverEvaluatorPromptVariables(
+        [{ templateVariable: "output", selectedColumnId: "output" }],
+        ["input", "output"],
+      ),
+    ).toEqual([
+      { templateVariable: "output", selectedColumnId: "output" },
+      { templateVariable: "input", selectedColumnId: "", jsonSelector: null },
+    ]);
+  });
+
+  it("returns the original mapping when every prompt variable is already listed", () => {
+    const mapping = [
+      { templateVariable: "output", selectedColumnId: "output" },
+    ];
+
+    expect(coverEvaluatorPromptVariables(mapping, ["output"])).toBe(mapping);
   });
 });

@@ -6,8 +6,8 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { type MediaReturnType } from "@/src/features/media/validation";
-import { Check, ChevronDown, Copy } from "lucide-react";
+import { type MediaReturnType } from "@/src/features/media";
+import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -16,53 +16,30 @@ import { cn } from "@/src/utils/tailwind";
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
-  canEnableMarkdown?: boolean;
   controlButtons?: React.ReactNode;
-  /** When set, the header hosts expand/collapse so a long body is not the
-      only place to find the control. */
-  collapseControl?: {
-    isCollapsed: boolean;
-    onToggle: () => void;
-  };
   inset?: boolean;
+  /** Hosts that render their own copy control (e.g. inside the content box)
+      suppress the header's. */
+  hideCopyButton?: boolean;
+  /** Reveal the right-side controls only while hovering the hosting section
+      (requires a `group/iosection` ancestor). */
+  hoverRevealControls?: boolean;
 };
 
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnValueChange: _handleOnValueChange,
   handleOnCopy,
-  canEnableMarkdown: _canEnableMarkdown = true,
   controlButtons,
-  collapseControl,
   inset = false,
+  hideCopyButton = false,
+  hoverRevealControls = false,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
-  const collapseLabel = collapseControl
-    ? collapseControl.isCollapsed
-      ? "Expand system prompt"
-      : "Collapse system prompt"
-    : undefined;
-  // Keep the visible title in the title-button name (WCAG 2.5.3). A generic
-  // aria-label would hide message `name`s from assistive tech.
-  const titleButtonLabel =
-    typeof title === "string" && collapseLabel
-      ? `${title}, ${collapseLabel}`
-      : collapseLabel;
 
   const titleContent = (
     <>
-      {collapseControl ? (
-        <ChevronDown
-          className={cn(
-            "h-3.5 w-3.5 shrink-0 transition-transform",
-            collapseControl.isCollapsed && "-rotate-90",
-          )}
-          aria-hidden
-        />
-      ) : null}
       {titleIcon}
       {title}
     </>
@@ -71,59 +48,45 @@ export function MarkdownJsonViewHeader({
   return (
     <div
       className={cn(
-        "io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between py-1 text-sm font-bold capitalize transition-colors",
+        "io-message-header flex flex-row items-center justify-between py-1 text-sm font-bold capitalize",
         inset ? "px-2" : "px-1",
       )}
     >
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">
-        {collapseControl ? (
-          <button
-            type="button"
-            onClick={collapseControl.onToggle}
-            aria-expanded={!collapseControl.isCollapsed}
-            aria-label={titleButtonLabel}
-            className="hover:text-foreground/80 flex items-center gap-1.5"
-          >
-            {titleContent}
-          </button>
-        ) : (
-          titleContent
-        )}
+        {titleContent}
       </div>
-      <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1">
-        {collapseControl ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            type="button"
-            onClick={collapseControl.onToggle}
-            aria-label={collapseLabel}
-            className="text-muted-foreground hover:bg-border w-fit text-xs"
-          >
-            {collapseControl.isCollapsed ? "Expand" : "Collapse"}
-          </Button>
-        ) : null}
+      <div
+        className={cn(
+          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
+          // pointer-coarse: touch devices have no hover, so the controls
+          // stay visible there instead of being unreachable.
+          hoverRevealControls &&
+            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
+        )}
+      >
         {controlButtons}
-        <Button
-          title="Copy to clipboard"
-          variant="ghost"
-          size="icon-xs"
-          type="button"
-          onClick={(event) => {
-            setIsCopied(true);
-            handleOnCopy(event);
-            setTimeout(() => setIsCopied(false), 1000);
-          }}
-          className="hover:bg-border -mr-2"
-        >
-          {isCopied ? (
-            <Check className="h-3 w-3" />
-          ) : (
-            <Copy className="h-3 w-3" />
-          )}
-        </Button>
+        {!hideCopyButton && (
+          <Button
+            title="Copy to clipboard"
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            onClick={(event) => {
+              setIsCopied(true);
+              handleOnCopy(event);
+              setTimeout(() => setIsCopied(false), 1000);
+            }}
+            className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+          >
+            {isCopied ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -147,8 +110,8 @@ export const canRenderContentAsMarkdown = (
   // Don't render if markdown content is huge
   JSON.stringify(content || {}).length <= characterLimit;
 
-// MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
-// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
+// MarkdownJsonView renders markdown whenever the content is valid markdown
+// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
 export function MarkdownJsonView({
   content,
   title,

@@ -2,7 +2,6 @@ import { Bot } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button } from "../../ui/button";
 import { Callout } from "./Callout";
 
 const meta = preview.meta({
@@ -26,7 +25,7 @@ export const Default = meta.story({
     variant: "info",
     align: "middle",
     children: message,
-    actions: null,
+    actions: [],
     onDismiss: fn(),
   },
 });
@@ -41,7 +40,7 @@ export const Warning = meta.story({
         its ingestion limit.
       </span>
     ),
-    actions: null,
+    actions: [],
     onDismiss: fn(),
   },
 });
@@ -51,11 +50,10 @@ export const WithActions = meta.story({
     variant: "info",
     align: "middle",
     children: message,
-    actions: (
-      <Button size="sm" variant="secondary">
-        Learn more
-      </Button>
-    ),
+    actions: [
+      { type: "button", label: "Learn more", onClick: fn() },
+      { type: "button", label: "Not now", onClick: fn() },
+    ],
     onDismiss: fn(),
   },
 });
@@ -66,7 +64,7 @@ export const Dismisses = meta.story({
     variant: "info",
     align: "middle",
     children: <span>This callout can be dismissed.</span>,
-    actions: null,
+    actions: [],
     onDismiss: fn(),
   },
   play: async ({ args, canvasElement }) => {

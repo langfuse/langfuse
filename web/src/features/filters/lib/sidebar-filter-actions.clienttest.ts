@@ -455,6 +455,33 @@ describe("keyed facet transitions", () => {
     ]);
   });
 
+  it("keeps `is set` / `is not set` presence rows even with an empty value", () => {
+    const next = applyKeyedFilterEntries([], "metadata", {
+      kind: "stringObject",
+      entries: [
+        { key: "env", operator: "is set", value: "" },
+        { key: "region", operator: "is not set", value: "" },
+        { key: "", operator: "is set", value: "" },
+      ],
+    });
+    expect(next).toEqual([
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "is set",
+        key: "env",
+        value: "",
+      },
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "is not set",
+        key: "region",
+        value: "",
+      },
+    ]);
+  });
+
   it("filters numeric and boolean drafts by their empty-value sentinel", () => {
     expect(
       applyKeyedFilterEntries([], "scores_avg", {

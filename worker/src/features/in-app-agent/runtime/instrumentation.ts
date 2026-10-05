@@ -346,7 +346,9 @@ export class InAppAgentInstrumentation {
     }
 
     const times = this.toolExecutionTimes.get(toolCallId) ?? {};
-    times.startTime ??= new Date();
+    if (times.startTime === undefined) {
+      times.startTime = new Date();
+    }
     this.toolExecutionTimes.set(toolCallId, times);
   }
 
@@ -356,7 +358,9 @@ export class InAppAgentInstrumentation {
     }
 
     const times = this.toolExecutionTimes.get(toolCallId) ?? {};
-    times.endTime ??= new Date();
+    if (times.endTime === undefined) {
+      times.endTime = new Date();
+    }
     this.toolExecutionTimes.set(toolCallId, times);
   }
 
@@ -394,7 +398,9 @@ export class InAppAgentInstrumentation {
     const now = new Date();
 
     if (type === "text-delta" || type === "reasoning-delta") {
-      this.openModelCall.completionStartTime ??= now;
+      if (this.openModelCall.completionStartTime === undefined) {
+        this.openModelCall.completionStartTime = now;
+      }
       if (type === "text-delta" && typeof part.delta === "string") {
         this.openModelCall.textDeltas.push(part.delta);
       }
@@ -504,9 +510,11 @@ export class InAppAgentInstrumentation {
   }
 
   flush(): Promise<void> {
-    this.flushPromise ??= this.processTracedEvents().catch((error) => {
-      logger.warn("Failed to flush in-app agent Langfuse tracing", error);
-    });
+    if (this.flushPromise === undefined) {
+      this.flushPromise = this.processTracedEvents().catch((error) => {
+        logger.warn("Failed to flush in-app agent Langfuse tracing", error);
+      });
+    }
 
     return this.flushPromise;
   }
@@ -913,6 +921,7 @@ export class InAppAgentInstrumentation {
       ...body,
       userId: this.userId,
       sessionId: this.sessionId,
+      metadata: { ...this.metadata, ...body.metadata },
     });
   }
 

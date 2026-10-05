@@ -36,6 +36,9 @@ export const projectScopes = [
   "prompts:read",
   "promptProtectedLabels:CUD",
 
+  "skills:CUD",
+  "skills:read",
+
   "dashboards:read",
   "dashboards:CUD",
 
@@ -71,7 +74,7 @@ export const projectScopes = [
   "promptExperiments:CUD",
   "promptExperiments:read",
 
-  "auditLogs:read",
+  "projectAuditLogs:read",
 
   "TableViewPresets:CUD",
   "TableViewPresets:read",
@@ -81,6 +84,19 @@ export const projectScopes = [
 
   "alerts:read",
   "alerts:CUD",
+
+  // Public-API action tokens; not granted to any UI role.
+  "traces:read",
+  "traces:create",
+  "scores:read",
+  "scores:create",
+  "media:read",
+  "media:create",
+  "sessions:read",
+  "metrics:read",
+  "models:read",
+  "experiments:read",
+  "feedback:create",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -108,6 +124,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "prompts:CUD",
     "prompts:read",
     "promptProtectedLabels:CUD",
+    "skills:CUD",
+    "skills:read",
     "models:CUD",
     "evaluator:CUD",
     "evaluator:read",
@@ -135,7 +153,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
-    "auditLogs:read",
+    "projectAuditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -165,6 +183,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "prompts:CUD",
     "prompts:read",
     "promptProtectedLabels:CUD",
+    "skills:CUD",
+    "skills:read",
     "models:CUD",
     "evaluator:CUD",
     "evaluator:read",
@@ -192,7 +212,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
-    "auditLogs:read",
+    "projectAuditLogs:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -216,6 +236,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
+    "skills:CUD",
+    "skills:read",
     "evaluator:CUD",
     "evaluator:read",
     "evaluationRule:read",
@@ -249,6 +271,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
   VIEWER: [
     "project:read",
     "prompts:read",
+    "skills:read",
     "evaluator:read",
     "scoreConfigs:read",
     "evaluationRule:read",

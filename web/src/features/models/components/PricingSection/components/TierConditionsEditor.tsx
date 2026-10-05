@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { PlusCircle, Trash2 } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";

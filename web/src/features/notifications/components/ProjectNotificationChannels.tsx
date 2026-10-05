@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -11,8 +10,10 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { AutomationForm } from "@/src/features/automations/components/automationForm";
-import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
+import {
+  AutomationForm,
+  WebhookSecretRender,
+} from "@/src/features/automations";
 import { ProjectNotificationChannelsList } from "@/src/features/notifications/components/ProjectNotificationChannelsList";
 import { useProjectNotificationChannels } from "@/src/features/notifications/hooks/useProjectNotificationChannels";
 import { cn } from "@/src/utils/tailwind";
@@ -62,7 +63,6 @@ export function ProjectNotificationChannels({
   projectId: string;
 }) {
   const {
-    hasAccess,
     channels,
     isLoading,
     mode,
@@ -75,8 +75,6 @@ export function ProjectNotificationChannels({
   } = useProjectNotificationChannels(projectId);
 
   const hasChannels = Boolean(channels?.length);
-
-  if (!hasAccess) return null;
 
   return (
     <div>

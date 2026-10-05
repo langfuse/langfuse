@@ -47,6 +47,11 @@ import {
   getMarkdownSourceRangeFromRenderedOffsets,
   projectMarkdownToRenderedText,
 } from "./utils/markdown";
+import {
+  readRenderedTable,
+  tableToCsv,
+  tableToMarkdown,
+} from "./utils/tableCopy";
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
 import {
@@ -290,7 +295,7 @@ function TextMessageWithActions({
       | HTMLElement
       | undefined;
     htmlContainer
-      ?.querySelectorAll("[data-in-app-agent-code-copy-button]")
+      ?.querySelectorAll("[data-in-app-agent-block-copy-button]")
       .forEach((node) => {
         node.remove();
       });
@@ -429,7 +434,7 @@ function InAppAgentReasoningBlock({
         </span>
         <ChevronDown
           className={cn(
-            "size-3.5 shrink-0 transition-transform",
+            "text-foreground-tertiary size-3.5 shrink-0 translate-y-px transition-transform",
             !isOpen && "-rotate-90",
           )}
         />
@@ -444,7 +449,7 @@ function InAppAgentReasoningBlock({
           className={cn(
             // Vertical spacing is margin, not padding, so the left border
             // hugs the text instead of extending past it.
-            "border-border/70 mt-2 mb-1 border-l px-3 leading-5 wrap-break-word whitespace-pre-wrap",
+            "border-border/70 mt-2 mb-1 border-l px-3 wrap-break-word whitespace-pre-wrap",
             isCompact && "px-2.5 leading-4",
           )}
         >
@@ -804,7 +809,7 @@ function ToolCallDisclosure({
       <summary
         aria-label={`${toolName}: ${status}`}
         className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
         )}
       >
@@ -923,11 +928,7 @@ function MessageText({
           tr: ({ children }) => <tr>{children}</tr>,
           th: ({ children }) => <th>{children}</th>,
           td: ({ children }) => <td>{children}</td>,
-          table: ({ children }) => (
-            <div className="overflow-x-auto rounded">
-              <table>{children}</table>
-            </div>
-          ),
+          table: ({ children }) => <TableBlock>{children}</TableBlock>,
         }}
       >
         {text}
@@ -960,19 +961,16 @@ function getSelectedMarkdownFromSource(
 
   const projection = projectMarkdownToRenderedText(markdown);
 
-  const renderedStart = (() => {
-    const prefixRange = root.ownerDocument.createRange();
-    prefixRange.selectNodeContents(root);
-    prefixRange.setEnd(range.startContainer, range.startOffset);
-    return prefixRange.toString().length;
-  })();
-
-  const renderedEnd = (() => {
-    const prefixRange = root.ownerDocument.createRange();
-    prefixRange.selectNodeContents(root);
-    prefixRange.setEnd(range.endContainer, range.endOffset);
-    return prefixRange.toString().length;
-  })();
+  const renderedStart = renderedTextOffset(
+    root,
+    range.startContainer,
+    range.startOffset,
+  );
+  const renderedEnd = renderedTextOffset(
+    root,
+    range.endContainer,
+    range.endOffset,
+  );
 
   const fallbackStart = projection.plain.indexOf(selectedText, renderedStart);
   const exactTextSelection =
@@ -1005,7 +1003,7 @@ function getSelectedMarkdownFromSource(
   const htmlContainer = root.ownerDocument.createElement("div");
   htmlContainer.append(range.cloneContents());
   htmlContainer
-    .querySelectorAll("[data-in-app-agent-code-copy-button]")
+    .querySelectorAll("[data-in-app-agent-block-copy-button]")
     .forEach((node) => {
       node.remove();
     });
@@ -1014,6 +1012,39 @@ function getSelectedMarkdownFromSource(
     markdown: selectedMarkdown,
     html: htmlContainer.innerHTML,
   };
+}
+
+function renderedTextOffset(
+  root: HTMLElement,
+  container: Node,
+  offset: number,
+) {
+  const prefixRange = root.ownerDocument.createRange();
+  prefixRange.selectNodeContents(root);
+  prefixRange.setEnd(container, offset);
+
+  let length = prefixRange.toString().length;
+  root
+    .querySelectorAll("[data-in-app-agent-block-copy-button]")
+    .forEach((button) => {
+      if (!prefixRange.intersectsNode(button)) {
+        return;
+      }
+
+      const buttonRange = root.ownerDocument.createRange();
+      buttonRange.selectNodeContents(button);
+      const buttonText = buttonRange.toString();
+      const containsButton =
+        buttonText.length > 0 &&
+        prefixRange.compareBoundaryPoints(Range.START_TO_START, buttonRange) <=
+          0 &&
+        prefixRange.compareBoundaryPoints(Range.END_TO_END, buttonRange) >= 0;
+      if (containsButton) {
+        length -= buttonText.length;
+      }
+    });
+
+  return Math.max(0, length);
 }
 
 function trimTrailingFenceNewline(
@@ -1043,6 +1074,18 @@ function trimTrailingFenceNewline(
   return selectedMarkdown.slice(0, -1);
 }
 
+const codeCopyVisibilityClass =
+  "pointer-events-none opacity-0 transition-opacity group-hover/code-block:pointer-events-auto group-hover/code-block:opacity-100 group-focus-within/code-block:pointer-events-auto group-focus-within/code-block:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 data-[state=copied]:pointer-events-auto data-[state=copied]:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100";
+
+const tableCopyRowClass =
+  "flex h-0 justify-end overflow-hidden group-hover/table:h-8 group-focus-within/table:h-8 data-[state=copied]:h-8 [@media(hover:none)]:h-8";
+
+const tableCopyVisibilityClass =
+  "pointer-events-none mb-1 opacity-0 transition-opacity group-hover/table:pointer-events-auto group-hover/table:opacity-100 group-focus-within/table:pointer-events-auto group-focus-within/table:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 data-[state=copied]:pointer-events-auto data-[state=copied]:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100";
+
+const tableCopyHitTargetClass =
+  "pointer-events-none group-hover/table:pointer-events-auto group-focus-within/table:pointer-events-auto focus-visible:pointer-events-auto [@media(hover:none)]:pointer-events-auto";
+
 function CodeBlock({ children }: { children: ReactNode }) {
   const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
 
@@ -1062,10 +1105,11 @@ function CodeBlock({ children }: { children: ReactNode }) {
   );
 
   return (
-    <pre className="group/code-block relative pr-10">
+    <pre className="group/code-block relative">
       <button
         type="button"
-        data-in-app-agent-code-copy-button="true"
+        data-in-app-agent-block-copy-button="true"
+        data-state={isCopied ? "copied" : undefined}
         aria-label={isCopied ? "Copied code" : "Copy code"}
         title={isCopied ? "Copied" : "Copy code"}
         contentEditable={false}
@@ -1073,7 +1117,10 @@ function CodeBlock({ children }: { children: ReactNode }) {
         onClick={() => {
           copy(code).catch(() => undefined);
         }}
-        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition select-none hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className={cn(
+          "bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border shadow-sm select-none focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40",
+          codeCopyVisibilityClass,
+        )}
       >
         {isCopied ? (
           <Check className="size-3.5" />
@@ -1083,6 +1130,113 @@ function CodeBlock({ children }: { children: ReactNode }) {
       </button>
       {children}
     </pre>
+  );
+}
+
+function TableBlock({ children }: { children: ReactNode }) {
+  const tableRef = useRef<HTMLTableElement>(null);
+  const csvCopy = useCopyToClipboard({ successDuration: 1_500 });
+  const markdownCopy = useCopyToClipboard({ successDuration: 1_500 });
+  const isCopied = csvCopy.isCopied || markdownCopy.isCopied;
+
+  const copyTable = (format: "csv" | "md") => {
+    const table = tableRef.current;
+    if (!table) {
+      return;
+    }
+
+    const rendered = readRenderedTable(
+      table,
+      format === "csv" ? "text" : "markdown",
+    );
+    const text =
+      format === "csv" ? tableToCsv(rendered) : tableToMarkdown(rendered);
+    const copy = format === "csv" ? csvCopy.copy : markdownCopy.copy;
+    copy(text).catch(() => undefined);
+  };
+
+  const handleCopyTableCsv = () => {
+    copyTable("csv");
+  };
+
+  const handleCopyTableMarkdown = () => {
+    copyTable("md");
+  };
+
+  return (
+    <div className="group/table max-w-full">
+      <div
+        data-state={isCopied ? "copied" : undefined}
+        className={tableCopyRowClass}
+      >
+        <div
+          data-state={isCopied ? "copied" : undefined}
+          className={cn(
+            "bg-background/90 flex items-center divide-x overflow-hidden rounded-md border shadow-sm select-none",
+            tableCopyVisibilityClass,
+          )}
+        >
+          <TableCopyButton
+            label="Copy table as CSV"
+            copiedLabel="Copied table as CSV"
+            isCopied={csvCopy.isCopied}
+            isInteractive={isCopied}
+            caption=".csv"
+            onClick={handleCopyTableCsv}
+          />
+          <TableCopyButton
+            label="Copy table as Markdown"
+            copiedLabel="Copied table as Markdown"
+            isCopied={markdownCopy.isCopied}
+            isInteractive={isCopied}
+            caption=".md"
+            onClick={handleCopyTableMarkdown}
+          />
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded">
+        <table ref={tableRef}>{children}</table>
+      </div>
+    </div>
+  );
+}
+
+function TableCopyButton({
+  caption,
+  copiedLabel,
+  isCopied,
+  isInteractive,
+  label,
+  onClick,
+}: {
+  caption: string;
+  copiedLabel: string;
+  isCopied: boolean;
+  isInteractive: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-in-app-agent-block-copy-button="true"
+      aria-label={isCopied ? copiedLabel : label}
+      title={isCopied ? "Copied" : label}
+      contentEditable={false}
+      onClick={onClick}
+      className={cn(
+        "text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex h-6 items-center gap-1 px-1.5 text-xs focus-visible:ring-2 focus-visible:outline-none",
+        tableCopyHitTargetClass,
+        isInteractive && "pointer-events-auto",
+      )}
+    >
+      {isCopied ? (
+        <Check className="size-3.5" />
+      ) : (
+        <Copy className="size-3.5" />
+      )}
+      <span>{caption}</span>
+    </button>
   );
 }
 

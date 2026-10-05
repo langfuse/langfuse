@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, randomInt, randomUUID } from "crypto";
 import type { Session } from "next-auth";
 
@@ -34,6 +35,7 @@ describe("credentials.resetPassword", () => {
     const { caller, userId, email } = await createPasswordUser();
     const token = uniqueOtp();
     await insertOtp({ email, token });
+    const beforeReset = new Date();
 
     await caller.credentials.resetPassword({
       email,
@@ -42,6 +44,13 @@ describe("credentials.resetPassword", () => {
     });
 
     await expectPassword(userId, NEW_PASSWORD);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { sessionsExpiredAt: true },
+    });
+    expect(user.sessionsExpiredAt?.getTime()).toBeGreaterThanOrEqual(
+      beforeReset.getTime(),
+    );
     await expect(
       caller.credentials.resetPassword({
         email,
@@ -200,14 +209,7 @@ async function createPasswordUser({
       name: user.name,
       canCreateOrganizations: true,
       organizations: [],
-      featureFlags: {
-        searchBar: false,
-        templateFlag: false,
-        excludeClickhouseRead: false,
-        observationEvals: false,
-        v4BetaToggleVisible: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       admin: false,
     },
     environment: {

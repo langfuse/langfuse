@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * YOU PROBABLY DON'T NEED TO EDIT THIS FILE, UNLESS:
  * 1. You want to modify request context (see Part 1).
@@ -28,6 +29,7 @@ import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
+  requestSpan?: opentelemetry.Span;
 };
 
 /**
@@ -44,6 +46,7 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     session: opts.session,
     headers: opts.headers,
+    requestSpan: opts.requestSpan,
     prisma,
   };
 };
@@ -67,7 +70,14 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
     userId: session?.user?.id,
   });
 
-  return createInnerTRPCContext({ session, headers });
+  return createInnerTRPCContext({
+    session,
+    headers,
+    // http.server span; procedure middlewares run inside the child "TRPC" span.
+    // Batched calls may target different projects, so they tag their own span.
+    requestSpan:
+      req.query.batch === "1" ? undefined : opentelemetry.trace.getActiveSpan(),
+  });
 };
 
 /**
@@ -89,9 +99,10 @@ import {
   addUserToSpan,
   contextWithLangfuseProps,
   ClickHouseResourceError,
+  getActiveTraceId,
 } from "@langfuse/shared/src/server";
 
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
@@ -107,6 +118,10 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       ...shape,
       data: {
         ...shape.data,
+        // OTEL trace id of the failing request, for frontend/support correlation
+        // with Datadog. Absent when OTEL is not running or the trace was not
+        // sampled (an unsampled id never reaches the tracing backend).
+        traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
         errorName:
@@ -350,6 +365,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         organizationId: dbProject.orgId,
         projectId,
       });
+      addUserToSpan({ projectId, orgId: dbProject.orgId }, ctx.requestSpan);
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -385,6 +401,10 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     organizationId: sessionProject.organization.id,
     projectId,
   });
+  addUserToSpan(
+    { projectId, orgId: sessionProject.organization.id },
+    ctx.requestSpan,
+  );
 
   return next({
     ctx: {
@@ -475,6 +495,10 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
 });
 
 export const protectedOrganizationProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceIsAuthedAndOrgMember);
+
+export const protectedOrganizationProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceIsAuthedAndOrgMember);
 
@@ -627,6 +651,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         projectId,
       });
     }
+    addUserToSpan({ projectId }, ctx.requestSpan);
 
     return next({
       ctx: {
@@ -657,7 +682,7 @@ export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
  */
 
 const inputSessionSchema = z.object({
-  sessionId: z.string(),
+  sessionId: z.string().min(1),
   projectId: z.string(),
 });
 
@@ -713,6 +738,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
       projectId,
     });
   }
+  addUserToSpan({ projectId }, ctx.requestSpan);
 
   return next({
     ctx: {

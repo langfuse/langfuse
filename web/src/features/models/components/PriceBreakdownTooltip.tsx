@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable no-nested-ternary */
 import Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -10,7 +10,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type PriceUnit } from "@/src/features/models/validation";
 
@@ -18,27 +17,26 @@ export const PriceBreakdownTooltip = ({
   modelName,
   prices,
   priceUnit,
+  priceUnitMultiplier,
   rowHeight,
 }: {
   modelName: string;
-  prices?: Record<string, number>;
+  prices: Record<string, number>;
   priceUnit: PriceUnit;
+  priceUnitMultiplier: number;
   rowHeight: RowHeight;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { priceUnitMultiplier } = usePriceUnitMultiplier();
 
   const maxDecimals = useMemo(
     () =>
       Math.max(
-        ...Object.values(prices ?? {}).map((price) => {
+        ...Object.values(prices).map((price) => {
           return getMaxDecimals(price, priceUnitMultiplier);
         }),
       ),
     [prices, priceUnitMultiplier],
   );
-
-  if (!prices) return null;
 
   return (
     <>

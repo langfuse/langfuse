@@ -1,7 +1,9 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import {
   BatchExportFileFormat,
@@ -59,14 +61,7 @@ function makeSession(
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: false,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       admin: false,
     },
     environment: {
@@ -94,7 +89,7 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
     });
   });
 
-  it("blocks a MEMBER (no auditLogs:read) from exporting audit_logs even on cloud:team plan", async () => {
+  it("blocks a MEMBER (no projectAuditLogs:read) from exporting audit_logs even on cloud:team plan", async () => {
     const { project, org } = await createOrgProjectAndApiKey();
     __orgIds.push(org.id);
 
@@ -139,7 +134,7 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
     ["cloud:team", "ADMIN"],
     ["self-hosted:enterprise", "OWNER"],
   ])(
-    "allows plan=%s role=%s (both entitlement and auditLogs:read) to export audit_logs",
+    "allows plan=%s role=%s (both entitlement and projectAuditLogs:read) to export audit_logs",
     async (plan, projectRole) => {
       const { project, org } = await createOrgProjectAndApiKey();
       __orgIds.push(org.id);
@@ -314,7 +309,7 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
     ).resolves.toEqual({ url: "not-a-valid-url" });
   });
 
-  it("hides audit_logs exports from all for a MEMBER without auditLogs:read", async () => {
+  it("hides audit_logs exports from all for a MEMBER without projectAuditLogs:read", async () => {
     const { project, org } = await createOrgProjectAndApiKey();
     __orgIds.push(org.id);
 
@@ -464,5 +459,121 @@ describe("batchExport tRPC – useEventsTable snapshot", () => {
       tableName: "sessions",
       useEventsTable: false,
     });
+  });
+});
+
+describe("batchExport tRPC – cancel", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: { id: { in: __orgIds } },
+    });
+  });
+
+  it("returns NOT_FOUND when the export is missing instead of a Prisma update error", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.cancel({
+        projectId: project.id,
+        batchExportId: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("returns NOT_FOUND when the export belongs to another project", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    const other = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id, other.org.id);
+
+    const exportJob = await prisma.batchExport.create({
+      data: {
+        projectId: other.project.id,
+        userId: "user-test",
+        status: BatchExportStatus.QUEUED,
+        name: "other project export",
+        format: BatchExportFileFormat.CSV,
+        query: {
+          tableName: BatchTableNames.Traces,
+          filter: null,
+          orderBy: null,
+        },
+      },
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.cancel({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const stillQueued = await prisma.batchExport.findUnique({
+      where: { id: exportJob.id },
+    });
+    expect(stillQueued?.status).toBe(BatchExportStatus.QUEUED);
+    expect(stillQueued?.projectId).toBe(other.project.id);
+  });
+
+  it("cancels an existing queued export", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const exportJob = await prisma.batchExport.create({
+      data: {
+        projectId: project.id,
+        userId: "user-test",
+        status: BatchExportStatus.QUEUED,
+        name: "queued export",
+        format: BatchExportFileFormat.CSV,
+        query: {
+          tableName: BatchTableNames.Traces,
+          filter: null,
+          orderBy: null,
+        },
+      },
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await expect(
+      caller.batchExport.cancel({
+        projectId: project.id,
+        batchExportId: exportJob.id,
+      }),
+    ).resolves.toBeUndefined();
+
+    const cancelled = await prisma.batchExport.findUnique({
+      where: { id: exportJob.id },
+    });
+    expect(cancelled?.status).toBe(BatchExportStatus.CANCELLED);
   });
 });

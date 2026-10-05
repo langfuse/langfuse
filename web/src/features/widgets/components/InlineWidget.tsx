@@ -1,5 +1,6 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type OrderByState } from "@langfuse/shared";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
@@ -22,7 +24,7 @@ import {
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
@@ -79,9 +81,26 @@ export interface WidgetContentProps {
   /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Opt in on entity-dimension
-   * charts (experiments) whose long names clutter the axis.
+   * charts whose long names clutter the axis.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Colour each bar of a categorical (entity) axis. Off by default; opt in on
+   * entity-dimension bar charts such as the experiments strip. See
+   * `prepareCategoryBars`.
+   */
+  colorBarsByCategory?: boolean;
+  legendPosition?: LegendPosition;
+  /**
+   * Measure bars from zero rather than from a fitted domain. Off by default;
+   * see `ChartProps.zeroBaseline`.
+   */
+  zeroBaseline?: boolean;
+  /**
+   * Replaces the chart's default "No data" card — for a widget in a band too
+   * short for it. Pass a stable node (see `Chart`).
+   */
+  emptyState?: ReactNode;
 }
 
 // ============================================================================
@@ -128,6 +147,10 @@ export function WidgetContent({
   className,
   entityDimensionLabelMap,
   hideXAxisLabels,
+  colorBarsByCategory,
+  legendPosition,
+  zeroBaseline,
+  emptyState,
 }: WidgetContentProps) {
   // Transport-only: `version` is a prop here, so an unresolved session can
   // never change WHAT is queried — only whether it streams (SSE) or not.
@@ -233,9 +256,21 @@ export function WidgetContent({
         };
       }
 
+      // A non-time-series chart draws `dimension` on its categorical axis, and
+      // on an entity query the ENTITY *is* that category — so hand it over as
+      // the dimension rather than the metric's name, which would collapse every
+      // entity into one bar. Only when the query has no breakdown of its own:
+      // that breakdown is the real series (categorical scores).
+      const entityIsCategory =
+        !isTimeSeries &&
+        item["entity_dimension"] !== undefined &&
+        dimensions.length === 0;
+
       // Handle series dimension (for legend)
       let seriesDimension: string;
-      if (dimensionValue !== undefined) {
+      if (entityIsCategory) {
+        seriesDimension = xAxisValue ?? "Unknown";
+      } else if (dimensionValue !== undefined) {
         const val = dimensionValue;
         // Empty first: "" is a string, so the order matters. (LFE-10694)
         if (val === null || val === undefined || val === "") {
@@ -267,8 +302,9 @@ export function WidgetContent({
 
     // Entity-dimension charts have no meaningful query-side order (the server
     // falls back to first-metric DESC, which differs per chart). Order the
-    // x-axis to match the experiments table order provided via
-    // entityDimensionLabelMap so the same entity lines up across chart slots.
+    // x-axis by the caller's entityDimensionLabelMap insertion order, so the
+    // caller decides what left-to-right means (the experiments strip makes it
+    // chronological). Entities the map doesn't know sort last.
     if (
       chartType !== "PIVOT_TABLE" &&
       entityDimensionLabelMap &&
@@ -283,8 +319,8 @@ export function WidgetContent({
         .slice()
         .sort(
           (a, b) =>
-            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
-            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
+            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
+            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
         );
     }
 
@@ -392,17 +428,22 @@ export function WidgetContent({
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
+        colorBarsByCategory={colorBarsByCategory}
+        legendPosition={legendPosition}
+        zeroBaseline={zeroBaseline}
+        emptyState={emptyState}
       />
-      <ChartLoadingState
-        isLoading={chartLoadingState.isLoading}
-        showSpinner={chartLoadingState.showSpinner}
-        showHintImmediately={chartLoadingState.showHintImmediately}
-        hintText={chartLoadingState.hintText}
-        onRetry={queryResult.isError ? handleRetry : undefined}
-        progress={loadingProgress}
-        layout={layoutHint}
-        className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-      />
+      {chartLoadingState.isLoading && (
+        <ChartLoadingState
+          showSpinner={chartLoadingState.showSpinner}
+          showHintImmediately={chartLoadingState.showHintImmediately}
+          hintText={chartLoadingState.hintText}
+          onRetry={queryResult.isError ? handleRetry : undefined}
+          progress={loadingProgress}
+          layout={layoutHint}
+          className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { type LastUserScore } from "@langfuse/shared";
-import { expect } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../.storybook/preview";
 import { GroupedScoreBadges } from "./grouped-score-badge";
@@ -8,6 +8,13 @@ const meta = preview.meta({
   component: GroupedScoreBadges,
   args: {
     scores: [],
+  },
+  parameters: {
+    nextjs: {
+      router: {
+        query: { projectId: "storybook-project" },
+      },
+    },
   },
 });
 
@@ -47,9 +54,16 @@ export const Compact = meta.story({
 });
 
 export const WithOverflow = meta.story({
+  name: "(Test) With Overflow",
   args: {
     scores: [
-      ...scores,
+      {
+        ...scores[0],
+        comment: "Detailed quality feedback",
+        executionTraceId: "execution-trace-id",
+        metadata: { evaluator: "human" },
+      },
+      scores[1],
       {
         ...scores[0],
         id: "accuracy",
@@ -58,6 +72,38 @@ export const WithOverflow = meta.story({
       },
     ],
     maxVisible: 2,
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      body.getByRole("button", { name: "Show all 3 scores" }),
+    );
+
+    await waitFor(async () => {
+      await expect(
+        canvasElement.ownerDocument.body.querySelectorAll(
+          '[role="dialog"][data-state="open"] li',
+        ),
+      ).toHaveLength(3);
+    });
+
+    const popover = within(body.getByRole("dialog"));
+    const commentButton = popover.getByLabelText(
+      "View comment for quality: 0.92",
+    );
+    await expect(commentButton).toBeInTheDocument();
+    await expect(
+      popover.getByLabelText("View metadata for quality: 0.92"),
+    ).toBeInTheDocument();
+
+    await userEvent.hover(commentButton);
+    await expect(
+      await body.findByRole("link", { name: "View execution trace" }),
+    ).toHaveAttribute(
+      "href",
+      "/project/storybook-project/traces/execution-trace-id",
+    );
   },
 });
 

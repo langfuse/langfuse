@@ -1,7 +1,9 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { CheckIcon, ChevronDown, Code2, Cog, Wand2 } from "lucide-react";
+import { CheckIcon, Code2, Cog, Wand2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { api } from "@/src/utils/api";
 import {
   Card,
@@ -86,6 +88,10 @@ export const CreateExperimentsForm = ({
     projectId,
     scope: "promptExperiments:CUD",
   });
+  const hasDatasetAccess = useHasProjectAccess({
+    projectId,
+    scope: "datasets:CUD",
+  });
   const fixedDatasetId = defaultValues.datasetId;
   const [remoteExperimentDataset, setRemoteExperimentDataset] = useState<
     { id: string; name?: string } | undefined
@@ -126,11 +132,15 @@ export const CreateExperimentsForm = ({
   const hasRemoteExperiment = !!existingRemoteExperiment.data;
   const isRemoteExperimentEnabled =
     existingRemoteExperiment.data?.enabled !== false;
-  const webhookActionLabel = isRemoteExperimentLoading
-    ? "Loading..."
-    : hasRemoteExperiment
-      ? "Run"
-      : "Configure";
+  const webhookActionLabel = (() => {
+    if (isRemoteExperimentLoading) {
+      return "Loading...";
+    }
+    if (hasRemoteExperiment) {
+      return "Run";
+    }
+    return "Configure";
+  })();
 
   if (!hasExperimentWriteAccess) {
     return null;
@@ -245,14 +255,14 @@ export const CreateExperimentsForm = ({
                             remoteExperimentDatasets.isPending ||
                             remoteExperimentDatasets.data?.length === 0
                           }
-                          className="w-full justify-between px-2 font-normal"
+                          className="w-full justify-between gap-2 px-2 font-normal"
                         >
                           {remoteExperimentDatasets.isPending
                             ? "Loading datasets"
                             : (selectedRemoteExperimentDataset?.name ??
                               remoteExperimentDataset?.name ??
                               "Select a dataset")}
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <DropdownIndicator />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -306,14 +316,25 @@ export const CreateExperimentsForm = ({
                   <div className="flex w-full items-start">
                     <Button
                       className="w-full rounded-r-none"
-                      disabled={!datasetId || !isRemoteExperimentEnabled}
+                      disabled={
+                        !datasetId ||
+                        !isRemoteExperimentEnabled ||
+                        !hasDatasetAccess
+                      }
                       title={
-                        isRemoteExperimentEnabled
-                          ? undefined
-                          : "please edit and enable webhook"
+                        !hasDatasetAccess
+                          ? "You do not have permission to run remote experiments"
+                          : isRemoteExperimentEnabled
+                            ? undefined
+                            : "please edit and enable webhook"
                       }
                       onClick={() => {
-                        if (!datasetId || !isRemoteExperimentEnabled) return;
+                        if (
+                          !datasetId ||
+                          !isRemoteExperimentEnabled ||
+                          !hasDatasetAccess
+                        )
+                          return;
                         setShowRemoteExperimentTriggerModal(true);
                       }}
                     >
@@ -366,7 +387,8 @@ export const CreateExperimentsForm = ({
   if (
     showRemoteExperimentTriggerModal &&
     datasetId &&
-    existingRemoteExperiment.data
+    existingRemoteExperiment.data &&
+    hasDatasetAccess
   ) {
     return (
       <RemoteExperimentTriggerModal

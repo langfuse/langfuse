@@ -9,6 +9,7 @@ export const [listScoreConfigsTool, handleListScoreConfigs] = defineTool({
   name: "listScoreConfigs",
   description:
     "List score configurations. Returns exactly data and meta at the top level.",
+  action: "scoreConfigs:read",
   baseSchema: GetScoreConfigsQuery,
   inputSchema: GetScoreConfigsQuery,
   handler: async (input, context) => {

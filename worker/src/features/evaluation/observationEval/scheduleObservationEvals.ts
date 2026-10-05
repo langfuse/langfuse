@@ -1,3 +1,4 @@
+import type { ObservationVariableMapping } from "@langfuse/shared";
 import {
   type ObservationForEval,
   type ObservationEvalAssignment,
@@ -14,20 +15,34 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import {
+  EvalTemplateType,
   JobExecutionStatus,
   type FilterState,
   type EvalExecutionMode,
   canRunEvalRule,
+  coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
+  observationVariableMappingList,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
+
+const OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS = new Set([
+  "parentObservationId",
+]);
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
   configs: ObservationEvalRule[];
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
+  /**
+   * Extra identity for this scheduling pass so overlapping runs of the same
+   * evaluator on the same observation do not share a job id. Live ingestion
+   * omits it; batch passes the batch-action id so retries of that run stay
+   * stable while a second run gets its own executions.
+   */
+  executionScopeId?: string;
 }
 
 /**
@@ -84,7 +99,13 @@ export function isObservationAllowedForQueuedObservationEvals(
 export async function scheduleObservationEvals(
   params: ScheduleObservationEvalsParams,
 ): Promise<void> {
-  const { observation, configs, schedulerDeps, executionMode } = params;
+  const {
+    observation,
+    configs,
+    schedulerDeps,
+    executionMode,
+    executionScopeId,
+  } = params;
 
   // Early return if no configs
   if (configs.length === 0) {
@@ -167,6 +188,7 @@ export async function scheduleObservationEvals(
           observationS3Path,
           schedulerDeps,
           executionMode,
+          executionScopeId,
         }).catch((error) => {
           logger.error("Failed to process observation eval assignment", {
             configId: config.id,
@@ -188,6 +210,7 @@ interface ProcessConfigParams {
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
+  executionScopeId?: string;
 }
 
 async function processMatchingConfig(
@@ -200,26 +223,28 @@ async function processMatchingConfig(
     observationS3Path,
     schedulerDeps,
     executionMode,
+    executionScopeId,
   } = params;
 
-  const jobExecutionId = createW3CTraceId(
-    JSON.stringify(
-      "assignments" in matchingConfig
-        ? [
-            "observation-eval",
-            matchingConfig.id,
-            assignment.id,
-            observation.trace_id,
-            observation.span_id,
-          ]
-        : [
-            "observation-eval",
-            matchingConfig.id,
-            observation.trace_id,
-            observation.span_id,
-          ],
-    ),
-  );
+  const jobIdentity: string[] =
+    "assignments" in matchingConfig
+      ? [
+          "observation-eval",
+          matchingConfig.id,
+          assignment.id,
+          observation.trace_id,
+          observation.span_id,
+        ]
+      : [
+          "observation-eval",
+          matchingConfig.id,
+          observation.trace_id,
+          observation.span_id,
+        ];
+  if (executionScopeId) {
+    jobIdentity.push(executionScopeId);
+  }
+  const jobExecutionId = createW3CTraceId(JSON.stringify(jobIdentity));
 
   // Create job execution
   await schedulerDeps.upsertJobExecution({
@@ -252,6 +277,9 @@ async function processMatchingConfig(
             : {}),
         }
       : {}),
+    ...(assignment.variableMapping != null
+      ? { variableMapping: assignment.variableMapping }
+      : {}),
   });
 
   logger.debug("Scheduled observation eval job", {
@@ -269,26 +297,36 @@ type ScheduledObservationEvalAssignment = {
   /** Legacy template id, or evaluator id for a ruleless V2 batch run. */
   evalTemplateId: string | null;
   evaluatorType: ObservationEvalAssignment["evaluator"]["type"];
+  /**
+   * Mapping override for a ruleless batch run. Omitted when the run should
+   * inherit the evaluator version mapping, and never set for rule-backed jobs
+   * (those load the assignment row at pickup).
+   */
+  variableMapping?: ObservationVariableMapping[];
 };
 
 function getExecutableAssignments(
   rule: ObservationEvalRule,
 ): ScheduledObservationEvalAssignment[] {
   if (!("assignments" in rule)) {
-    return rule.evalTemplateId
-      ? [
-          {
-            id: rule.id,
-            evaluatorId: null,
-            evaluationRuleId: null,
-            evalTemplateId: rule.evalTemplateId,
-            evaluatorType: rule.evalTemplate.type,
-          },
-        ]
-      : [];
+    if (
+      !rule.evalTemplateId ||
+      rule.evalTemplate.type === EvalTemplateType.FACET
+    )
+      return [];
+    return [
+      {
+        id: rule.id,
+        evaluatorId: null,
+        evaluationRuleId: null,
+        evalTemplateId: rule.evalTemplateId,
+        evaluatorType: rule.evalTemplate.type,
+      },
+    ];
   }
 
   return rule.assignments.flatMap((assignment) => {
+    if (assignment.evaluator.type === EvalTemplateType.FACET) return [];
     // Blocked evaluators are already excluded by the query; this guards the
     // tenant boundary for callers that build assignments by hand.
     if (assignment.evaluator.projectId !== rule.projectId) {
@@ -300,6 +338,10 @@ function getExecutableAssignments(
       return [];
     }
 
+    const parsedMapping = observationVariableMappingList.safeParse(
+      assignment.variableMapping,
+    );
+
     return [
       {
         id: assignment.id,
@@ -308,6 +350,9 @@ function getExecutableAssignments(
         // Ruleless batch runs use the evaluator as the legacy template anchor.
         evalTemplateId: rule.ruleId === null ? assignment.evaluator.id : null,
         evaluatorType: assignment.evaluator.type,
+        ...(rule.ruleId === null && parsedMapping.success
+          ? { variableMapping: parsedMapping.data }
+          : {}),
       },
     ];
   });
@@ -321,7 +366,9 @@ function evaluateFilter(
   observation: ObservationForEval,
   config: ObservationEvalRule,
 ): boolean {
-  const filterConditions = config.filter as FilterState;
+  const filterConditions = coerceLegacyEmptyMetadataFilters(
+    config.filter,
+  ) as FilterState;
 
   // Empty filter matches all (for filter purposes)
   const isEmptyFilter =
@@ -340,6 +387,9 @@ function evaluateFilter(
         observation,
         filterConditions,
         fieldMapper,
+        {
+          emptyEqualsNullColumns: OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS,
+        },
       );
 
   return isFilterMatch;

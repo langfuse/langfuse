@@ -10,6 +10,7 @@ import { DATASET_RUNS_DEPRECATION } from "@/src/features/public-api/server/depre
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "get-dataset-runs",
+    action: "datasets:read",
     querySchema: GetDatasetRunsV1Query,
     responseSchema: GetDatasetRunsV1Response,
     deprecation: DATASET_RUNS_DEPRECATION,

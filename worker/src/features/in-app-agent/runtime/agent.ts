@@ -463,7 +463,9 @@ export async function createAgUiStream(params: {
   };
 
   const runOnFinish = () => {
-    onFinishPromise ??= Promise.resolve(params.options.onFinish?.());
+    if (onFinishPromise === undefined) {
+      onFinishPromise = Promise.resolve(params.options.onFinish?.());
+    }
     return onFinishPromise;
   };
 
@@ -1129,7 +1131,7 @@ async function createMastraAdapter(params: {
   onToolExecutionEnd?: (toolCallId: string) => void;
   stepLimitState: StepLimitState;
 }) {
-  const languageModel = createInAppAgentLanguageModel({
+  const languageModel = await createInAppAgentLanguageModel({
     config: params.options.model,
     awsProfile: params.awsProfile,
   });

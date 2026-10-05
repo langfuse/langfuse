@@ -23,7 +23,7 @@ import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
@@ -481,12 +481,15 @@ export const MultiStepExperimentForm = ({
     .filter((step) => step.id !== "dataset" || !isDatasetValidationPending)
     .filter((step) => !isStepValid(step.id))
     .map((step) => step.label);
-  const reviewErrorMessage =
-    invalidRequiredStepLabels.length === 0
-      ? undefined
-      : invalidRequiredStepLabels.length === 1
-        ? `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`
-        : `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+  const reviewErrorMessage = (() => {
+    if (invalidRequiredStepLabels.length === 0) {
+      return undefined;
+    }
+    if (invalidRequiredStepLabels.length === 1) {
+      return `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`;
+    }
+    return `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+  })();
 
   if (
     !promptsByName ||

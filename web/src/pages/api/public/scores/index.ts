@@ -15,11 +15,11 @@ import {
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
+    action: "scores:create",
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
     allowedAccessLevels: ["project", "scores"],
@@ -63,6 +63,7 @@ export default withMiddlewares({
   }),
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
+    action: "scores:read",
     querySchema: GetScoresQueryV1,
     responseSchema: GetScoresResponseV1,
     deprecation: SCORES_DEPRECATION,

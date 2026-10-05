@@ -2,12 +2,14 @@ import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import {
+  getOrganizationPlanServerSide,
+  hasEntitlementBasedOnPlan,
+} from "@/src/features/entitlements/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
-import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { canCreateOrganizations } from "@/src/features/organizations/server";
+import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 

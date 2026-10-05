@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   Card,
   CardHeader,

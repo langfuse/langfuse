@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable no-nested-ternary */
 import { useState } from "react";
 import Link from "next/link";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -36,10 +36,10 @@ import {
 } from "@langfuse/shared";
 import router from "next/router";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { PromptVariableListPreview } from "@/src/features/prompts";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground";
 import { showSuccessToast } from "@/src/features/notifications";
 import {
   getDefaultOutputDefinitionFormValues,
@@ -76,10 +76,7 @@ import {
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import {
-  useEvalCapabilities,
-  type EvalCapabilities,
-} from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
@@ -263,10 +260,13 @@ const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
+      // The legacy editor only knows LLM and code templates.
       type:
         templateTypeSelectorMode === "code-only"
           ? EvalTemplateType.CODE
-          : (props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE),
+          : props.preFilledFormValues?.type === EvalTemplateType.CODE
+            ? EvalTemplateType.CODE
+            : EvalTemplateType.LLM_AS_JUDGE,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       sourceCode: props.preFilledFormValues?.sourceCode
@@ -599,22 +599,52 @@ const InnerEvalTemplateForm = (props: {
         </>
       ) : undefined}
 
-      <EvalTemplateTypeSelector
-        form={form}
-        codeEvalCapabilities={codeEvalCapabilities}
-        mode={templateTypeSelectorMode}
-        hasExistingTemplate={Boolean(props.existingEvalTemplateId)}
-        onChange={() => {
-          resetCodeEvalSourceValidation();
-          setFormError(null);
-        }}
-      />
+      {codeEvalCapabilities.enabled &&
+        !props.existingEvalTemplateId &&
+        templateTypeSelectorMode !== "hidden" && (
+          <EvalTemplateTypeSelector
+            form={form}
+            codeEvalCapabilities={codeEvalCapabilities}
+            mode={templateTypeSelectorMode}
+            onChange={() => {
+              resetCodeEvalSourceValidation();
+              setFormError(null);
+            }}
+          />
+        )}
 
       {showCodeTemplateForm ? (
         <div className="space-y-3">
-          {props.isEditing ? (
-            <CodeEvalSdkVersionCallout evalCapabilities={evalCapabilities} />
-          ) : null}
+          {props.isEditing &&
+            !evalCapabilities.isLoading &&
+            evalCapabilities.compatibilityCheckWasPerformed &&
+            !evalCapabilities.isNewCompatible && (
+              <div className="w-full max-w-4xl">
+                <Alert variant="warning" icon={AlertTriangle}>
+                  <Alert.Description>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-foreground font-bold">
+                        Please verify your SDK version
+                      </span>
+                      <span className="text-foreground text-sm">
+                        Code evaluators require JS SDK v4+ or Python SDK v3+.
+                        You can create this evaluator now, but it will only run
+                        once your project ingests data with a compatible SDK.{" "}
+                        <a
+                          href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-dark-blue font-bold hover:opacity-80"
+                        >
+                          Learn more
+                        </a>
+                        .
+                      </span>
+                    </div>
+                  </Alert.Description>
+                </Alert>
+              </div>
+            )}
           <FormField
             control={form.control}
             name="sourceCode"
@@ -741,9 +771,11 @@ const InnerEvalTemplateForm = (props: {
                           />
                         </FormControl>
                         <FormMessage />
-                        <PromptVariableListPreview
-                          variables={extractedVariables ?? []}
-                        />
+                        {extractedVariables?.length ? (
+                          <PromptVariableListPreview
+                            variables={extractedVariables}
+                          />
+                        ) : null}
                       </FormItem>
                     </>
                   )}
@@ -1008,45 +1040,3 @@ const InnerEvalTemplateForm = (props: {
     </Form>
   );
 };
-
-function CodeEvalSdkVersionCallout({
-  evalCapabilities,
-}: {
-  evalCapabilities: EvalCapabilities;
-}) {
-  if (
-    evalCapabilities.isLoading ||
-    !evalCapabilities.compatibilityCheckWasPerformed ||
-    evalCapabilities.isNewCompatible
-  ) {
-    return null;
-  }
-
-  return (
-    <div className="w-full max-w-4xl">
-      <Alert variant="warning" icon={AlertTriangle}>
-        <Alert.Description>
-          <div className="flex flex-col gap-1">
-            <span className="text-foreground font-bold">
-              Please verify your SDK version
-            </span>
-            <span className="text-foreground text-sm">
-              Code evaluators require JS SDK v4+ or Python SDK v3+. You can
-              create this evaluator now, but it will only run once your project
-              ingests data with a compatible SDK.{" "}
-              <a
-                href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-blue font-bold hover:opacity-80"
-              >
-                Learn more
-              </a>
-              .
-            </span>
-          </div>
-        </Alert.Description>
-      </Alert>
-    </div>
-  );
-}

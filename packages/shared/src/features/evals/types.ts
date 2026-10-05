@@ -15,6 +15,8 @@ import z from "zod";
 export const EvalTemplateTypeEnum = {
   LLM_AS_JUDGE: "LLM_AS_JUDGE",
   CODE: "CODE",
+  DECISION_MODEL: "DECISION_MODEL",
+  FACET: "FACET",
 } as const satisfies Record<EvalTemplateType, EvalTemplateType>;
 
 export const EvalTemplateSourceCodeLanguageEnum = {
@@ -97,9 +99,19 @@ export type EvalTemplateCodeBased = EvalTemplate & {
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
 };
 
+export type EvalTemplateDecisionModel = EvalTemplate & {
+  type: typeof EvalTemplateType.DECISION_MODEL;
+  prompt: null;
+  outputDefinition: null;
+  sourceCode: null;
+  sourceCodeLanguage: null;
+  questions: unknown;
+};
+
 export type EvalTemplateWithType =
   | EvalTemplateLlmAsAJudge
-  | EvalTemplateCodeBased;
+  | EvalTemplateCodeBased
+  | EvalTemplateDecisionModel;
 
 export const EvalTargetObject = {
   TRACE: "trace",
@@ -316,4 +328,17 @@ export const observationVariableMappingList = z.array(
 );
 export type ObservationVariableMapping = z.infer<
   typeof observationVariableMapping
+>;
+
+/**
+ * Per-evaluator mapping override for a one-shot batch evaluation. `null`
+ * inherits the evaluator version's mapping. Absent from the payload means
+ * every selected evaluator inherits.
+ */
+export const BatchEvalEvaluatorMappingSchema = z.object({
+  evaluatorId: z.string().min(1),
+  variableMapping: observationVariableMappingList.nullable(),
+});
+export type BatchEvalEvaluatorMapping = z.infer<
+  typeof BatchEvalEvaluatorMappingSchema
 >;

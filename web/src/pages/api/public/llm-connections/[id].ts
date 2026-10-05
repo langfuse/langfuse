@@ -5,7 +5,7 @@ import {
   DeleteLlmConnectionV1Query,
   DeleteLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { EvaluatorBlockReason, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   blockEvaluatorsUsingDefaultModel,
@@ -18,6 +18,7 @@ import {
 export default withMiddlewares({
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete LLM Connection",
+    action: "llmApiKeys:delete",
     querySchema: DeleteLlmConnectionV1Query,
     responseSchema: DeleteLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,

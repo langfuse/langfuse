@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { EvalTargetObject, type FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  type FilterState,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -99,6 +103,42 @@ async function createRule({
 }
 
 describe("evaluation rule v2 repository", () => {
+  it("excludes facet rules from user-facing reads and mutations", async () => {
+    const evaluator = await createEvaluator();
+    await prisma.evaluator.update({
+      where: { id: evaluator.id },
+      data: { type: EvalTemplateType.FACET, isBuiltIn: true },
+    });
+    const rule = await createRule({ evaluatorId: evaluator.id });
+
+    await expect(
+      ruleRepository.listRules({
+        prisma,
+        input: { projectId, page: 1, limit: 50 },
+      }),
+    ).resolves.toEqual({ rules: [], totalItems: 0 });
+    await expect(
+      ruleRepository.findRule({ prisma, projectId, ruleId: rule.id }),
+    ).resolves.toBeNull();
+    await expect(
+      ruleRepository.listSelectedRuleIds({
+        prisma,
+        input: { projectId, ruleIds: [rule.id] },
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      ruleRepository.setRuleStatus({
+        prisma,
+        projectId,
+        ruleIds: [rule.id],
+        enabled: false,
+      }),
+    ).resolves.toEqual({ count: 0 });
+    await expect(
+      ruleRepository.deleteRule({ prisma, projectId, ruleId: rule.id }),
+    ).resolves.toBe(false);
+  });
+
   describe("listRules", () => {
     it("returns an empty list", async () => {
       await expect(
@@ -366,6 +406,44 @@ describe("evaluation rule v2 repository", () => {
           ruleId: "missing-rule",
         }),
       ).resolves.toBeNull();
+    });
+  });
+
+  describe("findActiveRuleWithMatchingFilterAndSampling", () => {
+    it("dedups a legacy empty-substring metadata filter against a coerced is-set candidate", async () => {
+      const evaluator = await createEvaluator();
+      await createRule({
+        evaluatorId: evaluator.id,
+        filter: [
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "user_id",
+            operator: "contains",
+            value: "",
+          },
+        ] as FilterState,
+      });
+
+      const candidate: FilterState = [
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "user_id",
+          operator: "is set",
+          value: "",
+        },
+      ];
+
+      const match =
+        await ruleRepository.findActiveRuleWithMatchingFilterAndSampling({
+          prisma,
+          projectId,
+          filter: candidate,
+          sampling: 1,
+        });
+
+      expect(match).not.toBeNull();
     });
   });
 

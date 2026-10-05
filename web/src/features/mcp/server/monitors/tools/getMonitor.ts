@@ -13,6 +13,7 @@ const GetMonitorInputSchema = z.object({
 export const [getMonitorTool, handleGetMonitor] = defineTool({
   name: "getAlert",
   description: "Get an alert by ID.",
+  action: "alerts:read",
   baseSchema: GetMonitorInputSchema,
   inputSchema: GetMonitorInputSchema,
   handler: async (input, context) =>

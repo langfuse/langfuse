@@ -5,6 +5,10 @@ import {
   handleUpsertDatasetItem,
 } from "./tools/upsertDatasetItem";
 import {
+  batchUpsertDatasetItemsTool,
+  handleBatchUpsertDatasetItems,
+} from "./tools/batchUpsertDatasetItems";
+import {
   createDatasetRunItemTool,
   handleCreateDatasetRunItem,
 } from "./tools/createDatasetRunItem";
@@ -51,6 +55,10 @@ export const datasetsFeature = {
       handler: handleGetDataset,
     },
     { definition: upsertDatasetItemTool, handler: handleUpsertDatasetItem },
+    {
+      definition: batchUpsertDatasetItemsTool,
+      handler: handleBatchUpsertDatasetItems,
+    },
     {
       definition: listDatasetItemsTool,
       handler: handleListDatasetItems,

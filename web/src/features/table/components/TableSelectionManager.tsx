@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useRef, type RefObject } from "react";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Skeleton } from "@/src/components/ui/skeleton";

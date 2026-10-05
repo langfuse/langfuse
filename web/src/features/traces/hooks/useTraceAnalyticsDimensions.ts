@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 /**
  * Shared segmentation dimensions for every `trace_detail:*` analytics event:

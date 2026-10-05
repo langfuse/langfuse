@@ -1,9 +1,44 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import type { ColumnDefinition } from "@langfuse/shared";
+import { ExperimentDisplaySettings } from "@/src/features/experiments";
 import {
   DataTableToolbar,
   type MultiSelect,
 } from "@/src/components/table/data-table-toolbar";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { useStore } from "zustand";
+
+const captureSpy = vi.fn();
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureSpy }),
+}));
+
+function MobileSearchHarness() {
+  const { store } = useEventsSearchBar({
+    tableName: "test-table",
+    enabled: true,
+    isV4: false,
+    filterState: [],
+    searchQuery: null,
+    searchType: ["id"],
+    observed: undefined,
+    setFilterState: vi.fn(),
+    setSearchQuery: vi.fn(),
+    setSearchType: vi.fn(),
+  });
+  const draft = useStore(store, (state) => state.draft);
+
+  return (
+    <input
+      aria-label="Mobile search"
+      value={draft}
+      onChange={(event) =>
+        store.getState().actions.setDraft(event.target.value)
+      }
+    />
+  );
+}
 
 const baseMultiSelect = (overrides: Partial<MultiSelect>): MultiSelect => ({
   selectAll: false,
@@ -25,6 +60,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: 500,
             selectedRowIds: selectedIds(50),
@@ -43,6 +79,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             selectedRowIds: selectedIds(50),
@@ -59,6 +96,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: 30,
             selectedRowIds: selectedIds(30),
@@ -78,6 +116,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -98,6 +137,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             selectAll: true,
             totalCount: null,
@@ -114,6 +154,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             selectAll: true,
             totalCount: 823,
@@ -131,6 +172,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: false,
@@ -148,6 +190,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -165,6 +208,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -178,5 +222,138 @@ describe("DataTableToolbar select-all banner gate", () => {
         screen.queryByText(/items on this page are selected/),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("DataTableToolbar presentation controls", () => {
+  const settingsProps = {
+    columns: [],
+    tableName: "test-table",
+    columnVisibility: {},
+    setColumnVisibility: vi.fn(),
+    rowHeight: "s" as const,
+    setRowHeight: vi.fn(),
+  };
+
+  it("renders Columns and row height as separate controls by default", () => {
+    render(<DataTableToolbar {...settingsProps} />);
+
+    expect(
+      screen.getByRole("button", { name: /^Columns/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Table settings" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens display settings independently of the column picker", () => {
+    const onIoRenderModeChange = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        toolbarSettings={
+          <ExperimentDisplaySettings
+            layout="grid"
+            onLayoutChange={vi.fn()}
+            diffMode="comparison"
+            onDiffModeChange={vi.fn()}
+            itemVisibility="all"
+            onItemVisibilityChange={vi.fn()}
+            hasComparisons
+            hasBaseline
+            ioRenderMode="json"
+            onIoRenderModeChange={onIoRenderModeChange}
+          />
+        }
+      />,
+    );
+
+    expect(screen.queryByRole("menuitem", { name: "Formatted" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Formatted" }));
+    expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Display" })).toBeVisible();
+  });
+
+  it("opens legacy filters and search together in the mobile sheet", () => {
+    captureSpy.mockClear();
+    const filterColumns: ColumnDefinition[] = [
+      {
+        id: "status",
+        name: "Status",
+        type: "stringOptions",
+        internal: "status",
+        options: [{ value: "active" }],
+      },
+    ];
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        tableName="test-table"
+        filterColumnDefinition={filterColumns}
+        filterState={[]}
+        setFilterState={vi.fn()}
+        mobileSearch={<MobileSearchHarness />}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Filters" })[0]!);
+
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add filter" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Mobile search" }), {
+      target: { value: "unsubmitted draft" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Filters" })[0]!);
+
+    expect(screen.getByRole("textbox", { name: "Mobile search" })).toHaveValue(
+      "unsubmitted draft",
+    );
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:sidebar_toggled",
+      ),
+    ).toEqual([
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: true,
+          trigger: "toolbar",
+        },
+        undefined,
+      ],
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: false,
+          trigger: "header",
+        },
+        undefined,
+      ],
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: true,
+          trigger: "toolbar",
+        },
+        undefined,
+      ],
+    ]);
   });
 });

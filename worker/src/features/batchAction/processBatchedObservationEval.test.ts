@@ -84,6 +84,7 @@ describe("processBatchedObservationEval", () => {
       expect.objectContaining({
         configs: evaluators,
         executionMode: "MANUAL",
+        executionScopeId: batchActionId,
       }),
     );
     expect(
@@ -150,6 +151,7 @@ describe("processBatchedObservationEval", () => {
       expect.objectContaining({
         configs: evaluators,
         executionMode: "MANUAL",
+        executionScopeId: "batch-action-v2",
       }),
     );
   });

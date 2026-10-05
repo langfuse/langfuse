@@ -1,4 +1,4 @@
-import { getCommentForApi } from "@/src/features/comments/server/publicCommentService";
+import { getCommentForApi } from "@/src/features/comments/server";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
@@ -9,6 +9,7 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Comment",
+    action: "comments:read",
     querySchema: GetCommentV1Query,
     responseSchema: GetCommentV1Response,
     fn: async ({ query, auth }) =>

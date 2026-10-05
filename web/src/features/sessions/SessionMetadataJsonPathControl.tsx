@@ -1,0 +1,222 @@
+import { type FilterState } from "@langfuse/shared";
+import {
+  hashKey,
+  type QueryCache,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
+import {
+  type ReactNode,
+  useCallback,
+  useState,
+  useSyncExternalStore,
+} from "react";
+
+import {
+  metadataJsonPathsStorageKey,
+  parseStoredMetadataJsonPaths,
+  type SessionMetadataJsonPathState,
+} from "@/src/features/sessions/sessionMetadataJsonPath";
+import { getVisibleSessionObservations } from "@/src/features/sessions/sessionVisibleObservations";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { api, type RouterOutputs } from "@/src/utils/api";
+
+type SessionMetadataJsonPathControlProps = {
+  projectId: string;
+  sessionId: string;
+  traces:
+    | { state: "loading" }
+    | { state: "loaded"; data: readonly { id: string }[] };
+  filterState: FilterState;
+  children: (state: SessionMetadataJsonPathState) => ReactNode;
+};
+
+const EMPTY_STORED_PATHS: readonly string[] = [];
+const EMPTY_CACHE_SNAPSHOT = () => "";
+
+const getQueryCacheSnapshot = (
+  queryCache: QueryCache,
+  queryHashSignature: string,
+) => {
+  if (!queryHashSignature) return "";
+
+  return queryHashSignature
+    .split("\u0000")
+    .map((queryHash) => {
+      const state = queryCache.get(queryHash)?.state;
+      return state
+        ? `${state.status}:${state.fetchStatus}:${state.dataUpdateCount}:${state.errorUpdateCount}`
+        : "missing";
+    })
+    .join("\u0000");
+};
+
+const useQueryCacheEntries = (queryHashSignature: string) => {
+  const queryCache = useQueryClient().getQueryCache();
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      const queryHashes = new Set(queryHashSignature.split("\u0000"));
+      return queryCache.subscribe((event) => {
+        if (queryHashes.has(event.query.queryHash)) onStoreChange();
+      });
+    },
+    [queryCache, queryHashSignature],
+  );
+  const getSnapshot = useCallback(
+    () => getQueryCacheSnapshot(queryCache, queryHashSignature),
+    [queryCache, queryHashSignature],
+  );
+
+  useSyncExternalStore(subscribe, getSnapshot, EMPTY_CACHE_SNAPSHOT);
+  return queryCache;
+};
+
+const getFirstCachedObservation = ({
+  queryCache,
+  queryHashes,
+  traceIds,
+}: {
+  queryCache: QueryCache;
+  queryHashes: readonly string[];
+  traceIds: readonly string[];
+}) => {
+  type Observation =
+    RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
+  type ObservationResponse =
+    | RouterOutputs["sessions"]["observationsForTraceFromEvents"]
+    | {
+        observations?: RouterOutputs["sessions"]["observationsForTraceFromEvents"];
+      };
+  let firstObservation: Observation | undefined;
+  let hasResolvedQuery = false;
+  let isFetching = false;
+  let isError = false;
+
+  queryHashes.forEach((queryHash, index) => {
+    const queryState = queryCache.get(queryHash)?.state;
+    const response = queryState?.data as ObservationResponse | undefined;
+    if (response !== undefined) {
+      hasResolvedQuery = true;
+    }
+    if (queryState?.fetchStatus === "fetching") {
+      isFetching = true;
+    }
+    if (queryState?.status === "error") {
+      isError = true;
+    }
+    if (firstObservation === undefined) {
+      firstObservation = getVisibleSessionObservations(
+        response,
+        traceIds[index] ?? "",
+      ).visibleObservations?.[0];
+    }
+  });
+
+  return { firstObservation, hasResolvedQuery, isFetching, isError };
+};
+
+export function SessionMetadataJsonPathControl({
+  projectId,
+  sessionId,
+  traces,
+  filterState,
+  children,
+}: SessionMetadataJsonPathControlProps) {
+  const [rawPaths, setRawPaths] = useLocalStorage<unknown>(
+    metadataJsonPathsStorageKey(projectId),
+    EMPTY_STORED_PATHS,
+  );
+  const paths = parseStoredMetadataJsonPaths(rawPaths);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const shouldObserveMetadata = paths.length > 0 || isEditorOpen;
+  const loadedTraces = traces.state === "loaded" ? traces.data : [];
+  const observationInputs = shouldObserveMetadata
+    ? loadedTraces.map((trace) => ({
+        projectId,
+        sessionId,
+        traceId: trace.id,
+        filter: filterState,
+      }))
+    : [];
+  const observationQueryHashes = observationInputs.map((input) =>
+    hashKey(
+      getQueryKey(api.sessions.observationsForTraceFromEvents, input, "query"),
+    ),
+  );
+  const queryCache = useQueryCacheEntries(
+    observationQueryHashes.join("\u0000"),
+  );
+  const { firstObservation, hasResolvedQuery, isFetching, isError } =
+    getFirstCachedObservation({
+      queryCache,
+      queryHashes: observationQueryHashes,
+      traceIds: loadedTraces.map((trace) => trace.id),
+    });
+  // The timeline body loads observations through a different query, so traces
+  // are fetched here one at a time, in order, until one has a visible
+  // observation. The legacy body shares these cache entries.
+  const nextObservationInput = firstObservation
+    ? undefined
+    : observationInputs.find((_, index) => {
+        const status = queryCache.get(observationQueryHashes[index] ?? "")
+          ?.state.status;
+        return status !== "success" && status !== "error";
+      });
+  api.sessions.observationsForTraceFromEvents.useQuery(
+    nextObservationInput ?? {
+      projectId,
+      sessionId,
+      traceId: "",
+      filter: filterState,
+    },
+    {
+      enabled: nextObservationInput !== undefined,
+      trpc: { context: { skipBatch: true } },
+      staleTime: 60 * 1000,
+    },
+  );
+  const source = (() => {
+    if (!shouldObserveMetadata) {
+      return { state: "idle" } as const;
+    }
+    if (traces.state === "loading") {
+      return { state: "loading" } as const;
+    }
+    if (firstObservation) {
+      return {
+        state: "ready",
+        metadata: firstObservation.metadata,
+        metadataTruncated: firstObservation.metadataTruncated,
+      } as const;
+    }
+    if (isFetching || nextObservationInput) {
+      return { state: "loading" } as const;
+    }
+    if (isError && !hasResolvedQuery) {
+      return { state: "error" } as const;
+    }
+    if (hasResolvedQuery || loadedTraces.length === 0) {
+      return { state: "empty" } as const;
+    }
+    return { state: "loading" } as const;
+  })();
+
+  return children({
+    paths,
+    source,
+    onEditorOpenChange: setIsEditorOpen,
+    onSave: (path) => {
+      setRawPaths((current: unknown) => {
+        const currentPaths = parseStoredMetadataJsonPaths(current);
+        return currentPaths.includes(path)
+          ? currentPaths
+          : [...currentPaths, path];
+      });
+    },
+    onRemove: (path) => {
+      setRawPaths((current: unknown) =>
+        parseStoredMetadataJsonPaths(current).filter((item) => item !== path),
+      );
+    },
+  });
+}

@@ -9,7 +9,7 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
 import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import {
   HoverCard,
   HoverCardContent,
@@ -86,6 +86,7 @@ export interface IOPreviewJSONProps {
   hideIfNull?: boolean;
   hideOutput?: boolean;
   hideInput?: boolean;
+  hideMetadata?: boolean;
   // Media attachments
   media?: MediaReturnType[];
   // Callback to inform parent if virtualization is being used (for scroll handling)
@@ -131,6 +132,7 @@ function IOPreviewJSONInner({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  hideMetadata = false,
   media,
   onVirtualizationChange,
   enableInlineComments = false,
@@ -145,6 +147,10 @@ function IOPreviewJSONInner({
   showCorrections = true,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
+  const inlineCommentPositionRect = selectionContext?.selection?.anchorRect
+    ? (selectionContext.selection.startRect ??
+      selectionContext.selection.anchorRect)
+    : null;
 
   const handleAddComment = useCallback(() => {
     if (selectionContext?.selection && onAddInlineComment) {
@@ -274,7 +280,8 @@ function IOPreviewJSONInner({
     !hideOutput &&
     (outputTooLarge || !(hideIfNull && effectiveOutput === undefined));
   const showMetadata =
-    metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined);
+    !hideMetadata &&
+    (metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined));
 
   const downloadName = observationId ?? traceId;
 
@@ -393,17 +400,15 @@ function IOPreviewJSONInner({
     effectiveMetadata,
   ]);
 
-  const wrapIcon = useMemo(
-    () =>
-      stringWrapMode === "truncate" ? (
-        <Minus size={14} />
-      ) : stringWrapMode === "wrap" ? (
-        <WrapText size={14} />
-      ) : (
-        <ChevronDown size={14} className="-rotate-90" />
-      ),
-    [stringWrapMode],
-  );
+  const wrapIcon = useMemo(() => {
+    if (stringWrapMode === "truncate") {
+      return <Minus size={14} />;
+    }
+    if (stringWrapMode === "wrap") {
+      return <WrapText size={14} />;
+    }
+    return <ChevronDown size={14} className="-rotate-90" />;
+  }, [stringWrapMode]);
 
   // Build sections - memoized to prevent re-creation. A gated field renders as
   // a section with no data (hideData → the viewer builds no tree for it, so it
@@ -650,8 +655,11 @@ function IOPreviewJSONInner({
   return (
     <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
       {/* Inline comment bubble - shows when text is selected */}
-      {enableInlineComments && (
-        <InlineCommentBubble onAddComment={handleAddComment} />
+      {enableInlineComments && inlineCommentPositionRect && (
+        <InlineCommentBubble
+          onAddComment={handleAddComment}
+          positionRect={inlineCommentPositionRect}
+        />
       )}
 
       {/* Header - matches LogViewToolbar styling */}

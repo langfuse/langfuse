@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { EvalTemplateType } from "@langfuse/shared";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -14,6 +15,7 @@ export type RuleCostEstimate = {
   testRunCostUsd: number | null;
   estimatedCostUsd: number | null;
   evaluatorType: EvalTemplateType;
+  period?: "week" | "selection";
 };
 
 const ESTIMATE_DEBOUNCE_MS = 500;
@@ -27,9 +29,11 @@ type EstimateState = {
 export function useRuleCostEstimate({
   projectId,
   store,
+  matchingObservations: matchingObservationsOverride,
 }: {
   projectId: string;
   store: RuleSetupStore;
+  matchingObservations?: number;
 }) {
   const { filter, sampling, assignments } = useStore(
     store,
@@ -163,7 +167,7 @@ export function useRuleCostEstimate({
           );
           updateState({
             status: "idle",
-            estimates: assignments.flatMap((assignment) => {
+            estimates: assignments.flatMap((assignment): RuleCostEstimate[] => {
               if (assignment.evaluatorType === EvalTemplateType.CODE) {
                 return codeEstimates.filter(
                   ({ evaluatorId }) => evaluatorId === assignment.evaluatorId,
@@ -192,17 +196,24 @@ export function useRuleCostEstimate({
 
   return {
     ...state,
-    estimates: state.estimates.map((estimate) => ({
-      ...estimate,
-      sampling,
-      estimatedCostUsd:
-        estimate.matchingObservations === 0
-          ? 0
-          : estimate.testRunCostUsd === null
-            ? null
-            : estimate.matchingObservations *
-              sampling *
-              estimate.testRunCostUsd,
-    })),
+    estimates: state.estimates.map((estimate) => {
+      const matchingObservations =
+        matchingObservationsOverride ?? estimate.matchingObservations;
+      return {
+        ...estimate,
+        matchingObservations,
+        sampling,
+        period:
+          matchingObservationsOverride === undefined
+            ? ("week" as const)
+            : ("selection" as const),
+        estimatedCostUsd:
+          matchingObservations === 0
+            ? 0
+            : estimate.testRunCostUsd === null
+              ? null
+              : matchingObservations * sampling * estimate.testRunCostUsd,
+      };
+    }),
   };
 }

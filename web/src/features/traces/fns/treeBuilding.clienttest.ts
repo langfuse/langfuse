@@ -204,8 +204,11 @@ describe("buildTraceUiData", () => {
       expect(result.searchItems[1].observationId).toBe("obs-1");
       expect(result.searchItems[2].observationId).toBe("obs-2");
 
-      // All items should have parent duration for heatmap
-      expect(result.searchItems[0].parentTotalDuration).toBe(2000); // 2s * 1000ms
+      // Trace root and its lone top-level span are the whole trace; the
+      // nested observation compares against the trace duration.
+      expect(result.searchItems[0].emphasis).toBeUndefined();
+      expect(result.searchItems[1].emphasis).toBeUndefined();
+      expect(result.searchItems[2].emphasis?.traceTotalDurationMs).toBe(2000); // 2s * 1000ms
     });
 
     it("returns empty children for trace with no observations", () => {
@@ -778,7 +781,7 @@ describe("buildTraceUiData", () => {
       expect(result.roots[0].totalCost?.equals(new Decimal(0.8))).toBe(true);
     });
 
-    it("propagates trace totalCost to all searchItems as parentTotalCost", () => {
+    it("searchItems compare against the trace totalCost, except rows that are the whole trace", () => {
       const trace = createMockTrace();
       const observations: ObservationReturnType[] = [
         createMockObservation({
@@ -795,14 +798,19 @@ describe("buildTraceUiData", () => {
 
       const result = buildTraceUiData(trace, observations);
 
-      // All searchItems should have the trace's total cost as parentTotalCost
       const traceTotalCost = result.roots[0].totalCost;
       expect(traceTotalCost).toBeDefined();
 
-      result.searchItems.forEach((item) => {
-        expect(item.parentTotalCost).toBeDefined();
-        expect(item.parentTotalCost?.equals(traceTotalCost!)).toBe(true);
+      const [traceItem, ...observationItems] = result.searchItems;
+      expect(traceItem.emphasis).toBeUndefined();
+      observationItems.forEach((item) => {
+        expect(item.emphasis?.traceTotalCost?.equals(traceTotalCost!)).toBe(
+          true,
+        );
       });
+
+      const single = buildTraceUiData(trace, [observations[0]]);
+      expect(single.searchItems[1].emphasis).toBeUndefined();
     });
 
     it("handles zero costs correctly in hierarchy (should not propagate)", () => {

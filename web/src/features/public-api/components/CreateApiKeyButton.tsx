@@ -1,8 +1,3 @@
-/* eslint-disable @repo/no-null-render */
-import {
-  useHasProjectAccess,
-  useHasOrganizationAccess,
-} from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
 import { api, reportNonTrpcError } from "@/src/utils/api";
@@ -20,18 +15,6 @@ export function CreateApiKeyButton(props: {
 }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-
-  const hasProjectAccess = useHasProjectAccess({
-    projectId: props.entityId,
-    scope: "apiKeys:CUD",
-  });
-  const hasOrganizationAccess = useHasOrganizationAccess({
-    organizationId: props.entityId,
-    scope: "organization:CRUD_apiKeys",
-  });
-
-  const hasAccess =
-    props.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
 
   const mutCreateProjectApiKey = api.projectApiKeys.create.useMutation({
     onSuccess: () => utils.projectApiKeys.invalidate(),
@@ -88,8 +71,6 @@ export function CreateApiKeyButton(props: {
         .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
-
-  if (!hasAccess) return null;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
