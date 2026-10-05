@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type ComponentProps } from "react";
 
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { BlobStorageIntegrationTable } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable";
 
 type Integration = ComponentProps<
@@ -52,18 +53,20 @@ describe("BlobStorageIntegrationTable", () => {
     const onSelect = vi.fn();
 
     render(
-      <BlobStorageIntegrationTable
-        integrations={[
-          integration({ bucketName: "first-bucket" }),
-          integration({
-            id: "second-integration",
-            bucketName: "second-bucket",
-          }),
-        ]}
-        onSelect={onSelect}
-        onCreate={vi.fn()}
-        onDelete={onDelete}
-      />,
+      <LayerProvider>
+        <BlobStorageIntegrationTable
+          integrations={[
+            integration({ bucketName: "first-bucket" }),
+            integration({
+              id: "second-integration",
+              bucketName: "second-bucket",
+            }),
+          ]}
+          onSelect={onSelect}
+          onCreate={vi.fn()}
+          onDelete={onDelete}
+        />
+      </LayerProvider>,
     );
 
     const secondRow = screen.getByText("second-bucket").closest("tr");
