@@ -45,32 +45,37 @@ import {
 } from "@/src/features/v4-migration/V4MigrationBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
-import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
-import { ProjectList } from "@/src/features/organizations/components/ProjectList";
 import {
   PinnedProjectsSection,
   selectPinnedProjects,
 } from "@/src/features/organizations/components/PinnedProjectsSection";
-import { type LastTraceAt } from "@/src/features/organizations/components/projectActivity";
+import {
+  formatLastTrace,
+  type LastTraceAt,
+} from "@/src/features/organizations/components/projectActivity";
 import { useProjectStars } from "@/src/features/organizations/useProjectStars";
+import { ProjectStarButton } from "@/src/features/organizations/components/ProjectStarButton";
 import { useRecentProjects } from "@/src/features/organizations/useRecentProjects";
 
 const OrganizationProjectTiles = ({
   org,
   search,
+  isStarred,
+  onToggleStar,
 }: {
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
+  isStarred: (projectId: string) => boolean;
+  onToggleStar: (projectId: string) => void;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
-    { orgId: org.id },
-    { enabled: v4UpgradeUiEnabled },
-  );
+  const lastTraceQuery = api.organizations.lastTraceByProject.useQuery({
+    orgId: org.id,
+  });
   const migrationStatusByProjectId = useAccountV4MigrationData({
     organizations: [
       {
@@ -94,8 +99,11 @@ const OrganizationProjectTiles = ({
           const migrationReadiness = migrationStatus
             ? getProjectMigrationReadiness(migrationStatus)
             : "checking";
+          const lastTraceAt = lastTraceQuery.data?.find(
+            (t) => t.projectId === project.id,
+          )?.lastTraceAt;
 
-          return v4UpgradeUiEnabled ? (
+          return (
             <Card
               key={project.id}
               className="group hover:bg-muted/50 relative transition-colors"
@@ -107,15 +115,13 @@ const OrganizationProjectTiles = ({
                   aria-label={`Go to project ${project.name}`}
                 />
               )}
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle
-                    className="truncate text-base"
-                    title={project.name}
-                  >
-                    {project.name}
-                  </CardTitle>
+              <CardHeader className="flex-row items-start justify-between gap-2 space-y-0 pb-2">
+                <CardTitle className="truncate text-base" title={project.name}>
+                  {project.name}
+                </CardTitle>
+                <div className="flex shrink-0 items-center gap-1">
                   {!project.deletedAt &&
+                    v4UpgradeUiEnabled &&
                     (migrationReadiness === "action-needed" ||
                       migrationReadiness === "partner-managed") && (
                       <V4MigrationProjectChip
@@ -123,53 +129,26 @@ const OrganizationProjectTiles = ({
                         readiness={migrationReadiness}
                       />
                     )}
+                  {!project.deletedAt && (
+                    <ProjectStarButton
+                      projectId={project.id}
+                      isStarred={isStarred(project.id)}
+                      onToggle={onToggleStar}
+                    />
+                  )}
                 </div>
               </CardHeader>
-              {!project.deletedAt && (
-                <CardContent className="min-h-7 pb-3">
-                  <p className="text-muted-foreground text-xs">
+              <CardContent className="min-h-7 pb-4">
+                {project.deletedAt ? (
+                  <CardDescription>Project is being deleted</CardDescription>
+                ) : (
+                  <p className="text-muted-foreground font-mono text-xs">
                     {lastTraceQuery.isSuccess
-                      ? (() => {
-                          const lastTraceAt = lastTraceQuery.data?.find(
-                            (t) => t.projectId === project.id,
-                          )?.lastTraceAt;
-                          return lastTraceAt
-                            ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
-                            : "No traces in the last 30d";
-                        })()
+                      ? formatLastTrace(lastTraceAt)
                       : null}
                   </p>
-                </CardContent>
-              )}
-              {project.deletedAt && (
-                <CardContent>
-                  <CardDescription>Project is being deleted</CardDescription>
-                </CardContent>
-              )}
-            </Card>
-          ) : (
-            <Card key={project.id}>
-              <CardHeader>
-                <CardTitle className="truncate text-base" title={project.name}>
-                  {project.name}
-                </CardTitle>
-              </CardHeader>
-              {!project.deletedAt ? (
-                <CardFooter className="gap-2">
-                  <Button asChild variant="secondary">
-                    <Link href={`/project/${project.id}`}>Go to project</Link>
-                  </Button>
-                  <Button asChild variant="ghost">
-                    <Link href={`/project/${project.id}/settings`}>
-                      <Settings size={16} />
-                    </Link>
-                  </Button>
-                </CardFooter>
-              ) : (
-                <CardContent>
-                  <CardDescription>Project is being deleted</CardDescription>
-                </CardContent>
-              )}
+                )}
+              </CardContent>
             </Card>
           );
         })}
@@ -302,6 +281,7 @@ const SingleOrganizationPage = ({
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
+  const { isStarred, toggle: onToggleStar } = useProjectStars();
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
@@ -325,7 +305,12 @@ const SingleOrganizationPage = ({
         actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
       }}
     >
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjectTiles
+        org={org}
+        search={search}
+        isStarred={isStarred}
+        onToggleStar={onToggleStar}
+      />
     </ContainerPage>
   );
 };
@@ -333,23 +318,17 @@ const SingleOrganizationPage = ({
 const SingleOrganizationProjectOverviewTile = ({
   org,
   search,
-  lastTraceByProjectId,
   isStarred,
   onToggleStar,
 }: {
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
-  lastTraceByProjectId: Map<string, LastTraceAt>;
   isStarred: (projectId: string) => boolean;
   onToggleStar: (projectId: string) => void;
 }) => {
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
-  const visibleProjects = org.projects.filter(
-    (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
-  );
-
   if (isDemoOrg) {
     return (
       <div key={org.id}>
@@ -382,14 +361,12 @@ const SingleOrganizationProjectOverviewTile = ({
           />
         }
       />
-      {visibleProjects.length > 0 && (
-        <ProjectList
-          projects={visibleProjects}
-          lastTraceByProjectId={lastTraceByProjectId}
-          isStarred={isStarred}
-          onToggleStar={onToggleStar}
-        />
-      )}
+      <OrganizationProjectTiles
+        org={org}
+        search={search}
+        isStarred={isStarred}
+        onToggleStar={onToggleStar}
+      />
     </div>
   );
 };
@@ -529,7 +506,6 @@ export const OrganizationProjectOverview = () => {
                 <SingleOrganizationProjectOverviewTile
                   org={org}
                   search={search ?? undefined}
-                  lastTraceByProjectId={lastTraceByProjectId}
                   isStarred={isStarred}
                   onToggleStar={toggleStar}
                 />
