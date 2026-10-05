@@ -7,7 +7,9 @@ import { BlobStorageIntegrationContainer } from "./BlobStorageIntegrationContain
 
 const mocks = vi.hoisted(() => ({
   deleteMutateAsync: vi.fn(),
+  invalidate: vi.fn(),
   mutate: vi.fn(),
+  updateUseMutation: vi.fn(),
 }));
 
 vi.mock("@/src/features/posthog-analytics", () => ({
@@ -34,10 +36,15 @@ vi.mock("@/src/utils/api", () => {
   return {
     api: {
       useUtils: () => ({
-        blobStorageIntegration: { invalidate: vi.fn() },
+        blobStorageIntegration: { invalidate: mocks.invalidate },
       }),
       blobStorageIntegration: {
-        update: { useMutation: mutation },
+        update: {
+          useMutation: (options: unknown) => {
+            mocks.updateUseMutation(options);
+            return mutation();
+          },
+        },
         delete: {
           useMutation: () => ({
             isPending: false,
@@ -131,6 +138,41 @@ describe("BlobStorageIntegrationContainer action explanations", () => {
     expect(
       screen.getByRole("button", { name: "Test external media object" }),
     ).toHaveAttribute("title", "Test an external media object");
+  });
+
+  it("refreshes integrations before navigating to a newly saved integration", async () => {
+    let finishInvalidation: (() => void) | undefined;
+    mocks.invalidate.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishInvalidation = resolve;
+      }),
+    );
+    const onSaved = vi.fn();
+    render(
+      <LayerProvider>
+        <BlobStorageIntegrationContainer
+          config={null}
+          projectId="project-id"
+          writeMode="events_only"
+          showMediaStorage
+          onDeleted={vi.fn()}
+          onSaved={onSaved}
+        />
+      </LayerProvider>,
+    );
+    const { onSuccess } = mocks.updateUseMutation.mock.calls[0][0] as {
+      onSuccess: (integration: { id: string }) => Promise<void>;
+    };
+
+    const success = onSuccess({ id: "new-integration-id" });
+
+    expect(mocks.invalidate).toHaveBeenCalledOnce();
+    expect(onSaved).not.toHaveBeenCalled();
+
+    finishInvalidation?.();
+    await success;
+
+    expect(onSaved).toHaveBeenCalledWith("new-integration-id");
   });
 
   it("only renders destructive delete with confirmation for a saved integration", async () => {

@@ -70,8 +70,8 @@ export const BlobStorageIntegrationContainer = ({
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
-    onSuccess: (integration) => {
-      utils.blobStorageIntegration.invalidate();
+    onSuccess: async (integration) => {
+      await utils.blobStorageIntegration.invalidate();
       onSaved(integration.id);
     },
     onError: (error) => {
