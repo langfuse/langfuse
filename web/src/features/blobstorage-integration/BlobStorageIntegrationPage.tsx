@@ -142,16 +142,14 @@ export default function BlobStorageIntegrationPage() {
       <>
         {selectedConfig && <BlobStorageStatusSection config={selectedConfig} />}
         <Header title="Integration details" className="mt-8" />
-        <Card className="p-3">
-          <BlobStorageIntegrationContainer
-            config={selectedConfig ?? null}
-            projectId={projectId}
-            writeMode={state.data.writeMode}
-            showMediaStorage={showMediaStorage}
-            onDeleted={closeIntegration}
-            onSaved={openIntegration}
-          />
-        </Card>
+        <BlobStorageIntegrationContainer
+          config={selectedConfig ?? null}
+          projectId={projectId}
+          writeMode={state.data.writeMode}
+          showMediaStorage={showMediaStorage}
+          onDeleted={closeIntegration}
+          onSaved={openIntegration}
+        />
       </>
     );
   };

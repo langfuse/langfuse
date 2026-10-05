@@ -3,6 +3,12 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import {
   Form,
   FormControl,
   FormDescription,
@@ -27,12 +33,7 @@ import { StorageProviderFields } from "@/src/features/blobstorage-integration/co
 import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";
 import { ExportSourceField } from "@/src/features/blobstorage-integration/components/ExportSourceField";
 import { ExportFieldGroupsField } from "@/src/features/blobstorage-integration/components/ExportFieldGroupsField";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { ToggleableCard } from "@/src/components/design-system/ToggleableCard/ToggleableCard";
 
 // Disposable draft layer. The container mounts one instance per entity
 // identity (project + config existence, via React key) after all async
@@ -87,11 +88,6 @@ export const BlobStorageIntegrationForm = ({
   const control = blobStorageForm.control;
   const fileType = useWatch({ control, name: "fileType" });
   const storageType = useWatch({ control, name: "type" });
-  const exportsEnabled = useWatch({ control, name: "enabled" });
-  const mediaStorageEnabled = useWatch({
-    control,
-    name: "mediaStorageEnabled",
-  });
 
   return (
     <Form {...blobStorageForm}>
@@ -99,33 +95,25 @@ export const BlobStorageIntegrationForm = ({
         className="space-y-3"
         onSubmit={blobStorageForm.handleSubmit(onSubmit)}
       >
-        <StorageProviderFields control={control} />
-        <Collapsible defaultOpen className="rounded-md border p-3">
-          <div className="flex items-center justify-between gap-3">
-            <CollapsibleTrigger asChild>
-              <Button type="button" variant="ghost" className="px-0">
-                <ChevronDown className="mr-2 size-4" />
-                Scheduled exports
-              </Button>
-            </CollapsibleTrigger>
-            <FormField
-              control={control}
-              name="enabled"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          {exportsEnabled && (
-            <CollapsibleContent className="mt-3 space-y-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Credentials</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <StorageProviderFields control={control} />
+          </CardContent>
+        </Card>
+        <FormField
+          control={control}
+          name="enabled"
+          render={({ field }) => (
+            <ToggleableCard
+              id="scheduled-exports-enabled"
+              title="Scheduled exports"
+              checked={field.value ?? false}
+              disabled={false}
+              onCheckedChange={field.onChange}
+            >
               <ExportScheduleFields control={control} />
               <ExportSourceField
                 control={control}
@@ -158,46 +146,30 @@ export const BlobStorageIntegrationForm = ({
                   )}
                 />
               )}
-            </CollapsibleContent>
+            </ToggleableCard>
           )}
-        </Collapsible>
+        />
         {showMediaStorage && (
-          <Collapsible defaultOpen className="rounded-md border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <CollapsibleTrigger asChild>
-                <Button type="button" variant="ghost" className="px-0">
-                  <ChevronDown className="mr-2 size-4" />
-                  External media
-                </Button>
-              </CollapsibleTrigger>
-              <FormField
-                control={control}
-                name="mediaStorageEnabled"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        disabled={
-                          storageType === "AZURE_BLOB_STORAGE" && !field.value
-                        }
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            {mediaStorageEnabled && (
-              <CollapsibleContent className="text-muted-foreground mt-3 text-sm">
-                Resolve canonical <code>s3://&lt;bucket&gt;/&lt;key&gt;</code>{" "}
-                references under this integration&apos;s configured prefix for
-                inline previews. Configure the bucket CORS policy to allow
-                browser reads from your Langfuse origin.
-              </CollapsibleContent>
+          <FormField
+            control={control}
+            name="mediaStorageEnabled"
+            render={({ field }) => (
+              <ToggleableCard
+                id="external-media-storage-enabled"
+                title="External media storage"
+                checked={field.value ?? false}
+                disabled={storageType === "AZURE_BLOB_STORAGE" && !field.value}
+                onCheckedChange={field.onChange}
+              >
+                <p className="text-muted-foreground text-sm">
+                  Resolve canonical <code>s3://&lt;bucket&gt;/&lt;key&gt;</code>{" "}
+                  references under this integration&apos;s configured prefix for
+                  inline previews. Configure the bucket CORS policy to allow
+                  browser reads from your Langfuse origin.
+                </p>
+              </ToggleableCard>
             )}
-          </Collapsible>
+          />
         )}
       </form>
       <div className="mt-8 flex gap-2">

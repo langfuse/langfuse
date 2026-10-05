@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
@@ -175,10 +169,27 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
         region: "auto",
         exportFrequency: "daily",
         fileType: BlobStorageIntegrationFileType.PARQUET,
-        enabled: false,
+        enabled: true,
       }),
       expect.anything(),
     );
+  });
+
+  it("expands and collapses scheduled export settings with the enable switch", () => {
+    render(
+      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+    );
+
+    const exportsSwitch = screen.getByRole("switch", {
+      name: "Scheduled exports",
+    });
+    expect(exportsSwitch).toBeChecked();
+    expect(screen.getByLabelText("Export Frequency")).toBeVisible();
+
+    fireEvent.click(exportsSwitch);
+
+    expect(exportsSwitch).not.toBeChecked();
+    expect(screen.queryByLabelText("Export Frequency")).not.toBeInTheDocument();
   });
 
   it("only enables external media when the feature-gated section is shown", async () => {
@@ -192,9 +203,9 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
 
     const onSubmit = vi.fn();
     rerender(ui("visible", initialValues, onSubmit, true));
-    const mediaSection = screen.getByText("External media").closest("div");
-    expect(mediaSection).not.toBeNull();
-    fireEvent.click(within(mediaSection!).getByRole("switch"));
+    fireEvent.click(
+      screen.getByRole("switch", { name: "External media storage" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -216,10 +227,11 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     );
     render(ui("azure", initialValues, undefined, true));
 
-    const exportsSection = screen.getByText("Scheduled exports").closest("div");
-    const mediaSection = screen.getByText("External media").closest("div");
-
-    expect(within(exportsSection!).getByRole("switch")).not.toBeDisabled();
-    expect(within(mediaSection!).getByRole("switch")).toBeDisabled();
+    expect(
+      screen.getByRole("switch", { name: "Scheduled exports" }),
+    ).not.toBeDisabled();
+    expect(
+      screen.getByRole("switch", { name: "External media storage" }),
+    ).toBeDisabled();
   });
 });
