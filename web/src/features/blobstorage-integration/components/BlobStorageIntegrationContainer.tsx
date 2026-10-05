@@ -119,6 +119,7 @@ export const BlobStorageIntegrationContainer = ({
     });
   };
   const isUnsaved = !config?.id;
+  const integrationId = config?.id;
 
   const scheduledExportTestButton = (
     <Button
@@ -311,7 +312,7 @@ export const BlobStorageIntegrationContainer = ({
         </DialogController>
       }
       deleteAction={
-        config?.id ? (
+        integrationId ? (
           <ConfirmationDialogController
             title="Delete blob storage integration?"
             text="This removes the saved integration configuration. Objects already stored in the bucket are not deleted."
@@ -321,7 +322,7 @@ export const BlobStorageIntegrationContainer = ({
             onConfirm={() =>
               mutDelete.mutateAsync({
                 projectId,
-                integrationId: config.id,
+                integrationId,
               })
             }
           >
