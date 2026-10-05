@@ -804,8 +804,24 @@ describe("Media Upload API", () => {
 
   describe("tRPC media reader", () => {
     it("requires authenticated project membership for external media reads", async () => {
+      const nonAdminSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          admin: false,
+        },
+      };
+      const nonAdminCtx = createInnerTRPCContext({
+        session: nonAdminSession,
+        headers: {},
+      });
+      const nonAdminCaller = appRouter.createCaller({
+        ...nonAdminCtx,
+        prisma,
+      });
+
       await expect(
-        caller.media.resolveExternalMedia({
+        nonAdminCaller.media.resolveExternalMedia({
           projectId: `unowned-project-${crypto.randomUUID()}`,
           uri: "s3://test-bucket/test/image.png",
         }),
