@@ -57,6 +57,12 @@ const stringifyMeta = (meta: Record<string, unknown>) => {
   // replacer returns a *new* plain object each time it unwraps an Error, so
   // the built-in check never fires and recursion runs until the V8 stack is
   // exhausted. A WeakSet here caps the cost at one visit per Error instance.
+  //
+  // Side-effect: the same Error object appearing in two sibling metadata keys
+  // is collapsed to "[Circular]" for the second occurrence. This is a
+  // consequence of JSON.stringify's single-pass replacer API not providing a
+  // post-visit callback — fixing it cleanly would require full custom
+  // traversal. In practice the first occurrence is always fully serialised.
   const visitedErrors = new WeakSet<Error>();
 
   const replacer = (_key: string, value: unknown) => {
@@ -68,8 +74,10 @@ const stringifyMeta = (meta: Record<string, unknown>) => {
         name: value.name,
         message: value.message,
         stack: value.stack,
-        // non-enumerable, so the spread above misses it
+        // cause and errors are non-enumerable, so the spread above misses them
         ...(value.cause === undefined ? {} : { cause: value.cause }),
+        // AggregateError bundles sub-errors in a non-enumerable .errors array
+        ...(value instanceof AggregateError ? { errors: value.errors } : {}),
       };
     }
     return typeof value === "bigint" ? value.toString() : value;
