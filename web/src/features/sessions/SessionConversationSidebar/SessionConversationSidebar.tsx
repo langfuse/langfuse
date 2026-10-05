@@ -162,7 +162,7 @@ export function SessionConversationSidebar(
         ref={setListElement}
         role="region"
         aria-label="Session turns"
-        className="min-h-0 flex-1 overflow-y-auto pt-0.5 pb-4"
+        className="min-h-0 flex-1 overflow-y-auto pt-2.5 pb-4"
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onPointerDown={() => {
@@ -221,7 +221,7 @@ export function SessionConversationSidebar(
                         </span>
                       </div>
                     )}
-                  <div className="px-1 pb-2">
+                  <div className="px-2 pb-2">
                     <div
                       className={cn(
                         "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
