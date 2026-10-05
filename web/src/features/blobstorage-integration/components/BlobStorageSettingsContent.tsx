@@ -33,7 +33,7 @@ export function BlobStorageSettingsContent({
     isPending: boolean;
     error: string | undefined;
     reset: () => void;
-    execute: (integrationId: string) => Promise<unknown>;
+    execute: (integrationId: string) => Promise<void>;
   };
   onOpenIntegration: (integrationId: string) => void;
   onCloseIntegration: () => void;

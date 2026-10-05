@@ -148,8 +148,9 @@ export default function BlobStorageIntegrationPage() {
           isPending: deleteIntegration.isPending,
           error: deleteIntegration.error?.message,
           reset: deleteIntegration.reset,
-          execute: (integrationId) =>
-            deleteIntegration.mutateAsync({ projectId, integrationId }),
+          execute: async (integrationId) => {
+            await deleteIntegration.mutateAsync({ projectId, integrationId });
+          },
         }}
         onOpenIntegration={openIntegration}
         onCloseIntegration={closeIntegration}
