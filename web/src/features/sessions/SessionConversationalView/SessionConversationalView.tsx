@@ -1,4 +1,4 @@
-import { type ComponentProps, useEffect, useId, useRef } from "react";
+import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
 import {
   SessionConversationSidebar,
   type SessionConversationSidebarTrace,
@@ -29,12 +29,13 @@ export function SessionConversationalView(
 ) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const highlightName = `session-transcript-${useId().replace(/[^a-z0-9_-]/gi, "")}`;
-  const searchQuery = props.state === "loaded" ? props.searchQuery.trim() : "";
-  useEffect(() => {
+  const searchQuery = props.state === "loaded" ? props.search.trim() : "";
+  useLayoutEffect(() => {
     const container = transcriptRef.current;
     if (!container || typeof Highlight === "undefined" || !CSS.highlights)
       return;
     if (!searchQuery) {
+      CSS.highlights.get(highlightName)?.clear();
       CSS.highlights.delete(highlightName);
       return;
     }
@@ -75,6 +76,7 @@ export function SessionConversationalView(
     });
     return () => {
       observer.disconnect();
+      CSS.highlights.get(highlightName)?.clear();
       CSS.highlights.delete(highlightName);
     };
   }, [highlightName, searchQuery]);
@@ -156,7 +158,7 @@ export function SessionConversationalView(
         ref={transcriptRef}
         className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]"
       >
-        <style>{`::highlight(${highlightName}) { background-color: hsl(var(--find-match-background)); color: hsl(var(--foreground)); }`}</style>
+        <style>{`::highlight(${highlightName}) { background-color: ${searchQuery ? "hsl(var(--find-match-background))" : "transparent"}; color: ${searchQuery ? "hsl(var(--foreground))" : "inherit"}; }`}</style>
         <SessionConversationTimeline
           traces={props.traces}
           controller={props.controller}

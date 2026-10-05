@@ -103,11 +103,13 @@ function SessionConversationalViewStory({
   isLoading = false,
   isSearchPending = false,
   groupedTools = false,
+  searchQueryOverride,
 }: {
   workflowTraces?: typeof supportAgentWorkflow;
   isLoading?: boolean;
   isSearchPending?: boolean;
   groupedTools?: boolean;
+  searchQueryOverride?: string;
 }) {
   const [search, setSearch] = useState("");
   const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
@@ -222,8 +224,12 @@ function SessionConversationalViewStory({
       <SessionConversationalView
         state="loaded"
         search={search}
-        searchQuery={search.trim()}
-        isSearchPending={isSearchPending}
+        searchQuery={searchQueryOverride ?? search.trim()}
+        isSearchPending={
+          isSearchPending ||
+          (searchQueryOverride !== undefined &&
+            search.trim() !== searchQueryOverride)
+        }
         onSearchChange={setSearch}
         expandedTraceIds={
           new Set(
@@ -407,6 +413,35 @@ export const SearchMatchingMessages = meta.story({
           .filter((range) => timeline.contains(range.startContainer)),
       ).toHaveLength(0);
     });
+  },
+});
+export const ClearPendingSearch = meta.story({
+  name: "(Test) Clears Highlights While Search Is Pending",
+  args: { searchQueryOverride: "ORDER" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("textbox", {
+      name: "Search messages and tools",
+    });
+    const timeline = canvas.getByLabelText("Session conversation timeline");
+    await userEvent.type(input, "ORDER");
+    await waitFor(async () => {
+      await expect(
+        Array.from(CSS.highlights.values())
+          .flatMap((highlight) => Array.from(highlight))
+          .filter((range) => timeline.contains(range.startContainer))
+          .map((range) => range.toString()),
+      ).toContain("order");
+    });
+    await userEvent.clear(input);
+    await expect(
+      canvas.getByText("Loading transcripts..."),
+    ).toBeInTheDocument();
+    await expect(
+      Array.from(CSS.highlights.values())
+        .flatMap((highlight) => Array.from(highlight))
+        .filter((range) => timeline.contains(range.startContainer)),
+    ).toHaveLength(0);
   },
 });
 export const PendingSearch = meta.story({
