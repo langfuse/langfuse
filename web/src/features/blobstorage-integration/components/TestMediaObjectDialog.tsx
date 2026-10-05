@@ -88,10 +88,8 @@ function MediaObjectPreview({
   const fileName =
     parseS3Uri(uri)?.key.split("/").pop() || "external media object";
   const mediaType = contentType.split("/")[0];
-  let previewContent;
-
-  if (mediaType === "image") {
-    previewContent = (
+  const previewContent =
+    mediaType === "image" ? (
       <ResizableImage
         src={signedUrl}
         alt={`Preview ${fileName}`}
@@ -99,9 +97,7 @@ function MediaObjectPreview({
         shouldValidateImageSource={false}
         fitContent
       />
-    );
-  } else if (mediaType === "audio") {
-    previewContent = (
+    ) : mediaType === "audio" ? (
       <audio
         aria-label={`Preview ${fileName}`}
         controls
@@ -110,9 +106,7 @@ function MediaObjectPreview({
         onError={() => setHasLoadError(true)}
         src={signedUrl}
       />
-    );
-  } else if (mediaType === "video") {
-    previewContent = (
+    ) : mediaType === "video" ? (
       <video
         aria-label={`Preview ${fileName}`}
         controls
@@ -122,16 +116,13 @@ function MediaObjectPreview({
         onError={() => setHasLoadError(true)}
         src={signedUrl}
       />
-    );
-  } else {
-    previewContent = (
+    ) : (
       <MediaFileCard
         contentType={contentType}
         fileName={fileName}
         onClick={() => window.open(signedUrl, "_blank", "noopener,noreferrer")}
       />
     );
-  }
 
   return (
     <div className="flex flex-col gap-2" aria-live="polite">
