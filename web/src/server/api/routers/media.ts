@@ -14,6 +14,8 @@ import {
 import { type MediaEnabledFields } from "@/src/features/media/validation";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { resolveExternalMediaUrl } from "@/src/features/blobstorage-integration/externalMediaService";
+import { InvalidRequestError } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 export const mediaRouter = createTRPCRouter({
   resolveExternalMedia: protectedProjectProcedure
@@ -35,7 +37,14 @@ export const mediaRouter = createTRPCRouter({
           projectId,
           uri: input.uri,
         });
-      } catch {
+      } catch (error) {
+        if (!(error instanceof InvalidRequestError)) {
+          logger.error("Unexpected external media resolution failure", {
+            projectId,
+            operation: "media.resolveExternalMedia",
+            errorType: error instanceof Error ? error.name : typeof error,
+          });
+        }
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "External media is not available",
