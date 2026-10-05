@@ -90,23 +90,6 @@ type UploadWithSignedUrl = UploadFile & {
 };
 
 /**
- * Throttling is retryable. Log it as a warning here; the caller that owns the
- * retry budget (BullMQ) escalates to an error once that budget is spent.
- */
-function logS3ClientFailure(
-  message: string,
-  err: unknown,
-  fields?: Record<string, unknown>,
-): void {
-  const log = isS3SlowDownError(err) ? logger.warn : logger.error;
-  if (fields) {
-    log(message, { error: err, ...fields });
-    return;
-  }
-  log(message, err);
-}
-
-/**
  * Check if an error is a DNS lookup failure (EAI_AGAIN)
  * and throw ServiceUnavailableError if so, otherwise rethrow the original error
  */
@@ -365,6 +348,7 @@ export class StorageServiceFactory {
    * @param params.googleCloudCredentials - Google Cloud Storage credentials JSON string or path to credentials file
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
    * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
+   * @param params.logSlowDownAsWarning - Log S3 SlowDown as a warning. Set only when the caller escalates to an error after its own retries are spent.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    */
   public static getInstance(params: {
@@ -381,6 +365,7 @@ export class StorageServiceFactory {
     googleCloudCredentials?: string;
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
+    logSlowDownAsWarning?: boolean;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }): StorageService {
     if (
@@ -759,6 +744,7 @@ class S3StorageService implements StorageService {
   private bucketName: string;
   private awsSse: string | undefined;
   private awsSseKmsKeyId: string | undefined;
+  private logSlowDownAsWarning: boolean;
 
   constructor(params: {
     accessKeyId: string | undefined;
@@ -770,6 +756,7 @@ class S3StorageService implements StorageService {
     forcePathStyle: boolean;
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
+    logSlowDownAsWarning?: boolean;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
@@ -826,6 +813,28 @@ class S3StorageService implements StorageService {
     this.bucketName = params.bucketName;
     this.awsSse = params.awsSse;
     this.awsSseKmsKeyId = params.awsSseKmsKeyId;
+    this.logSlowDownAsWarning = params.logSlowDownAsWarning ?? false;
+  }
+
+  /**
+   * SlowDown is a warning only when this client was built for a caller that
+   * escalates once its own retry budget is spent. Every other client keeps
+   * error, so a persistent throttle still pages.
+   */
+  private logClientFailure(
+    message: string,
+    err: unknown,
+    fields?: Record<string, unknown>,
+  ): void {
+    const log =
+      this.logSlowDownAsWarning && isS3SlowDownError(err)
+        ? logger.warn
+        : logger.error;
+    if (fields) {
+      log(message, { error: err, ...fields });
+      return;
+    }
+    log(message, err);
   }
 
   private addSSEToParams<T>(params: Record<string, unknown>): T {
@@ -863,7 +872,7 @@ class S3StorageService implements StorageService {
 
       return;
     } catch (err) {
-      logS3ClientFailure(`Failed to upload file to ${fileName}`, err);
+      this.logClientFailure(`Failed to upload file to ${fileName}`, err);
       handleStorageError(err, "upload file to S3");
     }
   }
@@ -920,7 +929,7 @@ class S3StorageService implements StorageService {
     try {
       return await uploader.upload(data);
     } catch (err) {
-      logS3ClientFailure(
+      this.logClientFailure(
         `Failed to upload file (buffered) to ${fileName}`,
         err,
       );
@@ -943,7 +952,7 @@ class S3StorageService implements StorageService {
 
       return { signedUrl };
     } catch (err) {
-      logS3ClientFailure(`Failed to upload file to ${fileName}`, err);
+      this.logClientFailure(`Failed to upload file to ${fileName}`, err);
       handleStorageError(err, "upload file to S3 or generate signed URL");
     }
   }
@@ -961,7 +970,7 @@ class S3StorageService implements StorageService {
     try {
       await this.client.send(putCommand);
     } catch (err) {
-      logS3ClientFailure(`Failed to upload JSON to S3 ${path}`, err);
+      this.logClientFailure(`Failed to upload JSON to S3 ${path}`, err);
       handleStorageError(err, "upload JSON to S3");
     }
   }
@@ -976,7 +985,7 @@ class S3StorageService implements StorageService {
       const response = await this.client.send(getCommand);
       return (await response.Body?.transformToString()) ?? "";
     } catch (err) {
-      logS3ClientFailure(`Failed to download file from S3 ${path}`, err);
+      this.logClientFailure(`Failed to download file from S3 ${path}`, err);
       handleStorageError(err, "download file from S3");
     }
   }
@@ -988,7 +997,7 @@ class S3StorageService implements StorageService {
       );
       return storageBodyToBytes(response.Body);
     } catch (err) {
-      logS3ClientFailure(`Failed to download bytes from S3 ${path}`, err);
+      this.logClientFailure(`Failed to download bytes from S3 ${path}`, err);
       handleStorageError(err, "download bytes from S3");
     }
   }
@@ -1012,7 +1021,7 @@ class S3StorageService implements StorageService {
         ) ?? []
       );
     } catch (err) {
-      logS3ClientFailure(`Failed to list files from S3 ${prefix}`, err);
+      this.logClientFailure(`Failed to list files from S3 ${prefix}`, err);
       handleStorageError(err, "list files from S3");
     }
   }
@@ -1035,7 +1044,7 @@ class S3StorageService implements StorageService {
         { expiresIn: ttlSeconds },
       );
     } catch (err) {
-      logS3ClientFailure(
+      this.logClientFailure(
         `Failed to generate presigned URL for ${fileName}`,
         err,
       );
@@ -1082,7 +1091,7 @@ class S3StorageService implements StorageService {
         }
       }
     } catch (err) {
-      logS3ClientFailure(`Failed to delete files from S3`, err, {
+      this.logClientFailure(`Failed to delete files from S3`, err, {
         files: paths,
       });
       handleStorageError(err, "delete files from S3");
