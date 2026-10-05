@@ -1,4 +1,4 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, useEffect, useId, useRef } from "react";
 import {
   SessionConversationSidebar,
   type SessionConversationSidebarTrace,
@@ -27,6 +27,57 @@ export function SessionConversationalView(
     onLoadMoreObservations?: () => void;
   },
 ) {
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const highlightName = `session-transcript-${useId().replace(/[^a-z0-9_-]/gi, "")}`;
+  const searchQuery = props.state === "loaded" ? props.searchQuery.trim() : "";
+  useEffect(() => {
+    const container = transcriptRef.current;
+    if (!container || typeof Highlight === "undefined" || !CSS.highlights)
+      return;
+    if (!searchQuery) {
+      CSS.highlights.delete(highlightName);
+      return;
+    }
+    const updateHighlights = () => {
+      const ranges: Range[] = [];
+      const query = new RegExp(
+        searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "gi",
+      );
+      const walker = document.createTreeWalker(
+        container,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: (node) =>
+            node.parentElement?.closest("[data-session-search-content]") &&
+            !node.parentElement.closest("style, script")
+              ? NodeFilter.FILTER_ACCEPT
+              : NodeFilter.FILTER_REJECT,
+        },
+      );
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        for (const match of (node.textContent ?? "").matchAll(query)) {
+          const range = document.createRange();
+          range.setStart(node, match.index);
+          range.setEnd(node, match.index + match[0].length);
+          ranges.push(range);
+        }
+      }
+      CSS.highlights.set(highlightName, new Highlight(...ranges));
+    };
+    updateHighlights();
+    const observer = new MutationObserver(updateHighlights);
+    observer.observe(container, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    return () => {
+      observer.disconnect();
+      CSS.highlights.delete(highlightName);
+    };
+  }, [highlightName, searchQuery]);
   const sidebarTraces: SessionConversationSidebarTrace[] = [];
   if (props.state === "loaded" && !props.isSearchPending) {
     for (const [index, item] of props.traces.entries()) {
@@ -101,7 +152,11 @@ export function SessionConversationalView(
           activeTraceId={props.controller.activeTraceId ?? undefined}
         />
       )}
-      <div className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]">
+      <div
+        ref={transcriptRef}
+        className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]"
+      >
+        <style>{`::highlight(${highlightName}) { background-color: hsl(var(--find-match-background)); color: hsl(var(--foreground)); }`}</style>
         <SessionConversationTimeline
           traces={props.traces}
           controller={props.controller}

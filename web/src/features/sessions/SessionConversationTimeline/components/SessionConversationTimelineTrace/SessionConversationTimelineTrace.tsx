@@ -52,6 +52,7 @@ export function SessionTimelineToolRow({
   return (
     <SessionTimelineCollapsibleRow
       label={name}
+      searchableLabel
       icon={renderFilterIcon("TOOL")}
       isExpanded={isExpanded}
       onExpandedChange={onExpandedChange}

@@ -1,6 +1,6 @@
 import preview from "@/.storybook/preview";
 import { type ComponentProps, useRef, useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within, waitFor } from "storybook/test";
 import { SessionConversationalView } from "./SessionConversationalView";
 import {
   useSessionConversationTimelineController,
@@ -373,6 +373,23 @@ export const SearchMatchingMessages = meta.story({
         "I'll look it up.",
       ),
     ).toBeInTheDocument();
+    const timeline = canvas.getByLabelText("Session conversation timeline");
+    await waitFor(async () => {
+      await expect(
+        Array.from(CSS.highlights.values())
+          .flatMap((highlight) => Array.from(highlight))
+          .filter((range) => timeline.contains(range.startContainer))
+          .map((range) => range.toString()),
+      ).toContain("order");
+    });
+    await userEvent.clear(sidebar.getByRole("textbox"));
+    await waitFor(async () => {
+      await expect(
+        Array.from(CSS.highlights.values())
+          .flatMap((highlight) => Array.from(highlight))
+          .filter((range) => timeline.contains(range.startContainer)),
+      ).toHaveLength(0);
+    });
   },
 });
 export const PendingSearch = meta.story({

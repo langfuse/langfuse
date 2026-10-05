@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
@@ -128,6 +128,7 @@ export function SessionConversationSidebar(
     );
   }
 
+  const searchQuery = props.search.trim();
   let emptyLabel = "No turns";
   if (props.isLoadingTranscripts) emptyLabel = "Loading transcripts...";
   else if (props.transcriptLoadError) emptyLabel = "Failed to load transcripts";
@@ -358,13 +359,14 @@ export function SessionConversationSidebar(
                                   const row = group.row;
                                   const previousGroup = groups[groupIndex - 1];
                                   if (
+                                    !searchQuery &&
                                     row.role !== "tool" &&
                                     previousGroup?.type === "row" &&
                                     previousGroup.row.role === row.role
                                   )
                                     return null;
                                   let messageCount = 1;
-                                  if (row.role !== "tool") {
+                                  if (!searchQuery && row.role !== "tool") {
                                     for (
                                       let index = groupIndex + 1;
                                       index < groups.length;
@@ -389,6 +391,60 @@ export function SessionConversationSidebar(
                                     messageCount === 1
                                       ? messageLabel
                                       : `${messageCount} ${messageLabel}s`;
+                                  const excerpt: ReactNode[] = [];
+                                  if (searchQuery) {
+                                    const normalizedQuery =
+                                      searchQuery.toLowerCase();
+                                    const matchIndex = row.label
+                                      .toLowerCase()
+                                      .indexOf(normalizedQuery);
+                                    const start =
+                                      row.role === "tool"
+                                        ? 0
+                                        : Math.max(0, matchIndex - 24);
+                                    const end =
+                                      row.role === "tool"
+                                        ? row.label.length
+                                        : Math.min(
+                                            row.label.length,
+                                            start +
+                                              Math.max(
+                                                120,
+                                                searchQuery.length + 48,
+                                              ),
+                                          );
+                                    const text = row.label.slice(start, end);
+                                    const normalizedText = text.toLowerCase();
+                                    if (start > 0) excerpt.push("…");
+                                    let position = 0;
+                                    while (position < text.length) {
+                                      const nextMatch = normalizedText.indexOf(
+                                        normalizedQuery,
+                                        position,
+                                      );
+                                      if (nextMatch === -1) {
+                                        excerpt.push(text.slice(position));
+                                        break;
+                                      }
+                                      excerpt.push(
+                                        text.slice(position, nextMatch),
+                                      );
+                                      excerpt.push(
+                                        <mark
+                                          key={nextMatch}
+                                          className="bg-find-match-background text-foreground"
+                                        >
+                                          {text.slice(
+                                            nextMatch,
+                                            nextMatch + searchQuery.length,
+                                          )}
+                                        </mark>,
+                                      );
+                                      position = nextMatch + searchQuery.length;
+                                    }
+                                    if (end < row.label.length)
+                                      excerpt.push("…");
+                                  }
                                   return (
                                     <button
                                       key={row.id}
@@ -407,11 +463,23 @@ export function SessionConversationSidebar(
                                           : label
                                       }
                                     >
-                                      <span
-                                        className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
-                                        title={label}
-                                      >
-                                        {label}
+                                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                        <span
+                                          className="text-muted-foreground truncate text-[13px]"
+                                          title={label}
+                                        >
+                                          {row.role === "tool" &&
+                                          searchQuery ? (
+                                            <>Tool: {excerpt}</>
+                                          ) : (
+                                            label
+                                          )}
+                                        </span>
+                                        {searchQuery && row.role !== "tool" && (
+                                          <span className="text-muted-foreground line-clamp-2 text-xs break-words whitespace-normal">
+                                            {excerpt}
+                                          </span>
+                                        )}
                                       </span>
                                     </button>
                                   );

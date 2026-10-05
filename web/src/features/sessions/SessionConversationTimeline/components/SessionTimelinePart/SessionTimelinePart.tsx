@@ -120,10 +120,12 @@ export function SessionTimelinePart({
         {part.refusal ? (
           <span className="text-dark-red text-[11px] font-bold">Refusal</span>
         ) : null}
-        <MarkdownView
-          markdown={decodeUnicodeEscapesOnly(part.text, true)}
-          className="px-0 py-0"
-        />
+        <div data-session-search-content>
+          <MarkdownView
+            markdown={decodeUnicodeEscapesOnly(part.text, true)}
+            className="px-0 py-0"
+          />
+        </div>
       </div>
     );
   }

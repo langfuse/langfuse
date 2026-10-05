@@ -186,6 +186,7 @@ function SessionTranscriptToolGroup({
   return (
     <SessionTimelineCollapsibleRow
       label={summary}
+      showHoverDivider={false}
       labelActionName={`${isOpen ? "Hide" : "Show"} tools: ${summary}`}
       icon={<Wrench className="text-observation-tool h-3.5 w-3.5 shrink-0" />}
       isExpanded={isOpen}

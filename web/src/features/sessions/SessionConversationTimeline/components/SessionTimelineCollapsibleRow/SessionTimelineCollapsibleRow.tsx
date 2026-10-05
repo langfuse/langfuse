@@ -5,20 +5,24 @@ import { cn } from "@/src/utils/tailwind";
 export function SessionTimelineCollapsibleRow({
   label,
   labelActionName,
+  searchableLabel,
   icon,
   isExpanded,
   onExpandedChange,
   onOpenObservation,
   trailingContent,
+  showHoverDivider = true,
   children,
 }: {
   label: string;
   labelActionName?: string;
+  searchableLabel?: boolean;
   icon?: ReactNode;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   onOpenObservation?: () => void;
   trailingContent?: ReactNode;
+  showHoverDivider?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -48,6 +52,7 @@ export function SessionTimelineCollapsibleRow({
           <span
             className="min-w-0 truncate text-xs font-normal hover:underline"
             title={label}
+            data-session-search-content={searchableLabel || undefined}
           >
             {label}
           </span>
@@ -68,7 +73,11 @@ export function SessionTimelineCollapsibleRow({
           />
         </button>
         <div
-          className="border-border invisible mx-3 min-w-0 flex-1 border-t border-dashed group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible"
+          className={cn(
+            "mx-3 min-w-0 flex-1",
+            showHoverDivider &&
+              "border-border invisible border-t border-dashed group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible",
+          )}
           aria-hidden="true"
         />
         <span className="flex shrink-0 items-center gap-2">
