@@ -93,6 +93,7 @@ const keyboardShortcutVariants = cva(
         default: "bg-transparent text-foreground-tertiary",
         subtle: "bg-transparent text-foreground-tertiary",
         inverse: "bg-transparent text-primary-foreground",
+        keycap: "border bg-muted px-1 text-muted-foreground",
       },
       size: {
         default: "h-5 min-w-5 text-xs",
@@ -113,6 +114,9 @@ const symbolSizeClass = {
   xs: "text-xs",
 } as const;
 
+/** Set by TooltipContent so shortcuts inside a tooltip render as keycaps. */
+export const KeyboardShortcutInTooltipContext = React.createContext(false);
+
 export type KeyboardShortcutProps = {
   ref?: React.Ref<HTMLElement>;
   title?: string;
@@ -123,9 +127,11 @@ export function KeyboardShortcut({
   ref,
   keys,
   title,
-  variant,
+  variant: variantProp,
   size,
 }: KeyboardShortcutProps) {
+  const inTooltip = React.useContext(KeyboardShortcutInTooltipContext);
+  const variant = variantProp ?? (inTooltip ? "keycap" : "default");
   const isMac = useIsMac();
 
   return (
