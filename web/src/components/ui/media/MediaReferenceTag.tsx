@@ -10,6 +10,21 @@ import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeature
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
 
+function getS3MediaStatus({
+  armed,
+  isError,
+  hasData,
+}: {
+  armed: boolean;
+  isError: boolean;
+  hasData: boolean;
+}): MediaTagStatus {
+  if (!armed) return "idle";
+  if (isError) return "error";
+  if (hasData) return "ready";
+  return "loading";
+}
+
 /**
  * Container that connects a classified media value to the pure `MediaTag`: it
  * arms the lazy fetch the first time the peek opens (hover/focus) and keeps it
@@ -60,10 +75,11 @@ function S3MediaTag({ descriptor }: { descriptor: S3Descriptor }) {
   );
   if (!isFeatureEnabled) return descriptor.uri;
 
-  let status: MediaTagStatus = "loading";
-  if (!armed) status = "idle";
-  else if (resolved.isError) status = "error";
-  else if (resolved.data) status = "ready";
+  const status = getS3MediaStatus({
+    armed,
+    isError: resolved.isError,
+    hasData: Boolean(resolved.data),
+  });
 
   return (
     <MediaTag
