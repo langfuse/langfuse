@@ -74,22 +74,49 @@
   --color-foreground-secondary: hsl(var(--foreground-secondary));
   --color-surface-code: hsl(var(--surface-code));
   --color-surface-code-header: hsl(var(--surface-code-header));
+  --color-surface-sunken: hsl(var(--surface-sunken));
+  --color-surface-output: hsl(var(--surface-output));
+  /* Fill for sticky table chrome (headers, footers, filter rail). Defaults to
+     the page background; a host on another surface sets --surface-context. */
+  --color-surface: var(--surface-context, hsl(var(--background)));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
   --color-muted-gray: hsl(var(--muted-gray));
 
   --color-observation-trace: var(--observation-trace);
+  --color-observation-trace-line: var(--observation-trace-line);
+  --color-observation-trace-fill: var(--observation-trace-fill);
   --color-observation-span: var(--observation-span);
+  --color-observation-span-line: var(--observation-span-line);
+  --color-observation-span-fill: var(--observation-span-fill);
   --color-observation-generation: var(--observation-generation);
+  --color-observation-generation-line: var(--observation-generation-line);
+  --color-observation-generation-fill: var(--observation-generation-fill);
   --color-observation-event: var(--observation-event);
+  --color-observation-event-line: var(--observation-event-line);
+  --color-observation-event-fill: var(--observation-event-fill);
   --color-observation-agent: var(--observation-agent);
+  --color-observation-agent-line: var(--observation-agent-line);
+  --color-observation-agent-fill: var(--observation-agent-fill);
   --color-observation-evaluator: var(--observation-evaluator);
+  --color-observation-evaluator-line: var(--observation-evaluator-line);
+  --color-observation-evaluator-fill: var(--observation-evaluator-fill);
   --color-observation-tool: var(--observation-tool);
+  --color-observation-tool-line: var(--observation-tool-line);
+  --color-observation-tool-fill: var(--observation-tool-fill);
   --color-observation-chain: var(--observation-chain);
+  --color-observation-chain-line: var(--observation-chain-line);
+  --color-observation-chain-fill: var(--observation-chain-fill);
   --color-observation-retriever: var(--observation-retriever);
+  --color-observation-retriever-line: var(--observation-retriever-line);
+  --color-observation-retriever-fill: var(--observation-retriever-fill);
   --color-observation-embedding: var(--observation-embedding);
+  --color-observation-embedding-line: var(--observation-embedding-line);
+  --color-observation-embedding-fill: var(--observation-embedding-fill);
   --color-observation-guardrail: var(--observation-guardrail);
+  --color-observation-guardrail-line: var(--observation-guardrail-line);
+  --color-observation-guardrail-fill: var(--observation-guardrail-fill);
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
   /* These six status tokens hold complete oklch colors (tints carry baked
@@ -291,21 +318,25 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 217 33% 17%;
+    --foreground: 240 3.7% 15.9%; /* zinc-800 */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 240 4.8% 95.9%; /* zinc-100 */
+    --muted-foreground: 240 3.8% 46.1%; /* zinc-500 */
     /* Text between body and muted: slate-600. Content that is not a heading
        and not a label, e.g. JSON values. */
-    --foreground-secondary: 215 19% 35%;
+    --foreground-secondary: 240 5.2% 33.9%; /* zinc-600 */
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
-    --foreground-tertiary: 215 12% 62%;
+    --foreground-tertiary: 240 5% 64.9%; /* zinc-400 */
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
+    /* Off-white panel behind detail content (Tailwind zinc-50). */
+    --surface-sunken: 0 0% 98%; /* zinc-50 */
+    /* Output blocks in the trace preview (Tailwind zinc-100). */
+    --surface-output: 240 4.8% 95.9%; /* zinc-100 */
 
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
@@ -319,31 +350,31 @@
     --modal: 0 0% 100%;
     --modal-foreground: var(--foreground);
 
-    --header: 210 40% 98%;
+    --header: 0 0% 98%; /* zinc-50 */
     --header-foreground: var(--foreground);
 
-    --border: 214.3 31.8% 91.4%;
+    --border: 240 5.9% 90%; /* zinc-200 */
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
-    --border-contrast: 214.3 20% 80%;
-    --input: 214.3 31.8% 91.4%;
+    --border-contrast: 240 4.9% 83.9%; /* zinc-300 */
+    --input: 240 5.9% 90%; /* zinc-200 */
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 240 5.9% 10%; /* zinc-900 */
+    --primary-foreground: 0 0% 98%; /* zinc-50 */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 240 4.8% 95.9%; /* zinc-100 */
+    --secondary-foreground: 240 5.9% 10%; /* zinc-900 */
 
-    --tertiary: 214 32% 91%;
-    --tertiary-foreground: 222.2 47.4% 11.2%;
+    --tertiary: 240 5.9% 90%; /* zinc-200 */
+    --tertiary-foreground: 240 5.9% 10%; /* zinc-900 */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 217 33% 17%;
+    --accent: 240 4.8% 95.9%; /* zinc-100 */
+    --accent-foreground: 240 3.7% 15.9%; /* zinc-800 */
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%; /* zinc-50 */
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 240 5% 64.9%; /* zinc-400 */
 
     --primary-accent: 243 75.4% 58.6%;
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
@@ -364,29 +395,54 @@
        glyph in dark. Deliberately dimmer than --primary in dark so checked
        controls don't outshine content (fills read louder than text).
        --control-track is the switch's off-state track. */
-    --control-fill: 222.2 47.4% 11.2%;
-    --control-track: 214.3 31.8% 91.4%;
+    --control-fill: 240 5.9% 10%; /* zinc-900 */
+    --control-track: 240 5.9% 90%; /* zinc-200 */
     /* Unchecked control boundary — quieter than the near-black fill in light,
        a touch above --input in dark so the box still reads on the canvas. */
-    --control-border: 215 12% 60%;
+    --control-border: 240 5% 64.9%; /* zinc-400 */
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
     --muted-blue: 239 84% 67%;
-    --muted-gray: 210 50% 91.1%;
+    --muted-gray: 240 5.9% 90%; /* zinc-200 */
 
     /* Observation type hues: one lightness and chroma so no type outweighs another */
+    /* Observation types: -line for stroked icons and borders (darker so thin
+       strokes keep >=3:1 on light surfaces), -fill for filled tiles and bars
+       under white icons. The un-suffixed set is legacy until callers move. */
     --observation-trace: oklch(68% 0.18 163);
+    --observation-trace-line: oklch(55% 0.21 163);
+    --observation-trace-fill: oklch(61% 0.2 163);
     --observation-span: oklch(68% 0.18 265);
+    --observation-span-line: oklch(55% 0.21 265);
+    --observation-span-fill: oklch(61% 0.2 265);
     --observation-generation: oklch(68% 0.18 335);
+    --observation-generation-line: oklch(55% 0.21 335);
+    --observation-generation-fill: oklch(61% 0.2 335);
     --observation-event: oklch(68% 0.18 115);
+    --observation-event-line: oklch(55% 0.21 115);
+    --observation-event-fill: oklch(61% 0.2 115);
     --observation-agent: oklch(68% 0.18 310);
+    --observation-agent-line: oklch(55% 0.21 310);
+    --observation-agent-fill: oklch(61% 0.2 310);
     --observation-evaluator: oklch(68% 0.18 285);
+    --observation-evaluator-line: oklch(55% 0.21 285);
+    --observation-evaluator-fill: oklch(61% 0.2 285);
     --observation-tool: oklch(68% 0.18 55);
+    --observation-tool-line: oklch(55% 0.21 55);
+    --observation-tool-fill: oklch(61% 0.2 55);
     --observation-chain: oklch(68% 0.18 0);
+    --observation-chain-line: oklch(55% 0.21 0);
+    --observation-chain-fill: oklch(61% 0.2 0);
     --observation-retriever: oklch(68% 0.18 145);
+    --observation-retriever-line: oklch(55% 0.21 145);
+    --observation-retriever-fill: oklch(61% 0.2 145);
     --observation-embedding: oklch(68% 0.18 85);
+    --observation-embedding-line: oklch(55% 0.21 85);
+    --observation-embedding-fill: oklch(61% 0.2 85);
     --observation-guardrail: oklch(68% 0.18 25);
+    --observation-guardrail-line: oklch(55% 0.21 25);
+    --observation-guardrail-fill: oklch(61% 0.2 25);
 
     --accent-light-green: 138 76.5% 98%;
     --accent-dark-green: 112 100% 32%;
@@ -439,9 +495,9 @@
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 96.9%;
+    --sidebar-accent: 240 4.8% 95.9%; /* zinc-100 */
     --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
+    --sidebar-border: 240 5.9% 90%; /* zinc-200 */
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     --find-match-background: 60 60% 85%;
@@ -508,6 +564,8 @@
     --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
+    --surface-sunken: 0 0% 4%;
+    --surface-output: 0 0% 9%;
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);
@@ -568,16 +626,38 @@
     --muted-magenta: 330 76.7% 73.1%;
 
     --observation-trace: oklch(75% 0.12 163);
+    --observation-trace-line: oklch(78% 0.16 163);
+    --observation-trace-fill: oklch(55% 0.17 163);
     --observation-span: oklch(75% 0.12 265);
+    --observation-span-line: oklch(78% 0.16 265);
+    --observation-span-fill: oklch(55% 0.17 265);
     --observation-generation: oklch(75% 0.12 335);
+    --observation-generation-line: oklch(78% 0.16 335);
+    --observation-generation-fill: oklch(55% 0.17 335);
     --observation-event: oklch(75% 0.12 115);
+    --observation-event-line: oklch(78% 0.16 115);
+    --observation-event-fill: oklch(55% 0.17 115);
     --observation-agent: oklch(75% 0.12 310);
+    --observation-agent-line: oklch(78% 0.16 310);
+    --observation-agent-fill: oklch(55% 0.17 310);
     --observation-evaluator: oklch(75% 0.12 285);
+    --observation-evaluator-line: oklch(78% 0.16 285);
+    --observation-evaluator-fill: oklch(55% 0.17 285);
     --observation-tool: oklch(75% 0.12 55);
+    --observation-tool-line: oklch(78% 0.16 55);
+    --observation-tool-fill: oklch(55% 0.17 55);
     --observation-chain: oklch(75% 0.12 0);
+    --observation-chain-line: oklch(78% 0.16 0);
+    --observation-chain-fill: oklch(55% 0.17 0);
     --observation-retriever: oklch(75% 0.12 145);
+    --observation-retriever-line: oklch(78% 0.16 145);
+    --observation-retriever-fill: oklch(55% 0.17 145);
     --observation-embedding: oklch(75% 0.12 85);
+    --observation-embedding-line: oklch(78% 0.16 85);
+    --observation-embedding-fill: oklch(55% 0.17 85);
     --observation-guardrail: oklch(75% 0.12 25);
+    --observation-guardrail-line: oklch(78% 0.16 25);
+    --observation-guardrail-fill: oklch(55% 0.17 25);
     /* Stays clearly above --card so chart grids (--chart-grid) and disabled
        badge fills stay discernible on elevated surfaces, without the harshness
        of --border-contrast (26%). */
