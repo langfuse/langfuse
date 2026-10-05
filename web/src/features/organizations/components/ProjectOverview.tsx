@@ -116,7 +116,7 @@ const OrganizationProjectTiles = ({
                 />
               )}
               <CardHeader className="flex-row items-start justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="truncate text-base" title={project.name}>
+                <CardTitle className="truncate text-lg" title={project.name}>
                   {project.name}
                 </CardTitle>
                 <div className="flex shrink-0 items-center gap-1">
@@ -341,6 +341,7 @@ const SingleOrganizationProjectOverviewTile = ({
     <div key={org.id}>
       <Header
         title={org.name}
+        titleClassName="text-sm leading-5"
         className="truncate"
         labelBadge={
           org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
