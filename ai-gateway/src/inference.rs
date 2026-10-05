@@ -7,6 +7,7 @@ use tokio::sync::Semaphore;
 use tracing::Instrument;
 
 use crate::{
+    correlation::RequestCorrelation,
     providers::{ProviderError, ProviderTransport, RequestPermit, Route},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
@@ -60,6 +61,7 @@ impl InferenceService {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        request_id: &str,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let span = tracing::info_span!(
             "resolution",
@@ -67,7 +69,7 @@ impl InferenceService {
             gateway.outcome = tracing::field::Empty
         );
         async {
-            let prepared = self.prepare(gateway_key, api_format).await;
+            let prepared = self.prepare(gateway_key, api_format, request_id).await;
             tracing::Span::current().record(
                 "gateway.outcome",
                 match &prepared {
@@ -86,6 +88,7 @@ impl InferenceService {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        request_id: &str,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
             let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
@@ -94,7 +97,7 @@ impl InferenceService {
             })?;
             let _active = crate::observability::Active::new("resolution");
             self.control_plane
-                .resolve(gateway_key, api_format)
+                .resolve(gateway_key, api_format, request_id)
                 .await
                 .map_err(RequestPreparationError::Resolution)?
         };
@@ -105,6 +108,10 @@ impl InferenceService {
         Ok((permit, context))
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each argument is a distinct per-request input passed straight through"
+    )]
     pub(crate) async fn forward(
         &self,
         permit: RequestPermit,
@@ -113,9 +120,10 @@ impl InferenceService {
         body: Bytes,
         route: Route,
         query: Option<&str>,
+        correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
         self.provider
-            .forward_route(permit, context, headers, body, route, query)
+            .forward_route(permit, context, headers, body, route, query, correlation)
             .await
     }
 
