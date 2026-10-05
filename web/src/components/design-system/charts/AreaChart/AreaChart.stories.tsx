@@ -1,5 +1,4 @@
-/* eslint-disable @repo/no-let-assign-in-react */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
@@ -49,6 +48,16 @@ function AreaChartDemo({
   legend,
 }: StoryProps) {
   const [activeKey, setActiveKey] = useState<string>();
+  const chartData = useMemo(() => {
+    if (scenario === "gaps") return gaps;
+    if (scenario === "negative") {
+      return data.map((datum, index) => ({
+        ...datum,
+        values: { api: index * 3 - 18, worker: 12 - index * 2 },
+      }));
+    }
+    return data;
+  }, [scenario]);
   if (scenario === "mixedBuckets") {
     const mixedData = [
       { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
@@ -111,18 +120,6 @@ function AreaChartDemo({
         legend={legend}
       />
     );
-  }
-
-  let chartData: {
-    x: Date;
-    values: { api: number | null; worker: number | null };
-  }[] = data;
-  if (scenario === "gaps") chartData = gaps;
-  else if (scenario === "negative") {
-    chartData = data.map((datum, index) => ({
-      ...datum,
-      values: { api: index * 3 - 18, worker: 12 - index * 2 },
-    }));
   }
 
   return (
