@@ -119,6 +119,7 @@ export function createDefaultBedrockProviderAuth(params?: {
 export function resolveBedrockProviderAuth(params: {
   secretKey: string;
   allowDefaultCredentials: boolean;
+  profile?: string;
 }): Pick<
   Parameters<typeof createAmazonBedrock>[0] & object,
   "accessKeyId" | "secretAccessKey" | "apiKey" | "credentialProvider"
@@ -131,7 +132,7 @@ export function resolveBedrockProviderAuth(params: {
   ) {
     // Unlike the AI SDK's built-in env-only fallback, the node provider chain
     // includes env, profile, IMDS, IRSA, and the remaining AWS defaults.
-    return createDefaultBedrockProviderAuth();
+    return createDefaultBedrockProviderAuth({ profile: params.profile });
   }
 
   try {
@@ -182,6 +183,9 @@ export function buildBedrockModel(params: {
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,
     allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
+    profile: shouldUseLangfuseAPIKey
+      ? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE
+      : undefined,
   });
 
   const provider = createAmazonBedrock({

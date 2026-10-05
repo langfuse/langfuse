@@ -21,6 +21,8 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  ListChecks,
+  WandSparkles,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -201,7 +203,23 @@ export const ROUTES: Route[] = [
     legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
-    title: "Human Annotation",
+    title: "Annotate",
+    href: `/project/[projectId]/annotator`,
+    projectRbacScopes: ["annotationQueues:read"],
+    group: RouteGroup.Evaluation,
+    section: RouteSection.Main,
+    icon: ListChecks,
+  },
+  {
+    title: "Annotation Studio",
+    href: `/project/[projectId]/annotator/studio`,
+    projectRbacScopes: ["annotationQueues:CUD"],
+    group: RouteGroup.Evaluation,
+    section: RouteSection.Main,
+    icon: WandSparkles,
+  },
+  {
+    title: "Annotation queues",
     href: `/project/[projectId]/annotation-queues`,
     projectRbacScopes: ["annotationQueues:read"],
     group: RouteGroup.Evaluation,

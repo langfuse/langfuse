@@ -62,6 +62,7 @@ type QueuePageProps = {
   annotationQueueId: string;
   projectId: string;
   queryItemId?: string;
+  navigation: "annotation-queues" | "annotator";
 };
 
 export function AnnotationQueueItemPage(props: QueuePageProps) {
@@ -83,6 +84,7 @@ function AnnotationQueueRunLoader({
   annotationQueueId,
   projectId,
   queryItemId,
+  navigation,
   singleItem,
   sessionReady,
 }: QueuePageProps & { singleItem: boolean; sessionReady: boolean }) {
@@ -136,7 +138,10 @@ function AnnotationQueueRunLoader({
         return;
       }
       return router.push({
-        pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${item.id}`,
+        pathname:
+          navigation === "annotator"
+            ? `/project/${projectId}/annotator/work/${annotationQueueId}/${item.id}`
+            : `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${item.id}`,
         query: item.observationId
           ? { observation: item.observationId }
           : undefined,

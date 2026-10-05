@@ -8,6 +8,7 @@ export const PATH_CONSTANTS = {
     "/onboarding",
     "/auth/reset-password",
     "/auth/setup-password",
+    "/project/[projectId]/annotator",
   ] as const,
   unauthenticated: [
     "/auth/sign-in",

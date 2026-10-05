@@ -60,6 +60,7 @@ export const AnnotationQueuesItem = ({
         projectId={projectId}
         annotationQueueId={annotationQueueId}
         queryItemId={itemId}
+        navigation="annotation-queues"
       />
     </Page>
   );

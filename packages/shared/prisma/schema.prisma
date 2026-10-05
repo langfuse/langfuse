@@ -46,44 +46,47 @@ model Session {
 }
 
 model User {
-  id                        String                      @id @default(cuid())
-  name                      String?
-  email                     String?                     @unique
-  emailVerified             DateTime?                   @map("email_verified")
-  password                  String?
-  sessionsExpiredAt         DateTime?                   @map("sessions_expired_at")
-  image                     String?
-  admin                     Boolean                     @default(false)
-  v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
-  accounts                  Account[]
-  sessions                  Session[]
-  organizationMemberships   OrganizationMembership[]
-  projectMemberships        ProjectMembership[]
-  invitations               MembershipInvitation[]
-  createdAt                 DateTime                    @default(now()) @map("created_at")
-  updatedAt                 DateTime                    @default(now()) @updatedAt @map("updated_at")
-  featureFlags              String[]                    @default([]) @map("feature_flags")
-  annotatedLockedItem       AnnotationQueueItem[]       @relation("LockedByUser")
-  annotatedCompletedItem    AnnotationQueueItem[]       @relation("AnnotatorUser")
-  dashboardWidgetsCreated   DashboardWidget[]           @relation("CreatedByUser")
-  dashboardWidgetsUpdated   DashboardWidget[]           @relation("UpdatedByUser")
-  dashboardCreated          Dashboard[]                 @relation("CreatedByUser")
-  dashboardUpdated          Dashboard[]                 @relation("UpdatedByUser")
-  tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
-  tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
-  monitorsCreated           Monitor[]                   @relation("CreatedByUser")
-  monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
-  annotationQueueAssignment AnnotationQueueAssignment[]
-  surveys                   Survey[]
-  commentReactions          CommentReaction[]
-  notificationPreferences   NotificationPreference[]
-  defaultViews              DefaultView[]               @relation("DefaultViewUser")
-  inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
-  inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
-  apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
-  evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
-  evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
-  evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  id                                String                      @id @default(cuid())
+  name                              String?
+  email                             String?                     @unique
+  emailVerified                     DateTime?                   @map("email_verified")
+  password                          String?
+  sessionsExpiredAt                 DateTime?                   @map("sessions_expired_at")
+  image                             String?
+  admin                             Boolean                     @default(false)
+  v4BetaEnabled                     Boolean                     @default(false) @map("v4_beta_enabled")
+  accounts                          Account[]
+  sessions                          Session[]
+  organizationMemberships           OrganizationMembership[]
+  projectMemberships                ProjectMembership[]
+  invitations                       MembershipInvitation[]
+  createdAt                         DateTime                    @default(now()) @map("created_at")
+  updatedAt                         DateTime                    @default(now()) @updatedAt @map("updated_at")
+  featureFlags                      String[]                    @default([]) @map("feature_flags")
+  annotatedLockedItem               AnnotationQueueItem[]       @relation("LockedByUser")
+  annotatedCompletedItem            AnnotationQueueItem[]       @relation("AnnotatorUser")
+  dashboardWidgetsCreated           DashboardWidget[]           @relation("CreatedByUser")
+  dashboardWidgetsUpdated           DashboardWidget[]           @relation("UpdatedByUser")
+  dashboardCreated                  Dashboard[]                 @relation("CreatedByUser")
+  dashboardUpdated                  Dashboard[]                 @relation("UpdatedByUser")
+  tableViewPresetCreated            TableViewPreset[]           @relation("CreatedByUser")
+  tableViewPresetUpdated            TableViewPreset[]           @relation("UpdatedByUser")
+  monitorsCreated                   Monitor[]                   @relation("CreatedByUser")
+  monitorsUpdated                   Monitor[]                   @relation("UpdatedByUser")
+  annotationQueueAssignment         AnnotationQueueAssignment[]
+  surveys                           Survey[]
+  commentReactions                  CommentReaction[]
+  notificationPreferences           NotificationPreference[]
+  defaultViews                      DefaultView[]               @relation("DefaultViewUser")
+  inAppAgentConversations           InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
+  inAppAgentRuns                    InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
+  apiKeysCreated                    ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  evaluatorsCreated                 Evaluator[]                 @relation("EvaluatorCreatedByUser")
+  evaluatorVersionsCreated          EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
+  evaluationRulesCreated            EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  annotationWorkflowsCreated        AnnotationWorkflow[]        @relation("AnnotationWorkflowCreatedByUser")
+  annotationWorkflowVersionsCreated AnnotationWorkflowVersion[] @relation("AnnotationWorkflowVersionCreatedByUser")
+  annotationResponses               AnnotationResponse[]
 
   @@map("users")
 }
@@ -172,6 +175,8 @@ model Project {
   commentReactions                  CommentReaction[]
   annotationQueue                   AnnotationQueue[]
   annotationQueueItem               AnnotationQueueItem[]
+  annotationWorkflow                AnnotationWorkflow[]
+  annotationResponse                AnnotationResponse[]
   Media                             Media[]
   PromptDependency                  PromptDependency[]
   LlmSchema                         LlmSchema[]
@@ -555,6 +560,7 @@ model AnnotationQueue {
   updatedAt                 DateTime                    @default(now()) @updatedAt @map("updated_at")
   annotationQueueItem       AnnotationQueueItem[]
   annotationQueueAssignment AnnotationQueueAssignment[]
+  annotationWorkflow        AnnotationWorkflow?
 
   @@unique([projectId, name])
   @@index([id, projectId])
@@ -563,22 +569,23 @@ model AnnotationQueue {
 }
 
 model AnnotationQueueItem {
-  id              String                    @id @default(cuid())
-  queueId         String                    @map("queue_id")
-  queue           AnnotationQueue           @relation(fields: [queueId], references: [id], onDelete: Cascade)
-  objectId        String                    @map("object_id")
-  objectType      AnnotationQueueObjectType @map("object_type")
-  status          AnnotationQueueStatus     @default(PENDING)
-  lockedAt        DateTime?                 @map("locked_at")
-  lockedByUserId  String?                   @map("locked_by_user_id")
-  lockedByUser    User?                     @relation("LockedByUser", fields: [lockedByUserId], references: [id], onDelete: SetNull)
-  annotatorUserId String?                   @map("annotator_user_id")
-  annotatorUser   User?                     @relation("AnnotatorUser", fields: [annotatorUserId], references: [id], onDelete: SetNull)
-  completedAt     DateTime?                 @map("completed_at")
-  projectId       String                    @map("project_id")
-  project         Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt       DateTime                  @default(now()) @map("created_at")
-  updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at")
+  id                 String                    @id @default(cuid())
+  queueId            String                    @map("queue_id")
+  queue              AnnotationQueue           @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  objectId           String                    @map("object_id")
+  objectType         AnnotationQueueObjectType @map("object_type")
+  status             AnnotationQueueStatus     @default(PENDING)
+  lockedAt           DateTime?                 @map("locked_at")
+  lockedByUserId     String?                   @map("locked_by_user_id")
+  lockedByUser       User?                     @relation("LockedByUser", fields: [lockedByUserId], references: [id], onDelete: SetNull)
+  annotatorUserId    String?                   @map("annotator_user_id")
+  annotatorUser      User?                     @relation("AnnotatorUser", fields: [annotatorUserId], references: [id], onDelete: SetNull)
+  completedAt        DateTime?                 @map("completed_at")
+  projectId          String                    @map("project_id")
+  project            Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @default(now()) @updatedAt @map("updated_at")
+  annotationResponse AnnotationResponse[]
 
   @@index([id, projectId])
   @@index([projectId, queueId, status])
@@ -612,6 +619,72 @@ model AnnotationQueueAssignment {
 
   @@unique([projectId, queueId, userId])
   @@map("annotation_queue_assignments")
+}
+
+// A versioned, declarative annotation experience bound to one queue. The spec
+// is rendered through the trusted component catalog in web; it never contains
+// executable code, arbitrary styles, URLs, or network actions.
+model AnnotationWorkflow {
+  id              String                      @id @default(cuid())
+  projectId       String                      @map("project_id")
+  project         Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  queueId         String                      @unique @map("queue_id")
+  queue           AnnotationQueue             @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  status          String                      @default("DRAFT")
+  createdByUserId String                      @map("created_by_user_id")
+  createdByUser   User                        @relation("AnnotationWorkflowCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @default(now()) @updatedAt @map("updated_at")
+  versions        AnnotationWorkflowVersion[]
+
+  @@unique([id, projectId])
+  @@index([projectId, updatedAt(sort: Desc)])
+  @@map("annotation_workflows")
+}
+
+model AnnotationWorkflowVersion {
+  id              String               @id @default(cuid())
+  workflowId      String               @map("workflow_id")
+  workflow        AnnotationWorkflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  version         Int
+  spec            Json                 @db.JsonB
+  source          String
+  prompt          String?              @db.Text
+  modelProvider   String?              @map("model_provider")
+  modelName       String?              @map("model_name")
+  publishedAt     DateTime?            @map("published_at")
+  createdByUserId String               @map("created_by_user_id")
+  createdByUser   User                 @relation("AnnotationWorkflowVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  responses       AnnotationResponse[]
+
+  @@unique([workflowId, version])
+  @@index([workflowId, createdAt(sort: Desc)])
+  @@map("annotation_workflow_versions")
+}
+
+model AnnotationResponse {
+  id                String                    @id @default(cuid())
+  projectId         String                    @map("project_id")
+  project           Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  itemId            String                    @map("item_id")
+  item              AnnotationQueueItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  workflowVersionId String                    @map("workflow_version_id")
+  workflowVersion   AnnotationWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  userId            String                    @map("user_id")
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  payload           Json                      @db.JsonB
+  status            String                    @default("SUBMITTED")
+  submittedAt       DateTime                  @default(now()) @map("submitted_at")
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([itemId, userId])
+  @@index([projectId, submittedAt(sort: Desc)])
+  @@index([workflowVersionId])
+  @@map("annotation_responses")
 }
 
 model CronJobs {
@@ -891,15 +964,15 @@ model SkillFile {
 }
 
 model SkillBlob {
-  id         String    @id @default(cuid())
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   sha256Hash    String @map("sha_256_hash") @db.Char(44)
   contentType   String @map("content_type")
-  contentLength Int @map("content_length")
+  contentLength Int    @map("content_length")
   content       String @db.Text
 
   files SkillFile[]

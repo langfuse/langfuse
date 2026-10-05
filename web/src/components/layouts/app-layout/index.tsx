@@ -136,7 +136,12 @@ export function AppLayout(props: PropsWithChildren) {
 
   // Render minimal layout (onboarding, public routes)
   if (hideNavigation) {
-    return <MinimalLayout>{props.children}</MinimalLayout>;
+    const isAnnotatorApp = router.pathname.startsWith(
+      "/project/[projectId]/annotator",
+    );
+    return (
+      <MinimalLayout fullBleed={isAnnotatorApp}>{props.children}</MinimalLayout>
+    );
   }
 
   // Authenticated layout
