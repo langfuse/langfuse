@@ -8,8 +8,9 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { BlobStorageSettingsContent } from "@/src/features/blobstorage-integration/components/BlobStorageSettingsContent";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { AddBlobStorageIntegrationButton } from "@/src/features/blobstorage-integration/components/AddBlobStorageIntegrationButton/AddBlobStorageIntegrationButton";
 
 const syncStatusFromConfig = (
   config: RouterOutputs["blobStorageIntegration"]["get"]["configs"][number],
@@ -123,12 +124,11 @@ export default function BlobStorageIntegrationPage() {
                 Integration Docs ↗
               </Link>
             </Button>
-            {!showDetails && (
-              <Button onClick={() => openIntegration("new")}>
-                <Plus className="mr-1 size-4" aria-hidden="true" />
-                Add integration
-              </Button>
-            )}
+            <AddBlobStorageIntegrationButton
+              canLoadConfig={canLoadConfig}
+              showDetails={showDetails}
+              onClick={() => openIntegration("new")}
+            />
           </>
         ),
       }}
