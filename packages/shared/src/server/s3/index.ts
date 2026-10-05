@@ -40,8 +40,8 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
 };
 
 /**
- * Client for the ingestion event bucket. Adaptive retry slows this client
- * down after S3 throttles it, instead of retrying at full speed.
+ * Storage client for the ingestion event bucket. Callers share this
+ * configuration and keep their own instance.
  */
 export function createEventUploadStorageService(
   bucketName: string,
@@ -55,7 +55,6 @@ export function createEventUploadStorageService(
     forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
     awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
     awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    retryMode: "adaptive",
   });
 }
 

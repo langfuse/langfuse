@@ -45,8 +45,6 @@ import {
 } from "../outbound-url";
 import { isS3SlowDownError } from "./s3ThrottleError";
 
-type S3RetryMode = "standard" | "adaptive";
-
 export interface S3SseConfig {
   serverSideEncryption?: string;
   sseKmsKeyId?: string;
@@ -368,7 +366,6 @@ export class StorageServiceFactory {
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
    * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
-   * @param params.retryMode - AWS SDK retry mode. `adaptive` slows the client when S3 throttles it. Omitted keeps the SDK default (`standard`).
    */
   public static getInstance(params: {
     accessKeyId: string | undefined;
@@ -385,7 +382,6 @@ export class StorageServiceFactory {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
-    retryMode?: S3RetryMode;
   }): StorageService {
     if (
       params.useAzureBlob !== undefined
@@ -775,7 +771,6 @@ class S3StorageService implements StorageService {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
-    retryMode?: S3RetryMode;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
     const { accessKeyId, secretAccessKey } = params;
@@ -792,7 +787,6 @@ class S3StorageService implements StorageService {
       params.region === undefined
         ? undefined
         : normalizeBlobStorageRegion(params.region);
-    const retryMode = params.retryMode;
 
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
@@ -805,7 +799,6 @@ class S3StorageService implements StorageService {
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler,
-      ...(retryMode ? { retryMode } : {}),
     });
 
     addS3DiagnosticsMiddleware(this.client, {
@@ -827,7 +820,6 @@ class S3StorageService implements StorageService {
           requestChecksumCalculation: "WHEN_REQUIRED",
           responseChecksumValidation: "WHEN_REQUIRED",
           requestHandler,
-          ...(retryMode ? { retryMode } : {}),
         })
       : this.client;
 
