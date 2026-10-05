@@ -67,7 +67,7 @@ export function SessionTimelineToolRow({
         </>
       }
     >
-      <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3 pl-[22px]">
         {hasPreviewValue(input) ? (
           <div className="relative flex min-w-0 flex-col gap-1">
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">

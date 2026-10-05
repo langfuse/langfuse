@@ -2,12 +2,12 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { type TranscriptMessageGroup } from "../../fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "../../fns/getSessionTranscriptRows";
 import { SessionTimelineToolRow } from "./SessionConversationTimelineTrace";
-import { ChevronDown, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "../../useSessionTraceTranscripts";
 import { SessionTimelineContentMessage } from "./components/SessionTimelineContentMessage/SessionTimelineContentMessage";
 import { SessionTimelineSystemMessage } from "./components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
-import { cn } from "@/src/utils/tailwind";
+import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "../../../fns/groupConsecutiveTools";
 
@@ -188,33 +188,24 @@ function SessionTranscriptToolGroup({
     expansion.isExpanded ||
     (containsTarget && props.scrollTarget?.requestId !== expansion.requestId);
   return (
-    <div className="space-y-1">
-      <button
-        type="button"
-        aria-label={`${isOpen ? "Hide" : "Show"} tools: ${summary}`}
-        aria-expanded={isOpen}
-        onClick={() =>
-          setExpansion({
-            isExpanded: !isOpen,
-            requestId: props.scrollTarget?.requestId,
-          })
-        }
-        className="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 text-left text-sm"
-      >
-        <Wrench className="h-3.5 w-3.5 shrink-0" />
-        <span>{summary}</span>
-        <ChevronDown
-          className={cn("h-3.5 w-3.5 shrink-0", !isOpen && "-rotate-90")}
-        />
-      </button>
-      {isOpen && (
-        <div className="space-y-1">
-          {rows.map((item) => (
-            <SessionTranscriptRow key={item.id} {...props} item={item} />
-          ))}
-        </div>
-      )}
-    </div>
+    <SessionTimelineCollapsibleRow
+      label={summary}
+      labelActionName={`${isOpen ? "Hide" : "Show"} tools: ${summary}`}
+      icon={<Wrench className="text-observation-tool h-3.5 w-3.5 shrink-0" />}
+      isExpanded={isOpen}
+      onExpandedChange={(isExpanded) =>
+        setExpansion({
+          isExpanded,
+          requestId: props.scrollTarget?.requestId,
+        })
+      }
+    >
+      <div className="space-y-1">
+        {rows.map((item) => (
+          <SessionTranscriptRow key={item.id} {...props} item={item} />
+        ))}
+      </div>
+    </SessionTimelineCollapsibleRow>
   );
 }
 

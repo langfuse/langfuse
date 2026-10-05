@@ -4,6 +4,7 @@ import { cn } from "@/src/utils/tailwind";
 
 export function SessionTimelineCollapsibleRow({
   label,
+  labelActionName,
   icon,
   isExpanded,
   onExpandedChange,
@@ -12,6 +13,7 @@ export function SessionTimelineCollapsibleRow({
   children,
 }: {
   label: string;
+  labelActionName?: string;
   icon?: ReactNode;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
@@ -22,17 +24,21 @@ export function SessionTimelineCollapsibleRow({
   return (
     <section
       className={cn(
-        "group/collapsible-row flex w-full scroll-mt-16 flex-col py-1",
+        "flex w-full scroll-mt-16 flex-col py-1",
         isExpanded && "gap-2",
       )}
       data-expanded={isExpanded}
     >
-      <div className="flex w-full min-w-0 items-center gap-0.5">
+      <div
+        className="group/collapsible-row flex w-full min-w-0 items-center gap-0.5"
+        data-expanded={isExpanded}
+      >
         <button
           type="button"
           onClick={onOpenObservation ?? (() => onExpandedChange(!isExpanded))}
           className="flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           aria-expanded={onOpenObservation ? undefined : isExpanded}
+          aria-label={labelActionName}
         >
           {icon && (
             <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
@@ -69,9 +75,7 @@ export function SessionTimelineCollapsibleRow({
           {trailingContent}
         </span>
       </div>
-      {isExpanded && (
-        <div className={cn("min-w-0", icon && "pl-[22px]")}>{children}</div>
-      )}
+      {isExpanded && <div className="min-w-0">{children}</div>}
     </section>
   );
 }
