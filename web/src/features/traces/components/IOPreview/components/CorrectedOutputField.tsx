@@ -177,7 +177,7 @@ export function CorrectedOutputField({
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
           <Pencil className="size-3 shrink-0" aria-hidden />
-          {hasContent ? "Corrected output" : "Correct output"}
+          Correct output
         </button>
       </div>
     );
