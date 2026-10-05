@@ -20,7 +20,7 @@ import {
   DropdownMenuController,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import Header from "@/src/components/layouts/header";
+import Header, { SubHeaderLabel } from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
@@ -339,9 +339,8 @@ const SingleOrganizationProjectOverviewTile = ({
 
   return (
     <div key={org.id}>
-      <Header
+      <SubHeaderLabel
         title={org.name}
-        titleClassName="text-base leading-6"
         className="truncate"
         labelBadge={
           org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
