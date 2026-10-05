@@ -1638,7 +1638,9 @@ export default function ExperimentItemsTable({
           ).textClass,
         })),
       ],
-      supports: () => true,
+      supports: (field) =>
+        field.type === "scores" ||
+        (field.type === "field" && field.field.id === "level"),
     },
   };
 

@@ -23,7 +23,6 @@ import {
 } from "./langQ";
 import {
   EVENTS_FIELD_REGISTRY,
-  metadataNamespaces,
   SCORE_COLUMNS,
   type FieldDef,
   type FieldRegistry,
@@ -229,16 +228,14 @@ function fieldOptions(
       })),
     );
   }
-  if (includeVirtual) {
-    for (const namespace of Object.keys(metadataNamespaces(registry))) {
-      opts.push({
-        id: `field:${namespace}.`,
-        kind: "field",
-        label: `${namespace}.`,
-        detail: `metadata key path, e.g. ${namespace}.region:eu`,
-        fieldId: `${namespace}.`,
-      });
-    }
+  if (includeVirtual && registry.metadata) {
+    opts.push({
+      id: "field:metadata.",
+      kind: "field",
+      label: "metadata.",
+      detail: "metadata key path, e.g. metadata.region:eu",
+      fieldId: "metadata.",
+    });
   }
   if (includeVirtual && registry.scores) {
     opts.push(
@@ -659,7 +656,6 @@ function matchOperatorOptions(
 // ---- key-path suggestions (metadata.*, scores.*, traceScores.*) ----
 
 type PathKind = {
-  column?: string;
   prefix: string;
   canonical: string;
   level?: "observation" | "trace";
@@ -670,6 +666,7 @@ type PathKind = {
 // no score-name dropdown. (`tracescore.` singular matches the `score.`/`scores.`
 // observation-level pair.)
 const PATH_PREFIXES: PathKind[] = [
+  { prefix: "metadata.", canonical: "metadata." },
   { prefix: "tracescores.", canonical: "traceScores.", level: "trace" },
   { prefix: "trace_scores.", canonical: "traceScores.", level: "trace" },
   { prefix: "tracescore.", canonical: "traceScores.", level: "trace" },
@@ -682,17 +679,8 @@ function pathKindOf(
   registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
-  const paths = [
-    ...Object.entries(metadataNamespaces(registry)).map(
-      ([namespace, column]) => ({
-        prefix: `${namespace.toLowerCase()}.`,
-        canonical: `${namespace}.`,
-        column,
-      }),
-    ),
-    ...PATH_PREFIXES,
-  ];
-  for (const kind of paths) {
+  for (const kind of PATH_PREFIXES) {
+    if (kind.canonical === "metadata." && !registry.metadata) continue;
     if (kind.canonical === "scores." && !registry.scores) continue;
     if (kind.canonical === "traceScores." && !registry.traceScores) continue;
     if (lower.startsWith(kind.prefix)) {
@@ -721,11 +709,11 @@ function keyPathOptions(
   // still matches (otherwise the first `"` drops every option and the popover
   // silently closes).
   const rankKey = typedKey.replace(/^"/, "").replace(/"$/, "");
-  if (kind.column) {
-    const options = observedValues(observed, kind.column).map((o) => ({
-      id: `key:${kind.canonical}${o.value}`,
+  if (kind.canonical === "metadata.") {
+    const options = observedValues(observed, "metadata").map((o) => ({
+      id: `key:metadata.${o.value}`,
       kind: "field" as const,
-      label: `${kind.canonical}${o.value}`,
+      label: `metadata.${o.value}`,
       // The observed JSON type of the path (display-only — metadata filters
       // always lower to stringObject regardless). Paths seen with multiple
       // types carry no type hint; counts stay the fallback like other lists.
@@ -734,7 +722,7 @@ function keyPathOptions(
     }));
     return {
       title: SECTION_KEYS,
-      options: rankFilter(options, `${kind.canonical}${rankKey}`),
+      options: rankFilter(options, `metadata.${rankKey}`),
     };
   }
   const numericColumn =
@@ -881,10 +869,7 @@ function valueStageSections(input: ValueStageInput): {
 
     case "metadata": {
       if (observed === undefined) return { sections: [], loading: true };
-      const all = observedValues(
-        observed,
-        `${ref.column ?? "metadata"}.${ref.key}`,
-      ).map((o) => ({
+      const all = observedValues(observed, `metadata.${ref.key}`).map((o) => ({
         id: `value:${o.value}`,
         kind: "value" as const,
         label: o.value,
