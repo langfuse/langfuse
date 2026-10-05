@@ -91,12 +91,12 @@ export function contextWithGatewayRequestId(
 ): Context {
   const requestId = singleHeader(req.headers[GATEWAY_REQUEST_ID_HEADER]);
   if (!requestId || !z.uuid().safeParse(requestId).success) return parent;
- 
+
   trace.getSpan(parent)?.setAttribute(GATEWAY_REQUEST_ID_KEY, requestId);
   const baggage = (
     propagation.getBaggage(parent) ?? propagation.createBaggage()
   ).setEntry(GATEWAY_REQUEST_ID_KEY, { value: requestId });
- 
+
   return propagation.setBaggage(parent, baggage);
 }
 
