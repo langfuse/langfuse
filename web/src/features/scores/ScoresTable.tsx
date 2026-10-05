@@ -1137,6 +1137,8 @@ export default function ScoresTable({
   if (
     insetToolbar &&
     !scores.isPending &&
+    !scores.isError &&
+    !totalScoreCountQuery.isError &&
     totalCount === 0 &&
     queryFilter.explicitFilterState.length === 0
   ) {
