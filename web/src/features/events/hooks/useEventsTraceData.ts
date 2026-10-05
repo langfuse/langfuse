@@ -103,8 +103,8 @@ export function useEventsTraceData(
         );
       },
       refetchIntervalInBackground: false,
-      // ErrorPage owns the settled miss UX — don't also toast 404s.
-      meta: { silentHttpCodes: [404] },
+      // No silentHttpCodes: QueryCache only toasts after retries are exhausted,
+      // so the Not Found toast appears once the arrival backoff has finished.
       staleTime: 60 * 1000, // 1 minute
     },
   );

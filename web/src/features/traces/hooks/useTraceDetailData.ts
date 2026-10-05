@@ -74,9 +74,8 @@ export function useTraceDetailData({
         // TanStack default: min(1000 * 2^failureCount, 30000)
         return Math.min(1_000 * 2 ** failureCount, 30_000);
       },
-      // The ErrorPage owns the settled miss UX — don't also toast 404s from the
-      // global query cache (including the final exhausted attempt).
-      meta: { silentHttpCodes: [404] },
+      // No silentHttpCodes: QueryCache only toasts after retries are exhausted,
+      // so the Not Found toast appears once the arrival backoff has finished.
       staleTime: 60 * 1000,
     },
   );

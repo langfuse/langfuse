@@ -178,7 +178,7 @@ describe("useTraceDetailData endpoint routing", () => {
     });
   });
 
-  it("retries NOT_FOUND with arrival backoff and silences the 404 toast", () => {
+  it("retries NOT_FOUND with arrival backoff so the toast waits for exhaustion", () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
 
     render();
@@ -192,7 +192,7 @@ describe("useTraceDetailData endpoint routing", () => {
         failureCount: number,
         error: { data?: { code?: string } },
       ) => number;
-      meta: { silentHttpCodes: number[] };
+      meta?: { silentHttpCodes?: number[] };
     };
 
     expect(options.retry(0, { data: { code: "NOT_FOUND" } })).toBe(true);
@@ -201,7 +201,8 @@ describe("useTraceDetailData endpoint routing", () => {
     expect(options.retry(0, { data: { code: "UNAUTHORIZED" } })).toBe(false);
     expect(options.retryDelay(0, { data: { code: "NOT_FOUND" } })).toBe(1_000);
     expect(options.retryDelay(3, { data: { code: "NOT_FOUND" } })).toBe(8_000);
-    expect(options.meta.silentHttpCodes).toEqual([404]);
+    // Final toast is intentional once backoff is done — do not silence 404s.
+    expect(options.meta?.silentHttpCodes).toBeUndefined();
   });
 
   it("exposes isWaitingForTrace while NOT_FOUND retries are in flight", () => {
