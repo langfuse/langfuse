@@ -440,7 +440,7 @@ const DropdownMenuItemWithSecondaryAction = (
           secondaryAction.onClick();
         }}
       >
-        <SecondaryActionIcon size={12} />
+        <SecondaryActionIcon className="icon-sm" />
       </button>
     );
   }, [secondaryAction, SecondaryActionIcon, isDisabled]);

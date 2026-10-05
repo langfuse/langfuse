@@ -151,7 +151,7 @@ function OptionContent({
     return (
       <Check
         aria-hidden="true"
-        className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
+        className={cn("icon-base", checked ? "opacity-100" : "opacity-0")}
       />
     );
   }, [type, checked]);

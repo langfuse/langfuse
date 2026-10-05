@@ -678,7 +678,7 @@ function SkillFileEditor({
     if (content === undefined) {
       return (
         <div role="status" className="flex items-center gap-2 text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading file…
+          <Loader2 className="icon-base animate-spin" /> Loading file…
         </div>
       );
     }
