@@ -5,9 +5,8 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ApiKeyId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
-import { InvalidRequestError } from "@langfuse/shared";
 import {
-  apiKeyCreationSchema,
+  projectApiKeyCreationSchema,
   apiKeyToResponse,
 } from "@/src/ee/features/admin-api/server/apiKeys";
 
@@ -51,6 +50,7 @@ export async function handleGetApiKeys(
   return res.status(200).json({ apiKeys: apiKeys.map(apiKeyToResponse) });
 }
 
+/** handleCreateApiKey provisions a project key and records its audit event. */
 export async function handleCreateApiKey(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -58,17 +58,7 @@ export async function handleCreateApiKey(
   orgId: string,
   createdByApiKeyId?: string,
 ) {
-  // Validate the request body
-  const createApiKeySchema = apiKeyCreationSchema.extend({
-    role: z
-      .enum(["LEGACY_PROJECT_API_KEY", ""])
-      .nullish()
-      .transform((role) => role || "LEGACY_PROJECT_API_KEY"),
-    publicKey: z.string().optional(),
-    secretKey: z.string().optional(),
-  });
-
-  const validationResult = createApiKeySchema.safeParse(req.body);
+  const validationResult = projectApiKeyCreationSchema.safeParse(req.body);
 
   if (!validationResult.success) {
     return res.status(400).json({
@@ -79,10 +69,6 @@ export async function handleCreateApiKey(
 
   const { name, note, expiresAt, role, publicKey, secretKey } =
     validationResult.data;
-
-  if (name !== undefined && note !== undefined) {
-    throw new InvalidRequestError("Provide either name or note, not both");
-  }
 
   // Validate predefined keys if provided
   if (publicKey || secretKey) {
@@ -120,7 +106,8 @@ export async function handleCreateApiKey(
       owner: ProjectId(projectId),
       role: SystemRoleId(role),
       createdBy: ApiKeyId(createdByApiKeyId),
-      name: name ?? note,
+      name,
+      note,
       expiresAt,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,

@@ -136,7 +136,9 @@ types:
         docs: Name of the API key. Contains the same value as note; null if no name was provided.
       note:
         type: optional<string>
-        availability: deprecated
+        availability:
+          status: deprecated
+          message: Use name instead.
         docs: Deprecated alias for name. Contains the same value as name.
       publicKey: string
       displaySecretKey: string

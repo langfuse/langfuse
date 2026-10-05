@@ -5,9 +5,8 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
-import { InvalidRequestError } from "@langfuse/shared";
 import {
-  apiKeyCreationSchema,
+  organizationApiKeyCreationSchema,
   apiKeyToResponse,
 } from "@/src/ee/features/admin-api/server/apiKeys";
 
@@ -51,20 +50,13 @@ export async function handleGetApiKeys(
   return res.status(200).json({ apiKeys: apiKeys.map(apiKeyToResponse) });
 }
 
+/** handleCreateApiKey provisions an organization key and records its audit event. */
 export async function handleCreateApiKey(
   req: NextApiRequest,
   res: NextApiResponse,
   organizationId: string,
 ) {
-  // Validate the request body
-  const createApiKeySchema = apiKeyCreationSchema.extend({
-    role: z
-      .enum(["LEGACY_ORGANIZATION_API_KEY", ""])
-      .nullish()
-      .transform((role) => role || "LEGACY_ORGANIZATION_API_KEY"),
-  });
-
-  const validationResult = createApiKeySchema.safeParse(req.body);
+  const validationResult = organizationApiKeyCreationSchema.safeParse(req.body);
 
   if (!validationResult.success) {
     return res.status(400).json({
@@ -75,15 +67,12 @@ export async function handleCreateApiKey(
 
   const { name, note, expiresAt, role } = validationResult.data;
 
-  if (name !== undefined && note !== undefined) {
-    throw new InvalidRequestError("Provide either name or note, not both");
-  }
-
   const apiKeyMeta = await createApiKey(prisma, {
     owner: OrganizationId(organizationId),
     role: SystemRoleId(role),
     createdBy: "system",
-    name: name ?? note,
+    name,
+    note,
     expiresAt,
   });
 

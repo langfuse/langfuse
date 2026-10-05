@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { type Prisma } from "@prisma/client";
+import { InvalidRequestError } from "../../errors";
 
 // Give createApiKey a SALT without depending on the ambient env.
 vi.mock("../../env", () => ({ env: { SALT: "test-salt" } }));
@@ -188,6 +189,46 @@ describe("createApiKey assignment rows", () => {
     // An organization owner resolves to itself; no project lookup is needed.
     expect(tx.project.findFirstOrThrow).not.toHaveBeenCalled();
   });
+
+  it.each(["legacy name", ""])(
+    "accepts the deprecated note alias %j",
+    async (note) => {
+      const { tx, getApiKeyData } = makeTx();
+
+      const result = await createApiKey(asTx(tx), {
+        owner: OrganizationId(ORG_ID),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: "system",
+        note,
+      });
+
+      expect(getApiKeyData().note).toBe(note);
+      expect(result.note).toBe(note);
+    },
+  );
+
+  it.each([
+    { name: "same", note: "same" },
+    { name: "", note: "" },
+    { name: "", note: "alias" },
+    { name: "name", note: "" },
+  ])(
+    "rejects conflicting name and note inputs %j before writing",
+    async (input) => {
+      const { tx } = makeTx();
+
+      await expect(
+        createApiKey(asTx(tx), {
+          owner: OrganizationId(ORG_ID),
+          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+          createdBy: "system",
+          ...input,
+        }),
+      ).rejects.toThrow(InvalidRequestError);
+      expect(tx.apiKey.create).not.toHaveBeenCalled();
+      expect(tx.roleAssignment.create).not.toHaveBeenCalled();
+    },
+  );
 
   // createApiKey always enforces that the role can back a key: a user-only
   // role is rejected outright, and a project owner needs a project-capable

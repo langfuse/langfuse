@@ -96,6 +96,8 @@ export async function createApiKey(
     role: RoleId;
     createdBy: ApiKeyId | UserId | "system";
     name?: string;
+    /** note is deprecated; use name instead and never provide both. */
+    note?: string;
     expiresAt?: Date | null;
     isInAppAgentKey?: boolean;
     predefinedKeys?: { secretKey: string; publicKey: string };
@@ -108,6 +110,10 @@ export async function createApiKey(
   displaySecretKey: string;
   secretKey: string;
 }> {
+  if (opts.name !== undefined && opts.note !== undefined) {
+    throw new InvalidRequestError("Provide either name or note, not both");
+  }
+
   const salt = env.SALT;
   if (!salt) {
     throw new Error("SALT is not set");
@@ -143,7 +149,7 @@ export async function createApiKey(
     hashedSecretKey: await hashSecretKey(sk),
     displaySecretKey: getDisplaySecretKey(sk),
     fastHashedSecretKey: createShaHash(sk, salt),
-    note: opts.name,
+    note: opts.name ?? opts.note,
     scope,
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,

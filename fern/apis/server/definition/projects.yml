@@ -86,7 +86,9 @@ service:
               docs: Optional name for the API key. Cannot be provided together with note, even if either value is an empty string.
             note:
               type: optional<string>
-              availability: deprecated
+              availability:
+                status: deprecated
+                message: Use name instead.
               docs: Deprecated alias for name. Cannot be provided together with name, even if either value is an empty string.
             role:
               type: optional<nullable<CreateApiKeyRole>>
@@ -183,7 +185,9 @@ types:
         docs: Name of the API key. Contains the same value as note; null if no name was provided.
       note:
         type: optional<string>
-        availability: deprecated
+        availability:
+          status: deprecated
+          message: Use name instead.
         docs: Deprecated alias for name. Contains the same value as name.
       publicKey: string
       displaySecretKey: string
@@ -207,7 +211,9 @@ types:
         docs: Name of the API key. Contains the same value as note; null if no name was provided.
       note:
         type: optional<string>
-        availability: deprecated
+        availability:
+          status: deprecated
+          message: Use name instead.
         docs: Deprecated alias for name. Contains the same value as name.
 
   ApiKeyDeletionResponse:
