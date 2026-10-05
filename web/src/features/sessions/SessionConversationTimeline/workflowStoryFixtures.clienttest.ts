@@ -8,6 +8,14 @@ import {
 } from "./workflowStoryFixtures";
 
 describe("pre-transcript workflow story parity", () => {
+  it("represents coding and assistant workflows as one thread per trace", () => {
+    for (const item of [...codingAgentWorkflow, ...langfuseAssistantWorkflow]) {
+      expect(item.state.result.transcript?.threads).toHaveLength(1);
+      expect(
+        item.state.result.transcript?.threads[0]?.currentTurn.nestingLevel,
+      ).toBe(0);
+    }
+  });
   it("preserves the original traces and turn numbers", () => {
     expect(
       [

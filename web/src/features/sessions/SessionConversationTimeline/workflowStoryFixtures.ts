@@ -5594,3 +5594,21 @@ export const langfuseAssistantWorkflow: WorkflowTrace[] = [
     },
   },
 ];
+
+for (const item of [...codingAgentWorkflow, ...langfuseAssistantWorkflow]) {
+  const transcript = item.state.result.transcript;
+  if (!transcript || transcript.threads.length === 0) continue;
+  const threads = transcript.threads;
+  transcript.threads = [
+    {
+      conversationHistory: threads[0]!.conversationHistory,
+      currentTurn: {
+        nestingLevel: 0,
+        messages: threads.flatMap((thread) => thread.currentTurn.messages),
+        observations: threads.flatMap(
+          (thread) => thread.currentTurn.observations,
+        ),
+      },
+    },
+  ];
+}
