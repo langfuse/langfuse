@@ -86,9 +86,8 @@ describe("handleBlobStorageIntegrationSchedule", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           payload: {
-            projectId: "integration-due-a",
+            projectId: "shared-project",
             integrationId: "integration-due-a",
-            ownerProjectId: "shared-project",
           },
         }),
         opts: {
@@ -99,9 +98,8 @@ describe("handleBlobStorageIntegrationSchedule", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           payload: {
-            projectId: "integration-due-b",
+            projectId: "shared-project",
             integrationId: "integration-due-b",
-            ownerProjectId: "shared-project",
           },
         }),
         opts: {
@@ -112,9 +110,8 @@ describe("handleBlobStorageIntegrationSchedule", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           payload: {
-            projectId: "integration-never-synced",
+            projectId: "never-synced",
             integrationId: "integration-never-synced",
-            ownerProjectId: "never-synced",
           },
         }),
         opts: {

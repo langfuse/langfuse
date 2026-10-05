@@ -6,7 +6,7 @@ import {
   parseS3Uri,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { type PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   StorageServiceFactory,
   blobStorageEndpointConnectionValidationOptions,
@@ -14,9 +14,11 @@ import {
 } from "@langfuse/shared/src/server";
 
 const EXTERNAL_MEDIA_URL_TTL_SECONDS = 5 * 60;
+const EXTERNAL_MEDIA_CANDIDATE_LIMIT = 10;
 
 function isKeyWithinMediaScope(key: string, mediaPrefix: string | null) {
-  return !mediaPrefix || isS3KeyWithinPrefix(key, mediaPrefix);
+  const normalizedPrefix = mediaPrefix?.trim().replace(/\/+$/, "");
+  return !normalizedPrefix || isS3KeyWithinPrefix(key, normalizedPrefix);
 }
 
 function createExternalMediaStorageService(
@@ -58,33 +60,55 @@ export async function resolveExternalMediaUrl({
     );
   }
 
-  const integrations = await prisma.blobStorageIntegration.findMany({
-    where: {
-      projectId,
-      bucketName: parsed.bucket,
-      mediaStorageEnabled: true,
-      type: {
-        in: [
-          BlobStorageIntegrationType.S3,
-          BlobStorageIntegrationType.S3_COMPATIBLE,
-        ],
-      },
-    },
-  });
-  const matchingIntegrations = integrations
-    .filter(({ mediaPrefix }) => isKeyWithinMediaScope(parsed.key, mediaPrefix))
-    .toSorted(
-      (left, right) =>
-        (right.mediaPrefix?.length ?? 0) - (left.mediaPrefix?.length ?? 0),
-    );
-  const integration = matchingIntegrations[0];
-  const hasAmbiguousMatch =
-    integration !== undefined &&
-    matchingIntegrations[1] !== undefined &&
-    matchingIntegrations[1]?.mediaPrefix?.length ===
-      integration.mediaPrefix?.length;
+  const candidateIds = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    WITH candidates AS (
+      SELECT
+        id,
+        RTRIM(BTRIM(media_prefix), '/') AS normalized_media_prefix
+      FROM blob_storage_integrations
+      WHERE project_id = ${projectId}
+        AND bucket_name = ${parsed.bucket}
+        AND media_storage_enabled = true
+        AND type::text IN (
+          ${BlobStorageIntegrationType.S3},
+          ${BlobStorageIntegrationType.S3_COMPATIBLE}
+        )
+    )
+    SELECT id
+    FROM candidates
+    WHERE normalized_media_prefix IS NULL
+      OR normalized_media_prefix = ''
+      OR LEFT(
+        ${parsed.key},
+        LENGTH(normalized_media_prefix) + 1
+      ) = normalized_media_prefix || '/'
+    ORDER BY
+      LENGTH(COALESCE(normalized_media_prefix, '')) DESC,
+      id ASC
+    LIMIT ${EXTERNAL_MEDIA_CANDIDATE_LIMIT}
+  `);
+  const selectedId = candidateIds[0]?.id;
+  const integration = selectedId
+    ? await prisma.blobStorageIntegration.findFirst({
+        where: {
+          id: selectedId,
+          projectId,
+          bucketName: parsed.bucket,
+          mediaStorageEnabled: true,
+          type: {
+            in: [
+              BlobStorageIntegrationType.S3,
+              BlobStorageIntegrationType.S3_COMPATIBLE,
+            ],
+          },
+        },
+      })
+    : null;
 
-  if (!integration || hasAmbiguousMatch) {
+  if (
+    !integration ||
+    !isKeyWithinMediaScope(parsed.key, integration.mediaPrefix)
+  ) {
     throw new InvalidRequestError("External media is not available");
   }
 

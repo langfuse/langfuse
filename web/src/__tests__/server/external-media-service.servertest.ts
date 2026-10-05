@@ -1,4 +1,5 @@
 import type { Mock } from "vitest";
+import { randomUUID } from "crypto";
 
 import { encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
@@ -26,19 +27,31 @@ const orgIds: string[] = [];
 const prepareIntegration = async ({
   mediaPrefix,
   bucketName = "media-bucket",
+  projectId,
+  id,
+  accessKeyId = "test-access-key",
 }: {
   mediaPrefix: string | null;
   bucketName?: string;
+  projectId?: string;
+  id?: string;
+  accessKeyId?: string;
 }) => {
-  const { org, project } = await createOrgProjectAndApiKey();
-  orgIds.push(org.id);
+  const preparedProject = projectId
+    ? { project: { id: projectId } }
+    : await createOrgProjectAndApiKey();
+  if ("org" in preparedProject) {
+    orgIds.push(preparedProject.org.id);
+  }
+  const { project } = preparedProject;
   const integration = await prisma.blobStorageIntegration.create({
     data: {
+      id,
       projectId: project.id,
       type: "S3",
       bucketName,
       region: "us-east-1",
-      accessKeyId: "test-access-key",
+      accessKeyId,
       secretAccessKey: encrypt("test-secret-key"),
       prefix: "exports/",
       mediaPrefix,
@@ -123,37 +136,110 @@ describe("external media service", () => {
       );
     });
 
-    it("fails closed when two matching integrations are equally specific", async () => {
-      const { project, integration } = await prepareIntegration({
-        mediaPrefix: "customer/",
+    it("signs any key in the bucket when the media prefix is blank", async () => {
+      const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        getSignedUrl,
       });
-      await prisma.blobStorageIntegration.create({
-        data: {
-          projectId: project.id,
-          type: "S3",
-          bucketName: integration.bucketName,
-          region: "us-east-1",
-          accessKeyId: "other-access-key",
-          secretAccessKey: encrypt("other-secret-key"),
-          prefix: "other-exports/",
-          mediaPrefix: "customer/",
-          mediaStorageEnabled: true,
-          exportFrequency: "daily",
-          enabled: true,
-          forcePathStyle: false,
-          fileType: "JSONL",
-          exportMode: "FULL_HISTORY",
-        },
+      const { project } = await prepareIntegration({ mediaPrefix: "   " });
+
+      await resolveExternalMediaUrl({
+        prisma,
+        projectId: project.id,
+        uri: "s3://media-bucket/any/directory/image.png",
       });
 
-      await expect(
-        resolveExternalMediaUrl({
-          prisma,
-          projectId: project.id,
-          uri: "s3://media-bucket/customer/image.png",
-        }),
-      ).rejects.toThrow("External media is not available");
-      expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        "any/directory/image.png",
+        300,
+        false,
+      );
+    });
+
+    it("prefers a scoped prefix over a whole-bucket integration", async () => {
+      const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        getSignedUrl,
+      });
+      const { project } = await prepareIntegration({
+        mediaPrefix: null,
+        accessKeyId: "whole-bucket",
+      });
+      await prepareIntegration({
+        projectId: project.id,
+        mediaPrefix: "customer/",
+        accessKeyId: "scoped",
+      });
+
+      await resolveExternalMediaUrl({
+        prisma,
+        projectId: project.id,
+        uri: "s3://media-bucket/customer/image.png",
+      });
+
+      expect(StorageServiceFactory.getInstance).toHaveBeenCalledWith(
+        expect.objectContaining({ accessKeyId: "scoped" }),
+      );
+    });
+
+    it("uses integration id as the tie-break for equal prefixes", async () => {
+      const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        getSignedUrl,
+      });
+      const suffix = randomUUID();
+      const { project } = await prepareIntegration({
+        id: `z-${suffix}`,
+        mediaPrefix: "customer/",
+        accessKeyId: "later-id",
+      });
+      await prepareIntegration({
+        id: `a-${suffix}`,
+        projectId: project.id,
+        mediaPrefix: "customer/",
+        accessKeyId: "earlier-id",
+      });
+
+      await resolveExternalMediaUrl({
+        prisma,
+        projectId: project.id,
+        uri: "s3://media-bucket/customer/image.png",
+      });
+
+      expect(StorageServiceFactory.getInstance).toHaveBeenCalledWith(
+        expect.objectContaining({ accessKeyId: "earlier-id" }),
+      );
+    });
+
+    it("applies the candidate limit after prefix matching", async () => {
+      const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        getSignedUrl,
+      });
+      const { project, integration } = await prepareIntegration({
+        id: `z-${randomUUID()}`,
+        mediaPrefix: "matching/",
+        accessKeyId: "matching",
+      });
+      await Promise.all(
+        Array.from({ length: 10 }, (_, index) =>
+          prepareIntegration({
+            id: `a-${index.toString().padStart(2, "0")}-${randomUUID()}`,
+            projectId: project.id,
+            mediaPrefix: `nonmatching-prefix-${index}/`,
+          }),
+        ),
+      );
+
+      await resolveExternalMediaUrl({
+        prisma,
+        projectId: project.id,
+        uri: `s3://${integration.bucketName}/matching/image.png`,
+      });
+
+      expect(StorageServiceFactory.getInstance).toHaveBeenCalledWith(
+        expect.objectContaining({ accessKeyId: "matching" }),
+      );
     });
   });
 
@@ -229,6 +315,29 @@ describe("external media service", () => {
         "any/directory/image.png",
         300,
         false,
+      );
+    });
+
+    it("probes and signs any key in the bucket when the media prefix is blank", async () => {
+      const verifyObjectAccess = vi.fn().mockResolvedValue(undefined);
+      const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        verifyObjectAccess,
+        getSignedUrl,
+      });
+      const { integration, project } = await prepareIntegration({
+        mediaPrefix: "   ",
+      });
+
+      await testExternalMediaObject({
+        prisma,
+        projectId: project.id,
+        integrationId: integration.id,
+        uri: "s3://media-bucket/any/directory/image.png",
+      });
+
+      expect(verifyObjectAccess).toHaveBeenCalledWith(
+        "any/directory/image.png",
       );
     });
   });

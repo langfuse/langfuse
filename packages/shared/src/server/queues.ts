@@ -183,13 +183,10 @@ export const MixpanelIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
-  // New producers put the integration ID here so pre-migration workers fail
-  // closed instead of selecting another destination for the same project.
   projectId: z.string(),
   // Optional while jobs from the previous one-integration-per-project
   // contract drain during rolling deployments.
   integrationId: z.string().optional(),
-  ownerProjectId: z.string().optional(),
 });
 export const ExperimentCreateEventSchema = z.object({
   projectId: z.string(),
