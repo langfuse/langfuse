@@ -162,6 +162,7 @@ export default function BlobStorageIntegrationPage() {
           {({ openDialog }) => (
             <BlobStorageIntegrationTable
               integrations={state.data.configs}
+              showMediaStorage={showMediaStorage}
               onSelect={(integration) => openIntegration(integration.id)}
               onDelete={openDialog}
             />

@@ -42,6 +42,7 @@ describe("BlobStorageIntegrationTable", () => {
             lastError: "Access denied",
           }),
         ]}
+        showMediaStorage={false}
         onSelect={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -54,6 +55,50 @@ describe("BlobStorageIntegrationTable", () => {
     expect(failedRow).not.toBeNull();
     expect(within(healthyRow!).getByText("Active")).toBeInTheDocument();
     expect(within(failedRow!).getByText("Error")).toBeInTheDocument();
+  });
+
+  it("shows independent export and media storage states when the preview is enabled", () => {
+    render(
+      <BlobStorageIntegrationTable
+        integrations={[
+          integration({
+            bucketName: "media-only-bucket",
+            enabled: false,
+            mediaStorageEnabled: true,
+          }),
+        ]}
+        showMediaStorage
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("columnheader", { name: "Export status" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Media storage" }),
+    ).toBeInTheDocument();
+
+    const row = screen.getByText("media-only-bucket").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText("Disabled")).toBeInTheDocument();
+    expect(within(row!).getByText("Enabled")).toBeInTheDocument();
+  });
+
+  it("omits media storage when the preview is disabled", () => {
+    render(
+      <BlobStorageIntegrationTable
+        integrations={[integration({})]}
+        showMediaStorage={false}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("columnheader", { name: "Media storage" }),
+    ).not.toBeInTheDocument();
   });
 
   it("requests deletion for the selected row without opening it", async () => {
@@ -70,6 +115,7 @@ describe("BlobStorageIntegrationTable", () => {
               bucketName: "second-bucket",
             }),
           ]}
+          showMediaStorage={false}
           onSelect={onSelect}
           onDelete={onDelete}
         />

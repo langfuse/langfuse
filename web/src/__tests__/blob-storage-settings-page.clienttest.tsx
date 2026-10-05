@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 const mocks = vi.hoisted(() => ({
   hasAccess: true,
   hasEntitlement: false,
+  showMediaStorage: false,
   push: vi.fn(),
+  tableProps: vi.fn(),
   routerQuery: {
     projectId: "proj-1",
     integrationId: undefined as string | undefined,
@@ -97,7 +99,10 @@ vi.mock(
 vi.mock(
   "@/src/features/blobstorage-integration/components/BlobStorageIntegrationTable",
   () => ({
-    BlobStorageIntegrationTable: () => <div>Blob storage table</div>,
+    BlobStorageIntegrationTable: (props: { showMediaStorage: boolean }) => {
+      mocks.tableProps(props);
+      return <div>Blob storage table</div>;
+    },
   }),
 );
 
@@ -117,7 +122,7 @@ vi.mock("@/src/features/entitlements/hooks", () => ({
 }));
 
 vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
-  default: () => false,
+  default: () => mocks.showMediaStorage,
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -150,6 +155,7 @@ describe("BlobStorageIntegrationPage entitlement gate", () => {
     vi.clearAllMocks();
     mocks.hasAccess = true;
     mocks.hasEntitlement = false;
+    mocks.showMediaStorage = false;
     mocks.routerQuery.integrationId = undefined;
     mocks.useQuery.mockReturnValue({
       data: undefined,
@@ -206,6 +212,24 @@ describe("BlobStorageIntegrationPage entitlement gate", () => {
       expect.objectContaining({ enabled: true }),
     );
   });
+
+  it.each([false, true])(
+    "passes external media preview state %s to the table",
+    (showMediaStorage) => {
+      mocks.hasEntitlement = true;
+      mocks.showMediaStorage = showMediaStorage;
+      mocks.useQuery.mockReturnValue({
+        data: { configs: [], writeMode: "upsert" },
+        isLoading: false,
+      });
+
+      render(<BlobStorageIntegrationPage />);
+
+      expect(mocks.tableProps).toHaveBeenCalledWith(
+        expect.objectContaining({ showMediaStorage }),
+      );
+    },
+  );
 });
 
 describe("BlobStorageIntegrationPage header actions", () => {
@@ -213,6 +237,7 @@ describe("BlobStorageIntegrationPage header actions", () => {
     vi.clearAllMocks();
     mocks.hasAccess = true;
     mocks.hasEntitlement = true;
+    mocks.showMediaStorage = false;
     mocks.routerQuery.integrationId = undefined;
     mocks.useQuery.mockReturnValue({
       data: {

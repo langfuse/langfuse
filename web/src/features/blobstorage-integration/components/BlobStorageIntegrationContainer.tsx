@@ -21,6 +21,7 @@ import { TestMediaObjectDialog } from "@/src/features/blobstorage-integration/co
 import { testSignedMediaUrlCors } from "@/src/features/blobstorage-integration/fns/testSignedMediaUrlCors";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 // State layer. Owns everything async and entity-scoped: availability
 // derivation, mutations, and the entity-action buttons. The form
@@ -117,6 +118,64 @@ export const BlobStorageIntegrationContainer = ({
       ...values,
     });
   };
+  const isUnsaved = !config?.id;
+
+  const scheduledExportTestButton = (
+    <Button
+      type="button"
+      variant="secondary"
+      aria-label="Test scheduled export upload"
+      loading={mutValidate.isPending}
+      disabled={isUnsaved}
+      title={
+        isUnsaved
+          ? undefined
+          : "Test your saved configuration by uploading a small test file to your storage"
+      }
+      onClick={() => {
+        if (config?.id) {
+          mutValidate.mutate({ projectId, integrationId: config.id });
+        }
+      }}
+    >
+      Test
+    </Button>
+  );
+  const runNowButton = (
+    <Button
+      type="button"
+      variant="secondary"
+      loading={mutRunNow.isPending}
+      disabled={!config?.enabled}
+      title={
+        isUnsaved
+          ? undefined
+          : "Trigger an immediate export of all data since the last sync"
+      }
+      onClick={() => {
+        if (
+          confirm(
+            "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+          )
+        )
+          config?.id &&
+            mutRunNow.mutate({ projectId, integrationId: config.id });
+      }}
+    >
+      Run now
+    </Button>
+  );
+  const mediaStorageTestButton = (
+    <Button
+      type="button"
+      variant="secondary"
+      aria-label="Test external media object"
+      disabled={!config?.mediaStorageEnabled}
+      title={isUnsaved ? undefined : "Test an external media object"}
+    >
+      Test
+    </Button>
+  );
 
   return (
     <BlobStorageIntegrationForm
@@ -137,39 +196,42 @@ export const BlobStorageIntegrationContainer = ({
       onSubmit={handleSubmit}
       scheduledExportActions={
         <>
-          <Button
-            type="button"
-            variant="secondary"
-            aria-label="Test scheduled export upload"
-            loading={mutValidate.isPending}
-            disabled={!config}
-            title="Test your saved configuration by uploading a small test file to your storage"
-            onClick={() => {
-              if (config?.id) {
-                mutValidate.mutate({ projectId, integrationId: config.id });
-              }
-            }}
-          >
-            Test
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            loading={mutRunNow.isPending}
-            disabled={!config?.enabled}
-            title="Trigger an immediate export of all data since the last sync"
-            onClick={() => {
-              if (
-                confirm(
-                  "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
-                )
-              )
-                config?.id &&
-                  mutRunNow.mutate({ projectId, integrationId: config.id });
-            }}
-          >
-            Run now
-          </Button>
+          {isUnsaved ? (
+            <Tooltip
+              label="Save the integration before testing."
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="inline-flex cursor-not-allowed"
+                  tabIndex={0}
+                >
+                  {scheduledExportTestButton}
+                </span>
+              )}
+            </Tooltip>
+          ) : (
+            scheduledExportTestButton
+          )}
+          {isUnsaved ? (
+            <Tooltip
+              label="Save the integration before running an export."
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="inline-flex cursor-not-allowed"
+                  tabIndex={0}
+                >
+                  {runNowButton}
+                </span>
+              )}
+            </Tooltip>
+          ) : (
+            runNowButton
+          )}
         </>
       }
       mediaStorageActions={
@@ -216,15 +278,35 @@ export const BlobStorageIntegrationContainer = ({
           )}
         >
           {({ openDialog }) => (
-            <Button
-              type="button"
-              variant="secondary"
-              aria-label="Test external media object"
-              disabled={!config?.mediaStorageEnabled}
-              onClick={openDialog}
-            >
-              Test
-            </Button>
+            <>
+              {isUnsaved ? (
+                <Tooltip
+                  label="Save the integration before testing."
+                  hoverableContent={false}
+                >
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex cursor-not-allowed"
+                      tabIndex={0}
+                    >
+                      {mediaStorageTestButton}
+                    </span>
+                  )}
+                </Tooltip>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  aria-label="Test external media object"
+                  disabled={!config?.mediaStorageEnabled}
+                  title="Test an external media object"
+                  onClick={openDialog}
+                >
+                  Test
+                </Button>
+              )}
+            </>
           )}
         </DialogController>
       }

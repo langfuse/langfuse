@@ -37,10 +37,12 @@ const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
 
 export function BlobStorageIntegrationTable({
   integrations,
+  showMediaStorage,
   onSelect,
   onDelete,
 }: {
   integrations: BlobStorageIntegration[];
+  showMediaStorage: boolean;
   onSelect: (integration: BlobStorageIntegration) => void;
   onDelete: (integration: BlobStorageIntegration) => void;
 }) {
@@ -65,11 +67,21 @@ export function BlobStorageIntegrationTable({
             nextSyncAt: integration.nextSyncAt,
             runStartedAt: integration.runStartedAt,
           }),
-        header: "Status",
+        header: "Export status",
         getStatus: (status) => (status ? syncStatusToBadge[status] : undefined),
       }),
+      ...(showMediaStorage
+        ? [
+            createStatusTableColumn<BlobStorageIntegration, boolean>({
+              id: "mediaStorageEnabled",
+              accessorFn: (integration) => integration.mediaStorageEnabled,
+              header: "Media storage",
+              getStatus: (enabled) => (enabled ? "enabled" : "disabled"),
+            }),
+          ]
+        : []),
     ],
-    [],
+    [showMediaStorage],
   );
   const actions = useCallback<
     NonNullable<TableProps<BlobStorageIntegration>["actions"]>
