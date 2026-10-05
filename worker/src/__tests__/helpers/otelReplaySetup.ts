@@ -4,7 +4,6 @@ import { env } from "../../env";
 const otelReplayMocks = vi.hoisted(() => ({
   findModel: vi.fn(),
   getS3EventStorageClient: vi.fn(),
-  uploadEventJson: vi.fn(),
   linkMediaToTraceOrObservation: vi.fn(),
   uploadMediaForTrace: vi.fn(),
   getPrompt: vi.fn(),
@@ -38,7 +37,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   findModel: otelReplayMocks.findModel,
   hasNoEvalConfigsCache: otelReplayMocks.hasNoEvalConfigsCache,
   getS3EventStorageClient: otelReplayMocks.getS3EventStorageClient,
-  uploadEventJson: otelReplayMocks.uploadEventJson,
   linkMediaToTraceOrObservation: otelReplayMocks.linkMediaToTraceOrObservation,
   PromptService: class {
     getPrompt(...args: unknown[]) {
@@ -70,8 +68,6 @@ export function configureDefaultOtelReplayMocks(): void {
     model: null,
     pricingTiers: [],
   });
-  otelReplayMocks.getS3EventStorageClient.mockReset();
-  otelReplayMocks.uploadEventJson.mockResolvedValue(undefined);
   otelReplayMocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
   otelReplayMocks.uploadMediaForTrace.mockResolvedValue({
     mediaId: "otel-replay-media",

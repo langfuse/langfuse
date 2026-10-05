@@ -17,10 +17,7 @@ import {
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { otelIngestionQueueProcessorBuilder } from "../../queues/otelIngestionQueue";
 import { ingestionQueueProcessorBuilder } from "../../queues/ingestionQueue";
-import {
-  configureOtelReplayEnvironment,
-  otelReplayMocks,
-} from "./otelReplaySetup";
+import { configureOtelReplayEnvironment } from "./otelReplaySetup";
 
 type OtelReplayStoredRow = Record<string, unknown>;
 
@@ -55,6 +52,44 @@ type RunOtelReplayParams = {
   failLegacyQueueProcessing?: boolean;
 };
 
+// The legacy processor caches its storage client. Keep this fake's identity stable
+// across sequential replays, but release all file contents after each run.
+const eventStorage = {
+  source: undefined as
+    | { path: string; bytes: Buffer; failLegacyDownloads?: boolean }
+    | undefined,
+  uploaded: new Map<string, string>(),
+  async uploadJson(
+    path: string,
+    body: Record<string, unknown>[] | Record<string, unknown>,
+  ) {
+    eventStorage.uploaded.set(path, JSON.stringify(body));
+  },
+  read(path: string): Buffer {
+    const uploaded = eventStorage.uploaded.get(path);
+    if (uploaded !== undefined) {
+      if (eventStorage.source?.failLegacyDownloads) {
+        throw new Error("simulated legacy ingestion read failure");
+      }
+      return Buffer.from(uploaded);
+    }
+    if (path === eventStorage.source?.path) return eventStorage.source.bytes;
+    throw new Error(`Replay event file not found: ${path}`);
+  },
+  // Only downloads need call recording: the harness asserts the selected raw-input path.
+  download: vi.fn(async (path: string) =>
+    eventStorage.read(path).toString("utf8"),
+  ),
+  downloadBytes: vi.fn(async (path: string) =>
+    Uint8Array.from(eventStorage.read(path)),
+  ),
+  async listFiles(prefix: string) {
+    return [...eventStorage.uploaded.keys()]
+      .filter((path) => path.startsWith(prefix))
+      .map((file) => ({ file, createdAt: new Date() }));
+  },
+};
+
 /**
  * Replay an S3 OTEL document through the production queue and JSON writer, then
  * read its events_full rows from an isolated ClickHouse Memory table.
@@ -68,7 +103,6 @@ export async function runOtelReplay(
   const client = clickhouseClient();
   const suffix = randomUUID().replaceAll("-", "");
   const tableName = `otel_replay_events_${suffix}`;
-  const originalBytes = Buffer.from(params.bytes);
   const restoreEnvironment = configureOtelReplayEnvironment({
     mediaUploadEnabled: params.mediaUploadEnabled,
     overflowEnabled: params.overflowEnabled,
@@ -76,29 +110,17 @@ export async function runOtelReplay(
     writeMode,
   });
 
-  const uploadedEventJson = new Map<string, string>();
-  let storageDownloadCount = 0;
-  const storage = {
-    download: vi.fn(async (path?: string) => {
-      storageDownloadCount += 1;
-      if (params.failLegacyQueueProcessing && storageDownloadCount > 1) {
-        throw new Error("simulated legacy ingestion read failure");
-      }
-      const uploaded = path ? uploadedEventJson.get(path) : undefined;
-      return uploaded ?? Buffer.from(originalBytes).toString("utf8");
-    }),
-    listFiles: vi.fn(async (prefix: string) =>
-      [...uploadedEventJson.keys()]
-        .filter((path) => path.startsWith(prefix))
-        .map((file) => ({ file, createdAt: new Date() })),
-    ),
+  eventStorage.source = {
+    path: fileKey,
+    bytes: Buffer.from(params.bytes),
+    failLegacyDownloads: params.failLegacyQueueProcessing,
   };
-  const storageServiceSpy =
-    writeMode === "dual"
-      ? vi.spyOn(StorageServiceFactory, "getInstance").mockReturnValue({
-          uploadJson: otelReplayMocks.uploadEventJson,
-        } as never)
-      : undefined;
+  const storageClient = eventStorage as unknown as ReturnType<
+    typeof getS3EventStorageClient
+  >;
+  const storageServiceSpy = vi
+    .spyOn(StorageServiceFactory, "getInstance")
+    .mockReturnValue(storageClient);
 
   const isolatedTableNames = new Map<TableName, string>([
     [TableName.EventsFull, tableName],
@@ -107,11 +129,6 @@ export async function runOtelReplay(
     for (const legacyTable of legacyReplayTables) {
       isolatedTableNames.set(legacyTable, `${tableName}_${legacyTable}`);
     }
-    otelReplayMocks.uploadEventJson.mockImplementation(
-      async (path: string, body: Record<string, unknown>[]) => {
-        uploadedEventJson.set(path, JSON.stringify(body));
-      },
-    );
   }
 
   const createdTables: string[] = [];
@@ -124,9 +141,7 @@ export async function runOtelReplay(
   const cleanupErrors: unknown[] = [];
 
   try {
-    vi.mocked(getS3EventStorageClient).mockReturnValue(
-      storage as unknown as ReturnType<typeof getS3EventStorageClient>,
-    );
+    vi.mocked(getS3EventStorageClient).mockReturnValue(storageClient);
 
     for (const [sourceTable, isolatedTable] of isolatedTableNames) {
       await client.command({
@@ -199,7 +214,9 @@ export async function runOtelReplay(
           // Preserve the real queue add; own only this replay's uploaded files.
           if (
             payload.authCheck.scope.projectId === projectId &&
-            uploadedEventJson.has(`${bucketPrefix ?? ""}${queuedFileKey}.json`)
+            eventStorage.uploaded.has(
+              `${bucketPrefix ?? ""}${queuedFileKey}.json`,
+            )
           ) {
             pendingReplayJobAdds.push(pendingAdd);
           }
@@ -210,7 +227,8 @@ export async function runOtelReplay(
     }
 
     await processor(job, undefined);
-    expect(storage.download).toHaveBeenCalledOnce();
+    expect(eventStorage.download).toHaveBeenCalledExactlyOnceWith(fileKey);
+    expect(eventStorage.downloadBytes).not.toHaveBeenCalled();
 
     if (writeMode === "dual") {
       const legacyProcessor = ingestionQueueProcessorBuilder(false);
@@ -283,10 +301,12 @@ export async function runOtelReplay(
     for (const result of queueCleanupResults) {
       if (result.status === "rejected") cleanupErrors.push(result.reason);
     }
-    storageServiceSpy?.mockRestore();
+    storageServiceSpy.mockRestore();
     vi.mocked(getS3EventStorageClient).mockReset();
-    otelReplayMocks.uploadEventJson.mockReset();
-    otelReplayMocks.uploadEventJson.mockResolvedValue(undefined);
+    eventStorage.download.mockClear();
+    eventStorage.downloadBytes.mockClear();
+    eventStorage.uploaded.clear();
+    eventStorage.source = undefined;
 
     try {
       await ClickhouseWriter.shutdownAll();
