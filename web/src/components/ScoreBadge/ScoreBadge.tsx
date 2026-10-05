@@ -11,14 +11,11 @@ export const ScoreBadge = <
   name,
   scores,
   showLevels,
-  compact,
 }: {
   name: string;
   scores: T[];
   /** Render this group's level tags when the selection mixes score levels. */
   showLevels?: boolean;
-  /** Tree rows use the small badge size. */
-  compact?: boolean;
 }) => {
   const levels = showLevels
     ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
@@ -29,15 +26,14 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell size={compact ? "sm" : undefined}>
-        <span
-          aria-hidden
-          className="bg-dark-yellow size-1.25 shrink-0 rounded-[1px]"
-        />
-        <span className="min-w-0 flex-1 truncate" title={name}>
-          {name}
+      <BadgeShell color="filled" size="md">
+        <span className="text-muted-foreground flex min-w-0 flex-1 font-mono">
+          <span className="truncate py-0.5" title={name}>
+            {name}
+          </span>
+          <span className="py-0.5">:</span>
         </span>
-        <span className="flex min-w-0 items-center gap-1 text-nowrap">
+        <span className="text-foreground flex max-w-2/3 shrink-0 items-center gap-1 font-mono text-nowrap">
           {scores.map((score, index) => {
             return (
               <span

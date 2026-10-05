@@ -179,7 +179,7 @@ export function SpanContent({
             pill that opens a table of all scores. */}
         {showScores && nodeScores.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges compact scores={nodeScores} />
+            <GroupedScoreBadges scores={nodeScores} />
           </div>
         )}
       </div>

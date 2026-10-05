@@ -42,7 +42,7 @@ export const ScoreValue = ({
 
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
-      <span className="truncate" title={value}>
+      <span className="text-foreground truncate py-0.5" title={value}>
         {value}
       </span>
       {score.comment && (
