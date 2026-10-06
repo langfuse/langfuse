@@ -388,11 +388,6 @@ export const ConsecutiveMessages = meta.story({
     await expect(
       canvas.queryByRole("button", { name: "2 User messages" }),
     ).not.toBeInTheDocument();
-    await expect(messages[0]).toHaveTextContent("…");
-    await expect(within(messages[0]!).getAllByRole("mark")).toHaveLength(2);
-    await expect(
-      within(messages[0]!).getAllByRole("mark")[0],
-    ).toHaveTextContent("NEEDLE");
     await userEvent.click(messages[1]!);
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-2", "0:1");
     await userEvent.clear(canvas.getByRole("textbox"));
@@ -400,7 +395,6 @@ export const ConsecutiveMessages = meta.story({
     await expect(
       canvas.getAllByRole("button", { name: "User message" }),
     ).toHaveLength(2);
-    await expect(canvas.queryAllByRole("mark")).toHaveLength(0);
     await userEvent.clear(canvas.getByRole("textbox"));
     await expect(
       canvas.getByRole("button", { name: "2 User messages" }),

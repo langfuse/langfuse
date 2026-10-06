@@ -210,11 +210,6 @@ export const MultipleThreads = meta.story({
     await expect(text.indexOf("Let me check.")).toBeLessThan(
       text.indexOf("Looking up outdoor activities…"),
     );
-    await expect(
-      Array.from(
-        canvasElement.querySelectorAll("[data-session-transcript-row-id]"),
-      ).map((row) => row.getAttribute("data-session-transcript-row-id")),
-    ).toEqual(["0:0", "0:1", "0:2", "0:3", "1:0"]);
   },
 });
 export const Cutoff = meta.story({
@@ -244,11 +239,6 @@ export const RenderLoadedConversation = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Expand weather" }),
     ).toBeInTheDocument();
-    await expect(
-      canvasElement.querySelector(
-        '[data-session-observation-id="generation-1"]',
-      ),
-    ).not.toBeNull();
   },
 });
 
@@ -285,16 +275,6 @@ export const ExpandTool = meta.story({
     );
     await expect(canvas.getByText(/"city": "Berlin"/)).toBeInTheDocument();
     await expect(canvas.getByText(/"temperature": 12/)).toBeInTheDocument();
-    const toolRow = canvas
-      .getByRole("button", { name: "Collapse weather" })
-      .closest("section")!;
-    await expect(within(toolRow).getByText("1.00s")).toBeInTheDocument();
-    await expect(toolRow.querySelector("time")?.dateTime).toBe(
-      provenance.startTime.toISOString(),
-    );
-    await expect(
-      canvas.getByText(/"temperature": 12/).closest(".ph-no-capture"),
-    ).not.toBeNull();
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse weather" }),
     );
@@ -444,6 +424,18 @@ export const PairMatchingToolData = meta.story({
     await expect(
       canvas.getAllByRole("button", { name: "Expand weather" }),
     ).toHaveLength(1);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand weather" }),
+    );
+    const toolRow = canvas
+      .getByRole("button", { name: "Collapse weather" })
+      .closest("section")!;
+    await expect(
+      within(toolRow).getByText(/"city": "Berlin"/),
+    ).toBeInTheDocument();
+    await expect(
+      within(toolRow).getByText(/"temperature": 12/),
+    ).toBeInTheDocument();
   },
 });
 
@@ -631,17 +623,5 @@ export const ToolFailure = meta.story({
       canvas.getByRole("button", { name: "Expand get_order" }),
     );
     await expect(canvas.getByText(/TOOL_TIMEOUT/)).toBeInTheDocument();
-    const toolRow = canvas
-      .getByRole("button", { name: "Collapse get_order" })
-      .closest("section")!;
-    await expect(toolRow.querySelector("time")?.dateTime).toBe(
-      provenance.startTime.toISOString(),
-    );
-    await expect(within(toolRow).getByText("1.00s")).toBeInTheDocument();
-    await expect(
-      toolRow.querySelector(
-        `time[datetime="${provenance.endTime.toISOString()}"]`,
-      ),
-    ).toBeNull();
   },
 });

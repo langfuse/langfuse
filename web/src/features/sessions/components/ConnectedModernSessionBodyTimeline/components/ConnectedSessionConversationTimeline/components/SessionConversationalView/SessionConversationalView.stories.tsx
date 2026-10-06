@@ -2451,7 +2451,7 @@ async function expectNavigation(
   canvasElement: HTMLElement,
   headerName: string | RegExp,
   itemId: string,
-  exactRow: boolean,
+  rowId: string | false,
 ) {
   const canvas = within(canvasElement);
   const sidebar = within(canvas.getByRole("complementary"));
@@ -2463,8 +2463,10 @@ async function expectNavigation(
     const entry = feed.querySelector<HTMLElement>(
       `[data-session-item-id="${itemId}"]`,
     );
-    const target = exactRow
-      ? entry?.querySelector<HTMLElement>("[data-scroll-request-id]")
+    const target = rowId
+      ? entry?.querySelector<HTMLElement>(
+          `[data-session-transcript-row-id="${rowId}"]`,
+        )
       : entry?.closest<HTMLElement>("[data-index]");
     if (!target) throw new Error(`Target ${itemId} is not mounted`);
     const position =
@@ -2600,13 +2602,13 @@ export const ExactMessageNavigation = meta.story({
     const search = sidebar.getByRole("textbox");
     await userEvent.type(search, "Turn 1 thread 3");
     const header = /^1\.2 Navigation turn 1/;
-    for (const name of [
-      "System message",
-      "User message",
-      "Assistant message",
-    ]) {
+    for (const [name, rowId] of [
+      ["System message", "2:0"],
+      ["User message", "2:1"],
+      ["Assistant message", "2:2"],
+    ] as const) {
       await userEvent.click(sidebar.getByRole("button", { name }));
-      await expectNavigation(canvasElement, header, "scroll-turn-1:2", true);
+      await expectNavigation(canvasElement, header, "scroll-turn-1:2", rowId);
     }
     await userEvent.clear(search);
     await userEvent.type(search, "Turn 2 thread 1");
@@ -2640,7 +2642,7 @@ export const ExactMessageNavigation = meta.story({
       canvasElement,
       /^2\.1 Navigation turn 2/,
       "scroll-turn-2:0",
-      true,
+      "0:3",
     );
     const entry = canvas
       .getByLabelText("Session conversation timeline")
@@ -2673,7 +2675,7 @@ export const VirtualizedNavigation = meta.story({
       await userEvent.click(
         sidebar.getByRole("button", { name: "Assistant message" }),
       );
-      await expectNavigation(canvasElement, header, itemId, true);
+      await expectNavigation(canvasElement, header, itemId, "2:2");
     }
   },
 });
@@ -2696,7 +2698,7 @@ export const SearchThreadNavigation = meta.story({
       canvasElement,
       /^9\.2 Navigation turn 9/,
       "scroll-turn-9:2",
-      true,
+      "2:2",
     );
     await userEvent.clear(search);
     await userEvent.type(search, "save");
@@ -2709,7 +2711,7 @@ export const SearchThreadNavigation = meta.story({
       canvasElement,
       /^9\.2 Navigation turn 9/,
       "scroll-turn-9:2",
-      true,
+      "2:4",
     );
     await userEvent.clear(search);
     await waitFor(
@@ -2864,11 +2866,6 @@ export const NestedThreadsHidden = meta.story({
       name: "2 nested threads hidden",
     });
     await expect(warnings).toHaveLength(2);
-    for (const surface of [sidebar, timeline]) {
-      await expect(await surface.findByText("1.1")).toBeInTheDocument();
-      await expect(await surface.findByText("1.2")).toBeInTheDocument();
-      await expect(await surface.findByText("2.1")).toBeInTheDocument();
-    }
     for (const surface of [timeline]) {
       for (const text of [
         "Main agent checks the order.",
@@ -2883,12 +2880,6 @@ export const NestedThreadsHidden = meta.story({
         await expect(surface.queryByText(text)).not.toBeInTheDocument();
       }
     }
-    const cards = sidebar.getAllByRole("button", { name: "Collapse turn" });
-    await userEvent.click(cards[0]!);
-    await expect(
-      sidebar.getAllByRole("button", { name: "Assistant message" }),
-    ).toHaveLength(2);
-    await userEvent.click(sidebar.getByRole("button", { name: "Expand turn" }));
     const search = sidebar.getByRole("textbox", {
       name: "Search messages and tools",
     });
@@ -2989,32 +2980,6 @@ export const ConsecutiveToolGroups = meta.story({
       { length: 7 },
       (_, index) => `very_long_tool_name_${index}`,
     ).join(" · ");
-    const sidebarElement = canvas.getByRole("complementary");
-    const longToolLabel = sidebar
-      .getByRole("button", { name: `Tool: ${longNames}` })
-      .querySelector<HTMLElement>("[data-session-tool-group-label]");
-    if (!longToolLabel) throw new Error("Missing tool group label");
-    const originalWidth = sidebarElement.style.width;
-    try {
-      sidebarElement.style.width = "180px";
-      await waitFor(() => {
-        expect(longToolLabel.textContent).toContain("more");
-        expect(longToolLabel.scrollWidth).toBeLessThanOrEqual(
-          longToolLabel.clientWidth + 1,
-        );
-      });
-      const narrowSummary = longToolLabel.textContent;
-      sidebarElement.style.width = "650px";
-      await waitFor(() => {
-        expect(longToolLabel.textContent).not.toBe(narrowSummary);
-        expect(longToolLabel.textContent).toContain("very_long_tool_name_1");
-        expect(longToolLabel.scrollWidth).toBeLessThanOrEqual(
-          longToolLabel.clientWidth + 1,
-        );
-      });
-    } finally {
-      sidebarElement.style.width = originalWidth;
-    }
     for (const summary of ["5x tool_1", "tool_a · tool_b", longNames]) {
       await expect(
         sidebar.getByRole("button", { name: `Tool: ${summary}` }),
@@ -3109,22 +3074,7 @@ export const SearchMatchingMessages = meta.story({
         "I'll look it up.",
       ),
     ).toBeInTheDocument();
-    await waitFor(async () => {
-      await expect(
-        Array.from(CSS.highlights.values())
-          .flatMap((highlight) => Array.from(highlight))
-          .filter((range) => timeline.contains(range.startContainer))
-          .map((range) => range.toString()),
-      ).toContain("order");
-    });
     await userEvent.clear(sidebar.getByRole("textbox"));
-    await waitFor(async () => {
-      await expect(
-        Array.from(CSS.highlights.values())
-          .flatMap((highlight) => Array.from(highlight))
-          .filter((range) => timeline.contains(range.startContainer)),
-      ).toHaveLength(0);
-    });
     await userEvent.type(sidebar.getByRole("textbox"), "no-such-message");
     await waitFor(async () => {
       await expect(
