@@ -21,9 +21,9 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
 type CustomTooltipProps = {
   children: (controls: {
-    getTriggerProps: (
-      props?: React.HTMLProps<HTMLElement>,
-    ) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
+    getTriggerProps: (props?: {
+      ref?: React.Ref<HTMLElement>;
+    }) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
   }) => React.ReactNode;
   content: React.ReactElement;
   delay?: number;
@@ -79,10 +79,8 @@ function CustomTooltip({
     <>
       {children({
         getTriggerProps: (props = {}) => {
-          const { ref, ...triggerProps } = props;
           return getReferenceProps({
-            ...triggerProps,
-            ref: mergeRefs(ref, refs.setReference),
+            ref: mergeRefs(props.ref, refs.setReference),
           });
         },
       })}
