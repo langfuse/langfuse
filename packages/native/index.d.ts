@@ -124,4 +124,4 @@ export interface TopicClusteringSettings {
  * Snapshot bytes once on the JS thread. Only Rust-owned memory reaches the validator task;
  * retaining a mutable Node Buffer across an async read would not enforce that ownership.
  */
-export declare function validateOtelJson(bytes: Buffer): Promise<ValidatedOtelJson>
+export declare function validateOtelJson(bytes: Buffer, discoverMedia?: boolean | undefined | null): Promise<ValidatedOtelJson>

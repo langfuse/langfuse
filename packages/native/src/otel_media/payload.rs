@@ -113,6 +113,23 @@ impl ExtractedMedia {
         self.encoded_data().len()
     }
 
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.reference.capacity()
+            + self.content_type.capacity()
+            + self.sha256_hash.capacity()
+            + match &self.storage {
+                MediaStorage::Owned(bytes) => bytes.capacity(),
+                MediaStorage::Source { .. } => 0,
+            }
+    }
+
+    pub(crate) fn source_capacity(&self) -> Option<usize> {
+        match &self.storage {
+            MediaStorage::Source { bytes, .. } => Some(bytes.capacity()),
+            MediaStorage::Owned(_) => None,
+        }
+    }
+
     fn encoded_data(&self) -> &[u8] {
         match &self.storage {
             MediaStorage::Owned(bytes) => bytes,
@@ -135,7 +152,7 @@ pub struct EarlyMediaResult {
 /// without retaining a compact copy prematurely. Escaped media candidates may
 /// carry one owned candidate fallback so restoration preserves their decoded
 /// source text.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ValidatedPayload {
     source: Arc<Vec<u8>>,
     pub manifest: MediaManifest,
@@ -144,6 +161,33 @@ pub struct ValidatedPayload {
 impl ValidatedPayload {
     pub(super) fn from_discovery(source: Arc<Vec<u8>>, manifest: MediaManifest) -> Self {
         Self { source, manifest }
+    }
+
+    /// Retained allocations, excluding allocator bookkeeping and shared-pointer headers.
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.source.capacity()
+            + self.manifest.entries.capacity() * std::mem::size_of::<MediaManifestEntry>()
+            + self
+                .manifest
+                .entries
+                .iter()
+                .map(|entry| {
+                    entry.content_type.capacity()
+                        + entry.reference.capacity()
+                        + entry.sha256_hash.capacity()
+                        + match &entry.storage {
+                            ManifestMediaStorage::SourceRange(_) => 0,
+                            ManifestMediaStorage::Owned(bytes) => bytes.capacity(),
+                        }
+                })
+                .sum::<usize>()
+            + self.manifest.existing_references.capacity() * std::mem::size_of::<String>()
+            + self
+                .manifest
+                .existing_references
+                .iter()
+                .map(String::capacity)
+                .sum::<usize>()
     }
 
     /// Apply the discovered edits and materialize the media registry once.
@@ -232,6 +276,9 @@ pub enum EarlyMediaError {
     NestingLimit {
         offset: usize,
     },
+    ResourceLimit {
+        offset: usize,
+    },
     InvalidEditPlan {
         entry: usize,
     },
@@ -255,6 +302,9 @@ impl fmt::Display for EarlyMediaError {
             Self::NestingLimit { offset } => {
                 write!(f, "JSON nesting limit exceeded at byte {offset}")
             }
+            Self::ResourceLimit { offset } => {
+                write!(f, "native media resource limit at byte {offset}")
+            }
             Self::InvalidEditPlan { entry } => {
                 write!(
                     f,
@@ -266,6 +316,25 @@ impl fmt::Display for EarlyMediaError {
 }
 
 impl std::error::Error for EarlyMediaError {}
+
+impl EarlyMediaError {
+    /// Stable NAPI codes distinguish syntax failures from inputs the TS parser
+    /// must validate and process, including scans stopped at a resource limit.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::UnsupportedUnicodeSurrogate { .. }
+            | Self::UnsupportedMediaReferenceAmbiguity { .. }
+            | Self::NestingLimit { .. }
+            | Self::ResourceLimit { .. }
+            | Self::InvalidJson {
+                message: "invalid UTF-8",
+                ..
+            } => "ERR_OTEL_UNSUPPORTED",
+            Self::InvalidEditPlan { .. } => "ERR_OTEL_INTERNAL",
+            Self::InvalidJson { .. } | Self::TrailingBytes { .. } => "ERR_OTEL_INVALID_JSON",
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum MediaDecodeError {

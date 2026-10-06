@@ -15,7 +15,7 @@ use super::encoding::{
 use super::encoding::{is_python_bytes_literal, is_valid_base64_syntax};
 use super::json::{
     map_jiter_error, parse_unicode_escape, scan_jiter_value, skip_whitespace, validate_utf8,
-    UnicodeEscapeError, MAX_JSON_DEPTH,
+    UnicodeEscapeError, MAX_JSON_DEPTH, SCAN_WORK_FACTOR, SCAN_WORK_FLOOR,
 };
 use super::payload::{
     validate_edit_plan, validate_manifest, EarlyMediaError, ManifestMediaStorage, MediaEncoding,
@@ -30,14 +30,46 @@ use super::rules::{
 
 // Embedded JSON strings are recursively scanned only to this smaller depth.
 const MAX_EMBEDDED_JSON_DEPTH: usize = 10;
+// These limits apply only to native discovery metadata. They are deliberately
+// generous for ordinary OTEL payloads while keeping attacker-controlled tiny
+// candidates and pre-existing references from growing without bound.
+const MAX_MEDIA_CANDIDATES: usize = 16 * 1024;
+const MAX_CANDIDATE_METADATA_BYTES: usize = 8 * 1024 * 1024;
+const MAX_EXISTING_REFERENCES: usize = 16 * 1024;
+const MAX_EXISTING_REFERENCE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_MEDIA_REFERENCE_LENGTH: usize = 4 * 1024;
+
+struct ScanBudget {
+    scan_work: usize,
+    scan_work_limit: usize,
+    candidate_count: usize,
+    candidate_metadata_bytes: usize,
+    existing_reference_count: usize,
+    existing_reference_bytes: usize,
+}
+
+impl ScanBudget {
+    fn new(input_len: usize) -> Self {
+        Self {
+            scan_work: 0,
+            scan_work_limit: input_len
+                .saturating_mul(SCAN_WORK_FACTOR)
+                .saturating_add(SCAN_WORK_FLOOR),
+            candidate_count: 0,
+            candidate_metadata_bytes: 0,
+            existing_reference_count: 0,
+            existing_reference_bytes: 0,
+        }
+    }
+}
 
 /// Validate and discover edits while retaining the original source for masking.
 /// Candidates use source ranges unless their text requires JSON unescaping;
 /// those retain one decoded candidate copy. No compact document or upload body
 /// is retained by this pass.
-pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, EarlyMediaError> {
+pub fn validate(input: Vec<u8>, discover_media: bool) -> Result<ValidatedPayload, EarlyMediaError> {
     let input_text = validate_utf8(&input)?;
-    let discover_media = may_contain_media_candidate(input_text);
+    let discover_media = discover_media && may_contain_media_candidate(input_text);
     // Keep the Vec allocation inside the Arc. Converting Vec<u8> directly to
     // Arc<[u8]> may allocate a second buffer, which is unacceptable for a
     // large OTEL body containing large inline media values.
@@ -46,15 +78,21 @@ pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, EarlyMe
     // not need the envelope classification and discovery walk. The hint is
     // deliberately conservative: escaped marker text falls back to the full
     // detector, while false positives only cost the normal discovery pass.
+    let mut budget = ScanBudget::new(source.len());
     let (manifest, end) = if discover_media {
-        Extractor::new(&source).discover()?
+        Extractor::new(&source, &mut budget).discover()?
     } else {
-        Extractor::new(&source).validate_only()?
+        Extractor::new(&source, &mut budget).validate_only()?
     };
     if end != source.len() {
         return Err(EarlyMediaError::TrailingBytes { offset: end });
     }
     Ok(ValidatedPayload::from_discovery(source, manifest))
+}
+
+#[cfg(test)]
+pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, EarlyMediaError> {
+    validate(input, true)
 }
 
 #[derive(Clone, Debug)]
@@ -75,8 +113,9 @@ struct StructuredShape {
     kind: MediaPayloadKind,
 }
 
-struct Extractor<'a> {
+struct Extractor<'a, 'budget> {
     input: &'a [u8],
+    budget: &'budget mut ScanBudget,
     embedded_depth: usize,
     /// Cache validated value boundaries while the extractor walks a document.
     ///
@@ -88,14 +127,19 @@ struct Extractor<'a> {
     pending_ambiguity: Option<EarlyMediaError>,
 }
 
-impl<'a> Extractor<'a> {
-    fn new(input: &'a [u8]) -> Self {
-        Self::new_with_embedded_depth(input, 0)
+impl<'a, 'budget> Extractor<'a, 'budget> {
+    fn new(input: &'a [u8], budget: &'budget mut ScanBudget) -> Self {
+        Self::new_with_embedded_depth(input, 0, budget)
     }
 
-    fn new_with_embedded_depth(input: &'a [u8], embedded_depth: usize) -> Self {
+    fn new_with_embedded_depth(
+        input: &'a [u8],
+        embedded_depth: usize,
+        budget: &'budget mut ScanBudget,
+    ) -> Self {
         Self {
             input,
+            budget,
             embedded_depth,
             scan_cache: Some(HashMap::new()),
             manifest: Vec::new(),
@@ -160,13 +204,19 @@ impl<'a> Extractor<'a> {
         start: usize,
         depth: usize,
     ) -> Result<MediaScanMode, EarlyMediaError> {
+        // Embedded strings are user payloads. A provider document can happen
+        // to contain a field named like an OTLP envelope field, but it does
+        // not carry the surrounding OTLP schema that gives those names their
+        // structural meaning.
+        if self.embedded_depth > 0 {
+            return Ok(MediaScanMode::Payload);
+        }
         let is_envelope = match self.input.get(start) {
             Some(b'{') => self.object_has_envelope_field(start, depth)?,
-            Some(b'[') => {
-                let first = skip_whitespace(self.input, start + 1);
-                self.input.get(first) == Some(&b'{')
-                    && self.object_has_envelope_field(first, depth + 1)?
-            }
+            // Root arrays classify each object independently in
+            // `discover_array`, allowing batches that mix OTLP envelopes and
+            // ordinary provider objects to preserve both media paths.
+            Some(b'[') => false,
             _ => false,
         };
         Ok(if is_envelope {
@@ -278,7 +328,19 @@ impl<'a> Extractor<'a> {
         let mut base = start;
         loop {
             let value_start = skip_whitespace(input, base + cursor.current_index());
-            let value_end = self.discover_value(value_start, depth + 1, scan_mode)?;
+            let element_mode = if depth == 0
+                && self.embedded_depth == 0
+                && input.get(value_start) == Some(&b'{')
+            {
+                if self.object_has_envelope_field(value_start, depth + 1)? {
+                    MediaScanMode::Envelope
+                } else {
+                    MediaScanMode::Payload
+                }
+            } else {
+                scan_mode
+            };
+            let value_end = self.discover_value(value_start, depth + 1, element_mode)?;
             cursor = Jiter::new(&input[value_end..]);
             base = value_end;
             match cursor
@@ -365,8 +427,14 @@ impl<'a> Extractor<'a> {
             return Ok(());
         };
         let mut jiter = Jiter::new(token);
-        if let Ok(value) = jiter.next_str() {
-            self.discover_string(value, token_range, scan_mode)?;
+        match jiter.next_str() {
+            Ok(value) => self.discover_string(value, token_range, scan_mode)?,
+            Err(error) => {
+                let error = map_jiter_error(input, start, error);
+                if matches!(error, EarlyMediaError::UnsupportedUnicodeSurrogate { .. }) {
+                    return Err(error);
+                }
+            }
         }
         Ok(())
     }
@@ -377,7 +445,7 @@ impl<'a> Extractor<'a> {
         token_range: Range<usize>,
         scan_mode: MediaScanMode,
     ) -> Result<(), EarlyMediaError> {
-        collect_media_references(value, &mut self.existing_references);
+        self.collect_media_references(value, token_range.start)?;
         if scan_mode != MediaScanMode::Payload || is_media_reference(value) {
             return Ok(());
         }
@@ -390,12 +458,13 @@ impl<'a> Extractor<'a> {
                 || value.contains("\\u")
                 || may_contain_serialized_media(value))
         {
-            match Extractor::new_with_embedded_depth(
+            let nested_result = Extractor::new_with_embedded_depth(
                 value.as_bytes(),
                 self.embedded_depth.saturating_add(1),
+                &mut *self.budget,
             )
-            .discover()
-            {
+            .discover();
+            match nested_result {
                 Ok((mut nested_manifest, _)) => {
                     self.translate_nested_entries(
                         value,
@@ -413,11 +482,22 @@ impl<'a> Extractor<'a> {
                     }
                     return Ok(());
                 }
+                Err(
+                    error @ (EarlyMediaError::UnsupportedUnicodeSurrogate { .. }
+                    | EarlyMediaError::NestingLimit { .. }
+                    | EarlyMediaError::ResourceLimit { .. }),
+                ) => return Err(error),
                 Err(_) => {}
             }
         }
 
-        let candidates = find_data_uri_candidates(value);
+        let candidates = find_data_uri_candidates(
+            value,
+            MAX_MEDIA_CANDIDATES.saturating_sub(self.budget.candidate_count),
+        )
+        .ok_or(EarlyMediaError::ResourceLimit {
+            offset: token_range.start,
+        })?;
 
         if !candidates.is_empty() {
             let boundaries = candidates
@@ -440,7 +520,7 @@ impl<'a> Extractor<'a> {
     }
 
     fn translate_nested_entries(
-        &self,
+        &mut self,
         decoded_document: &str,
         containing_string: &Range<usize>,
         entries: &mut [MediaManifestEntry],
@@ -473,6 +553,15 @@ impl<'a> Extractor<'a> {
                 entry.storage = if child_bytes == parent_bytes {
                     ManifestMediaStorage::SourceRange(parent_range)
                 } else if let Some(bytes) = child_bytes {
+                    self.budget.candidate_metadata_bytes = self
+                        .budget
+                        .candidate_metadata_bytes
+                        .saturating_add(bytes.len());
+                    if self.budget.candidate_metadata_bytes > MAX_CANDIDATE_METADATA_BYTES {
+                        return Err(EarlyMediaError::ResourceLimit {
+                            offset: containing_string.start,
+                        });
+                    }
                     ManifestMediaStorage::Owned(bytes.to_vec())
                 } else {
                     return Err(EarlyMediaError::InvalidEditPlan { entry: index });
@@ -493,7 +582,7 @@ impl<'a> Extractor<'a> {
             return Ok(());
         };
 
-        collect_media_references(content, &mut self.existing_references);
+        self.collect_media_references(content, token_range.start)?;
         if !is_supported_content_type(&shape.content_type) {
             return Ok(());
         }
@@ -540,6 +629,30 @@ impl<'a> Extractor<'a> {
         encoding: MediaEncoding,
         source_range: Range<usize>,
     ) -> Result<(), EarlyMediaError> {
+        if self.budget.candidate_count >= MAX_MEDIA_CANDIDATES {
+            return Err(EarlyMediaError::ResourceLimit {
+                offset: source_range.start,
+            });
+        }
+        let source_backed = self
+            .input
+            .get(source_range.clone())
+            .is_some_and(|bytes| bytes == encoded_data);
+        let owned_candidate_bytes = if source_backed { 0 } else { encoded_data.len() };
+        let estimated_metadata = content_type
+            .len()
+            .saturating_add(owned_candidate_bytes)
+            .saturating_add(256);
+        if self
+            .budget
+            .candidate_metadata_bytes
+            .saturating_add(estimated_metadata)
+            > MAX_CANDIDATE_METADATA_BYTES
+        {
+            return Err(EarlyMediaError::ResourceLimit {
+                offset: source_range.start,
+            });
+        }
         // Hashing also validates the complete encoded body with a bounded decode buffer.
         // Candidate syntax checks therefore do not need a separate full-body decode.
         let Some((reference, sha256_hash)) =
@@ -547,15 +660,40 @@ impl<'a> Extractor<'a> {
         else {
             return Ok(());
         };
-        let storage = if self
-            .input
-            .get(source_range.clone())
-            .is_some_and(|bytes| bytes == encoded_data)
-        {
+        if reference.len() > MAX_MEDIA_REFERENCE_LENGTH {
+            return Err(EarlyMediaError::ResourceLimit {
+                offset: source_range.start,
+            });
+        }
+        let storage = if source_backed {
             ManifestMediaStorage::SourceRange(source_range.clone())
         } else {
             ManifestMediaStorage::Owned(encoded_data.to_vec())
         };
+        let storage_bytes = match &storage {
+            ManifestMediaStorage::SourceRange(_) => 0,
+            ManifestMediaStorage::Owned(bytes) => bytes.len(),
+        };
+        let metadata_bytes = content_type
+            .len()
+            .saturating_add(reference.len())
+            .saturating_add(sha256_hash.len())
+            .saturating_add(storage_bytes);
+        if self
+            .budget
+            .candidate_metadata_bytes
+            .saturating_add(metadata_bytes)
+            > MAX_CANDIDATE_METADATA_BYTES
+        {
+            return Err(EarlyMediaError::ResourceLimit {
+                offset: source_range.start,
+            });
+        }
+        self.budget.candidate_count = self.budget.candidate_count.saturating_add(1);
+        self.budget.candidate_metadata_bytes = self
+            .budget
+            .candidate_metadata_bytes
+            .saturating_add(metadata_bytes);
         self.manifest.push(MediaManifestEntry {
             content_type: content_type.to_owned(),
             kind,
@@ -675,6 +813,58 @@ impl<'a> Extractor<'a> {
         Ok(boundaries)
     }
 
+    fn collect_media_references(
+        &mut self,
+        value: &str,
+        offset: usize,
+    ) -> Result<(), EarlyMediaError> {
+        let mut cursor = 0;
+        while let Some(relative) = value[cursor..].find(MEDIA_REFERENCE_PREFIX) {
+            let start = cursor + relative;
+            let suffix_start = start + MEDIA_REFERENCE_PREFIX.len();
+            let Some(relative_end) = value[suffix_start..].find(MEDIA_REFERENCE_SUFFIX) else {
+                break;
+            };
+            let end = suffix_start + relative_end + MEDIA_REFERENCE_SUFFIX.len();
+            let reference = &value[start..end];
+            if is_media_reference(reference) {
+                self.record_existing_reference(reference, offset.saturating_add(start))?;
+            }
+            cursor = end;
+        }
+        Ok(())
+    }
+
+    fn record_existing_reference(
+        &mut self,
+        reference: &str,
+        offset: usize,
+    ) -> Result<(), EarlyMediaError> {
+        if reference.len() > MAX_MEDIA_REFERENCE_LENGTH {
+            return Err(EarlyMediaError::ResourceLimit { offset });
+        }
+        if self.existing_references.contains(reference) {
+            return Ok(());
+        }
+        if self.budget.existing_reference_count >= MAX_EXISTING_REFERENCES
+            || self
+                .budget
+                .existing_reference_bytes
+                .saturating_add(reference.len())
+                > MAX_EXISTING_REFERENCE_BYTES
+        {
+            return Err(EarlyMediaError::ResourceLimit { offset });
+        }
+        self.budget.existing_reference_count =
+            self.budget.existing_reference_count.saturating_add(1);
+        self.budget.existing_reference_bytes = self
+            .budget
+            .existing_reference_bytes
+            .saturating_add(reference.len());
+        self.existing_references.insert(reference.to_owned());
+        Ok(())
+    }
+
     fn scan_value(&mut self, start: usize, depth: usize) -> Result<usize, EarlyMediaError> {
         let start = skip_whitespace(self.input, start);
         if depth > MAX_JSON_DEPTH {
@@ -686,14 +876,27 @@ impl<'a> Extractor<'a> {
         let input = self.input;
         let mut cursor = Jiter::new(&input[start..]);
         let mut base = start;
-        scan_jiter_value(
+        let end = scan_jiter_value(
             input,
             &mut self.scan_cache,
             &mut cursor,
             &mut base,
             depth,
             None,
-        )
+        )?;
+        self.consume_scan_work(start, end)?;
+        Ok(end)
+    }
+
+    fn consume_scan_work(&mut self, start: usize, end: usize) -> Result<(), EarlyMediaError> {
+        self.budget.scan_work = self
+            .budget
+            .scan_work
+            .saturating_add(end.saturating_sub(start));
+        if self.budget.scan_work > self.budget.scan_work_limit {
+            return Err(EarlyMediaError::ResourceLimit { offset: start });
+        }
+        Ok(())
     }
 
     fn scan_string(&self, start: usize) -> Result<usize, EarlyMediaError> {
@@ -900,23 +1103,6 @@ pub(super) fn media_identity_from_encoded(
     ))
 }
 
-fn collect_media_references(value: &str, references: &mut HashSet<String>) {
-    let mut cursor = 0;
-    while let Some(relative) = value[cursor..].find(MEDIA_REFERENCE_PREFIX) {
-        let start = cursor + relative;
-        let suffix_start = start + MEDIA_REFERENCE_PREFIX.len();
-        let Some(relative_end) = value[suffix_start..].find(MEDIA_REFERENCE_SUFFIX) else {
-            break;
-        };
-        let end = suffix_start + relative_end + MEDIA_REFERENCE_SUFFIX.len();
-        let reference = &value[start..end];
-        if is_media_reference(reference) {
-            references.insert(reference.to_owned());
-        }
-        cursor = end;
-    }
-}
-
 struct ParsedDataUri<'a> {
     start: usize,
     end: usize,
@@ -1000,7 +1186,7 @@ fn parse_data_uri(value: &str, mut start: usize) -> Option<ParsedDataUri<'_>> {
     Some(ParsedDataUri { start, end, valid })
 }
 
-fn find_data_uri_candidates(value: &str) -> Vec<(Range<usize>, &str)> {
+fn find_data_uri_candidates(value: &str, limit: usize) -> Option<Vec<(Range<usize>, &str)>> {
     let mut candidates = Vec::new();
     let mut cursor = 0;
     while let Some(relative) = value[cursor..].find(DATA_URI_PREFIX) {
@@ -1014,9 +1200,14 @@ fn find_data_uri_candidates(value: &str) -> Vec<(Range<usize>, &str)> {
             continue;
         };
         if let Some(content_type) = candidate.valid {
+            // Bound the temporary candidate/boundary vectors before hashing
+            // registers candidates in the batch-wide manifest.
+            if candidates.len() == limit {
+                return None;
+            }
             candidates.push((candidate.start..candidate.end, content_type));
         }
         cursor = candidate.end.max(start + DATA_URI_PREFIX.len());
     }
-    candidates
+    Some(candidates)
 }

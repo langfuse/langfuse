@@ -107,6 +107,14 @@ pub(super) fn is_valid_data_uri_parameters(value: &str) -> bool {
             || bytes[value_start..cursor]
                 .iter()
                 .any(|byte| b",\t\n\r \"'<>[]{}".contains(byte))
+            // Match the TS detector's ECMAScript \s, including non-ASCII
+            // whitespace (Rust's char::is_whitespace has a different set).
+            || value[value_start..cursor].chars().any(|character| {
+                matches!(character,
+                    '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' |
+                    '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' |
+                    '\u{205f}' | '\u{3000}' | '\u{feff}')
+            })
         {
             return false;
         }
@@ -242,6 +250,10 @@ fn hash_base64(hasher: &mut Sha256, value: &[u8]) -> Result<(), MediaDecodeError
 }
 
 fn hash_python_bytes_literal(hasher: &mut Sha256, value: &[u8]) -> Result<(), MediaDecodeError> {
+    // The TS media service leaves a valid but empty b'' or b"" inline.
+    if value.len() == 3 {
+        return Err(MediaDecodeError::InvalidPythonBytes);
+    }
     let mut decoded = [0; BASE64_HASH_DECODED_CHUNK_SIZE];
     let mut decoded_len = 0;
     visit_python_bytes_literal(value, |byte| {

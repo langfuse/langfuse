@@ -14,6 +14,13 @@ use super::payload::EarlyMediaError;
 // documents; the smaller limit applies only to recursively parsed embedded JSON.
 pub(super) const MAX_JSON_DEPTH: usize = 128;
 const SCAN_CACHE_MIN_BYTES: usize = 1024;
+const SCAN_CACHE_MAX_ENTRIES: usize = 64 * 1024;
+// Discovery can revisit small values while it resolves payload-vs-envelope
+// structure. Keep a bounded amount of repeated byte work instead of caching
+// every tiny subtree (which would turn a deeply nested payload into a large
+// hash map).
+pub(super) const SCAN_WORK_FACTOR: usize = 8;
+pub(super) const SCAN_WORK_FLOOR: usize = 64 * 1024;
 
 pub(super) fn validate_utf8(input: &[u8]) -> Result<&str, EarlyMediaError> {
     std::str::from_utf8(input).map_err(|error| EarlyMediaError::InvalidJson {
@@ -111,7 +118,9 @@ pub(super) fn scan_jiter_value<'j>(
     let end = (*base).saturating_add(cursor.current_index());
     if end.saturating_sub(value_start) >= SCAN_CACHE_MIN_BYTES {
         if let Some(cache) = scan_cache {
-            cache.insert(value_start, end);
+            if cache.len() < SCAN_CACHE_MAX_ENTRIES {
+                cache.insert(value_start, end);
+            }
         }
     }
     Ok(end)
