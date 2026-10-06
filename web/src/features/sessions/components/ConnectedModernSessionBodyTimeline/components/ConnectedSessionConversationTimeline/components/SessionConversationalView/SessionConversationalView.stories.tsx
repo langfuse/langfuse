@@ -2244,7 +2244,10 @@ function SessionConversationalViewStory({
   );
 }
 
-const meta = preview.meta({ component: SessionConversationalViewStory });
+const meta = preview.meta({
+  component: SessionConversationalViewStory,
+  parameters: { layout: "fullscreen" },
+});
 export default meta;
 export const Loading = meta.story({
   name: "(Test) Loading",
