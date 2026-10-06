@@ -98,12 +98,15 @@ export const Submits = meta.story({
     );
     await userEvent.click(canvas.getByRole("button", { name: "Save" }));
 
-    await expect(onSubmit).toHaveBeenCalledWith({
-      ...defaultValues,
-      bucketName: "media-bucket",
-      accessKeyId: "access-key",
-      secretAccessKey: "secret-key",
-      prefix: "media/",
-    });
+    await expect(onSubmit).toHaveBeenCalledWith(
+      {
+        ...defaultValues,
+        bucketName: "media-bucket",
+        accessKeyId: "access-key",
+        secretAccessKey: "secret-key",
+        prefix: "media/",
+      },
+      expect.anything(),
+    );
   },
 });
