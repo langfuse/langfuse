@@ -2,7 +2,7 @@ import { cva } from "class-variance-authority";
 import { type ReactNode } from "react";
 
 const filterTokenVariants = cva(
-  "inline max-w-full rounded border border-border bg-secondary px-1.5 py-0.5 text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
+  "inline max-w-full rounded-sm border border-transparent bg-secondary px-1.5 py-0.5 text-secondary-foreground transition-colors hover:border-ring hover:bg-tertiary",
   {
     variants: {
       deactivated: {
@@ -12,7 +12,7 @@ const filterTokenVariants = cva(
       // Pointer-independent hover treatment: the caret/keyboard path marks the
       // token an open explanation refers to.
       highlighted: {
-        true: "border-ring bg-accent",
+        true: "border-ring bg-tertiary",
         false: "",
       },
     },
