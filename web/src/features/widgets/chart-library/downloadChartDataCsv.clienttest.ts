@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import {
+  buildChartDataCsv,
+} from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 
 describe("buildChartDataCsv", () => {
   it("returns an empty string for no rows", () => {
