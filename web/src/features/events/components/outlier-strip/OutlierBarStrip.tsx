@@ -269,7 +269,7 @@ export function OutlierBarStrip({
               y={heightPx + 9}
               textAnchor={tick.textAnchor}
               className="fill-muted-foreground/80 font-sans"
-              fontSize={9}
+              fontSize={10}
             >
               {tick.label}
             </text>
@@ -286,7 +286,7 @@ export function OutlierBarStrip({
               textAnchor="end"
               dominantBaseline="middle"
               className="fill-muted-foreground font-sans"
-              fontSize={9}
+              fontSize={10}
             >
               {tick.label}
             </text>
