@@ -193,7 +193,7 @@ describe("AutomationForm handleActionTypeChange", () => {
     expect(screen.queryByText("Select API version")).toBeNull();
   });
 
-  it("submits score name and type with annotation queue ids", async () => {
+  it("submits an exact score value with annotation queue ids", async () => {
     render(<AutomationForm projectId="p1" isEditing={true} />);
 
     fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
@@ -203,10 +203,28 @@ describe("AutomationForm handleActionTypeChange", () => {
     fireEvent.click(screen.getAllByRole("combobox")[0]);
     fireEvent.click(await screen.findByRole("option", { name: "Score" }));
 
-    fireEvent.click(screen.getAllByRole("combobox")[1]);
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Score name",
+      }),
+    );
     fireEvent.click(
       await screen.findByRole("option", { name: "quality (boolean)" }),
     );
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Score value condition",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "equals" }));
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Score value",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "False" }));
 
     const queuePicker = screen.getAllByRole("combobox").at(-1);
     expect(queuePicker).toBeDefined();
@@ -231,6 +249,7 @@ describe("AutomationForm handleActionTypeChange", () => {
           value: "BOOLEAN",
           type: "string",
         },
+        { column: "value", operator: "=", value: 0, type: "number" },
       ],
       actionType: "ANNOTATION_QUEUE",
       actionConfig: { type: "ANNOTATION_QUEUE", queueIds: ["queue-1"] },

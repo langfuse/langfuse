@@ -494,9 +494,10 @@ const ScoreTriggerFields = ({
           );
 
           return (
-            <div className="space-y-4">
-              <FormItem>
-                <FormLabel>Score</FormLabel>
+            <FormItem>
+              <FormLabel>Score condition</FormLabel>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span>When score</span>
                 <Select
                   value={field.value.key}
                   disabled={disabled || isLoading}
@@ -515,7 +516,11 @@ const ScoreTriggerFields = ({
                   }}
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger
+                      aria-label="Score name"
+                      className="w-fit max-w-full min-w-48"
+                      disableValueLineClamp
+                    >
                       <SelectValue placeholder="Select a score" />
                     </SelectTrigger>
                   </FormControl>
@@ -530,79 +535,94 @@ const ScoreTriggerFields = ({
                     ))}
                   </SelectContent>
                 </Select>
-                <FormDescription>
-                  The automation matches this score name and type.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-
-              {config ? (
-                <FormItem className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={field.value.matchValue}
-                      onCheckedChange={(matchValue) =>
+                {config ? (
+                  <>
+                    <Select
+                      value={field.value.matchValue ? "equals" : "any"}
+                      onValueChange={(condition) =>
                         field.onChange({
                           ...field.value,
-                          matchValue,
+                          matchValue: condition === "equals",
                           value: "",
                         })
                       }
                       disabled={disabled}
-                    />
-                    <FormLabel>
-                      Only when the score has a specific value
-                    </FormLabel>
-                  </div>
-                  {field.value.matchValue ? (
-                    config.dataType === "BOOLEAN" ||
-                    config.dataType === "CATEGORICAL" ? (
-                      <Select
-                        value={field.value.value}
-                        onValueChange={(value) =>
-                          field.onChange({ ...field.value, value })
-                        }
-                        disabled={disabled}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a value" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {(config.categories ?? []).map((category) => (
-                            <SelectItem
-                              key={category.label}
-                              value={
-                                config.dataType === "BOOLEAN"
-                                  ? String(category.value)
-                                  : category.label
-                              }
+                    >
+                      <FormControl>
+                        <SelectTrigger
+                          aria-label="Score value condition"
+                          className="w-fit"
+                          disableValueLineClamp
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="any">has any value</SelectItem>
+                        <SelectItem value="equals">equals</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {field.value.matchValue ? (
+                      config.dataType === "BOOLEAN" ||
+                      config.dataType === "CATEGORICAL" ? (
+                        <Select
+                          value={field.value.value}
+                          onValueChange={(value) =>
+                            field.onChange({ ...field.value, value })
+                          }
+                          disabled={disabled}
+                        >
+                          <FormControl>
+                            <SelectTrigger
+                              aria-label="Score value"
+                              className="w-fit min-w-32"
+                              disableValueLineClamp
                             >
-                              {category.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        type={config.dataType === "NUMERIC" ? "number" : "text"}
-                        value={field.value.value}
-                        onChange={(event) =>
-                          field.onChange({
-                            ...field.value,
-                            value: event.target.value,
-                          })
-                        }
-                        disabled={disabled}
-                        placeholder="Value"
-                      />
-                    )
-                  ) : null}
-                  <FormMessage />
-                </FormItem>
-              ) : null}
-            </div>
+                              <SelectValue placeholder="Select a value" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {(config.categories ?? []).map((category) => (
+                              <SelectItem
+                                key={category.label}
+                                value={
+                                  config.dataType === "BOOLEAN"
+                                    ? String(category.value)
+                                    : category.label
+                                }
+                              >
+                                {category.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          type={
+                            config.dataType === "NUMERIC" ? "number" : "text"
+                          }
+                          value={field.value.value}
+                          onChange={(event) =>
+                            field.onChange({
+                              ...field.value,
+                              value: event.target.value,
+                            })
+                          }
+                          disabled={disabled}
+                          placeholder="Value"
+                          aria-label="Score value"
+                          className="h-8 w-40"
+                        />
+                      )
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+              <FormDescription>
+                Choose the score and optionally match one exact value.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
           );
         }}
       />
