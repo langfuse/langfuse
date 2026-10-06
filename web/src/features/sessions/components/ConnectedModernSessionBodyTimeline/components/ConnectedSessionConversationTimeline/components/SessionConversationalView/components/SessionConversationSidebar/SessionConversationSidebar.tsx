@@ -112,10 +112,7 @@ export function SessionConversationSidebar(
       >
         <div className="shrink-0 border-b px-2 py-2.5">
           <div className="relative min-w-0">
-            <Search
-              className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
-              strokeWidth={1.6}
-            />
+            <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
             <Input
               disabled
               value=""
@@ -156,10 +153,7 @@ export function SessionConversationSidebar(
     >
       <div className="shrink-0 border-b px-2 py-2.5">
         <div className="relative min-w-0">
-          <Search
-            className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
-            strokeWidth={1.6}
-          />
+          <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
           <Input
             value={props.search}
             onChange={(event) => {
@@ -270,10 +264,9 @@ export function SessionConversationSidebar(
                         >
                           <ChevronDown
                             className={cn(
-                              "h-3 w-3 transition-transform duration-150",
+                              "icon-sm transition-transform duration-150",
                               isCollapsed ? "-rotate-90" : "rotate-0",
                             )}
-                            strokeWidth={1.6}
                           />
                         </button>
                       </div>

@@ -166,7 +166,7 @@ const MEDIA_KIND_PREVIEW = {
   ),
   file: () => (
     <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
-      <File className="h-5 w-5" />
+      <File className="icon-lg" />
       <span className="text-xs">No inline preview</span>
     </div>
   ),
@@ -188,7 +188,7 @@ function PeekBody({
   if (status === "error") {
     return (
       <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
-        <ImageOff className="h-5 w-5" />
+        <ImageOff className="icon-lg" />
         <span className="text-xs">Failed to load media</span>
       </div>
     );
@@ -270,9 +270,9 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             }}
           >
             {intent === "attachment" ? (
-              <Paperclip className="h-2.5 w-2.5 shrink-0" />
+              <Paperclip className="icon-sm shrink-0" />
             ) : (
-              <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
+              <KindIcon kind={kind} className="icon-sm shrink-0" />
             )}
             <span
               className={cn(
@@ -295,7 +295,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
         >
           <div className="flex items-center justify-between gap-4">
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-              <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
+              <KindIcon kind={kind} className="icon-base shrink-0" />
               <span
                 className="max-w-[20ch] truncate font-mono leading-4"
                 title={contentType}
@@ -321,7 +321,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               >
                 <a href={url} target="_blank" rel="noopener noreferrer">
                   {openActionLabel ? <span>{openActionLabel}</span> : null}
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="icon-sm text-icon-foreground" />
                 </a>
               </Button>
             ) : (
@@ -333,7 +333,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                 title="Open in new tab"
               >
                 {openActionLabel ? <span>{openActionLabel}</span> : null}
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="icon-sm text-icon-foreground" />
               </Button>
             )}
           </div>

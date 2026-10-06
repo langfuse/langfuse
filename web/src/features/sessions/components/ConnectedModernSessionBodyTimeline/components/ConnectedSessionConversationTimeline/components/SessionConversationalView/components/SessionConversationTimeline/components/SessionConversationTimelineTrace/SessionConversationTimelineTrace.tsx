@@ -70,7 +70,7 @@ export function SessionConversationTimelineTrace({
                 className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
                 aria-label="Transcript may be incomplete"
               >
-                <MessageSquareOff className="h-3.5 w-3.5" aria-hidden="true" />
+                <MessageSquareOff className="icon-base" aria-hidden="true" />
               </button>
             )}
           </Tooltip>

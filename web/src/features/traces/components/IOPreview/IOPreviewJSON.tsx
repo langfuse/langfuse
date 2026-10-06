@@ -48,15 +48,17 @@ import {
 // `needsVirtualization` note below.
 const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
 
-const STATUS_MESSAGE_BACKGROUND_COLORS: Record<
-  ObservationStatusMessage["level"],
-  string
-> = {
-  ERROR: "var(--light-red)",
-  WARNING: "var(--light-yellow)",
-  DEBUG: "hsl(var(--muted) / 0.3)",
-  DEFAULT: "hsl(var(--card))",
-};
+// Light values are Tailwind red-50 / yellow-50, matching StatusMessageSection.
+function statusMessageBackgroundColor(
+  level: ObservationStatusMessage["level"],
+  isDark: boolean,
+) {
+  if (level === "ERROR")
+    return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
+  if (level === "WARNING")
+    return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
+  return "hsl(var(--surface-output))";
+}
 
 /**
  * Decode a field's \uXXXX escapes, but only when it fits under the decoder's
@@ -402,12 +404,12 @@ function IOPreviewJSONInner({
 
   const wrapIcon = useMemo(() => {
     if (stringWrapMode === "truncate") {
-      return <Minus size={14} />;
+      return <Minus className="icon-base" />;
     }
     if (stringWrapMode === "wrap") {
-      return <WrapText size={14} />;
+      return <WrapText className="icon-base" />;
     }
-    return <ChevronDown size={14} className="-rotate-90" />;
+    return <ChevronDown className="icon-base -rotate-90" />;
   }, [stringWrapMode]);
 
   // Build sections - memoized to prevent re-creation. A gated field renders as
@@ -499,7 +501,7 @@ function IOPreviewJSONInner({
         key: "status-message",
         title: statusPresentation.title,
         data: parseStructuredStatusMessage(status.message) ?? status.message,
-        backgroundColor: STATUS_MESSAGE_BACKGROUND_COLORS[status.level],
+        backgroundColor: statusMessageBackgroundColor(status.level, isDark),
         minHeight: "4px",
       });
     }
@@ -586,6 +588,7 @@ function IOPreviewJSONInner({
     }
     return result;
   }, [
+    isDark,
     showInput,
     showOutput,
     status,
@@ -706,7 +709,7 @@ function IOPreviewJSONInner({
               onClick={handlePreviousMatch}
               title="Previous match (Shift+Enter)"
             >
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp className="icon-base text-icon-foreground" />
             </Button>
             <Button
               variant="ghost"
@@ -715,7 +718,7 @@ function IOPreviewJSONInner({
               onClick={handleNextMatch}
               title="Next match (Enter)"
             >
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="icon-base text-icon-foreground" />
             </Button>
           </>
         )}
@@ -739,7 +742,7 @@ function IOPreviewJSONInner({
           onClick={handleCopy}
           title="Copy to clipboard"
         >
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="icon-base text-icon-foreground" />
         </Button>
       </div>
 

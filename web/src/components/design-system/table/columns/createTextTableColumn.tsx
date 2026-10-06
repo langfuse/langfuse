@@ -96,7 +96,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
                       aria-label="More information"
                       className="flex items-center"
                     >
-                      <InfoIcon className="text-muted-foreground size-3" />
+                      <InfoIcon className="text-muted-foreground icon-sm" />
                     </button>
                   )}
                 </Tooltip>

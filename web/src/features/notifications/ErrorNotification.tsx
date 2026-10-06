@@ -37,7 +37,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
     <div className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <AlertTriangle size={20} className={textColor} />
+          <AlertTriangle className={`icon-lg ${textColor}`} />
           <div className={`m-0 text-sm leading-tight font-bold ${textColor}`}>
             {error}
           </div>
@@ -68,7 +68,11 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               aria-label="Copy error ID"
               title="Copy error ID"
             >
-              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+              {isCopied ? (
+                <Check className="icon-base" />
+              ) : (
+                <Copy className="icon-base" />
+              )}
             </button>
           </div>
         )}
@@ -116,7 +120,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         }}
         aria-label="Close"
       >
-        <X size={14} />
+        <X className="icon-base" />
       </button>
     </div>
   );

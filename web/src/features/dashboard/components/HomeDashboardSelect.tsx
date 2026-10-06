@@ -76,7 +76,7 @@ export function HomeDashboardSelect({
         title="The dashboard shown on this project's home page"
         className="text-muted-foreground my-0"
       >
-        <LayoutDashboard className="mr-1 h-4 w-4" />
+        <LayoutDashboard className="icon-base text-icon-foreground mr-1" />
         {currentDashboardName}
       </Button>
     );

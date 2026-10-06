@@ -66,7 +66,7 @@ export function SessionTimelineCollapsibleRow({
         >
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 transition-transform",
+              "icon-base transition-transform",
               !isExpanded && "-rotate-90",
             )}
             aria-hidden="true"

@@ -53,7 +53,7 @@ export default function DocPopup({
             handleOpenChange(!open);
           }}
         >
-          <Info className="h-3 w-3" />
+          <Info className="icon-sm" />
         </div>
       </HoverCardTrigger>
       <HoverCardPortal>
@@ -81,7 +81,7 @@ export default function DocPopup({
               className="text-muted-foreground hover:text-primary mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
             >
               Read docs
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="icon-sm" />
             </a>
           )}
         </HoverCardContent>

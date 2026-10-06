@@ -44,7 +44,7 @@ export function SessionTimelineToolRow({
           {trailingContent}
           {isError ? (
             <CircleAlert
-              className="text-destructive h-3 w-3"
+              className="icon-sm text-destructive"
               aria-label="Failed"
             />
           ) : null}

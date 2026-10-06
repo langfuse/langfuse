@@ -44,21 +44,21 @@ export function SessionTimelineCollapsiblePart({
           aria-expanded={isExpanded}
           onClick={() => setIsExpanded((current) => !current)}
         >
-          {Icon ? <Icon className="h-3 w-3 shrink-0" /> : null}
+          {Icon ? <Icon className="icon-sm shrink-0" /> : null}
           <span className="truncate" title={label}>
             {label}
           </span>
           {status === "success" ? (
-            <Check className="h-3 w-3 shrink-0" aria-label="Succeeded" />
+            <Check className="icon-sm shrink-0" aria-label="Succeeded" />
           ) : status === "error" ? (
             <X
-              className="text-destructive h-3 w-3 shrink-0"
+              className="text-destructive icon-sm shrink-0"
               aria-label="Failed"
             />
           ) : null}
           <ChevronDown
             className={cn(
-              "text-foreground-tertiary size-3 shrink-0 translate-y-px transition-transform",
+              "text-foreground-tertiary icon-sm shrink-0 translate-y-px transition-transform",
               !isExpanded && "-rotate-90",
             )}
             aria-hidden="true"

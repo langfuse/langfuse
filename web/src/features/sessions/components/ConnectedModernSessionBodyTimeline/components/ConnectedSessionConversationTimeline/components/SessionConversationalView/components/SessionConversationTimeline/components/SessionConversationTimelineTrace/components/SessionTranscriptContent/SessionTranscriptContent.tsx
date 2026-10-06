@@ -188,7 +188,7 @@ function SessionTranscriptToolGroup({
       label={summary}
       showHoverDivider={false}
       labelActionName={`${isOpen ? "Hide" : "Show"} tools: ${summary}`}
-      icon={<Wrench className="text-observation-tool h-3.5 w-3.5 shrink-0" />}
+      icon={<Wrench className="icon-base text-observation-tool shrink-0" />}
       isExpanded={isOpen}
       onExpandedChange={(isExpanded) =>
         setExpansion({
