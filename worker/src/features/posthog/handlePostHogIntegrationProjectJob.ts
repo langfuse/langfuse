@@ -28,6 +28,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
@@ -284,6 +285,8 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
+
   try {
     // Validate PostHog hostname to prevent SSRF attacks before sending data.
     // Rewrap preserving { cause } so the single catch below can classify the
@@ -417,6 +420,12 @@ export const handlePostHogIntegrationProjectJob = async (
         lastSyncAt: executionConfig.maxTimestamp,
         lastError: null,
         lastErrorAt: null,
+        ...(isExportCaughtUp({
+          lastSyncAt: executionConfig.maxTimestamp,
+          runStartTime,
+        })
+          ? { backfill: false }
+          : {}),
       },
     });
     // Record gzipped on-wire export volume once the run has succeeded.
