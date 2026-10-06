@@ -37,6 +37,7 @@ type AuditableResource =
   | "evalTemplate"
   | "job"
   | "blobStorageIntegration"
+  | "externalMediaStorageIntegration"
   | "posthogIntegration"
   | "mixpanelIntegration"
   | "webCalloutEndpoint"
