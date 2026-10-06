@@ -17,7 +17,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import {
   externalMediaStorageFormSchema,
   type ExternalMediaStorageFormValues,
@@ -26,17 +25,18 @@ import {
 export function ExternalMediaStorageForm({
   initialValues,
   isSaving,
+  allowHostCredentials,
   secretAccessKeyDisplay,
   onSubmit,
   actions,
 }: {
   initialValues: ExternalMediaStorageFormValues;
   isSaving: boolean;
+  allowHostCredentials: boolean;
   secretAccessKeyDisplay: string | null | undefined;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
   actions?: ReactNode;
 }) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const form = useForm({
     resolver: zodResolver(externalMediaStorageFormSchema),
     defaultValues: initialValues,
@@ -45,7 +45,7 @@ export function ExternalMediaStorageForm({
     useWatch({ control: form.control, name: "type" }) ??
     BlobStorageIntegrationType.S3;
   const canUseHostCredentials =
-    !isLangfuseCloud && type === BlobStorageIntegrationType.S3;
+    allowHostCredentials && type === BlobStorageIntegrationType.S3;
 
   return (
     <Form {...form}>
