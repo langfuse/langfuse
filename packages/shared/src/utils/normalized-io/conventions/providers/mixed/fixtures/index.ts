@@ -2,6 +2,7 @@ import type { NormalizedIOFixture } from "../../fixture-types";
 import { looseProviderMessageShapesFixture } from "./loose-provider-message-shapes";
 import { outputOnlyPlainTextFixture } from "./output-only-plain-text";
 import { outputOnlyStructuredMessageFixture } from "./output-only-structured-message";
+import { paramsMessagesFixture } from "./params-messages";
 import { rawPassthroughToolCallsFixture } from "./raw-passthrough-tool-calls";
 
 // Verbatim stored observation IO from ChatML integration-example exports.
@@ -278,6 +279,7 @@ export const mixedNormalizedIOFixtures = [
   ...capturedTraceFixtures,
   looseProviderMessageShapesFixture,
   outputOnlyStructuredMessageFixture,
+  paramsMessagesFixture,
   outputOnlyPlainTextFixture,
   rawPassthroughToolCallsFixture,
 ];
