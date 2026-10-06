@@ -38,6 +38,7 @@ import {
   CTEQueryBuilder,
   NumberFilter,
   scoreOnlyFiltersAreSeekEligible,
+  scoreOnlyFiltersHaveIndexedLookup,
 } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
@@ -1645,7 +1646,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
-  // ── Selective seek (count path only) ──────────────────────────────────────
+  // ── Selective seek ────────────────────────────────────────────────────────
   // A highly selective score-only filter (single trace/observation/id, or a
   // name) otherwise reconstructs the whole project before the outer WHERE
   // discards almost everything. When at least one score-only conjunct is
@@ -1667,10 +1668,12 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // dedup key only, all immutable within a group, so the resulting tuple IN
   // touches only dedup-key columns and is safe pre-dedup.
   //
-  // The rows path reads FINAL and lets ClickHouse prune instead (see Dedup).
+  // The FINAL rows path does not seek (see Dedup).
+  const rowsUseFinal =
+    props.select === "rows" &&
+    !scoreOnlyFiltersHaveIndexedLookup(scoreOnlyFilters);
   const seekEligible =
-    props.select === "count" &&
-    scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
+    !rowsUseFinal && scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
   const seekSubquery = seekEligible
     ? `
         SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id
@@ -1680,16 +1683,17 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`
     : "";
 
-  // Count-path pre-dedup scan: project scope + coarse date prune only.
-  // Mutable-column filters run post-dedup in the outer WHERE (see the dedup rule
-  // below). When the seek fired, the tuple IN restricts the reconstruct scan to
-  // seeked keys; it references only dedup-key columns, so it is safe pre-dedup.
+  // Pre-dedup scan of the GROUP BY paths: project scope + coarse date prune
+  // only. Mutable-column filters run post-dedup in the outer WHERE (see the
+  // dedup rule below). When the seek fired, the tuple IN restricts the
+  // reconstruct scan to seeked keys; it references only dedup-key columns, so
+  // it is safe pre-dedup.
   const innerScanWhere = `
         WHERE s.project_id = {projectId: String}
         ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
         ${seekSubquery ? `AND (s.project_id, toDate(s.timestamp), s.name, s.id) IN (${seekSubquery}\n        )` : ""}`;
 
-  // Post-dedup outer filters, shared by the count and rows paths.
+  // Post-dedup outer filters, shared by all paths.
   const outerConditions = `s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
 
@@ -1703,34 +1707,41 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // Rule: filter AFTER dedup, never before. value / comment / timestamp /
   // trace_id are mutable across versions, so filtering raw rows can surface a
   // stale version (filter value>0.5 on v1=0.9→v2=0.1 keeps v1; FINAL keeps none).
+  // The GROUP BY paths' pre-dedup scan carries only project scope + a coarse
+  // toDate prune (innerDatePruneQuery) + the seek (when eligible), which keep or
+  // drop whole dedup keys, so the latest version is never lost.
   //
   // The count path reconstructs each score's latest version with one argMax
-  // GROUP BY pass, then filters. Its pre-dedup scan carries only project scope
-  // + a coarse toDate prune (innerDatePruneQuery) + the seek (when eligible),
-  // which keep or drop whole dedup keys, so the latest version is never lost.
+  // GROUP BY pass, then filters.
   //
-  // The rows path reads `scores FINAL`. ClickHouse evaluates WHERE conditions on
-  // non-sorting-key columns after the FINAL merge, so the outer filters only see
-  // latest versions. do_not_merge_across_partitions_select_final dedups per
-  // partition and keeps partition pruning under FINAL on ClickHouse >= 26.3,
-  // which otherwise disables it because the partition key (toYYYYMM(timestamp))
-  // is not literally in the sorting key. It is only correct because every
-  // version of a key shares a partition: toDate(timestamp) is in the sorting key
-  // and a day never spans two months. The setting applies to every FINAL read in
-  // the query; the traces CTE reads without FINAL.
+  // The rows path reads `scores FINAL` unless a filter looks up scores through a
+  // bloom-filter skip index (trace_id, observation_id, id, ...). ClickHouse
+  // evaluates WHERE conditions on non-sorting-key columns after the FINAL
+  // merge, so the filters only see latest versions.
+  // do_not_merge_across_partitions_select_final dedups per partition and keeps
+  // partition pruning under FINAL on ClickHouse >= 26.3, which otherwise
+  // disables it because the partition key (toYYYYMM(timestamp)) is not
+  // literally in the sorting key. It is only correct because every version of a
+  // key shares a partition: toDate(timestamp) is in the sorting key and a day
+  // never spans two months. The setting applies to every FINAL read in the
+  // query; the traces CTE reads without FINAL.
   //
-  // use_skip_indexes_if_final lets the bloom-filter skip indexes (id, trace_id,
-  // session_id, ...) prune granules under FINAL. A skip index only sees the
-  // granules whose rows match, which can drop a newer version of the same key
-  // and resurface a stale one (v1 trace_id=T1, v2 trace_id=T2: filtering T1
-  // would return v1). use_skip_indexes_if_final_exact_mode re-adds every
-  // granule sharing a primary-key range with a selected one, so FINAL still
-  // sees all versions. Both default to 1 since ClickHouse 25.6 but are set
-  // explicitly so a `compatibility` profile setting cannot turn them off.
+  // Skip-index lookups stay on a manual dedup: an INNER JOIN of scores back to
+  // a GROUP BY holding each key's max(event_ts), matching on the full sorting
+  // key + that event_ts, so every joined row is a latest version. Their matches
+  // are scattered across the sorting key, and FINAL must read every granule in
+  // the key range around them, with all columns, since it cannot filter before
+  // the merge. The manual dedup reads only the seeked keys and lets the filters
+  // prune the wide scan. Its LIMIT 1 BY collapses two raw rows sharing a key's
+  // max event_ts, where FINAL itself keeps an arbitrary row.
   //
-  // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the FINAL subquery so
+  // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the dedup subquery so
   // pagination follows the requested sort (and a traces-column sort can
   // reference the joined `e`).
+  const pageClause = `
+      ${eventsJoin}
+      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`;
   const query =
     props.select === "count"
       ? `
@@ -1751,7 +1762,8 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ${eventsJoin}
       WHERE ${outerConditions}
     `
-      : `
+      : rowsUseFinal
+        ? `
       ${tracesCTEClause}
       SELECT
           ${rowSelect}
@@ -1760,13 +1772,36 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         FROM scores s FINAL
         ${rowsScanWhere}
       ) s
-      ${eventsJoin}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
-      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-      SETTINGS
-        do_not_merge_across_partitions_select_final = 1,
-        use_skip_indexes_if_final = 1,
-        use_skip_indexes_if_final_exact_mode = 1
+      ${pageClause}
+      SETTINGS do_not_merge_across_partitions_select_final = 1
+    `
+        : `
+      ${tracesCTEClause}
+      SELECT
+          ${rowSelect}
+      FROM (
+        SELECT s.*
+        FROM scores s
+        INNER JOIN (
+          SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+          FROM scores s
+          ${innerScanWhere}
+          GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+        ) latest
+          ON s.project_id = latest.latest_project_id
+          AND toDate(s.timestamp) = latest.latest_date
+          AND s.name = latest.latest_name
+          AND s.id = latest.latest_id
+          AND s.event_ts = latest.latest_event_ts
+        WHERE ${outerConditions}
+        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
+      ${pageClause}
     `;
 
   const input = {

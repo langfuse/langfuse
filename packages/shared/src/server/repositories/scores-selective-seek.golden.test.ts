@@ -145,28 +145,36 @@ describeWithFormat("scores selective-seek: emitted SQL", () => {
     { name: "observation_id =", filter: observationIdEq("O1") },
     { name: "name IN", filter: nameIn(["n1"]) },
   ];
+  const indexedLookups = eligible.filter(({ name }) => name !== "name IN");
   const ineligible = [
     { name: "value range", filter: valueGt(0.5) },
     { name: "environment none of", filter: environmentNoneOf(["dev"]) },
     { name: "no filter", filter: [] as FilterState },
   ];
 
-  // The rows path reads FINAL and prunes via skip indexes instead of the seek.
-  describe("eligible → seek on count, skip indexes under FINAL on rows", () => {
+  // Skip-index lookups keep the manual dedup + seek on the rows path; a name
+  // filter is in the sorting key, so its rows path reads FINAL.
+  describe("eligible → seek phase present", () => {
     for (const { name, filter } of eligible) {
       it(`count: ${name}`, async () => {
         const q = await captureCountSql(filter);
         expect(q.query).toContain("SELECT DISTINCT");
         expect(q.query).toMatch(SEEK_TUPLE_IN);
       });
+    }
+    for (const { name, filter } of indexedLookups) {
       it(`rows: ${name}`, async () => {
         const q = await captureRowsSql(filter);
-        expect(q.query).not.toContain("SELECT DISTINCT");
-        expect(q.query).not.toMatch(SEEK_TUPLE_IN);
-        expect(q.query).toContain("use_skip_indexes_if_final = 1");
-        expect(q.query).toContain("use_skip_indexes_if_final_exact_mode = 1");
+        expect(q.query).not.toContain("FINAL");
+        expect(q.query).toContain("SELECT DISTINCT");
+        expect(q.query).toMatch(SEEK_TUPLE_IN);
       });
     }
+    it("rows: name IN reads FINAL without the seek", async () => {
+      const q = await captureRowsSql(nameIn(["n1"]));
+      expect(q.query).toContain("FINAL");
+      expect(q.query).not.toContain("SELECT DISTINCT");
+    });
   });
 
   describe("ineligible → fallback unchanged, no seek", () => {
@@ -178,6 +186,7 @@ describeWithFormat("scores selective-seek: emitted SQL", () => {
       });
       it(`rows: ${name}`, async () => {
         const q = await captureRowsSql(filter);
+        expect(q.query).toContain("FINAL");
         expect(q.query).not.toContain("SELECT DISTINCT");
         expect(q.query).not.toMatch(SEEK_TUPLE_IN);
       });
