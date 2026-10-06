@@ -47,12 +47,16 @@ export const StructuredData = meta.story({
     });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(canvas.queryAllByRole("table")).toHaveLength(0);
+    await expect(canvas.queryByText("0.9")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("7")).not.toBeInTheDocument();
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getAllByRole("table")).toHaveLength(2);
+    await expect(canvas.getByText("0.9")).toBeVisible();
+    await expect(canvas.getByText("7")).toBeVisible();
     await userEvent.click(toggle);
-    await expect(canvas.queryAllByRole("table")).toHaveLength(0);
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByText("0.9")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("7")).not.toBeInTheDocument();
   },
 });
 
@@ -144,7 +148,7 @@ export const EmbeddedImages = meta.story({
 });
 
 export const FileAttachment = meta.story({
-  name: "(Test) File Attachment Layout",
+  name: "(Test) Safe File Attachment Link",
   args: {
     role: "user",
     parts: [
@@ -162,14 +166,16 @@ export const FileAttachment = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const attachment = canvas
-      .getByText("inspection-report.pdf")
-      .closest(".bg-background");
-
-    await expect(attachment).toHaveClass("w-fit", "max-w-full");
-    await expect(attachment?.parentElement?.parentElement).toHaveClass(
-      "bg-muted",
+    await expect(canvas.getByText("inspection-report.pdf")).toBeVisible();
+    const link = canvas.getByRole("link", {
+      name: "https://example.com/inspection-report.pdf",
+    });
+    await expect(link).toHaveAttribute(
+      "href",
+      "https://example.com/inspection-report.pdf",
     );
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noreferrer");
   },
 });
 

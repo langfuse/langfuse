@@ -298,24 +298,24 @@ export const SupportAgentWorkflow = meta.story({
       "Assistant message",
     ]) {
       await expect(
-        sidebar.getAllByRole("button", { name }).length,
+        (await sidebar.findAllByRole("button", { name })).length,
       ).toBeGreaterThan(0);
     }
     await expect(
-      sidebar.getByRole("button", { name: "tool: Get order" }),
+      await sidebar.findByRole("button", { name: "tool: Get order" }),
     ).toBeInTheDocument();
     await expect(
       sidebar.getByRole("textbox", { name: "Search messages and tools" }),
     ).toBeEnabled();
     await expect(
-      within(canvas.getByLabelText("Session conversation timeline")).getByText(
-        /Hi, I just noticed order #LF-20481/,
-      ),
+      await within(
+        canvas.getByLabelText("Session conversation timeline"),
+      ).findByText(/Hi, I just noticed order #LF-20481/),
     ).toBeInTheDocument();
     await expect(
-      within(canvas.getByLabelText("Session conversation timeline")).getByText(
-        /Your shipping address has been updated/,
-      ),
+      await within(
+        canvas.getByLabelText("Session conversation timeline"),
+      ).findByText(/Your shipping address has been updated/),
     ).toBeInTheDocument();
     const timeline = within(
       canvas.getByLabelText("Session conversation timeline"),
@@ -384,24 +384,26 @@ export const MultipleTraces = meta.story({
   play: async ({ canvasElement }) => {
     const sidebar = within(within(canvasElement).getByRole("complementary"));
     await expect(
-      sidebar.getByRole("button", { name: "User message" }),
+      await sidebar.findByRole("button", { name: "User message" }),
     ).toBeInTheDocument();
     await expect(
-      sidebar.getByRole("button", { name: "Assistant message" }),
+      await sidebar.findByRole("button", { name: "Assistant message" }),
     ).toBeInTheDocument();
     await expect(
-      sidebar.getByRole("button", { name: "1 First turn" }),
+      await sidebar.findByRole("button", { name: "1 First turn" }),
     ).toBeInTheDocument();
     await expect(
-      sidebar.getByRole("button", { name: "2 Next turn" }),
+      await sidebar.findByRole("button", { name: "2 Next turn" }),
     ).toBeInTheDocument();
     const canvas = within(
       within(canvasElement).getByLabelText("Session conversation timeline"),
     );
     await expect(
-      canvas.getByText("Can you check my order?"),
+      await canvas.findByText("Can you check my order?"),
     ).toBeInTheDocument();
-    await expect(canvas.getByText("I'll look it up.")).toBeInTheDocument();
+    await expect(
+      await canvas.findByText("I'll look it up."),
+    ).toBeInTheDocument();
   },
 });
 export const SearchMatchingMessages = meta.story({
@@ -409,6 +411,9 @@ export const SearchMatchingMessages = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const sidebar = within(canvas.getByRole("complementary"));
+    await sidebar.findByRole("button", { name: "User message" });
+    const timeline = canvas.getByLabelText("Session conversation timeline");
+    await within(timeline).findByText("I'll look it up.");
     await userEvent.type(sidebar.getByRole("textbox"), "ORDER");
     await expect(
       sidebar.getByRole("button", { name: "User message" }),
@@ -424,7 +429,6 @@ export const SearchMatchingMessages = meta.story({
         "I'll look it up.",
       ),
     ).toBeInTheDocument();
-    const timeline = canvas.getByLabelText("Session conversation timeline");
     await waitFor(async () => {
       await expect(
         Array.from(CSS.highlights.values())
@@ -441,6 +445,23 @@ export const SearchMatchingMessages = meta.story({
           .filter((range) => timeline.contains(range.startContainer)),
       ).toHaveLength(0);
     });
+    await userEvent.type(sidebar.getByRole("textbox"), "no-such-message");
+    await expect(
+      await sidebar.findByText("No matching turns"),
+    ).toBeInTheDocument();
+    await expect(
+      within(timeline).getByText("I'll look it up."),
+    ).toBeInTheDocument();
+    await userEvent.clear(sidebar.getByRole("textbox"));
+    await expect(
+      await sidebar.findByRole("button", { name: "User message" }),
+    ).toBeInTheDocument();
+    await expect(
+      await sidebar.findByRole("button", { name: "Assistant message" }),
+    ).toBeInTheDocument();
+    await expect(
+      sidebar.queryByText("No matching turns"),
+    ).not.toBeInTheDocument();
   },
 });
 export const ClearPendingSearch = meta.story({
@@ -489,24 +510,5 @@ export const PendingSearch = meta.story({
         "Can you check my order?",
       ),
     ).toBeInTheDocument();
-  },
-});
-export const SearchMessages = meta.story({
-  name: "(Test) Searches Sidebar Messages",
-  args: { workflowTraces: supportAgentWorkflow },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const sidebar = within(canvas.getByRole("complementary"));
-    await userEvent.type(sidebar.getByRole("textbox"), "no-such-message");
-    await expect(sidebar.getByText("No matching turns")).toBeInTheDocument();
-    await expect(
-      within(canvas.getByLabelText("Session conversation timeline")).getByText(
-        /Hi, I just noticed order #LF-20481/,
-      ),
-    ).toBeInTheDocument();
-    await userEvent.clear(sidebar.getByRole("textbox"));
-    await expect(
-      sidebar.queryByText("No matching turns"),
-    ).not.toBeInTheDocument();
   },
 });

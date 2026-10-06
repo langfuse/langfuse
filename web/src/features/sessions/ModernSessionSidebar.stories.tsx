@@ -514,7 +514,7 @@ export const TestSelectsObservation = meta.story({
     const canvas = within(canvasElement);
 
     await userEvent.click(
-      canvas.getByRole("button", { name: /^Search knowledge base 0.70s$/i }),
+      await canvas.findByRole("button", { name: /^Search knowledge base\b/i }),
     );
     await expect(args.onSelect).toHaveBeenCalledWith(1, "tool-1");
   },

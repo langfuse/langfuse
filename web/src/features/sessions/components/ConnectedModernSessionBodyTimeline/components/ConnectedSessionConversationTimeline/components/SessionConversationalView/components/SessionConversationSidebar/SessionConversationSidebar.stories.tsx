@@ -285,7 +285,9 @@ export const GroupedTools = meta.story({
     ).not.toBeInTheDocument();
     await userEvent.hover(group);
     await expect(
-      within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+      within(canvasElement.ownerDocument.body).findByRole("tooltip", {
+        name: /read_file.*apply_patch/s,
+      }),
     ).resolves.toHaveTextContent("read_file apply_patch");
     await userEvent.click(group);
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:0");

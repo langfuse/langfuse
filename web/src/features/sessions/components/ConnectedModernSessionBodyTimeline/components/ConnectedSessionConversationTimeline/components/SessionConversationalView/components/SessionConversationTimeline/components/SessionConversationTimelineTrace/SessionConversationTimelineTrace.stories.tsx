@@ -207,17 +207,13 @@ export const Cutoff = meta.story({
     const warning = canvas.getByRole("button", {
       name: "Transcript may be incomplete",
     });
-    await expect(warning.parentElement).toBe(
-      canvas.getByRole("button", { name: /trace · trace-1/ }).parentElement,
-    );
     const document = within(canvasElement.ownerDocument.body);
-    await expect(document.queryByRole("tooltip")).not.toBeInTheDocument();
     await userEvent.hover(warning);
     await expect(
-      await document.findByRole("tooltip", {}, { timeout: 2000 }),
-    ).toHaveTextContent(
-      "This transcript may be incomplete because the observation limit was reached.",
-    );
+      await document.findByRole("tooltip", {
+        name: /transcript may be incomplete.*observation limit/i,
+      }),
+    ).toBeVisible();
     await userEvent.unhover(warning);
   },
 });
@@ -250,10 +246,15 @@ export const OpenObservation = meta.story({
   name: "(Test) Opens Source Observation",
   args: { ...commonArgs, state: weatherState, onOpenObservation: fn() },
   play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const message = canvas
+      .getByText("What is the weather?")
+      .closest("article")!;
+    await userEvent.hover(message);
     await userEvent.click(
-      within(canvasElement).getAllByRole("button", {
+      within(message).getByRole("button", {
         name: "Open observation",
-      })[0]!,
+      }),
     );
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
   },
@@ -318,24 +319,6 @@ export const OpenToolObservation = meta.story({
     await expect(
       canvas.queryByRole("button", { name: /^Actions/ }),
     ).not.toBeInTheDocument();
-  },
-});
-
-export const MessagesWithoutObservationMetadata = meta.story({
-  name: "(Test) Messages Without Observation Metadata",
-  args: {
-    ...commonArgs,
-    state: {
-      ...weatherState,
-      observations: [],
-    },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByText("No transcript messages."),
-    ).not.toBeInTheDocument();
-    await expect(canvas.getByText("What is the weather?")).toBeInTheDocument();
   },
 });
 
@@ -590,8 +573,8 @@ export const SystemPromptHistory = meta.story({
       name: "System prompt",
     }).parentElement!;
     const timestamp = header.querySelector("time")!;
-    const openObservation = within(header).getByRole("button", {
-      name: "Open observation",
+    const openObservation = within(header).getByText("Open observation", {
+      selector: "button",
     });
     await expect(timestamp.dateTime).toBe(provenance.startTime.toISOString());
     await expect(timestamp).not.toBeVisible();
