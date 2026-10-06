@@ -505,13 +505,23 @@ const Integrations = (props: { projectId: string }) => {
               Resolve media referenced by s3:// URIs from your own Amazon S3 or
               S3-compatible bucket.
             </p>
-            <ActionButton
-              variant="secondary"
-              hasAccess={hasAccess}
-              href={`/project/${props.projectId}/settings/integrations/external-media-storage`}
-            >
-              Configure
-            </ActionButton>
+            <div className="flex items-center gap-2">
+              <ActionButton
+                variant="secondary"
+                hasAccess={hasAccess}
+                href={`/project/${props.projectId}/settings/integrations/external-media-storage`}
+              >
+                Configure
+              </ActionButton>
+              <Button asChild variant="ghost">
+                <Link
+                  href="https://langfuse.com/docs/observability/features/multi-modality#external-s3-media"
+                  target="_blank"
+                >
+                  Integration Docs ↗
+                </Link>
+              </Button>
+            </div>
           </Card>
         ) : null}
 
