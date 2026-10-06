@@ -39,7 +39,7 @@ export function useEvaluatorSamplePageContext({
       });
     }
 
-    return registerInAppAgentPageContext(
+    const unregister = registerInAppAgentPageContext(
       projectId,
       `evaluator-sample:${evaluatorId}`,
       [
@@ -55,6 +55,9 @@ export function useEvaluatorSamplePageContext({
         },
       ],
     );
+    return () => {
+      unregister();
+    };
   }, [
     evaluatorId,
     observationId,
