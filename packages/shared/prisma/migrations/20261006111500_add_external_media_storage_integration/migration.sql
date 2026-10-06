@@ -17,10 +17,8 @@ CREATE TABLE "external_media_storage_integrations" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "external_media_storage_integrations_pkey" PRIMARY KEY ("project_id")
+    CONSTRAINT "external_media_storage_integrations_pkey" PRIMARY KEY ("project_id"),
+    CONSTRAINT "external_media_storage_integrations_project_id_fkey"
+        FOREIGN KEY ("project_id") REFERENCES "projects"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
 );
-
-ALTER TABLE "external_media_storage_integrations"
-ADD CONSTRAINT "external_media_storage_integrations_project_id_fkey"
-FOREIGN KEY ("project_id") REFERENCES "projects"("id")
-ON DELETE CASCADE ON UPDATE CASCADE;
