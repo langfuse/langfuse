@@ -53,7 +53,9 @@ async function expectMediaParity(json: string): Promise<void> {
     try {
       // Assert at the NAPI boundary. Running the late TS detector here could
       // repair a missed extraction and let a broken native implementation pass.
-      expect(JSON.parse(batch.json())).toEqual(payload.input);
+      const compact = batch.json();
+      expect(JSON.parse(compact)).toEqual(payload.input);
+      if (batch.media.length === 0) expect(compact).toBe(json);
       const actualBodies: MediaBody[] = [];
       for (const media of batch.media) {
         const bytes = await batch.mediaBody(media.index);
@@ -80,12 +82,14 @@ describe(
     it.each([
       '{"type":"file","mediaType":"image/png","data":"YWJj","data":"ZGVm"}',
       '{"type":"other","type":"file","mediaType":"text/plain","mediaType":"image/png","data":"ZGVm"}',
-      '{"inline_data":{"mime_type":"image/png","data":"YWJj"},"inline_data":{"mime_type":"image/png","data":"ZGVm"}}',
+      '{"inline_data":{"mime_type":"image/png","data":"YWJj"},"inline_data":{"mime_type":"image/png","data":"YWJj","data":"ZGVm"}}',
       '{"inline_data":{"mime_type":"image/png","mimeType":"text/plain","data":"ZGVm"}}',
       '{"inline_data":{"mime_type":null,"mimeType":"image/png","data":"ZGVm"}}',
       '{"inlineData":{"mime_type":null,"mimeType":"image/png","data":"ZGVm"}}',
       '{"type":1,"payload":{"type":"file","mediaType":42,"input":"data:image/png;base64,aGk="}}',
       '{"type":"file","mediaType":42,"data":"aGk="}',
+      '{"type":"file","mediaType":"image/png","data":42,"image":"aGk="}',
+      '{"type":"file","mediaType":"image/png","data":"YWJj","image":"aGk="}',
       JSON.stringify({
         type: "file",
         mediaType: "image/png",
@@ -102,7 +106,7 @@ describe(
     );
 
     it("matches Node decoding at Base64 length and padding boundaries", async () => {
-      for (let length = 1; length <= 20; length++) {
+      for (let length = 0; length <= 20; length++) {
         for (let padding = 0; padding <= 3; padding++) {
           const data = "A".repeat(length) + "=".repeat(padding);
           await expectMediaParity(

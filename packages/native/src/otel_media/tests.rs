@@ -67,49 +67,6 @@ fn validates_and_extracts_data_uri_without_parsing_a_value_tree() {
 }
 
 #[test]
-fn restarts_data_uri_detection_after_malformed_prefixes() {
-    for prefix in ["data:malformed@", "data:broken ", "data:bad,", "data:"] {
-        let input = json!({"input": format!("{prefix}data:image/png;base64,aGk=")});
-        let result = extract_media(&serde_json::to_vec(&input).unwrap()).unwrap();
-        assert_eq!(result.media.len(), 1, "prefix: {prefix}");
-        assert_eq!(result.media[0].decode().unwrap(), b"hi");
-        let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
-        assert_eq!(
-            compact["input"],
-            format!("{prefix}{}", result.media[0].reference)
-        );
-    }
-    let input = json!({"input": "data: ".repeat(10_000)});
-    let source = serde_json::to_vec(&input).unwrap();
-    let result = extract_media(&source).unwrap();
-    assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, source);
-}
-
-#[test]
-fn structured_media_uses_the_last_duplicate_field_like_json_parse() {
-    for input in [
-        r#"{"type":"file","mediaType":"image/png","data":"YWJj","data":"ZGVm"}"#,
-        r#"{"type":"other","type":"file","mediaType":"text/plain","mediaType":"image/png","data":"ZGVm"}"#,
-        r#"{"inline_data":{"mime_type":"image/png","data":"YWJj"},"inline_data":{"mime_type":"image/png","data":"YWJj","data":"ZGVm"}}"#,
-        r#"{"inline_data":{"mime_type":"image/png","mimeType":"text/plain","data":"ZGVm"}}"#,
-        r#"{"inline_data":{"mime_type":null,"mimeType":"image/png","data":"ZGVm"}}"#,
-    ] {
-        let result = extract_media(input.as_bytes()).unwrap();
-        assert_eq!(result.media.len(), 1, "{input}");
-        assert_eq!(result.media[0].decode().unwrap(), b"def");
-        assert_eq!(result.media[0].content_type, "image/png");
-        let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
-        let stored = if compact.get("inline_data").is_some() {
-            &compact["inline_data"]["data"]
-        } else {
-            &compact["data"]
-        };
-        assert_eq!(stored, &json!(result.media[0].reference));
-    }
-}
-
-#[test]
 fn nested_otlp_map_keys_stay_structural() {
     let uri = data_uri(b"nested-map");
     let attributes = json!([{"key": "metadata", "value": {"arrayValue": {"values": [
@@ -279,31 +236,6 @@ fn matches_data_uri_parameter_validation() {
     let result = extract_media(invalid).expect("valid JSON");
     assert!(result.media.is_empty());
     assert_eq!(result.compact_json, invalid);
-}
-
-#[test]
-fn accepts_the_base64_padding_that_node_accepts() {
-    for encoded in ["A=", "A==", "=="] {
-        for input in [
-            json!({"input": format!("data:image/png;base64,{encoded}")}),
-            json!({"type": "file", "mediaType": "image/png", "data": encoded}),
-        ] {
-            let source = serde_json::to_vec(&input).unwrap();
-            let result = extract_media(&source).unwrap();
-            assert!(result.media.is_empty(), "zero-byte media: {input}");
-            assert_eq!(result.compact_json, source);
-        }
-    }
-    for (encoded, decoded) in [("aGk", b"hi".as_slice()), ("AAAA==", &[0, 0, 0])] {
-        for input in [
-            json!({"input": format!("data:image/png;base64,{encoded}")}),
-            json!({"type": "file", "mediaType": "image/png", "data": encoded}),
-        ] {
-            let result = extract_media(&serde_json::to_vec(&input).unwrap()).unwrap();
-            assert_eq!(result.media.len(), 1, "{input}");
-            assert_eq!(result.media[0].decode().unwrap(), decoded);
-        }
-    }
 }
 
 #[test]

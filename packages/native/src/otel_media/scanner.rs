@@ -66,7 +66,11 @@ struct ObjectField {
 
 #[derive(Clone, Debug)]
 struct StructuredShape {
-    property: String,
+    token_range: Range<usize>,
+    // Keep the selected outer field and its already-parsed children so reference
+    // collection skips exactly the media token, including with duplicate keys.
+    outer_start: usize,
+    nested_fields: Vec<ObjectField>,
     content_type: String,
     kind: MediaPayloadKind,
 }
@@ -241,7 +245,7 @@ impl<'a> Extractor<'a> {
                         if self.pending_ambiguity.is_some() {
                             return Ok(end);
                         }
-                        self.discover_structured(&fields, &shape)?;
+                        self.discover_structured(&shape)?;
                         return Ok(end);
                     }
                 }
@@ -325,40 +329,13 @@ impl<'a> Extractor<'a> {
         shape: &StructuredShape,
         depth: usize,
     ) -> Result<(), EarlyMediaError> {
-        let (outer_key, inner_key) = shape
-            .property
-            .split_once('.')
-            .map_or((shape.property.as_str(), None), |(outer, inner)| {
-                (outer, Some(inner))
-            });
-        let selected_outer = fields.iter().rev().find(|field| field.key == outer_key);
-
         for field in fields {
-            if selected_outer.is_some_and(|selected| {
-                selected.value_start == field.value_start && selected.value_end == field.value_end
-            }) {
-                continue;
+            if field.value_start != shape.outer_start {
+                self.discover_value(field.value_start, depth + 1, MediaScanMode::Disabled)?;
             }
-            self.discover_value(field.value_start, depth + 1, MediaScanMode::Disabled)?;
         }
-
-        if let (Some(inner_key), Some(selected_outer)) = (inner_key, selected_outer) {
-            let inline_fields = self.object_fields(
-                selected_outer.value_start,
-                selected_outer.value_end,
-                depth + 1,
-            )?;
-            let selected_inner = inline_fields
-                .iter()
-                .rev()
-                .find(|field| field.key == inner_key);
-            for field in &inline_fields {
-                if selected_inner.is_some_and(|selected| {
-                    selected.value_start == field.value_start
-                        && selected.value_end == field.value_end
-                }) {
-                    continue;
-                }
+        for field in &shape.nested_fields {
+            if field.value_start != shape.token_range.start {
                 self.discover_value(field.value_start, depth + 2, MediaScanMode::Disabled)?;
             }
         }
@@ -505,34 +482,8 @@ impl<'a> Extractor<'a> {
         Ok(())
     }
 
-    fn discover_structured(
-        &mut self,
-        fields: &[ObjectField],
-        shape: &StructuredShape,
-    ) -> Result<(), EarlyMediaError> {
-        let token_range = if let Some((outer, inner)) = shape.property.split_once('.') {
-            let Some(field) = fields.iter().rev().find(|field| field.key == outer) else {
-                return Ok(());
-            };
-            let Ok(inline_fields) = self.object_fields(field.value_start, field.value_end, 0)
-            else {
-                return Ok(());
-            };
-            let Some(inline_field) = inline_fields.iter().rev().find(|field| field.key == inner)
-            else {
-                return Ok(());
-            };
-            inline_field.value_start..inline_field.value_end
-        } else {
-            let Some(field) = fields
-                .iter()
-                .rev()
-                .find(|field| field.key == shape.property)
-            else {
-                return Ok(());
-            };
-            field.value_start..field.value_end
-        };
+    fn discover_structured(&mut self, shape: &StructuredShape) -> Result<(), EarlyMediaError> {
+        let token_range = &shape.token_range;
         let input = self.input;
         let Some(encoded_token) = input.get(token_range.clone()) else {
             return Ok(());
@@ -568,7 +519,7 @@ impl<'a> Extractor<'a> {
         if valid.is_none() {
             return Ok(());
         }
-        let raw_range = self.map_string_boundaries(&token_range, &[0, content.len()])?;
+        let raw_range = self.map_string_boundaries(token_range, &[0, content.len()])?;
         self.register_candidate(
             content.as_bytes(),
             &shape.content_type,
@@ -819,56 +770,31 @@ impl<'a> Extractor<'a> {
             })
         };
 
-        let type_name = string("type")?;
-        let shape = match type_name.as_deref() {
-            Some("base64") => match (string("media_type")?, field("data")) {
-                (Some(content_type), Some(data)) if self.is_string(data) => Some(StructuredShape {
-                    property: "data".to_owned(),
-                    content_type,
-                    kind: MediaPayloadKind::Anthropic,
-                }),
-                _ => None,
-            },
-            Some("media") => match (string("mime_type")?, field("data")) {
-                (Some(content_type), Some(data)) if self.is_string(data) => Some(StructuredShape {
-                    property: "data".to_owned(),
-                    content_type,
-                    kind: MediaPayloadKind::Vertex,
-                }),
-                _ => None,
-            },
-            Some("blob") => match (string("mime_type")?, field("content")) {
-                (Some(content_type), Some(content)) if self.is_string(content) => {
-                    Some(StructuredShape {
-                        property: "content".to_owned(),
-                        content_type,
-                        kind: MediaPayloadKind::AiSdkV7,
-                    })
-                }
-                _ => None,
-            },
-            Some("file") => {
-                let content_type = string("mediaType")?;
-                let property = field("data")
+        let provider = match string("type")?.as_deref() {
+            Some("base64") => Some(("media_type", field("data"), MediaPayloadKind::Anthropic)),
+            Some("media") => Some(("mime_type", field("data"), MediaPayloadKind::Vertex)),
+            Some("blob") => Some(("mime_type", field("content"), MediaPayloadKind::AiSdkV7)),
+            Some("file") => Some((
+                "mediaType",
+                field("data")
                     .filter(|field| self.is_string(field))
-                    .map(|_| "data")
-                    .or_else(|| {
-                        field("image")
-                            .filter(|field| self.is_string(field))
-                            .map(|_| "image")
-                    });
-                content_type
-                    .zip(property)
-                    .map(|(content_type, property)| StructuredShape {
-                        property: property.to_owned(),
-                        content_type,
-                        kind: MediaPayloadKind::AiSdkV6,
-                    })
-            }
+                    .or_else(|| field("image")),
+                MediaPayloadKind::AiSdkV6,
+            )),
             _ => None,
         };
-        if shape.is_some() {
-            return Ok(shape);
+        if let Some((mime_key, Some(data), kind)) = provider {
+            if let Some(content_type) = string(mime_key)? {
+                if self.is_string(data) {
+                    return Ok(Some(StructuredShape {
+                        token_range: data.value_start..data.value_end,
+                        outer_start: data.value_start,
+                        nested_fields: Vec::new(),
+                        content_type,
+                        kind,
+                    }));
+                }
+            }
         }
 
         for key in ["inline_data", "inlineData"] {
@@ -895,7 +821,9 @@ impl<'a> Extractor<'a> {
             };
             if self.is_string(data) {
                 return Ok(Some(StructuredShape {
-                    property: format!("{key}.data"),
+                    token_range: data.value_start..data.value_end,
+                    outer_start: inline_start,
+                    nested_fields: inline_fields,
                     content_type,
                     kind: MediaPayloadKind::Gemini,
                 }));
@@ -904,7 +832,7 @@ impl<'a> Extractor<'a> {
         Ok(None)
     }
 
-    fn is_string(&mut self, field: &ObjectField) -> bool {
+    fn is_string(&self, field: &ObjectField) -> bool {
         self.input.get(field.value_start) == Some(&b'"')
     }
 
