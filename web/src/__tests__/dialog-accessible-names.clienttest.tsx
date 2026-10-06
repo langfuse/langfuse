@@ -65,11 +65,15 @@ describe("V4IntroDialog", () => {
 
     // The dialog is dismissed through its footer action. The title is an `h2`,
     // so `[&>div:last-child]:hidden` still resolves to the close wrapper.
-    const closeWrapper = screen
-      .getByRole("dialog")
-      .querySelector(":scope > div:last-child");
+    const dialog = screen.getByRole("dialog");
+    // DialogContent carries the suppressing class from V4IntroDialog — this
+    // is the discriminating assertion: `DialogContent` itself also adds
+    // `[&:has(.dialog-header)]:hidden` to the close-wrapper element, so
+    // checking the wrapper's own className would pass even without the fix.
+    expect(dialog.className).toContain("[&>div:last-child]:hidden");
+    // The close wrapper is still the last child (the selector still resolves).
+    const closeWrapper = dialog.querySelector(":scope > div:last-child");
     expect(closeWrapper?.querySelector("button")).not.toBeNull();
-    expect(closeWrapper?.className).toContain("hidden");
   });
 });
 
