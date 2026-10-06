@@ -184,6 +184,9 @@ export const MixpanelIntegrationProcessingEventSchema = z.object({
 });
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
+  // Optional while jobs from the previous one-integration-per-project
+  // contract drain during rolling deployments.
+  integrationId: z.string().optional(),
 });
 export const ExperimentCreateEventSchema = z.object({
   projectId: z.string(),
