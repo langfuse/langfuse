@@ -28,6 +28,7 @@ import {
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { env } from "../../env";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Job, Queue } from "bullmq";
 import {
   processAddObservationsToQueue,
@@ -133,18 +134,22 @@ async function processActionChunk(
         break;
 
       case "score-delete":
-        logger.info(
-          `Batch deleting ${chunkIds.length} scores in project ${projectId} requested by user ${userId ?? "unknown"}`,
-          { projectId, scoreIds: chunkIds, actorType: "USER", userId },
-        );
+        if (sharedEnv.LANGFUSE_LOG_DELETION_ACTORS === "true") {
+          logger.info(
+            `Batch deleting ${chunkIds.length} scores in project ${projectId} requested by user ${userId ?? "unknown"}`,
+            { projectId, scoreIds: chunkIds, actorType: "USER", userId },
+          );
+        }
         await processClickhouseScoreDelete(projectId, chunkIds);
         break;
 
       case "dataset-delete":
-        logger.info(
-          `Batch deleting ${chunkIds.length} datasets in project ${projectId} requested by user ${userId ?? "unknown"}`,
-          { projectId, datasetIds: chunkIds, actorType: "USER", userId },
-        );
+        if (sharedEnv.LANGFUSE_LOG_DELETION_ACTORS === "true") {
+          logger.info(
+            `Batch deleting ${chunkIds.length} datasets in project ${projectId} requested by user ${userId ?? "unknown"}`,
+            { projectId, datasetIds: chunkIds, actorType: "USER", userId },
+          );
+        }
         await processDeleteDatasets(projectId, chunkIds);
         break;
 

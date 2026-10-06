@@ -13,6 +13,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
 import { processPostgresTraceDelete } from "../features/traces/processPostgresTraceDelete";
 import { env } from "../env";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 export const traceDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.TraceDelete]>,
@@ -26,7 +27,7 @@ export const traceDeleteProcessor: Processor = async (
   const actor =
     "actor" in job.data.payload ? job.data.payload.actor : undefined;
 
-  if (actor) {
+  if (actor && sharedEnv.LANGFUSE_LOG_DELETION_ACTORS === "true") {
     // The job may also pick up pending deletions requested by other actors;
     // the actor applies to the trace ids from this event only.
     logger.info(

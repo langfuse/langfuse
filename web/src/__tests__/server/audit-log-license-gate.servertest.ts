@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   cloudRegion: undefined as string | undefined,
   licenseKey: undefined as string | undefined,
+  logDeletionActors: "false" as "true" | "false",
 }));
 
 // Exercise the real gate rather than mocking it away: spread the real env and
@@ -18,6 +19,20 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
         if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
           return mocks.cloudRegion;
         if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
+        return Reflect.get(target, prop);
+      },
+    }),
+  };
+});
+
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const original = (await importOriginal()) as { env: Record<string, unknown> };
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, prop) => {
+        if (prop === "LANGFUSE_LOG_DELETION_ACTORS")
+          return mocks.logDeletionActors;
         return Reflect.get(target, prop);
       },
     }),
@@ -43,6 +58,7 @@ describe("audit log license gate", () => {
   beforeEach(async () => {
     mocks.cloudRegion = undefined;
     mocks.licenseKey = undefined;
+    mocks.logDeletionActors = "false";
 
     const org = await createOrgProjectAndApiKey();
     orgId = org.orgId;
@@ -125,6 +141,7 @@ describe("audit log license gate", () => {
     // The actor log line is operator telemetry, not the audited record: it
     // carries ids only (no before/after diff) and is the sole actor trail for
     // mutations that have no parallel logger call of their own.
+    mocks.logDeletionActors = "true";
     const info = vi.spyOn(logger, "info");
 
     expect(await auditAllActorShapes()).toBe(0);
@@ -133,5 +150,19 @@ describe("audit log license gate", () => {
       String(message).startsWith("Audit log: job."),
     );
     expect(actorLines).toHaveLength(3);
+  });
+
+  it("skips actor lines for deletes unless LANGFUSE_LOG_DELETION_ACTORS is enabled", async () => {
+    const info = vi.spyOn(logger, "info");
+
+    await auditAllActorShapes();
+
+    const actorLines = info.mock.calls
+      .map(([message]) => String(message))
+      .filter((message) => message.startsWith("Audit log: job."));
+    expect(actorLines).toHaveLength(2);
+    expect(actorLines.some((m) => m.startsWith("Audit log: job.delete"))).toBe(
+      false,
+    );
   });
 });

@@ -291,6 +291,9 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
+  // Logs who requested each deletion (trace, score, dataset, and audited
+  // deletes). Off by default because high-volume deletes flood the logs.
+  LANGFUSE_LOG_DELETION_ACTORS: z.enum(["true", "false"]).default("false"),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()

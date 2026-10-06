@@ -16,6 +16,7 @@ import {
   shouldSkipDeletionFor,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 
@@ -389,18 +390,27 @@ export const processTraceDeleteBatchAction = async ({
         });
       }
 
-      logger.info(
-        `Processing trace delete batch action page requested by user ${batchAction.userId}`,
-        {
+      if (sharedEnv.LANGFUSE_LOG_DELETION_ACTORS === "true") {
+        logger.info(
+          `Processing trace delete batch action page requested by user ${batchAction.userId}`,
+          {
+            batchActionId,
+            projectId: batchAction.projectId,
+            source: state.config.source,
+            traceCount: inFlightBatch.traceIds.length,
+            traceIds: inFlightBatch.traceIds,
+            actorType: "USER",
+            userId: batchAction.userId,
+          },
+        );
+      } else {
+        logger.info("Processing trace delete batch action page", {
           batchActionId,
           projectId: batchAction.projectId,
           source: state.config.source,
           traceCount: inFlightBatch.traceIds.length,
-          traceIds: inFlightBatch.traceIds,
-          actorType: "USER",
-          userId: batchAction.userId,
-        },
-      );
+        });
+      }
 
       if (
         await shouldSkipDeletion(
