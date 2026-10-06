@@ -88,7 +88,14 @@ Summaries snapshot source environment and trace name; assignments copy that
 snapshot, including empty environment strings. Reprocessing refreshes metadata
 even when text is reused; session results have no trace name.
 
-The summary model is selected with `LANGFUSE_TOPICS_SUMMARY_MODEL`. Topic
+The summary model is selected with `LANGFUSE_TOPICS_SUMMARY_MODEL`. Use
+`us.openai.gpt-6-luna` for US routing or `global.openai.gpt-6-luna` for global
+routing; GPT-6 Luna has no EU geographic profile. Both support the existing
+Bedrock Converse tool-based structured output with reasoning disabled.
+Summary cost estimates include both GPT-6 Luna profiles and the existing
+`us.openai.gpt-5.6-luna` profile. See the
+[GPT-6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html)
+for supported source regions and pricing. Topic
 naming uses `us.openai.gpt-5.6-terra` through Bedrock Converse with reasoning
 disabled. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html)

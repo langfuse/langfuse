@@ -23,7 +23,13 @@ import {
 } from "./provider-error";
 
 export const TOPICS_NAMING_MODEL = "us.openai.gpt-5.6-terra";
-const TOPICS_SUMMARY_COST_MODEL = "us.openai.gpt-5.6-luna";
+// Summary inputs are capped below the 272k-token long-context pricing threshold.
+const TOPICS_SUMMARY_RATES: Record<string, { input: number; output: number }> =
+  {
+    "us.openai.gpt-5.6-luna": { input: 0.2, output: 1.2 },
+    "us.openai.gpt-6-luna": { input: 0.11, output: 0.55 },
+    "global.openai.gpt-6-luna": { input: 0.1, output: 0.5 },
+  };
 const TOPICS_EMBEDDING_COST_MODELS = new Set([
   "us.cohere.embed-v4:0",
   "eu.cohere.embed-v4:0",
@@ -96,7 +102,7 @@ async function structuredCall<T>(
           input: tokens > 272_000 ? 4 : 2,
           output: tokens > 272_000 ? 18 : 12,
         }
-      : { input: 0.2, output: 1.2 };
+      : TOPICS_SUMMARY_RATES[model];
   const result = await generateTopicText({
     ...connection,
     model,
@@ -110,10 +116,7 @@ async function structuredCall<T>(
     });
     throw topicProviderError(error);
   });
-  const actualRates =
-    stage === "naming" || model === TOPICS_SUMMARY_COST_MODEL
-      ? rates(result.usage.inputTokens ?? inputLimit)
-      : null;
+  const actualRates = rates(result.usage.inputTokens ?? inputLimit);
   recordTopicTokenUsage(stage, {
     input: result.usage.inputTokens,
     output: result.usage.outputTokens,

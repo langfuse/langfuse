@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   embed: vi.fn(),
   increment: vi.fn(),
   region: vi.fn(),
+  summaryModel: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
   getLangfuseAIAwsProfile: () => "ai-test",
@@ -14,7 +15,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicsModelConfig: () => ({
-    summaryModel: "us.openai.gpt-5.6-luna",
+    summaryModel: state.summaryModel(),
     embeddingModel: "eu.cohere.embed-v4:0",
   }),
   generateTopicText: (...args: unknown[]) => state.call(...args),
@@ -49,47 +50,56 @@ beforeEach(() => {
   state.embed.mockReset();
   state.increment.mockReset();
   state.region.mockReset().mockReturnValue("eu-west-1");
+  state.summaryModel.mockReset().mockReturnValue("us.openai.gpt-5.6-luna");
 });
 
 describe("Topics naming boundary", () => {
-  it("summarizes a trace for its facet without requiring citations", async () => {
-    state.call.mockResolvedValue({
-      output: { summary: "A billing request.", status: "applicable" },
-      usage: { inputTokens: 100, outputTokens: 30 },
-    });
-    const result = await summarizeTopicTrace(
-      facet,
-      "RAW_TRANSCRIPT_SENTINEL",
-      topicProcessingConfigSchema.parse({
-        summaryModel: "us.openai.gpt-5.6-luna",
-      }),
-    );
-    expect(result.output).toEqual({
-      summary: "A billing request.",
-      status: "applicable",
-    });
-    expect(result.providedUsageDetails).toEqual({
-      summary_input: 100,
-      summary_output: 30,
-    });
-    expect(result.usageDetails).toEqual({
-      summary_input: 100,
-      summary_output: 30,
-      total: 130,
-    });
-    expect(result.providedCostDetails).toEqual({});
-    expect(result.costDetails.summary_input).toBeCloseTo(0.00002, 10);
-    expect(result.costDetails.summary_output).toBeCloseTo(0.000036, 10);
-    expect(result.costDetails.total).toBeCloseTo(0.000056, 10);
-    const request = state.call.mock.calls[0][0];
-    expect(request).toMatchObject({
-      model: "us.openai.gpt-5.6-luna",
-      region: "eu-west-1",
-      profile: "ai-test",
-    });
-    expect(request.messages[0].content).toContain(facet.prompt);
-    expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
-  });
+  it.each([
+    ["us.openai.gpt-5.6-luna", 0.00002, 0.000036],
+    ["us.openai.gpt-6-luna", 0.000011, 0.0000165],
+    ["global.openai.gpt-6-luna", 0.00001, 0.000015],
+  ])(
+    "summarizes a trace and prices %s usage",
+    async (model, inputCost, outputCost) => {
+      state.summaryModel.mockReturnValue(model);
+      state.call.mockResolvedValue({
+        output: { summary: "A billing request.", status: "applicable" },
+        usage: { inputTokens: 100, outputTokens: 30 },
+      });
+      const result = await summarizeTopicTrace(
+        facet,
+        "RAW_TRANSCRIPT_SENTINEL",
+        topicProcessingConfigSchema.parse({
+          summaryModel: model,
+        }),
+      );
+      expect(result.output).toEqual({
+        summary: "A billing request.",
+        status: "applicable",
+      });
+      expect(result.providedUsageDetails).toEqual({
+        summary_input: 100,
+        summary_output: 30,
+      });
+      expect(result.usageDetails).toEqual({
+        summary_input: 100,
+        summary_output: 30,
+        total: 130,
+      });
+      expect(result.providedCostDetails).toEqual({});
+      expect(result.costDetails.summary_input).toBeCloseTo(inputCost, 10);
+      expect(result.costDetails.summary_output).toBeCloseTo(outputCost, 10);
+      expect(result.costDetails.total).toBeCloseTo(inputCost + outputCost, 10);
+      const request = state.call.mock.calls[0][0];
+      expect(request).toMatchObject({
+        model,
+        region: "eu-west-1",
+        profile: "ai-test",
+      });
+      expect(request.messages[0].content).toContain(facet.prompt);
+      expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
+    },
+  );
 
   it("rejects missing Bedrock configuration before calling the provider", async () => {
     state.region.mockReturnValue(undefined);
