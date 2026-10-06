@@ -2,6 +2,8 @@
 // last object of a successful run (the run's commit point), listing every file
 // written, the export window, and per-file format.
 
+import { buildBlobExportObjectPrefix } from "./objectKey";
+
 /** Bump on breaking payload changes; additive fields do not require a bump. */
 export const BLOB_EXPORT_MANIFEST_VERSION = 1;
 
@@ -36,13 +38,14 @@ export type BlobExportManifest = {
 export const formatBlobExportTimestamp = (date: Date): string =>
   date.toISOString().replace(/:/g, "-").substring(0, 19);
 
-/** `{prefix}{projectId}/manifests/{maxTimestamp}.json` — prefix-filterable per run. */
+/** Run manifest beside the integration's table-export directories. */
 export const buildBlobExportManifestKey = (params: {
   prefix?: string;
   projectId: string;
+  integrationId: string;
   maxTimestamp: Date;
 }): string =>
-  `${params.prefix ?? ""}${params.projectId}/manifests/${formatBlobExportTimestamp(
+  `${buildBlobExportObjectPrefix(params)}manifests/${formatBlobExportTimestamp(
     params.maxTimestamp,
   )}.json`;
 

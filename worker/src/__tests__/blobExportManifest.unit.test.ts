@@ -6,6 +6,7 @@ import {
   formatBlobExportTimestamp,
   type BlobExportManifestFile,
 } from "../features/blobstorage/manifest";
+import { buildBlobExportObjectPrefix } from "../features/blobstorage/objectKey";
 
 const file = (
   overrides: Partial<BlobExportManifestFile> = {},
@@ -22,6 +23,23 @@ const file = (
 });
 
 describe("blob export manifest builders (LFE-10843)", () => {
+  it("preserves legacy paths and namespaces additional integrations", () => {
+    expect(
+      buildBlobExportObjectPrefix({
+        prefix: "team/",
+        projectId: "proj",
+        integrationId: "proj",
+      }),
+    ).toBe("team/proj/");
+    expect(
+      buildBlobExportObjectPrefix({
+        prefix: "team/",
+        projectId: "proj",
+        integrationId: "integration-2",
+      }),
+    ).toBe("team/proj/integration-2/");
+  });
+
   it("strips colons from the timestamp stem and truncates to seconds", () => {
     expect(
       formatBlobExportTimestamp(new Date("2026-07-10T10:20:30.123Z")),
@@ -33,15 +51,17 @@ describe("blob export manifest builders (LFE-10843)", () => {
       buildBlobExportManifestKey({
         prefix: "team/",
         projectId: "proj",
+        integrationId: "integration-2",
         maxTimestamp: new Date("2026-07-10T10:20:30Z"),
       }),
-    ).toBe("team/proj/manifests/2026-07-10T10-20-30.json");
+    ).toBe("team/proj/integration-2/manifests/2026-07-10T10-20-30.json");
   });
 
   it("treats an absent prefix as empty", () => {
     expect(
       buildBlobExportManifestKey({
         projectId: "proj",
+        integrationId: "proj",
         maxTimestamp: new Date("2026-07-10T10:20:30Z"),
       }),
     ).toBe("proj/manifests/2026-07-10T10-20-30.json");

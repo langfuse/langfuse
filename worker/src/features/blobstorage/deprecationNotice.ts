@@ -4,15 +4,18 @@
 // enriched observations source. Written on every successful run for legacy
 // projects; new / enriched-only (EVENTS) projects never receive it.
 
+import { buildBlobExportObjectPrefix } from "./objectKey";
+
 /** Fixed file name, overwritten each run so the notice is always current. */
 export const BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME = "DEPRECATION_NOTICE.txt";
 
-/** `{prefix}{projectId}/DEPRECATION_NOTICE.txt` — fixed key, overwritten each run. */
+/** Fixed key inside the integration's export directory, overwritten each run. */
 export const buildBlobExportDeprecationNoticeKey = (params: {
   prefix?: string;
   projectId: string;
+  integrationId: string;
 }): string =>
-  `${params.prefix ?? ""}${params.projectId}/${BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME}`;
+  `${buildBlobExportObjectPrefix(params)}${BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME}`;
 
 // Migration guide for consumers of the export. Wording mirrors the public docs
 // so the notice stays consistent with what customers read there.

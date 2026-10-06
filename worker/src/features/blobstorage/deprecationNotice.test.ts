@@ -7,24 +7,39 @@ import {
 
 describe("buildBlobExportDeprecationNoticeKey", () => {
   it("nests the notice under the project directory", () => {
-    expect(buildBlobExportDeprecationNoticeKey({ projectId: "proj-1" })).toBe(
-      `proj-1/${BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME}`,
-    );
+    expect(
+      buildBlobExportDeprecationNoticeKey({
+        projectId: "proj-1",
+        integrationId: "proj-1",
+      }),
+    ).toBe(`proj-1/${BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME}`);
   });
 
-  it("prepends the integration prefix when present", () => {
+  it("namespaces additional integrations after the project", () => {
     expect(
       buildBlobExportDeprecationNoticeKey({
         prefix: "exports/",
         projectId: "proj-1",
+        integrationId: "integration-2",
       }),
-    ).toBe(`exports/proj-1/${BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME}`);
+    ).toBe(
+      `exports/proj-1/integration-2/${BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME}`,
+    );
   });
 
   it("treats an absent prefix the same as an empty one (table-file parity)", () => {
     expect(
-      buildBlobExportDeprecationNoticeKey({ prefix: "", projectId: "proj-1" }),
-    ).toBe(buildBlobExportDeprecationNoticeKey({ projectId: "proj-1" }));
+      buildBlobExportDeprecationNoticeKey({
+        prefix: "",
+        projectId: "proj-1",
+        integrationId: "proj-1",
+      }),
+    ).toBe(
+      buildBlobExportDeprecationNoticeKey({
+        projectId: "proj-1",
+        integrationId: "proj-1",
+      }),
+    );
   });
 });
 

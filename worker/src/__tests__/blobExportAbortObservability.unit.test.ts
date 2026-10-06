@@ -10,7 +10,7 @@ const errorLogs = vi.hoisted(() => [] as { msg: string; meta: unknown }[]);
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     blobStorageIntegration: {
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
       // count 1 = row still exists; 0 would signal deleted-mid-run and make
       // the handler drop the job as obsolete (LFE-14894).
@@ -77,12 +77,19 @@ function makeJob(): Job<any> {
   return {
     id: "job-1",
     attemptsMade: 0,
-    data: { id: "payload-1", payload: { projectId: "project-1" } },
+    data: {
+      id: "payload-1",
+      payload: {
+        projectId: "project-1",
+        integrationId: "integration-1",
+      },
+    },
   } as unknown as Job<any>;
 }
 
 function baseRow() {
   return {
+    id: "integration-1",
     projectId: "project-1",
     type: "S3",
     bucketName: "bucket",
@@ -111,7 +118,7 @@ describe("blob export abort observability", () => {
     incrementCalls.length = 0;
     errorLogs.length = 0;
     vi.clearAllMocks();
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
+    (prisma.blobStorageIntegration.findFirst as any).mockResolvedValue(
       baseRow(),
     );
   });

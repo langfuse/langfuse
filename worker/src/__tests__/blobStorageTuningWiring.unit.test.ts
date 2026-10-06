@@ -8,7 +8,7 @@ const uploadCalls = vi.hoisted(() => [] as any[]);
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     blobStorageIntegration: {
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
       // count 1 = row still exists; 0 would signal deleted-mid-run and make
       // the handler drop the job as obsolete (LFE-14894).
@@ -79,12 +79,19 @@ function makeJob(): Job<any> {
   return {
     id: "job-1",
     attemptsMade: 0,
-    data: { id: "payload-1", payload: { projectId: "project-1" } },
+    data: {
+      id: "payload-1",
+      payload: {
+        projectId: "project-1",
+        integrationId: "integration-1",
+      },
+    },
   } as unknown as Job<any>;
 }
 
 function baseRow(exportTuning: unknown) {
   return {
+    id: "integration-1",
     projectId: "project-1",
     type: "S3",
     bucketName: "bucket",
@@ -116,7 +123,7 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
   });
 
   it("clamps out-of-range tuning and threads it into uploadFileBuffered", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
+    (prisma.blobStorageIntegration.findFirst as any).mockResolvedValue(
       baseRow({
         partSizeBytes: 1024, // below 5 MiB floor → clamped up
         maxConcurrentParts: 50, // above 32 ceiling → clamped to 32
@@ -127,6 +134,9 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
 
     await handleBlobStorageIntegrationProjectJob(makeJob());
 
+    expect(prisma.blobStorageIntegration.findFirst).toHaveBeenCalledWith({
+      where: { projectId: "project-1", id: "integration-1" },
+    });
     expect(uploadCalls.length).toBeGreaterThan(0);
     for (const call of uploadCalls) {
       expect(call.partSizeBytes).toBe(5 * 1024 * 1024); // floor
@@ -141,7 +151,7 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
   });
 
   it("uses defaults when exportTuning is null", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
+    (prisma.blobStorageIntegration.findFirst as any).mockResolvedValue(
       baseRow(null),
     );
 
@@ -160,7 +170,7 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
   // Parquet is a first-class fileType: fileType=PARQUET routes every table
   // through the Parquet path, ignoring the compressed flag (no .gz suffix).
   it("produces .parquet files when fileType is PARQUET", async () => {
-    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
+    (prisma.blobStorageIntegration.findFirst as any).mockResolvedValue({
       ...baseRow(undefined),
       fileType: "PARQUET",
       compressed: true,

@@ -17,6 +17,7 @@ export const handleBlobStorageIntegrationSchedule = async () => {
 
   const enabledIntegrations = await prisma.blobStorageIntegration.findMany({
     select: {
+      id: true,
       lastSyncAt: true,
       nextSyncAt: true,
       exportFrequency: true,
@@ -77,13 +78,14 @@ export const handleBlobStorageIntegrationSchedule = async () => {
         timestamp: new Date(),
         payload: {
           projectId: integration.projectId,
+          integrationId: integration.id,
         },
       },
       opts: {
-        // Deduplicate by projectId + lastSyncAt so the same project isn't queued
-        // twice for the same sync window. removeOnFail ensures failed jobs are
+        // Deduplicate by integration + lastSyncAt so each destination can run
+        // independently. removeOnFail ensures failed jobs are
         // immediately cleaned up so they don't block re-queuing on the next cycle.
-        jobId: `${integration.projectId}-${integration.lastSyncAt?.toISOString() ?? ""}`,
+        jobId: `${integration.id}-${integration.lastSyncAt?.toISOString() ?? ""}`,
         removeOnFail: true,
       },
     })),
