@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { OutboundUrlValidationError } from "../outbound-url";
 import { validateExternalMediaStorageEndpoint } from "./externalMediaStorageEndpointValidation";
 
+vi.mock("../../env", () => ({
+  env: {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST: [],
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: [],
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: [],
+  },
+}));
+
 const strictWhitelist = { hosts: [], ips: [], ip_ranges: [] };
 
 describe("validateExternalMediaStorageEndpoint", () => {
