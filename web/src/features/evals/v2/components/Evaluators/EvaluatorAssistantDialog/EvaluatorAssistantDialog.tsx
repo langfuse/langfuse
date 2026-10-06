@@ -98,7 +98,7 @@ export function EvaluatorAssistantDialog({
           <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles
-                className="text-primary-accent h-4 w-4"
+                className="icon-base text-primary-accent"
                 aria-hidden="true"
               />
               {mode === "create" ? "Create with AI" : "Edit with AI"}

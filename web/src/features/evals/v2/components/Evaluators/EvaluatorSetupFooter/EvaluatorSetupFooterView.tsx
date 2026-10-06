@@ -68,7 +68,7 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
           className="w-full gap-1.5 sm:w-auto"
           onClick={props.assistantAction.onClick}
         >
-          <WandSparkles className="h-4 w-4" aria-hidden="true" />
+          <WandSparkles className="icon-base" aria-hidden="true" />
           {props.assistantAction.label}
         </Button>
       ) : null}
