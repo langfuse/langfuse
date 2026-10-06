@@ -1,15 +1,11 @@
 import {
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BLOB_STORAGE_REGION_REGEX,
-  BlobStorageIntegrationType,
 } from "@langfuse/shared";
 import { z } from "zod";
 
 export const externalMediaStorageFormSchema = z.object({
-  type: z.enum([
-    BlobStorageIntegrationType.S3,
-    BlobStorageIntegrationType.S3_COMPATIBLE,
-  ]),
+  type: z.enum(["S3", "S3_COMPATIBLE"]),
   bucketName: z.string().trim().min(1, "Bucket name is required"),
   endpoint: z.url().optional().nullable(),
   region: z

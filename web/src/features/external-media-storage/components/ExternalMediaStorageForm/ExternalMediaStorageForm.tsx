@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BlobStorageIntegrationType } from "@langfuse/shared";
 import { type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
@@ -41,11 +40,8 @@ export function ExternalMediaStorageForm({
     resolver: zodResolver(externalMediaStorageFormSchema),
     defaultValues: initialValues,
   });
-  const type =
-    useWatch({ control: form.control, name: "type" }) ??
-    BlobStorageIntegrationType.S3;
-  const canUseHostCredentials =
-    allowHostCredentials && type === BlobStorageIntegrationType.S3;
+  const type = useWatch({ control: form.control, name: "type" }) ?? "S3";
+  const canUseHostCredentials = allowHostCredentials && type === "S3";
 
   return (
     <Form {...form}>
@@ -63,11 +59,11 @@ export function ExternalMediaStorageForm({
                   placeholder="Select a storage provider"
                   options={[
                     {
-                      value: BlobStorageIntegrationType.S3,
+                      value: "S3",
                       label: "Amazon S3",
                     },
                     {
-                      value: BlobStorageIntegrationType.S3_COMPATIBLE,
+                      value: "S3_COMPATIBLE",
                       label: "S3 Compatible Storage",
                     },
                   ]}
@@ -93,7 +89,7 @@ export function ExternalMediaStorageForm({
           )}
         />
 
-        {type === BlobStorageIntegrationType.S3_COMPATIBLE ? (
+        {type === "S3_COMPATIBLE" ? (
           <>
             <FormField
               control={form.control}
