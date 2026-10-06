@@ -11,7 +11,7 @@ export type KeyedMessage = {
   key: string;
 };
 
-export type Contributor = Pick<
+type Contributor = Pick<
   TranscriptObservation,
   "id" | "traceId" | "type" | "nestingLevel"
 >;
