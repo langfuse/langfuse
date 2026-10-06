@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPendingCorrectionSave } from "../utils/createPendingCorrectionSave";
 
 interface UseCorrectionEditorParams {
   correctionValue: string;
@@ -23,8 +24,9 @@ export function useCorrectionEditor({
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(correctionValue);
   const [isValidJson, setIsValidJson] = useState(true);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [pendingSave] = useState(createPendingCorrectionSave);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { cancel: cancelPendingSave, flush: flushPendingSave } = pendingSave;
 
   // Sync local value with correctionValue from cache/server
   // This includes handling deletions (correctionValue becomes empty string)
@@ -122,28 +124,25 @@ export function useCorrectionEditor({
       }
       setIsValidJson(valid);
 
+      cancelPendingSave();
       // Save if valid
       if (valid) {
         setSaveStatus("saving");
 
-        // Clear existing timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-
         // Debounced save - triggers mutation (which updates cache) after 500ms
-        timeoutRef.current = setTimeout(() => {
-          onSave(newValue);
-        }, debounceMs);
+        pendingSave.schedule(() => onSave(newValue), debounceMs);
       } else {
         setSaveStatus("idle");
-        // Clear timeout if invalid
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
       }
     },
-    [onSave, setSaveStatus, debounceMs, strictJsonMode],
+    [
+      onSave,
+      setSaveStatus,
+      debounceMs,
+      strictJsonMode,
+      cancelPendingSave,
+      pendingSave,
+    ],
   );
 
   return {
@@ -153,5 +152,7 @@ export function useCorrectionEditor({
     isValidJson,
     handleEdit,
     handleChange,
+    flushPendingSave,
+    cancelPendingSave,
   };
 }

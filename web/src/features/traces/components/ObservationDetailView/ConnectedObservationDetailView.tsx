@@ -46,7 +46,11 @@ import {
 import { useRouter } from "next/router";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections";
+import {
+  selectOutputCorrections,
+  isCorrectionOutputTooLarge,
+  prepareTraceCorrectionOutput,
+} from "./correctionData";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
@@ -78,6 +82,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
+import { CorrectedOutputField } from "../IOPreview/components/CorrectedOutputField";
 import {
   InternalFeatureBadge,
   useInternalFeaturesEnabled,
@@ -113,6 +118,7 @@ export function ConnectedObservationDetailView({
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const showMessagesTab = internalFeaturesEnabled && isV4Enabled;
   const {
+    trace,
     observations,
     roots,
     nodeMap,
@@ -275,13 +281,15 @@ export function ConnectedObservationDetailView({
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
   );
-  const observationCorrections = useMemo(
-    () => corrections.filter((c) => c.observationId === observation.id),
-    [corrections, observation.id],
+  const { outputCorrection, traceOutputCorrection } = useMemo(
+    () =>
+      selectOutputCorrections(
+        corrections,
+        observation.id,
+        ownsTraceLevelScores,
+      ),
+    [corrections, observation.id, ownsTraceLevelScores],
   );
-
-  const outputCorrection = getMostRecentCorrection(observationCorrections);
-
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
   const {
@@ -298,6 +306,21 @@ export function ConnectedObservationDetailView({
     startTime: observation.startTime,
     baseObservation: observation,
   });
+
+  /** The shared footer uses the JSON viewer's character and row limits. */
+  const correctionOutputTooLarge = useMemo(
+    () =>
+      Boolean(traceOutputCorrection) &&
+      isCorrectionOutputTooLarge(observationWithIORaw?.output, parsedOutput),
+    [traceOutputCorrection, observationWithIORaw?.output, parsedOutput],
+  );
+  const traceCorrectionOutput = useMemo(
+    () =>
+      traceOutputCorrection
+        ? prepareTraceCorrectionOutput(trace.output)
+        : undefined,
+    [traceOutputCorrection, trace.output],
+  );
 
   // Type narrowing: when baseObservation is provided, result has full observation fields
   // (EventBatchIOOutput case only occurs when baseObservation is missing)
@@ -543,6 +566,7 @@ export function ConnectedObservationDetailView({
                       }
                     : undefined,
                   outputCorrection,
+                  showCorrections: !traceOutputCorrection,
                   metadata: observationWithIOCompat.data?.metadata ?? undefined,
                   parsedInput,
                   parsedOutput,
@@ -596,7 +620,29 @@ export function ConnectedObservationDetailView({
                   traceId,
                   environment: observation.environment,
                 }}
-              />
+              >
+                {traceOutputCorrection && (
+                  <CorrectedOutputField
+                    key={`${traceId}:${observation.id}`}
+                    projectId={projectId}
+                    traceId={traceId}
+                    observationId={observation.id}
+                    environment={observation.environment}
+                    actualOutput={
+                      correctionOutputTooLarge ? undefined : parsedOutput
+                    }
+                    actualOutputTooLarge={correctionOutputTooLarge}
+                    existingCorrection={outputCorrection}
+                    traceCorrection={{
+                      existingCorrection: traceOutputCorrection,
+                      actualOutput: traceCorrectionOutput?.actualOutput,
+                      actualOutputTooLarge:
+                        traceCorrectionOutput?.actualOutputTooLarge,
+                      environment: trace.environment,
+                    }}
+                  />
+                )}
+              </ObservationPreview>
             </TabsBarContent>
 
             <TabsBarContent

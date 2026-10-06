@@ -24,6 +24,8 @@ vi.mock("../hooks/useCorrectionEditor", () => ({
     isValidJson: true,
     handleEdit: vi.fn(),
     handleChange: vi.fn(),
+    flushPendingSave: vi.fn(),
+    cancelPendingSave: vi.fn(),
   }),
 }));
 
