@@ -54,7 +54,6 @@ import {
 } from "@tanstack/react-table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
-import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
@@ -781,10 +780,15 @@ function TableRefetchBar({ active }: { active: boolean }) {
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
   const ascending = orderBy.order === "ASC";
-  const Icon = ascending ? ArrowUp : ArrowDown;
   return (
     <span className="ml-1 inline-flex shrink-0 items-center">
-      <Icon className="icon-sm text-icon-foreground" aria-hidden="true" />
+      <svg
+        viewBox="0 0 24 24"
+        className="icon-base text-icon-foreground fill-current"
+        aria-hidden="true"
+      >
+        <path d={ascending ? "M7 14h10l-5-6z" : "M7 10h10l-5 6z"} />
+      </svg>
       <span className="sr-only">
         {ascending ? "sorted ascending" : "sorted descending"}
       </span>
