@@ -72,11 +72,26 @@ export const ModelCostTable = ({
     },
   );
 
-  const totalTokenCost = metrics.data?.reduce(
-    (acc, curr) =>
-      acc + (curr.sum_totalCost ? (curr.sum_totalCost as number) : 0),
-    0,
+  const total = useScheduledDashboardExecuteQuery(
+    {
+      projectId,
+      query: {
+        ...modelCostQuery,
+        dimensions: [],
+        metrics: [{ measure: "totalCost", aggregation: "sum" }],
+        orderBy: null,
+        chartConfig: undefined,
+      },
+      version: metricsVersion,
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      queryId: `${schedulerId ?? "home:model-costs"}:total`,
+      enabled: !isLoading,
+    },
   );
+  const totalTokenCost = Number(total.data?.[0]?.sum_totalCost ?? 0);
+  const isPending = isLoading || metrics.isPending || total.isPending;
 
   const metricsData = metrics.data
     ? metrics.data
@@ -109,7 +124,7 @@ export const ModelCostTable = ({
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
       title="Model costs"
-      isLoading={isLoading || metrics.isLoading}
+      isLoading={isPending}
     >
       <DashboardTable
         headers={[
@@ -118,7 +133,7 @@ export const ModelCostTable = ({
           <RightAlignedCell key="cost">USD</RightAlignedCell>,
         ]}
         rows={metricsData}
-        isLoading={isLoading || metrics.isLoading}
+        isLoading={isPending}
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
