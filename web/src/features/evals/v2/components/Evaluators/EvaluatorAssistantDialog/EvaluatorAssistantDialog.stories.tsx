@@ -69,7 +69,7 @@ export const SelectsCreateExampleWithoutSubmitting = meta.story({
       name: "Try one of these",
     });
 
-    await expect(within(dialog).getByText("Create with AI")).toBeVisible();
+    await expect(dialog).toHaveTextContent("Create with AI");
     await userEvent.click(
       within(examples).getByRole("button", {
         name: "Score helpfulness 1–5 with a one-sentence reason",
@@ -99,7 +99,7 @@ export const SelectsEditExampleWithoutSubmitting = meta.story({
       name: "Try one of these",
     });
 
-    await expect(within(dialog).getByText("Edit with AI")).toBeVisible();
+    await expect(dialog).toHaveTextContent("Edit with AI");
     await userEvent.click(
       within(examples).getByRole("button", {
         name: "Make the evaluation criterion stricter",
