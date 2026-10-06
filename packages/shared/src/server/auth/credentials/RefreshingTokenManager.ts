@@ -7,6 +7,14 @@ export interface RefreshingTokenManagerOptions {
 
 type RefreshListener = (token: ManagedAccessToken) => void;
 
+/**
+ * Renders an error for logging without its attached payload. winston serialises an
+ * Error's own enumerable properties, and credential failures carry the command that
+ * was sent or the provider's full error body, so only the message is safe to emit.
+ */
+export const describeError = (error: unknown): string =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
 const DEFAULT_EXPIRATION_REFRESH_RATIO = 0.8;
 const MIN_REFRESH_DELAY_MS = 1_000;
 const RETRY_DELAY_MS = 5_000;
@@ -80,8 +88,7 @@ export class RefreshingTokenManager {
       this.scheduleRefresh(token);
     } catch (error) {
       logger.warn(
-        `Failed to refresh ${this.provider.name} credentials, retrying in ${RETRY_DELAY_MS}ms`,
-        error,
+        `Failed to refresh ${this.provider.name} credentials, retrying in ${RETRY_DELAY_MS}ms: ${describeError(error)}`,
       );
       if (this.stopped) return;
       this.timer = setTimeout(() => {
@@ -97,8 +104,7 @@ export class RefreshingTokenManager {
         listener(token);
       } catch (error) {
         logger.warn(
-          `Managed credential refresh listener threw for ${this.provider.name}`,
-          error,
+          `Managed credential refresh listener threw for ${this.provider.name}: ${describeError(error)}`,
         );
       }
     }
