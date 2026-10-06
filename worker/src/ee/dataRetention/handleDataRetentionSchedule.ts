@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
   DataRetentionProcessingQueue,
-  logger,
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
@@ -13,9 +12,6 @@ export const handleDataRetentionSchedule = async () => {
   // either: a deployment that loses its license would otherwise keep deleting
   // data under a policy its operators can no longer reach.
   if (!isEnterpriseLicenseAvailable()) {
-    logger.info(
-      "[Data Retention] Skipping scheduling - no enterprise license available. Data retention requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).",
-    );
     return;
   }
 

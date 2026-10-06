@@ -33,9 +33,6 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   // across the restart that removes the key, so the license has to be checked
   // here as well as at scheduling time.
   if (!isEnterpriseLicenseAvailable()) {
-    logger.info(
-      `[Data Retention] Skipping project ${projectId} - no enterprise license available. Data retention requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).`,
-    );
     return;
   }
 
