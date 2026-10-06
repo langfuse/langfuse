@@ -900,6 +900,36 @@
    reason to try the wheel. This paints a thin scrollbar whenever the content
    overflows, and still nothing when it fits. `scrollbar-color` also opts
    Firefox out of overlay scrollbars, which it uses by default too. */
+/* Spaced dotted underline for values with a hover breakdown; drawn below the
+   box so it never changes layout. */
+@utility underline-dotted {
+  position: relative;
+  overflow-clip-margin: var(--spacing);
+  &::after {
+    content: "";
+    position: absolute;
+    right: calc(var(--spacing) * -1);
+    bottom: -2px;
+    left: calc(var(--spacing) * -1);
+    height: 1px;
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--foreground-secondary)) 1px,
+      transparent 1px
+    );
+    background-repeat: repeat-x;
+    background-size: 4px 1px;
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black calc(var(--spacing) * 2),
+      black calc(100% - var(--spacing) * 2),
+      transparent
+    );
+    pointer-events: none;
+  }
+}
+
 @utility scrollbar-visible {
   &::-webkit-scrollbar {
     width: 8px;
