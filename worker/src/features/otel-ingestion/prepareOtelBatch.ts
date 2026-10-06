@@ -19,8 +19,10 @@ type PreparedInput =
   | { batch?: never; spans: ResourceSpan[] };
 
 function requiresTypeScriptOtel(error: unknown): boolean {
-  return /surrogate|nesting limit|media reference.*ambig|number out of range|invalid UTF-8/i.test(
-    String(error),
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    error.code === "ERR_OTEL_UNSUPPORTED"
   );
 }
 
@@ -117,7 +119,7 @@ export async function prepareOtelBatch(params: {
 
   async function validate(input: Buffer): Promise<ValidatedInput> {
     try {
-      const validated = await validateOtelJson(input);
+      const validated = await validateOtelJson(input, extractMedia);
       validators.push(validated);
       return { validated };
     } catch (error) {
