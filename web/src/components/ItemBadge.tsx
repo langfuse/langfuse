@@ -162,7 +162,7 @@ export function ItemTypeTile({
             className,
           )}
         >
-          <Icon className="size-3.5 text-white" />
+          <Icon className="icon-base text-white" />
         </span>
       </TooltipTrigger>
       <TooltipContent>{displayLabel}</TooltipContent>
