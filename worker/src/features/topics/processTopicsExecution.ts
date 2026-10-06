@@ -1,6 +1,7 @@
 import { logger } from "@langfuse/shared/src/server";
 import {
   isTopicsEnabled,
+  isAutomaticTopicExecution,
   readTopicExecutionSummary,
   writeTopicExecution,
   getTopicFacetVersion,
@@ -30,7 +31,6 @@ import {
   type TopicFacetVersion,
   type TopicSummary,
   type TopicRun,
-  type TopicAssignment,
   type TopicFacetProgress,
   type TopicDefinition,
   type TopicProcessBatchState,
@@ -59,6 +59,8 @@ import {
 import { matchTopicContinuity } from "./continuity";
 import { TopicMetrics } from "./metrics";
 import { topicSummaryOutputError } from "./summaryResult";
+import { topicAssignments } from "./assignments";
+import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 
 type ProcessExecution = TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: "process" }>;
@@ -106,6 +108,7 @@ async function summarizeTrace(
   traceId: string,
   staged: TopicSummary[],
   getTranscript: () => ReturnType<typeof loadTopicTranscript>,
+  automatic: boolean,
 ): Promise<TopicSummary> {
   const accepted = staged.find((row) => row.traceId === traceId);
   if (accepted) {
@@ -183,10 +186,17 @@ async function summarizeTrace(
       },
     };
   } else if (transcript !== null) {
+    const prepared = automatic
+      ? prepareAssembledTopicTranscript(transcript)
+      : { text: JSON.stringify(transcript), hasContent: true };
+    if (!prepared.hasContent) {
+      metrics.result("summary", "insufficient_input");
+      return stageSummary(metrics, execution, summary);
+    }
     const result = await metrics.measure("summary", async () => {
       const result = await summarizeTopicTrace(
         facet,
-        JSON.stringify(transcript),
+        prepared.text,
         execution.input.processingConfig,
       );
       const error = topicSummaryOutputError(result.output);
@@ -327,52 +337,15 @@ async function assignSummaries(
   assignedAt = new Date().toISOString(),
 ) {
   return metrics.measure("assignment", async () => {
-    if (
-      run.projectId !== execution.projectId ||
-      run.facetId !== facet.facetId ||
-      run.facetVersion !== facet.version ||
-      run.topics.some(
-        (topic) =>
-          topic.centroid.length !==
-          execution.input.embeddingConfig.embeddingDimensions,
-      ) ||
-      run.config.embeddingModel !==
-        execution.input.embeddingConfig.embeddingModel
-    )
-      throw new Error("Target map is incompatible with this facet version.");
-    const prototypes = run.topics.map((topic) => ({
-      id: topic.topicVersionId,
-      centroid: topic.centroid,
-      radius: topic.radius,
-    }));
-    const rows = summaries.map<TopicAssignment>((summary) => {
-      if (summary.traceId === null)
-        throw new Error("Topics processing requires a trace summary.");
-      const assigned = classifyTopic(summary.embedding, prototypes);
-      const topic = run.topics.find(
-        (candidate) => candidate.topicVersionId === assigned.topicId,
-      );
-      const origin =
-        execution.input.operation === "process" ? "online" : "initial";
-      return {
-        coordinates: coordinates.get(summary.traceId) ?? null,
-        projectId: execution.projectId,
-        facetId: facet.facetId,
-        facetVersion: facet.version,
-        sessionId: summary.sessionId,
-        traceId: summary.traceId,
-        environment: summary.environment,
-        traceName: summary.traceName,
-        unitStartTime: summary.unitStartTime,
-        summaryProcessedAt: summary.processedAt,
-        runId: run.id,
-        topicId: topic?.topicId ?? null,
-        topicVersionId: topic?.topicVersionId ?? null,
-        distance: assigned.distance,
-        runnerUpDistance: assigned.runnerUpDistance,
-        origin,
-        assignedAt,
-      };
+    const rows = topicAssignments({
+      projectId: execution.projectId,
+      facet: { facetId: facet.facetId, version: facet.version },
+      embeddingConfig: execution.input.embeddingConfig,
+      summaries,
+      run,
+      coordinates,
+      origin: execution.input.operation === "process" ? "online" : "initial",
+      assignedAt,
     });
     await metrics.measure(
       "storage",
@@ -791,6 +764,10 @@ async function processTraces(
   }
   if (!facets.length) return;
   if (!state.summarized) {
+    const automatic = await isAutomaticTopicExecution(
+      execution.projectId,
+      execution.id,
+    );
     const cached = new Map<TopicFacetVersion, TopicSummary[]>();
     for (const { facet } of facets)
       cached.set(
@@ -851,6 +828,7 @@ async function processTraces(
             traceId,
             cached.get(facet)!,
             getTranscript,
+            automatic,
           );
           state.summaries.push({
             facetId: facet.facetId,
@@ -860,7 +838,7 @@ async function processTraces(
           await save("summarizing");
         } catch (error) {
           metrics.error("summary", error);
-          if (isExecutionFailure(error)) throw error;
+          if (automatic || isExecutionFailure(error)) throw error;
           let failed = state.failedTraceIds.find(
             (entry) =>
               entry.facetId === facet.facetId &&
@@ -1035,6 +1013,7 @@ export async function processTopicsExecution({
   batchId,
   batchState,
   saveBatchState,
+  beforeComplete,
 }: {
   projectId: string;
   executionId: string;
@@ -1042,6 +1021,7 @@ export async function processTopicsExecution({
   batchId?: string;
   batchState?: TopicProcessBatchState;
   saveBatchState?: (state: TopicProcessBatchState) => Promise<void>;
+  beforeComplete?: () => Promise<void>;
 }): Promise<void> {
   if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const metadata = await readTopicExecutionSummary(projectId, executionId);
@@ -1093,6 +1073,7 @@ export async function processTopicsExecution({
     error: processing ? null : metadata.error,
   };
   if (
+    !beforeComplete &&
     ["completed", "completed_with_errors"].includes(execution.status) &&
     !execution.facets.some(
       (facet) => facet.outcome === "pending" || facet.outcome === "failed",
@@ -1132,44 +1113,69 @@ export async function processTopicsExecution({
   const phase = execution.phase === "embedding" ? "embedding" : "summarizing";
   await save(processing ? phase : "selecting");
   try {
-    const configuredModels = getTopicsModelConfig();
-    if (!configuredModels.summaryModel || !configuredModels.embeddingModel)
-      throw new TopicsProviderUnavailable(
-        "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before running Topics.",
-        "authentication",
-      );
-    if (execution.input.operation === "process") {
-      if (
-        !execution.input.processingConfig.summaryModel ||
-        !execution.input.embeddingConfig.embeddingModel ||
-        execution.input.processingConfig.summaryModel !==
-          configuredModels.summaryModel ||
-        execution.input.embeddingConfig.embeddingModel !==
+    const finishedOutcomes =
+      execution.input.operation === "process"
+        ? ["assigned", "awaiting_topics", "no_applicable_summaries"]
+        : [
+            "published",
+            "no_topics",
+            "insufficient_data",
+            "no_applicable_summaries",
+          ];
+    const completionOnly =
+      execution.facets.length > 0 &&
+      execution.facets.every(
+        (facet) =>
+          finishedOutcomes.includes(facet.outcome) && facet.counts.failed === 0,
+      ) &&
+      (execution.input.operation === "process"
+        ? state.summarized &&
+          state.assignedAt !== undefined &&
+          state.failedTraceIds.every(({ traceIds }) => traceIds.length === 0)
+        : beforeComplete !== undefined) &&
+      (await isAutomaticTopicExecution(projectId, executionId));
+    if (!completionOnly) {
+      const configuredModels = getTopicsModelConfig();
+      if (!configuredModels.summaryModel || !configuredModels.embeddingModel)
+        throw new TopicsProviderUnavailable(
+          "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before running Topics.",
+          "authentication",
+        );
+      if (execution.input.operation === "process") {
+        if (
+          !execution.input.processingConfig.summaryModel ||
+          !execution.input.embeddingConfig.embeddingModel ||
+          execution.input.processingConfig.summaryModel !==
+            configuredModels.summaryModel ||
+          execution.input.embeddingConfig.embeddingModel !==
+            configuredModels.embeddingModel
+        )
+          throw new TopicsProviderUnavailable(
+            "Configure matching LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL values on web and worker, then start a new Topics execution.",
+            "authentication",
+          );
+        await processTraces(
+          metrics,
+          execution as ProcessExecution,
+          state,
+          batchId!,
+          retryFailed,
+          save,
+        );
+      } else {
+        if (
+          execution.input.embeddingConfig.embeddingModel !==
           configuredModels.embeddingModel
-      )
-        throw new TopicsProviderUnavailable(
-          "Configure matching LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL values on web and worker, then start a new Topics execution.",
-          "authentication",
-        );
-      await processTraces(
-        metrics,
-        execution as ProcessExecution,
-        state,
-        batchId!,
-        retryFailed,
-        save,
-      );
-    } else {
-      if (
-        execution.input.embeddingConfig.embeddingModel !==
-        configuredModels.embeddingModel
-      )
-        throw new TopicsProviderUnavailable(
-          "LANGFUSE_TOPICS_EMBEDDING_MODEL changed after this execution was created. Start a new Topics execution.",
-          "authentication",
-        );
-      await updateTopics(metrics, execution as UpdateExecution);
+        )
+          throw new TopicsProviderUnavailable(
+            "LANGFUSE_TOPICS_EMBEDDING_MODEL changed after this execution was created. Start a new Topics execution.",
+            "authentication",
+          );
+        await updateTopics(metrics, execution as UpdateExecution);
+      }
     }
+    if (!execution.facets.some((facet) => facet.outcome === "failed"))
+      await beforeComplete?.();
     execution.status = execution.facets.some(
       (facet) => facet.outcome === "failed" || facet.counts.failed > 0,
     )

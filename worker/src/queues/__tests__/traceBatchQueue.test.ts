@@ -11,6 +11,7 @@ import {
 import { type Job } from "bullmq";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { NodeSDK, tracing } from "@opentelemetry/sdk-node";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   getCurrentSpan,
   convertObservation,
@@ -34,8 +35,53 @@ import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBa
 import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
   recordTraceBatchActiveReads,
-  traceBatchQueueProcessor,
+  traceBatchQueueProcessor as processTraceBatchJob,
 } from "../traceBatchQueue";
+
+const traceBatchQueueProcessor: typeof processTraceBatchJob = (job, token) => {
+  job.updateData ??= vi.fn(async (data) => {
+    job.data = data;
+  });
+  return processTraceBatchJob(job, token);
+};
+
+const automaticTopics = vi.hoisted(() => ({
+  enqueue: vi.fn(),
+  enabled: true,
+  disabled: new Set<string>(),
+  facets: vi.fn(),
+  models: {
+    summaryModel: "accepted-summary-model",
+    embeddingModel: "accepted-embedding-model",
+  },
+}));
+const failedTopicTrace = vi.hoisted(() => vi.fn());
+const projectScope = (
+  projectId: string,
+): NonNullable<Parameters<typeof summarizeAssembledTrace>[0]["scope"]> => ({
+  projectId,
+  facets: [{ facetId: "intent", version: 1 }],
+  processingConfig: {
+    summaryModel: "accepted-summary-model",
+    maxInputTokens: 120000,
+    maxOutputTokens: 512,
+  },
+  embeddingConfig: {
+    embeddingModel: "accepted-embedding-model",
+    embeddingDimensions: 1024,
+  },
+});
+vi.mock("../../features/topics/enqueueFailedTopicTrace", () => ({
+  enqueueFailedTopicTrace: failedTopicTrace,
+}));
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
+  enqueueAutomaticTopicAssignments: automaticTopics.enqueue,
+  ensureDefaultTopicFacets: automaticTopics.facets,
+  getTopicsModelConfig: () => automaticTopics.models,
+  isTopicsProjectEnabled: (projectId: string) =>
+    automaticTopics.enabled && !automaticTopics.disabled.has(projectId),
+}));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -78,6 +124,15 @@ afterAll(async () => {
   context.disable();
 });
 beforeEach(() => {
+  automaticTopics.enabled = true;
+  automaticTopics.disabled.clear();
+  automaticTopics.models.summaryModel = "accepted-summary-model";
+  automaticTopics.models.embeddingModel = "accepted-embedding-model";
+  automaticTopics.facets
+    .mockReset()
+    .mockImplementation(async (projectId) => [
+      { projectId, versions: [{ facetId: "intent", version: 1 }] },
+    ]);
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -665,7 +720,75 @@ describe("trace batch queue", () => {
       vi.mocked(summarizeAssembledTrace).mockResolvedValue("disabled");
     }
   });
-  it("finishes the batch past a failed trace, reports outcomes and does not re-enqueue the failure", async () => {
+  it("handles recovery rejection while streaming waits and propagates it when drained", async () => {
+    const resumeStream = Promise.withResolvers<void>();
+    const recoveryStarted = Promise.withResolvers<void>();
+    const failure = new Error("Recovery admission unavailable");
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    vi.mocked(summarizeAssembledTrace).mockRejectedValueOnce(
+      new TopicsProviderUnavailable("bad output", "invalid_output"),
+    );
+    failedTopicTrace.mockImplementationOnce(async () => {
+      recoveryStarted.resolve();
+      throw failure;
+    });
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const traceId of ["a", "b"])
+        yield {
+          project_id: "project",
+          trace_id: traceId,
+          environment: "default",
+          span_id: `span-${traceId}`,
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: "request",
+          output: "answer",
+          metadata: {},
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+      await resumeStream.promise;
+    });
+    const job = {
+      data: {
+        id: "pending-rejection",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["a", "b"].map((traceId) => ({
+            projectId: "project",
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    const processing = traceBatchQueueProcessor(job, undefined).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    try {
+      await recoveryStarted.promise;
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      resumeStream.resolve();
+      await processing;
+      process.off("unhandledRejection", unhandled);
+    }
+    expect(await processing).toBe(failure);
+    expect(summarizeAssembledTrace).toHaveBeenCalledOnce();
+    expect(automaticTopics.enqueue).not.toHaveBeenCalled();
+  });
+  it("finishes the batch past a failed trace and retains only that trace for recovery", async () => {
     const traces = ["a", "b", "c"];
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const projectId of traces)
@@ -716,6 +839,9 @@ describe("trace batch queue", () => {
       },
     } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
 
+    job.updateData = vi.fn(async (data) => {
+      job.data = data;
+    });
     await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
       expect.objectContaining({ traceCount: 3 }),
     );
@@ -733,9 +859,423 @@ describe("trace batch queue", () => {
       { outcome: "failed", reason: "invalid_output" },
     );
     expect(add).not.toHaveBeenCalled();
+    expect(failedTopicTrace).toHaveBeenCalledExactlyOnceWith(
+      {
+        projectId: "b",
+        traceId: "trace",
+        traceTimestamp: "2026-09-11T00:00:00.000Z",
+      },
+      expect.any(Function),
+      projectScope("b"),
+    );
     vi.mocked(summarizeAssembledTrace).mockImplementation(
       async () => "disabled",
     );
+  });
+
+  it("retries pending recovery admission before rereading a source that can now succeed", async () => {
+    const reference = {
+      projectId: "project",
+      traceId: "trace",
+      traceTimestamp: "2026-09-11T00:00:00.000Z",
+    };
+    const job = {
+      opts: {},
+      data: {
+        id: "recovery-admission",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    job.updateData = vi.fn(async (data) => {
+      job.data = data;
+    });
+    let reads = 0;
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      reads++;
+      if (reads === 2) expect(failedTopicTrace).toHaveBeenCalledTimes(2);
+      yield {
+        project_id: "project",
+        trace_id: "trace",
+        environment: "default",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: "request",
+        output: "answer",
+        metadata: {},
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+    vi.mocked(summarizeAssembledTrace)
+      .mockRejectedValueOnce(
+        new TopicsProviderUnavailable("bad output", "invalid_output"),
+      )
+      .mockResolvedValueOnce("summarized");
+    const accepted = {
+      ...reference,
+      input: {
+        projectId: reference.projectId,
+        requestId: "accepted-recovery",
+        operation: "process" as const,
+        traceIds: [reference.traceId],
+        facets: [{ facetId: "intent", version: 1 }],
+        reuseExistingSummaries: true,
+        processingConfig: {
+          maxInputTokens: 120000,
+          maxOutputTokens: 512,
+          summaryModel: "accepted-summary-model",
+        },
+        embeddingConfig: {
+          embeddingDimensions: 1024,
+          embeddingModel: "accepted-embedding-model",
+        },
+      },
+    };
+    failedTopicTrace.mockImplementationOnce(async (_reference, retain) => {
+      await retain(accepted);
+      throw new Error("Redis unavailable");
+    });
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+      "Redis unavailable",
+    );
+    const retained = structuredClone(job.data);
+    await expect(
+      traceBatchQueueProcessor(job, undefined),
+    ).resolves.toMatchObject({ traceCount: 1 });
+    expect(retained).toHaveProperty("topicRecovery", accepted);
+    expect(failedTopicTrace).toHaveBeenNthCalledWith(
+      2,
+      accepted,
+      expect.any(Function),
+      projectScope("project"),
+    );
+    expect(job.data).not.toHaveProperty("topicRecovery", reference);
+    expect(vi.mocked(summarizeAssembledTrace)).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { firstAdmission: "failed", expired: false },
+    { firstAdmission: "succeeded", expired: true },
+  ])(
+    "replays the original assignment scope after admission $firstAdmission (expired: $expired)",
+    async ({ firstAdmission: admissionOutcome, expired }) => {
+      automaticTopics.enabled = true;
+      const startedAt = new Date();
+      const job = {
+        opts: {},
+        data: {
+          id: "assignment-admission",
+          name: QueueJobs.TraceBatch,
+          timestamp: startedAt,
+          payload: {
+            traces: [
+              {
+                projectId: "project",
+                traceId: "trace",
+                minStart: 0,
+                maxStart: 1,
+                revision: "r",
+              },
+            ],
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+      job.updateData = vi.fn(async (data) => {
+        job.data = data;
+      });
+      let reads = 0;
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          reads++;
+          expect(job.data.topicAssignment).toBeDefined();
+          if (reads === 2)
+            expect(automaticTopics.enqueue).toHaveBeenCalledOnce();
+          yield {
+            project_id: "project",
+            trace_id: "trace",
+            environment: "default",
+            span_id: "span",
+            parent_span_id: null,
+            start_time: "2026-09-11 00:00:00.000000",
+            event_ts: "2026-09-11 00:00:00.000000",
+            type: "GENERATION",
+            name: "generation",
+            input: "request",
+            output: "answer",
+            metadata: {},
+            tool_definitions: {},
+            tool_calls: [],
+            tool_call_names: [],
+          };
+        },
+      );
+      vi.mocked(summarizeAssembledTrace).mockResolvedValueOnce("summarized");
+      if (admissionOutcome === "failed") {
+        automaticTopics.enqueue.mockRejectedValueOnce(
+          new Error("Redis unavailable"),
+        );
+        await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+          "Redis unavailable",
+        );
+      } else {
+        await expect(
+          traceBatchQueueProcessor(job, undefined),
+        ).resolves.toMatchObject({ traceCount: 1 });
+      }
+      const firstAdmission = structuredClone(
+        automaticTopics.enqueue.mock.calls[0][0],
+      );
+      automaticTopics.models.summaryModel = "new-summary-model";
+      automaticTopics.models.embeddingModel = "new-embedding-model";
+      automaticTopics.facets.mockResolvedValue([
+        { projectId: "project", versions: [{ facetId: "intent", version: 2 }] },
+      ]);
+      job.data = JSON.parse(JSON.stringify(job.data));
+      if (expired)
+        vi.spyOn(Date, "now").mockReturnValue(
+          startedAt.getTime() + 3 * 60 * 60_000,
+        );
+
+      await expect(
+        traceBatchQueueProcessor(job, undefined),
+      ).resolves.toMatchObject(
+        expired ? { discarded: "expired" } : { traceCount: 1 },
+      );
+      expect(automaticTopics.enqueue).toHaveBeenCalledTimes(2);
+      expect(automaticTopics.enqueue).toHaveBeenNthCalledWith(
+        2,
+        firstAdmission,
+      );
+      expect(firstAdmission).toMatchObject({
+        projectId: "project",
+        traceIds: ["trace"],
+        batchId: "assignment-admission",
+        timeRange: { from: expect.any(Date), to: expect.any(Date) },
+        facets: [{ facetId: "intent", version: 1 }],
+        embeddingConfig: {
+          embeddingModel: "accepted-embedding-model",
+          embeddingDimensions: 1024,
+        },
+      });
+      for (const [input] of vi.mocked(summarizeAssembledTrace).mock.calls)
+        expect(input).toMatchObject({
+          scope: {
+            projectId: "project",
+            facets: [{ facetId: "intent", version: 1 }],
+            processingConfig: { summaryModel: "accepted-summary-model" },
+            embeddingConfig: { embeddingModel: "accepted-embedding-model" },
+          },
+        });
+      expect(getTraceBatchEventStream).toHaveBeenCalledTimes(expired ? 1 : 2);
+      expect(summarizeAssembledTrace).toHaveBeenCalledTimes(expired ? 1 : 2);
+      expect(job.data.topicAssignment).toMatchObject({
+        projects: [projectScope("project")],
+      });
+    },
+  );
+
+  it("keeps Topics work in its live eligible project scope on retry", async () => {
+    automaticTopics.enabled = true;
+    automaticTopics.disabled.add("ineligible");
+    const loadFacets = automaticTopics.facets.getMockImplementation()!;
+    automaticTopics.facets.mockImplementation(async (projectId) => {
+      if (projectId === "deleted") throw new Error("Project not found.");
+      return loadFacets(projectId);
+    });
+    const projectLookup = vi
+      .spyOn(prisma.project, "findUnique")
+      .mockResolvedValue(null);
+    const job = {
+      opts: {},
+      data: {
+        id: "mixed-scope",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["eligible", "ineligible", "deleted"].map((projectId) => ({
+            projectId,
+            traceId: "trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    job.updateData = vi.fn(async (data) => {
+      job.data = data;
+    });
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const projectId of ["eligible", "ineligible"])
+        yield {
+          project_id: projectId,
+          trace_id: "trace",
+          environment: "default",
+          span_id: "span",
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: "request",
+          output: "answer",
+          metadata: {},
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    automaticTopics.enqueue.mockRejectedValueOnce(
+      new Error("Redis unavailable"),
+    );
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+      "Redis unavailable",
+    );
+    expect(
+      vi
+        .mocked(summarizeAssembledTrace)
+        .mock.calls.map(([input]) => input.projectId),
+    ).toEqual(["eligible"]);
+    automaticTopics.disabled.clear();
+    vi.mocked(summarizeAssembledTrace).mockClear();
+    automaticTopics.enqueue.mockClear();
+    await traceBatchQueueProcessor(job, undefined);
+    expect(
+      automaticTopics.enqueue.mock.calls.map(([input]) => input.projectId),
+    ).toEqual(["eligible"]);
+    expect(
+      vi
+        .mocked(summarizeAssembledTrace)
+        .mock.calls.map(([input]) => input.projectId),
+    ).toEqual(["eligible"]);
+    expect(projectLookup).toHaveBeenCalledExactlyOnceWith({
+      where: { id: "deleted" },
+      select: { id: true },
+    });
+    expect(job.data.topicAssignment).toMatchObject({
+      projects: [projectScope("eligible")],
+    });
+  });
+
+  it("does not discard failed scope capture for an existing project", async () => {
+    automaticTopics.facets.mockRejectedValueOnce(
+      new Error("Facet storage unavailable"),
+    );
+    const lookup = vi.spyOn(prisma.project, "findUnique");
+    lookup.mockResolvedValue({ id: "unavailable" } as Awaited<
+      ReturnType<typeof prisma.project.findUnique>
+    >);
+    const job = {
+      data: {
+        id: "failed-scope",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["unavailable", "healthy"].map((projectId) => ({
+            projectId,
+            traceId: "trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+      "Facet storage unavailable",
+    );
+    expect(lookup).toHaveBeenCalledExactlyOnceWith({
+      where: { id: "unavailable" },
+      select: { id: true },
+    });
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(summarizeAssembledTrace).not.toHaveBeenCalled();
+    expect(automaticTopics.enqueue).not.toHaveBeenCalled();
+    expect(job.updateData).not.toHaveBeenCalled();
+  });
+
+  it("rejects a retained foreign project scope before reading sources", async () => {
+    const job = {
+      data: {
+        id: "invalid-scope",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        topicAssignment: {
+          projects: [projectScope("other")],
+          timeRange: {
+            from: new Date("2026-09-01T00:00:00Z"),
+            to: new Date("2026-09-08T00:00:00Z"),
+          },
+        },
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+      "Topics assignment scope does not belong to its trace batch.",
+    );
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(automaticTopics.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("does not process traces until their assignment admission checkpoint is durable", async () => {
+    automaticTopics.enabled = true;
+    const job = {
+      opts: {},
+      data: {
+        id: "assignment-checkpoint",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+      updateData: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    vi.mocked(getTraceBatchEventStream).mockImplementation(
+      async function* () {},
+    );
+
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+      "Redis unavailable",
+    );
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(summarizeAssembledTrace).not.toHaveBeenCalled();
+    expect(automaticTopics.enqueue).not.toHaveBeenCalled();
   });
 
   it("assembles each tenant's trace at the boundary and EOF", async () => {
@@ -920,6 +1460,100 @@ describe("trace batch queue", () => {
     expect(recordDistribution).not.toHaveBeenCalled();
     expect(recordGauge).not.toHaveBeenCalled();
     expect(job.opts.removeOnComplete).toBe(true);
+  });
+
+  it("admits pending recovery before discarding an expired batch", async () => {
+    const reference = {
+      projectId: "project",
+      traceId: "trace",
+      traceTimestamp: "2026-09-11T00:00:00.000Z",
+    };
+    const job = {
+      opts: {},
+      data: {
+        id: "expired-recovery",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(Date.now() - 3 * 60 * 60_000),
+        topicRecovery: reference,
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    job.updateData = vi.fn(async (data) => {
+      expect(failedTopicTrace).toHaveBeenCalledExactlyOnceWith(
+        reference,
+        expect.any(Function),
+        undefined,
+      );
+      job.data = data;
+    });
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      discarded: "expired",
+    });
+    expect(failedTopicTrace).toHaveBeenCalledExactlyOnceWith(
+      reference,
+      expect.any(Function),
+      undefined,
+    );
+    expect(job.data.topicRecovery).toBeUndefined();
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(job.opts.removeOnComplete).toBe(true);
+  });
+
+  it("retains pending recovery when trace reads are disabled", async () => {
+    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
+    const reference = {
+      projectId: "project",
+      traceId: "trace",
+      traceTimestamp: "2026-09-11T00:00:00.000Z",
+    };
+    const job = {
+      opts: {},
+      data: { topicRecovery: reference },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+      "Trace-batch processing is disabled with a pending Topics admission.",
+    );
+    expect(job.data.topicRecovery).toEqual(reference);
+    expect(failedTopicTrace).not.toHaveBeenCalled();
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(job.opts.removeOnComplete).toBeUndefined();
+  });
+
+  it("retains pending assignment admission when trace reads are disabled", async () => {
+    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
+    const timeRange = {
+      from: new Date("2026-09-01T00:00:00.000Z"),
+      to: new Date("2026-09-08T00:00:00.000Z"),
+    };
+    const job = {
+      opts: {},
+      data: {
+        topicAssignment: { projects: [projectScope("project")], timeRange },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toThrow(
+      "Trace-batch processing is disabled with a pending Topics admission.",
+    );
+    expect(job.data.topicAssignment).toEqual({
+      projects: [projectScope("project")],
+      timeRange,
+    });
+    expect(automaticTopics.enqueue).not.toHaveBeenCalled();
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(job.opts.removeOnComplete).toBeUndefined();
   });
 
   it("forwards overrides and rejects a partially consumed stream without reporting success", async () => {
@@ -1158,6 +1792,7 @@ describe("trace batch queue", () => {
     },
   );
   it("retains the active read count when overlapping reads succeed or fail", async () => {
+    automaticTopics.enabled = false;
     env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "overlapping";
     const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
     const first = Promise.withResolvers<void>();

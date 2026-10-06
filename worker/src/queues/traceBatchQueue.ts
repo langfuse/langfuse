@@ -1,6 +1,17 @@
 import { type Processor } from "bullmq";
 import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  topicProcessingConfigSchema,
+  topicEmbeddingConfigSchema,
+} from "@langfuse/shared/topics";
+import {
+  enqueueAutomaticTopicAssignments,
+  isTopicsProjectEnabled,
+  ensureDefaultTopicFacets,
+  getTopicsModelConfig,
+} from "@langfuse/shared/topics/server";
 import {
   convertObservation,
   getCurrentSpan,
@@ -15,7 +26,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import { TopicsProviderUnavailable } from "../features/topics/provider-error";
-import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
+import {
+  summarizeAssembledTrace,
+  type TopicProcessingScope,
+} from "../features/topics/summarizeAssembledTrace";
+import { enqueueFailedTopicTrace } from "../features/topics/enqueueFailedTopicTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
 type TraceOutcome =
@@ -24,6 +39,10 @@ type TraceOutcome =
 
 async function summarizeTraceBatch(
   observations: Observation[],
+  recover: (
+    input: Parameters<typeof enqueueFailedTopicTrace>[0],
+  ) => Promise<void>,
+  topicProjects: ReadonlyMap<string, TopicProcessingScope>,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -42,6 +61,8 @@ async function summarizeTraceBatch(
   ).toISOString();
   let outcome: TraceOutcome = { outcome: "disabled" };
   await recordTraceBatchTranscript(observations, async (transcript) => {
+    const scope = topicProjects.get(first.projectId);
+    if (!scope) return;
     try {
       outcome = {
         outcome: await summarizeAssembledTrace({
@@ -51,10 +72,15 @@ async function summarizeTraceBatch(
           environment: first.environment,
           traceName: first.name ?? "",
           transcript,
+          scope,
         }),
       };
     } catch (error) {
-      // One trace's failure must not fail or re-read the shared batch.
+      await recover({
+        projectId: first.projectId,
+        traceId,
+        traceTimestamp,
+      });
       const reason =
         error instanceof TopicsProviderUnavailable ? error.reason : "other";
       outcome = { outcome: "failed", reason };
@@ -68,7 +94,7 @@ async function summarizeTraceBatch(
   return outcome;
 }
 
-/** Failed traces are counted, not retried. */
+/** Failures are counted here; their retained Topics executions own recovery. */
 function recordTopicsOutcomes(outcomes: TraceOutcome[]): void {
   const counts = new Map<string, number>();
   for (const result of outcomes) {
@@ -135,6 +161,10 @@ export const traceBatchQueueProcessor: Processor<
       return undefined;
     })();
     if (disabledReason) {
+      if (job.data.topicRecovery || job.data.topicAssignment)
+        throw new Error(
+          "Trace-batch processing is disabled with a pending Topics admission.",
+        );
       outcome = "discard";
       // BullMQ reads these options after the processor returns, then removes atomically.
       job.opts.removeOnComplete = true;
@@ -144,7 +174,84 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: disabledReason };
     }
     const event = TraceBatchEventSchema.parse(job.data);
+    let assignment = event.topicAssignment;
+    const topicProjects = new Map(
+      assignment?.projects.map((scope) => [scope.projectId, scope]),
+    );
+    if (
+      assignment &&
+      (topicProjects.size !== assignment.projects.length ||
+        assignment.projects.some(
+          ({ projectId }) =>
+            !event.payload.traces.some(
+              (trace) => trace.projectId === projectId,
+            ),
+        ))
+    )
+      throw new Error(
+        "Topics assignment scope does not belong to its trace batch.",
+      );
+    const admitRecovery = async (
+      reference: NonNullable<typeof event.topicRecovery>,
+    ) => {
+      if (
+        !event.payload.traces.some(
+          (trace) =>
+            trace.projectId === reference.projectId &&
+            trace.traceId === reference.traceId,
+        )
+      )
+        throw new Error(
+          "Topics recovery source does not belong to its trace batch.",
+        );
+      await enqueueFailedTopicTrace(
+        reference,
+        async (accepted) => {
+          await job.updateData({ ...job.data, topicRecovery: accepted });
+        },
+        topicProjects.get(reference.projectId),
+      );
+      await job.updateData({ ...job.data, topicRecovery: undefined });
+    };
+    const recover = async (
+      reference: NonNullable<typeof event.topicRecovery>,
+    ) => {
+      await job.updateData({ ...job.data, topicRecovery: reference });
+      await admitRecovery(reference);
+    };
+    const admitAssignments = async (
+      assignment: NonNullable<typeof event.topicAssignment>,
+    ) => {
+      const projectIds = new Set(
+        assignment.projects.map(({ projectId }) => projectId),
+      );
+      const tracesByProject = new Map<string, string[]>();
+      for (const { projectId, traceId } of event.payload.traces) {
+        if (!projectIds.has(projectId)) continue;
+        const traceIds = tracesByProject.get(projectId) ?? [];
+        traceIds.push(traceId);
+        tracesByProject.set(projectId, traceIds);
+      }
+      if (tracesByProject.size !== projectIds.size)
+        throw new Error(
+          "Topics assignment scope does not belong to its trace batch.",
+        );
+      for (const [projectId, traceIds] of tracesByProject) {
+        const scope = topicProjects.get(projectId)!;
+        await enqueueAutomaticTopicAssignments({
+          projectId,
+          traceIds,
+          batchId: event.id,
+          timeRange: assignment.timeRange,
+          facets: scope.facets,
+          embeddingConfig: scope.embeddingConfig,
+        });
+      }
+    };
+    // Finish retained admissions even when the original batch's read window expired.
+    if (event.topicRecovery) await admitRecovery(event.topicRecovery);
     if (Date.now() - event.timestamp.getTime() >= JOB_MAX_AGE_MS) {
+      if (event.topicAssignment) await admitAssignments(event.topicAssignment);
       outcome = "discard";
       job.opts.removeOnComplete = true;
       recordIncrement("langfuse.trace_batch.discarded_jobs", 1, {
@@ -153,6 +260,65 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
+    const eligibleProjects = [
+      ...new Set(
+        batch.traces
+          .map(({ projectId }) => projectId)
+          .filter(isTopicsProjectEnabled),
+      ),
+    ];
+    if (!assignment && eligibleProjects.length) {
+      const to = new Date();
+      const models = getTopicsModelConfig();
+      const processingConfig = topicProcessingConfigSchema.parse({
+        summaryModel: models.summaryModel,
+      });
+      const embeddingConfig = topicEmbeddingConfigSchema.parse({
+        embeddingModel: models.embeddingModel,
+      });
+      for (const projectId of eligibleProjects) {
+        const projectFacets = await ensureDefaultTopicFacets(projectId).catch(
+          async (error) => {
+            if (
+              await prisma.project.findUnique({
+                where: { id: projectId },
+                select: { id: true },
+              })
+            )
+              throw error;
+            return null;
+          },
+        );
+        if (!projectFacets) continue;
+        const facets = projectFacets.flatMap((facet) =>
+          facet.projectId === projectId
+            ? facet.versions
+                .slice(0, 1)
+                .map(({ facetId, version }) => ({ facetId, version }))
+            : [],
+        );
+        topicProjects.set(projectId, {
+          projectId,
+          facets,
+          processingConfig,
+          embeddingConfig,
+        });
+      }
+      if (topicProjects.size) {
+        assignment = {
+          projects: [...topicProjects.values()],
+          timeRange: {
+            from: new Date(to.getTime() - 7 * 86400000),
+            to,
+          },
+        };
+        // Retain accepted scope until BullMQ removes the job, including stalled replays.
+        await job.updateData({
+          ...job.data,
+          topicAssignment: assignment,
+        });
+      }
+    }
     const topicsOutcomes: TraceOutcome[] = [];
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
@@ -226,7 +392,9 @@ export const traceBatchQueueProcessor: Processor<
             performance.now() - enqueuedAt,
           );
           if (!summaryFailed)
-            topicsOutcomes.push(await summarizeTraceBatch(observations));
+            topicsOutcomes.push(
+              await summarizeTraceBatch(observations, recover, topicProjects),
+            );
         })
         .catch((error: unknown) => {
           if (!summaryFailed) summaryError = error;
@@ -331,6 +499,7 @@ export const traceBatchQueueProcessor: Processor<
     );
 
     recordTopicsOutcomes(topicsOutcomes);
+    if (assignment) await admitAssignments(assignment);
     // Retries can repeat this read; observation payloads never enter job results.
     outcome = "success";
     return {

@@ -7,6 +7,7 @@ import { isTopicsEnabled } from "./config";
 import {
   readTopicExecutionSummary,
   writeTopicExecution,
+  isAutomaticTopicExecution,
 } from "./execution-store";
 import type {
   TopicOperation,
@@ -24,6 +25,38 @@ const ownsExecution = (state: string) =>
 type TopicsJob = TQueueJobTypes[QueueName.Topics];
 const batchJobId = (executionId: string, index: number) =>
   `${executionId}-${index}`;
+const executionJobKey = (projectId: string, executionId: string) =>
+  `topics:execution-job:${createHash("sha256")
+    .update(JSON.stringify([projectId, executionId]))
+    .digest("hex")}`;
+
+export async function registerTopicExecutionQueueJob(
+  projectId: string,
+  executionId: string,
+  jobId: string,
+): Promise<void> {
+  if (jobId === executionId) return;
+  if (!redis) throw new Error("Topics execution ownership requires Redis.");
+  // BullMQ retained follow-ups receive generated IDs, including on failure.
+  await redis.set(
+    executionJobKey(projectId, executionId),
+    jobId,
+    "EX",
+    RETENTION_SECONDS * 2,
+  );
+}
+
+async function topicUpdateExecutionJob(
+  queue: Queue<TopicsJob>,
+  projectId: string,
+  executionId: string,
+) {
+  const canonical = await queue.getJob(executionId);
+  if (canonical) return canonical;
+  const jobId = await redis?.get(executionJobKey(projectId, executionId));
+  return jobId ? queue.getJob(jobId) : undefined;
+}
+
 const progressKeys = (projectId: string, executionId: string) => {
   const scope = createHash("sha256")
     .update(JSON.stringify([projectId, executionId]))
@@ -102,7 +135,10 @@ export async function getTopicExecutionQueueState(
     const index = Math.min(Number(cursor ?? 0), count - 1);
     jobId = batchJobId(executionId, index);
   }
-  const job = await queue.getJob(jobId);
+  const job =
+    operation === "update"
+      ? await topicUpdateExecutionJob(queue, projectId, executionId)
+      : await queue.getJob(jobId);
   if (
     !job ||
     job.data.payload.projectId !== projectId ||
@@ -149,7 +185,10 @@ export async function enqueueTopicExecution(
   for (let index = 0; index < count; index++) {
     const id =
       operation === "process" ? batchJobId(executionId, index) : executionId;
-    const job = await queue.getJob(id);
+    const job =
+      operation === "update"
+        ? await topicUpdateExecutionJob(queue, projectId, executionId)
+        : await queue.getJob(id);
     if (job) {
       if (
         job.data.payload.projectId !== projectId ||
@@ -199,6 +238,8 @@ export async function enqueueTopicExecution(
         if (counts.finished === 1 && counts.failed === 0) continue;
       }
       if (!traceIds) throw expiredInput();
+    } else if (await isAutomaticTopicExecution(projectId, executionId)) {
+      throw expiredInput();
     }
     await queue.add(
       QueueJobs.Topics,
@@ -253,8 +294,12 @@ export async function recordTopicProcessBatchProgress(
     const prefix = `${JSON.stringify([facet.facetId, facet.facetVersion])}:`;
     for (const [name, value] of Object.entries(facet.counts))
       if (name !== "requested") values[prefix + name] = value;
-    if (["failed", "assigned", "awaiting_topics"].includes(facet.outcome))
-      values[prefix + "outcome:" + facet.outcome] = 1;
+    const outcome =
+      local.status === "failed" && facet.outcome === "pending"
+        ? "failed"
+        : facet.outcome;
+    if (["failed", "assigned", "awaiting_topics"].includes(outcome))
+      values[prefix + "outcome:" + outcome] = 1;
   }
   const keys = progressKeys(local.projectId, local.id);
   if (execution.status !== "queued" && (await redis.exists(...keys)) !== 2)
@@ -320,6 +365,11 @@ export async function recordTopicProcessBatchProgress(
         }
       }
     }
+    const localFacet = local.facets.find(
+      (item) =>
+        item.facetId === facet.facetId &&
+        item.facetVersion === facet.facetVersion,
+    );
     return {
       ...facet,
       counts,
@@ -327,11 +377,11 @@ export async function recordTopicProcessBatchProgress(
       error:
         done && !failed
           ? null
-          : (local.facets.find(
-              (item) =>
-                item.facetId === facet.facetId &&
-                item.facetVersion === facet.facetVersion,
-            )?.error ?? facet.error),
+          : (localFacet?.error ??
+            (local.status === "failed" && localFacet?.outcome === "pending"
+              ? local.error
+              : null) ??
+            facet.error),
     };
   });
   execution.status = "running";

@@ -40,6 +40,8 @@ const state = vi.hoisted(() => ({
   assignments: new Map<string, TopicAssignment>(),
   facets: new Map<string, TopicFacetVersion>(),
   visible: true,
+  automatic: vi.fn(),
+  modelConfig: vi.fn(),
   resultReads: vi.fn(),
   assignmentWrites: vi.fn(),
   saveBatch: vi.fn(),
@@ -72,10 +74,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
     isTopicsEnabled: () => true,
-    getTopicsModelConfig: () => ({
-      summaryModel: "gpt-4.1-nano",
-      embeddingModel: "eu.cohere.embed-v4:0",
-    }),
+    isAutomaticTopicExecution: state.automatic,
+    getTopicsModelConfig: state.modelConfig,
     TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
@@ -499,6 +499,11 @@ beforeEach(() => {
   state.assignments.clear();
   state.facets.clear();
   state.visible = true;
+  state.automatic.mockResolvedValue(false);
+  state.modelConfig.mockReturnValue({
+    summaryModel: "gpt-4.1-nano",
+    embeddingModel: "eu.cohere.embed-v4:0",
+  });
   state.loadTranscript.mockImplementation(async ({ traceId }) =>
     traceInput(traceId),
   );
@@ -555,6 +560,59 @@ beforeEach(() => {
 });
 
 describe("Topics execution", () => {
+  it.each([true, false])(
+    "preserves the transcript boundary for automatic recovery: %s",
+    async (automatic) => {
+      state.automatic.mockResolvedValue(automatic);
+      const input = traceInput("trace0");
+      const message = input.transcript!.threads[0].currentTurn.messages[0];
+      message.parts = [
+        { type: "text", text: "Reset my password" },
+        {
+          type: "reasoning",
+          content: { kind: "text", text: "private-reasoning" },
+        },
+      ];
+      state.loadTranscript.mockResolvedValue(input);
+      state.summarize.mockResolvedValue({
+        output: { status: "applicable", summary: "trace0" },
+        providedUsageDetails: {},
+        usageDetails: {},
+        providedCostDetails: {},
+        costDetails: {},
+      });
+
+      await processSelection("recovery-boundary", 1, undefined, true);
+
+      expect(state.summarize).toHaveBeenCalledOnce();
+      const text = state.summarize.mock.calls[0][1] as string;
+      expect(text).toContain("Reset my password");
+      if (automatic) expect(text).not.toContain("private-reasoning");
+      else expect(text).toBe(JSON.stringify(input.transcript));
+    },
+  );
+
+  it("skips automatic recovery inference when projection leaves no evidence", async () => {
+    state.automatic.mockResolvedValue(true);
+    const input = traceInput("trace0");
+    input.transcript!.threads[0].currentTurn.messages[0].parts = [
+      {
+        type: "reasoning",
+        content: { kind: "text", text: "private-reasoning" },
+      },
+    ];
+    state.loadTranscript.mockResolvedValue(input);
+
+    await processSelection("reasoning-only-recovery", 1);
+
+    expect(state.executions.get("reasoning-only-recovery")).toMatchObject({
+      status: "completed",
+      facets: [{ counts: { insufficientInput: 1, failed: 0 } }],
+    });
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+  });
+
   it("records null transcripts as insufficient input without inference", async () => {
     state.loadTranscript.mockResolvedValueOnce(traceInput("trace0", null));
     await processSelection("empty-transcript", 1);
@@ -679,12 +737,12 @@ describe("Topics execution", () => {
   );
 
   it("retains Redis payloads until the terminal batch receipt is saved", async () => {
-    state.saveBatch
-      .mockImplementationOnce(async () => {})
-      .mockImplementation(async (batch: TopicProcessBatchState) => {
+    state.saveBatch.mockImplementation(
+      async (batch: TopicProcessBatchState) => {
         if (batch.execution.status === "completed")
           throw new Error("Redis receipt unavailable");
-      });
+      },
+    );
     await processSelection("receipt", 1);
     expect(state.executions.get("receipt")?.status).toBe("failed");
     expect(state.staged.size).toBe(1);
@@ -700,6 +758,75 @@ describe("Topics execution", () => {
     expect(state.staged.size).toBe(0);
     expect(state.summarize).toHaveBeenCalledOnce();
     expect(state.embed).toHaveBeenCalledOnce();
+  });
+
+  it("finishes automatic Process receipts after model changes without repeating inference", async () => {
+    state.automatic.mockResolvedValue(true);
+    state.summarize.mockResolvedValue({
+      output: { status: "applicable", summary: "trace0" },
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+    });
+    state.saveBatch.mockImplementation(
+      async (batch: TopicProcessBatchState) => {
+        if (batch.execution.status === "completed")
+          throw new Error("Redis receipt unavailable");
+      },
+    );
+    await processSelection("receipt", 1);
+    expect(state.executions.get("receipt")?.status).toBe("failed");
+    expect(state.staged.size).toBe(1);
+    const savedSummaries = structuredClone([...state.summaries.values()]);
+    state.saveBatch.mockReset();
+    state.modelConfig.mockReturnValue({
+      summaryModel: "new-summary-model",
+      embeddingModel: "new-embedding-model",
+    });
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "receipt",
+    });
+    expect(state.executions.get("receipt")?.status).toBe("completed");
+    expect(state.staged.size).toBe(0);
+    expect([...state.summaries.values()]).toEqual(savedSummaries);
+    expect(state.loadTranscript).toHaveBeenCalledOnce();
+    expect(state.summarize).toHaveBeenCalledOnce();
+    expect(state.embed).toHaveBeenCalledOnce();
+  });
+
+  it("retains the model guard for automatic recovery with unfinished embeddings", async () => {
+    state.automatic.mockResolvedValue(true);
+    state.summarize.mockResolvedValue({
+      output: { status: "applicable", summary: "trace0" },
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+    });
+    state.deferEmbeddings = true;
+    await processSelection("unfinished-recovery", 1);
+    expect(state.batches.get("unfinished-recovery")).toMatchObject({
+      summarized: true,
+      execution: { phase: "embedding", facets: [{ outcome: "pending" }] },
+    });
+    state.modelConfig.mockReturnValue({
+      summaryModel: "gpt-4.1-nano",
+      embeddingModel: "new-embedding-model",
+    });
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "unfinished-recovery",
+    });
+    expect(state.executions.get("unfinished-recovery")).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("Configure matching"),
+    });
+    expect(state.staged.size).toBe(1);
+    expect(state.summaries.size).toBe(0);
+    expect(state.summarize).toHaveBeenCalledOnce();
+    expect(state.embed).not.toHaveBeenCalled();
   });
 
   it.each([false, true])(
@@ -791,6 +918,60 @@ describe("Topics execution", () => {
     expect(state.summarize).not.toHaveBeenCalled();
     expect(state.embed).not.toHaveBeenCalled();
     expect(state.name).not.toHaveBeenCalled();
+  });
+
+  it("resumes invalid automatic summaries without regenerating an accepted facet", async () => {
+    state.automatic.mockResolvedValue(true);
+    const valid = {
+      output: { status: "applicable", summary: "trace0" },
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+    };
+    state.summarize
+      .mockResolvedValue(valid)
+      .mockResolvedValueOnce(valid)
+      .mockResolvedValueOnce({
+        ...valid,
+        output: { status: "applicable", summary: "" },
+      });
+    const pending = execution("automatic-summary-recovery", 1, "process", [
+      facet,
+      { ...facet, facetId: "issues" },
+    ]);
+    pending.input.reuseExistingSummaries = true;
+    state.executions.set(pending.id, pending);
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: pending.id,
+    });
+
+    expect(state.executions.get(pending.id)).toMatchObject({
+      status: "failed",
+      error: "Applicable facet summary must contain a concise summary.",
+    });
+    expect(state.batches.get(pending.id)?.summaries).toHaveLength(1);
+    const accepted = [...state.staged.values()][0].summary;
+    expect(state.batches.get(pending.id)?.failedTraceIds).toEqual([]);
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: pending.id,
+    });
+
+    expect(state.executions.get(pending.id)?.status).toBe("completed");
+    expect(state.summarize).toHaveBeenCalledTimes(3);
+    expect(
+      state.summarize.mock.calls.filter(
+        ([selected]) => selected.facetId === facet.facetId,
+      ),
+    ).toHaveLength(1);
+    expect(state.embed).toHaveBeenCalledTimes(2);
+    expect(state.summaries.get(topicSourceKey(accepted))?.summary).toBe(
+      accepted.summary,
+    );
   });
 
   it("resumes accepted summaries after a provider interruption without regenerating paid work", async () => {
@@ -898,6 +1079,74 @@ describe("Topics execution", () => {
       state.executions.get("source-failure")?.facets[0].counts,
     ).toMatchObject({ complete: 2, failed: 1 });
     expect(state.summarize).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { automatic: false, outcome: "published" as const },
+    { automatic: true, outcome: "pending" as const },
+  ])(
+    "retains Update model guards (automatic: $automatic, outcome: $outcome)",
+    async ({ automatic, outcome }) => {
+      state.automatic.mockResolvedValue(automatic);
+      const pending = execution("guarded-update", 0, "update");
+      pending.facets[0].outcome = outcome;
+      state.executions.set(pending.id, pending);
+      state.modelConfig.mockReturnValue({
+        summaryModel: "gpt-4.1-nano",
+        embeddingModel: "new-embedding-model",
+      });
+      const beforeComplete = vi.fn();
+      await processTopicsExecution({
+        projectId: "project",
+        executionId: pending.id,
+        beforeComplete,
+      });
+      expect(state.executions.get(pending.id)).toMatchObject({
+        status: "failed",
+        error: expect.stringContaining(
+          "LANGFUSE_TOPICS_EMBEDDING_MODEL changed",
+        ),
+      });
+      expect(beforeComplete).not.toHaveBeenCalled();
+      expect(state.numeric).not.toHaveBeenCalled();
+    },
+  );
+
+  it("replays automatic completion work after acknowledgement loss and retains a failed catch-up", async () => {
+    await processSelection("source", 100);
+    state.automatic.mockResolvedValue(true);
+    state.executions.set(
+      "completed-replay",
+      execution("completed-replay", 0, "update"),
+    );
+    const beforeComplete = vi.fn(async () => {
+      expect(state.executions.get("completed-replay")?.status).toBe("running");
+    });
+    const request = {
+      projectId: "project",
+      executionId: "completed-replay",
+      beforeComplete,
+    };
+    await processTopicsExecution(request);
+    expect(state.executions.get(request.executionId)?.status).toBe("completed");
+    const namingCalls = state.name.mock.calls.length;
+    const numericCalls = state.numeric.mock.calls.length;
+    state.modelConfig.mockReturnValue({
+      summaryModel: "gpt-4.1-nano",
+      embeddingModel: "new-embedding-model",
+    });
+    beforeComplete.mockRejectedValueOnce(new Error("Late catch-up failed"));
+    await processTopicsExecution(request);
+    expect(state.executions.get(request.executionId)).toMatchObject({
+      status: "failed",
+      error: "Late catch-up failed",
+      facets: [{ outcome: "published" }],
+    });
+    await processTopicsExecution(request);
+    expect(state.executions.get(request.executionId)?.status).toBe("completed");
+    expect(beforeComplete).toHaveBeenCalledTimes(3);
+    expect(state.name).toHaveBeenCalledTimes(namingCalls);
+    expect(state.numeric).toHaveBeenCalledTimes(numericCalls);
   });
 
   it("restarts a failed update with fresh membership and naming while preserving the published map", async () => {

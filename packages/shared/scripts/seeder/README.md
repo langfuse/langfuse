@@ -85,8 +85,34 @@ invalid JSON, empty results, and success. Each trace has a generation and a
 child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
 sample mode** with the default minimum-count settings.
 
-Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
-and I/O.
+Direct ClickHouse seeding makes no model calls. Theme/outcome labels remain
+outside trace metadata and I/O.
+
+To exercise the real local ingestion path, use `--transport otel`. This posts
+OTLP to the local `NEXTAUTH_URL` with the default seed project API key and
+`x-langfuse-ingestion-version: 4`, in batches of at most 25 complete traces.
+It waits up to two minutes for exact v4 trace/span readback. The web and worker
+must be running, with direct v4 writes enabled. Topics processing also requires
+the Topics model settings, project allowlist and trace-batch flags described in
+`worker/src/features/topics/README.md`. Ingestion can trigger paid model calls
+when those controls are enabled.
+
+```bash
+pnpm run seed -- topics --transport otel --batch evaluation --id-prefix topics-ingest --limit 99
+pnpm run seed -- topics --transport otel --batch evaluation --id-prefix topics-ingest --offset 99 --limit 1
+```
+
+`--offset` and `--limit` preserve fixture identity and timestamps across partial
+batches; `--limit 0` selects all remaining traces. OTLP trace IDs are deterministic
+32-character hex hashes, listed in the JSON summary. OTLP sends the wrapper as a
+real span, so its observation count equals its event count. The default
+`--transport clickhouse` retains existing IDs, counts and direct writes.
+
+Transport mapping and batching tests, without databases or model calls:
+
+```bash
+pnpm --filter @langfuse/shared exec vitest run --dir scripts/seeder topics-otel.test.ts
+```
 
 ## The contract (additive-only)
 
@@ -176,7 +202,8 @@ cost.
 
 ## What's next (deliberately not built yet)
 
-- **Ingestion API writer**: build trace and observation data as public
+- **General ingestion API writer**: extend the Topics OTLP transport to other
+  scenarios, or build trace and observation data as public
   ingestion batches against a target URL, with batch limits and `--wait`
   readback — the same command would then emulate realistic ingestion against
   local web+worker or staging.

@@ -8,6 +8,7 @@ import {
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, utcDayStartMs } from "./rng";
 import { topicEvaluationExamples } from "./topics-evaluation";
+import { ingestTopicEvents, topicOtelId } from "./topics-otel";
 import { ScenarioDefinition, SeedError } from "./types";
 import { countRows, traceLink, tracesListLink } from "./verify";
 
@@ -82,9 +83,29 @@ const ASSIGNMENT: ReadonlyArray<readonly [string, string]> = [
 export const topicsScenario: ScenarioDefinition = {
   name: "topics",
   description:
-    "Synthetic topic discovery: 12 traces across three semantic themes, plus three separate assignment traces (two familiar requests and one new theme). Use evaluation for 100 varied requests with cross-cutting tool outcomes. No model calls.",
+    "Synthetic topic discovery: 12 traces across three semantic themes, plus three separate assignment traces (two familiar requests and one new theme). Use evaluation for 100 varied requests with cross-cutting tool outcomes. OTLP transport can trigger enabled Topics inference.",
   supportsV4: true,
   flags: [
+    {
+      flag: "transport",
+      type: "string",
+      default: "clickhouse",
+      description:
+        "clickhouse or otel (local public ingestion, default seed project)",
+    },
+    {
+      flag: "limit",
+      type: "number",
+      default: 0,
+      description:
+        "number of traces from the selected batch; 0 selects all remaining",
+    },
+    {
+      flag: "offset",
+      type: "number",
+      default: 0,
+      description: "skip this many traces without changing fixture identities",
+    },
     {
       flag: "batch",
       type: "string",
@@ -107,7 +128,33 @@ export const topicsScenario: ScenarioDefinition = {
       );
     }
     const withV4 = params.v4 !== false;
-    const evaluation = batch === "evaluation" ? topicEvaluationExamples() : [];
+    const transport = String(params.transport ?? "clickhouse");
+    if (!["clickhouse", "otel"].includes(transport))
+      throw new SeedError("--transport must be clickhouse or otel");
+    if (transport === "otel" && !withV4)
+      throw new SeedError("--transport otel requires v4 events");
+    if (
+      transport === "otel" &&
+      ctx.projectId !== "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
+    )
+      throw new SeedError(
+        "Topics OTLP seeding uses the default seeded project API key.",
+      );
+    const offset = Number(params.offset ?? 0);
+    const limit = Number(params.limit ?? 0);
+    if (
+      !Number.isInteger(offset) ||
+      offset < 0 ||
+      !Number.isInteger(limit) ||
+      limit < 0
+    )
+      throw new SeedError("--limit and --offset must be nonnegative integers");
+    const evaluationCohort =
+      batch === "evaluation" ? topicEvaluationExamples() : [];
+    const evaluation = evaluationCohort.slice(
+      offset,
+      limit ? offset + limit : undefined,
+    );
     const examples =
       batch === "evaluation"
         ? evaluation
@@ -122,23 +169,39 @@ export const topicsScenario: ScenarioDefinition = {
               index: index + DISCOVERY.length,
               batch: "assignment",
             })),
-          ].filter((example) => batch === "all" || example.batch === batch);
-    const startMs = utcDayStartMs() - 60 * 60 * 1000;
+          ]
+            .filter((example) => batch === "all" || example.batch === batch)
+            .slice(offset, limit ? offset + limit : undefined);
+    if (!examples.length)
+      throw new SeedError(
+        "The selected batch, offset and limit contain no traces.",
+      );
+    const cohortSize =
+      batch === "evaluation"
+        ? evaluationCohort.length
+        : DISCOVERY.length + ASSIGNMENT.length;
+    // Keep the entire OTLP cohort in the past without re-keying sliced uploads.
+    const lookbackMinutes =
+      transport === "otel" ? Math.max(60, cohortSize) : 60;
+    const startMs = utcDayStartMs() - lookbackMinutes * 60_000;
     const timestamps = examples.map(
       ({ index }) => startMs + index * 60000 + jitter(ctx.seed, index, 1000),
     );
-    const traceIds = examples.map(
-      ({ index }) =>
-        `${ctx.idPrefix}-${batch === "evaluation" ? "e" : "t"}${index.toString().padStart(2, "0")}`,
-    );
+    const traceIds = examples.map(({ index }) => {
+      const id = `${ctx.idPrefix}-${batch === "evaluation" ? "e" : "t"}${index.toString().padStart(2, "0")}`;
+      return transport === "otel" ? topicOtelId(id, 16) : id;
+    });
     const counts = {
       traces: examples.length,
-      observations: examples.length + evaluation.length,
+      observations:
+        examples.length +
+        evaluation.length +
+        (transport === "otel" ? examples.length : 0),
       events: withV4 ? examples.length * 2 + evaluation.length : 0,
     };
     const summary = {
       scenario: "topics",
-      target: "clickhouse" as const,
+      target: transport === "otel" ? ("api" as const) : ("clickhouse" as const),
       params,
       projectId: ctx.projectId,
       environment: ctx.environment,
@@ -237,6 +300,41 @@ export const topicsScenario: ScenarioDefinition = {
     ctx.log(
       `writing ${counts.traces} traces (${batch}), ${counts.events} events`,
     );
+    if (transport === "otel") {
+      await ingestTopicEvents(ctx.baseUrl, events);
+      const deadline = Date.now() + 120_000;
+      while (true) {
+        const verified = {
+          traces: await countRows(
+            "events_full",
+            "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}",
+            { projectId: ctx.projectId, traceIds },
+            "uniqExact(trace_id)",
+          ),
+          observations: await countRows(
+            "events_full",
+            "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}",
+            { projectId: ctx.projectId, traceIds },
+            "uniqExact(span_id)",
+          ),
+          events: 0,
+        };
+        verified.events = verified.observations;
+        if (
+          Object.entries(counts).every(
+            ([entity, expected]) =>
+              verified[entity as keyof typeof verified] === expected,
+          )
+        )
+          return { ...summary, verified, durationMs: Date.now() - startedAt };
+        if (Date.now() >= deadline)
+          throw new SeedError(
+            `OTLP readback timed out: expected ${JSON.stringify(counts)}, found ${JSON.stringify(verified)}`,
+            "check the local worker, ingestion queues and direct v4 write configuration",
+          );
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
     await createTracesCh(traces);
     await createObservationsCh(observations);
     if (events.length) await createEventsCh(events);

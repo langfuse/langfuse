@@ -2,6 +2,7 @@ export * from "./execution-store";
 export * from "./postgres";
 export * from "./clickhouse";
 export * from "./queue";
+export * from "./automatic-queue";
 export * from "./embedding-queue";
 export { emitTopicStagingMetrics } from "./staging-metrics";
 export * from "./embeddings";

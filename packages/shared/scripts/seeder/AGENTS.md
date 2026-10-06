@@ -30,6 +30,8 @@ pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latenc
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- topics --batch all  # 12 discovery + 3 assignment traces for Topics; v4 on, no model calls
 pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42  # 100 diverse requests, tool failures and successful outcomes
+pnpm run seed -- topics --transport otel --batch evaluation --id-prefix topics-ingest --limit 99  # real local public OTLP ingress; may trigger Topics inference
+pnpm run seed -- topics --transport otel --batch evaluation --id-prefix topics-ingest --offset 99 --limit 1  # final trace at the 100-trace threshold
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
 pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
