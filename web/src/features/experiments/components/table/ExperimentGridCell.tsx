@@ -25,11 +25,7 @@ import {
 } from "@/src/features/experiments/components/table/types";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Copy, Check, ExternalLink, SquarePen } from "lucide-react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -174,11 +170,82 @@ const ScoreItem = ({
   );
 
   return (
-    <HoverCard onOpenChange={setIsOpen}>
-      <HoverCardTrigger asChild>
+    <HoverCard
+      onOpenChange={setIsOpen}
+      placement="bottom-start"
+      onClick={(event) => event.stopPropagation()}
+      content={
+        <div className="max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
+          <div className="flex flex-col gap-3">
+            <span className="font-bold">{name}</span>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+              <dt className="text-muted-foreground">Value</dt>
+              <dd className="min-w-0">
+                {displayValue}
+                {diff?.type === "CATEGORICAL" && (
+                  <span className="text-muted-foreground ml-2 whitespace-normal">
+                    {diff.from
+                      ? `← Baseline: ${diff.from}`
+                      : "Varies from baseline"}
+                  </span>
+                )}
+              </dd>
+              <dt className="text-muted-foreground">Source</dt>
+              <dd className="capitalize">{source.toLowerCase()}</dd>
+              <dt className="text-muted-foreground">Type</dt>
+              <dd className="capitalize">{dataType.toLowerCase()}</dd>
+            </dl>
+            {aggregate?.comment && (
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Comment</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    text={copied ? "Copied" : "Copy comment"}
+                    icon={copied ? Check : Copy}
+                    onClick={async () => {
+                      await copyTextToClipboard(aggregate.comment!);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                  />
+                </div>
+                <p className="whitespace-pre-wrap">{aggregate.comment}</p>
+              </div>
+            )}
+            {aggregate?.hasMetadata && aggregate.id && (
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground">Metadata</span>
+                {isError && <p>Could not load metadata.</p>}
+                {!isError && metadata !== undefined && (
+                  <JSONView json={metadata} />
+                )}
+                {!isError && metadata === undefined && (
+                  <Skeleton className="h-12 w-full" />
+                )}
+              </div>
+            )}
+            {aggregate?.executionTraceId && (
+              <Link
+                href={`/project/${projectId}/traces/${encodeURIComponent(aggregate.executionTraceId)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:underline"
+              >
+                <ExternalLink className="icon-sm" />
+                View execution trace
+              </Link>
+            )}
+          </div>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
         <div
           tabIndex={0}
           className="flex cursor-default items-center justify-between gap-2 text-xs"
+          {...getTriggerProps()}
         >
           <div className="flex min-w-0 items-center gap-1">
             <span className="text-muted-foreground line-clamp-1 min-w-0">
@@ -223,75 +290,7 @@ const ScoreItem = ({
             )}
           </div>
         </div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        align="start"
-        className="max-h-[50vh] w-96 overflow-auto text-xs break-words whitespace-normal"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex flex-col gap-3">
-          <span className="font-bold">{name}</span>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-            <dt className="text-muted-foreground">Value</dt>
-            <dd className="min-w-0">
-              {displayValue}
-              {diff?.type === "CATEGORICAL" && (
-                <span className="text-muted-foreground ml-2 whitespace-normal">
-                  {diff.from
-                    ? `← Baseline: ${diff.from}`
-                    : "Varies from baseline"}
-                </span>
-              )}
-            </dd>
-            <dt className="text-muted-foreground">Source</dt>
-            <dd className="capitalize">{source.toLowerCase()}</dd>
-            <dt className="text-muted-foreground">Type</dt>
-            <dd className="capitalize">{dataType.toLowerCase()}</dd>
-          </dl>
-          {aggregate?.comment && (
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Comment</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  text={copied ? "Copied" : "Copy comment"}
-                  icon={copied ? Check : Copy}
-                  onClick={async () => {
-                    await copyTextToClipboard(aggregate.comment!);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                />
-              </div>
-              <p className="whitespace-pre-wrap">{aggregate.comment}</p>
-            </div>
-          )}
-          {aggregate?.hasMetadata && aggregate.id && (
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground">Metadata</span>
-              {isError && <p>Could not load metadata.</p>}
-              {!isError && metadata !== undefined && (
-                <JSONView json={metadata} />
-              )}
-              {!isError && metadata === undefined && (
-                <Skeleton className="h-12 w-full" />
-              )}
-            </div>
-          )}
-          {aggregate?.executionTraceId && (
-            <Link
-              href={`/project/${projectId}/traces/${encodeURIComponent(aggregate.executionTraceId)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:underline"
-            >
-              <ExternalLink className="icon-sm" />
-              View execution trace
-            </Link>
-          )}
-        </div>
-      </HoverCardContent>
+      )}
     </HoverCard>
   );
 };

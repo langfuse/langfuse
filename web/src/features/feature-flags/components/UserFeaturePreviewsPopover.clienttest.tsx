@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
+import type { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
 import { featurePreviewFlags } from "../available-flags";
@@ -47,11 +48,12 @@ vi.mock("@/src/components/ui/popover", () => ({
   ),
 }));
 
-vi.mock("@/src/components/ui/hover-card", () => ({
-  HoverCard: ({ children }: { children: ReactNode }) => <>{children}</>,
-  HoverCardTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  HoverCardContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+vi.mock("@/src/components/design-system/HoverCard/HoverCard", () => ({
+  HoverCard: ({ children, content }: ComponentProps<typeof HoverCard>) => (
+    <>
+      {children({ getTriggerProps: () => ({}) })}
+      {content}
+    </>
   ),
 }));
 
