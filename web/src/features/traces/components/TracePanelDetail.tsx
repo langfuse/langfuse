@@ -93,6 +93,8 @@ export function TracePanelDetail() {
   }, [selected, trace, observations, scores, corrections]);
 
   return (
-    <div className="bg-background h-full w-full overflow-y-auto">{content}</div>
+    <div className="bg-surface-sunken h-full w-full overflow-y-auto [--surface-context:hsl(var(--surface-sunken))]">
+      {content}
+    </div>
   );
 }

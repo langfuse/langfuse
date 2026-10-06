@@ -32,7 +32,7 @@ export const LangfuseLogo = ({
             "max-h-4 max-w-14",
           )}
         />
-        <PlusIcon size={8} className="group-data-[collapsible=icon]:hidden" />
+        <PlusIcon className="icon-sm group-data-[collapsible=icon]:hidden" />
         <LangfuseIcon size={16} />
       </div>
     );

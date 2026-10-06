@@ -358,7 +358,7 @@ export function CollapsedSection({
       <summary className="flex cursor-pointer list-none items-start gap-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden
-          className="text-muted-foreground mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+          className="text-muted-foreground icon-base mt-1.5 shrink-0 transition-transform group-open:rotate-90"
         />
         <div className="flex flex-1 items-baseline justify-between gap-4">
           <div>

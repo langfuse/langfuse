@@ -80,7 +80,7 @@ export function GatewayApiKeysTable({
         {
           id: "create-key",
           label: "Create key",
-          icon: <Plus className="size-4" aria-hidden="true" />,
+          icon: <Plus className="icon-base" aria-hidden="true" />,
           onClick: createAction,
         },
       ]}

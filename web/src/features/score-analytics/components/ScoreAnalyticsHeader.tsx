@@ -100,7 +100,7 @@ export function ScoreAnalyticsHeader({
                 className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
               >
                 Share feedback on GitHub Discussions
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="icon-sm" />
               </a>
             </div>
           </HoverCardContent>
