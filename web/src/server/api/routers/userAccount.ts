@@ -4,14 +4,15 @@ import {
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { StringNoHTML } from "@langfuse/shared";
+import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/server";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
-  featurePreviewFlags,
+  isAdminOnlyFeaturePreviewFlag,
+  personalFeaturePreviewFlags,
   setUserFeaturePreview,
   hasInternalAccess,
   INTERNAL_FEATURE_FLAG,
@@ -142,18 +143,31 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        flag: z.enum(featurePreviewFlags),
+        flag: z.enum(personalFeaturePreviewFlags),
         enabled: z.boolean(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
+      if (
+        isAdminOnlyFeaturePreviewFlag(input.flag) &&
+        !ctx.session.user.admin
+      ) {
+        throw new ForbiddenError(
+          "Only administrators can change this feature preview.",
+        );
+      }
+
       const canEnableFeaturePreviews =
         Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
         ctx.session.user.v4BetaEnabled === true;
 
-      if (input.enabled && !canEnableFeaturePreviews) {
+      if (
+        input.enabled &&
+        !isAdminOnlyFeaturePreviewFlag(input.flag) &&
+        !canEnableFeaturePreviews
+      ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: `Feature previews require ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
