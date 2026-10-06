@@ -328,8 +328,32 @@ describe("Current Topics", () => {
     fireEvent.keyDown(other, { key: "ArrowRight" });
     expect(document.activeElement).toBe(outlier);
     fireEvent.click(screen.getByRole("button", { name: "Split" }));
-    expect(screen.getByRole("row", { name: /trace-25/ })).toBeInTheDocument();
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+    const scroll = vi.mocked(Element.prototype.scrollIntoView);
+    expect(scroll.mock.contexts.at(-1)).toBe(
+      screen.getByRole("row", { name: /trace-25/ }),
+    );
+    scroll.mockClear();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Go to previous page" }),
+    );
+    expect(screen.queryByRole("row", { name: /trace-25/ })).toBeNull();
+    expect(scroll).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Go to next page" }));
+    expect(scroll.mock.contexts.at(-1)).toBe(
+      screen.getByRole("row", { name: /trace-25/ }),
+    );
+    fireEvent.click(other);
+    expect(scroll.mock.contexts.at(-1)).toBe(
+      screen.getByRole("row", { name: /trace-0 / }),
+    );
+    fireEvent.click(point);
+    expect(scroll.mock.contexts.at(-1)).toBe(
+      screen.getByRole("row", { name: /trace-25/ }),
+    );
+    scroll.mockClear();
+    fireEvent.mouseLeave(other);
+    fireEvent.mouseEnter(other);
+    expect(scroll).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Billing tasks/ }));
     expect(screen.queryByRole("row", { name: /trace-25/ })).toBeNull();
     expect(outlier).not.toBeInTheDocument();
@@ -337,6 +361,7 @@ describe("Current Topics", () => {
     expect(point).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(point, { key: "Enter" });
     const selectedRow = screen.getByRole("row", { name: /trace-25/ });
+    expect(scroll.mock.contexts.at(-1)).toBe(selectedRow);
     expect(point).toHaveAttribute("aria-pressed", "true");
     expect(state.push).not.toHaveBeenCalled();
     fireEvent.click(selectedRow);
@@ -345,8 +370,10 @@ describe("Current Topics", () => {
       undefined,
       { shallow: true },
     );
+    scroll.mockClear();
     fireEvent.keyDown(point, { key: " " });
     expect(point).toHaveAttribute("aria-pressed", "false");
+    expect(scroll).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Billing tasks/ }));
     fireEvent.click(screen.getByRole("button", { name: "All topics" }));
     expect(

@@ -1,6 +1,7 @@
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Columns2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
@@ -111,6 +112,17 @@ function CurrentFacet({
     pageIndex: 0,
     pageSize: 20,
   });
+  const tableRef = useRef<HTMLDivElement>(null);
+  function updateTraceTable(update: () => void, revealSelection = split) {
+    if (!revealSelection) {
+      update();
+      return;
+    }
+    flushSync(update);
+    tableRef.current
+      ?.querySelector(".topics-selected-trace")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
   function selectTopic(topicId: string | null) {
     setSelection(topicId);
     setSelectedTraceId(null);
@@ -133,7 +145,7 @@ function CurrentFacet({
     if (selected === "awaiting_map") return row.outcome === "awaiting_map";
     return row.topicId === selected;
   });
-  function selectTrace(traceId: string | null, syncTable = split) {
+  function updateTraceSelection(traceId: string | null, syncTable = split) {
     setSelectedTraceId(traceId);
     if (traceId === null || !syncTable) return;
     let index = visible.findIndex((row) => row.traceId === traceId);
@@ -147,6 +159,18 @@ function CurrentFacet({
       pageIndex: Math.floor(index / current.pageSize),
     }));
   }
+  function selectTrace(traceId: string | null) {
+    updateTraceTable(() => updateTraceSelection(traceId));
+  }
+  function toggleSplit() {
+    updateTraceTable(() => {
+      if (!split) updateTraceSelection(selectedTraceId, true);
+      setSplit(!split);
+    }, !split);
+  }
+  const changePagination: OnChangeFn<PaginationState> = (update) => {
+    updateTraceTable(() => setPagination(update));
+  };
   const outliers = facet.rows.filter((row) => row.outcome === "outlier").length;
   const noTopic = facet.rows.filter(
     (row) =>
@@ -192,13 +216,7 @@ function CurrentFacet({
               selectedTraceId={selectedTraceId}
               headerStats={counts}
               headerActions={
-                <Toggle
-                  pressed={split}
-                  onClick={() => {
-                    if (!split) selectTrace(selectedTraceId, true);
-                    setSplit(!split);
-                  }}
-                >
+                <Toggle pressed={split} onClick={toggleSplit}>
                   <Columns2 className="mr-2 h-4 w-4" aria-hidden />
                   Split
                 </Toggle>
@@ -277,11 +295,12 @@ function CurrentFacet({
             )}
           </div>
           <CurrentTraceTable
+            tableRef={tableRef}
             projectId={projectId}
             facetId={facet.facetId}
             rows={visible}
             pagination={pagination}
-            onPaginationChange={setPagination}
+            onPaginationChange={changePagination}
             selectedTraceId={split ? selectedTraceId : null}
             split={split}
           />
@@ -292,6 +311,7 @@ function CurrentFacet({
 }
 
 function CurrentTraceTable({
+  tableRef,
   projectId,
   facetId,
   rows,
@@ -300,6 +320,7 @@ function CurrentTraceTable({
   selectedTraceId,
   split,
 }: {
+  tableRef: RefObject<HTMLDivElement | null>;
   projectId: string;
   facetId: string;
   rows: Facet["rows"];
@@ -314,17 +335,10 @@ function CurrentTraceTable({
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekConfig = { itemType: "TRACE" as const, ...peekNavigation };
-  const tableRef = useRef<HTMLDivElement>(null);
   const pageIndex = Math.min(
     pagination.pageIndex,
     Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
   );
-  useEffect(() => {
-    if (!split) return;
-    tableRef.current
-      ?.querySelector(".topics-selected-trace")
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [selectedTraceId, pageIndex, pagination.pageSize, split]);
   const columns = (
     openInspector: (
       source: Pick<
