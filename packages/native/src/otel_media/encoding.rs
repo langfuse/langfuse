@@ -209,10 +209,25 @@ pub(super) fn hash_encoded_data(
     Ok(hasher.finalize().into())
 }
 
-fn hash_base64(hasher: &mut Sha256, value: &[u8]) -> Result<(), MediaDecodeError> {
+/// After character/padding validation, match Buffer.from(..., "base64"):
+/// padding can be redundant, and a lone final sextet cannot produce a byte.
+/// Borrow the decodable prefix so hashing and upload decoding use identical bytes.
+fn node_base64_payload(mut value: &[u8]) -> Result<&[u8], MediaDecodeError> {
+    while value.last() == Some(&b'=') {
+        value = &value[..value.len() - 1];
+    }
+    if value.len() % 4 == 1 {
+        value = &value[..value.len() - 1];
+    }
+    // The TS media processor leaves zero-byte decoded payloads inline.
     if value.is_empty() {
         return Err(MediaDecodeError::InvalidDataUri);
     }
+    Ok(value)
+}
+
+fn hash_base64(hasher: &mut Sha256, value: &[u8]) -> Result<(), MediaDecodeError> {
+    let value = node_base64_payload(value)?;
     // Decode bounded chunks to hash large media without allocating the complete body.
     // A multiple of four preserves Base64 groups; the final chunk accepts omitted padding
     // and non-zero trailing bits, matching Node's decoding behavior.
@@ -287,11 +302,13 @@ pub(super) fn decode_encoded_data(
                 .position(|window| window == BASE64_MARKER.as_bytes())
                 .ok_or(MediaDecodeError::InvalidDataUri)?;
             BASE64
-                .decode(&encoded_data[marker + BASE64_MARKER.len()..])
+                .decode(node_base64_payload(
+                    &encoded_data[marker + BASE64_MARKER.len()..],
+                )?)
                 .map_err(MediaDecodeError::Base64)
         }
         MediaEncoding::Base64 => BASE64
-            .decode(encoded_data)
+            .decode(node_base64_payload(encoded_data)?)
             .map_err(MediaDecodeError::Base64),
         MediaEncoding::PythonBytesLiteral => decode_python_bytes_literal(encoded_data),
     }

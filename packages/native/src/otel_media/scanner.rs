@@ -331,7 +331,7 @@ impl<'a> Extractor<'a> {
             .map_or((shape.property.as_str(), None), |(outer, inner)| {
                 (outer, Some(inner))
             });
-        let selected_outer = fields.iter().find(|field| field.key == outer_key);
+        let selected_outer = fields.iter().rev().find(|field| field.key == outer_key);
 
         for field in fields {
             if selected_outer.is_some_and(|selected| {
@@ -348,7 +348,10 @@ impl<'a> Extractor<'a> {
                 selected_outer.value_end,
                 depth + 1,
             )?;
-            let selected_inner = inline_fields.iter().find(|field| field.key == inner_key);
+            let selected_inner = inline_fields
+                .iter()
+                .rev()
+                .find(|field| field.key == inner_key);
             for field in &inline_fields {
                 if selected_inner.is_some_and(|selected| {
                     selected.value_start == field.value_start
@@ -508,19 +511,24 @@ impl<'a> Extractor<'a> {
         shape: &StructuredShape,
     ) -> Result<(), EarlyMediaError> {
         let token_range = if let Some((outer, inner)) = shape.property.split_once('.') {
-            let Some(field) = fields.iter().find(|field| field.key == outer) else {
+            let Some(field) = fields.iter().rev().find(|field| field.key == outer) else {
                 return Ok(());
             };
             let Ok(inline_fields) = self.object_fields(field.value_start, field.value_end, 0)
             else {
                 return Ok(());
             };
-            let Some(inline_field) = inline_fields.iter().find(|field| field.key == inner) else {
+            let Some(inline_field) = inline_fields.iter().rev().find(|field| field.key == inner)
+            else {
                 return Ok(());
             };
             inline_field.value_start..inline_field.value_end
         } else {
-            let Some(field) = fields.iter().find(|field| field.key == shape.property) else {
+            let Some(field) = fields
+                .iter()
+                .rev()
+                .find(|field| field.key == shape.property)
+            else {
                 return Ok(());
             };
             field.value_start..field.value_end
@@ -797,7 +805,7 @@ impl<'a> Extractor<'a> {
         fields: &[ObjectField],
         depth: usize,
     ) -> Result<Option<StructuredShape>, EarlyMediaError> {
-        let field = |name: &str| fields.iter().find(|field| field.key == name);
+        let field = |name: &str| fields.iter().rev().find(|field| field.key == name);
         let string = |name: &str| -> Result<Option<String>, EarlyMediaError> {
             field(name)
                 .map(|field| self.string_value(field.value_start).map(Cow::into_owned))
@@ -867,12 +875,18 @@ impl<'a> Extractor<'a> {
                 continue;
             };
             let inline_fields = self.object_fields(inline_start, inline_end, depth + 1)?;
-            let Some(data) = inline_fields.iter().find(|field| field.key == "data") else {
+            let Some(data) = inline_fields.iter().rev().find(|field| field.key == "data") else {
                 continue;
             };
-            let Some(content_type) = inline_fields
+            // JSON.parse keeps the last exact key, while Gemini gives the snake-case
+            // alias precedence unless it is absent or null.
+            let content_type_field = inline_fields
                 .iter()
-                .find(|field| field.key == "mime_type" || field.key == "mimeType")
+                .rfind(|field| field.key == "mime_type")
+                .filter(|field| self.input.get(field.value_start) != Some(&b'n'))
+                .or_else(|| inline_fields.iter().rfind(|field| field.key == "mimeType"));
+            let Some(content_type) = content_type_field
+                .filter(|field| self.input.get(field.value_start) == Some(&b'"'))
                 .map(|field| self.string_value(field.value_start).map(Cow::into_owned))
                 .transpose()?
             else {
@@ -980,14 +994,40 @@ struct ParsedDataUri<'a> {
     valid: Option<&'a str>,
 }
 
-fn parse_data_uri(value: &str, start: usize) -> Option<ParsedDataUri<'_>> {
+fn parse_data_uri(value: &str, mut start: usize) -> Option<ParsedDataUri<'_>> {
     let bytes = value.as_bytes();
+    let mut header_cursor = start + DATA_URI_PREFIX.len();
+    // Advance once through the header, restarting at a later plausible prefix.
+    // Searching the remaining suffix separately for every `data:` is quadratic
+    // on text with many prefixes and no Base64 marker.
+    let marker_start = loop {
+        let Some(&byte) = bytes.get(header_cursor) else {
+            return Some(ParsedDataUri {
+                start,
+                end: bytes.len(),
+                valid: None,
+            });
+        };
+        if byte == b',' {
+            return Some(ParsedDataUri {
+                start,
+                end: header_cursor + 1,
+                valid: None,
+            });
+        }
+        if byte == b'd' && bytes[header_cursor..].starts_with(DATA_URI_PREFIX.as_bytes()) {
+            if has_data_uri_boundary(value, header_cursor) {
+                start = header_cursor;
+            }
+            header_cursor += DATA_URI_PREFIX.len();
+            continue;
+        }
+        if byte == b';' && bytes[header_cursor..].starts_with(BASE64_MARKER.as_bytes()) {
+            break header_cursor;
+        }
+        header_cursor += 1;
+    };
     let after_prefix = start + DATA_URI_PREFIX.len();
-    let marker_start = bytes
-        .get(after_prefix..)?
-        .windows(BASE64_MARKER.len())
-        .position(|window| window == BASE64_MARKER.as_bytes())
-        .map(|offset| after_prefix + offset)?;
     let content_type_end = bytes
         .get(after_prefix..marker_start)?
         .iter()
