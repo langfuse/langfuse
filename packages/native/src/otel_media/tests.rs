@@ -348,8 +348,9 @@ fn extracts_user_payload_values_named_name_or_key() {
     let name_uri = data_uri(b"payload-name");
     let key_uri = data_uri(b"payload-key");
     let input = serde_json::json!({
+        "type": 1,
         "name": name_uri,
-        "payload": { "key": key_uri },
+        "payload": { "type": "file", "mediaType": 42, "key": key_uri },
         "scope": { "name": data_uri(b"nested-name") },
     });
     let source = serde_json::to_vec(&input).expect("serialize payload");
