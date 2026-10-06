@@ -176,7 +176,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
               <CardHeader className="p-2">
                 <CardTitle className="text-dark-yellow flex items-center justify-between text-sm">
                   <span>Invalid configuration</span>
-                  <Info className="h-4 w-4" />
+                  <Info className="icon-base" />
                 </CardTitle>
                 <CardDescription className="text-foreground">
                   {validationResult?.message}
@@ -189,7 +189,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
               <CardHeader className="p-2">
                 <CardTitle className="text-dark-green flex items-center justify-between text-sm">
                   <span>Valid configuration</span>
-                  <CircleCheck className="h-4 w-4" />
+                  <CircleCheck className="icon-base" />
                 </CardTitle>
                 <div className="text-sm">
                   Matches between dataset items and prompt

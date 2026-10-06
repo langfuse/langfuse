@@ -65,7 +65,7 @@ function SortableRow({
         {...attributes}
         {...listeners}
       >
-        <GripVertical className="h-3.5 w-3.5" />
+        <GripVertical className="icon-base" />
       </button>
       <div className="min-w-0">{children}</div>
     </li>

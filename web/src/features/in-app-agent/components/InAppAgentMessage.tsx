@@ -316,9 +316,9 @@ function TextMessageWithActions({
         onClick={handleCopy}
       >
         {isCopied ? (
-          <Check className={cn(isCompact ? "size-3" : "size-3.5")} />
+          <Check className={isCompact ? "icon-sm" : "icon-base"} />
         ) : (
-          <Copy className={cn(isCompact ? "size-3" : "size-3.5")} />
+          <Copy className={isCompact ? "icon-sm" : "icon-base"} />
         )}
       </button>
       {canSubmitFeedback ? (
@@ -434,7 +434,7 @@ function InAppAgentReasoningBlock({
         </span>
         <ChevronDown
           className={cn(
-            "text-foreground-tertiary size-3.5 shrink-0 translate-y-px transition-transform",
+            "text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform",
             !isOpen && "-rotate-90",
           )}
         />
@@ -577,7 +577,7 @@ function MessageFeedbackControls({
         >
           <ThumbsUp
             className={cn(
-              isCompact ? "size-3" : "size-3.5",
+              isCompact ? "icon-sm" : "icon-base",
               selectedValue === "thumbs_up" && "text-foreground",
             )}
           />
@@ -593,7 +593,7 @@ function MessageFeedbackControls({
       >
         <ThumbsDown
           className={cn(
-            isCompact ? "size-3" : "size-3.5",
+            isCompact ? "icon-sm" : "icon-base",
             selectedValue === "thumbs_down" && "text-foreground",
           )}
         />
@@ -665,7 +665,7 @@ function SourcesPopover({
             isCompact && "py-0.5",
           )}
         >
-          <BookOpenText className={cn(isCompact ? "size-3" : "size-3.5")} />
+          <BookOpenText className={isCompact ? "icon-sm" : "icon-base"} />
           Sources
         </button>
       </PopoverTrigger>
@@ -764,7 +764,7 @@ function RedirectActionButton({
       }}
     >
       {content.label}
-      <ArrowRight className="ml-1 size-3" />
+      <ArrowRight className="icon-base text-icon-foreground ml-1" />
     </Button>
   );
 }
@@ -838,18 +838,18 @@ function ToolCallStatusIcon({
   status: InAppAgentToolCallContent["status"];
 }) {
   if (status === "running") {
-    return <Loader2 className="size-3.5 shrink-0 animate-spin" />;
+    return <Loader2 className="icon-base shrink-0 animate-spin" />;
   }
 
   if (status === "succeeded") {
-    return <Check className="text-dark-green size-3.5 shrink-0" />;
+    return <Check className="text-dark-green icon-base shrink-0" />;
   }
 
   if (status === "failed") {
-    return <CircleX className="text-destructive size-3.5 shrink-0" />;
+    return <CircleX className="text-destructive icon-base shrink-0" />;
   }
 
-  return <Ban className="text-dark-yellow size-3.5 shrink-0" />;
+  return <Ban className="text-dark-yellow icon-base shrink-0" />;
 }
 
 function MessageText({
@@ -1123,9 +1123,9 @@ function CodeBlock({ children }: { children: ReactNode }) {
         )}
       >
         {isCopied ? (
-          <Check className="size-3.5" />
+          <Check className="icon-base" />
         ) : (
-          <Copy className="size-3.5" />
+          <Copy className="icon-base" />
         )}
       </button>
       {children}
@@ -1231,9 +1231,9 @@ function TableCopyButton({
       )}
     >
       {isCopied ? (
-        <Check className="size-3.5" />
+        <Check className="icon-base" />
       ) : (
-        <Copy className="size-3.5" />
+        <Copy className="icon-base" />
       )}
       <span>{caption}</span>
     </button>
@@ -1258,7 +1258,7 @@ function ThinkingIndicator({
       )}
     >
       <Loader2
-        className={cn("animate-spin", isCompact ? "h-3 w-3" : "h-3.5 w-3.5")}
+        className={cn("animate-spin", isCompact ? "icon-sm" : "icon-base")}
       />
       <span>{label}</span>
     </div>

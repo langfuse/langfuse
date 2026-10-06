@@ -177,7 +177,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 {name}
                                 <CheckIcon
                                   className={cn(
-                                    "ml-auto h-4 w-4",
+                                    "icon-base ml-auto",
                                     name === selectedPromptName
                                       ? "opacity-100"
                                       : "opacity-0",
@@ -244,7 +244,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                               </div>
                               <CheckIcon
                                 className={cn(
-                                  "ml-auto h-4 w-4 shrink-0",
+                                  "icon-base ml-auto shrink-0",
                                   prompt.version === selectedPromptVersion
                                     ? "opacity-100"
                                     : "opacity-0",
@@ -265,7 +265,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             </div>
             {selectedPromptToolConfig.status === "invalid" && (
               <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
-                <TriangleAlert className="h-4 w-4 shrink-0" />
+                <TriangleAlert className="icon-base shrink-0" />
                 Invalid tool config detected on this prompt version. Its tools
                 will be ignored when running the experiment.
               </p>
@@ -369,7 +369,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                   {schema.name}
                                   <CheckIcon
                                     className={cn(
-                                      "ml-auto h-4 w-4",
+                                      "icon-base ml-auto",
                                       selectedSchema?.id === schema.id
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -390,7 +390,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                         aria-label={`View schema ${selectedSchema.name}`}
                         onClick={() => openSchemaDialog(selectedSchema)}
                       >
-                        <EyeIcon className="h-4 w-4" />
+                        <EyeIcon className="icon-base text-icon-foreground" />
                       </Button>
                     )}
                   </div>
@@ -400,7 +400,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     className="w-full"
                     onClick={() => openSchemaDialog(null)}
                   >
-                    <PlusIcon className="mr-2 h-4 w-4" />
+                    <PlusIcon className="icon-base text-icon-foreground mr-2" />
                     Add schema
                   </Button>
                 )}

@@ -53,7 +53,7 @@ export function AnnotationSaveStatus({
               {itemStatus === "saving" && active ? (
                 <Spinner size="xxs" />
               ) : null}
-              {itemStatus === "saved" ? <Check className="size-3" /> : null}
+              {itemStatus === "saved" ? <Check className="icon-sm" /> : null}
             </span>
             <span className="text-muted-foreground">
               {

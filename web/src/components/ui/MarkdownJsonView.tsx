@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import {
+  OpenAIContentParts,
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
@@ -12,6 +13,7 @@ import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { cn } from "@/src/utils/tailwind";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
@@ -74,9 +76,9 @@ export function MarkdownJsonViewHeader({
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {isCopied ? (
-              <Check className="h-3 w-3" />
+              <Check className="icon-sm text-icon-foreground" />
             ) : (
-              <Copy className="h-3 w-3" />
+              <Copy className="icon-sm text-icon-foreground" />
             )}
           </Button>
         )}
@@ -99,9 +101,35 @@ export const canRenderContentAsMarkdown = (
   content: unknown,
   characterLimit: number,
 ): content is z.input<typeof OpenAIContentSchema> =>
-  OpenAIContentSchema.safeParse(content).success &&
+  (OpenAIContentSchema.safeParse(content).success ||
+    isOpenAIContentWithExternalS3Image(content)) &&
   // Don't render if markdown content is huge
   JSON.stringify(content || {}).length <= characterLimit;
+
+const isOpenAIContentWithExternalS3Image = (content: unknown) => {
+  if (!Array.isArray(content)) return false;
+
+  let hasExternalS3Image = false;
+  const hasOnlyRenderableParts = content.every((part) => {
+    if (
+      typeof part === "object" &&
+      part !== null &&
+      part.type === "image_url" &&
+      typeof part.image_url === "object" &&
+      part.image_url !== null
+    ) {
+      const descriptor = classifyMediaValue(part.image_url.url);
+      if (descriptor?.kind === "s3") {
+        hasExternalS3Image = true;
+        return true;
+      }
+    }
+
+    return OpenAIContentParts.safeParse([part]).success;
+  });
+
+  return hasExternalS3Image && hasOnlyRenderableParts;
+};
 
 // MarkdownJsonView renders markdown whenever the content is valid markdown
 // (see canRenderContentAsMarkdown), otherwise it falls back to JSON.

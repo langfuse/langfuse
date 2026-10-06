@@ -123,7 +123,7 @@ export const BlobStorageIntegrationForm = ({
           name="enabled"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Enabled</FormLabel>
+              <FormLabel>Export enabled</FormLabel>
               <FormControl>
                 <div className="mt-1 ml-4">
                   <Switch

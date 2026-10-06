@@ -3,33 +3,12 @@ import { logger } from "../logger";
 import { traceException, recordIncrement } from "../instrumentation";
 import { env } from "../../env";
 
+export { isS3SlowDownError } from "../services/s3ThrottleError";
+
 const S3_SLOWDOWN_PREFIX = "langfuse:s3-slowdown";
 
 function isSlowdownEnabled(): boolean {
   return env.LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED === "true";
-}
-
-/**
- * Check if an error is an S3 SlowDown error (rate limiting).
- * Handles various error formats from AWS SDK and storage services.
- */
-export function isS3SlowDownError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-
-  // Check for AWS SDK SlowDown error
-  if ("name" in err && err.name === "SlowDown") return true;
-  if ("Code" in err && err.Code === "SlowDown") return true;
-  if ("code" in err && err.code === "SlowDown") return true;
-
-  // Check message as fallback
-  if ("message" in err && typeof err.message === "string") {
-    return (
-      err.message.includes("SlowDown") ||
-      err.message.includes("reduce your request rate")
-    );
-  }
-
-  return false;
 }
 
 /**

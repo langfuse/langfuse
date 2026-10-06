@@ -27,11 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
@@ -361,32 +357,36 @@ export function TraceDetailView({
                                 label="Formatted"
                               />
                               {selectedTab === "log" && isLogViewVirtualized ? (
-                                <HoverCard openDelay={200}>
-                                  <HoverCardTrigger asChild>
-                                    <Tabs.Trigger
-                                      value="json"
-                                      size="sm"
-                                      disabled
-                                      label="Raw"
-                                    />
-                                  </HoverCardTrigger>
-                                  <HoverCardContent
-                                    align="end"
-                                    className="w-64 text-sm"
-                                    sideOffset={8}
-                                  >
-                                    <p className="font-bold">
-                                      Raw view unavailable
-                                    </p>
-                                    <p className="text-muted-foreground mt-1">
-                                      Disabled for traces with{" "}
-                                      {
-                                        TRACE_VIEW_CONFIG.logView
-                                          .virtualizationThreshold
-                                      }
-                                      + observations to maintain performance.
-                                    </p>
-                                  </HoverCardContent>
+                                <HoverCard
+                                  openDelay={200}
+                                  sideOffset={8}
+                                  placement="bottom-end"
+                                  content={
+                                    <div className="w-64 p-3 text-sm">
+                                      <p className="font-bold">
+                                        Raw view unavailable
+                                      </p>
+                                      <p className="text-muted-foreground mt-1">
+                                        Disabled for traces with{" "}
+                                        {
+                                          TRACE_VIEW_CONFIG.logView
+                                            .virtualizationThreshold
+                                        }
+                                        + observations to maintain performance.
+                                      </p>
+                                    </div>
+                                  }
+                                >
+                                  {({ getTriggerProps }) => (
+                                    <span tabIndex={0} {...getTriggerProps()}>
+                                      <Tabs.Trigger
+                                        value="json"
+                                        size="sm"
+                                        disabled
+                                        label="Raw"
+                                      />
+                                    </span>
+                                  )}
                                 </HoverCard>
                               ) : (
                                 <Tabs.Trigger
@@ -536,7 +536,7 @@ export function TraceDetailView({
                 value="scores"
                 className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden"
               >
-                <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3">
+                <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
                   <ScoresTable
                     projectId={projectId}
                     traceId={trace.id}
@@ -548,6 +548,7 @@ export function TraceDetailView({
                       "userId",
                     ]}
                     localStorageSuffix="TracePreview"
+                    insetToolbar
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />
                 </div>

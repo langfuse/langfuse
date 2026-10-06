@@ -18,7 +18,6 @@ import {
   redis,
   SecondaryIngestionQueue,
   TQueueJobTypes,
-  traceException,
   type IngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
   toClickhouseDateTime,
@@ -30,6 +29,7 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
+import { logRetryableJobFailure } from "./jobFailureLog";
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -351,11 +351,11 @@ export const ingestionQueueProcessorBuilder = (
         });
       }
 
-      logger.error(
-        `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
-        e,
-      );
-      traceException(e);
+      logRetryableJobFailure({
+        message: `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
+        error: e,
+        job,
+      });
       throw e;
     }
   };

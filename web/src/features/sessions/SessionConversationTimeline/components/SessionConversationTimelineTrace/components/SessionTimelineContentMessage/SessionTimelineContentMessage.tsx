@@ -117,7 +117,7 @@ export function SessionTimelineContentMessage({
             >
               {showSender && groupIndex === firstContentGroupIndex ? (
                 <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
-                  <Icon className="h-3 w-3 shrink-0" />
+                  <Icon className="icon-sm shrink-0" />
                   <span
                     className="text-foreground truncate"
                     title={senderName ?? presentation.label}
@@ -142,7 +142,7 @@ export function SessionTimelineContentMessage({
                 >
                   <ChevronDown
                     className={cn(
-                      "text-foreground-tertiary size-3 shrink-0 translate-y-px transition-transform",
+                      "text-foreground-tertiary icon-sm shrink-0 translate-y-px transition-transform",
                       !isJsonExpanded && "-rotate-90",
                     )}
                     aria-hidden="true"

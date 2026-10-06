@@ -43,7 +43,7 @@ export function GraphViewModeSwitch({
         <Tabs.List size="md" aria-label="Graph mode">
           {MODES.map(({ mode, icon: Icon, label, title }) => (
             <Tabs.Trigger key={mode} value={mode} title={title}>
-              <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+              <Icon aria-hidden="true" className="icon-base shrink-0" />
               {/* Icons only on narrow canvases so the switch never collides
                   with the zoom stack. */}
               <span className="@max-[340px]/graphcanvas:sr-only">{label}</span>

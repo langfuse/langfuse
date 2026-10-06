@@ -652,7 +652,7 @@ export function OutlierBarStrip({
                   onSelectionChange?.(null);
                 }}
               >
-                <X className="h-3 w-3" />
+                <X className="icon-sm" />
               </button>
             </div>
             {previewHasData && (

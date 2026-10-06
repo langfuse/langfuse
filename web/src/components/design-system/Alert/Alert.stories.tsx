@@ -34,7 +34,7 @@ const dismissibleChildren = (
       aria-label="Dismiss alert"
       onClick={dismiss}
     >
-      <X className="size-4" aria-hidden="true" />
+      <X className="icon-base" aria-hidden="true" />
     </button>
     <Alert.Title>Review required</Alert.Title>
     <Alert.Description>Check this warning before continuing.</Alert.Description>
@@ -113,7 +113,7 @@ export const DismissAction = meta.story({
       "[&>[data-slot=alert-icon]]:top-3",
       "[&>[data-slot=alert-icon]]:left-3",
     );
-    await expect(icon).toHaveClass("absolute", "size-4");
+    await expect(icon).toHaveClass("absolute", "icon-base");
     await expect(icon).toHaveAttribute("aria-hidden", "true");
     await expect(dismissButton).not.toHaveClass("pl-6");
     await userEvent.click(dismissButton);
