@@ -1,6 +1,7 @@
 // The feature-flags feature's public server surface (RFC rules 8 and 10).
 export {
   featurePreviewFlags,
+  userFeaturePreviewFlags,
   personalFeaturePreviewFlags,
   isAdminOnlyFeaturePreviewFlag,
   isOrganizationOnlyFeaturePreviewFlag,
