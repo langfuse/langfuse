@@ -1038,7 +1038,7 @@ describe("DataTableControls facet ordering", () => {
       </TooltipProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Alpha All" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alpha Any" }));
     const toggled = captureSpy.mock.calls.filter(
       ([event]) => event === "filters:facet_toggled",
     );
@@ -1129,8 +1129,8 @@ describe("DataTableControls facet ordering", () => {
     );
 
     expect(screen.getByText("2 selected")).toBeInTheDocument();
-    // Inactive checkbox facet reads "All" — all-checked means no filter.
-    expect(screen.getByText("All")).toBeInTheDocument();
+    // Unfiltered facet reads "Any" on its collapsed line.
+    expect(screen.getByText("Any")).toBeInTheDocument();
   });
 });
 

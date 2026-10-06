@@ -77,7 +77,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name", "isRootObservation", "type"],
+  defaultExpanded: [],
 
   migrateFilterState: migrateLegacyRootObservationFilters,
 

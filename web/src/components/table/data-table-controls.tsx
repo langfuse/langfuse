@@ -207,6 +207,16 @@ interface DataTableControlsProps {
 // useLocalStorage's cross-tab listener on every render.
 const EMPTY_RECENCY: Record<string, number> = {};
 
+const UNFILTERED_FACET_SUMMARY: Record<UIFilter["type"], string> = {
+  categorical: "Any",
+  string: "Any",
+  numeric: "Any",
+  keyValue: "None",
+  numericKeyValue: "None",
+  booleanKeyValue: "None",
+  stringKeyValue: "None",
+};
+
 export function DataTableControls({
   queryFilter,
   filterWithAI,
@@ -508,6 +518,19 @@ export function DataTableControls({
   const showPromotedSeparator =
     promotedFacetCount > 0 && firstCatalogColumn !== undefined;
 
+  // Collapsed line of an unfiltered facet: what it matches. A kept subset
+  // (managed environments) still describes itself.
+  const facetSummary = (filter: UIFilter): string | null => {
+    if (filter.isActive) return getFacetSummary(filter);
+    const keptSubset =
+      filter.type === "categorical" &&
+      filter.value.length > 0 &&
+      filter.value.length < filter.options.length;
+    return keptSubset
+      ? getFacetSummary(filter)
+      : UNFILTERED_FACET_SUMMARY[filter.type];
+  };
+
   const renderFacet = (filter: UIFilter) => {
     // A column the current surface can't honour blocks the facet whether or
     // not it holds a value: the chart view can't filter on it (#15187 /
@@ -528,7 +551,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={facetSummary(filter)}
           summaryIcon={
             summaryValue !== null
               ? filter.renderIcon?.(summaryValue)
@@ -567,7 +590,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={facetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           min={filter.min}
@@ -593,7 +616,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={facetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           value={filter.value}
@@ -614,7 +637,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={facetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -639,7 +662,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={facetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -663,7 +686,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={facetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -687,7 +710,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={getFacetSummary(filter)}
+          summary={facetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -962,7 +985,7 @@ export function DataTableControls({
           "group-data-[expanded=false]/controls:hidden",
         )}
       >
-        <div className="bg-surface flex h-10 shrink-0 items-center justify-between border-b px-3">
+        <div className="bg-surface flex h-10 shrink-0 items-center justify-between px-3">
           <div className="flex items-center gap-1.5">
             {/* Three contexts for the header's close affordance:
                 - inline (events MobileFiltersSheet): the sheet owns its own X +
@@ -1006,7 +1029,7 @@ export function DataTableControls({
               </Tooltip>
             )}
             {layout !== "inline" && (
-              <span className="text-sm font-bold">Filters</span>
+              <span className="text-base font-bold">Filters</span>
             )}
             {/* Inline: the count already shows on the sheet's Filters trigger
                 and footer, so a bare number here (title hidden) is just noise. */}
@@ -1185,7 +1208,7 @@ export function DataTableControls({
           // pinning to the top of the scroll area would otherwise sit tight
           // against the field. pb-0.5 + the header's own 6px = the 8px above
           // the field, at rest and scrolled alike.
-          <div className="bg-surface shrink-0 px-2 pt-2 pb-0.5">
+          <div className="bg-surface shrink-0 px-3 pt-2 pb-0.5">
             <div className="relative">
               <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
               <Input
@@ -1210,7 +1233,7 @@ export function DataTableControls({
                     noteFacetSearch("facet_list", "");
                   }
                 }}
-                className="h-6 pr-6 pl-7 text-xs"
+                className="h-8 pr-6 pl-7 font-mono text-xs"
               />
               {facetSearch !== "" && (
                 <Button
@@ -1373,7 +1396,7 @@ const FilterAccordionTrigger = ({
   // pt-1.5/pb-0.5 rather than an even py: the 8px between two rows is split so
   // that 6px of it sits INSIDE this sticky box, which is what keeps a pinned
   // header the same distance from whatever is above it as it was at rest.
-  <AccordionPrimitive.Header className="bg-surface sticky top-0 z-[1] flex px-2 pt-1.5 pb-0.5">
+  <AccordionPrimitive.Header className="bg-surface sticky top-0 z-[1] flex px-3 pt-1.5 pb-0.5">
     <AccordionPrimitive.Trigger
       className={cn(
         // min-w-0: without it the trigger's automatic min width equals the
@@ -1442,20 +1465,14 @@ function FilterAccordionItem({
     >
       <FilterAccordionTrigger
         className={cn(
-          "text-muted-foreground hover:text-foreground bg-muted hover:bg-accent min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
-          isActive && "text-foreground font-bold",
+          // Fill means open: collapsed facets read as a plain line.
+          "text-foreground-secondary data-[state=open]:text-foreground hover:bg-accent data-[state=open]:bg-muted min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
+          isActive && "font-bold",
           isDisabled &&
-            "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
+            "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent data-[state=open]:bg-transparent",
         )}
       >
-        {/* Two-line-max header: line 1 is the label, which NEVER wraps —
-            it ellipses so the clear button keeps its place — and the chip
-            drops to its own second line when it doesn't fit inline.
-            flex-wrap breaks lines by content sizes, so the chip wraps
-            before anything shrinks; only an item alone on its line
-            shrink-truncates. The clear button and chevron sit outside the
-            wrap container and never move. */}
-        <div className="flex min-w-0 grow flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <div className="flex min-w-0 grow items-center gap-1.5">
           {isDisabled && disabledReason ? (
             <Tooltip delayDuration={80}>
               <TooltipTrigger asChild>
@@ -1500,23 +1517,15 @@ function FilterAccordionItem({
             </span>
           )}
           {summary && (
-            // Only useful while collapsed: the expanded facet shows the
-            // selection itself, so the chip hides (data-state on the
-            // trigger = the group/facet element).
+            // Collapsed only: the open facet shows the selection itself.
             <span
               className={cn(
-                // explicit h-4: the chip box must exactly equal the label line so the
-                // header height cannot jitter between open (chip hidden) and
-                // closed states.
-                "h-4 max-w-full min-w-0 truncate text-[11px] leading-4",
+                // h-4 = the label line, so the row height never jitters.
+                "ml-auto h-4 max-w-1/2 min-w-0 shrink-0 truncate text-[11px] leading-4",
                 "group-data-[state=open]/facet:hidden",
-                // bg-background pops the chip out of the tinted header band
-                // in both themes. No border/vertical padding: the chip's box
-                // must equal the label's line height so headers with and
-                // without a value render at the same height.
                 isActive
                   ? "bg-background text-foreground rounded px-1 font-bold"
-                  : "text-muted-foreground/60 font-normal",
+                  : "text-muted-foreground font-normal",
               )}
               title={summary}
             >
@@ -1532,13 +1541,7 @@ function FilterAccordionItem({
         {isActive && onReset && (
           <Tooltip delayDuration={80}>
             <TooltipTrigger asChild>
-              {/* div[role=button], not <Button>: the accordion trigger is
-                  already a <button> and buttons cannot nest. Always visible
-                  while the facet has a selection (no hover gating) — the clear
-                  affordance used to reveal only on header hover, which hid the
-                  one obvious way to drop a filter. shrink-0 keeps it in flow at
-                  the row's right edge so the label/chip truncate before reaching
-                  it; self-start pins it to the top line on two-line headers. */}
+              {/* div[role=button]: the accordion trigger is already a <button>. */}
               <div
                 role="button"
                 tabIndex={0}
@@ -1553,7 +1556,7 @@ function FilterAccordionItem({
                     onReset();
                   }
                 }}
-                className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 self-start rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
+                className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
                 aria-label={`Clear ${label} filter`}
               >
                 <IconX className="icon-sm shrink-0" />
@@ -1688,7 +1691,7 @@ export function CategoricalFacet({
 
         {/* TEXT MODE: Contains/Does Not Contain filters */}
         {filterMode === "text" && onTextFilterAdd && (
-          <div className="px-2 py-1">
+          <div className="py-1">
             <TextFilterSection
               allFilters={textFilters ?? []}
               onAdd={onTextFilterAdd}
@@ -1838,7 +1841,7 @@ function CategoricalSelectContent({
   };
 
   return (
-    <div className="px-2">
+    <div className="px-3">
       {/* Any of / All of / None of operator toggle for arrayOptions filters
 
           This toggle appears for multi-valued array columns (arrayOptions)
@@ -1868,7 +1871,7 @@ function CategoricalSelectContent({
           - Monitors: tags
       */}
       {onOperatorChange && (
-        <div className="mb-2 px-2">
+        <div className="mb-2">
           <Tabs
             value={operator ?? "any of"}
             onValueChange={(newOperator) =>
@@ -1911,20 +1914,20 @@ function CategoricalSelectContent({
       {loading ? (
         <>
           {[1, 2].map((i) => (
-            <div key={i} className="relative flex items-center px-2">
-              <div className="group/checkbox flex items-center rounded-sm p-0.5">
+            <div key={i} className="relative flex items-center">
+              <div className="flex min-w-0 flex-1 items-center rounded-md px-2 py-0.5">
                 <Skeleton className="h-3.5 w-3.5 rounded-sm" />
-              </div>
-              <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-0.5">
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="ml-auto h-3 w-8" />
+                <div className="flex min-w-0 flex-1 items-center pr-1 pl-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="ml-auto h-3 w-8" />
+                </div>
               </div>
             </div>
           ))}
         </>
       ) : visibleOptionValues.length === 0 ? (
-        // px-2 on top of the outer px-2 = the same 16px inset as the mode
-        // tabs and inputs, so empty states don't stick to the panel edge.
+        // px-2 on top of the outer px-3 = the checkbox rows' inset, so empty
+        // states don't stick to the panel edge.
         <div className="text-muted-foreground px-2 py-1 text-xs">
           {filterKey === "sessionId" ? (
             <span>
@@ -1964,14 +1967,14 @@ function CategoricalSelectContent({
         <>
           {/* Search box for many options */}
           {hasMoreOptions && (
-            <div className="mb-2 px-2">
+            <div className="mb-2">
               <div className="relative">
                 <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
                 <Input
                   placeholder="Filter values"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-7 text-xs"
+                  className="h-8 pl-7 font-mono text-xs"
                 />
               </div>
             </div>
@@ -2000,15 +2003,14 @@ function CategoricalSelectContent({
               {/* Remaining options, capped */}
               {visibleRemainingOptions.map(renderOption)}
               {(canShowMore || canShowFewer) && (
-                <div className="flex flex-col px-2">
+                <div className="flex flex-col">
                   {canShowFewer && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
+                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-8 text-xs"
                     >
-                      <DropdownIndicator direction="up" size="sm" nudge />
                       Show fewer values
                     </Button>
                   )}
@@ -2021,9 +2023,8 @@ function CategoricalSelectContent({
                           (current) => current + SHOW_MORE_INCREMENT,
                         )
                       }
-                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-7 text-xs"
+                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-8 text-xs"
                     >
-                      <DropdownIndicator size="sm" nudge />
                       Show more values
                     </Button>
                   )}
@@ -2541,9 +2542,8 @@ interface FilterModeTabsProps {
 
 function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
   return (
-    // mt-1 evens the rhythm: content opens with pt-1, so the tabs sit 8px
-    // from the header band and 8px (mb-2) from the list below.
-    <div className="mt-1 mb-2 px-4">
+    // px-3 = the header box's inset, so the toggle lines up with the facet rows.
+    <div className="mt-1 mb-2 px-3">
       <Tabs
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
@@ -2584,7 +2584,7 @@ function TextFilterSection({
   return (
     <div className="space-y-2">
       {/* Operator picker */}
-      <div className="px-2">
+      <div className="px-3">
         <Select
           value={selectedOperator}
           onValueChange={(operator) =>
@@ -2606,7 +2606,7 @@ function TextFilterSection({
       </div>
 
       {/* Input + Add button */}
-      <div className="flex items-center gap-2 px-2">
+      <div className="flex items-center gap-2 px-3">
         <Input
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -2632,7 +2632,7 @@ function TextFilterSection({
 
       {/* Active filters list */}
       {allFilters.length > 0 && (
-        <div className="space-y-1 px-2">
+        <div className="space-y-1 px-3">
           {allFilters.map((f, idx) => (
             <div
               key={idx}
@@ -2700,58 +2700,56 @@ function FilterValueCheckbox({
   return (
     <div
       className={cn(
-        "relative flex items-center px-2",
+        "relative flex items-center",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >
-      {/* Checkbox hover area */}
-      <div className="group/checkbox hover:bg-accent flex items-center rounded-sm p-0.5 transition-colors">
-        <span className="pointer-events-auto">
-          <Checkbox
-            id={id}
-            checked={checked}
-            onCheckedChange={onCheckedChange}
-            disabled={disabled}
-            size="sm"
-          />
-        </span>
-      </div>
+      {/* One hover tint for the whole row, same inset as the header box above. */}
+      <div className="hover:bg-accent flex min-w-0 flex-1 items-center rounded-md px-2 py-0.5 transition-colors">
+        <Checkbox
+          id={id}
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          disabled={disabled}
+          size="sm"
+        />
 
-      {/* Label hover area */}
-      <div
-        className={cn(
-          "group/label hover:bg-accent flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-0.5 transition-colors",
-          disabled && "pointer-events-none",
-        )}
-        onClick={onLabelClick}
-      >
-        {icon ? <span className="mr-2">{icon}</span> : null}
-        <span
+        {/* Label area: clicking selects only this value */}
+        <div
           className={cn(
-            "min-w-0 truncate text-xs",
-            !suffix && "flex-1",
-            label === "" && "text-muted-foreground italic",
+            "group/label flex min-w-0 flex-1 cursor-pointer items-center self-stretch pr-1 pl-2",
+            disabled && "pointer-events-none",
           )}
-          title={displayTitle}
+          onClick={onLabelClick}
         >
-          {displayLabel}
-        </span>
-        {suffix ? <span className="shrink-0 pl-1">{suffix}</span> : null}
-
-        {/* "Only" or "All" indicator when hovering label. shrink-0 +
-            whitespace-nowrap: appearing may only re-truncate the label —
-            never widen the row. */}
-        {onLabelClick && !disabled && (
-          <span className="text-muted-foreground hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block">
-            {labelText}
+          {icon ? <span className="mr-2">{icon}</span> : null}
+          <span
+            className={cn(
+              "text-foreground-secondary min-w-0 truncate text-xs",
+              !suffix && "flex-1",
+              label === "" && "text-muted-foreground italic",
+            )}
+            title={displayTitle}
+          >
+            {displayLabel}
           </span>
-        )}
+          {suffix ? <span className="shrink-0 pl-1">{suffix}</span> : null}
 
-        {count > 0 ? (
-          <span className="text-muted-foreground ml-auto w-7 shrink-0 pl-1 text-right text-xs">
-            {compactNumberFormatter(count, 0)}
-          </span>
-        ) : null}
+          {/* "Only" or "All" indicator when hovering label. shrink-0 +
+              whitespace-nowrap: appearing may only re-truncate the label —
+              never widen the row. */}
+          {onLabelClick && !disabled && (
+            <span className="text-muted-foreground hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block">
+              {labelText}
+            </span>
+          )}
+
+          {count > 0 ? (
+            <span className="text-muted-foreground ml-auto w-7 shrink-0 pl-1 text-right text-xs">
+              {compactNumberFormatter(count, 0)}
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   );
