@@ -655,11 +655,21 @@ function estimateReplayTokens(message: AgUiMessage): number {
   return Math.ceil(content.length / IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN);
 }
 
+function buildReplayBudgetPlaceholder(message: {
+  toolCallId: string;
+  content: string;
+}): string {
+  return `[Tool output omitted from replay to stay within the context budget (toolCallId: ${message.toolCallId}, original size ~${message.content.length} chars). Re-run the tool if the data is still needed.]`;
+}
+
 /**
  * Bounds replayed context by replacing tool results that fall outside the
  * token budget — counted from the newest message backwards so the most
  * recent turns keep their full payloads — with a short placeholder. Messages
- * are never dropped or reordered, so assistant tool-call pairing survives.
+ * are never dropped or reordered, so assistant tool-call pairing survives,
+ * and a tool result shorter than its placeholder is left alone so compaction
+ * can never grow the replay (this also preserves silent-MCP output pointers,
+ * which are the agent's way to read persisted outputs without a re-run).
  * Persisted events are untouched; this only shapes what is replayed into the
  * model. An undefined or non-positive budget disables compaction.
  */
@@ -690,18 +700,22 @@ export function compactToolResultsToReplayBudget(
   const compactedMessages = messages.map((message, index): AgUiMessage => {
     if (
       message.role !== "tool" ||
-      cumulativeTokensFromEnd[index] <= replayTokenBudget ||
-      message.content.length <=
-        IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN /* placeholder would not shrink it */
+      cumulativeTokensFromEnd[index] <= replayTokenBudget
     ) {
       return message;
     }
 
+    const placeholder = buildReplayBudgetPlaceholder(message);
+    // Skip results the placeholder would not shrink. This also preserves
+    // silent-MCP output pointers ("Output saved to /workspace/tool_calls/…"):
+    // they are already minimal and are the agent's only way to read the
+    // persisted output without re-running the tool.
+    if (message.content.length <= placeholder.length) {
+      return message;
+    }
+
     changed = true;
-    return {
-      ...message,
-      content: `[Tool output omitted from replay to stay within the context budget (toolCallId: ${message.toolCallId}, original size ~${message.content.length} chars). Re-run the tool if the data is still needed.]`,
-    };
+    return { ...message, content: placeholder };
   });
 
   return changed ? compactedMessages : messages;

@@ -205,13 +205,38 @@ describe("compactToolResultsToReplayBudget", () => {
     expect(result[1]?.content).toContain("omitted from replay");
   });
 
-  it("keeps tool results a placeholder would not shrink", () => {
-    const tiny = toolMessage("tiny", "ok"); // 1 token, shorter than any placeholder
+  it("keeps tool results shorter than the placeholder, preserving silent-output pointers", () => {
+    const silentPointer = toolMessage(
+      "pointer",
+      "Output saved to /workspace/tool_calls/langfuse_getHealth_call-pointer.json",
+    );
+    const midSize = toolMessage("mid", "x".repeat(100));
     const big = bigTool("big");
-    const result = compactToolResultsToReplayBudget([tiny, big], 1);
+    const result = compactToolResultsToReplayBudget(
+      [silentPointer, midSize, big],
+      1,
+    );
 
-    expect(result[0]?.content).toBe("ok");
-    expect(result[1]?.content).toContain("omitted from replay");
+    expect(result[0]?.content).toContain("/workspace/tool_calls/");
+    expect(result[1]?.content).toBe("x".repeat(100));
+    expect(result[2]?.content).toContain("omitted from replay");
+  });
+
+  it("never grows the replay when only short tool results exist", () => {
+    const shorts = Array.from({ length: 5 }, (_, index) =>
+      toolMessage(`short-${index}`, "y".repeat(100)),
+    );
+    const result = compactToolResultsToReplayBudget(shorts, 1);
+
+    const sizeBefore = shorts.reduce(
+      (total, m) => total + (m.content?.length ?? 0),
+      0,
+    );
+    const sizeAfter = result.reduce(
+      (total, m) => total + (m.content?.length ?? 0),
+      0,
+    );
+    expect(sizeAfter).toBe(sizeBefore);
   });
 
   it("leaves messages exactly at the budget uncompacted", () => {
