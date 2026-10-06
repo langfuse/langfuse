@@ -101,14 +101,14 @@ export function SpanContent({
       // row — stacking on the score chips' own titles and the ScoreTag level
       // tooltip. The truncating name span below carries its own title.
       className={cn(
-        "peer relative flex min-w-0 flex-1 items-center rounded-md py-0.5 pr-2 pl-1 text-left",
+        "peer relative flex min-w-0 flex-1 items-start gap-2 rounded-md py-1 pr-2 pl-1 text-left",
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-xs" title={nodeDisplayName}>
+          <span className="shrink truncate text-sm" title={nodeDisplayName}>
             {nodeDisplayName}
           </span>
 
