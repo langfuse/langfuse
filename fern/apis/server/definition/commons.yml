@@ -395,7 +395,7 @@ types:
       updatedAt: datetime
       version:
         type: optional<datetime>
-        docs: When this version of the dataset item became current. Listing dataset items with a `version` at or after this timestamp returns this item version, until the item is changed again.
+        docs: When this version of the dataset item became current. Listing dataset items with a `version` at or after this timestamp returns this item version, until the item is changed again. Self-hosted deployments that set `LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION=false` update items in place, so there it stays at the item's first write.
       mediaReferences:
         type: list<DatasetItemMediaReference>
         docs: Resolved Langfuse media references found in input, expectedOutput, and metadata.

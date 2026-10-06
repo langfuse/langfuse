@@ -8827,7 +8827,10 @@ components:
           description: >-
             When this version of the dataset item became current. Listing
             dataset items with a `version` at or after this timestamp returns
-            this item version, until the item is changed again.
+            this item version, until the item is changed again. Self-hosted
+            deployments that set
+            `LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION=false`
+            update items in place, so there it stays at the item's first write.
         mediaReferences:
           type: array
           items:
