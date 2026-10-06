@@ -139,21 +139,35 @@ describe("parseIoOffThread", () => {
     await expect(pending).resolves.toMatchObject({ input: "worker-parsed" });
   });
 
-  it("reuses one worker and routes each answer to its own request", async () => {
+  it("reuses one worker and hands it one request at a time", async () => {
     const client = await loadClient();
     const first = parse(client, BIG_IO);
     const second = parse(client, BIG_IO);
 
     expect(FakeWorker.instances).toHaveLength(1);
     const worker = FakeWorker.instances[0]!;
-    expect(worker.posted).toHaveLength(2);
+    // The worker is single-threaded; queueing inside it would only hide the
+    // wait from the deadline.
+    expect(worker.posted).toHaveLength(1);
 
-    // Answered out of order: the ids, not the arrival order, decide.
-    worker.answer(worker.posted[1]!, { parsedInput: "second" });
     worker.answer(worker.posted[0]!, { parsedInput: "first" });
-
     await expect(first).resolves.toMatchObject({ input: "first" });
+
+    expect(worker.posted).toHaveLength(2);
+    worker.answer(worker.posted[1]!, { parsedInput: "second" });
     await expect(second).resolves.toMatchObject({ input: "second" });
+  });
+
+  it("ignores an answer to a request it is no longer waiting on", async () => {
+    const client = await loadClient();
+    const pending = parse(client, BIG_IO);
+    const worker = FakeWorker.instances[0]!;
+    const request = worker.posted[0]!;
+
+    worker.answer({ ...request, id: "not-the-one-in-flight" });
+    worker.answer(request, { parsedInput: "the right one" });
+
+    await expect(pending).resolves.toMatchObject({ input: "the right one" });
   });
 
   it("rejects when the worker reports a parse failure", async () => {
@@ -206,6 +220,55 @@ describe("parseIoOffThread", () => {
         input: { deep: "x".repeat(110_000) },
       });
       expect(FakeWorker.instances).toHaveLength(1);
+    });
+  });
+
+  describe("waiting in the queue", () => {
+    it("starts a request's deadline when the worker takes it, not when it is asked for", async () => {
+      vi.useFakeTimers();
+      const client = await loadClient();
+      const first = parse(client, BIG_IO);
+      const second = parse(client, BIG_IO);
+      const worker = FakeWorker.instances[0]!;
+
+      // A slow but entirely healthy first parse, answered just inside its own
+      // deadline. The second request has been waiting for all of it.
+      await vi.advanceTimersByTimeAsync(client.PARSE_DEADLINE_MS - 1_000);
+      worker.answer(worker.posted[0]!, { parsedInput: "slow but fine" });
+      await expect(first).resolves.toMatchObject({ input: "slow but fine" });
+
+      // Timing the queued request from when it was asked for would fire its
+      // deadline here and kill a worker that is answering normally.
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(worker.terminated).toBe(false);
+      expect(mockCaptureException).not.toHaveBeenCalled();
+
+      worker.answer(worker.posted[1]!, { parsedInput: "second" });
+      await expect(second).resolves.toMatchObject({ input: "second" });
+    });
+
+    it("re-dispatches what was only queued instead of parsing it here", async () => {
+      vi.useFakeTimers();
+      const client = await loadClient();
+      const inFlight = parse(client, BIG_IO);
+      const queued = parse(client, BIG_IO);
+      const dead = FakeWorker.instances[0]!;
+
+      await vi.advanceTimersByTimeAsync(client.PARSE_DEADLINE_MS);
+      // Only the request the worker actually held is unanswerable; the one
+      // behind it was never tried, so it does not belong on the main thread.
+      await expect(inFlight).resolves.toMatchObject({
+        input: { deep: "x".repeat(110_000) },
+      });
+      expect(dead.terminated).toBe(true);
+
+      expect(FakeWorker.instances).toHaveLength(2);
+      const fresh = FakeWorker.instances[1]!;
+      expect(fresh.posted).toHaveLength(1);
+      fresh.answer(fresh.posted[0]!, { parsedInput: "ran on the new worker" });
+      await expect(queued).resolves.toMatchObject({
+        input: "ran on the new worker",
+      });
     });
   });
 

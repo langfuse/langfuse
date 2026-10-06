@@ -63,14 +63,17 @@ export interface ParsedIo {
   parseTime: number;
 }
 
-interface PendingParse {
+interface QueuedParse {
   request: ParseRequest;
   /** Owning hook, for Sentry context. */
   source: string;
   payloadChars: number;
-  timer: ReturnType<typeof setTimeout>;
   resolve: (parsed: ParsedIo) => void;
   reject: (error: Error) => void;
+}
+
+interface DispatchedParse extends QueuedParse {
+  timer: ReturnType<typeof setTimeout>;
 }
 
 let workerInstance: Worker | null = null;
@@ -79,7 +82,18 @@ let workerObjectUrl: string | null = null;
 let workerUnavailable = false;
 let deadlineMisses = 0;
 let requestCounter = 0;
-const pending = new Map<string, PendingParse>();
+/**
+ * One request is with the worker at a time, the rest wait here.
+ *
+ * The worker is single-threaded, so posting everything at once only moves the
+ * queue inside it — where the deadline cannot see it. A request waiting behind
+ * a slow parse would then burn its deadline without the worker ever having
+ * looked at it, and kill a perfectly healthy worker. Holding the queue on this
+ * side is what makes the deadline mean "the worker stopped answering the
+ * request it is actually working on".
+ */
+let inFlight: DispatchedParse | null = null;
+const queue: QueuedParse[] = [];
 
 /** Estimate a value's size in characters, for the threshold check only. */
 function estimateSize(value: unknown): number {
@@ -125,7 +139,7 @@ function parseHere(
   }
 }
 
-/** Terminate the worker and release its blob URL. Leaves `pending` alone. */
+/** Terminate the worker and release its blob URL. Leaves the queue alone. */
 function disposeWorker() {
   workerInstance?.terminate();
   workerInstance = null;
@@ -135,39 +149,72 @@ function disposeWorker() {
   }
 }
 
-/**
- * Retire the worker and answer everything it still owes on this thread.
- * Terminating is the only way to stop a worker mid-parse, and it is also what
- * makes those answers safe to produce here: nothing can arrive twice.
- */
-function retireWorker() {
-  disposeWorker();
-  const carried = [...pending.values()];
-  pending.clear();
-  for (const entry of carried) {
-    clearTimeout(entry.timer);
-    const { input, output, metadata } = entry.request;
-    parseHere(input, output, metadata).then(entry.resolve, entry.reject);
-  }
+function settleHere(entry: QueuedParse) {
+  const { input, output, metadata } = entry.request;
+  parseHere(input, output, metadata).then(entry.resolve, entry.reject);
 }
 
-function handleMessage(event: MessageEvent<ParseResponse>) {
-  const entry = pending.get(event.data.id);
-  if (!entry) return; // already answered by a deadline or a retirement
-  pending.delete(event.data.id);
-  clearTimeout(entry.timer);
+/**
+ * Drop the worker and decide what happens to the work it was holding.
+ *
+ * Terminating is the only way to stop a worker mid-parse, and it is also what
+ * makes answering elsewhere safe: nothing can arrive twice afterwards. The
+ * request that was with the worker is settled on this thread, because it is the
+ * one nobody answered; whatever was still queued has not been tried yet, so it
+ * goes to a fresh worker rather than blocking rendering for no reason.
+ */
+function restartWorker() {
+  disposeWorker();
+  const abandoned = inFlight;
+  inFlight = null;
+  if (abandoned) {
+    clearTimeout(abandoned.timer);
+    settleHere(abandoned);
+  }
+  pump();
+}
 
-  if (event.data.error) {
-    entry.reject(new Error(event.data.error));
+/** Hand the next queued request to the worker, or to this thread if there is none. */
+function pump() {
+  if (inFlight || queue.length === 0) return;
+
+  const worker = getOrCreateWorker();
+  if (!worker) {
+    // No worker to wait for, so nothing is gained by holding the queue.
+    while (queue.length > 0) settleHere(queue.shift()!);
     return;
   }
 
-  entry.resolve({
-    input: event.data.parsedInput,
-    output: event.data.parsedOutput,
-    metadata: event.data.parsedMetadata,
-    parseTime: event.data.parseTime ?? 0,
-  });
+  const next = queue.shift()!;
+  inFlight = {
+    ...next,
+    // Started here, not when the caller asked: a request that spent ten seconds
+    // behind another parse has not been ignored for ten seconds.
+    timer: setTimeout(onDeadline, PARSE_DEADLINE_MS),
+  };
+  worker.postMessage(next.request);
+}
+
+function handleMessage(event: MessageEvent<ParseResponse>) {
+  const entry = inFlight;
+  // Anything but the request in flight is a straggler from a worker that was
+  // already given up on, and its caller has been answered.
+  if (!entry || entry.request.id !== event.data.id) return;
+  clearTimeout(entry.timer);
+  inFlight = null;
+
+  if (event.data.error) {
+    entry.reject(new Error(event.data.error));
+  } else {
+    entry.resolve({
+      input: event.data.parsedInput,
+      output: event.data.parsedOutput,
+      metadata: event.data.parsedMetadata,
+      parseTime: event.data.parseTime ?? 0,
+    });
+  }
+
+  pump();
 }
 
 function handleError(event: ErrorEvent) {
@@ -176,13 +223,15 @@ function handleError(event: ErrorEvent) {
   // run, so stop trying for the life of the tab and degrade to this thread.
   workerUnavailable = true;
   reportParserWorkerError("jsonParserWorker", event, {
-    waiting: [...new Set([...pending.values()].map((entry) => entry.source))],
+    waiting: [
+      ...new Set([inFlight, ...queue].flatMap((e) => (e ? [e.source] : []))),
+    ],
   });
-  retireWorker();
+  restartWorker();
 }
 
-function onDeadline(id: string) {
-  const entry = pending.get(id);
+function onDeadline() {
+  const entry = inFlight;
   if (!entry) return;
 
   deadlineMisses += 1;
@@ -201,6 +250,7 @@ function onDeadline(id: string) {
       extra: {
         workerHook: entry.source,
         payloadChars: entry.payloadChars,
+        queued: queue.length,
         deadlineMisses,
         workerRetired: workerUnavailable,
       },
@@ -208,7 +258,7 @@ function onDeadline(id: string) {
     },
   );
 
-  retireWorker();
+  restartWorker();
 }
 
 function getOrCreateWorker(): Worker | null {
@@ -259,22 +309,19 @@ export function parseIoOffThread({
   const payloadChars =
     estimateSize(input) + estimateSize(output) + estimateSize(metadata);
 
-  const worker =
-    payloadChars < PARSE_IN_WEBWORKER_THRESHOLD ? null : getOrCreateWorker();
-
-  if (!worker) return parseHere(input, output, metadata);
+  if (payloadChars < PARSE_IN_WEBWORKER_THRESHOLD || workerUnavailable) {
+    return parseHere(input, output, metadata);
+  }
 
   return new Promise<ParsedIo>((resolve, reject) => {
     const id = `${Date.now()}-${++requestCounter}`;
-    const request: ParseRequest = { id, input, output, metadata };
-    pending.set(id, {
-      request,
+    queue.push({
+      request: { id, input, output, metadata },
       source,
       payloadChars,
-      timer: setTimeout(() => onDeadline(id), PARSE_DEADLINE_MS),
       resolve,
       reject,
     });
-    worker.postMessage(request);
+    pump();
   });
 }
