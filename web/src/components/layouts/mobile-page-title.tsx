@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { cn } from "@/src/utils/tailwind";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
@@ -66,7 +67,12 @@ export const MobilePageTitle = ({
   );
 
   return (
-    <div className="bg-background border-b px-3 pt-2 pb-3">
+    <div
+      className={cn(
+        "bg-background px-3 pt-2 pb-3",
+        headerProps.divider !== false && "border-b",
+      )}
+    >
       {/* Context line: org / project switcher plus any page-supplied
           breadcrumb items (detail pages rely on these for back-navigation). */}
       <div className="flex items-center gap-2">
