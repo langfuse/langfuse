@@ -90,6 +90,21 @@ export const UserChart = ({
         ...userCostQuery,
         dimensions: [],
         metrics: [{ measure: "totalCost", aggregation: "sum" }],
+        filters: [
+          ...userCostQuery.filters,
+          // An empty tag requirement keeps the v1 trace join and time bounds
+          // without excluding untagged traces or users with missing IDs.
+          ...(metricsVersion === "v1"
+            ? [
+                {
+                  column: "tags",
+                  operator: "all of" as const,
+                  value: [],
+                  type: "arrayOptions" as const,
+                },
+              ]
+            : []),
+        ],
         orderBy: null,
         chartConfig: undefined,
       },

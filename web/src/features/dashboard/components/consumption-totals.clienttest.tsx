@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { type QueryType } from "@langfuse/shared/query";
+import { getViewDeclaration, type QueryType } from "@langfuse/shared/query";
 import { UserChart } from "./UserChart";
 import { ModelCostTable } from "./ModelCostTable";
 import { useScheduledDashboardExecuteQuery } from "../hooks/useDashboardQueryScheduler";
@@ -86,12 +86,26 @@ function expectUnboundedTotals() {
       version: other.version,
     });
     expect(input.query).toMatchObject({
-      filters: other.query.filters,
       fromTimestamp: other.query.fromTimestamp,
       toTimestamp: other.query.toTimestamp,
       timeDimension: null,
       orderBy: null,
     } satisfies Partial<QueryType>);
+    expect(input.query.filters).toEqual(
+      expect.arrayContaining(other.query.filters),
+    );
+    const view = getViewDeclaration(input.query.view, input.version);
+    const relations = (query: QueryType) =>
+      new Set(
+        [
+          ...query.dimensions.map(({ field }) => view.dimensions[field]),
+          ...query.filters.map(({ column }) => view.dimensions[column]),
+          ...query.metrics.map(({ measure }) => view.measures[measure]),
+        ]
+          .map((field) => field?.relationTable)
+          .filter(Boolean),
+      );
+    expect(relations(input.query)).toEqual(relations(other.query));
     expect(input.query.chartConfig).toBeUndefined();
     expect(other.query.chartConfig?.row_limit).toBe(20);
     expect(options?.queryId).toContain(props.schedulerId);
