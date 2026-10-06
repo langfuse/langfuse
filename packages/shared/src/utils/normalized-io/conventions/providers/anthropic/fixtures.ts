@@ -103,6 +103,10 @@ const searchSchema = {
 
 const mediaReference =
   "@@@langfuseMedia:type=image/png|id=anthropic-image-1|source=base64@@@";
+const uploadedImageReference =
+  "@@@langfuseMedia:type=image/png|id=uploaded-image-1|source=bytes@@@";
+const uploadedDocumentReference =
+  "@@@langfuseMedia:type=application/pdf|id=uploaded-document-1|source=bytes@@@";
 
 /** Raw Anthropic Messages API shape, including server tools and multimodal blocks. */
 export const anthropicMessagesRawServerToolsAndMediaFixture = {
@@ -136,6 +140,14 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
             },
             { type: "image", source: { type: "url", url: mediaReference } },
             {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: "image/png",
+                data: uploadedImageReference,
+              },
+            },
+            {
               type: "document",
               title: "Report",
               context: "Reference document",
@@ -144,6 +156,17 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
                 type: "base64",
                 media_type: "application/pdf",
                 data: "JVBERi0=",
+              },
+            },
+            {
+              type: "document",
+              title: "Uploaded report",
+              context: "Reference document",
+              citations: [{ type: "page_location", page_number: 1 }],
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: uploadedDocumentReference,
               },
             },
             {
@@ -272,10 +295,27 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
           },
           {
             type: "file",
+            mediaType: "image/png",
+            content: { kind: "reference", id: "uploaded-image-1" },
+            providerMetadata: { source: "bytes" },
+          },
+          {
+            type: "file",
             mediaType: "application/pdf",
             content: { kind: "base64", data: "JVBERi0=" },
             providerMetadata: {
               title: "Report",
+              context: "Reference document",
+              citations: [{ type: "page_location", page_number: 1 }],
+            },
+          },
+          {
+            type: "file",
+            mediaType: "application/pdf",
+            content: { kind: "reference", id: "uploaded-document-1" },
+            providerMetadata: {
+              source: "bytes",
+              title: "Uploaded report",
               context: "Reference document",
               citations: [{ type: "page_location", page_number: 1 }],
             },
