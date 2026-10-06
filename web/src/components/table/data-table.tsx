@@ -54,6 +54,7 @@ import {
 } from "@tanstack/react-table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
@@ -622,9 +623,9 @@ export function DataTable<TData extends object, TValue>({
                                 header.getResizeHandler(),
                               )}
                               className={cn(
-                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
+                                "border-border absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none border-r opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
-                                  "bg-primary-accent opacity-100",
+                                  "border-primary-accent opacity-100",
                               )}
                             />
                           </div>
@@ -779,10 +780,14 @@ function TableRefetchBar({ active }: { active: boolean }) {
 
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
-  if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
+  const ascending = orderBy.order === "ASC";
+  const Icon = ascending ? ArrowUp : ArrowDown;
   return (
-    <span className="ml-1" title="Sort by this column">
-      ▼
+    <span className="ml-1 inline-flex shrink-0 items-center">
+      <Icon className="icon-sm text-icon-foreground" aria-hidden="true" />
+      <span className="sr-only">
+        {ascending ? "sorted ascending" : "sorted descending"}
+      </span>
     </span>
   );
 }
