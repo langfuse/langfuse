@@ -1,6 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
+import { Button } from "@/src/components/ui/button";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 
 import { ExternalMediaStorageForm } from "./ExternalMediaStorageForm";
@@ -22,20 +23,22 @@ const onSubmit = fn();
 const meta = preview.meta({
   component: ExternalMediaStorageForm,
   args: {
-    actions: null,
     allowHostCredentials: false,
+    formId: "external-media-storage-story-form",
     initialValues: defaultValues,
-    isSaving: false,
     onSubmit,
     secretAccessKeyDisplay: null,
   },
-  decorators: [
-    (Story) => (
-      <div className="max-w-xl p-6">
-        <Story />
+  render: (args) => (
+    <div className="max-w-xl p-6">
+      <ExternalMediaStorageForm {...args} />
+      <div className="mt-3 flex justify-end">
+        <Button form="external-media-storage-story-form" type="submit">
+          Save
+        </Button>
       </div>
-    ),
-  ],
+    </div>
+  ),
 });
 
 export const NewAmazonS3 = meta.story({});
@@ -67,16 +70,6 @@ export const SavedCredentials = meta.story({
       prefix: "langfuse-media/",
     },
     secretAccessKeyDisplay: "••••••••••••••••",
-  },
-});
-
-export const Saving = meta.story({
-  args: {
-    initialValues: {
-      ...defaultValues,
-      bucketName: "production-media",
-    },
-    isSaving: true,
   },
 });
 

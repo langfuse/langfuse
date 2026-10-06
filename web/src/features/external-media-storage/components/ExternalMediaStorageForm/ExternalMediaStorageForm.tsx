@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
-import { Button } from "@/src/components/ui/button";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -22,19 +20,17 @@ import {
 } from "@/src/features/external-media-storage/types";
 
 export function ExternalMediaStorageForm({
+  formId,
   initialValues,
-  isSaving,
   allowHostCredentials,
   secretAccessKeyDisplay,
   onSubmit,
-  actions,
 }: {
+  formId: string;
   initialValues: ExternalMediaStorageFormValues;
-  isSaving: boolean;
   allowHostCredentials: boolean;
   secretAccessKeyDisplay: string | null | undefined;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
-  actions?: ReactNode;
 }) {
   const form = useForm({
     resolver: zodResolver(externalMediaStorageFormSchema),
@@ -45,7 +41,28 @@ export function ExternalMediaStorageForm({
 
   return (
     <Form {...form}>
-      <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+      <form
+        id={formId}
+        className="space-y-4"
+        onSubmit={form.handleSubmit(onSubmit)}
+      >
+        <FormField
+          control={form.control}
+          name="enabled"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center gap-2 space-y-0">
+              <FormLabel>Enabled</FormLabel>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="type"
@@ -216,30 +233,6 @@ export function ExternalMediaStorageForm({
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="enabled"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Enabled</FormLabel>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="flex justify-end gap-2">
-          {actions}
-          <Button type="submit" loading={isSaving}>
-            Save
-          </Button>
-        </div>
       </form>
     </Form>
   );

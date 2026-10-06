@@ -19,6 +19,8 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
+const EXTERNAL_MEDIA_STORAGE_FORM_ID = "external-media-storage-form";
+
 const defaultValues: ExternalMediaStorageFormValues = {
   type: "S3",
   bucketName: "",
@@ -176,10 +178,7 @@ export default function ExternalMediaStoragePage() {
 
         return (
           <>
-            <div className="flex items-center justify-between gap-4">
-              <Header title="Configuration" />
-              {renderTestAction()}
-            </div>
+            <Header title="Configuration" />
             <Card className="p-3">
               {configuration.isLoading || !configuration.data ? (
                 <IntegrationSettingsSkeleton />
@@ -187,39 +186,46 @@ export default function ExternalMediaStoragePage() {
                 <ExternalMediaStorageForm
                   key={config?.updatedAt?.toString() ?? "new"}
                   allowHostCredentials={!isLangfuseCloud}
+                  formId={EXTERNAL_MEDIA_STORAGE_FORM_ID}
                   initialValues={initialValues}
-                  isSaving={updateMutation.isPending}
                   secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
                   onSubmit={(values) =>
                     updateMutation.mutate({ projectId, ...values })
                   }
-                  actions={
-                    config ? (
-                      <ConfirmationDialogController
-                        title="Delete external media storage?"
-                        text="Media stored in this bucket will no longer be resolved in Langfuse."
-                        confirmLabel="Delete"
-                        variant="destructive"
-                        loading={deleteMutation.isPending}
-                        onConfirm={() =>
-                          deleteMutation.mutateAsync({ projectId })
-                        }
-                      >
-                        {({ openDialog }) => (
-                          <ActionButton
-                            variant="destructive-secondary"
-                            hasAccess={hasAccess}
-                            onClick={openDialog}
-                          >
-                            Delete
-                          </ActionButton>
-                        )}
-                      </ConfirmationDialogController>
-                    ) : null
-                  }
                 />
               )}
             </Card>
+            <div className="mt-3 flex justify-end gap-2">
+              {config ? (
+                <ConfirmationDialogController
+                  title="Delete external media storage?"
+                  text="Media stored in this bucket will no longer be resolved in Langfuse."
+                  confirmLabel="Delete"
+                  variant="destructive"
+                  loading={deleteMutation.isPending}
+                  onConfirm={() => deleteMutation.mutateAsync({ projectId })}
+                >
+                  {({ openDialog }) => (
+                    <ActionButton
+                      variant="destructive-secondary"
+                      hasAccess={hasAccess}
+                      onClick={openDialog}
+                    >
+                      Delete
+                    </ActionButton>
+                  )}
+                </ConfirmationDialogController>
+              ) : null}
+              {renderTestAction()}
+              <Button
+                form={EXTERNAL_MEDIA_STORAGE_FORM_ID}
+                type="submit"
+                loading={updateMutation.isPending}
+                disabled={configuration.isLoading || !configuration.data}
+              >
+                Save
+              </Button>
+            </div>
           </>
         );
       })()}
