@@ -275,24 +275,18 @@ export function OutlierBarStrip({
             </text>
           ))}
 
-        {/* Y-axis labels — after the bars so they stay legible on top; the
-            background-colored stroke (paint-order) keeps them readable where
-            they overlap a bar. Every label hangs BELOW its gridline: the top
-            gridline can hug the plot's top edge (no room above), and one
-            consistent side means the preparer's line spacing is also the
-            label spacing. */}
+        {/* Y-axis labels sit in the left gutter, centred on their gridlines. */}
         {yTicks.map((tick) => {
           const lineY = plotHeight - tick.offsetPx;
           return (
             <text
               key={`y-label-${tick.value}`}
-              x={3}
-              y={lineY + 9}
-              textAnchor="start"
-              className="fill-muted-foreground stroke-background font-sans"
+              x={-4}
+              y={lineY}
+              textAnchor="end"
+              dominantBaseline="middle"
+              className="fill-muted-foreground font-sans"
               fontSize={9}
-              strokeWidth={2.5}
-              style={{ paintOrder: "stroke" }}
             >
               {tick.label}
             </text>
@@ -380,7 +374,7 @@ export function OutlierBarStrip({
         // Crosshair over the whole plot: the standard "this surface supports
         // range selection" affordance (Grafana/Datadog) — it makes the
         // drag-to-zoom brush discoverable where a pointer only said "click".
-        className="block cursor-crosshair touch-pan-y select-none"
+        className="block cursor-crosshair touch-pan-y overflow-visible select-none"
         onPointerLeave={(event) => {
           if (event.pointerType !== "mouse") return;
           setHoverIndex(null);

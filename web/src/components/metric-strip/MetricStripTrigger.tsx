@@ -13,7 +13,7 @@ export type MetricStripTriggerVariant = "metric" | "aggregation";
 
 /** Shared so a strip whose menu is a different primitive still matches. */
 export const METRIC_STRIP_TRIGGER_CLASS =
-  "flex items-center gap-0.5 text-[13px] leading-none";
+  "flex items-center gap-0.5 text-base leading-none";
 
 export const metricStripTriggerClasses: Record<
   MetricStripTriggerVariant,

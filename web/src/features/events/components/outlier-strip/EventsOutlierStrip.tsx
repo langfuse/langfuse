@@ -58,6 +58,9 @@ import { canApplyOutlierStripFilters } from "./lib/filterCompatibility";
 /** Target horizontal pixels per bar for granularity picking. */
 const BAR_SLOT_TARGET_PX = 5;
 
+/** Band `px-2` on both sides plus the plot's `ml-7` y-label gutter and `mr-2`. */
+const PLOT_HORIZONTAL_INSET_PX = 16 + 28 + 8;
+
 type StripMode = OutlierStripSettings["mode"];
 
 const MODE_OPTIONS: StripMode[] = ["count", "cost", "latency"];
@@ -168,8 +171,8 @@ export function EventsOutlierStrip({
   const fromMs = fromTimestamp.getTime();
   const toMs = toTimestamp.getTime();
   const validRange = fromMs < toMs;
-  // getBoundingClientRect includes the wrapper's px-2 padding (border-box).
-  const width = Math.max((size?.width ?? 0) - 16, 0);
+  // getBoundingClientRect includes the band's padding (border-box).
+  const width = Math.max((size?.width ?? 0) - PLOT_HORIZONTAL_INSET_PX, 0);
 
   const mode: StripMode = settings.mode;
   const chartWidth = width;
@@ -358,44 +361,46 @@ export function EventsOutlierStrip({
         : "ready";
 
   const header = (
-    <MetricStripHeaderRow>
-      <ModeDropdownController
-        options={MODE_OPTIONS}
-        onChange={handleModeChange}
-      >
-        {({ Trigger }) => (
-          <Trigger asChild>
-            <MetricStripTrigger
-              ariaLabel={`Chart mode: ${modeLabel(mode)}`}
-              label={modeLabel(mode)}
-              variant="metric"
-            />
-          </Trigger>
-        )}
-      </ModeDropdownController>
-      {/* The bar's aggregate must be legible where there is a choice (p95 vs
+    <div className="px-2 pt-1.5">
+      <MetricStripHeaderRow>
+        <ModeDropdownController
+          options={MODE_OPTIONS}
+          onChange={handleModeChange}
+        >
+          {({ Trigger }) => (
+            <Trigger asChild>
+              <MetricStripTrigger
+                ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+                label={modeLabel(mode)}
+                variant="metric"
+              />
+            </Trigger>
+          )}
+        </ModeDropdownController>
+        {/* The bar's aggregate must be legible where there is a choice (p95 vs
           avg); single-option metrics are unambiguous and render no
           aggregation label. A chart that cannot represent the filters is not
           drawn with any aggregate, so it shows none. */}
-      {canApplyFilters && aggOptions.length > 1 && (
-        <AggDropdownController
-          options={aggOptions}
-          onChange={(agg) => setAggregation(mode, agg)}
-        >
-          {({ Trigger }) => (
-            <span className="flex items-baseline gap-1">
-              <Trigger asChild>
-                <MetricStripTrigger
-                  ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
-                  label={aggregation}
-                  variant="aggregation"
-                />
-              </Trigger>
-            </span>
-          )}
-        </AggDropdownController>
-      )}
-    </MetricStripHeaderRow>
+        {canApplyFilters && aggOptions.length > 1 && (
+          <AggDropdownController
+            options={aggOptions}
+            onChange={(agg) => setAggregation(mode, agg)}
+          >
+            {({ Trigger }) => (
+              <span className="flex items-baseline gap-1">
+                <Trigger asChild>
+                  <MetricStripTrigger
+                    ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
+                    label={aggregation}
+                    variant="aggregation"
+                  />
+                </Trigger>
+              </span>
+            )}
+          </AggDropdownController>
+        )}
+      </MetricStripHeaderRow>
+    </div>
   );
 
   return (
@@ -412,7 +417,7 @@ export function EventsOutlierStrip({
     >
       {!canApplyFilters ? (
         <OutlierBarStrip
-          className="mt-1.5"
+          className="mt-2 mr-2 mb-2 ml-7"
           dense={[]}
           maxValue={0}
           ticks={[]}
@@ -423,7 +428,7 @@ export function EventsOutlierStrip({
         />
       ) : (
         <OutlierBarStrip
-          className="mt-1.5"
+          className="mt-2 mr-2 mb-2 ml-7"
           dense={series.dense}
           maxValue={series.maxValue}
           ticks={series.ticks}
