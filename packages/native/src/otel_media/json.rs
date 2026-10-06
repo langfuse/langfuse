@@ -1,7 +1,5 @@
 //! JSON validation and byte-range parsing helpers.
 
-use std::collections::HashMap;
-
 use jiter::{Jiter, JiterError, JiterErrorType, JsonErrorType, Peek};
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -13,14 +11,30 @@ use super::payload::EarlyMediaError;
 // attribute values. Keep full JSON validation permissive enough for those
 // documents; the smaller limit applies only to recursively parsed embedded JSON.
 pub(super) const MAX_JSON_DEPTH: usize = 128;
-const SCAN_CACHE_MIN_BYTES: usize = 1024;
-const SCAN_CACHE_MAX_ENTRIES: usize = 64 * 1024;
-// Discovery can revisit small values while it resolves payload-vs-envelope
-// structure. Keep a bounded amount of repeated byte work instead of caching
-// every tiny subtree (which would turn a deeply nested payload into a large
-// hash map).
-pub(super) const SCAN_WORK_FACTOR: usize = 8;
-pub(super) const SCAN_WORK_FLOOR: usize = 64 * 1024;
+const LARGE_SCALAR_BYTES: usize = 1024;
+
+/// A preorder tape of container boundaries and large scalar ranges. Containers
+/// are indexed regardless of size: skipping only large values makes discovery
+/// revisit small nested subtrees once per ancestor. Keys and values stay in the
+/// source buffer; this index never owns decoded strings.
+#[derive(Default)]
+pub(super) struct Boundaries {
+    entries: Vec<(usize, usize)>,
+}
+
+impl Boundaries {
+    pub(super) fn get(&self, start: usize) -> Option<usize> {
+        self.entries
+            .binary_search_by_key(&start, |entry| entry.0)
+            .ok()
+            .map(|index| self.entries[index].1)
+    }
+
+    #[cfg(test)]
+    pub(super) fn allocated_bytes(&self) -> usize {
+        self.entries.capacity() * std::mem::size_of::<(usize, usize)>()
+    }
+}
 
 pub(super) fn validate_utf8(input: &[u8]) -> Result<&str, EarlyMediaError> {
     std::str::from_utf8(input).map_err(|error| EarlyMediaError::InvalidJson {
@@ -31,7 +45,7 @@ pub(super) fn validate_utf8(input: &[u8]) -> Result<&str, EarlyMediaError> {
 
 pub(super) fn scan_jiter_value<'j>(
     input: &'j [u8],
-    scan_cache: &mut Option<HashMap<usize, usize>>,
+    scan_cache: &mut Option<Boundaries>,
     cursor: &mut Jiter<'j>,
     base: &mut usize,
     depth: usize,
@@ -50,6 +64,14 @@ pub(super) fn scan_jiter_value<'j>(
             .map_err(|error| map_jiter_error(input, *base, error))?,
     };
     let value_start = skip_whitespace(input, (*base).saturating_add(cursor.current_index()));
+
+    // Reserve the parent before visiting children so the tape is already
+    // sorted by source position; discovery can binary-search without sorting.
+    let slot = scan_cache.as_mut().map(|cache| {
+        let slot = cache.entries.len();
+        cache.entries.push((value_start, 0));
+        slot
+    });
 
     match peek {
         Peek::Null => cursor
@@ -116,11 +138,15 @@ pub(super) fn scan_jiter_value<'j>(
     }
 
     let end = (*base).saturating_add(cursor.current_index());
-    if end.saturating_sub(value_start) >= SCAN_CACHE_MIN_BYTES {
-        if let Some(cache) = scan_cache {
-            if cache.len() < SCAN_CACHE_MAX_ENTRIES {
-                cache.insert(value_start, end);
-            }
+    if let (Some(cache), Some(slot)) = (scan_cache.as_mut(), slot) {
+        if matches!(peek, Peek::Object | Peek::Array)
+            || end.saturating_sub(value_start) >= LARGE_SCALAR_BYTES
+        {
+            cache.entries[slot].1 = end;
+        } else {
+            // Small scalars have no children. Re-reading them has constant
+            // work per token, so they need no persistent index entry.
+            cache.entries.pop();
         }
     }
     Ok(end)

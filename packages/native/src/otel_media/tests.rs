@@ -2,7 +2,7 @@ use super::encoding::BASE64;
 use super::json::MAX_JSON_DEPTH;
 use super::payload::{EarlyMediaError, MediaEncoding, MediaPayloadKind, MediaSource};
 use super::rules::{may_contain_media_candidate, MEDIA_REFERENCE_PREFIX};
-use super::scanner::media_identity_from_encoded;
+use super::scanner::{media_identity_from_encoded, validate_measured};
 use super::{extract_media, validate, validate_and_discover};
 use base64::Engine;
 use proptest::prelude::*;
@@ -79,7 +79,10 @@ fn nested_otlp_map_keys_stay_structural() {
     let entry = &compact["resourceSpans"][0]["resource"]["attributes"][0]["value"]["arrayValue"]
         ["values"][0]["kvlistValue"]["values"][0];
     assert_eq!(entry["key"], uri);
-    assert_eq!(entry["value"]["stringValue"], result.media[0].reference);
+    assert_eq!(
+        entry["value"]["stringValue"],
+        result.media[0].metadata.reference
+    );
 }
 
 #[test]
@@ -252,46 +255,162 @@ fn explicit_validation_skips_media_discovery() {
 }
 
 #[test]
-fn bounds_repeated_small_nested_discovery_work() {
-    let chain = (0..120).fold(r#""leaf""#.to_owned(), |value, _| {
+fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
+    let uri = data_uri(b"deep");
+    let chain = (0..120).fold(format!("\"{uri}\""), |value, _| {
         format!(r#"{{"x":{value}}}"#)
     });
-    let item = format!(r#"{{"marker":"data: ","nested":{chain}}}"#);
     let input = format!(
         "[{}]",
-        std::iter::repeat_n(item, 32).collect::<Vec<_>>().join(",")
+        std::iter::repeat_n(chain, 32).collect::<Vec<_>>().join(",")
     );
-
-    assert!(matches!(
-        validate_and_discover(input.into_bytes()),
-        Err(EarlyMediaError::ResourceLimit { .. })
-    ));
+    let (validated, scanned, boundary_bytes, _) =
+        validate_measured(input.as_bytes().to_vec()).expect("valid nested input stays native");
+    // One structural pass plus small scalar inspection. This catches repeated
+    // subtree validation deterministically, without a wall-clock threshold.
+    assert!(
+        scanned <= 3 * input.len(),
+        "scanned {scanned} for {} source bytes",
+        input.len()
+    );
+    // Each indexed container needs two offsets; Vec capacity may double. Empty
+    // containers consume at least two input bytes, establishing this bound.
+    assert!(boundary_bytes <= 16 * input.len());
+    let result = validated.compact().unwrap();
+    assert_eq!(result.media.len(), 32);
+    assert!(result
+        .media
+        .iter()
+        .all(|media| media.decode().unwrap() == b"deep"));
 }
 
 #[test]
-fn bounds_oversized_existing_media_reference() {
+fn indexed_subtrees_survive_mixed_siblings_and_provider_lookahead() {
+    let uri = data_uri(b"deep");
+    let chain = (0..118).fold(format!("\"{uri}\""), |value, level| {
+        if level % 2 == 0 {
+            format!(r#"{{"x":{value}}}"#)
+        } else {
+            format!("[{value}]")
+        }
+    });
+    let provider = r#"{"inline_data":{"mime_type":"image/png","data":"aGk=","other":[{"x":[0]}]},"siblings":[{},[{"x":[]}]]}"#;
+    let payload = format!(r#"{{"first":[{chain},{provider}],"second":[{provider},{chain}]}}"#);
+    let envelope = format!(
+        r#"{{"resourceSpans":[{{"attributes":[{{"key":"input","value":{{"stringValue":{}}}}}]}}],"scopeSpans":[]}}"#,
+        serde_json::to_string(&payload).unwrap()
+    );
+    let embedded = serde_json::to_string(&payload).unwrap();
+    for (input, repetitions) in [
+        (payload.clone(), 1),
+        (embedded.clone(), 1),
+        (envelope.clone(), 1),
+        (format!("[{envelope},{payload}]"), 2),
+        (format!("[{payload},{envelope}]"), 2),
+        (format!(r#"{{"one":{embedded},"two":{embedded}}}"#), 2),
+    ] {
+        let (validated, scanned, boundary_bytes, _) =
+            validate_measured(input.as_bytes().to_vec()).unwrap();
+        assert!(
+            scanned <= 6 * input.len(),
+            "scanned {scanned} for {} source bytes",
+            input.len()
+        );
+        assert!(boundary_bytes <= 16 * input.len());
+        let result = validated.compact().unwrap();
+        let bodies = result
+            .media
+            .iter()
+            .map(|media| media.decode().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            bodies,
+            [b"deep".as_slice(), b"hi", b"hi", b"deep"].repeat(repetitions)
+        );
+    }
+}
+
+#[test]
+fn preserves_large_existing_media_references_without_a_resource_fallback() {
     let reference = format!(
         "@@@langfuseMedia:type=image/png|id={}@@@",
         "x".repeat(8 * 1024)
     );
-    let input = format!(r#"{{"existing":"{reference}"}}"#);
-
-    assert!(matches!(
-        validate_and_discover(input.into_bytes()),
-        Err(EarlyMediaError::ResourceLimit { .. })
-    ));
+    let references = (0..16_385)
+        .map(|index| format!("@@@langfuseMedia:type=image/png|id={index}@@@"))
+        .collect::<Vec<_>>();
+    for (text, count) in [(reference, 1), (references.join(" "), references.len())] {
+        let input = format!(r#"{{"existing":"{text}"}}"#);
+        let (validated, scanned, _, _) = validate_measured(input.as_bytes().to_vec()).unwrap();
+        assert_eq!(validated.manifest.existing_references.len(), count);
+        assert!(scanned <= 3 * input.len());
+        assert!(validated.retained_bytes() <= 3 * input.len());
+        let result = validated.compact().unwrap();
+        assert_eq!(result.compact_json, input.as_bytes());
+    }
 }
 
 #[test]
-fn bounds_the_number_of_media_candidates() {
+fn extracts_many_tiny_candidates_without_a_resource_fallback() {
     let uri = data_uri(b"candidate");
     let values = std::iter::repeat_n(uri.as_str(), 16 * 1024 + 1).collect::<Vec<_>>();
     let input = format!(r#"{{"text":"{}"}}"#, values.join(" "));
+    let (validated, scanned, _, unique) =
+        validate_measured(input.as_bytes().to_vec()).expect("many candidates stay native");
+    assert_eq!(
+        unique, 1,
+        "identical occurrences share one content descriptor"
+    );
+    assert!(scanned <= 3 * input.len());
+    assert!(
+        validated.retained_bytes() <= 4 * input.len(),
+        "retained {} for {} source bytes",
+        validated.retained_bytes(),
+        input.len()
+    );
+    let result = validated.compact().unwrap();
+    assert_eq!(result.media.len(), values.len());
+    assert!(result
+        .media
+        .iter()
+        .all(|media| media.decode().unwrap() == b"candidate"));
+}
 
-    assert!(matches!(
-        validate_and_discover(input.into_bytes()),
-        Err(EarlyMediaError::ResourceLimit { .. })
-    ));
+#[test]
+fn unique_and_escaped_candidates_have_input_proportional_retention() {
+    let uris = (0..16_385u32)
+        .map(|value| data_uri(&value.to_le_bytes()))
+        .collect::<Vec<_>>();
+    for escaped in [false, true] {
+        let values = uris
+            .iter()
+            .map(|uri| {
+                if escaped {
+                    format!(
+                        "\"{}\"",
+                        uri.chars()
+                            .map(|character| format!("\\u{:04x}", character as u32))
+                            .collect::<String>()
+                    )
+                } else {
+                    serde_json::to_string(uri).unwrap()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let input = format!("[{values}]");
+        let (validated, scanned, _, unique) = validate_measured(input.as_bytes().to_vec()).unwrap();
+        assert_eq!(unique, uris.len());
+        assert!(scanned <= 3 * input.len());
+        // Unique tiny bodies pay one descriptor each. Escaped bodies may own
+        // decoded text, but must not retain a whole decoded document per entry.
+        assert!(validated.retained_bytes() <= 12 * input.len());
+        let result = validated.compact().unwrap();
+        for (index, media) in result.media.iter().enumerate() {
+            assert_eq!(media.decode().unwrap(), (index as u32).to_le_bytes());
+            assert_eq!(media.original_value().unwrap(), uris[index]);
+        }
+    }
 }
 
 #[test]
@@ -600,7 +719,10 @@ fn allows_exact_duplicate_representations() {
     let input = br#"[{"type":"file","mediaType":"image/png","data":"b'abc'"},{"type":"file","mediaType":"image/png","data":"b'abc'"}]"#;
     let result = extract_media(input).expect("identical representations are unambiguous");
     assert_eq!(result.media.len(), 2);
-    assert_eq!(result.media[0].reference, result.media[1].reference);
+    assert_eq!(
+        result.media[0].metadata.reference,
+        result.media[1].metadata.reference
+    );
     assert_eq!(result.media[0].original_value().unwrap(), "b'abc'");
     assert_eq!(result.media[1].original_value().unwrap(), "b'abc'");
 }
@@ -676,6 +798,33 @@ fn rejects_media_that_collides_with_a_unicode_escaped_nested_reference() {
 }
 
 proptest! {
+    #[test]
+    fn structural_work_stays_proportional_across_depth_width_and_embedded_json(
+        depth in 0usize..120,
+        width in 1usize..32,
+        embedded in any::<bool>(),
+        object_root in any::<bool>(),
+        body in prop::collection::vec(any::<u8>(), 1..24),
+    ) {
+        let uri = data_uri(&body);
+        let chain = (0..depth).fold(format!("\"{uri}\""), |value, level| {
+            if level % 2 == 0 { format!(r#"{{"x":{value}}}"#) } else { format!("[{value}]") }
+        });
+        let mut input = format!("[{}]", std::iter::repeat_n(chain, width).collect::<Vec<_>>().join(","));
+        if object_root { input = format!(r#"{{"items":{input}}}"#); }
+        if embedded { input = serde_json::to_string(&input).unwrap(); }
+        let (validated, scanned, boundary_bytes, unique) = validate_measured(input.as_bytes().to_vec()).unwrap();
+        // Embedded documents are separately validated after decoding, but every
+        // structural pass stays linear in that document's source size.
+        prop_assert!(scanned <= 6 * input.len(), "{} syntax bytes for {} input bytes", scanned, input.len());
+        prop_assert!(boundary_bytes <= 16 * input.len());
+        prop_assert_eq!(unique, 1);
+        let result = validated.compact().unwrap();
+        prop_assert_eq!(result.media.len(), width);
+        for media in result.media { let decoded = media.decode().unwrap();
+            prop_assert_eq!(decoded.as_slice(), body.as_slice()); }
+    }
+
     #[test]
     fn media_prefilter_matches_substring_contract(
         prefix in json_string_strategy(),
