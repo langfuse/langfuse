@@ -19,7 +19,6 @@ export const Default = meta.story({
     disabledReason: null,
     assistantAction: {
       label: "Create with AI",
-      triggerRef: { current: null },
       disabled: false,
       onClick: fn(),
     },
@@ -38,7 +37,6 @@ export const Editing = meta.story({
     disabledReason: null,
     assistantAction: {
       label: "Edit with AI",
-      triggerRef: { current: null },
       disabled: false,
       onClick: fn(),
     },

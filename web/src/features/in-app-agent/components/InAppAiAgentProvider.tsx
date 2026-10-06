@@ -98,7 +98,6 @@ export type InAppAgentEntryPoint =
   | "dashboard_widget"
   | "v4_migration"
   | "evaluators_empty_state"
-  | "code_evaluator_editor"
   | "evaluator_editor";
 
 function useBackgroundExecutionView(

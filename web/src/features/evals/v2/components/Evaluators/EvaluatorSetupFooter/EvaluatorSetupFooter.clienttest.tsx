@@ -138,7 +138,6 @@ describe("EvaluatorSetupFooter", () => {
           codeValidation={null}
           assistantAction={{
             label,
-            triggerRef: { current: null },
             onClick: onAssistantClick,
           }}
           onClose={vi.fn()}

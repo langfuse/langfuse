@@ -1,4 +1,4 @@
-import { getEvaluatorAssistantLanding } from "./useEvaluatorAssistantLanding";
+import { getEvaluatorAssistantLanding } from "./getEvaluatorAssistantLanding";
 
 describe("getEvaluatorAssistantLanding", () => {
   it.each([
@@ -27,8 +27,8 @@ describe("getEvaluatorAssistantLanding", () => {
       placeholder: "Describe how to change this judge...",
     },
   ] as const)(
-    "provides evaluator-specific copy for $mode $evaluatorType",
-    ({ mode, evaluatorType, title, placeholder }) => {
+    "provides evaluator-specific behavior for $mode $evaluatorType",
+    async ({ mode, evaluatorType, title, placeholder }) => {
       const onSubmit = vi.fn().mockResolvedValue(true);
       const landing = getEvaluatorAssistantLanding({
         id: "evaluator",
@@ -41,10 +41,12 @@ describe("getEvaluatorAssistantLanding", () => {
         id: "evaluator",
         title,
         placeholder,
-        onSubmit,
       });
       expect(landing.examples).toHaveLength(3);
       expect(landing.examples.every((example) => example.prompt)).toBe(true);
+
+      await expect(landing.onSubmit("change request")).resolves.toBe(true);
+      expect(onSubmit).toHaveBeenCalledWith("change request");
     },
   );
 });

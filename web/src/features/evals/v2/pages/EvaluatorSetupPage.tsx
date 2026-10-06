@@ -85,16 +85,14 @@ import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/creat
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
-import {
-  getEvaluatorAssistantLanding,
-  useEvaluatorAssistantLanding,
-} from "@/src/features/evals/v2/hooks/useEvaluatorAssistantLanding";
+import { getEvaluatorAssistantLanding } from "@/src/features/evals/v2/fns/getEvaluatorAssistantLanding";
+import { useEvaluatorAssistantLanding } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantLanding";
 
 export function getEvaluatorSetupHeaderState() {
   return { title: "Configure evaluator" } as const;
 }
 
-export function getEvaluatorAssistantMode({
+export function getEvaluatorAssistantLandingMode({
   mode,
   evaluatorType,
   isAssistantAvailable,
@@ -387,21 +385,21 @@ export function EvaluatorSetupPage(
   );
   const assistantEvaluatorType =
     codeDraft.type === "DECISION_MODEL" ? null : codeDraft.type;
-  const assistantDialogMode = getEvaluatorAssistantMode({
+  const assistantLandingMode = getEvaluatorAssistantLandingMode({
     mode: props.mode,
     evaluatorType: codeDraft.type,
     isAssistantAvailable: isAssistantLauncherVisible,
   });
   const assistantLanding =
-    assistantDialogMode && assistantEvaluatorType
+    assistantLandingMode && assistantEvaluatorType
       ? getEvaluatorAssistantLanding({
           id: `evaluator:${evaluatorId}`,
-          mode: assistantDialogMode,
+          mode: assistantLandingMode,
           evaluatorType: assistantEvaluatorType,
           onSubmit: async (request) => {
             capture("evaluators:assistant_entry_interaction", {
               action:
-                assistantDialogMode === "create"
+                assistantLandingMode === "create"
                   ? "submit_create"
                   : "submit_edit",
               evaluatorType: assistantEvaluatorType,
@@ -460,7 +458,6 @@ export function EvaluatorSetupPage(
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const assistantDialogTriggerRef = useRef<HTMLButtonElement>(null);
   const [versionConflictOpen, setVersionConflictOpen] = useState(false);
   const [savedEvaluator, setSavedEvaluator] = useState<{
     id: string;
@@ -1247,17 +1244,16 @@ export function EvaluatorSetupPage(
                 : null
             }
             assistantAction={
-              assistantDialogMode
+              assistantLandingMode
                 ? {
                     label:
-                      assistantDialogMode === "create"
+                      assistantLandingMode === "create"
                         ? "Create with AI"
                         : "Edit with AI",
-                    triggerRef: assistantDialogTriggerRef,
                     onClick: () => {
                       capture("evaluators:assistant_entry_interaction", {
                         action:
-                          assistantDialogMode === "create"
+                          assistantLandingMode === "create"
                             ? "open_create"
                             : "open_edit",
                         evaluatorType: codeDraft.type,

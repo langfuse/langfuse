@@ -1,4 +1,3 @@
-import type { RefObject } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
@@ -30,7 +29,6 @@ export function EvaluatorSetupFooter({
   codeValidation: { isValid: boolean; isPending: boolean } | null;
   assistantAction: {
     label: "Create with AI" | "Edit with AI";
-    triggerRef: RefObject<HTMLButtonElement | null>;
     onClick: () => void;
   } | null;
   onClose: () => void;

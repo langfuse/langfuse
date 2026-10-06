@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from "react";
+import type { ReactNode } from "react";
 import { ArrowRight, WandSparkles } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -16,7 +16,6 @@ type EvaluatorSetupFooterViewBaseProps = {
   disabledReason: string | null;
   assistantAction: {
     label: "Create with AI" | "Edit with AI";
-    triggerRef: RefObject<HTMLButtonElement | null>;
     disabled: boolean;
     onClick: () => void;
   } | null;
@@ -61,7 +60,6 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
       ) : null}
       {props.assistantAction ? (
         <Button
-          ref={props.assistantAction.triggerRef}
           type="button"
           variant="outline"
           disabled={props.assistantAction.disabled}

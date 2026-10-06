@@ -6,7 +6,7 @@ import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/man
 import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
 import {
   applyEvaluatorSuggestion,
-  getEvaluatorAssistantMode,
+  getEvaluatorAssistantLandingMode,
   getEvaluatorSetupHeaderState,
   getEvaluatorVersionDefinition,
   navigateToEvaluatorDetail,
@@ -23,7 +23,7 @@ describe("getEvaluatorSetupHeaderState", () => {
   });
 });
 
-describe("getEvaluatorAssistantMode", () => {
+describe("getEvaluatorAssistantLandingMode", () => {
   it.each([
     {
       name: "scratch code creation",
@@ -98,7 +98,7 @@ describe("getEvaluatorAssistantMode", () => {
       expected: null,
     },
   ] as const)("$name resolves to $expected", ({ input, expected }) => {
-    expect(getEvaluatorAssistantMode(input)).toBe(expected);
+    expect(getEvaluatorAssistantLandingMode(input)).toBe(expected);
   });
 });
 

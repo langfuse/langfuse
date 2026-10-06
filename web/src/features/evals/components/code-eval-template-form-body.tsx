@@ -15,14 +15,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { EvalTemplateSourceCodeLanguageEnum } from "@langfuse/shared";
 import { useTheme } from "next-themes";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -59,7 +52,6 @@ type CodeEvalTemplateFormBodyProps = {
   editable: boolean;
   validationResult: CodeEvalValidationResult | null;
   ctxSample: string | null;
-  headerAction?: ReactNode;
 };
 
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
@@ -230,7 +222,6 @@ export function CodeEvalTemplateFormBody({
   editable,
   validationResult,
   ctxSample,
-  headerAction,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
@@ -426,7 +417,6 @@ export function CodeEvalTemplateFormBody({
           <span className="text-muted-foreground text-sm">{languageLabel}</span>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {headerAction}
           {shouldShowFormatButton ? (
             formatDisabledReason ? (
               <Tooltip>
