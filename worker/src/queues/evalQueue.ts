@@ -323,6 +323,8 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       return true;
     } catch (e) {
       const llmError = classifyEvaluatorLlmError(e);
+      // Media may still be uploading when evaluation starts after ingestion.
+      // Retry only this evaluator job instead of making the error globally retryable.
       const isMediaNotFoundError =
         llmError?.kind === "validation" &&
         llmError.validationError?.code === "media-not-found";
