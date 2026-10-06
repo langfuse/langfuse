@@ -1029,7 +1029,7 @@ export function DataTableControls({
               </Tooltip>
             )}
             {layout !== "inline" && (
-              <span className="text-base font-bold">Filters</span>
+              <span className="text-sm font-bold">Filters</span>
             )}
             {/* Inline: the count already shows on the sheet's Filters trigger
                 and footer, so a bare number here (title hidden) is just noise. */}
