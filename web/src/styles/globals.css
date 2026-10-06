@@ -562,8 +562,8 @@
     --icon-foreground: 0 0% 54%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
-    --surface-sunken: 0 0% 4%;
-    --surface-output: 0 0% 9%;
+    --surface-sunken: var(--modal);
+    --surface-output: var(--popover);
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);

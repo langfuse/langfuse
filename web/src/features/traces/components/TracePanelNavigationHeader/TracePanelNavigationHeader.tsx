@@ -206,7 +206,7 @@ function TracePanelNavigationHeaderExpanded({
   );
 
   return (
-    <Command className="h-auto shrink-0 overflow-hidden rounded-none border-b">
+    <Command className="h-auto shrink-0 overflow-hidden rounded-none border-b bg-transparent">
       {/* Container queries keep the primary view switch visible for as long as
           it fits. Search moves below the controls before that switch collapses,
           and remains the same input across every layout. */}
