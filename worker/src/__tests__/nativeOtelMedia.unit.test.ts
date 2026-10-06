@@ -1,7 +1,151 @@
 import { createHash } from "node:crypto";
-import { expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import fc from "fast-check";
 import { validateOtelJson } from "@langfuse/native";
 import { MediaContentType } from "@langfuse/shared";
+import { mediaPayloadCases } from "../../../packages/shared/src/server/media/MediaPayloadProcessor.fixtures";
+import { getMediaId } from "../../../packages/shared/src/server/media/mediaService";
+import { processOtelMedia } from "../../../packages/shared/src/server/otel/OtelMediaProcessor";
+
+vi.mock("../../../packages/shared/src/server/instrumentation", () => ({
+  recordDistribution: vi.fn(),
+  recordIncrement: vi.fn(),
+}));
+
+type MediaBody = { contentType: string; bytes: Buffer };
+
+// Compare occurrences as a multiset: TS handles Data URIs before provider objects
+// in stringified JSON, while Rust visits their source order. The compact payload
+// separately verifies that every replacement occupies the right field.
+function sortedBodies(bodies: MediaBody[]): MediaBody[] {
+  return bodies.sort(
+    (a, b) =>
+      a.contentType.localeCompare(b.contentType) ||
+      Buffer.compare(a.bytes, b.bytes),
+  );
+}
+
+async function expectMediaParity(json: string): Promise<void> {
+  const payload = { input: JSON.parse(json) as unknown };
+  const expectedBodies: MediaBody[] = [];
+  // Use the production TS detector and decoder; only the external upload is
+  // replaced. This branch never sees the native result.
+  await processOtelMedia({
+    targets: [{ traceId: "trace", observationId: "span", payload }],
+    projectId: "native-media-contract",
+    writePath: "direct",
+    mediaBucket: "test",
+    mediaPrefix: "test/",
+    uploadMedia: async ({ contentType, contentBytes }) => {
+      expectedBodies.push({ contentType, bytes: contentBytes });
+      return {
+        mediaId: getMediaId(
+          createHash("sha256").update(contentBytes).digest("base64"),
+        ),
+        outcome: "uploaded",
+      };
+    },
+  });
+
+  const validated = await validateOtelJson(Buffer.from(json));
+  try {
+    const batch = await validated.extract(true);
+    try {
+      // Assert at the NAPI boundary. Running the late TS detector here could
+      // repair a missed extraction and let a broken native implementation pass.
+      expect(JSON.parse(batch.json())).toEqual(payload.input);
+      const actualBodies: MediaBody[] = [];
+      for (const media of batch.media) {
+        const bytes = await batch.mediaBody(media.index);
+        expect(media.sha256Hash).toBe(
+          createHash("sha256").update(bytes).digest("base64"),
+        );
+        actualBodies.push({ contentType: media.contentType, bytes });
+      }
+      expect(sortedBodies(actualBodies)).toEqual(sortedBodies(expectedBodies));
+    } finally {
+      await batch.dispose();
+    }
+  } finally {
+    await validated.dispose();
+  }
+}
+
+describe(
+  "native media matches the TypeScript payload contract",
+  { retry: 0 },
+  () => {
+    it.each(mediaPayloadCases)("$name", ({ json }) => expectMediaParity(json));
+
+    it.each([
+      '{"type":"file","mediaType":"image/png","data":"YWJj","data":"ZGVm"}',
+      '{"type":"other","type":"file","mediaType":"text/plain","mediaType":"image/png","data":"ZGVm"}',
+      '{"inline_data":{"mime_type":"image/png","data":"YWJj"},"inline_data":{"mime_type":"image/png","data":"ZGVm"}}',
+      '{"inline_data":{"mime_type":"image/png","mimeType":"text/plain","data":"ZGVm"}}',
+      '{"inline_data":{"mime_type":null,"mimeType":"image/png","data":"ZGVm"}}',
+      '{"inlineData":{"mime_type":null,"mimeType":"image/png","data":"ZGVm"}}',
+      '{"type":1,"payload":{"type":"file","mediaType":42,"input":"data:image/png;base64,aGk="}}',
+      '{"type":"file","mediaType":42,"data":"aGk="}',
+      JSON.stringify({
+        type: "file",
+        mediaType: "image/png",
+        data: "b'abc\\'",
+      }),
+    ])("preserves raw provider field semantics: %s", expectMediaParity);
+
+    it.each(["data:malformed@", "data:broken ", "data:bad,", "data:"])(
+      "finds a valid URI after %s",
+      (prefix) =>
+        expectMediaParity(
+          JSON.stringify(`${prefix}data:image/png;base64,aGk=`),
+        ),
+    );
+
+    it("matches Node decoding at Base64 length and padding boundaries", async () => {
+      for (let length = 1; length <= 20; length++) {
+        for (let padding = 0; padding <= 3; padding++) {
+          const data = "A".repeat(length) + "=".repeat(padding);
+          await expectMediaParity(
+            JSON.stringify([
+              `data:image/png;base64,${data}`,
+              { type: "file", mediaType: "image/png", data },
+            ]),
+          );
+        }
+      }
+    });
+
+    it("compares generated media spellings without canonicalizing raw JSON", async () => {
+      const encoded = fc
+        .array(
+          fc.constantFrom(
+            ..."ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+          ),
+          {
+            minLength: 1,
+            maxLength: 48,
+          },
+        )
+        .map((parts) => parts.join(""));
+      await fc.assert(
+        fc.asyncProperty(
+          encoded,
+          fc.integer({ min: 0, max: 3 }),
+          fc.constantFrom("", "data:malformed@", "data:broken "),
+          async (body, padding, prefix) => {
+            const data = body + "=".repeat(padding);
+            // Keep repeated keys in the source. Building a JS object first would
+            // erase the last-value-wins behavior this boundary needs to preserve.
+            await expectMediaParity(
+              `[{"type":"file","mediaType":"text/plain","mediaType":"image/png","data":"aGk=","data":${JSON.stringify(data)}},${JSON.stringify(`${prefix}data:image/png;base64,${data}`)}]`,
+            );
+          },
+        ),
+        { numRuns: 256 },
+      );
+    });
+  },
+);
 
 it("extracts every MIME type supported by the TypeScript media service", async () => {
   const contentTypes = Object.values(MediaContentType);
