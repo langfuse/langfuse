@@ -197,6 +197,7 @@ model Project {
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
+  topicClusteringRuns               TopicClusteringRun[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
   @@index([orgId])
@@ -1083,6 +1084,8 @@ model EvaluatorVersion {
   sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
   questions          Json?
 
+  topicClusteringRuns TopicClusteringRun[]
+
   @@unique([evaluatorId, version(sort: Desc)])
   @@map("evaluator_versions")
 }
@@ -1311,6 +1314,11 @@ model PosthogIntegration {
   createdAt              DateTime                         @default(now()) @map("created_at")
   exportSource           AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill               Boolean                          @default(true)
+
   // Last deterministic customer-config fault (bad hostname) that disabled the
   // integration. Written by the worker, surfaced in the integration settings
   // status section, and cleared on a successful run.
@@ -1329,6 +1337,11 @@ model MixpanelIntegration {
   enabled                       Boolean
   createdAt                     DateTime                         @default(now()) @map("created_at")
   exportSource                  AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill                      Boolean                          @default(true)
 
   @@map("mixpanel_integrations")
 }
@@ -1366,6 +1379,11 @@ model BlobStorageIntegration {
 
   // Run tracking
   runStartedAt DateTime? @map("run_started_at")
+
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill     Boolean   @default(true)
 
   // Error tracking
   lastError   String?   @map("last_error")
@@ -2040,4 +2058,23 @@ model CloudSpendAlert {
 
   @@index([orgId])
   @@map("cloud_spend_alerts")
+}
+
+model TopicClusteringRun {
+  id              String           @id @default(cuid())
+  projectId       String           @map("project_id")
+  facetId         String           @map("facet_id")
+  facetVersion    Int              @map("facet_version")
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  facet           EvaluatorVersion @relation(fields: [facetId, facetVersion], references: [evaluatorId, version], onDelete: Cascade)
+  status          String           @default("pending")
+  config          Json             @default("{}")
+  error           String?
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
+  topicVersionIds String[]         @default([]) @map("topic_version_ids")
+
+  @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@map("topic_clustering_runs")
 }

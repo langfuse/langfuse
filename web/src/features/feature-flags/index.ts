@@ -13,5 +13,5 @@ export { InternalFeatureBadge } from "./components/InternalFeatureBadge";
 export {
   featurePreviewLabels,
   type FeaturePreviewFlag,
-  type UserFeaturePreviewFlag,
+  type PersonalFeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
