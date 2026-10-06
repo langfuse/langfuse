@@ -34,7 +34,7 @@ type NotNode = {
   parenSpan?: Span;
 };
 export type FilterNode = {
-  target?: { kind: "name" | "id" | "keyword"; value: string; span?: Span };
+  target?: { kind: "name" | "keyword"; value: string; span?: Span };
   kind: "filter";
   /** Canonical field id (registry-resolved) or `metadata.<key>`. */
   key: string;

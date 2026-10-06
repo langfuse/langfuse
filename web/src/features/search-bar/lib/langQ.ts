@@ -660,19 +660,19 @@ export function parse(
         suffix?.type === "term" &&
         suffix.raw.startsWith("@")
       ) {
-        const filter =
-          node?.kind === "filter"
-            ? node
-            : node?.kind === "not" && node.child.kind === "filter"
-              ? node.child
-              : null;
+        let filter: FilterNode | null = null;
+        if (node?.kind === "filter") {
+          filter = node;
+        } else if (node?.kind === "not" && node.child.kind === "filter") {
+          filter = node.child;
+        }
+
         if (filter && !node?.parenSpan && !filter.parenSpan) {
           next();
           const raw = suffix.raw.slice(1);
-          const isId = raw.startsWith("id:");
-          const decoded = unquote(isId ? raw.slice(3) : raw);
+          const decoded = unquote(raw);
           filter.target = {
-            kind: isId ? "id" : decoded.quoted ? "name" : "keyword",
+            kind: decoded.quoted ? "name" : "keyword",
             value: decoded.value,
             span: suffix.span,
           };

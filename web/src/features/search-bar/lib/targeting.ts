@@ -1,5 +1,5 @@
 import type { FilterNode } from "./ast";
-import type { FieldRegistry } from "./fields";
+import type { FieldRegistry, FilterTargeting } from "./fields";
 import { quote } from "./quoting";
 
 export function resolveFilterTarget(
@@ -14,7 +14,6 @@ export function resolveFilterTarget(
   const ref = node.target;
   const matches = capability.targets.filter((target) => {
     if (!ref) return target.id === capability.defaultTarget;
-    if (ref.kind === "id") return target.id === ref.value;
     if (ref.kind === "keyword")
       return target.keyword && target.label === ref.value;
     return !target.keyword && target.label === ref.value;
@@ -31,26 +30,14 @@ export function resolveFilterTarget(
 }
 
 export function targetReference(
-  id: string,
-  registry: FieldRegistry,
+  target: FilterTargeting["targets"][number],
 ): NonNullable<FilterNode["target"]> {
-  const target = registry.targeting?.targets.find((entry) => entry.id === id);
-  if (target?.keyword) return { kind: "keyword", value: target.label };
-  if (
-    target &&
-    registry.targeting?.targets.filter(
-      (entry) => !entry.keyword && entry.label === target.label,
-    ).length === 1
-  ) {
-    return { kind: "name", value: target.label };
-  }
-  return { kind: "id", value: id };
+  return { kind: target.keyword ? "keyword" : "name", value: target.label };
 }
 
 export function serializeTarget(
   target: NonNullable<FilterNode["target"]>,
 ): string {
   if (target.kind === "keyword") return `@${target.value}`;
-  if (target.kind === "id") return `@id:${quote(target.value)}`;
   return `@${quote(target.value)}`;
 }

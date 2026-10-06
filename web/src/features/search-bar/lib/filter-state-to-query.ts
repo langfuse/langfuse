@@ -267,8 +267,6 @@ export type FilterStateToQueryResult = {
 };
 
 export type FilterStateToQueryOptions = {
-  /** Stable target references for persisted query text, such as recent searches. */
-  targetIds?: boolean;
   /** Global full-text query — rendered as bare text or a scoped field token. */
   searchQuery?: string | null;
   /** Exact backend search lanes, projected through the host's registry. */
@@ -299,28 +297,30 @@ export function filterStateToQueryText(
       skippedFilters.push(filter);
       continue;
     }
-    const condition =
-      node.kind === "filter"
-        ? node
-        : node.kind === "not" && node.child.kind === "filter"
-          ? node.child
-          : null;
-    const field = condition ? registry.resolveField(condition.key) : null;
-    if (condition && field && registry.targeting?.supports(field)) {
-      condition.target = targetReference(
-        filter.target ?? registry.targeting.defaultTarget,
-        registry,
-      );
-      if (options.targetIds && condition.target.kind === "name") {
-        condition.target = {
-          kind: "id",
-          value: filter.target ?? registry.targeting.defaultTarget,
-        };
+    let condition: FilterNode | null = null;
+    if (node.kind === "filter") {
+      condition = node;
+    } else if (node.kind === "not" && node.child.kind === "filter") {
+      condition = node.child;
+    }
+    if (condition) {
+      const field = registry.resolveField(condition.key);
+      if (field && registry.targeting?.supports(field)) {
+        const target = registry.targeting.targets.find(
+          (entry) =>
+            entry.id === (filter.target ?? registry.targeting?.defaultTarget),
+        );
+        if (!target) {
+          skipped.push(`${filter.column} (target unavailable)`);
+          skippedFilters.push(filter);
+          continue;
+        }
+        condition.target = targetReference(target);
+      } else if (filter.target) {
+        skipped.push(`${filter.column} (target not supported)`);
+        skippedFilters.push(filter);
+        continue;
       }
-    } else if (filter.target) {
-      skipped.push(`${filter.column} (target not supported)`);
-      skippedFilters.push(filter);
-      continue;
     }
     nodes.push(node);
   }

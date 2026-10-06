@@ -1357,7 +1357,7 @@ export function planInputCompletions(
               kind: "pattern" as const,
               label: target.label,
               textClassName: target.textClassName,
-              insert: serializeTarget(targetReference(target.id, registry)),
+              insert: serializeTarget(targetReference(target)),
             })),
         },
       ],

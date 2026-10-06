@@ -183,7 +183,7 @@ describe("experiment filter targets", () => {
     ).text;
     expect(text).toContain('@"Claude Sonnet"');
     expect(text).toContain("@baseline");
-    expect(result.canonical).toContain('@id:"run-b"');
+    expect(result.canonical).toContain('@"Claude Sonnet"');
     expect(decodeFiltersGeneric(encodeFiltersGeneric(result.filters))).toEqual(
       result.filters,
     );

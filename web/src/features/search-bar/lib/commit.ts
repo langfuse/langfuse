@@ -78,11 +78,8 @@ export function planCommit(
     searchQuery,
     searchType: searchType ?? [...registry.defaultSearchType],
     canonical: registry.targeting
-      ? filterStateToQueryText(
-          filters,
-          { searchQuery, searchType, targetIds: true },
-          registry,
-        ).text
+      ? filterStateToQueryText(filters, { searchQuery, searchType }, registry)
+          .text
       : serialize(res.ast, registry),
   };
 }
