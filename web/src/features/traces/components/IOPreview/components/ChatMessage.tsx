@@ -142,9 +142,10 @@ export function ChatMessage({
     toolCalls.length > 0
   ) {
     return (
-      <div className="transition-colors">
+      <div className="group/iosection transition-colors">
         <MarkdownJsonViewHeader
           title={title}
+          hoverRevealControls
           handleOnCopy={() => {
             // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
             // string fields are copied as real characters, like the rendered

@@ -37,6 +37,7 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
             "/openai/v1/responses/compact",
             post(handle_responses_compact),
         )
+        .route("/openai/v1/chat/completions", post(handle_chat_completions))
         .route("/openai/v1/models", get(handle_openai_models))
         .route("/anthropic/v1/messages", post(handle_messages))
         .route(
@@ -60,6 +61,13 @@ async fn handle_responses_compact(
     request: Request,
 ) -> Response {
     handle(state, request, Route::OpenAiResponsesCompact).await
+}
+
+async fn handle_chat_completions(
+    State(state): State<InferenceRouteState>,
+    request: Request,
+) -> Response {
+    handle(state, request, Route::OpenAiChatCompletions).await
 }
 
 async fn handle_openai_models(
@@ -187,7 +195,7 @@ fn gateway_key(headers: &HeaderMap, api_format: ApiFormat) -> Result<&str, Infer
         })
         .transpose()?;
     let api_key = match api_format {
-        ApiFormat::OpenAiResponses => None,
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => None,
         ApiFormat::AnthropicMessages => single_header(headers, "x-api-key")?,
     };
     let key = match (api_key, bearer) {
@@ -388,7 +396,7 @@ impl InferenceHttpError {
             );
         }
         match api_format {
-            ApiFormat::OpenAiResponses => (
+            ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => (
                 status,
                 Json(OpenAiErrorResponse {
                     error: OpenAiErrorDetail {

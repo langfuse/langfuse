@@ -14,7 +14,7 @@ const STATUS_MESSAGE_CLASS_NAMES: Record<
   string
 > = {
   ERROR:
-    "border-dark-red/30 bg-light-red/50 dark:border-dark-red/20 dark:bg-light-red/35",
+    "border-red-100 bg-red-50 text-red-900 dark:border-dark-red/20 dark:bg-light-red/35 dark:text-red-300",
   WARNING: "border-dark-yellow/40 bg-light-yellow/80",
   DEBUG: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
   DEFAULT: "bg-card",
@@ -41,21 +41,20 @@ export function StatusMessageSection({
         parsedJson={parsedStatusMessage}
         currentView={currentView}
         tone={presentation.tone}
-        inset
       />
     );
   }
 
   return (
-    <div>
+    <div className="group/iosection">
       <MarkdownJsonViewHeader
         title={presentation.title}
         handleOnCopy={() => copyTextToClipboard(status.message)}
-        inset
+        hoverRevealControls
       />
       <div
         className={cn(
-          "ph-no-capture mx-2 rounded-sm border px-2 py-2 text-xs wrap-break-word whitespace-pre-wrap",
+          "ph-no-capture rounded-sm border p-3 text-base wrap-break-word whitespace-pre-wrap",
           STATUS_MESSAGE_CLASS_NAMES[status.level],
         )}
       >

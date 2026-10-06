@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 import { Wrench } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "@/src/components/ui/badge";
@@ -492,10 +492,6 @@ export function ToolCallDefinitionCard({
       ),
     [tools, toolCallCounts],
   );
-
-  if (!tools || tools.length === 0) {
-    return null;
-  }
 
   const calledToolsShouldCollapse =
     calledTools.length > CALLED_TOOLS_COLLAPSE_THRESHOLD;

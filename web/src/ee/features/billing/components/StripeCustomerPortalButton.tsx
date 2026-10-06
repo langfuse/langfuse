@@ -1,6 +1,4 @@
-/* eslint-disable @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -14,11 +12,6 @@ export const StripeCustomerPortalButton = ({
   title: string;
   variant: "secondary" | "default";
 }) => {
-  const hasAccess = useHasOrganizationAccess({
-    organizationId: orgId,
-    scope: "langfuseCloudBilling:CRUD",
-  });
-
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -68,10 +61,6 @@ export const StripeCustomerPortalButton = ({
       // setLoading(false);
     }
   };
-
-  if (!hasAccess) {
-    return null;
-  }
 
   return (
     <Button

@@ -49,10 +49,6 @@ export const Default = meta.story({
   args: { scores },
 });
 
-export const Compact = meta.story({
-  args: { scores, compact: true },
-});
-
 export const WithOverflow = meta.story({
   name: "(Test) With Overflow",
   args: {

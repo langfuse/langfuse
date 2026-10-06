@@ -886,7 +886,7 @@ export function DataTableControls({
       {/* Collapsed rail: shown when the sidebar is collapsed on desktop, where
           the resizable panel keeps a thin strip (see ResizableFilterLayout).
           Mirrors the trace peek's collapsed-panel rail. */}
-      <div className="bg-background hidden h-full w-full flex-col items-center border-t group-data-[expanded=false]/controls:flex">
+      <div className="bg-surface hidden h-full w-full flex-col items-center border-t group-data-[expanded=false]/controls:flex">
         {/* Mirror the expanded header's metrics (h-10 row, border-b, 24px
             button) so the toggle icon doesn't shift when collapsing. */}
         <div className="flex h-10 w-full shrink-0 items-center justify-center border-b">
@@ -955,14 +955,14 @@ export function DataTableControls({
       </div>
       <div
         className={cn(
-          "bg-background flex w-full flex-col border-t",
+          "bg-surface flex w-full flex-col border-t",
           // panel: a bounded, self-scrolling column. inline: natural height so
           // the host's outer scroll owns scrolling (no clip, no forced height).
           layout === "panel" && "h-full overflow-hidden",
           "group-data-[expanded=false]/controls:hidden",
         )}
       >
-        <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
+        <div className="bg-surface flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
             {/* Three contexts for the header's close affordance:
                 - inline (events MobileFiltersSheet): the sheet owns its own X +
@@ -1183,7 +1183,7 @@ export function DataTableControls({
           // pinning to the top of the scroll area would otherwise sit tight
           // against the field. pb-0.5 + the header's own 6px = the 8px above
           // the field, at rest and scrolled alike.
-          <div className="bg-background shrink-0 px-2 pt-2 pb-0.5">
+          <div className="bg-surface shrink-0 px-2 pt-2 pb-0.5">
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
               <Input
@@ -1371,7 +1371,7 @@ const FilterAccordionTrigger = ({
   // pt-1.5/pb-0.5 rather than an even py: the 8px between two rows is split so
   // that 6px of it sits INSIDE this sticky box, which is what keeps a pinned
   // header the same distance from whatever is above it as it was at rest.
-  <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex px-2 pt-1.5 pb-0.5">
+  <AccordionPrimitive.Header className="bg-surface sticky top-0 z-[1] flex px-2 pt-1.5 pb-0.5">
     <AccordionPrimitive.Trigger
       className={cn(
         // min-w-0: without it the trigger's automatic min width equals the
