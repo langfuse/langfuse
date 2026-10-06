@@ -232,7 +232,7 @@ export function SessionConversationSidebar(
                   <div className="px-2 pb-2">
                     <div
                       className={cn(
-                        "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
+                        "group border-border/50 hover:bg-muted/60 rounded-sm border p-2 transition-colors duration-150",
                         isActive &&
                           "border-primary-accent/50 bg-background dark:bg-muted",
                       )}

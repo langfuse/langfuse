@@ -1963,29 +1963,75 @@ const langfuseAssistantWorkflow: WorkflowFixture[] = [
   },
 ];
 
+const manySimpleTurnsWorkflow: WorkflowFixture[] = Array.from(
+  { length: 100 },
+  (_, index) => {
+    const turnNumber = index + 1;
+    const traceId = `simple-turn-${turnNumber}`;
+    const startTime = new Date(
+      fixtureStart + index * 1_000 + Math.floor(index / 10) * 10 * 60 * 1_000,
+    );
+    return {
+      trace: {
+        id: traceId,
+        name: `Turn ${turnNumber}`,
+        timestamp: startTime,
+        environment: "storybook",
+        userId: null,
+        observationCount: 1,
+        latencyMs: 100,
+        scores: [],
+      },
+      turnNumber,
+      observations: [
+        {
+          id: `generation-${turnNumber}`,
+          traceId,
+          parentObservationId: null,
+          type: "GENERATION",
+          name: `Reply ${turnNumber}`,
+          startTime,
+          endTime: new Date(startTime.getTime() + 100),
+          environment: "storybook",
+          input: JSON.stringify([
+            { role: "user", content: `Question ${turnNumber}` },
+          ]),
+          output: JSON.stringify([
+            { role: "assistant", content: `Answer ${turnNumber}` },
+          ]),
+          metadata: {},
+        },
+      ],
+    };
+  },
+);
+
 const workflowTranscripts = new Map(
-  [supportAgentWorkflow, codingAgentWorkflow, langfuseAssistantWorkflow].map(
-    (workflow) => [
-      workflow,
-      workflow.map(
-        (item): WorkflowTrace => ({
-          trace: item.trace,
-          turnNumber: item.turnNumber,
-          state: {
-            type: "transcript",
-            observations: item.observations,
-            result: {
-              state: "loaded",
-              cutoff: false,
-              transcript: assembleTranscript(
-                orderObservations(item.observations),
-              ),
-            },
+  [
+    supportAgentWorkflow,
+    codingAgentWorkflow,
+    langfuseAssistantWorkflow,
+    manySimpleTurnsWorkflow,
+  ].map((workflow) => [
+    workflow,
+    workflow.map(
+      (item): WorkflowTrace => ({
+        trace: item.trace,
+        turnNumber: item.turnNumber,
+        state: {
+          type: "transcript",
+          observations: item.observations,
+          result: {
+            state: "loaded",
+            cutoff: false,
+            transcript: assembleTranscript(
+              orderObservations(item.observations),
+            ),
           },
-        }),
-      ),
-    ],
-  ),
+        },
+      }),
+    ),
+  ]),
 );
 
 const traces: TraceProps[] = [
@@ -2354,6 +2400,9 @@ export const CodingAgentWorkflow = meta.story({
 });
 export const LangfuseAssistantWorkflow = meta.story({
   args: { workflowTraces: langfuseAssistantWorkflow },
+});
+export const ManySimpleTurns = meta.story({
+  args: { workflowTraces: manySimpleTurnsWorkflow },
 });
 export const MultipleTraces = meta.story({
   name: "(Test) Renders Multiple Traces",
