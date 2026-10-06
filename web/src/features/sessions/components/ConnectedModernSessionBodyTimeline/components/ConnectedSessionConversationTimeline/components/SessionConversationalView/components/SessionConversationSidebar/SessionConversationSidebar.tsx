@@ -68,6 +68,7 @@ export function SessionConversationSidebar(
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
+  const sidebarSearch = props.state === "loaded" ? props.search : "";
   const listRef = useRef<HTMLDivElement>(null);
   const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{
@@ -132,6 +133,8 @@ export function SessionConversationSidebar(
   }, [measureToolGroupLabel, props.state]);
   const isSidebarPointerDownRef = useRef(false);
   const autoFollowPausedUntilRef = useRef(0);
+  const autoFollowTimerRef = useRef<number | undefined>(undefined);
+  const resumeAutoFollowRef = useRef<(() => void) | null>(null);
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => listRef.current,
@@ -171,8 +174,23 @@ export function SessionConversationSidebar(
     },
     [activeTraceIndex, virtualizer],
   );
+  useLayoutEffect(() => {
+    resumeAutoFollowRef.current = () => {
+      setListElement(listRef.current);
+    };
+    setListElement(listRef.current);
+  }, [setListElement, sidebarSearch]);
+  useLayoutEffect(
+    () => () => window.clearTimeout(autoFollowTimerRef.current),
+    [],
+  );
   const pauseAutoFollow = () => {
     autoFollowPausedUntilRef.current = Date.now() + SIDEBAR_AUTO_FOLLOW_IDLE_MS;
+    window.clearTimeout(autoFollowTimerRef.current);
+    autoFollowTimerRef.current = window.setTimeout(
+      () => resumeAutoFollowRef.current?.(),
+      SIDEBAR_AUTO_FOLLOW_IDLE_MS,
+    );
   };
   const handlePointerEnd = () => {
     isSidebarPointerDownRef.current = false;
@@ -250,6 +268,21 @@ export function SessionConversationSidebar(
         className="min-h-0 flex-1 overflow-y-auto pt-2.5 pb-4"
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
+        onKeyDown={(event) => {
+          if (
+            [
+              "ArrowUp",
+              "ArrowDown",
+              "PageUp",
+              "PageDown",
+              "Home",
+              "End",
+              " ",
+            ].includes(event.key)
+          ) {
+            pauseAutoFollow();
+          }
+        }}
         onPointerDown={() => {
           isSidebarPointerDownRef.current = true;
         }}

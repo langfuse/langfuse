@@ -1,11 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
-import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
+import { STABLE_VIRTUAL_ROW_MEASUREMENT_CONFIG } from "@/src/features/sessions/stableVirtualRowMeasurementState";
+import {
+  getScrollOffsetForScrollSpyAnchor,
+  getScrollSpyAnchor,
+  useVirtualizedScrollSpy,
+} from "@/src/hooks/useVirtualizedScrollSpy";
 
 const SESSION_TIMELINE_OVERSCAN = 5;
+const SESSION_TIMELINE_ANCHOR_RATIO = 0.2;
 export type SessionConversationTimelineScrollTarget = {
   itemId?: string;
   traceId: string;
@@ -23,6 +29,9 @@ export function useSessionConversationTimelineController(
     id: itemId ?? trace.id,
   }));
   const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
+  const viewportHeight = feedSize
+    ? (feedRef.current?.clientHeight ?? feedSize.height)
+    : 0;
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => feedRef.current,
@@ -41,83 +50,267 @@ export function useSessionConversationTimelineController(
       ]);
     },
   });
-  const {
-    activeItemId,
-    virtualItems,
-    selectItem: selectTrace,
-  } = useVirtualizedScrollSpy({
+  const { activeItemId, virtualItems } = useVirtualizedScrollSpy({
     items,
     virtualizer,
     scrollElementRef: feedRef,
-    viewportHeight: feedSize?.height ?? 0,
+    viewportHeight,
     endTransitionRatio: 0.2,
+    viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
   });
-  const observationScrollCleanupRef = useRef<(() => void) | null>(null);
+  const [selection, setSelection] = useState<{
+    itemId: string;
+    fallbackOffset?: number;
+  } | null>(null);
+  const navigationCleanupRef = useRef<(() => void) | null>(null);
+  const latestTracesRef = useRef(traces);
+  useLayoutEffect(() => {
+    latestTracesRef.current = traces;
+  }, [traces]);
+  useEffect(() => () => navigationCleanupRef.current?.(), []);
 
-  useEffect(() => () => observationScrollCleanupRef.current?.(), []);
+  useEffect(() => {
+    const feed = feedRef.current;
+    const fallbackOffset = selection?.fallbackOffset;
+    if (!feed || fallbackOffset === undefined) return;
+    const clearFallback = () => {
+      if (
+        Math.abs(feed.scrollTop - fallbackOffset) >
+        Math.min(96, feed.clientHeight * 0.1)
+      ) {
+        navigationCleanupRef.current?.();
+        navigationCleanupRef.current = null;
+        setSelection(null);
+      }
+    };
+    feed.addEventListener("scroll", clearFallback, { passive: true });
+    return () => feed.removeEventListener("scroll", clearFallback);
+  }, [feedRef, selection]);
 
   const onSelect = (index: number, observationId?: string, rowId?: string) => {
-    observationScrollCleanupRef.current?.();
-    observationScrollCleanupRef.current = null;
-    selectTrace(index);
-    if (!observationId) return;
-
+    navigationCleanupRef.current?.();
+    navigationCleanupRef.current = null;
+    setSelection(null);
     const feed = feedRef.current;
     const traceId = traces[index]?.trace.id;
-    const itemId = traces[index]?.itemId;
+    const itemId = traces[index]?.itemId ?? traceId;
     if (!feed || !traceId) return;
+    if (!itemId) return;
+    setSelection({ itemId });
 
-    const scrollToObservation = () => {
-      const observation = Array.from(
-        feed.querySelectorAll<HTMLElement>("[data-session-observation-id]"),
+    let frame = 0;
+    let timeout = 0;
+    let previousTarget: number | undefined;
+    let stableSince = performance.now();
+    let previousScrollTop = feed.scrollTop;
+    let stopped = false;
+    const cleanup = () => {
+      stopped = true;
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+      feed.removeEventListener("wheel", cancel);
+      feed.removeEventListener("touchstart", cancel);
+      feed.removeEventListener("pointerdown", cancel);
+      feed.removeEventListener("keydown", cancelOnKey);
+    };
+    const cancel = () => {
+      cleanup();
+      navigationCleanupRef.current = null;
+      feed.scrollTo({ top: feed.scrollTop, behavior: "instant" });
+      setSelection(null);
+    };
+    const cancelOnKey = (event: KeyboardEvent) => {
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "PageUp",
+          "PageDown",
+          "Home",
+          "End",
+          " ",
+        ].includes(event.key) &&
+        !(
+          event.target instanceof HTMLElement &&
+          event.target.closest("input, textarea, [contenteditable=true]")
+        )
+      ) {
+        cancel();
+      }
+    };
+    feed.addEventListener("wheel", cancel, { passive: true });
+    feed.addEventListener("touchstart", cancel, { passive: true });
+    feed.addEventListener("pointerdown", cancel, { passive: true });
+    feed.addEventListener("keydown", cancelOnKey);
+    navigationCleanupRef.current = cleanup;
+
+    const correctPosition = () => {
+      if (stopped) return;
+      const currentTraces = latestTracesRef.current;
+      let currentIndex = currentTraces.findIndex(
+        (item) => (item.itemId ?? item.trace.id) === itemId,
+      );
+      // A loading placeholder can split into independently virtualized threads.
+      if (currentIndex === -1 && itemId === traceId) {
+        currentIndex = currentTraces.findIndex(
+          (item) => item.trace.id === traceId,
+        );
+      }
+      if (currentIndex === -1) {
+        cleanup();
+        navigationCleanupRef.current = null;
+        setSelection(null);
+        return;
+      }
+      const currentItemId = currentTraces[currentIndex]!.itemId ?? traceId;
+      const entry = Array.from(
+        feed.querySelectorAll<HTMLElement>("[data-session-trace-id]"),
       ).find(
         (element) =>
-          (rowId
-            ? element.dataset.sessionTranscriptRowId === rowId
-            : element.dataset.sessionObservationId === observationId) &&
-          element.closest<HTMLElement>("[data-session-trace-id]")?.dataset
-            .sessionTraceId === traceId &&
-          (!itemId ||
-            element.closest<HTMLElement>("[data-session-item-id]")?.dataset
-              .sessionItemId === itemId),
+          element.dataset.sessionTraceId === traceId &&
+          (!element.dataset.sessionItemId ||
+            element.dataset.sessionItemId === currentItemId),
       );
-      if (!observation) return false;
-
-      const top =
-        feed.scrollTop +
-        observation.getBoundingClientRect().top -
-        feed.getBoundingClientRect().top -
-        Math.max(0, (feed.clientHeight - observation.clientHeight) / 2);
-      feed.scrollTo({ top, behavior: "smooth" });
-      return true;
-    };
-
-    if (scrollToObservation()) return;
-
-    let timeout: number;
-    const cleanup = () => {
-      observer.disconnect();
-      window.clearTimeout(timeout);
-    };
-    const observer = new MutationObserver(() => {
-      if (!scrollToObservation()) return;
-      cleanup();
-      if (observationScrollCleanupRef.current === cleanup) {
-        observationScrollCleanupRef.current = null;
+      const row =
+        entry && (rowId || observationId)
+          ? Array.from(
+              entry.querySelectorAll<HTMLElement>(
+                "[data-session-transcript-row-id], [data-session-observation-id]",
+              ),
+            ).find((element) =>
+              rowId
+                ? element.dataset.sessionTranscriptRowId === rowId
+                : element.dataset.sessionObservationId === observationId,
+            )
+          : undefined;
+      const mountedTarget = rowId || observationId ? row : entry;
+      const measurements = virtualizer.measurementsCache;
+      const itemOffset = measurements[currentIndex]?.start;
+      if (itemOffset === undefined) {
+        frame = window.requestAnimationFrame(correctPosition);
+        return;
       }
-    });
-    observer.observe(feed, { childList: true, subtree: true });
-    timeout = window.setTimeout(() => {
-      cleanup();
-      if (observationScrollCleanupRef.current === cleanup) {
-        observationScrollCleanupRef.current = null;
+      const anchor = row
+        ? feed.scrollTop +
+          row.getBoundingClientRect().top -
+          feed.getBoundingClientRect().top -
+          feed.clientTop
+        : itemOffset;
+      const viewportHeight = feed.clientHeight;
+      const totalSize = virtualizer.getTotalSize();
+      const top = getScrollOffsetForScrollSpyAnchor({
+        anchor,
+        viewportHeight,
+        totalSize,
+        endTransitionRatio: 0.2,
+        viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
+      });
+      if (previousTarget === undefined || Math.abs(previousTarget - top) > 1) {
+        previousTarget = top;
+        stableSince = performance.now();
+        feed.scrollTo({ top, behavior: "smooth" });
       }
-    }, 5_000);
-    observationScrollCleanupRef.current = cleanup;
+      if (
+        virtualizer.isScrolling ||
+        Math.abs(previousScrollTop - feed.scrollTop) > 0.5
+      ) {
+        previousScrollTop = feed.scrollTop;
+        stableSince = performance.now();
+      }
+      if (
+        mountedTarget &&
+        Math.abs(feed.scrollTop - top) <= 1 &&
+        performance.now() - stableSince >=
+          STABLE_VIRTUAL_ROW_MEASUREMENT_CONFIG.scrollIdleMs + 50
+      ) {
+        const actualAnchor = getScrollSpyAnchor({
+          scrollOffset: feed.scrollTop,
+          viewportHeight,
+          totalSize,
+          endTransitionRatio: 0.2,
+          viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
+        });
+        const nextOffset = measurements[currentIndex + 1]?.start ?? totalSize;
+        const minimumAnchor = getScrollSpyAnchor({
+          scrollOffset: 0,
+          viewportHeight,
+          totalSize,
+          endTransitionRatio: 0.2,
+          viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
+        });
+        const maximumAnchor = getScrollSpyAnchor({
+          scrollOffset: Math.max(0, totalSize - viewportHeight),
+          viewportHeight,
+          totalSize,
+          endTransitionRatio: 0.2,
+          viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
+        });
+        const canRepresentSelection =
+          itemOffset <= maximumAnchor && nextOffset > minimumAnchor;
+        if (canRepresentSelection && actualAnchor < itemOffset) {
+          // Browser scroll positions can round just below an entry boundary.
+          feed.scrollTo({
+            top: Math.min(top + 1, Math.max(0, totalSize - viewportHeight)),
+            behavior: "instant",
+          });
+        }
+        window.clearTimeout(timeout);
+        window.cancelAnimationFrame(frame);
+        if (
+          !canRepresentSelection &&
+          (actualAnchor < itemOffset || actualAnchor >= nextOffset)
+        ) {
+          setSelection({
+            itemId: currentItemId,
+            fallbackOffset: feed.scrollTop,
+          });
+        } else {
+          cleanup();
+          navigationCleanupRef.current = null;
+          setSelection(null);
+        }
+        return;
+      }
+      frame = window.requestAnimationFrame(correctPosition);
+    };
+    timeout = window.setTimeout(cancel, 5_000);
+    correctPosition();
   };
 
+  const selectedItem = selection
+    ? (traces.find(
+        (item) => (item.itemId ?? item.trace.id) === selection.itemId,
+      ) ?? traces.find((item) => item.trace.id === selection.itemId))
+    : undefined;
+  const selectedIndex = selectedItem ? traces.indexOf(selectedItem) : -1;
+  const selectedStart = virtualizer.measurementsCache[selectedIndex]?.start;
+  const totalSize = virtualizer.getTotalSize();
+  const selectedEnd =
+    virtualizer.measurementsCache[selectedIndex + 1]?.start ?? totalSize;
+  const minimumAnchor = getScrollSpyAnchor({
+    scrollOffset: 0,
+    viewportHeight,
+    totalSize,
+    endTransitionRatio: 0.2,
+    viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
+  });
+  const maximumAnchor = getScrollSpyAnchor({
+    scrollOffset: Math.max(0, totalSize - viewportHeight),
+    viewportHeight,
+    totalSize,
+    endTransitionRatio: 0.2,
+    viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
+  });
+  const fallbackIsNeeded =
+    selectedStart !== undefined &&
+    (selectedStart > maximumAnchor || selectedEnd <= minimumAnchor);
   return {
-    activeItemId: activeItemId ?? null,
+    activeItemId:
+      selection &&
+      selectedItem &&
+      (selection.fallbackOffset === undefined || fallbackIsNeeded)
+        ? (selectedItem.itemId ?? selectedItem.trace.id)
+        : (activeItemId ?? null),
     feedRef,
     onSelect,
     virtualItems,

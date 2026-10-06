@@ -2,7 +2,11 @@ import { act, fireEvent, renderHook } from "@testing-library/react";
 import { type Virtualizer } from "@tanstack/react-virtual";
 import { describe, expect, it, vi } from "vitest";
 
-import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
+import {
+  getScrollOffsetForScrollSpyAnchor,
+  getScrollSpyAnchor,
+  useVirtualizedScrollSpy,
+} from "@/src/hooks/useVirtualizedScrollSpy";
 
 const items = Array.from({ length: 100 }, (_, index) => ({
   id: String(index),
@@ -16,7 +20,7 @@ const virtualItems = items.map((_, index) => ({
   lane: 0,
 }));
 
-function renderScrollSpy(scrollOffset: number) {
+function renderScrollSpy(scrollOffset: number, viewportInset = 0) {
   const scrollElement = document.createElement("div");
   scrollElement.scrollTo = vi.fn();
   const virtualizer = {
@@ -33,6 +37,7 @@ function renderScrollSpy(scrollOffset: number) {
       scrollElementRef: { current: scrollElement },
       viewportHeight: 1_000,
       endTransitionRatio: 0.2,
+      viewportInset,
     }),
   );
 
@@ -65,6 +70,84 @@ function renderFittingScrollSpy() {
 }
 
 describe("useVirtualizedScrollSpy", () => {
+  it("crosses item boundaries at the inset during manual scrolling in both directions", () => {
+    for (const offset of [99, 100, 101, 100, 99]) {
+      expect(renderScrollSpy(offset, 200).result.current.activeItemId).toBe(
+        offset < 100 ? "2" : "3",
+      );
+    }
+    expect(renderScrollSpy(9_000, 200).result.current.activeItemId).toBe("99");
+  });
+
+  it("clamps the inset and scroll target in a fitting viewport", () => {
+    const geometry = {
+      viewportHeight: 8,
+      totalSize: 4,
+      endTransitionRatio: 0.2,
+      viewportInset: 8 * 0.2,
+    };
+    expect(getScrollSpyAnchor({ scrollOffset: 0, ...geometry })).toBe(1.6);
+    expect(getScrollOffsetForScrollSpyAnchor({ anchor: 0, ...geometry })).toBe(
+      0,
+    );
+  });
+
+  it.each([300, 500, 800])(
+    "uses the same 20%% inset at %spx for manual activation and target alignment",
+    (viewportHeight) => {
+      const geometry = {
+        viewportHeight,
+        totalSize: 10_000,
+        endTransitionRatio: 0.2,
+        viewportInset: viewportHeight * 0.2,
+      };
+      expect(getScrollSpyAnchor({ scrollOffset: 100, ...geometry })).toBe(
+        100 + viewportHeight * 0.2,
+      );
+      expect(
+        getScrollOffsetForScrollSpyAnchor({ anchor: 350, ...geometry }),
+      ).toBe(350 - viewportHeight * 0.2);
+      for (const anchor of [viewportHeight * 0.2, 350, 9_416, 9_700, 9_999]) {
+        const scrollOffset = getScrollOffsetForScrollSpyAnchor({
+          anchor,
+          ...geometry,
+        });
+        expect(getScrollSpyAnchor({ scrollOffset, ...geometry })).toBeCloseTo(
+          anchor,
+        );
+      }
+    },
+  );
+
+  it.each([0, 100, 8_800, 8_900, 9_000, 9_999])(
+    "aligns content coordinate %s with the manual scroll-spy anchor",
+    (anchor) => {
+      const geometry = {
+        viewportHeight: 1_000,
+        totalSize: 10_000,
+        endTransitionRatio: 0.2,
+      };
+      const scrollOffset = getScrollOffsetForScrollSpyAnchor({
+        anchor,
+        ...geometry,
+      });
+      expect(getScrollSpyAnchor({ scrollOffset, ...geometry })).toBeCloseTo(
+        anchor,
+      );
+    },
+  );
+
+  it("clamps an impossible anchor in a fitting list", () => {
+    expect(
+      getScrollOffsetForScrollSpyAnchor({
+        anchor: 400,
+        viewportHeight: 1_000,
+        totalSize: 500,
+        endTransitionRatio: 0.2,
+      }),
+    ).toBe(0);
+  });
+
   it("tracks the item at the sticky top edge until the end transition", () => {
     expect(renderScrollSpy(0).result.current.activeItemId).toBe("0");
     expect(renderScrollSpy(100).result.current.activeItemId).toBe("1");
