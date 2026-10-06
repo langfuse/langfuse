@@ -1,4 +1,3 @@
-import { BlobStorageIntegrationType } from "@langfuse/shared";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
@@ -7,7 +6,7 @@ import { type ExternalMediaStorageFormValues } from "@/src/features/external-med
 import { ExternalMediaStorageForm } from "./ExternalMediaStorageForm";
 
 const defaultValues: ExternalMediaStorageFormValues = {
-  type: BlobStorageIntegrationType.S3,
+  type: "S3",
   bucketName: "",
   endpoint: null,
   region: "us-east-1",
@@ -51,7 +50,7 @@ export const S3Compatible = meta.story({
   args: {
     initialValues: {
       ...defaultValues,
-      type: BlobStorageIntegrationType.S3_COMPATIBLE,
+      type: "S3_COMPATIBLE",
       bucketName: "media",
       endpoint: "https://s3.example.com",
       forcePathStyle: true,

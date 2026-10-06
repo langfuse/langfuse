@@ -1,4 +1,5 @@
 import { parseS3Uri } from "@langfuse/shared";
+import Image from "next/image";
 import { useId, useState, type SyntheticEvent } from "react";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
@@ -6,7 +7,6 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-import { ResizableImage } from "@/src/components/ui/resizable-image";
 
 export function TestMediaObjectDialog({
   isPending,
@@ -92,12 +92,14 @@ function MediaObjectPreview({
     switch (mediaType) {
       case "image":
         return (
-          <ResizableImage
+          <Image
+            className="max-h-80 max-w-full rounded border object-contain"
             src={signedUrl}
             alt={`Preview ${fileName}`}
-            isDefaultVisible
-            shouldValidateImageSource={false}
-            fitContent
+            width={640}
+            height={360}
+            unoptimized
+            onError={() => setHasLoadError(true)}
           />
         );
       case "audio":
