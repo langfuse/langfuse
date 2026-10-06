@@ -32,7 +32,9 @@
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
   Model calls use `generateTopicText` and `generateTopicEmbedding` from
   `@langfuse/shared/topics/server` to keep Bedrock transport on shared's AI SDK
-  version. Internal PoC model selection uses required, default-free
+  version. Text tracing checks organization `aiTelemetryEnabled` in `models.ts`;
+  use the shared `isInternalEvalEnvironment` predicate to exclude internal sources.
+  Internal PoC model selection uses required, default-free
   `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` values
   shared by web and worker; topic naming still uses the fixed Terra profile.
   Local AWS auth uses shared `LANGFUSE_AI_FEATURES_AWS_PROFILE`; region/setup

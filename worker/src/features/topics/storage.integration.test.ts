@@ -457,6 +457,44 @@ describe("Topics definition persistence", () => {
     expect(
       await getLatestFacetSummaries(projectId, "facet", 1, newRange),
     ).toEqual([moved]);
+
+    const internalFacet = "internal-environments";
+    await writeTopicSummaries([
+      ...["langfuse-topics", "llm-as-a-judge", "langfuse"].flatMap(
+        (environment) => {
+          const traceId = randomUUID();
+          return [
+            { ...summary, facetId: internalFacet, traceId },
+            {
+              ...latest,
+              facetId: internalFacet,
+              traceId,
+              environment,
+            },
+          ];
+        },
+      ),
+      { ...summary, facetId: internalFacet, traceId: "allowed-trace" },
+    ]);
+    const [eligible, counts] = await Promise.all([
+      getTopicClusteringSummaries(
+        projectId,
+        internalFacet,
+        1,
+        embedding,
+        oldRange,
+      ),
+      getTopicSummaryCounts(
+        projectId,
+        [{ facetId: internalFacet, version: 1 }],
+        embedding,
+        oldRange,
+      ),
+    ]);
+    expect(eligible.map(({ traceId }) => traceId)).toEqual(["allowed-trace"]);
+    expect(counts).toEqual([
+      { facetId: internalFacet, facetVersion: 1, count: 1 },
+    ]);
   });
 
   it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {

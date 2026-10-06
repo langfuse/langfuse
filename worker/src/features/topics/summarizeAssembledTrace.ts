@@ -11,7 +11,11 @@ import {
   type TopicFacetVersion,
   type TopicSummary,
 } from "@langfuse/shared/topics";
-import { recordIncrement, type Transcript } from "@langfuse/shared/src/server";
+import {
+  isInternalEvalEnvironment,
+  recordIncrement,
+  type Transcript,
+} from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { embedTopicSummary, summarizeTopicTrace } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
@@ -30,7 +34,11 @@ export async function summarizeAssembledTrace(input: {
   traceName: string;
   transcript: Transcript | null;
 }): Promise<"disabled" | "unchanged" | "summarized"> {
-  if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
+  if (
+    !isTopicsProjectEnabled(input.projectId) ||
+    isInternalEvalEnvironment(input.environment)
+  )
+    return "disabled";
   let prepared: ReturnType<typeof prepareAssembledTopicTranscript> | undefined;
   const models = getTopicsModelConfig();
   if (!models.summaryModel || !models.embeddingModel)
@@ -130,6 +138,7 @@ async function summarizeFacet(input: {
     input.facet,
     input.text,
     input.config,
+    { source_trace_id: input.traceId, source_environment: input.environment },
   );
   const applicable = result.output.status === "applicable";
   const summary = result.output.summary.trim();

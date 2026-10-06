@@ -74,13 +74,21 @@ describe("Topics trace selection and backfill", () => {
         [projectId, "trace-old", "2026-09-23T08:00:00Z"],
         [projectId, "trace-outside", "2026-09-24T00:00:00Z"],
         [randomUUID(), "trace-foreign", "2026-09-23T10:00:00Z"],
-      ].map(([project, trace, timestamp]) =>
+        [
+          projectId,
+          "trace-internal",
+          "2026-09-23T11:00:00Z",
+          "langfuse-topics",
+        ],
+        [projectId, "trace-judge", "2026-09-23T12:00:00Z", "llm-as-a-judge"],
+        [projectId, "trace-reserved", "2026-09-23T13:00:00Z", "langfuse"],
+      ].map(([project, trace, timestamp, environment]) =>
         createEvent({
           project_id: project,
           trace_id: trace,
           start_time: new Date(timestamp),
           trace_name: "agent-turn",
-          environment: "test",
+          environment: environment ?? "test",
           tags: ["billing"],
         }),
       ),

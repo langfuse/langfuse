@@ -6,6 +6,10 @@ import { applyCommentFilters } from "../services/commentFilterService";
 import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
 import { queryClickhouse } from "../repositories/clickhouse";
+import {
+  INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+} from "../llm/isInternalEvalEnvironment";
 
 type SelectionRows = {
   ids: { id: string };
@@ -69,6 +73,13 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         : []),
     )
     .whereRaw("e.trace_id != ''")
+    .whereRaw(
+      "NOT startsWith(e.environment, {internalEnvironmentPrefix:String}) AND e.environment != {publicLlmJudgeEnvironment:String}",
+      {
+        internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      },
+    )
     .buildWithParams();
   const traces = new CTEQueryBuilder()
     .withCTE("matching_observations", {

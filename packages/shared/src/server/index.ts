@@ -56,6 +56,7 @@ export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./llm/promptToolConfig";
 export * from "./llm/internalTraceEvents";
+export { isInternalEvalEnvironment } from "./llm/isInternalEvalEnvironment";
 export * from "./llm/langfuseAiCompletion";
 export * from "./utils/baseUrl";
 export * from "./utils/productUrl";

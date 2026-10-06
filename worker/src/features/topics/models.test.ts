@@ -5,12 +5,19 @@ const state = vi.hoisted(() => ({
   embed: vi.fn(),
   increment: vi.fn(),
   region: vi.fn(),
+  project: vi.fn(),
+  traceSink: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
   getLangfuseAIAwsProfile: () => "ai-test",
   getLangfuseAIBedrockRegion: () => state.region(),
+  getLangfuseAITraceSinkParams: state.traceSink,
+  LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
+}));
+vi.mock("@langfuse/shared/src/db", () => ({
+  prisma: { project: { findFirst: state.project } },
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicsModelConfig: () => ({
@@ -49,6 +56,21 @@ beforeEach(() => {
   state.embed.mockReset();
   state.increment.mockReset();
   state.region.mockReset().mockReturnValue("eu-west-1");
+  state.project.mockReset().mockResolvedValue({
+    organization: { aiTelemetryEnabled: true },
+  });
+  state.traceSink.mockReset().mockImplementation((params) => ({
+    targetProjectId: "ai-features",
+    traceId: "a".repeat(32),
+    traceName: params.traceName,
+    environment: "production",
+    aiFeatureOtelIngestion: true,
+    metadata: {
+      langfuse_ai_feature: params.feature,
+      langfuse_project_id: params.projectId,
+      ...params.metadata,
+    },
+  }));
 });
 
 describe("Topics naming boundary", () => {
@@ -63,6 +85,7 @@ describe("Topics naming boundary", () => {
       topicProcessingConfigSchema.parse({
         summaryModel: "us.openai.gpt-5.6-luna",
       }),
+      { source_trace_id: "source-trace" },
     );
     expect(result.output).toEqual({
       summary: "A billing request.",
@@ -86,6 +109,23 @@ describe("Topics naming boundary", () => {
       model: "us.openai.gpt-5.6-luna",
       region: "eu-west-1",
       profile: "ai-test",
+      trace: {
+        targetProjectId: "ai-features",
+        traceName: "topics-summary",
+        environment: "langfuse-topics",
+        aiFeatureOtelIngestion: false,
+        metadata: {
+          langfuse_ai_feature: "topics",
+          langfuse_project_id: "project",
+          facet_id: "facet",
+          facet_version: 1,
+          source_trace_id: "source-trace",
+        },
+      },
+    });
+    expect(state.project).toHaveBeenCalledWith({
+      where: { id: "project", deletedAt: null },
+      select: { organization: { select: { aiTelemetryEnabled: true } } },
     });
     expect(request.messages[0].content).toContain(facet.prompt);
     expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
@@ -162,13 +202,20 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
     });
-    const result = await nameTopicGroup({ members, contrasts: [] });
+    const result = await nameTopicGroup({ members, contrasts: [] }, facet, {
+      execution_id: "execution",
+    });
     expect(result.output).toMatchObject({
       name: "Invoice assistance",
       evidenceSummaryIds: [members[399].id],
     });
     expect(state.call).toHaveBeenCalledOnce();
     expect(state.call.mock.calls[0][0].model).toBe("us.openai.gpt-5.6-terra");
+    expect(state.call.mock.calls[0][0].trace).toMatchObject({
+      traceName: "topics-naming",
+      environment: "langfuse-topics",
+      metadata: { execution_id: "execution", facet_id: "facet" },
+    });
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
     const submitted = JSON.parse(
       state.call.mock.calls[0][0].messages[1].content,
@@ -187,7 +234,7 @@ describe("Topics naming boundary", () => {
         },
         usage: { inputTokens: 100, outputTokens: 30 },
       });
-      await expect(nameTopicGroup(evidence)).rejects.toThrow();
+      await expect(nameTopicGroup(evidence, facet)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
       expect(state.increment.mock.calls).toEqual([
         [
@@ -203,6 +250,53 @@ describe("Topics naming boundary", () => {
       ]);
     },
   );
+
+  it("runs both text calls without tracing when organization analytics is disabled", async () => {
+    state.project.mockResolvedValue({
+      organization: { aiTelemetryEnabled: false },
+    });
+    state.call
+      .mockResolvedValueOnce({
+        output: { summary: "A billing request.", status: "applicable" },
+        usage: {},
+      })
+      .mockResolvedValueOnce({
+        output: {
+          name: "Billing",
+          description: "Billing requests.",
+          evidenceSummaryIds: ["member-a"],
+        },
+        usage: {},
+      });
+    await summarizeTopicTrace(
+      facet,
+      "A billing request.",
+      topicProcessingConfigSchema.parse({
+        summaryModel: "us.openai.gpt-5.6-luna",
+      }),
+    );
+    await nameTopicGroup(evidence, facet);
+    expect(state.call).toHaveBeenCalledTimes(2);
+    for (const [request] of state.call.mock.calls)
+      expect(request.trace).toBeUndefined();
+  });
+
+  it("skips the consent lookup when tracing is unconfigured", async () => {
+    state.traceSink.mockReturnValue(undefined);
+    state.call.mockResolvedValue({
+      output: { summary: "A billing request.", status: "applicable" },
+      usage: {},
+    });
+    await summarizeTopicTrace(
+      facet,
+      "A billing request.",
+      topicProcessingConfigSchema.parse({
+        summaryModel: "us.openai.gpt-5.6-luna",
+      }),
+    );
+    expect(state.project).not.toHaveBeenCalled();
+    expect(state.call.mock.calls[0][0].trace).toBeUndefined();
+  });
 
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embedding: [], tokens: 12 });

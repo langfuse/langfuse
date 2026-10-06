@@ -1,9 +1,12 @@
 import { get_encoding } from "tiktoken";
 import { z } from "zod";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   getLangfuseAIAwsProfile,
   getLangfuseAIBedrockRegion,
+  getLangfuseAITraceSinkParams,
+  LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import {
   generateTopicEmbedding,
@@ -83,6 +86,8 @@ async function structuredCall<T>(
   outputLimit: number,
   stage: "summary" | "naming",
   model: string,
+  facet: TopicFacetVersion,
+  metadata?: Record<string, unknown>,
 ): Promise<ModelResult<T>> {
   const connection = bedrockConfig();
   const messages = [
@@ -103,6 +108,7 @@ async function structuredCall<T>(
     messages,
     schema,
     maxOutputTokens: outputLimit,
+    trace: await topicTraceSink(stage, facet, metadata),
   }).catch((error: unknown) => {
     logger.warn("Topics model request failed", {
       model,
@@ -156,10 +162,44 @@ async function structuredCall<T>(
   return accepted;
 }
 
+async function topicTraceSink(
+  stage: "summary" | "naming",
+  facet: TopicFacetVersion,
+  metadata?: Record<string, unknown>,
+) {
+  const trace = getLangfuseAITraceSinkParams({
+    feature: "topics",
+    projectId: facet.projectId,
+    traceName: `topics-${stage}`,
+    metadata: {
+      ...metadata,
+      facet_id: facet.facetId,
+      facet_version: facet.version,
+    },
+  });
+  if (!trace) return undefined;
+  const project = await prisma.project
+    .findFirst({
+      where: { id: facet.projectId, deletedAt: null },
+      select: { organization: { select: { aiTelemetryEnabled: true } } },
+    })
+    .catch((error: unknown) => {
+      logger.warn("Failed to check Topics tracing consent", { error });
+      return null;
+    });
+  if (!project?.organization.aiTelemetryEnabled) return undefined;
+  return {
+    ...trace,
+    environment: LangfuseInternalTraceEnvironment.Topics,
+    aiFeatureOtelIngestion: false,
+  };
+}
+
 export async function summarizeTopicTrace(
   facet: TopicFacetVersion,
   text: string,
   config: TopicProcessingConfig,
+  metadata?: Record<string, unknown>,
 ) {
   const models = requireTopicsModelConfig();
   const model = config.summaryModel;
@@ -192,13 +232,19 @@ Return the summary and its applicability status. Use applicable when the recordi
     config.maxOutputTokens,
     "summary",
     model,
+    facet,
+    metadata,
   );
 }
 
-export async function nameTopicGroup(group: {
-  members: { id: string; summary: string }[];
-  contrasts: { id: string; summary: string }[];
-}) {
+export async function nameTopicGroup(
+  group: {
+    members: { id: string; summary: string }[];
+    contrasts: { id: string; summary: string }[];
+  },
+  facet: TopicFacetVersion,
+  metadata?: Record<string, unknown>,
+) {
   requireTopicsModelConfig();
   if (!group.members.length)
     throw new Error("Naming requires one non-empty effective group.");
@@ -240,6 +286,8 @@ export async function nameTopicGroup(group: {
     1000,
     "naming",
     TOPICS_NAMING_MODEL,
+    facet,
+    metadata,
   );
 }
 

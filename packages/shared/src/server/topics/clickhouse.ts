@@ -17,6 +17,10 @@ import { prisma } from "../../db";
 import { chunk } from "lodash";
 import { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
+import {
+  INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+} from "../llm/isInternalEvalEnvironment";
 
 const sourceKeySql =
   "project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')";
@@ -398,6 +402,8 @@ export async function getTopicClusteringSummaries(
       LIMIT 1 BY ${sourceKeySql}
     ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
       AND length(embedding) = {embeddingDimensions:UInt32}
+      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+      AND environment != {publicLlmJudgeEnvironment:String}
     ORDER BY trace_id`,
     params: {
       projectId,
@@ -405,6 +411,8 @@ export async function getTopicClusteringSummaries(
       facetVersion,
       ...embeddingConfig,
       ...timeRangeParams(timeRange),
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-clustering-summaries", projectId },
   });
@@ -427,7 +435,7 @@ export async function getTopicSummaryCounts(
     count: string;
   }>({
     query: `SELECT facet_id AS facetId, facet_version AS facetVersion, count() AS count FROM (
-      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions
+      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions, environment
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         AND ${latestSummaryFilterSql(scopeSql)}
@@ -435,6 +443,8 @@ export async function getTopicSummaryCounts(
       LIMIT 1 BY ${sourceKeySql}
     ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
       AND dimensions = {embeddingDimensions:UInt32}
+      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+      AND environment != {publicLlmJudgeEnvironment:String}
     GROUP BY facet_id, facet_version`,
     params: {
       projectId,
@@ -442,6 +452,8 @@ export async function getTopicSummaryCounts(
       facetIds: facets.map(({ facetId }) => facetId),
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-summary-counts", projectId },
   });

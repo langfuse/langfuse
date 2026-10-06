@@ -74,6 +74,11 @@ credentials for local object storage. `AWS_PROFILE` takes precedence when set.
 Assistant and Ask AI use the same profile; `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`
 remains a fallback for existing local setups.
 Restart web and worker after changing these values.
+Summary and naming calls are traced to `LANGFUSE_AI_FEATURES_PROJECT_ID` only
+when the source organization's AI analytics (`aiTelemetryEnabled`) is enabled.
+Their environment is `langfuse-topics`; embeddings are not traced. Topics excludes
+reserved `langfuse*` environments and the public `llm-as-a-judge` alias from
+processing and discovery, using the evaluation environment policy.
 Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
 Summary and assignment records use `trace_id` as their source when present;
@@ -143,7 +148,7 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 | `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries, naming, and embeddings.                                                                                                                                                                                                |
 | `LANGFUSE_TOPICS_SUMMARY_MODEL`               | Required internal PoC setting; Bedrock model ID used for trace summaries.                                                                                                                                                                            |
 | `LANGFUSE_TOPICS_EMBEDDING_MODEL`             | Required internal PoC setting; Bedrock embedding model ID.                                                                                                                                                                                           |
-| `LANGFUSE_AI_FEATURES_AWS_PROFILE`           | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                                                                          |
+| `LANGFUSE_AI_FEATURES_AWS_PROFILE`            | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                 |
 
 ## Run the experiment
 

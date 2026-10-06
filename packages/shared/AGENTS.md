@@ -89,7 +89,8 @@
     Summary references carry facet/version/source fields within project and
     execution scope; exact storage reads also require facet/version scope.
   - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
-    worker model calls own usage, cost and vector validation.
+    text accepts optional internal tracing. Worker model calls own telemetry consent,
+    usage, cost and vector validation.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
@@ -119,7 +120,8 @@
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), Bedrock default-credential provider auth
+  `streamLLMText`), `isInternalEvalEnvironment` for shared eval/Topics exclusions,
+  Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities. Langfuse AI
   callers select their local profile through `getLangfuseAIAwsProfile`;
   generic Bedrock auth only uses an explicitly supplied profile or the normal

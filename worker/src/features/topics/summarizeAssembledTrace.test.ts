@@ -104,6 +104,21 @@ beforeEach(() => {
 });
 
 describe("summarizeAssembledTrace", () => {
+  it("skips internal traces before facets, model calls or writes", async () => {
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "langfuse-topics",
+      traceName: "topics-summary",
+      transcript,
+    });
+    expect(state.facets).not.toHaveBeenCalled();
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(state.write).not.toHaveBeenCalled();
+  });
+
   it("leaves other projects untouched", async () => {
     state.enabled = false;
     await summarizeAssembledTrace({

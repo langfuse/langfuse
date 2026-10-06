@@ -51,10 +51,11 @@ const state = vi.hoisted(() => ({
   numeric: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const { assembleTranscript } =
+  const { assembleTranscript, isInternalEvalEnvironment } =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     assembleTranscript,
+    isInternalEvalEnvironment,
     recordIncrement: vi.fn(),
     recordDistribution: vi.fn(),
   };
@@ -555,6 +556,38 @@ beforeEach(() => {
 });
 
 describe("Topics execution", () => {
+  it.each([false, true])(
+    "rejects internal traces supplied by ID (cached: %s)",
+    async (cached) => {
+      const blocked = execution("blocked", 1);
+      if (cached) {
+        await processSelection("source", 1);
+        const summary = [...state.summaries.values()][0];
+        state.staged.set(`blocked/${topicSourceKey(summary)}`, {
+          summary: { ...summary, environment: "langfuse-topics" },
+          embeddingConfig: blocked.input.embeddingConfig,
+        });
+        state.summaries.clear();
+        state.summarize.mockClear();
+        state.embed.mockClear();
+      } else {
+        state.loadTranscript.mockResolvedValue({
+          ...traceInput("trace0"),
+          environment: "langfuse-topics",
+        });
+      }
+      state.executions.set("blocked", blocked);
+      await processTopicsExecution({
+        projectId: "project",
+        executionId: "blocked",
+      });
+      expect(state.summarize).not.toHaveBeenCalled();
+      expect(state.embed).not.toHaveBeenCalled();
+      expect(state.summaries.size).toBe(0);
+      expect(state.executions.get("blocked")?.facets[0].counts.failed).toBe(1);
+    },
+  );
+
   it("records null transcripts as insufficient input without inference", async () => {
     state.loadTranscript.mockResolvedValueOnce(traceInput("trace0", null));
     await processSelection("empty-transcript", 1);

@@ -1,7 +1,19 @@
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { context, SpanStatusCode } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import type { TraceSinkParams } from "../llm/types";
 import { generateTopicText } from "./text";
+
+const { publishInternalOtelSpans } = vi.hoisted(() => ({
+  publishInternalOtelSpans: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("../otel/internalTraceOtelWriter", () => ({
+  publishInternalOtelSpans,
+}));
 
 vi.mock("@aws-sdk/credential-providers", () => ({
   fromNodeProviderChain: vi.fn(() => async () => ({
@@ -11,7 +23,14 @@ vi.mock("@aws-sdk/credential-providers", () => ({
   })),
 }));
 
+beforeEach(() => {
+  context.setGlobalContextManager(
+    new AsyncLocalStorageContextManager().enable(),
+  );
+});
+
 afterEach(() => {
+  context.disable();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.clearAllMocks();
@@ -101,8 +120,95 @@ describe("generateTopicText", () => {
         outputTokens: 4,
         totalTokens: 16,
       });
+      expect(publishInternalOtelSpans).not.toHaveBeenCalled();
     },
   );
+
+  it.each([false, true])(
+    "captures structured text and usage without changing the result when publishing fails: %s",
+    async (publishingFails) => {
+      if (publishingFails) {
+        publishInternalOtelSpans.mockRejectedValueOnce(new Error("queue down"));
+      }
+      const output = { summary: "Account access" };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            output: {
+              message: {
+                role: "assistant",
+                content: [
+                  {
+                    toolUse: {
+                      toolUseId: "json-1",
+                      name: "json",
+                      input: output,
+                    },
+                  },
+                ],
+              },
+            },
+            stopReason: "tool_use",
+            usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+            metrics: { latencyMs: 1 },
+          }),
+        ),
+      );
+
+      const result = await generateTopicText(tracedCall);
+
+      expect(result.output).toEqual(output);
+      expect(publishInternalOtelSpans).toHaveBeenCalledTimes(1);
+      expect(publishInternalOtelSpans).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: trace.targetProjectId,
+          isLangfuseInternal: true,
+        }),
+      );
+      const spans: ReadableSpan[] =
+        publishInternalOtelSpans.mock.calls[0][0].spans;
+      expect(spans).toHaveLength(2);
+      const root = spans.find((span) => span.name === trace.traceName)!;
+      const generation = spans.find((span) => span !== root)!;
+      expect(root.attributes).toMatchObject({
+        "langfuse.observation.input": JSON.stringify(tracedCall.messages),
+        "langfuse.observation.output": JSON.stringify(output),
+      });
+      expect(generation.attributes).toMatchObject({
+        "gen_ai.request.model": tracedCall.model,
+        "gen_ai.usage.input_tokens": 12,
+        "gen_ai.usage.output_tokens": 4,
+        "langfuse.environment": "langfuse-topics",
+      });
+      expect(generation.spanContext().traceId).toBe(trace.traceId);
+      expect(generation.parentSpanContext?.spanId).toBe(
+        root.spanContext().spanId,
+      );
+    },
+  );
+
+  it("flushes failed calls and preserves the provider error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ message: "Topics model unavailable" }, { status: 400 }),
+      ),
+    );
+
+    await expect(generateTopicText(tracedCall)).rejects.toThrow(
+      "Topics model unavailable",
+    );
+
+    expect(publishInternalOtelSpans).toHaveBeenCalledTimes(1);
+    const spans: ReadableSpan[] =
+      publishInternalOtelSpans.mock.calls[0][0].spans;
+    const root = spans.find((span) => span.name === trace.traceName)!;
+    expect(root.status).toMatchObject({
+      code: SpanStatusCode.ERROR,
+      message: "Topics model unavailable",
+    });
+  });
 
   it("rejects a host-reshaping region before resolving credentials or sending a request", async () => {
     const fetch = vi.fn();
@@ -121,3 +227,19 @@ describe("generateTopicText", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+const trace: TraceSinkParams = {
+  targetProjectId: "ai-features-project",
+  traceId: "0af7651916cd43dd8448eb211c80319c",
+  traceName: "topics-summary",
+  environment: "langfuse-topics",
+};
+
+const tracedCall = {
+  model: "us.openai.gpt-5.6-luna",
+  messages: [{ role: "user" as const, content: "I cannot sign in." }],
+  schema: z.object({ summary: z.string() }),
+  maxOutputTokens: 256,
+  region: "eu-central-1",
+  trace,
+};

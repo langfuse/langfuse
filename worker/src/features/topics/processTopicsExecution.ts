@@ -1,4 +1,4 @@
-import { logger } from "@langfuse/shared/src/server";
+import { isInternalEvalEnvironment, logger } from "@langfuse/shared/src/server";
 import {
   isTopicsEnabled,
   readTopicExecutionSummary,
@@ -109,12 +109,16 @@ async function summarizeTrace(
 ): Promise<TopicSummary> {
   const accepted = staged.find((row) => row.traceId === traceId);
   if (accepted) {
+    if (isInternalEvalEnvironment(accepted.environment))
+      throw new Error("Topics does not process internal Langfuse traces.");
     metrics.result("summary", "cached");
     // An accepted payload may expire after the cache read; never renew its TTL.
     return accepted;
   }
   const { unitStartTime, sessionId, environment, traceName, transcript } =
     await getTranscript();
+  if (isInternalEvalEnvironment(environment))
+    throw new Error("Topics does not process internal Langfuse traces.");
   const source = {
     projectId: execution.projectId,
     facetId: facet.facetId,
@@ -188,6 +192,11 @@ async function summarizeTrace(
         facet,
         JSON.stringify(transcript),
         execution.input.processingConfig,
+        {
+          source_trace_id: traceId,
+          source_environment: environment,
+          execution_id: execution.id,
+        },
       );
       const error = topicSummaryOutputError(result.output);
       if (error) throw invalidOutput(metrics, "summary", error);
@@ -637,16 +646,20 @@ async function clusterFacet(
         const members = new Map(
           group.members.map((summary, index) => [`m${index + 1}`, summary]),
         );
-        const { output: label } = await nameTopicGroup({
-          members: Array.from(members, ([id, { summary }]) => ({
-            id,
-            summary,
-          })),
-          contrasts: group.contrasts.map((member, index) => ({
-            id: `c${index + 1}`,
-            summary: member.summary,
-          })),
-        });
+        const { output: label } = await nameTopicGroup(
+          {
+            members: Array.from(members, ([id, { summary }]) => ({
+              id,
+              summary,
+            })),
+            contrasts: group.contrasts.map((member, index) => ({
+              id: `c${index + 1}`,
+              summary: member.summary,
+            })),
+          },
+          facet,
+          { execution_id: execution.id, run_id: run.id, group_id: group.id },
+        );
         if (
           !label.name.trim() ||
           !label.description.trim() ||
