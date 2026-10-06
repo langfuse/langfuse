@@ -622,7 +622,12 @@ function recordExtractedMediaUpload(
   byteLength?: number,
   bytesRemoved = 0,
 ): void {
-  const tags = { outcome, media_kind: kind, write_path: writePath };
+  const tags = {
+    outcome,
+    media_kind: kind,
+    write_path: writePath,
+    media_path: "early",
+  };
   recordIncrement("langfuse.ingestion.otel.media", 1, tags);
   if (byteLength !== undefined)
     recordDistribution(
@@ -634,6 +639,6 @@ function recordExtractedMediaUpload(
     recordDistribution(
       "langfuse.ingestion.otel.media.bytes_removed",
       bytesRemoved,
-      { write_path: writePath },
+      { write_path: writePath, media_path: "early" },
     );
 }
