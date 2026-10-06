@@ -432,7 +432,7 @@ export function ConnectedObservationDetailView({
                     selectedTab === "attributes" ||
                     (selectedTab === "preview" && isPrettyViewAvailable)) && (
                     <>
-                      <div className="ml-auto h-fit shrink-0 px-2 py-0.5">
+                      <div className="ml-auto h-fit shrink-0 py-0.5 pr-4 pl-2">
                         <Tabs
                           value={
                             selectedTab === "log" && isLogViewVirtualized
@@ -519,7 +519,7 @@ export function ConnectedObservationDetailView({
             {selectedTab === "messages" && (
               <TabsBarContent
                 value="messages"
-                className="mt-0 min-h-0 flex-1 overflow-auto"
+                className="mt-0 min-h-0 flex-1 overflow-auto px-4"
               >
                 <TraceMessagesView />
               </TabsBarContent>
@@ -618,7 +618,7 @@ export function ConnectedObservationDetailView({
             {showScoresTab ? (
               <TabsBarContent
                 value="scores"
-                className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
+                className="mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
               >
                 <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
                   <ScoresTable
@@ -635,6 +635,7 @@ export function ConnectedObservationDetailView({
                       "userId",
                     ]}
                     localStorageSuffix="ObservationPreview"
+                    insetToolbar
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />
                 </div>

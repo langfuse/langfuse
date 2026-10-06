@@ -156,7 +156,7 @@ export function Table<TData extends object>({
                       key={header.id}
                       aria-sort={ariaSort}
                       className={cn(
-                        "group bg-background text-muted-foreground relative h-10 border-b p-2 text-left align-middle font-bold",
+                        "group bg-surface text-muted-foreground relative h-10 border-b p-2 text-left align-middle font-bold",
                         column.headerClassName,
                         column.hideBelowMd && "hidden md:table-cell",
                       )}

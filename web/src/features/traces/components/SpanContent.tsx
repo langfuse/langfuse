@@ -86,6 +86,7 @@ export function SpanContent({
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
   const nodeScores = selectNodeScores(mergedScores, node.id);
+  const shouldRenderScores = showScores && nodeScores.length > 0;
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -101,14 +102,14 @@ export function SpanContent({
       // row — stacking on the score chips' own titles and the ScoreTag level
       // tooltip. The truncating name span below carries its own title.
       className={cn(
-        "peer relative flex min-w-0 flex-1 items-center rounded-md py-0.5 pr-2 pl-1 text-left",
+        "peer relative flex min-w-0 flex-1 items-start gap-2 rounded-md py-1 pr-2 pl-1 text-left",
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-xs" title={nodeDisplayName}>
+          <span className="shrink truncate text-sm" title={nodeDisplayName}>
             {nodeDisplayName}
           </span>
 
@@ -122,14 +123,14 @@ export function SpanContent({
             {node.type !== "TRACE" &&
               node.level &&
               node.level !== "DEFAULT" && (
-                <ObservationLevelBadge level={node.level} size="sm" />
+                <ObservationLevelBadge level={node.level} />
               )}
           </div>
         </div>
 
-        {/* Metrics row */}
-        {shouldRenderAnyMetrics && (
-          <div className="flex flex-wrap gap-x-2">
+        {/* Metrics and scores row */}
+        {(shouldRenderAnyMetrics || shouldRenderScores) && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
               <span
@@ -142,7 +143,7 @@ export function SpanContent({
                   "text-xs",
                   emphasizeDuration
                     ? "text-foreground"
-                    : "text-foreground-tertiary",
+                    : "text-muted-foreground",
                 )}
               >
                 {formatIntervalSeconds(durationMs / 1000)}
@@ -153,7 +154,7 @@ export function SpanContent({
             {shouldRenderCostTokens && tokenTotal ? (
               <span
                 title="Total tokens"
-                className="text-foreground-tertiary text-xs"
+                className="text-muted-foreground text-xs"
               >
                 {numberFormatter(tokenTotal, 0)} tokens
               </span>
@@ -164,22 +165,20 @@ export function SpanContent({
               <span
                 className={cn(
                   "text-xs",
-                  emphasizeCost
-                    ? "text-foreground"
-                    : "text-foreground-tertiary",
+                  emphasizeCost ? "text-foreground" : "text-muted-foreground",
                 )}
               >
                 {usdFormatter(ownCost)}
               </span>
             ) : null}
-          </div>
-        )}
 
-        {/* Scores row. Inline badges are capped; the rest roll into a "+N"
-            pill that opens a table of all scores. */}
-        {showScores && nodeScores.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges scores={nodeScores} />
+            {/* Scores: one badge inline; the rest roll into a "+N" pill that
+                opens a table of all scores. */}
+            {shouldRenderScores && (
+              <span className="flex min-w-0 items-center gap-1">
+                <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+              </span>
+            )}
           </div>
         )}
       </div>
