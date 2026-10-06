@@ -1495,8 +1495,8 @@ jobs:
 
   build-docker-image-release:
     needs: all-ci-passed
-    # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
-    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # OSS release image publication is temporarily paused.
+    if: ${{ false }}
     environment: "protected branches"
     strategy:
       fail-fast: false
