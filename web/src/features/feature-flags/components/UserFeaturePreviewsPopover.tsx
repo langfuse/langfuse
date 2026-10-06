@@ -7,8 +7,8 @@ import { Button } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { PopoverContent } from "@/src/components/ui/popover";
 import {
-  featurePreviewFlags,
   featurePreviewLabels,
+  userFeaturePreviewFlags,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -66,8 +66,10 @@ export function UserFeaturePreviewsControl({
       );
     },
   });
-  const enabledCount = Object.values(featurePreviews).filter(Boolean).length;
-  const totalCount = featurePreviewFlags.length;
+  const enabledCount = userFeaturePreviewFlags.filter(
+    (flag) => featurePreviews[flag],
+  ).length;
+  const totalCount = userFeaturePreviewFlags.length;
 
   if (!management.allowed) {
     return (
@@ -111,7 +113,7 @@ export function UserFeaturePreviewsControl({
               Changes apply to this user in every organization.
             </p>
           </div>
-          {featurePreviewFlags.map((flag) => (
+          {userFeaturePreviewFlags.map((flag) => (
             <div key={flag} className="flex items-center justify-between gap-4">
               <span className="text-sm">{featurePreviewLabels[flag]}</span>
               <Switch
