@@ -591,6 +591,31 @@ describe("MCP Read Tools", () => {
         ),
       ).toBe(true);
     });
+
+    it("lists decision-model templates", async () => {
+      const result = (await handleListManagedEvaluatorTemplates(
+        { type: "DECISION_MODEL" },
+        mockServerContext(),
+      )) as {
+        templates: Array<{ key: string; evaluator: { type: string } }>;
+      };
+
+      expect(result.templates).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "topic-decision-model",
+            evaluator: expect.objectContaining({
+              type: "DECISION_MODEL",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        result.templates.every(
+          (template) => template.evaluator.type === "DECISION_MODEL",
+        ),
+      ).toBe(true);
+    });
   });
 
   describe("getEvaluator tool", () => {

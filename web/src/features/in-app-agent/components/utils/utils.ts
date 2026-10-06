@@ -1,5 +1,4 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -625,7 +624,9 @@ export function getDrawerMessages({
         pendingSources = mergeSources(pendingSources, docsSources);
       }
 
-      pendingToolGroupId ??= `tools-${message.id}`;
+      if (pendingToolGroupId === null) {
+        pendingToolGroupId = `tools-${message.id}`;
+      }
       pendingTools.push(...toolContent);
       return;
     }

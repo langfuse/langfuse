@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { Job, Processor } from "bullmq";
 import { z } from "zod";
 import {
@@ -561,7 +560,9 @@ export const otelIngestionQueueProcessorBuilder = (
         .map((o) => ingestionSchema.safeParse(o))
         .flatMap((o) => {
           if (!o.success) {
-            firstParseError ??= o.error;
+            if (firstParseError === undefined) {
+              firstParseError = o.error;
+            }
             return [];
           }
           return [o.data];

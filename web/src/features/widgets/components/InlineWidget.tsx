@@ -433,16 +433,17 @@ export function WidgetContent({
         zeroBaseline={zeroBaseline}
         emptyState={emptyState}
       />
-      <ChartLoadingState
-        isLoading={chartLoadingState.isLoading}
-        showSpinner={chartLoadingState.showSpinner}
-        showHintImmediately={chartLoadingState.showHintImmediately}
-        hintText={chartLoadingState.hintText}
-        onRetry={queryResult.isError ? handleRetry : undefined}
-        progress={loadingProgress}
-        layout={layoutHint}
-        className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-      />
+      {chartLoadingState.isLoading && (
+        <ChartLoadingState
+          showSpinner={chartLoadingState.showSpinner}
+          showHintImmediately={chartLoadingState.showHintImmediately}
+          hintText={chartLoadingState.hintText}
+          onRetry={queryResult.isError ? handleRetry : undefined}
+          progress={loadingProgress}
+          layout={layoutHint}
+          className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+        />
+      )}
     </div>
   );
 }

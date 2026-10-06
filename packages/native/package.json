@@ -16,11 +16,16 @@
   },
   "scripts": {
     "prepare-clickhouse-rs": "sh scripts/prepare-clickhouse-rs.sh",
-    "build": "pnpm run prepare-clickhouse-rs && napi build --platform --release",
-    "build:debug": "pnpm run prepare-clickhouse-rs && napi build --platform",
-    "lint": "pnpm run prepare-clickhouse-rs && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
-    "lint:fix": "pnpm run prepare-clickhouse-rs && cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
-    "test": "pnpm run prepare-clickhouse-rs && cargo test --locked"
+    "build": "pnpm run rust:build",
+    "rust:build": "pnpm run prepare-clickhouse-rs && napi build --platform --release",
+    "build:debug": "pnpm run rust:build:debug",
+    "rust:build:debug": "pnpm run prepare-clickhouse-rs && napi build --platform",
+    "lint": "pnpm run rust:lint",
+    "rust:lint": "pnpm run prepare-clickhouse-rs && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
+    "lint:fix": "pnpm run rust:lint:fix",
+    "rust:lint:fix": "pnpm run prepare-clickhouse-rs && cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
+    "test": "pnpm run rust:test",
+    "rust:test": "pnpm run prepare-clickhouse-rs && cargo test --locked"
   },
   "napi": {
     "binaryName": "langfuse-native",

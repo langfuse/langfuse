@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { useHasEntitlement } from "@/src/features/entitlements";
@@ -34,12 +34,15 @@ export function DeleteTraceDialogController({
   const hasEntitlement = useHasEntitlement("trace-deletion");
   const deleteMutation = api.traces.deleteMany.useMutation();
 
-  let disabled: { reason: string } | undefined;
-  if (!hasAccess) {
-    disabled = { reason: "You don't have permission to delete this trace." };
-  } else if (!hasEntitlement) {
-    disabled = { reason: "Trace deletion is not available on your plan." };
-  }
+  const disabled = useMemo(() => {
+    if (!hasAccess) {
+      return { reason: "You don't have permission to delete this trace." };
+    }
+    if (!hasEntitlement) {
+      return { reason: "Trace deletion is not available on your plan." };
+    }
+    return undefined;
+  }, [hasAccess, hasEntitlement]);
 
   return (
     <ConfirmationDialogController
