@@ -244,10 +244,7 @@ export function PresetDashboardWidget({
           only the edit affordances (drag, delete) are gated. */}
       <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-aria-expanded:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
-          <GripVerticalIcon
-            size={16}
-            className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
-          />
+          <GripVerticalIcon className="icon-base drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block" />
         )}
         <DropdownMenu
           placement="bottom-end"
@@ -291,7 +288,7 @@ export function PresetDashboardWidget({
               aria-label="Widget actions"
               {...getTriggerProps()}
             >
-              <MoreVerticalIcon size={16} />
+              <MoreVerticalIcon className="icon-base" />
             </button>
           )}
         </DropdownMenu>

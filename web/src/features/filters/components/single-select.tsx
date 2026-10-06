@@ -217,7 +217,7 @@ export function SingleSelect({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-base mr-2",
                         isSelected ? "visible" : "invisible",
                       )}
                     />
@@ -273,7 +273,7 @@ export function SingleSelect({
                   value={search.trim()}
                   onSelect={() => commit(search.trim())}
                 >
-                  <Plus className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Plus className="icon-base mr-2 shrink-0 opacity-50" />
                   <div className="overflow-x-hidden text-ellipsis whitespace-nowrap">
                     Use &ldquo;{search.trim()}&rdquo;
                   </div>

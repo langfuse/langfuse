@@ -224,7 +224,7 @@ function ExperimentsMultiSelectActionMenu({
       type: BatchActionType.Create,
       label: "Compare",
       description: "Compare selected experiments",
-      icon: <GitCompareArrows className="h-4 w-4 sm:mr-2" />,
+      icon: <GitCompareArrows className="icon-base sm:mr-2" />,
       customDialog: true,
       disabled: tooManySelected,
       disabledReason: tooManySelected
@@ -241,7 +241,7 @@ function ExperimentsMultiSelectActionMenu({
             type: BatchActionType.Create,
             label: "Run Evaluator",
             description: "Run evaluators on selected experiments",
-            icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+            icon: <LightbulbIcon className="icon-base sm:mr-2" />,
             customDialog: true,
             accessCheck: {
               scope: "evaluationRule:CUD",

@@ -18,7 +18,6 @@ type MarkdownJsonViewHeaderProps = {
   titleIcon?: React.ReactNode;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   controlButtons?: React.ReactNode;
-  inset?: boolean;
   /** Hosts that render their own copy control (e.g. inside the content box)
       suppress the header's. */
   hideCopyButton?: boolean;
@@ -32,7 +31,6 @@ export function MarkdownJsonViewHeader({
   titleIcon,
   handleOnCopy,
   controlButtons,
-  inset = false,
   hideCopyButton = false,
   hoverRevealControls = false,
 }: MarkdownJsonViewHeaderProps) {
@@ -46,12 +44,7 @@ export function MarkdownJsonViewHeader({
   );
 
   return (
-    <div
-      className={cn(
-        "io-message-header flex flex-row items-center justify-between py-1 text-sm font-bold capitalize",
-        inset ? "px-2" : "px-1",
-      )}
-    >
+    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-base font-bold capitalize">
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">
@@ -81,9 +74,9 @@ export function MarkdownJsonViewHeader({
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {isCopied ? (
-              <Check className="h-3 w-3" />
+              <Check className="icon-sm text-icon-foreground" />
             ) : (
-              <Copy className="h-3 w-3" />
+              <Copy className="icon-sm text-icon-foreground" />
             )}
           </Button>
         )}

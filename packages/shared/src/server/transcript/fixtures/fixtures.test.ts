@@ -116,6 +116,67 @@ describe("transcript fixtures", () => {
     ).toBeLessThan(exactLimit);
   });
 
+  it("continues and deduplicates tool calls replayed with provider metadata and a raw tool type", () => {
+    const input = { providerMetadata: "argument", toolType: "argument" };
+    const first = {
+      ...generation("1", ["A"], []),
+      output: {
+        tool_calls: [{ toolCallId: "call", toolName: "lookup", args: input }],
+      },
+    };
+    const replay = {
+      role: "assistant",
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "call",
+          toolName: "lookup",
+          input,
+          providerOptions: { mastra: { modelOutput: "provider details" } },
+        },
+      ],
+    };
+    const second = {
+      ...generation("2", [], []),
+      input: [{ role: "user", content: "A" }, replay],
+      output: { role: "assistant", content: "Done" },
+    };
+    const transcript = assembleTranscript([first, second]);
+    expect(transcript?.threads).toHaveLength(1);
+    expect(transcript?.threads[0].currentTurn.messages).toHaveLength(3);
+    expect(transcript?.threads[0].currentTurn.observations).toEqual([
+      { id: "1", traceId },
+      { id: "2", traceId },
+    ]);
+
+    // Metadata remains available when this is the first recorded occurrence.
+    const standalone = assembleTranscript([second]);
+    expect(
+      standalone?.threads[0].conversationHistory[1].parts[0],
+    ).toMatchObject({
+      toolType: "tool-call",
+      providerMetadata: { mastra: { modelOutput: "provider details" } },
+      input,
+    });
+
+    // These field names can also be real tool arguments and must still match.
+    for (const field of ["providerMetadata", "toolType"]) {
+      const changed = {
+        ...second,
+        input: [
+          second.input[0],
+          {
+            ...replay,
+            content: [
+              { ...replay.content[0], input: { ...input, [field]: "changed" } },
+            ],
+          },
+        ],
+      };
+      expect(assembleTranscript([first, changed])?.threads).toHaveLength(2);
+    }
+  });
+
   it("uses the first current-turn generation depth, excluding history and later generations", () => {
     const previous = {
       ...generation("1", ["A"], []),
@@ -160,6 +221,171 @@ describe("transcript fixtures", () => {
       transcript?.threads[0].currentTurn.observations.map(({ id }) => id),
     ).toEqual(["2", "3"]);
     expect(transcript?.threads[0].conversationHistory).toHaveLength(2);
+  });
+
+  it("continues when replay omits reasoning, without losing the original output", () => {
+    const first = {
+      ...generation("1", ["A"], []),
+      output: {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "Consider the choices." },
+          { type: "text", text: "B" },
+        ],
+      },
+    };
+    const second = {
+      ...generation("2", [], []),
+      input: [
+        { role: "user", content: "A" },
+        { role: "assistant", content: "B" },
+      ],
+    };
+    const transcript = assembleTranscript([first, second]);
+    expect(transcript?.threads).toHaveLength(1);
+    expect(transcript?.threads[0].currentTurn.messages).toHaveLength(2);
+    expect(transcript?.threads[0].currentTurn.messages[1]).toMatchObject({
+      observationId: "1",
+      source: "output",
+      parts: [
+        {
+          type: "reasoning",
+          content: { kind: "text", text: "Consider the choices." },
+        },
+        { type: "text", text: "B" },
+      ],
+    });
+  });
+
+  it("does not establish continuity from system messages and reasoning alone", () => {
+    const system = { role: "system", content: "Think carefully." };
+    const reasoning = {
+      role: "assistant",
+      content: [{ type: "reasoning", text: "Consider the choices." }],
+    };
+    const first = {
+      ...generation("1", [], []),
+      input: [system],
+      output: reasoning,
+    };
+    const second = {
+      ...generation("2", [], ["B"]),
+      input: [system, reasoning],
+    };
+    expect(assembleTranscript([first, second])?.threads).toHaveLength(2);
+  });
+
+  it("retains a changed reasoning group in full and deduplicates its later replay", () => {
+    const reasoning = { type: "reasoning", text: "Consider the choices." };
+    const first = {
+      ...generation("1", ["A"], []),
+      output: {
+        role: "assistant",
+        content: [reasoning, { type: "text", text: "B" }],
+      },
+    };
+    const second = {
+      ...generation("2", [], []),
+      input: [
+        { role: "user", content: "A" },
+        { role: "assistant", content: [reasoning, reasoning] },
+        { role: "assistant", content: "B" },
+      ],
+    };
+    const third = { ...second, id: "3" };
+    const transcript = assembleTranscript([first, second, third]);
+    expect(transcript?.threads).toHaveLength(1);
+    const messages = transcript!.threads[0].currentTurn.messages;
+    expect(messages).toHaveLength(3);
+    expect(
+      messages
+        .flatMap(({ parts }) => parts)
+        .filter(({ type }) => type === "reasoning"),
+    ).toHaveLength(3);
+    expect(messages[2]).toMatchObject({ observationId: "2", source: "input" });
+    expect(transcript?.threads[0].currentTurn.observations).toEqual([
+      { id: "1", traceId },
+      { id: "2", traceId },
+    ]);
+  });
+
+  it("keeps changed assistant text in a separate thread despite matching reasoning", () => {
+    const reasoning = { type: "reasoning", text: "Consider the choices." };
+    const first = {
+      ...generation("1", ["A"], []),
+      output: {
+        role: "assistant",
+        content: [reasoning, { type: "text", text: "B" }],
+      },
+    };
+    const second = {
+      ...generation("2", [], []),
+      input: [
+        { role: "user", content: "A" },
+        {
+          role: "assistant",
+          content: [reasoning, { type: "text", text: "Different answer" }],
+        },
+      ],
+    };
+    expect(assembleTranscript([first, second])?.threads).toHaveLength(2);
+  });
+
+  it("retains changed reasoning in cross-trace history and uses the new turn's depth", () => {
+    const first = {
+      ...generation("1", ["A"], []),
+      nestingLevel: 2,
+      output: {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "Original reasoning." },
+          { type: "text", text: "B" },
+        ],
+      },
+    };
+    const second = {
+      ...generation("2", [], []),
+      traceId: "next-trace",
+      nestingLevel: 4,
+      input: [
+        { role: "user", content: "A" },
+        {
+          role: "assistant",
+          content: [
+            { type: "reasoning", text: "Revised reasoning." },
+            { type: "text", text: "B" },
+          ],
+        },
+        { role: "user", content: "C" },
+      ],
+      output: { role: "assistant", content: "D" },
+    };
+    const transcript = assembleTranscript([first, second]);
+    expect(transcript?.threads).toHaveLength(1);
+    const thread = transcript!.threads[0];
+    expect(thread.conversationHistory.flatMap(({ parts }) => parts)).toEqual([
+      { type: "text", text: "A" },
+      {
+        type: "reasoning",
+        content: { kind: "text", text: "Original reasoning." },
+      },
+      { type: "text", text: "B" },
+      {
+        type: "reasoning",
+        content: { kind: "text", text: "Revised reasoning." },
+      },
+    ]);
+    for (const message of thread.conversationHistory) {
+      expect(message).not.toHaveProperty("observationId");
+    }
+    expect(thread.currentTurn.nestingLevel).toBe(4);
+    expect(thread.currentTurn.messages.map(({ parts }) => parts)).toEqual([
+      [{ type: "text", text: "C" }],
+      [{ type: "text", text: "D" }],
+    ]);
+    expect(thread.currentTurn.observations).toEqual([
+      { id: "2", traceId: "next-trace" },
+    ]);
   });
 
   it("drops indivisible oversized messages and prunes their contributor references", () => {

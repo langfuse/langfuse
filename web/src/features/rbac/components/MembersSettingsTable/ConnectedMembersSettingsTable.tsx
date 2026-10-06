@@ -314,7 +314,7 @@ export function ConnectedMembersSettingsTable({
               loading: isSubmitting,
               hasAccess,
               usageLimit,
-              icon: <PlusIcon className="size-4" aria-hidden="true" />,
+              icon: <PlusIcon className="icon-base" aria-hidden="true" />,
               onClick: openDialog,
             },
           ]}

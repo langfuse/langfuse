@@ -327,7 +327,7 @@ export const ObservationDetailViewHeader = memo(
                                   ref: mobileActionsTriggerRef,
                                 })}
                               >
-                                <MoreHorizontal className="h-4 w-4" />
+                                <MoreHorizontal className="icon-base text-icon-foreground" />
                               </Button>
                             )}
                           </DropdownMenu>
@@ -366,7 +366,7 @@ export const ObservationDetailViewHeader = memo(
                       className="gap-1"
                       {...getTriggerProps()}
                     >
-                      <PlusIcon className="h-3.5 w-3.5" />
+                      <PlusIcon className="icon-base" />
                       <span>Add to</span>
                       <DropdownIndicator size="sm" nudge />
                     </Button>
@@ -396,9 +396,9 @@ export const ObservationDetailViewHeader = memo(
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="mr-1.5 h-3 w-3" />
+                        <LockIcon className="icon-base mr-1.5" />
                       ) : (
-                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                        <SquarePen className="icon-base mr-1.5" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -414,10 +414,10 @@ export const ObservationDetailViewHeader = memo(
                 className="gap-1"
               >
                 {commentDrawerControl.disabled ? (
-                  <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                  <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare className="h-3.5 w-3.5" />
+                    <MessageSquare className="icon-base" />
                     <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
@@ -457,7 +457,7 @@ export const ObservationDetailViewHeader = memo(
                     variant="secondary"
                     {...getTriggerProps()}
                   >
-                    <EllipsisVertical className="h-4 w-4" />
+                    <EllipsisVertical className="icon-base" />
                   </Button>
                 )}
               </ConnectedDetailHeaderActionsMenuController>
@@ -473,10 +473,14 @@ export const ObservationDetailViewHeader = memo(
         ) : (
           <CollapsibleBadgeRow>
             {timestampBadge}
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
+            {latencySeconds != null && (
+              <LatencyBadge latencySeconds={latencySeconds} />
+            )}
+            {observation.timeToFirstToken != null && (
+              <TimeToFirstTokenBadge
+                timeToFirstToken={observation.timeToFirstToken}
+              />
+            )}
             {evaluatorId &&
               (observation.environment ===
                 LangfuseInternalTraceEnvironment.LLMJudge ||

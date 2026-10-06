@@ -138,7 +138,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
           <CommandInput
             showBorder={false}
             placeholder="Search observations..."
-            className="h-7 border-0 focus:ring-0"
+            className="placeholder:text-muted-foreground h-7 border-0 text-xs placeholder:font-mono focus:ring-0"
             value={searchQuery}
             onValueChange={onSearchChange}
             onFocus={onSearchFocus}
@@ -170,7 +170,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                       : "Show indentation"
                 }
               >
-                <IndentIncrease className="h-3.5 w-3.5" />
+                <IndentIncrease className="icon-base" />
               </Button>
             </HoverCardTrigger>
             {indentDisabled && (
@@ -196,7 +196,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             onClick={onToggleMilliseconds}
             title={showMilliseconds ? "Hide milliseconds" : "Show milliseconds"}
           >
-            <Timer className="h-3.5 w-3.5" />
+            <Timer className="icon-base" />
           </Button>
         )}
 
@@ -216,9 +216,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   disabled={isVirtualized}
                 >
                   {allRowsExpanded && !isVirtualized ? (
-                    <FoldVertical className="h-3.5 w-3.5" />
+                    <FoldVertical className="icon-base text-icon-foreground" />
                   ) : (
-                    <UnfoldVertical className="h-3.5 w-3.5" />
+                    <UnfoldVertical className="icon-base text-icon-foreground" />
                   )}
                 </Button>
               </span>
@@ -251,9 +251,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     {isCopyOrDownloadLoading ? (
                       <Spinner size="xs" />
                     ) : isCopied ? (
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="icon-base text-icon-foreground" />
                     ) : (
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy className="icon-base text-icon-foreground" />
                     )}
                   </Button>
                 </TooltipTrigger>

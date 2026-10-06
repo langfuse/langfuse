@@ -101,7 +101,7 @@ export function JSONView(props: {
           "io-message-content ph-no-capture flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
-            ? "bg-accent-light-green dark:border-accent-dark-green/30"
+            ? "bg-surface-output dark:border-border"
             : "",
           props.scrollable || props.borderless || props.title
             ? ""
@@ -206,9 +206,9 @@ export function JSONView(props: {
                 title={isFullyCollapsed ? "Expand all" : "Collapse all"}
               >
                 {isFullyCollapsed ? (
-                  <UnfoldVertical className="h-3 w-3" />
+                  <UnfoldVertical className="icon-sm text-icon-foreground" />
                 ) : (
-                  <FoldVertical className="h-3 w-3" />
+                  <FoldVertical className="icon-sm text-icon-foreground" />
                 )}
               </Button>
             </>
@@ -274,7 +274,7 @@ export function CodeView(props: {
   const CopySuccessIcon = useMemo(() => {
     return (
       <div className="animate-appear relative h-3">
-        <Check className="h-3 w-3" />
+        <Check className="icon-sm" />
         {copiedToClipboardMessage && (
           <div
             className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
@@ -305,7 +305,11 @@ export function CodeView(props: {
               onClick={handleCopy}
               className=""
             >
-              {isCopied ? CopySuccessIcon : <Copy className="h-3 w-3" />}
+              {isCopied ? (
+                CopySuccessIcon
+              ) : (
+                <Copy className="icon-sm text-icon-foreground" />
+              )}
             </Button>
           </div>
         ) : undefined}
@@ -323,7 +327,7 @@ export function CodeView(props: {
             onClick={handleCopy}
             className="absolute top-2 right-2 z-10"
           >
-            {isCopied ? CopySuccessIcon : <Copy className="h-3 w-3" />}
+            {isCopied ? CopySuccessIcon : <Copy className="icon-sm" />}
           </Button>
         )}
         <code
@@ -345,9 +349,9 @@ export function CodeView(props: {
           <div className="flex gap-2 py-2 pr-2">
             <Button variant="secondary" size="xs" onClick={handleShowAll}>
               {isCollapsed ? (
-                <ChevronsUpDown className="h-3 w-3" />
+                <ChevronsUpDown className="icon-sm" />
               ) : (
-                <ChevronsDownUp className="h-3 w-3" />
+                <ChevronsDownUp className="icon-sm" />
               )}
             </Button>
           </div>

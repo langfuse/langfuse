@@ -18,6 +18,7 @@ export function TableSearchBar({
   search,
   onRequestColumns,
   erroredColumns,
+  inset = false,
 }: {
   projectId?: string;
   tableName: string;
@@ -34,6 +35,7 @@ export function TableSearchBar({
   };
   onRequestColumns?: (columns: readonly string[]) => void;
   erroredColumns?: ReadonlySet<string>;
+  inset?: boolean;
 }) {
   // The host owns the applied query and scope; the bar edits both together.
   const { store, commit, applyFilters } = useEventsSearchBar({
@@ -56,6 +58,7 @@ export function TableSearchBar({
     <div className="flex min-w-0 items-center gap-2">
       <div className="min-w-0 flex-1">
         <EventsSearchBarRow
+          className={inset ? "p-0" : undefined}
           projectId={projectId}
           tableName={tableName}
           registry={registry}
