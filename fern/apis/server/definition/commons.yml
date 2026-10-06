@@ -393,6 +393,9 @@ types:
       datasetName: string
       createdAt: datetime
       updatedAt: datetime
+      version:
+        type: optional<datetime>
+        docs: When this version of the dataset item became current. Listing dataset items with a `version` at or after this timestamp returns this item version, until the item is changed again.
       mediaReferences:
         type: list<DatasetItemMediaReference>
         docs: Resolved Langfuse media references found in input, expectedOutput, and metadata.

@@ -1975,6 +1975,22 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(updatedItem?.input).toEqual({ value: "version 2" });
     expect(updatedItem?.expectedOutput).toEqual({ result: "v2" });
 
+    // Each response carries the version of the item it returns
+    expect(item1Updated.body.version.getTime()).toBeGreaterThan(
+      item1.body.version.getTime(),
+    );
+    expect(itemsV1.body.data[0].version).toEqual(item1.body.version);
+    expect(updatedItem?.version).toEqual(item1Updated.body.version);
+
+    const itemById = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      "/api/public/dataset-items/versioned-item-1",
+      undefined,
+      auth,
+    );
+    expect(itemById.body.version).toEqual(item1Updated.body.version);
+
     // Test 4: Verify version parameter requires datasetName
     const invalidVersion = await makeAPICall(
       "GET",

@@ -8820,6 +8820,14 @@ components:
         updatedAt:
           type: string
           format: date-time
+        version:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When this version of the dataset item became current. Listing
+            dataset items with a `version` at or after this timestamp returns
+            this item version, until the item is changed again.
         mediaReferences:
           type: array
           items:
