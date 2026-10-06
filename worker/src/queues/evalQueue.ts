@@ -323,9 +323,6 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       return true;
     } catch (e) {
       const llmError = classifyEvaluatorLlmError(e);
-      const isMediaNotFoundError =
-        llmError?.kind === "validation" &&
-        llmError.validationError?.code === "media-not-found";
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
@@ -358,9 +355,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         }
       }
 
-      const isUnrecoverable = isUnrecoverableError(e);
-      const isTerminalError =
-        (Boolean(llmError) && !isMediaNotFoundError) || isUnrecoverable;
+      const isTerminalError = Boolean(llmError) || isUnrecoverableError(e);
       const totalAttempts = job.opts.attempts ?? 1;
       const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
@@ -376,10 +371,9 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           data: {
             status: JobExecutionStatus.ERROR,
             endTime: new Date(),
-            error:
-              llmError || isUnrecoverable
-                ? (llmError?.message ?? (e as Error).message)
-                : "An internal error occurred",
+            error: isTerminalError
+              ? (llmError?.message ?? (e as Error).message)
+              : "An internal error occurred",
             executionTraceId,
           },
         });

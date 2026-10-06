@@ -68,7 +68,7 @@ export function getLLMErrorInfo(error: unknown): LLMErrorInfo | null {
       kind: "validation",
       message: validationError.message,
       statusCode: validationError.statusCode,
-      isRetryable: false,
+      isRetryable: validationError.code === "media-not-found",
       error,
       validationError,
       retryError,
