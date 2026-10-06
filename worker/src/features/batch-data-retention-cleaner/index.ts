@@ -13,6 +13,7 @@ import {
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils";
 import {
@@ -209,6 +210,14 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
+    // Data retention is an enterprise feature. Without a license the setting
+    // cannot be viewed or changed, so stored policies must not be enforced
+    // either: a deployment that loses its license would otherwise keep
+    // deleting data under a policy its operators can no longer reach.
+    if (!isEnterpriseLicenseAvailable()) {
+      return;
+    }
+
     const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
     let observedBacklog: ReturnType<typeof summarizeBacklog> | undefined;
     let observedLagMeasurementComplete = false;

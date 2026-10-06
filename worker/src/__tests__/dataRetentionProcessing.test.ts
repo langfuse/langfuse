@@ -1,4 +1,12 @@
-import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+  expect,
+  it,
+  describe,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -18,10 +26,35 @@ import {
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 import { Job } from "bullmq";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
+
+type LicenseCheckModule =
+  typeof import("@langfuse/shared/src/server/ee/licenseCheck");
+
+// Overriding the shared env object is not observed by the license check at
+// runtime here, so cases cannot simulate a deployment that way. Wrap the real
+// implementation instead: it keeps the actual key-prefix rules under test
+// while letting a case choose the environment they are evaluated against.
+vi.mock(
+  "@langfuse/shared/src/server/ee/licenseCheck",
+  async (importOriginal) => {
+    const actual = await importOriginal<LicenseCheckModule>();
+    return {
+      ...actual,
+      isEnterpriseLicenseAvailable: vi.fn(actual.isEnterpriseLicenseAvailable),
+    };
+  },
+);
+
+const { isEnterpriseLicenseAvailable: actualIsEnterpriseLicenseAvailable } =
+  await vi.importActual<LicenseCheckModule>(
+    "@langfuse/shared/src/server/ee/licenseCheck",
+  );
 
 describe("DataRetentionProcessingJob", () => {
   let storageService: StorageService;
@@ -41,6 +74,10 @@ describe("DataRetentionProcessingJob", () => {
 
   beforeEach(() => {
     s3Prefix = `${randomUUID()}/`;
+    // Retention only runs under an enterprise license. Pin that here rather
+    // than inheriting it from the ambient env, so the suite does not depend on
+    // which .env example the run happens to have loaded.
+    vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
   });
 
   afterEach(async () => {
@@ -782,6 +819,100 @@ describe("DataRetentionProcessingJob", () => {
     await prisma.project.update({
       where: { id: projectId },
       data: { retentionDays: null },
+    });
+  });
+
+  describe("enterprise license enforcement", () => {
+    /**
+     * Point the license check at a simulated self-hosted deployment holding
+     * the given license key. The real implementation is kept, so these cases
+     * still exercise the actual key-prefix rules; only the environment it
+     * reads is substituted. The cloud region has to be cleared too, because
+     * any cloud region counts as licensed.
+     */
+    const withSelfHostedLicense = async (
+      licenseKey: string | undefined,
+      fn: () => Promise<void>,
+    ) => {
+      vi.mocked(isEnterpriseLicenseAvailable).mockImplementation(() =>
+        actualIsEnterpriseLicenseAvailable({
+          ...sharedEnv,
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+          LANGFUSE_EE_LICENSE_KEY: licenseKey,
+        }),
+      );
+      try {
+        await fn();
+      } finally {
+        vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
+      }
+    };
+
+    const seedExpiredTrace = async (traceId: string) => {
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
+        }),
+      ]);
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+    };
+
+    afterEach(async () => {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: null },
+      });
+    });
+
+    it("should not delete expired data when the self-hosted license key is removed", async () => {
+      const traceId = `${randomUUID()}-trace-unlicensed`;
+      await seedExpiredTrace(traceId);
+
+      await withSelfHostedLicense(undefined, async () => {
+        await handleDataRetentionProcessingJob({
+          data: { payload: { projectId, retention: 7 } },
+        } as Job);
+      });
+
+      // Retention is an enterprise entitlement, so a stored policy must stop
+      // being applied once the instance can no longer configure it.
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeDefined();
+    });
+
+    it("should not delete expired data on a self-hosted pro license", async () => {
+      const traceId = `${randomUUID()}-trace-pro`;
+      await seedExpiredTrace(traceId);
+
+      await withSelfHostedLicense("langfuse_pro_some-key", async () => {
+        await handleDataRetentionProcessingJob({
+          data: { payload: { projectId, retention: 7 } },
+        } as Job);
+      });
+
+      // Pro does not carry the data-retention entitlement.
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeDefined();
+    });
+
+    it("should delete expired data on a self-hosted enterprise license", async () => {
+      const traceId = `${randomUUID()}-trace-ee`;
+      await seedExpiredTrace(traceId);
+
+      await withSelfHostedLicense("langfuse_ee_some-key", async () => {
+        await handleDataRetentionProcessingJob({
+          data: { payload: { projectId, retention: 7 } },
+        } as Job);
+      });
+
+      // Pins that the guard is the license and not an unrelated skip.
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeUndefined();
     });
   });
 });

@@ -7,6 +7,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
+import { logger } from "../logger";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
 
@@ -607,5 +608,80 @@ describe("S3StorageService non-buffered upload part size", () => {
     // Caller's concurrency is honored instead of lib-storage's default of 4,
     // which would otherwise buffer partSize x 4 per concurrent upload.
     expect(s3UploadCtorOptions[0].queueSize).toBe(2);
+  });
+});
+
+describe("S3StorageService SlowDown logging", () => {
+  const slowDown = Object.assign(
+    new Error("Please reduce your request rate."),
+    { name: "SlowDown" },
+  );
+
+  function makeService(logSlowDownAsWarning = false) {
+    return StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      logSlowDownAsWarning,
+    });
+  }
+
+  async function rejectUpload(
+    service: ReturnType<typeof makeService>,
+    err: unknown,
+  ) {
+    vi.spyOn(
+      (service as unknown as { client: { send: () => Promise<unknown> } })
+        .client,
+      "send",
+    ).mockRejectedValue(err);
+    await expect(service.uploadJson("events/key.json", [])).rejects.toThrow(
+      /Failed to upload JSON/,
+    );
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs SlowDown as an error unless the caller owns retries", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(makeService(), slowDown);
+
+    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("logs SlowDown as a warning when the caller owns retries", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(makeService(true), slowDown);
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("still logs other failures as errors when SlowDown is a warning", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(
+      makeService(true),
+      Object.assign(new Error("missing"), { name: "NoSuchKey" }),
+    );
+
+    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
