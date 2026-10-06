@@ -58,8 +58,8 @@ import { canApplyOutlierStripFilters } from "./lib/filterCompatibility";
 /** Target horizontal pixels per bar for granularity picking. */
 const BAR_SLOT_TARGET_PX = 5;
 
-/** Band `px-2` on both sides plus the plot's `ml-7` y-label gutter and `mr-2`. */
-const PLOT_HORIZONTAL_INSET_PX = 16 + 28 + 8;
+/** Band `px-2` on both sides plus the plot's `ml-6` y-label gutter and `mr-2`. */
+const PLOT_HORIZONTAL_INSET_PX = 16 + 24 + 8;
 
 type StripMode = OutlierStripSettings["mode"];
 
@@ -361,7 +361,7 @@ export function EventsOutlierStrip({
         : "ready";
 
   const header = (
-    <div className="px-2 pt-0.5">
+    <div className="pt-0.5 pr-2 pl-1">
       <MetricStripHeaderRow>
         <ModeDropdownController
           options={MODE_OPTIONS}
@@ -417,7 +417,7 @@ export function EventsOutlierStrip({
     >
       {!canApplyFilters ? (
         <OutlierBarStrip
-          className="mt-2 mr-2 mb-2 ml-7"
+          className="mt-2 mr-2 mb-2 ml-6"
           dense={[]}
           maxValue={0}
           ticks={[]}
@@ -428,7 +428,7 @@ export function EventsOutlierStrip({
         />
       ) : (
         <OutlierBarStrip
-          className="mt-2 mr-2 mb-2 ml-7"
+          className="mt-2 mr-2 mb-2 ml-6"
           dense={series.dense}
           maxValue={series.maxValue}
           ticks={series.ticks}
