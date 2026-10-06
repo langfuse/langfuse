@@ -12,6 +12,7 @@ interface ErrorNotificationProps {
   type: "WARNING" | "ERROR";
   dismissToast: (t?: string | number | undefined) => void;
   toast: string | number;
+  source?: "application" | "trpc";
   path?: string;
   traceId?: string;
 }
@@ -22,6 +23,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   type,
   dismissToast,
   toast,
+  source = "application",
   path,
   traceId,
 }) => {
@@ -41,11 +43,11 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
 
     capture("toast:shown", {
       toastType: type,
-      source: path ? "trpc" : "application",
+      source,
       ...(path ? { path } : {}),
       hasErrorId: Boolean(traceId),
     });
-  }, [capture, path, traceId, type]);
+  }, [capture, path, source, traceId, type]);
 
   return (
     <div className="flex justify-between">

@@ -37,6 +37,7 @@ describe("ErrorNotification", () => {
       type: "ERROR" as const,
       dismissToast: vi.fn(),
       toast: "toast-1",
+      source: "trpc" as const,
       path: "traces.byId",
       traceId: "0123456789abcdef",
     };
@@ -78,6 +79,27 @@ describe("ErrorNotification", () => {
       expect(mocks.capture).toHaveBeenCalledWith("toast:shown", {
         toastType: "WARNING",
         source: "application",
+        hasErrorId: false,
+      });
+    });
+  });
+
+  it("classifies a pathless tRPC warning by its explicit source", async () => {
+    render(
+      <ErrorNotification
+        error="Unexpected Response"
+        description="Try again"
+        type="WARNING"
+        source="trpc"
+        dismissToast={vi.fn()}
+        toast="toast-3"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mocks.capture).toHaveBeenCalledWith("toast:shown", {
+        toastType: "WARNING",
+        source: "trpc",
         hasErrorId: false,
       });
     });
