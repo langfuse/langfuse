@@ -676,7 +676,7 @@ describe(
 
     let nestedInput: unknown = "leaf";
     for (let depth = 0; depth < 120; depth++) nestedInput = { x: nestedInput };
-    const scanBudgetInput = focusedReplayBytes({
+    const repeatedNestedInput = focusedReplayBytes({
       attributes: [
         stringAttribute(
           "langfuse.observation.input",
@@ -689,7 +689,7 @@ describe(
     });
 
     it.each([
-      ["native scan budget", scanBudgetInput],
+      ["repeated nested objects", repeatedNestedInput],
       ["deep JSON nesting", Buffer.from(shallowDocument)],
       ["invalid UTF-8", invalidUtf8Bytes],
       [
@@ -705,14 +705,15 @@ describe(
       ],
       ["out-of-range number", Buffer.from(overflowingNumber)],
     ] as const)(
-      "preserves the TypeScript path for %s input",
+      "preserves persisted values for %s input",
       async (name, bytes) => {
-        if (name === "native scan budget") {
-          // Prove this uses the fallback before comparing persistence; a late
-          // detector must not conceal a native scan that silently stopped early.
-          await expect(validateOtelJson(bytes)).rejects.toMatchObject({
-            code: "ERR_OTEL_UNSUPPORTED",
-          });
+        if (name === "repeated nested objects") {
+          // Native success is a separate assertion from persistence parity:
+          // the original TS path cannot rescue a scanner resource failure.
+          const validated = await validateOtelJson(bytes);
+          const batch = await validated.extract(true);
+          await batch.dispose();
+          await validated.dispose();
         }
         const comparison = await runOtelReplayComparison({
           bytes,
