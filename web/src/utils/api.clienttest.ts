@@ -6,6 +6,7 @@ import {
   EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
+  EXPECTED_TRPC_PRECONDITION_FAILED_PATHS,
   captureBuildId,
   fetchWithParseErrorStatus,
   getApproxTrpcGetUrlBytes,
@@ -511,6 +512,47 @@ describe("isExpectedTrpcClientError", () => {
     }
   });
 
+  it("treats a transient evaluator model-preflight failure as expected", () => {
+    // evalsV2.create / update throw PRECONDITION_FAILED when live
+    // model preflight hits a retryable provider, timeout, abort, or
+    // classified configuration error. The setup page already toasts it.
+    for (const path of EXPECTED_TRPC_PRECONDITION_FAILED_PATHS) {
+      expect(
+        isExpectedTrpcClientError(
+          trpcServerError({
+            code: "PRECONDITION_FAILED",
+            httpStatus: 412,
+            path,
+            message:
+              "The model did not respond within 95 seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
+          }),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("does not treat PRECONDITION_FAILED on other procedures as expected", () => {
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "PRECONDITION_FAILED",
+          httpStatus: 412,
+          path: "evals.createTemplate",
+          message: "Model configuration not valid for evaluation",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: EXPECTED_TRPC_PRECONDITION_FAILED_PATHS[0],
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("does not treat BAD_REQUEST on other procedures as expected", () => {
     // Negative fixture: a missing-projectId / invariant BAD_REQUEST is a
     // client bug and must still reach Sentry. Widening the allowlist
@@ -851,6 +893,45 @@ describe("reportTrpcErrorWithoutToast", () => {
       area: "trpc",
       "trpc.code": "INTERNAL_SERVER_ERROR",
       "trpc.path": "datasets.triggerRemoteExperiment",
+    });
+  });
+
+  it("suppresses an evaluator model-preflight timeout (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "PRECONDITION_FAILED",
+        httpStatus: 412,
+        path: EXPECTED_TRPC_PRECONDITION_FAILED_PATHS[0],
+        message:
+          "The model did not respond within 95 seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
+      }),
+      "evals",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "PRECONDITION_FAILED",
+      path: "evalsV2.create",
+    });
+  });
+
+  it("still captures a 5xx on an allowlisted evaluator save path", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: EXPECTED_TRPC_PRECONDITION_FAILED_PATHS[0],
+      }),
+      "evals",
+    );
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags).toMatchObject({
+      area: "trpc",
+      "trpc.code": "INTERNAL_SERVER_ERROR",
+      "trpc.path": "evalsV2.create",
     });
   });
 
