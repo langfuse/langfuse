@@ -18,6 +18,7 @@ export const handleBlobStorageIntegrationSchedule = async () => {
   const enabledIntegrations = await prisma.blobStorageIntegration.findMany({
     select: {
       lastSyncAt: true,
+      backfill: true,
       nextSyncAt: true,
       exportFrequency: true,
       projectId: true,
@@ -33,6 +34,7 @@ export const handleBlobStorageIntegrationSchedule = async () => {
     integrations: enabledIntegrations.map((integration) => ({
       lastSyncAt: integration.lastSyncAt,
       window: windowClassFromBlobFrequency(integration.exportFrequency),
+      backfill: integration.backfill,
     })),
   });
 
