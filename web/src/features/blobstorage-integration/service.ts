@@ -65,7 +65,7 @@ export async function upsertBlobStorageIntegration(params: {
   // through to the Prisma column default (TRACES_OBSERVATIONS). An UPDATE keeps
   // using data.exportSource, where undefined preserves the persisted value.
   createExportSource: AnalyticsIntegrationExportSource;
-  persistAuditLog: (
+  persistAuditLog?: (
     tx: Prisma.TransactionClient,
     integrationId: string,
   ) => Promise<void>;
@@ -136,6 +136,7 @@ export async function upsertBlobStorageIntegration(params: {
             runStartedAt: true,
             createdAt: true,
             exportSource: true,
+            secretAccessKey: true,
           },
         })
       : null;
@@ -157,36 +158,34 @@ export async function upsertBlobStorageIntegration(params: {
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
-
-    const result = existing
-      ? await tx.blobStorageIntegration.update({
-          where: { id: existing.id },
-          data: {
-            ...writeData,
-            ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
-            ...(existing.lastError && data.enabled && !modeChanged
-              ? { nextSyncAt: new Date() }
-              : {}),
-            ...(modeChanged
-              ? { lastSyncAt: null, nextSyncAt: new Date() }
-              : {}),
-            ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
-            runStartedAt: null,
-          },
+    const createData = {
+      ...writeData,
+      exportSource: params.createExportSource,
+      // Parquet is the default export format; apply it when the caller omits
+      // fileType on CREATE. This app-level fallback (not the Prisma column
+      // default) is the source of truth for the default across every write path.
+      fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
+      projectId,
+      secretAccessKey: encryptedSecret ?? existing?.secretAccessKey ?? null,
+    };
+    const updateData = {
+      ...writeData,
+      ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+      ...(existing?.lastError && data.enabled && !modeChanged
+        ? { nextSyncAt: new Date() }
+        : {}),
+      ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+      ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
+      runStartedAt: null,
+    };
+    const targetId = existing?.id ?? createId;
+    const result = targetId
+      ? await tx.blobStorageIntegration.upsert({
+          where: { id: targetId },
+          create: { ...createData, id: targetId },
+          update: updateData,
         })
-      : await tx.blobStorageIntegration.create({
-          data: {
-            ...writeData,
-            ...(createId ? { id: createId } : {}),
-            exportSource: params.createExportSource,
-            // Parquet is the default export format; apply it when the caller omits
-            // fileType on CREATE. This app-level fallback (not the Prisma column
-            // default) is the source of truth for the default across every write path.
-            fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
-            projectId,
-            secretAccessKey: encryptedSecret,
-          },
-        });
+      : await tx.blobStorageIntegration.create({ data: createData });
 
     // Race-free backstop over the row that actually landed, shared with the
     // PostHog and Mixpanel routers. The pre-flight `existing` snapshot (and the
@@ -198,7 +197,7 @@ export async function upsertBlobStorageIntegration(params: {
       result,
     });
 
-    await params.persistAuditLog(tx, result.id);
+    await params.persistAuditLog?.(tx, result.id);
 
     return result;
   });

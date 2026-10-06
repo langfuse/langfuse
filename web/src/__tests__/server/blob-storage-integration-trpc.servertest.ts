@@ -316,6 +316,28 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).resolves.toEqual({ id: project.id, projectId: project.id });
     });
 
+    it("handles concurrent first-time settings saves idempotently", async () => {
+      const { caller, project } = await prepare();
+
+      const results = await Promise.all([
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+        }),
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+        }),
+      ]);
+
+      expect(results.map(({ id }) => id)).toEqual([project.id, project.id]);
+      await expect(
+        prisma.blobStorageIntegration.count({
+          where: { projectId: project.id },
+        }),
+      ).resolves.toBe(1);
+    });
+
     it("updates the migrated row for the existing settings contract", async () => {
       const { caller, project } = await prepare();
       const encryptedSecret = encrypt("persisted-secret");
