@@ -440,7 +440,7 @@ describe("trace batch queue", () => {
   );
 
   it.each([false, true])(
-    "overlaps one tokenization with streaming, bounds pending work and drains it (stream fails: %s)",
+    "keeps streaming while one tokenization is pending and drains it (stream fails: %s)",
     async (streamFails) => {
       let resolveFirst!: (tokens: number) => void;
       let rejectSecond!: (error: Error) => void;
@@ -513,15 +513,16 @@ describe("trace batch queue", () => {
         );
       void processing.then(() => (settled = true));
       try {
-        // While a is being tokenized, all of b can arrive. At c's boundary,
-        // processing waits for a before submitting b to the tokenizer pool.
-        await vi.waitFor(() => expect(suppliedThirdTrace).toBe(true));
-        expect(reachedEnd).toBe(false);
+        // The stream drains while a is being tokenized, so the socket never
+        // idles; b and c wait behind a for the shared tokenizer pool.
+        await vi.waitFor(() => expect(reachedEnd).toBe(true));
+        expect(suppliedThirdTrace).toBe(true);
         expect(tokenCountAsync).toHaveBeenCalledTimes(1);
         expect(exporter.getFinishedSpans()).toHaveLength(0);
         resolveFirst(100);
-        await vi.waitFor(() => expect(reachedEnd).toBe(true));
-        expect(tokenCountAsync).toHaveBeenCalledTimes(5);
+        await vi.waitFor(() =>
+          expect(tokenCountAsync).toHaveBeenCalledTimes(5),
+        );
         expect(settled).toBe(false);
         // An unavailable token estimate must not retry a whole batch or mask
         // the original stream failure; its promise is drained before returning.
@@ -681,8 +682,6 @@ describe("trace batch queue", () => {
         environment: "staging",
         type: "SPAN",
       };
-      // The first trace is processed before requesting more stream rows.
-      expect(tokenCountAsync).toHaveBeenCalledTimes(1);
       yield {
         ...row,
         project_id: "b",
