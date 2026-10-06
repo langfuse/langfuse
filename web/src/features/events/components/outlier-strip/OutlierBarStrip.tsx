@@ -162,7 +162,7 @@ export function OutlierBarStrip({
   const barWidth = Math.max(slotPx - 1, 0.5);
   // Bars sit ON the 1px baseline, never across it.
   const plotHeight = heightPx - 1;
-  const labelHeight = showTimeLabels ? 13 : 0;
+  const labelHeight = showTimeLabels ? 16 : 0;
   const hasData = maxValue > 0;
   const hasActivity = dense.some((bin) => bin.count > 0);
 
@@ -266,7 +266,7 @@ export function OutlierBarStrip({
             <text
               key={`label-${tick.index}`}
               x={tick.x}
-              y={heightPx + 9}
+              y={heightPx + 12}
               textAnchor={tick.textAnchor}
               className="fill-muted-foreground/80 font-sans"
               fontSize={10}
