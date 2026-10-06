@@ -8,9 +8,12 @@ vi.mock("@/src/features/sessions/ConnectedModernSessionBodyLegacy", () => ({
   ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
 }));
 
-vi.mock("@/src/features/sessions/ConnectedModernSessionBodyTimeline", () => ({
-  ConnectedModernSessionBodyTimeline: () => <div>Timeline body</div>,
-}));
+vi.mock(
+  "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline",
+  () => ({
+    ConnectedModernSessionBodyTimeline: () => <div>Timeline body</div>,
+  }),
+);
 
 vi.mock("@/src/features/sessions/ModernSessionHeader", () => ({
   ModernSessionHeader: () => <div>Modern session header</div>,

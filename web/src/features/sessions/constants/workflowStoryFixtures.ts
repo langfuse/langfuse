@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { type SessionConversationTimelineTrace } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 type TranscriptState = Extract<TraceProps["state"], { type: "transcript" }>;
 type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
