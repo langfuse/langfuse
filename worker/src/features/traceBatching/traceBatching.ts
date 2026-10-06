@@ -635,14 +635,18 @@ const HYDRATE_SCRIPT = `
   return result
 `;
 
+// Returns one flag per member, in argument order: 1 when removed, 0 when a
+// newer revision keeps the trace pending.
 const ACKNOWLEDGE_SCRIPT = `
-  local removed = 0
+  local removed = {}
   for i = 1, #ARGV, 2 do
     local state = redis.call('HGET', KEYS[2], ARGV[i])
     if state and cjson.decode(state).revision == ARGV[i + 1] then
       redis.call('ZREM', KEYS[1], ARGV[i])
       redis.call('HDEL', KEYS[2], ARGV[i])
-      removed = removed + 1
+      table.insert(removed, 1)
+    else
+      table.insert(removed, 0)
     end
   end
   return removed
@@ -906,24 +910,29 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       ),
     };
 
-    const acknowledge = async (batch: readonly PendingTrace[]) => {
-      const removed = Number(
-        await redis!.eval(
+    const acknowledge = async (
+      batch: readonly PendingTrace[],
+    ): Promise<boolean[]> => {
+      const removed = (
+        (await redis!.eval(
           ACKNOWLEDGE_SCRIPT,
           2,
           DUE_KEY,
           STATE_KEY,
           ...batch.flatMap(({ member, trace }) => [member, trace.revision]),
-        ),
-      );
+        )) as number[]
+      ).map((flag) => Number(flag) === 1);
       recordIncrement(
         "langfuse.trace_batch.reactivated_traces",
-        batch.length - removed,
+        removed.filter((wasRemoved) => !wasRemoved).length,
       );
+      return removed;
     };
 
     // Excluded traces leave Redis like dispatched ones; activity after this
     // run's snapshot starts a fresh pending window that is evaluated again.
+    // A trace whose revision changed before acknowledgement stays pending and
+    // is reported only once a later run removes it.
     const exclude = async (
       excluded: readonly {
         entry: PendingTrace;
@@ -933,8 +942,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       if (excluded.length === 0) return;
       await this.extendLockOnProgress(true);
       if (this.stopping) return;
-      await acknowledge(excluded.map(({ entry }) => entry));
-      for (const { entry, reason } of excluded) {
+      const removed = await acknowledge(excluded.map(({ entry }) => entry));
+      for (const [index, { entry, reason }] of excluded.entries()) {
+        if (!removed[index]) continue;
         recordIncrement("langfuse.trace_batch.excluded_traces", 1, {
           reason,
           strategy,

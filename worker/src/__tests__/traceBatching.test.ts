@@ -778,6 +778,56 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
+  it("does not report an oversized trace as excluded when new activity keeps it pending", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 3;
+    const warn = vi.spyOn(shared.logger, "warn");
+    await trackTraceBatchActivity(
+      "project",
+      Array.from({ length: 4 }, (_, index) =>
+        event("reactivated", 1_000_000 + index),
+      ),
+    );
+    await makeDue("project", "reactivated");
+    const evaluate = client().eval.bind(client());
+    let reactivated = false;
+    vi.spyOn(client(), "eval").mockImplementation((async (
+      script: string,
+      ...args: (string | number)[]
+    ) => {
+      if (!reactivated && script.includes("cjson.decode(state).revision ==")) {
+        reactivated = true;
+        const traceMember = member("project", "reactivated");
+        const state = JSON.parse((await client().hget(stateKey, traceMember))!);
+        await client().hset(
+          stateKey,
+          traceMember,
+          JSON.stringify({ ...state, revision: randomUUID() }),
+        );
+      }
+      return evaluate(script, ...args);
+    }) as typeof evaluate);
+
+    await runner().processBatch();
+
+    expect(reactivated).toBe(true);
+    expect(
+      await client().hexists(stateKey, member("project", "reactivated")),
+    ).toBe(1);
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.excluded_traces",
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(warn).not.toHaveBeenCalledWith(
+      "Trace batch excluded oversized trace",
+      expect.anything(),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.reactivated_traces",
+      1,
+    );
+  });
+
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const evaluate = vi.spyOn(client(), "eval");
