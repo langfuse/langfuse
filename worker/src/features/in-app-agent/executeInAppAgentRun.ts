@@ -26,6 +26,8 @@ import {
   flushPendingRunEvents,
   getConversationEvents,
   getConversationMessagesForReplay,
+  getInAppAgentToolCallOutput,
+  isInAppAgentReplayCompactionActive,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
   type PersistedConversationEvent,
@@ -58,6 +60,7 @@ import {
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
 import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createReadToolOutputTool } from "./runtime/tools";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
 import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
@@ -621,6 +624,18 @@ export async function executeInAppAgentRun(params: {
         sandbox: sandboxState?.sandbox,
         // History still shows this agent's own earlier writes, so it needs telling.
         sandboxWorkspaceWasReset: sandboxState?.workspaceWasReset,
+        ...(isInAppAgentReplayCompactionActive()
+          ? {
+              replayToolOutputTool: createReadToolOutputTool((args) =>
+                getInAppAgentToolCallOutput({
+                  prisma,
+                  projectId,
+                  conversationId: conversation.id,
+                  ...args,
+                }),
+              ),
+            }
+          : {}),
       },
     });
 
