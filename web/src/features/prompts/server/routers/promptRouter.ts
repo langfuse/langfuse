@@ -637,7 +637,7 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        promptService.invalidateCache({ projectId });
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt deletion
         await Promise.all(

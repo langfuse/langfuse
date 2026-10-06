@@ -13,7 +13,10 @@ import {
 } from "@langfuse/shared";
 import { nanoid } from "nanoid";
 
-import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
+import {
+  getPromptsMeta,
+  type PromptsMetaResponse,
+} from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
@@ -1367,6 +1370,43 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         }),
       ]);
       expect(result.meta.totalItems).toBe(1);
+    });
+  });
+
+  describe("when counting a prompt list across prompt writes", () => {
+    it("serves the cached count until a prompt write rotates the epoch", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const countPrompts = async () =>
+        (await getPromptsMeta({ projectId, page: 1, limit: 1 })).meta
+          .totalItems;
+      const createViaService = (name: string) =>
+        createPrompt({
+          name,
+          prompt: "prompt",
+          labels: [],
+          config: {},
+          projectId,
+          createdBy: "user-1",
+          prisma,
+        });
+
+      await createViaService("prompt-a");
+      expect(await countPrompts()).toBe(1);
+
+      // Bypasses invalidation, so the cached count stays in place.
+      await createPromptInDB({
+        name: "prompt-b",
+        prompt: "prompt",
+        labels: [],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+      expect(await countPrompts()).toBe(1);
+
+      await createViaService("prompt-c");
+      expect(await countPrompts()).toBe(3);
     });
   });
 
