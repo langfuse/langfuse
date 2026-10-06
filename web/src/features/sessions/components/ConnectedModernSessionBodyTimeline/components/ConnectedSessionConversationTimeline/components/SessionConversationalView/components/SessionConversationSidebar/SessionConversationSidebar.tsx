@@ -477,13 +477,18 @@ export function SessionConversationSidebar(
                                         >
                                           {row.role === "tool" &&
                                           searchQuery ? (
-                                            <>Tool: {excerpt}</>
+                                            <>
+                                              Tool:{" "}
+                                              <span className="italic">
+                                                {excerpt}
+                                              </span>
+                                            </>
                                           ) : (
                                             label
                                           )}
                                         </span>
                                         {searchQuery && row.role !== "tool" && (
-                                          <span className="text-muted-foreground line-clamp-2 text-xs break-words whitespace-normal">
+                                          <span className="text-muted-foreground line-clamp-2 text-xs break-words whitespace-normal italic">
                                             {excerpt}
                                           </span>
                                         )}
