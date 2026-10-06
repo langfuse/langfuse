@@ -396,6 +396,27 @@ const SAFARI_ADDMORE_CLICK_RE =
   /^(?:undefined|null) is not an object \(evaluating 'addMore\.click(?:\(\))?'\)$/;
 
 /**
+ * Chromium wording when `Element.setPointerCapture` runs after the pointer
+ * was already released (or never became active). Vaul's drawer `onPress`
+ * calls this unconditionally. Observed: LANGFUSE-63D (Chrome Windows,
+ * traces page, stack is vaul `onPress` via React dispatch).
+ *
+ * The exception is browser-generated. Capture cannot succeed once the
+ * pointer is gone — there is no application recovery. An app error that
+ * quotes the phrase is longer and is KEPT. Guarded to a Sentry
+ * browser-API / global-handler mechanism so an app-captured
+ * NotFoundError is KEPT.
+ *
+ * The InvalidStateError sibling (`Failed to execute 'setPointerCapture'
+ * on 'Element': InvalidStateError`, LANGFUSE-5WK) is a different type
+ * and message and is KEPT.
+ *
+ * Stored without a trailing period because {@link coreMessage} strips one.
+ */
+const CHROMIUM_SET_POINTER_CAPTURE_NOT_FOUND_MESSAGE =
+  "Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found";
+
+/**
  * Match {@link SAFARI_ADDMORE_CLICK_RE} without {@link coreMessage}.
  * `coreMessage` strips a trailing `(…)` parenthetical — that clause *is*
  * WebKit's signature here, so stripping it would miss the real event.
@@ -676,7 +697,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Chromium `setPointerCapture` NotFoundError (LANGFUSE-63D) is the
+    // same class: vaul (and similar drag libraries) call the API after
+    // the pointer is already gone. Chrome throws; there is no recovery.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -696,6 +721,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "NotFoundError" &&
+        coreMessage(exceptionValue) ===
+          CHROMIUM_SET_POINTER_CAPTURE_NOT_FOUND_MESSAGE
       ) {
         return true;
       }
