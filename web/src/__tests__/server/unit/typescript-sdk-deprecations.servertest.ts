@@ -130,23 +130,7 @@ describe("TypeScript SDK deprecations", () => {
           ({ generatedPath, methodName }) =>
             `${generatedPath.replaceAll(path.sep, "/")}:${methodName}`,
         ),
-    ).toEqual([
-      "api/resources/datasetRunItems/client/Client.ts:create",
-      "api/resources/datasetRunItems/client/Client.ts:list",
-      "api/resources/datasets/client/Client.ts:getRun",
-      "api/resources/datasets/client/Client.ts:deleteRun",
-      "api/resources/datasets/client/Client.ts:getRuns",
-      "api/resources/ingestion/client/Client.ts:batch",
-      "api/resources/legacy/resources/metricsV1/client/Client.ts:metrics",
-      "api/resources/legacy/resources/observationsV1/client/Client.ts:get",
-      "api/resources/legacy/resources/observationsV1/client/Client.ts:getMany",
-      "api/resources/scores/client/Client.ts:getMany",
-      "api/resources/scores/client/Client.ts:getById",
-      "api/resources/sessions/client/Client.ts:list",
-      "api/resources/sessions/client/Client.ts:get",
-      "api/resources/trace/client/Client.ts:get",
-      "api/resources/trace/client/Client.ts:list",
-    ]);
+    ).toEqual(["api/resources/ingestion/client/Client.ts:batch"]);
     expect(
       deprecations
         .filter((entry) => entry.kind === "property")
