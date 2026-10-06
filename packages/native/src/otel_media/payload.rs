@@ -71,7 +71,6 @@ pub struct ExtractedMedia {
     pub reference: String,
     pub content_type: String,
     pub kind: MediaPayloadKind,
-    pub source: MediaSource,
     pub encoding: MediaEncoding,
     /// Exact source text for the candidate. When the candidate was ASCII-safe
     /// in the original document this is a range into the one source allocation
@@ -129,8 +128,6 @@ pub struct EarlyMediaResult {
     pub compact_json: Vec<u8>,
     /// Media removed from `compact_json`, in source traversal order.
     pub media: Vec<ExtractedMedia>,
-    /// Number of source UTF-8 bytes inspected by candidate detection.
-    pub checked_bytes: usize,
 }
 
 /// An owned source snapshot and the media edit plan found during validation.
@@ -162,7 +159,6 @@ impl ValidatedPayload {
             return Ok(EarlyMediaResult {
                 compact_json,
                 media: Vec::new(),
-                checked_bytes: manifest.checked_bytes,
             });
         }
         apply_edit_plan(source.as_slice(), manifest, Some(Arc::clone(&source)))
@@ -181,7 +177,6 @@ impl ValidatedPayload {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MediaManifest {
     pub entries: Vec<MediaManifestEntry>,
-    pub checked_bytes: usize,
     pub(super) existing_references: Vec<String>,
 }
 
@@ -189,7 +184,6 @@ pub struct MediaManifest {
 pub struct MediaManifestEntry {
     pub content_type: String,
     pub kind: MediaPayloadKind,
-    pub source: MediaSource,
     pub encoding: MediaEncoding,
     /// Exact raw source span replaced during compaction.
     pub(super) edit_range: Range<usize>,
@@ -348,7 +342,6 @@ fn apply_edit_plan(
             reference: entry.reference,
             content_type: entry.content_type,
             kind: entry.kind,
-            source: entry.source,
             encoding: entry.encoding,
             storage,
             sha256_hash: entry.sha256_hash,
@@ -361,7 +354,6 @@ fn apply_edit_plan(
     Ok(EarlyMediaResult {
         compact_json,
         media,
-        checked_bytes: manifest.checked_bytes,
     })
 }
 
