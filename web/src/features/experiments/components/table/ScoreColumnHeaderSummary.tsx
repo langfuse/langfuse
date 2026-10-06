@@ -3,16 +3,8 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { DiffLabel } from "@/src/features/datasets";
-import {
-  getScoreDataTypeExplanation,
-  splitScoreDataTypeIcon,
-} from "@/src/features/scores";
+import { splitScoreDataTypeIcon } from "@/src/features/scores";
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,
@@ -29,23 +21,8 @@ const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
 };
 
 /** The type, quietly: the marker the column already had, now explained. */
-const ScoreDataTypeMarker = ({
-  icon,
-  dataType,
-}: {
-  icon: string;
-  dataType: ScoreColumnDataType;
-}) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <span className="text-muted-foreground shrink-0 cursor-default">
-        {icon}
-      </span>
-    </TooltipTrigger>
-    <TooltipContent className="max-w-[280px]">
-      {getScoreDataTypeExplanation(dataType)}
-    </TooltipContent>
-  </Tooltip>
+const ScoreDataTypeMarker = ({ icon }: { icon: string }) => (
+  <span className="text-muted-foreground shrink-0 cursor-default">{icon}</span>
 );
 
 const SummaryRow = ({
@@ -115,7 +92,7 @@ export const ScoreColumnHeaderSummary = ({
         <HoverCardTrigger asChild>
           <div className="flex min-w-0 flex-1 cursor-default flex-col gap-0.5 py-0.5">
             <span className="flex min-w-0 items-baseline gap-1">
-              {icon && <ScoreDataTypeMarker icon={icon} dataType={dataType} />}
+              {icon && <ScoreDataTypeMarker icon={icon} />}
               <span className="truncate" title={label}>
                 {nameLabel}
               </span>
@@ -209,9 +186,6 @@ export const ScoreColumnHeaderSummary = ({
           className="flex w-64 flex-col gap-1 p-3 font-normal"
         >
           <span className="text-xs font-bold break-all">{label}</span>
-          <span className="text-muted-foreground text-[10px]">
-            {getScoreDataTypeExplanation(dataType)}
-          </span>
           <SummaryRow
             label={`${
               hasBaseline ? "Baseline experiment" : "This experiment"
