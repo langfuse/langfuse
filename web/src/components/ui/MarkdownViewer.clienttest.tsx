@@ -4,6 +4,7 @@ import {
   MarkdownView,
   prependBasePathToInternalHref,
 } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: { projectId: "project-1" } }),
@@ -64,6 +65,20 @@ describe("MarkdownView external S3 media", () => {
 
     expect(
       screen.getByRole("button", { name: "Product photo media" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders an OpenAI image_url S3 URI as external media", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    render(
+      <MarkdownJsonView
+        content={[{ type: "image_url", image_url: { url: uri } }]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "PNG media" }),
     ).toBeInTheDocument();
   });
 });
