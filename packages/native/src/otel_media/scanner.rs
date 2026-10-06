@@ -47,9 +47,9 @@ pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, EarlyMe
     // deliberately conservative: escaped marker text falls back to the full
     // detector, while false positives only cost the normal discovery pass.
     let (manifest, end) = if discover_media {
-        Extractor::new_discovery(&source).discover()?
+        Extractor::new(&source).discover()?
     } else {
-        Extractor::new_discovery(&source).validate_only()?
+        Extractor::new(&source).validate_only()?
     };
     if end != source.len() {
         return Err(EarlyMediaError::TrailingBytes { offset: end });
@@ -79,7 +79,6 @@ struct Extractor<'a> {
     /// The containing object scan and the discovery walk both need child
     /// boundaries. Caching large values prevents rescanning media-sized strings.
     scan_cache: Option<HashMap<usize, usize>>,
-    checked_bytes: usize,
     manifest: Vec<MediaManifestEntry>,
     existing_references: HashSet<String>,
     pending_ambiguity: Option<EarlyMediaError>,
@@ -90,16 +89,11 @@ impl<'a> Extractor<'a> {
         Self::new_with_embedded_depth(input, 0)
     }
 
-    fn new_discovery(input: &'a [u8]) -> Self {
-        Self::new(input)
-    }
-
     fn new_with_embedded_depth(input: &'a [u8], embedded_depth: usize) -> Self {
         Self {
             input,
             embedded_depth,
             scan_cache: Some(HashMap::new()),
-            checked_bytes: 0,
             manifest: Vec::new(),
             existing_references: HashSet::new(),
             pending_ambiguity: None,
@@ -126,7 +120,6 @@ impl<'a> Extractor<'a> {
         Ok((
             MediaManifest {
                 entries: Vec::new(),
-                checked_bytes: 0,
                 existing_references: Vec::new(),
             },
             end,
@@ -151,7 +144,6 @@ impl<'a> Extractor<'a> {
         let existing_references = self.existing_references.into_iter().collect::<Vec<_>>();
         let manifest = MediaManifest {
             entries: self.manifest,
-            checked_bytes: self.checked_bytes,
             existing_references,
         };
         validate_manifest(self.input, &manifest)?;
@@ -384,7 +376,6 @@ impl<'a> Extractor<'a> {
             // Keep ordinary media text borrowed from the source. Escaped strings
             // are decoded only when inspection of their logical value requires it.
             if !raw.contains('\\') {
-                self.checked_bytes = self.checked_bytes.saturating_add(raw.len());
                 self.discover_string(raw, token_range, scan_mode)?;
                 return Ok(());
             }
@@ -395,7 +386,6 @@ impl<'a> Extractor<'a> {
         };
         let mut jiter = Jiter::new(token);
         if let Ok(value) = jiter.next_str() {
-            self.checked_bytes = self.checked_bytes.saturating_add(value.len());
             self.discover_string(value, token_range, scan_mode)?;
         }
         Ok(())
@@ -427,9 +417,6 @@ impl<'a> Extractor<'a> {
             .discover()
             {
                 Ok((mut nested_manifest, _)) => {
-                    self.checked_bytes = self
-                        .checked_bytes
-                        .saturating_add(nested_manifest.checked_bytes);
                     self.translate_nested_entries(
                         value,
                         &token_range,
@@ -613,7 +600,6 @@ impl<'a> Extractor<'a> {
         self.manifest.push(MediaManifestEntry {
             content_type: content_type.to_owned(),
             kind,
-            source,
             encoding,
             edit_range: source_range,
             storage,
@@ -991,7 +977,7 @@ fn collect_media_references(value: &str, references: &mut HashSet<String>) {
 struct ParsedDataUri<'a> {
     start: usize,
     end: usize,
-    valid: Option<(&'a str, usize, &'a str)>,
+    valid: Option<&'a str>,
 }
 
 fn parse_data_uri(value: &str, start: usize) -> Option<ParsedDataUri<'_>> {
@@ -1041,11 +1027,7 @@ fn parse_data_uri(value: &str, start: usize) -> Option<ParsedDataUri<'_>> {
         valid = false;
     }
     let encoded = &value[data_start..end];
-    let valid = (valid && !encoded.is_empty() && encoded.len() % 4 != 1).then_some((
-        content_type,
-        end,
-        encoded,
-    ));
+    let valid = (valid && !encoded.is_empty() && encoded.len() % 4 != 1).then_some(content_type);
     Some(ParsedDataUri { start, end, valid })
 }
 
@@ -1062,7 +1044,7 @@ fn find_data_uri_candidates(value: &str) -> Vec<(Range<usize>, &str)> {
             cursor = start + DATA_URI_PREFIX.len();
             continue;
         };
-        if let Some((content_type, _, _)) = candidate.valid {
+        if let Some(content_type) = candidate.valid {
             candidates.push((candidate.start..candidate.end, content_type));
         }
         cursor = candidate.end.max(start + DATA_URI_PREFIX.len());

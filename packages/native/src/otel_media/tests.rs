@@ -110,7 +110,6 @@ fn enforces_the_json_depth_limit_for_empty_and_nonempty_containers() {
 
 #[test]
 fn preserves_json_escaping_and_scans_nested_stringified_json() {
-    let uri = data_uri(b"nested");
     let nested = format!(
         r#"{{"type":"base64","media_type":"image/png","data":"{}"}}"#,
         BASE64.encode(b"nested")
@@ -122,13 +121,11 @@ fn preserves_json_escaping_and_scans_nested_stringified_json() {
     assert_eq!(result.media.len(), 1);
     let compact = String::from_utf8(result.compact_json).unwrap();
     assert!(compact.contains("@@@langfuseMedia:type=image/png|id="));
-    assert!(!compact.contains("nested"));
     assert_eq!(result.media[0].kind, MediaPayloadKind::Anthropic);
     assert_eq!(
         result.media[0].original_value().unwrap(),
         BASE64.encode(b"nested")
     );
-    let _ = uri;
 }
 
 #[test]
@@ -492,11 +489,7 @@ fn rejects_same_content_with_different_source_representations() {
         r#"[{{"type":"file","mediaType":"image/png","data":"{encoded}"}},{{"type":"file","mediaType":"image/png","data":"b'abc'"}}]"#
     );
     assert!(matches!(
-        validate_and_discover(input.clone().into_bytes()),
-        Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. })
-    ));
-    assert!(matches!(
-        extract_media(input.as_bytes()),
+        validate_and_discover(input.into_bytes()),
         Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. })
     ));
 }

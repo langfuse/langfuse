@@ -44,17 +44,15 @@ impl ValidatedOtelJson {
                     .compact()
                     .map_err(|error| Error::from_reason(error.to_string()))?
             } else {
-                let checked_bytes = validated.manifest.checked_bytes;
                 let source = validated.into_source();
                 EarlyMediaResult {
                     compact_json: source,
                     media: Vec::new(),
-                    checked_bytes,
                 }
             };
             Ok(EarlyOtelBatch {
                 inner: Some(Arc::new(ExtractedBatch {
-                    json: Arc::new(result.compact_json),
+                    json: result.compact_json,
                     media: result.media,
                 })),
             })
@@ -63,7 +61,7 @@ impl ValidatedOtelJson {
 }
 
 pub(crate) struct ExtractedBatch {
-    pub(crate) json: Arc<Vec<u8>>,
+    pub(crate) json: Vec<u8>,
     pub(crate) media: Vec<ExtractedMedia>,
 }
 

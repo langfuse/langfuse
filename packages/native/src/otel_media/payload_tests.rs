@@ -21,10 +21,6 @@ fn discovery_keeps_the_source_until_the_accepted_payload_is_compacted() {
     assert!(String::from_utf8(compacted.compact_json)
         .unwrap()
         .contains("@@@langfuseMedia:type=image/png|id="));
-    assert!(matches!(
-        &compacted.media[0].storage,
-        MediaStorage::Source { .. }
-    ));
     let MediaStorage::Source { bytes, .. } = &compacted.media[0].storage else {
         unreachable!("direct media should retain a source range");
     };
