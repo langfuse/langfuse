@@ -344,11 +344,12 @@ function isProjectIdList(
   node: OperationNode,
   projectIds: readonly string[],
 ): boolean {
-  const values = PrimitiveValueListNode.is(node)
-    ? node.values
-    : ValueNode.is(node) && Array.isArray(node.value)
-      ? node.value
-      : null;
+  let values: readonly unknown[] | null = null;
+  if (PrimitiveValueListNode.is(node)) {
+    values = node.values;
+  } else if (ValueNode.is(node) && Array.isArray(node.value)) {
+    values = node.value;
+  }
   return (
     values !== null &&
     values.length === projectIds.length &&
