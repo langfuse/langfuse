@@ -9,23 +9,27 @@ absent from env templates.
 
 ## Controls
 
-| Variable                                          | Default   | Role                                                                                                       |
-| ------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`   | Track accepted direct-v4 event writes in Redis.                                                            |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`   | Schedule idle traces into BullMQ jobs.                                                                     |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`   | Register the batch worker.                                                                                 |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
-| `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`   | Emit transcript size distributions. Span attributes and failure counters stay on either way.               |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                               |
-| `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project` | Choose project-order packing or opt-in locality grouping.                                                  |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`      | Maximum traces per job, up to 10,000.                                                                      |
-| `LANGFUSE_TRACE_BATCH_MAX_THREADS`                | `2`       | ClickHouse threads per query (positive integer).                                                           |
-| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`             | unset     | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
-| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`              | unset     | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`       | Concurrent batch jobs per worker process.                                                                  |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`  | Idle time before a trace is ready (10 minutes).                                                            |
-| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000` | Pending retention and inactivity expiry (2 hours).                                                         |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`   | Dispatcher cadence (30 seconds).                                                                           |
+| Variable                                          | Default    | Role                                                                                                       |
+| ------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`    | Track accepted direct-v4 event writes in Redis.                                                            |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`    | Schedule idle traces into BullMQ jobs.                                                                     |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`    | Register the batch worker.                                                                                 |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`    | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
+| `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`    | Emit transcript size distributions. Span attributes and failure counters stay on either way.               |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `1`        | Fraction admitted by ingestion, from 0 to 1.                                                               |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`  | Choose project-order packing or opt-in locality grouping.                                                  |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`       | Maximum traces per job, up to 10,000.                                                                      |
+| `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES`    | `1500`     | Estimated event updates per multi-trace job; `0` disables.                                                 |
+| `LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES` | `67108864` | Estimated serialized event bytes per multi-trace job (64 MiB); `0` disables.                               |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES`    | `5000`     | Exclude a trace whose pending window exceeds this many event updates; `0` disables.                        |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `52428800` | Exclude a trace whose pending window exceeds these serialized bytes (50 MiB); `0` disables.                |
+| `LANGFUSE_TRACE_BATCH_MAX_THREADS`                | `2`        | ClickHouse threads per query (positive integer).                                                           |
+| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`             | unset      | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
+| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`              | unset      | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`        | Concurrent batch jobs per worker process.                                                                  |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`   | Idle time before a trace is ready (10 minutes).                                                            |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`  | Pending retention and inactivity expiry (2 hours).                                                         |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`    | Dispatcher cadence (30 seconds).                                                                           |
 
 Producer, dispatcher and consumer can run independently. Sampling reuses the
 evaluator's deterministic trace-ID sampler; every observation of the same trace
@@ -57,7 +61,7 @@ than retention; ingestion and dispatcher both perform cleanup.
 
 One dispatcher holds the renewable lease. It snapshots ready IDs, sorts them by
 project, then hydrates and revalidates state in chunks of 1,000. Jobs contain up
-to the configured trace cap; project leftovers can share a job. The dispatcher
+to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher
 enqueues before acknowledging matching revisions, so concurrent intake stays
 pending and failed enqueueing can be retried. Stable job IDs limit duplicates.
 
@@ -76,17 +80,39 @@ The dispatcher emits `estimated_event_update_count` and
 `estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
 with `scope:trace|batch` and `strategy`. Batch totals require known estimates for
 every member; `estimates_unavailable` counts unknown traces and affected batches.
-Estimates stay out of queue payloads, job IDs and batch selection. They do not cap
-work or change oversized-trace handling. Dispatch retries can emit another sample.
+Estimates stay out of queue payloads and job IDs. Dispatch retries can emit
+another sample.
 
 Serialized event bytes differ from the reader's `input_bytes`, `output_bytes`
 and `metadata_bytes` metrics: they include the serialized event fields and JSON
 encoding, and do not represent RAM, network transfer or ClickHouse scan bytes.
 The job return still sums those three as `ioMetadataBytes`; that sum is not a
-custom metric. After rollout, collect a stable hour
-with unchanged sampling and batching settings; compare trace/batch distributions,
-unknown-estimate counts, ingestion latency and Redis command rate/CPU/memory with
-the baseline before choosing any size-aware batching policy.
+custom metric.
+
+### Weight budgets and oversized traces
+
+Both strategies close a job before its summed estimates would exceed
+`LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES` or
+`LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES`, in addition to the trace cap.
+Locality treats an over-budget slice like one past its time envelope, and
+partials coalesce only within the budget. A single trace always forms a job, so
+a trace heavier than the budget runs alone. Locality packs traces above half of
+either budget in a separate lane, so one heavy trace does not split the light
+traces around it into extra jobs. Unknown estimates weigh nothing.
+Budget-limited jobs report `fill:partial`; the `scope:batch` estimate
+distributions show how close jobs run to the budget.
+
+After hydration, a trace whose pending-window estimates exceed
+`LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES` or
+`LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` is never queued or read. The
+dispatcher acknowledges it like a dispatched trace, increments
+`langfuse.trace_batch.excluded_traces` tagged with
+`reason:event_updates|serialized_bytes` and `strategy`, and logs
+`Trace batch excluded oversized trace` at warn level with `projectId`, `traceId`,
+`reason` and both estimates. Group that log by `@projectId` to find repeat
+offenders. Activity after the acknowledgement starts a new pending window that
+is evaluated again, so a trace that keeps growing may be logged more than once.
+Traces with unknown estimates are never excluded.
 
 The worker streams full `events_full` payloads and records batch observation,
 trace and logical payload-byte metrics. The `input_bytes`, `output_bytes`
@@ -105,8 +131,9 @@ This fixed margin neither waits for arrivals nor guarantees trace completeness;
 repeated intervals for the same pair form a union without duplicating rows.
 Queries use response compression and chunked multipart parameters for up to
 10,000 UUID-sized trace/project IDs. The fixed 30-second timeout fails the job
-rather than accepting partial results. This does not cap observation count,
-query memory or dispatcher snapshot memory.
+rather than accepting partial results. Beyond the dispatcher's weight budgets
+and trace exclusion, this does not cap observation count, query memory or
+dispatcher snapshot memory.
 
 ## Per-trace transcripts
 
@@ -457,8 +484,8 @@ project ordering and carries unfinished jobs across hydration chunks.
 
 Locality sorts each hydrated window by project, minimum start minute, maximum
 start minute and `xxHash32(traceId)`. It finds the fewest feasible jobs under the
-trace cap and an event-time envelope of at most one hour, or 125% of the first
-trace's observed span if larger. Within that job count, it minimizes project
+trace cap, the weight budgets and an event-time envelope of at most one hour, or
+125% of the first trace's observed span if larger. Within that job count, it minimizes project
 boundaries, then minute × trace count, then gaps between trace hashes. These are
 read-locality proxies, not measured ClickHouse scan costs.
 
