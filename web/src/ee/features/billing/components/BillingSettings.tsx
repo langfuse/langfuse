@@ -17,6 +17,7 @@ import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCl
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
@@ -99,6 +100,7 @@ export const BillingSettings = () => {
             plan={organization?.plan ?? "cloud:hobby"}
           />
         )}
+        {organization && <OrganizationUsageBreakdown orgId={organization.id} />}
         <BillingPlanPeriodView />
         {showBillingDiscount && organization && (
           <BillingDiscountView
