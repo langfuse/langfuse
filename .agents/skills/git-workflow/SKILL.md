@@ -74,10 +74,6 @@ operations.
 
 ## Release
 
-- OSS image publishing is temporarily paused on `main` by
-  `build-docker-image-release.if: ${{ false }}` in `pipeline.yml`; the dependent
-  publish job skips. This affects tags containing the pause, not `v3` or older
-  tags. GitHub release creation and Cloud promotion remain enabled.
 - Releases are cut with `pnpm run release`, run on the branch being released.
   Allowed release branches are `main` and `v3`
   (`scripts/release-preflight.sh` owns the allowlist).
