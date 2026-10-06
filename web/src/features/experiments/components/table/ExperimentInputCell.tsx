@@ -31,8 +31,8 @@ export function ExperimentInputCell({
     <div
       className={`group relative h-full min-h-0 w-full overflow-hidden ${href ? "cursor-pointer pr-6" : ""}`}
       onClick={(event) => {
-        event.stopPropagation();
         if (!href || shouldIgnoreRowClickTarget(event.target)) return;
+        event.stopPropagation();
         if (event.metaKey || event.ctrlKey || event.shiftKey) {
           window.open(href, "_blank", "noopener,noreferrer");
         } else {

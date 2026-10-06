@@ -26,6 +26,7 @@ import {
 } from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
+import { targetReference } from "./targeting";
 
 function filterNode(
   key: string,
@@ -287,6 +288,31 @@ export function filterStateToQueryText(
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);
       skippedFilters.push(filter);
       continue;
+    }
+    let condition: FilterNode | null = null;
+    if (node.kind === "filter") {
+      condition = node;
+    } else if (node.kind === "not" && node.child.kind === "filter") {
+      condition = node.child;
+    }
+    if (condition) {
+      const field = registry.resolveField(condition.key);
+      if (field && registry.targeting?.supports(field)) {
+        const target = registry.targeting.targets.find(
+          (entry) =>
+            entry.id === (filter.target ?? registry.targeting?.defaultTarget),
+        );
+        if (!target) {
+          skipped.push(`${filter.column} (target unavailable)`);
+          skippedFilters.push(filter);
+          continue;
+        }
+        condition.target = targetReference(target);
+      } else if (filter.target) {
+        skipped.push(`${filter.column} (target not supported)`);
+        skippedFilters.push(filter);
+        continue;
+      }
     }
     nodes.push(node);
   }

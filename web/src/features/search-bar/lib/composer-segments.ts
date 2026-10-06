@@ -8,6 +8,7 @@
 // from grammar semantics. Serialization stays separate and conservative
 // (langQ.ts, edits.ts).
 
+import { resolveFilterTarget } from "./targeting";
 import type { ScoreTypeContext } from "./adapter";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
@@ -15,6 +16,7 @@ import { lexTokens, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
 export type FilterSegment = {
+  target?: { from: number; textClassName?: string };
   id: string;
   kind: "filter";
   from: number;
@@ -164,8 +166,12 @@ export function deriveComposerSegments(
   for (const leaf of leaves) leafByFrom.set(leaf.span.from, leaf);
 
   const segments: ComposerSegment[] = [];
+  let consumedUntil = -1;
   for (const token of lexTokens(draftText)) {
-    const { span } = token;
+    if (token.span.from < consumedUntil) continue;
+    const matchedLeaf = leafByFrom.get(token.span.from);
+    const span = matchedLeaf?.kind === "filter" ? matchedLeaf.span : token.span;
+    consumedUntil = span.to;
     const raw = draftText.slice(span.from, span.to);
 
     const messages = overlappingErrors(diagnostics, span);
@@ -225,6 +231,21 @@ export function deriveComposerSegments(
         valueOp: node.valueOp,
         negated: leaf.negated,
         editable: true,
+        ...(node.target?.span
+          ? {
+              target: {
+                from: node.target.span.from - span.from,
+                textClassName: (() => {
+                  const resolved = resolveFilterTarget(node, registry);
+                  return "id" in resolved
+                    ? registry.targeting?.targets.find(
+                        (target) => target.id === resolved.id,
+                      )?.textClassName
+                    : undefined;
+                })(),
+              },
+            }
+          : {}),
       });
       continue;
     }

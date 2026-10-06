@@ -16,6 +16,7 @@ import {
   indexOfOutsideQuotes,
   lexTokens,
   parseGlob,
+  parse,
   serializeValue,
   splitOutsideQuotes,
   termAt,
@@ -27,7 +28,8 @@ import {
   type FieldRegistry,
   type FieldRef,
 } from "./fields";
-import { quoteIfNeeded } from "./quoting";
+import { quoteIfNeeded, unquote } from "./quoting";
+import { serializeTarget, targetReference } from "./targeting";
 import { validateQuery } from "./validate";
 import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
@@ -64,6 +66,7 @@ export type CompletionOption =
       id: string;
       kind: "pattern";
       label: string;
+      textClassName?: string;
       detail?: string;
       insert: string;
       /** When set, the pick replaces THIS span instead of the plan's — used by
@@ -1291,6 +1294,58 @@ function scopeSwitchOptions(
 }
 
 /**
+ * Completions for `@…` after a targetable filter. Parses the text before the
+ * caret to find that filter; returns null when `@` is free text or the
+ * preceding condition already has a target.
+ */
+function planTargetCompletions(
+  input: string,
+  start: number,
+  token: string,
+  to: number,
+  registry: FieldRegistry,
+): CompletionPlan | null {
+  if (!registry.targeting || !token.startsWith("@")) return null;
+  const prefix = parse(input.slice(0, start), registry);
+  const parsed =
+    prefix.ast?.kind === "and" ? prefix.ast.children.at(-1) : prefix.ast;
+  const candidate = parsed?.kind === "not" ? parsed.child : parsed;
+  const condition = candidate?.kind === "filter" ? candidate : null;
+  const field = condition ? registry.resolveField(condition.key) : null;
+  if (
+    !prefix.valid ||
+    condition?.target ||
+    !field ||
+    !registry.targeting.supports(field)
+  ) {
+    return null;
+  }
+  const query = unquote(
+    token.slice(1).replace(/^"/, "").replace(/"$/, ""),
+  ).value.toLowerCase();
+  return {
+    stage: "value",
+    from: start,
+    to,
+    loading: false,
+    sections: [
+      {
+        title: "Target",
+        options: registry.targeting.targets
+          .filter((target) => target.label.toLowerCase().includes(query))
+          .map((target) => ({
+            id: `target:${target.id}`,
+            kind: "pattern" as const,
+            label: target.label,
+            textClassName: target.textClassName,
+            insert: serializeTarget(targetReference(target)),
+          })),
+      },
+    ],
+  };
+}
+
+/**
  * The completion plan for the caret context, or null when nothing matches.
  * The plan is a pure function of (text, caret, data) — never of HOW the
  * popover was opened. An empty term (empty bar, trailing blank, after an
@@ -1306,6 +1361,15 @@ export function planInputCompletions(
   const term = termAt(input, caret);
   const start = term?.from ?? caret;
   const token = term?.raw ?? "";
+
+  const targetPlan = planTargetCompletions(
+    input,
+    start,
+    token,
+    term?.to ?? caret,
+    registry,
+  );
+  if (targetPlan) return targetPlan;
 
   const negated = token.startsWith("-");
   const tokenBody = negated ? token.slice(1) : token;

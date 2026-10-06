@@ -41,7 +41,6 @@ import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { type ScoreLevel } from "@/src/components/score-tag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
-import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -372,12 +371,6 @@ const CellMetadataFooter = ({
                   diff={data.latencyDiff}
                   preferNegativeDiff
                   formatValue={formatLatency}
-                  title={describeRunComparison({
-                    baselineName: data.baselineExperimentName,
-                    baselineText: formatLatency(data.baselineLatencyMs ?? 0),
-                    currentText: formatLatency(data.latencyMs ?? 0),
-                    verb: "took",
-                  })}
                 />
               )}
             </div>
@@ -402,12 +395,6 @@ const CellMetadataFooter = ({
                 diff={data.totalCostDiff}
                 preferNegativeDiff
                 formatValue={formatCost}
-                title={describeRunComparison({
-                  baselineName: data.baselineExperimentName,
-                  baselineText: formatCost(data.baselineTotalCost ?? 0),
-                  currentText: formatCost(data.totalCost ?? 0),
-                  verb: "cost",
-                })}
               />
             )}
           </div>
