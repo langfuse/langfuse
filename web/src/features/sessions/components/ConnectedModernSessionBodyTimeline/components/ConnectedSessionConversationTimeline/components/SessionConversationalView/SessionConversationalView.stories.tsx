@@ -2545,7 +2545,8 @@ export const ManualScrollSynchronization = meta.story({
           const thread = threadIndex === "0" ? 1 : 2;
           expect(
             sidebar.getByRole("button", {
-              name: new RegExp(`^${turn}\\.${thread} Navigation turn ${turn}`),
+              name: (name) =>
+                name.startsWith(`${turn}.${thread} Navigation turn ${turn}`),
             }),
           ).toHaveAttribute("aria-current", "true");
         },
