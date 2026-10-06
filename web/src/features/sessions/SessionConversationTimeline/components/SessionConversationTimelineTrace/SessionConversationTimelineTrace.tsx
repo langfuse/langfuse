@@ -124,7 +124,7 @@ function SessionTimelineStatusIndicator({
           role="img"
           aria-label={`${observation.level}: ${observation.statusMessage}`}
         >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          <Icon className="icon-base" aria-hidden="true" />
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-sm whitespace-pre-wrap">
@@ -154,7 +154,7 @@ function SessionTimelineMarkerIcon({
           role="img"
           aria-label={label}
         >
-          <Icon className="h-3 w-3" aria-hidden="true" />
+          <Icon className="icon-sm" aria-hidden="true" />
         </span>
       )}
     </DSTooltip>
@@ -401,7 +401,7 @@ function SessionTimelineToolRow({
         >
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 transition-transform",
+              "icon-base transition-transform",
               !isExpanded && "-rotate-90",
             )}
             aria-hidden="true"
@@ -429,7 +429,10 @@ function SessionTimelineToolRow({
                   className="text-muted-foreground hover:text-foreground shrink-0"
                   aria-label={`Actions for ${observation.name ?? observation.id}`}
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                  <MoreHorizontal
+                    className="icon-sm text-icon-foreground"
+                    aria-hidden="true"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <SessionObservationActionsMenuContent
@@ -445,7 +448,7 @@ function SessionTimelineToolRow({
                   role="img"
                   aria-label="Actions available on parent observation"
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                  <MoreHorizontal className="icon-base" aria-hidden="true" />
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top">
@@ -595,7 +598,7 @@ function SessionTimelineConversationObservation({
                     aria-label={`Actions for ${observation.name ?? observation.id}`}
                   >
                     <MoreHorizontal
-                      className="h-3.5 w-3.5"
+                      className="icon-sm text-icon-foreground"
                       aria-hidden="true"
                     />
                   </Button>
@@ -1019,9 +1022,15 @@ function LoadedSessionConversationTimeline({
                     }}
                   >
                     {isCollapsed ? (
-                      <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
+                      <ChevronsUpDown
+                        className="icon-sm text-icon-foreground"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      <ChevronDown
+                        className="icon-sm text-icon-foreground"
+                        aria-hidden="true"
+                      />
                     )}
                   </Button>
                   {isCollapsed ? (

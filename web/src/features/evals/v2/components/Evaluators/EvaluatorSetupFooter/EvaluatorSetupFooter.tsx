@@ -18,7 +18,7 @@ export function EvaluatorSetupFooter({
   isSaving,
   nameAIAssistanceAvailable,
   codeValidation,
-  editWithAI,
+  assistantAction,
   onClose,
   onSave,
 }: {
@@ -28,7 +28,8 @@ export function EvaluatorSetupFooter({
   isSaving: boolean;
   nameAIAssistanceAvailable: boolean;
   codeValidation: { isValid: boolean; isPending: boolean } | null;
-  editWithAI: {
+  assistantAction: {
+    label: "Create with AI" | "Edit with AI";
     triggerRef: RefObject<HTMLButtonElement | null>;
     onClick: () => void;
   } | null;
@@ -107,25 +108,18 @@ export function EvaluatorSetupFooter({
     isSaving,
     saveDisabled,
     disabledReason,
+    assistantAction: assistantAction
+      ? {
+          ...assistantAction,
+          disabled: isSaving,
+        }
+      : null,
     onClose,
     onSave,
   };
 
   if (isEditing) {
-    return (
-      <EvaluatorSetupFooterView
-        mode="edit"
-        editWithAI={
-          editWithAI
-            ? {
-                ...editWithAI,
-                disabled: isSaving,
-              }
-            : null
-        }
-        {...sharedProps}
-      />
-    );
+    return <EvaluatorSetupFooterView mode="edit" {...sharedProps} />;
   }
 
   return (

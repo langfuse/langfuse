@@ -4,6 +4,7 @@ import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluat
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import {
   applyEvaluatorSuggestion,
+  getEvaluatorAssistantMode,
   getEvaluatorSetupHeaderState,
   getEvaluatorVersionDefinition,
   navigateToEvaluatorDetail,
@@ -12,46 +13,88 @@ import {
 } from "./EvaluatorSetupPage";
 
 describe("getEvaluatorSetupHeaderState", () => {
+  it("does not expose an Assistant action in the page header", () => {
+    expect(getEvaluatorSetupHeaderState()).toEqual({
+      title: "Configure evaluator",
+    });
+  });
+});
+
+describe("getEvaluatorAssistantMode", () => {
   it.each([
     {
-      name: "create AI entry",
+      name: "scratch code creation",
       input: {
-        isEditing: false,
+        mode: "create",
         isScratchCreation: true,
+        evaluatorType: "CODE",
         isAssistantAvailable: true,
-        showAssistantScratch: true,
       },
-      assistantAction: "none",
+      expected: "create",
     },
     {
-      name: "create manual setup",
+      name: "scratch judge creation",
       input: {
-        isEditing: false,
+        mode: "create",
         isScratchCreation: true,
+        evaluatorType: "LLM_AS_JUDGE",
         isAssistantAvailable: true,
-        showAssistantScratch: false,
       },
-      assistantAction: "create",
+      expected: "create",
     },
     {
-      name: "existing evaluator with footer action",
+      name: "existing evaluator",
       input: {
-        isEditing: true,
+        mode: "edit",
         isScratchCreation: false,
+        evaluatorType: "CODE",
         isAssistantAvailable: true,
-        showAssistantScratch: false,
       },
-      assistantAction: "none",
+      expected: "edit",
     },
-  ] as const)(
-    "uses the Configure evaluator title in $name mode",
-    ({ input, assistantAction }) => {
-      expect(getEvaluatorSetupHeaderState(input)).toEqual({
-        title: "Configure evaluator",
-        assistantAction,
-      });
+    {
+      name: "Decision Model creation",
+      input: {
+        mode: "create",
+        isScratchCreation: true,
+        evaluatorType: "DECISION_MODEL",
+        isAssistantAvailable: true,
+      },
+      expected: null,
     },
-  );
+    {
+      name: "Decision Model editing",
+      input: {
+        mode: "edit",
+        isScratchCreation: false,
+        evaluatorType: "DECISION_MODEL",
+        isAssistantAvailable: true,
+      },
+      expected: null,
+    },
+    {
+      name: "template creation",
+      input: {
+        mode: "create",
+        isScratchCreation: false,
+        evaluatorType: "CODE",
+        isAssistantAvailable: true,
+      },
+      expected: null,
+    },
+    {
+      name: "unavailable Assistant",
+      input: {
+        mode: "edit",
+        isScratchCreation: false,
+        evaluatorType: "LLM_AS_JUDGE",
+        isAssistantAvailable: false,
+      },
+      expected: null,
+    },
+  ] as const)("$name resolves to $expected", ({ input, expected }) => {
+    expect(getEvaluatorAssistantMode(input)).toBe(expected);
+  });
 });
 
 describe("navigateToEvaluatorDetail", () => {

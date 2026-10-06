@@ -409,7 +409,9 @@ export function CodeEvalTemplateFormBody({
       className={formatDisabledReason ? "pointer-events-none" : undefined}
       onClick={() => formatSource()}
     >
-      {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+      {isFormatting && (
+        <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
+      )}
       Format
       <span className="ml-2 hidden md:inline-flex">
         <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />

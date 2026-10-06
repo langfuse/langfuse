@@ -855,7 +855,7 @@ export const MonitorForm = ({
                               size="sm"
                               className="gap-1"
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="icon-base" />
                               Add tag
                             </Button>
                           }
@@ -944,7 +944,7 @@ const Header = ({
           {step}
         </span>
       ) : null}
-      {Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null}
+      {Icon ? <Icon className="icon-lg" aria-hidden="true" /> : null}
       {title}
     </h3>
   </div>

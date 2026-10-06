@@ -14,22 +14,18 @@ type EvaluatorSetupFooterViewBaseProps = {
   isSaving: boolean;
   saveDisabled: boolean;
   disabledReason: string | null;
+  assistantAction: {
+    label: "Create with AI" | "Edit with AI";
+    triggerRef: RefObject<HTMLButtonElement | null>;
+    disabled: boolean;
+    onClick: () => void;
+  } | null;
   onClose: () => void;
   onSave: () => void;
 };
 
 export type EvaluatorSetupFooterViewProps = EvaluatorSetupFooterViewBaseProps &
-  (
-    | { mode: "create"; children: ReactNode }
-    | {
-        mode: "edit";
-        editWithAI: {
-          triggerRef: RefObject<HTMLButtonElement | null>;
-          disabled: boolean;
-          onClick: () => void;
-        } | null;
-      }
-  );
+  ({ mode: "create"; children: ReactNode } | { mode: "edit" });
 
 export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
   const {
@@ -51,29 +47,29 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
     >
       {saveLabel}
       {props.mode === "create" ? (
-        <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <ArrowRight className="icon-base shrink-0" aria-hidden="true" />
       ) : null}
     </Button>
   );
 
   return (
-    <div className="flex shrink-0 items-center gap-4 border-t px-6 py-3">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 sm:px-6">
       {props.mode === "create" ? (
-        <p className="text-muted-foreground min-w-0 flex-1 text-sm">
+        <p className="text-muted-foreground min-w-0 basis-full text-sm sm:flex-1 sm:basis-0">
           {props.children}
         </p>
       ) : null}
-      {props.mode === "edit" && props.editWithAI ? (
+      {props.assistantAction ? (
         <Button
-          ref={props.editWithAI.triggerRef}
+          ref={props.assistantAction.triggerRef}
           type="button"
           variant="outline"
-          disabled={props.editWithAI.disabled}
-          className="gap-1.5"
-          onClick={props.editWithAI.onClick}
+          disabled={props.assistantAction.disabled}
+          className="w-full gap-1.5 sm:w-auto"
+          onClick={props.assistantAction.onClick}
         >
-          <WandSparkles className="h-4 w-4" aria-hidden="true" />
-          Edit with AI
+          <WandSparkles className="icon-base" aria-hidden="true" />
+          {props.assistantAction.label}
         </Button>
       ) : null}
       <div className="ml-auto flex shrink-0 gap-2">

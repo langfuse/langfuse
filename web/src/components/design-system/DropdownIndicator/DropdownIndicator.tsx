@@ -21,8 +21,8 @@ const indicatorVariants = cva(
   {
     variants: {
       size: {
-        base: "size-3.5",
-        sm: "size-3",
+        base: "icon-base",
+        sm: "icon-sm",
       },
       nudge: {
         true: "translate-y-px",

@@ -15,11 +15,7 @@ import { cva } from "class-variance-authority";
 
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { cn } from "@/src/utils/tailwind";
 import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
 
@@ -166,7 +162,7 @@ const MEDIA_KIND_PREVIEW = {
   ),
   file: () => (
     <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
-      <File className="h-5 w-5" />
+      <File className="icon-lg" />
       <span className="text-xs">No inline preview</span>
     </div>
   ),
@@ -188,7 +184,7 @@ function PeekBody({
   if (status === "error") {
     return (
       <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
-        <ImageOff className="h-5 w-5" />
+        <ImageOff className="icon-lg" />
         <span className="text-xs">Failed to load media</span>
       </div>
     );
@@ -249,107 +245,107 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
     const openPeek = React.useCallback(() => setOpen(true), [setOpen]);
 
     return (
-      <HoverCard open={isOpen} onOpenChange={setOpen}>
-        <HoverCardTrigger asChild>
+      <ControlledHoverCard
+        open={isOpen}
+        onOpenChange={setOpen}
+        placement="bottom-start"
+        onClick={(event) => event.stopPropagation()}
+        content={
+          <div className="ph-no-capture flex w-auto max-w-sm flex-col gap-2 p-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                <KindIcon kind={kind} className="icon-base shrink-0" />
+                <span
+                  className="max-w-[20ch] truncate font-mono leading-4"
+                  title={contentType}
+                >
+                  {contentType}
+                </span>
+                {contentLength !== undefined ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="shrink-0">
+                      {formatFileSize(contentLength)}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+              {canOpen ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  size={openActionLabel ? "sm" : "icon-xs"}
+                  className={openActionLabel ? "gap-1.5" : undefined}
+                  title="Open in new tab"
+                >
+                  <a href={url} target="_blank" rel="noopener noreferrer">
+                    {openActionLabel ? <span>{openActionLabel}</span> : null}
+                    <ExternalLink className="icon-sm text-icon-foreground" />
+                  </a>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size={openActionLabel ? "sm" : "icon-xs"}
+                  className={openActionLabel ? "gap-1.5" : undefined}
+                  disabled
+                  title="Open in new tab"
+                >
+                  {openActionLabel ? <span>{openActionLabel}</span> : null}
+                  <ExternalLink className="icon-sm text-icon-foreground" />
+                </Button>
+              )}
+            </div>
+            {description ? (
+              <p className="text-muted-foreground max-w-64 text-xs">
+                {description}
+              </p>
+            ) : null}
+            <PeekBody
+              kind={kind}
+              status={previewStatus}
+              url={url}
+              onPreviewError={() => setFailedPreviewUrl(url ?? null)}
+            />
+          </div>
+        }
+      >
+        {({ getTriggerProps }) => (
           <button
-            ref={ref}
             type="button"
-            // Marker for containers to detect chip hover via event delegation
-            // (`closest("[data-media-tag]")`): IOTableCell suppresses its
-            // expand-on-hover card and native title while over a chip.
+            // Containers detect chip hover via event delegation to suppress their own previews.
             data-media-tag=""
             aria-label={`${chipLabel} media`}
-            aria-expanded={isOpen}
             className={mediaTagVariants({ intent })}
-            onClick={openPeek}
-            onPointerDown={(event) => {
-              if (event.pointerType !== "mouse") {
-                event.preventDefault();
-                openPeek();
-              }
-            }}
+            {...getTriggerProps({
+              ref,
+              onClick: openPeek,
+              onPointerDown: (event) => {
+                if (event.pointerType !== "mouse") {
+                  event.preventDefault();
+                  openPeek();
+                }
+              },
+            })}
           >
             {intent === "attachment" ? (
-              <Paperclip className="h-2.5 w-2.5 shrink-0" />
+              <Paperclip className="icon-sm shrink-0" />
             ) : (
-              <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
+              <KindIcon kind={kind} className="icon-sm shrink-0" />
             )}
             <span
               className={cn(
                 "truncate font-mono leading-4",
                 hasGeneratedLabel && "max-w-[10ch]",
               )}
-              // Empty while the peek is open: a native tooltip would render on
-              // top of the peek. Ancestors with a title still tooltip over the
-              // peek — containers must suppress theirs too (see IOTableCell).
+              // Suppress native tooltips while the peek is open.
               title={isOpen ? "" : hasGeneratedLabel ? contentType : chipLabel}
             >
               {chipLabel}
             </span>
           </button>
-        </HoverCardTrigger>
-        <HoverCardContent
-          align="start"
-          className="ph-no-capture flex w-auto max-w-sm flex-col gap-2 p-2"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-              <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
-              <span
-                className="max-w-[20ch] truncate font-mono leading-4"
-                title={contentType}
-              >
-                {contentType}
-              </span>
-              {contentLength !== undefined ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="shrink-0">
-                    {formatFileSize(contentLength)}
-                  </span>
-                </>
-              ) : null}
-            </div>
-            {canOpen ? (
-              <Button
-                asChild
-                variant="outline"
-                size={openActionLabel ? "sm" : "icon-xs"}
-                className={openActionLabel ? "gap-1.5" : undefined}
-                title="Open in new tab"
-              >
-                <a href={url} target="_blank" rel="noopener noreferrer">
-                  {openActionLabel ? <span>{openActionLabel}</span> : null}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size={openActionLabel ? "sm" : "icon-xs"}
-                className={openActionLabel ? "gap-1.5" : undefined}
-                disabled
-                title="Open in new tab"
-              >
-                {openActionLabel ? <span>{openActionLabel}</span> : null}
-                <ExternalLink className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-          {description ? (
-            <p className="text-muted-foreground max-w-64 text-xs">
-              {description}
-            </p>
-          ) : null}
-          <PeekBody
-            kind={kind}
-            status={previewStatus}
-            url={url}
-            onPreviewError={() => setFailedPreviewUrl(url ?? null)}
-          />
-        </HoverCardContent>
-      </HoverCard>
+        )}
+      </ControlledHoverCard>
     );
   },
 );

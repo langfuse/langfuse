@@ -82,7 +82,7 @@ export function ChoiceOptionsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minChoiceOptions} options`
               }
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="icon-sm" />
             </Button>
           </div>
         )}
@@ -95,7 +95,7 @@ export function ChoiceOptionsEditor({
           disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
           onClick={() => onChange([...options, { value: "", description: "" }])}
         >
-          <Plus className="mr-1 h-3.5 w-3.5" />
+          <Plus className="icon-base text-icon-foreground mr-1" />
           Add option
         </Button>
       </div>

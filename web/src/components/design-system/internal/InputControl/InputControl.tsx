@@ -92,7 +92,9 @@ export function InputControl({
         <TrailingActionIcon
           aria-hidden="true"
           className={
-            error ? "text-destructive size-4" : "text-muted-foreground size-4"
+            error
+              ? "text-destructive icon-base"
+              : "text-muted-foreground icon-base"
           }
         />
       </button>

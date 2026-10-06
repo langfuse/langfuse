@@ -73,7 +73,7 @@ export function EvaluatorAssistantComposer({
               loading={isSubmitting}
               className="size-8 shrink-0 rounded-full p-0"
             >
-              <SendHorizontal className="size-3.5" aria-hidden="true" />
+              <SendHorizontal className="icon-base" aria-hidden="true" />
             </Button>
           </span>
         </TooltipTrigger>

@@ -17,6 +17,12 @@ export const Default = meta.story({
     isSaving: false,
     saveDisabled: false,
     disabledReason: null,
+    assistantAction: {
+      label: "Create with AI",
+      triggerRef: { current: null },
+      disabled: false,
+      onClick: fn(),
+    },
     onClose: fn(),
     onSave: fn(),
   },
@@ -30,13 +36,14 @@ export const Editing = meta.story({
     isSaving: false,
     saveDisabled: false,
     disabledReason: null,
-    onClose: fn(),
-    onSave: fn(),
-    editWithAI: {
+    assistantAction: {
+      label: "Edit with AI",
       triggerRef: { current: null },
       disabled: false,
       onClick: fn(),
     },
+    onClose: fn(),
+    onSave: fn(),
   },
 });
 
@@ -49,6 +56,7 @@ export const Disabled = meta.story({
     isSaving: false,
     saveDisabled: true,
     disabledReason: "Add an evaluator name before saving.",
+    assistantAction: null,
     onClose: fn(),
     onSave: fn(),
   },
