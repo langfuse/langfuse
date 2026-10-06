@@ -286,7 +286,7 @@ const ScoreItem = ({
               rel="noopener noreferrer"
               className="flex items-center gap-1 hover:underline"
             >
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="icon-sm" />
               View execution trace
             </Link>
           )}

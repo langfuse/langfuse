@@ -27,7 +27,7 @@ const badgeVariants = cva(
         filled: "border-transparent bg-muted text-foreground-secondary",
       },
       interactive: {
-        true: "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
+        true: "underline-dotted",
         false: "",
       },
     },
@@ -91,9 +91,10 @@ export function Badge({
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
-          "overflow-x-clip overflow-y-visible py-0.5 text-ellipsis whitespace-nowrap",
-          interactive &&
-            "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
+          "py-0.5 text-ellipsis whitespace-nowrap",
+          interactive
+            ? "underline-dotted overflow-clip"
+            : "overflow-x-clip overflow-y-visible",
         )}
         title={title ?? (interactive ? undefined : text)}
       >
@@ -103,7 +104,7 @@ export function Badge({
         <TrailingIcon
           aria-hidden
           className={cn(
-            "size-3 shrink-0",
+            "icon-sm shrink-0",
             trailingIconTone === "link"
               ? "text-foreground-tertiary -ml-0.5"
               : "text-foreground-tertiary",

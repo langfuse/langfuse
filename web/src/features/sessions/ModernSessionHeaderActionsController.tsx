@@ -181,7 +181,7 @@ export function ModernSessionHeaderActionsController({
             {({ getTriggerProps }) => (
               <HeaderActionButton
                 label="Session actions"
-                icon={<MoreVertical className="h-4 w-4" />}
+                icon={<MoreVertical className="icon-base" />}
                 {...getTriggerProps()}
               />
             )}

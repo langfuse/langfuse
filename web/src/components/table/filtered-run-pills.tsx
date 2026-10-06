@@ -94,7 +94,7 @@ export function FilteredRunPills({
                 variant="secondary"
                 className="hover:bg-secondary/80 cursor-pointer text-xs transition-colors"
               >
-                <ListFilter className="mr-1 h-3 w-3" />
+                <ListFilter className="icon-sm mr-1" />
                 <div className="font-normal">
                   {formatFilterForPill(item.filter)}
                 </div>

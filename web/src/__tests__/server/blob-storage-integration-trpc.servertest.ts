@@ -270,6 +270,48 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
+  describe("backfill", () => {
+    it("marks backfill on create, re-enable and export-mode change, not on a plain save", async () => {
+      const { caller, project } = await prepare();
+      const save = (
+        overrides: Partial<
+          Parameters<typeof caller.blobStorageIntegration.update>[0]
+        >,
+      ) =>
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          ...overrides,
+        });
+      const backfill = async () =>
+        (
+          await prisma.blobStorageIntegration.findUniqueOrThrow({
+            where: { projectId: project.id },
+          })
+        ).backfill;
+      const catchUp = () =>
+        prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { backfill: false },
+        });
+
+      await save({});
+      expect(await backfill()).toBe(true);
+
+      await catchUp();
+      await save({ bucketName: "renamed-bucket" });
+      expect(await backfill()).toBe(false);
+
+      await save({ enabled: false });
+      await save({ enabled: true });
+      expect(await backfill()).toBe(true);
+
+      await catchUp();
+      await save({ exportMode: "FROM_TODAY" });
+      expect(await backfill()).toBe(true);
+    });
+  });
+
   describe("runNow", () => {
     it("creates a success audit log when a manual run is queued", async () => {
       const add = vi.fn().mockResolvedValue(undefined);

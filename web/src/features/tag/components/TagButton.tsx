@@ -11,7 +11,7 @@ export const TagButton: React.FC<{
 }> = React.memo(({ tag, loading, viewOnly = false, isTableCell = false }) => {
   const label = (
     <>
-      <TagIcon className="text-foreground-tertiary size-3 shrink-0" />
+      <TagIcon className="text-foreground-tertiary icon-sm shrink-0" />
       <span
         className={cn(
           "overflow-hidden py-0.5 text-ellipsis whitespace-nowrap",

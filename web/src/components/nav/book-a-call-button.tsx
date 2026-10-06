@@ -16,7 +16,7 @@ export const BookACallButton = () => {
           capture("sidebar:book_a_call_clicked");
         }}
       >
-        <CalendarDays className="h-4 w-4" />
+        <CalendarDays className="icon-base" />
         Book a call
       </Link>
     </SidebarMenuButton>

@@ -128,7 +128,7 @@ export function VirtualizedTreeNodeWrapper({
         {/* 3. Icon + child connector: fixed width container */}
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
-            <ItemTypeIcon type={nodeType} className="size-3.5" />
+            <ItemTypeIcon type={nodeType} className="icon-base" />
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
               when children render capped at this same indent — the spine
@@ -166,7 +166,7 @@ export function VirtualizedTreeNodeWrapper({
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="icon-base text-icon-foreground" />
               </span>
             </Button>
           )}
