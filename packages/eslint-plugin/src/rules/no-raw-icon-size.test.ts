@@ -386,6 +386,54 @@ ruleTester.run("no-raw-icon-size requireSize", rule, {
        const x = <><Info className={className} /><Info {...props} /><Info className={cn("mr-2", className)} /></>;`,
       options: requireSize,
     },
+    {
+      code:
+        'import { Info } from "lucide-react";\n' +
+        '       const x = <><Info className={`mr-2 ${tone}`} /><Info className={open ? "icon-sm" : className} /><Info className={cn(...rest)} /><Info className={styles.icon()} /><Info className={props.cls} /><Info size={iconSize} /></>;',
+      options: requireSize,
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const a = cn(b, "shrink-0");
+       const b = cn(a);
+       const x = <Info className={a} />;`,
+      options: requireSize,
+    },
+    // Sizes that reach the icon through a const, a template literal or cva.
+    {
+      code: `import { Info } from "lucide-react";
+       const cls = "icon-base shrink-0";
+       const x = <Info className={cls} />;`,
+      options: requireSize,
+    },
+    {
+      code:
+        'import { Info } from "lucide-react";\n' +
+        "       const x = <Info className={`icon-base ${tone}`} />;",
+      options: requireSize,
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const iconVariants = cva("icon-base", { variants: { tone: { a: "text-red" } } });
+       const x = <Info className={iconVariants({ tone: "a" })} />;`,
+      options: requireSize,
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const iconVariants = cva([, ...rest, \`icon-base\`], { ...base, variants: { tone: { a: ["text-red"] } }, defaultVariants: defaults });
+       const x = <Info className={iconVariants()} />;`,
+      options: requireSize,
+    },
+    // cva holders with spread arguments or without a size, and calls that do
+    // not resolve to cva, cannot be resolved statically.
+    {
+      code: `import { Info } from "lucide-react";
+       const iconVariants = cva(...parts);
+       const toneVariants = cva("shrink-0", { variants: { tone: { a: "text-red" } } });
+       const make = () => "icon-base";
+       const x = <><Info className={iconVariants()} /><Info className={toneVariants()} /><Info className={make()} /></>;`,
+      options: requireSize,
+    },
     // Imported components named *Icon are not treated as icons.
     {
       code: `import { ItemTypeIcon } from "./ItemTypeIcon";
@@ -403,6 +451,13 @@ ruleTester.run("no-raw-icon-size requireSize", rule, {
     },
     {
       code: `const Row = ({ icon: Icon }) => <Icon className="icon-base" />;`,
+      options: requireSize,
+    },
+    // Function-expression components, undeclared names and namespaced tags
+    // are not icons.
+    {
+      code: `const StatusIcon = function () { return <span />; };
+       const x = <><StatusIcon /><UndeclaredIcon /><svg:icon /></>;`,
       options: requireSize,
     },
     // Without the option, a bare icon is allowed.
@@ -425,6 +480,41 @@ ruleTester.run("no-raw-icon-size requireSize", rule, {
     {
       code: `import { Info } from "lucide-react";
        const x = <Info className={open ? "icon-sm" : "mr-2"} />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    {
+      code:
+        'import { Info } from "lucide-react";\n' +
+        "       const x = <Info className={`mr-2`} />;",
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const cls = "mr-2 shrink-0";
+       const x = <Info className={cls} />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    // Valueless size and className attributes do not size the icon, and
+    // namespaced attributes are skipped.
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info size />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    {
+      code: `import { Info } from "lucide-react";
+       const x = <Info className xml:lang="en" />;`,
+      options: requireSize,
+      errors: [{ messageId: "missingSize" }],
+    },
+    // An icon component held in a const.
+    {
+      code: `const Icon = resolveIcon(type);
+       const x = <Icon />;`,
       options: requireSize,
       errors: [{ messageId: "missingSize" }],
     },
