@@ -438,6 +438,8 @@ export function EventsOutlierStrip({
       // switch, drill-in) — stale data must not read as current.
       stale={queryResult.isPlaceholderData && queryResult.isFetching}
       header={header}
+      // Ready height (header + plot + time labels), so loading doesn't jump.
+      contentHeightClass="h-22.25"
     >
       {!canApplyFilters ? (
         <OutlierBarStrip

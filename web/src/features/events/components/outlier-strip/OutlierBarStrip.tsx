@@ -297,7 +297,8 @@ export function OutlierBarStrip({
             <text
               key={`y-label-${tick.value}`}
               x={-4}
-              y={lineY}
+              // Half a line below the top edge so a top tick never paints above the plot.
+              y={Math.max(lineY, 5)}
               textAnchor="end"
               dominantBaseline="middle"
               className="fill-muted-foreground font-sans"
