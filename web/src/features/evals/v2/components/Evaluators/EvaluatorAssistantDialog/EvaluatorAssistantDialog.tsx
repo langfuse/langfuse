@@ -23,6 +23,11 @@ const EDIT_EXAMPLES = [
   "Add a short explanation for every score",
 ];
 
+const EDIT_PLACEHOLDERS = {
+  code: "Also fail when the output is empty",
+  judge: "Score 1–5 instead of true or false",
+} as const;
+
 export function EvaluatorAssistantDialog({
   open,
   mode,
@@ -44,6 +49,10 @@ export function EvaluatorAssistantDialog({
   const evaluatorLabel =
     evaluatorType === "code" ? "code evaluator" : "LLM-as-a-judge evaluator";
   const examples = mode === "create" ? CREATE_EXAMPLES : EDIT_EXAMPLES;
+  const placeholder =
+    mode === "create"
+      ? "Classify each user message into one topic: support, billing, technical, sales, feedback"
+      : EDIT_PLACEHOLDERS[evaluatorType];
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSubmitting) return;
@@ -108,13 +117,7 @@ export function EvaluatorAssistantDialog({
                   : `Describe how to change this ${evaluatorLabel}`
               }
               value={request}
-              placeholder={
-                mode === "create"
-                  ? "Classify each user message into one topic: support, billing, technical, sales, feedback"
-                  : evaluatorType === "code"
-                    ? "Also fail when the output is empty"
-                    : "Score 1–5 instead of true or false"
-              }
+              placeholder={placeholder}
               submitLabel={
                 mode === "create"
                   ? "Create evaluator with AI"
