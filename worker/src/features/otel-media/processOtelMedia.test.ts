@@ -98,6 +98,7 @@ describe("processOtelEventMedia", () => {
           },
         ],
         writePath: "direct",
+        mediaPath: "reference",
       }),
     );
     const uploadMedia = processMedia.mock.calls[0]?.[0].uploadMedia;
@@ -133,17 +134,17 @@ describe("processOtelEventMedia", () => {
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_byte_length",
       8,
-      { write_path: "direct" },
+      { write_path: "direct", media_path: "reference" },
     );
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_checked_byte_length",
       33,
-      { write_path: "direct" },
+      { write_path: "direct", media_path: "reference" },
     );
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.processing_duration_ms",
       expect.any(Number),
-      { write_path: "direct" },
+      { write_path: "direct", media_path: "reference" },
     );
   });
 
@@ -164,6 +165,41 @@ describe("processOtelEventMedia", () => {
 
     expect(processMedia).not.toHaveBeenCalled();
     expect(mocks.instrumentAsync).not.toHaveBeenCalled();
+  });
+
+  it("attributes residual detector metrics to the early media path", async () => {
+    const processMedia = vi.fn().mockResolvedValue(processResult);
+
+    await processOtelEventMedia({
+      earlyBatch: { media: [] } as never,
+      targets: createDirectOtelMediaTargets([
+        {
+          traceId: "trace-id",
+          spanId: "observation-id",
+          input: "residual value",
+        },
+      ]),
+      writePath: "direct",
+      projectId: "project-id",
+      fileKey: "file-key",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      processMedia,
+    });
+
+    expect(processMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaPath: "early" }),
+    );
+    expect(mocks.span.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.ingestion.otel.media_path": "early",
+      }),
+    );
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.batch_byte_length",
+      8,
+      { write_path: "direct", media_path: "early" },
+    );
   });
 
   it("fails open when media processing throws", async () => {
@@ -190,12 +226,15 @@ describe("processOtelEventMedia", () => {
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.processing_duration_ms",
       expect.any(Number),
-      { write_path: "direct" },
+      { write_path: "direct", media_path: "reference" },
     );
     expect(mocks.recordDistribution).not.toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_byte_length",
       expect.any(Number),
     );
+    expect(mocks.span.setAttributes).toHaveBeenCalledWith({
+      "langfuse.ingestion.otel.media_path": "reference",
+    });
     expect(mocks.logger.warn).toHaveBeenCalledWith(
       "OTEL media processing failed; continuing ingestion with original span values",
       expect.objectContaining({ projectId: "project-id", fileKey: "file-key" }),
@@ -338,6 +377,26 @@ describe("processOtelEventMedia", () => {
     expect(JSON.stringify(payload.input.deep)).not.toContain(reference);
     expect(payload.input[reference]).toBe("object key stays structural");
     expect(batch.originalMedia).toHaveBeenCalledOnce();
+    expect(mocks.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media",
+      1,
+      {
+        outcome: "uploaded",
+        media_kind: "anthropic",
+        write_path: "direct",
+        media_path: "early",
+      },
+    );
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.byte_length",
+      5,
+      {
+        outcome: "uploaded",
+        media_kind: "anthropic",
+        write_path: "direct",
+        media_path: "early",
+      },
+    );
   });
 
   it("reuses a decoded upload across targets while linking each destination", async () => {
@@ -399,6 +458,16 @@ describe("processOtelEventMedia", () => {
     expect(second).toMatchObject({ uploaded: 0, reused: 1, bytesProcessed: 5 });
     expect(batch.mediaBody).toHaveBeenCalledOnce();
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
+    expect(mocks.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media",
+      1,
+      {
+        outcome: "reused",
+        media_kind: "anthropic",
+        write_path: "direct",
+        media_path: "early",
+      },
+    );
     expect(mocks.linkMediaToTraceOrObservation).toHaveBeenCalledWith({
       projectId: "project-id",
       traceId: "trace-id",
@@ -482,6 +551,16 @@ describe("processOtelEventMedia", () => {
     });
     expect(batch.mediaBody).toHaveBeenCalledOnce();
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
+    expect(mocks.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media",
+      1,
+      {
+        outcome: "failed",
+        media_kind: "anthropic",
+        write_path: "direct",
+        media_path: "early",
+      },
+    );
   });
 
   it("evicts a failed upload so a later occurrence can retry", async () => {

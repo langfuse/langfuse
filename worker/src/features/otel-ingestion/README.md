@@ -116,9 +116,8 @@ not cancelled. Original S3 documents and queue payloads remain unchanged.
 
 ### Rollout telemetry
 
-The tagged breakdowns and duration distributions below use Datadog. The existing
-CloudWatch adapter aggregates these counters without their tags and does not
-publish distributions, so it cannot supply these rollout comparisons on its own.
+Datadog is the primary backend for rollout monitoring; CloudWatch is a reduced
+secondary export.
 
 - `langfuse.ingestion.otel.media_path{path=early|reference}` counts selected
   processing paths per queue attempt, after secondary-queue forwarding. The queue
@@ -136,7 +135,11 @@ publish distributions, so it cannot supply these rollout comparisons on its own.
 - Existing `langfuse.ingestion.otel.media` counters describe upload/reuse/failure
   callbacks and associations by `write_path=legacy|direct`. Reuse can avoid an S3
   upload, and dual writes can report more than one association for the same asset.
-  These counters combine early and reference traffic. The existing media duration
+  Media counters, byte distributions, detection checks and processing duration
+  also carry `media_path=early|reference`. Filter or group by this tag to compare
+  pipelines, or omit the grouping to aggregate them. The tag describes the whole
+  media-processing path: late TS detection within an early batch is still tagged
+  `early`; a complete TS fallback is tagged `reference`. Existing media duration
   covers late detection/resolution/uploads, not native preparation.
 
 Watch queue age/retries, worker RSS/CPU/event-loop delay and restarts alongside

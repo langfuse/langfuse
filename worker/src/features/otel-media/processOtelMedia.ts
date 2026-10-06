@@ -55,6 +55,7 @@ export async function processOtelEventMedia(params: {
     mediaPrefix,
     processMedia = processOtelMedia,
   } = params;
+  const mediaPath = params.earlyBatch ? "early" : "reference";
 
   if (!mediaBucket) {
     logger.warn(
@@ -71,11 +72,15 @@ export async function processOtelEventMedia(params: {
       { name: "langfuse.ingestion.otel.media.process" },
       async (span) => {
         const startedAt = Date.now();
+        span.setAttributes({
+          "langfuse.ingestion.otel.media_path": mediaPath,
+        });
         try {
           const result = await processMedia({
             targets,
             projectId,
             writePath,
+            mediaPath,
             mediaBucket,
             mediaPrefix,
             uploadMedia: (uploadParams) =>
@@ -130,7 +135,7 @@ export async function processOtelEventMedia(params: {
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_byte_length",
             result.bytesProcessed,
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_checked_byte_length",
@@ -138,13 +143,13 @@ export async function processOtelEventMedia(params: {
               (total, bytes) => total + bytes,
               0,
             ),
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
         } finally {
           recordDistribution(
             "langfuse.ingestion.otel.media.processing_duration_ms",
             Date.now() - startedAt,
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
         }
       },

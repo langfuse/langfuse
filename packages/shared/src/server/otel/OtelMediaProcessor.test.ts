@@ -57,11 +57,13 @@ function createUploadMock(
 async function processEvents(
   targets: OtelMediaTarget[],
   uploadMedia: UploadOtelMedia = createUploadMock(),
+  mediaPath?: "early" | "reference",
 ) {
   return processOtelMedia({
     targets,
     projectId: "project-id",
     writePath: "direct",
+    mediaPath,
     mediaBucket: "media-bucket",
     mediaPrefix: "media/",
     uploadMedia,
@@ -90,12 +92,12 @@ describe("processOtelMedia", () => {
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.detection_check",
       1,
-      { path: "data_uri", write_path: "direct" },
+      { path: "data_uri", write_path: "direct", media_path: "reference" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.detection_check_byte_length",
       Buffer.byteLength(dataUri, "utf8"),
-      { path: "data_uri", write_path: "direct" },
+      { path: "data_uri", write_path: "direct", media_path: "reference" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.byte_length",
@@ -104,6 +106,7 @@ describe("processOtelMedia", () => {
         outcome: "uploaded",
         media_kind: "data_uri",
         write_path: "direct",
+        media_path: "reference",
       },
     );
     expect(result).toMatchObject({
@@ -122,22 +125,26 @@ describe("processOtelMedia", () => {
     });
   });
 
-  it("tags reused media byte length separately from uploaded media", async () => {
-    const dataUri = DATA_URI;
-    const { event } = createEvent({ value: dataUri });
+  it.each([undefined, "early"] as const)(
+    "tags reused media byte length by processing path (%s)",
+    async (mediaPath) => {
+      const dataUri = DATA_URI;
+      const { event } = createEvent({ value: dataUri });
 
-    await processEvents([event], createUploadMock("reused"));
+      await processEvents([event], createUploadMock("reused"), mediaPath);
 
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.ingestion.otel.media.byte_length",
-      PNG_BYTES.length,
-      {
-        outcome: "reused",
-        media_kind: "data_uri",
-        write_path: "direct",
-      },
-    );
-  });
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.ingestion.otel.media.byte_length",
+        PNG_BYTES.length,
+        {
+          outcome: "reused",
+          media_kind: "data_uri",
+          write_path: "direct",
+          media_path: mediaPath ?? "reference",
+        },
+      );
+    },
+  );
 
   it("processes every normalized media field and ignores unrelated fields", async () => {
     const dataUri = DATA_URI;
@@ -305,6 +312,7 @@ describe("processOtelMedia", () => {
         media_kind: "data_uri",
         reason: "unsupported_content_type",
         write_path: "direct",
+        media_path: "reference",
       },
     );
   });
@@ -328,6 +336,7 @@ describe("processOtelMedia", () => {
         media_kind: "data_uri",
         reason: "invalid_base64",
         write_path: "direct",
+        media_path: "reference",
       },
     );
   });
