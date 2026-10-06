@@ -93,8 +93,10 @@ const validateScoreAnnotationAutomation = async ({
   }
 
   const filters = filter ?? [];
-  const nameFilter = filters.find((item) => item.column === "name");
-  const dataTypeFilter = filters.find((item) => item.column === "dataType");
+  const nameFilters = filters.filter((item) => item.column === "name");
+  const dataTypeFilters = filters.filter((item) => item.column === "dataType");
+  const nameFilter = nameFilters[0];
+  const dataTypeFilter = dataTypeFilters[0];
   const allowedColumns = new Set([
     "name",
     "dataType",
@@ -103,11 +105,11 @@ const validateScoreAnnotationAutomation = async ({
     "longStringValue",
   ]);
 
-  const uniqueColumns = new Set(filters.map((item) => item.column));
   if (
     filters.length < 2 ||
-    filters.length > 3 ||
-    uniqueColumns.size !== filters.length ||
+    filters.length > 4 ||
+    nameFilters.length !== 1 ||
+    dataTypeFilters.length !== 1 ||
     filters.some((item) => !allowedColumns.has(item.column)) ||
     nameFilter?.type !== "string" ||
     nameFilter.operator !== "=" ||
@@ -144,50 +146,105 @@ const validateScoreAnnotationAutomation = async ({
   const valueFilters = filters.filter((item) =>
     ["value", "stringValue", "longStringValue"].includes(item.column),
   );
-  let expectedValueColumn = "stringValue";
-  if (
-    scoreConfig.dataType === "NUMERIC" ||
-    scoreConfig.dataType === "BOOLEAN"
-  ) {
-    expectedValueColumn = "value";
-  } else if (scoreConfig.dataType === "TEXT") {
-    expectedValueColumn = "longStringValue";
-  }
-  const valueFilter = valueFilters[0];
-  if (
-    valueFilters.length > 1 ||
-    (valueFilter &&
-      (valueFilter.column !== expectedValueColumn ||
-        valueFilter.operator !== "=" ||
-        (expectedValueColumn === "value"
-          ? valueFilter.type !== "number" ||
-            typeof valueFilter.value !== "number" ||
-            !Number.isFinite(valueFilter.value) ||
-            (scoreConfig.dataType === "BOOLEAN" &&
-              valueFilter.value !== 0 &&
-              valueFilter.value !== 1)
-          : valueFilter.type !== "string" ||
-            typeof valueFilter.value !== "string")))
-  ) {
+  const invalidValue = () => {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Invalid score trigger value.",
     });
+  };
+
+  if (scoreConfig.dataType === "NUMERIC") {
+    const exactFilter = valueFilters[0];
+    const isExact =
+      valueFilters.length === 1 &&
+      exactFilter?.column === "value" &&
+      exactFilter.type === "number" &&
+      exactFilter.operator === "=" &&
+      typeof exactFilter.value === "number" &&
+      Number.isFinite(exactFilter.value);
+    const lowerBound = valueFilters.find((item) => item.operator === ">=");
+    const upperBound = valueFilters.find((item) => item.operator === "<=");
+    const isRange =
+      valueFilters.length === 2 &&
+      lowerBound?.column === "value" &&
+      lowerBound.type === "number" &&
+      typeof lowerBound.value === "number" &&
+      Number.isFinite(lowerBound.value) &&
+      upperBound?.column === "value" &&
+      upperBound.type === "number" &&
+      typeof upperBound.value === "number" &&
+      Number.isFinite(upperBound.value) &&
+      lowerBound.value <= upperBound.value;
+    if (valueFilters.length > 0 && !isExact && !isRange) invalidValue();
+  } else if (
+    scoreConfig.dataType === "BOOLEAN" ||
+    scoreConfig.dataType === "CATEGORICAL"
+  ) {
+    const valueFilter = valueFilters[0];
+    const expectedColumn =
+      scoreConfig.dataType === "BOOLEAN" ? "value" : "stringValue";
+    const isLegacyExact =
+      valueFilters.length === 1 &&
+      valueFilter?.column === expectedColumn &&
+      valueFilter.operator === "=" &&
+      (scoreConfig.dataType === "BOOLEAN"
+        ? valueFilter.type === "number" &&
+          typeof valueFilter.value === "number" &&
+          (valueFilter.value === 0 || valueFilter.value === 1)
+        : valueFilter.type === "string" &&
+          typeof valueFilter.value === "string");
+    const isMultiValue =
+      valueFilters.length === 1 &&
+      valueFilter?.column === expectedColumn &&
+      valueFilter.type === "stringOptions" &&
+      valueFilter.operator === "any of" &&
+      Array.isArray(valueFilter.value) &&
+      valueFilter.value.length > 0 &&
+      valueFilter.value.every((value) => typeof value === "string");
+    if (valueFilters.length > 0 && !isLegacyExact && !isMultiValue) {
+      invalidValue();
+    }
+    if (
+      scoreConfig.dataType === "BOOLEAN" &&
+      isMultiValue &&
+      !valueFilter.value.every((value) => value === "0" || value === "1")
+    ) {
+      invalidValue();
+    }
+  } else {
+    const valueFilter = valueFilters[0];
+    const isExact =
+      valueFilters.length === 1 &&
+      valueFilter?.column === "longStringValue" &&
+      valueFilter.type === "string" &&
+      valueFilter.operator === "=" &&
+      typeof valueFilter.value === "string";
+    if (valueFilters.length > 0 && !isExact) invalidValue();
   }
 
-  if (
-    scoreConfig.dataType === "CATEGORICAL" &&
-    valueFilter?.type === "string" &&
-    !z
-      .array(z.object({ label: z.string(), value: z.number() }))
-      .catch([])
-      .parse(scoreConfig.categories)
-      .some((category) => category.label === valueFilter.value)
-  ) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "The selected categorical score value does not exist.",
-    });
+  if (scoreConfig.dataType === "CATEGORICAL" && valueFilters.length > 0) {
+    const validLabels = new Set(
+      z
+        .array(z.object({ label: z.string(), value: z.number() }))
+        .catch([])
+        .parse(scoreConfig.categories)
+        .map((category) => category.label),
+    );
+    const selectedValues =
+      valueFilters[0].type === "stringOptions" &&
+      Array.isArray(valueFilters[0].value)
+        ? valueFilters[0].value
+        : [valueFilters[0].value];
+    if (
+      selectedValues.some(
+        (value) => typeof value !== "string" || !validLabels.has(value),
+      )
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "The selected categorical score value does not exist.",
+      });
+    }
   }
 
   const queueCount = await prisma.annotationQueue.count({

@@ -46,6 +46,13 @@ vi.mock("@/src/utils/api", () => ({
                 ],
                 isArchived: false,
               },
+              {
+                id: "score-config-2",
+                name: "latency",
+                dataType: "NUMERIC",
+                categories: null,
+                isArchived: false,
+              },
             ],
           },
           isLoading: false,
@@ -193,7 +200,7 @@ describe("AutomationForm handleActionTypeChange", () => {
     expect(screen.queryByText("Select API version")).toBeNull();
   });
 
-  it("submits an exact score value with annotation queue ids", async () => {
+  it("submits multiple boolean score values with annotation queue ids", async () => {
     render(<AutomationForm projectId="p1" isEditing={true} />);
 
     fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
@@ -217,18 +224,22 @@ describe("AutomationForm handleActionTypeChange", () => {
         name: "Score value condition",
       }),
     );
-    fireEvent.click(await screen.findByRole("option", { name: "equals" }));
+    fireEvent.click(await screen.findByRole("option", { name: "is one of" }));
 
     fireEvent.click(
-      screen.getByRole("combobox", {
-        name: "Score value",
+      screen.getByRole("button", {
+        name: /select score values/i,
       }),
     );
-    fireEvent.click(await screen.findByRole("option", { name: "False" }));
+    fireEvent.click(await screen.findByText("True"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select score values/i,
+      }),
+    );
+    fireEvent.click(await screen.findByText("False"));
 
-    const queuePicker = screen.getAllByRole("combobox").at(-1);
-    expect(queuePicker).toBeDefined();
-    fireEvent.click(queuePicker!);
+    fireEvent.click(screen.getByText("Select annotation queues"));
     fireEvent.click(
       await screen.findByRole("option", { name: "Needs review" }),
     );
@@ -249,10 +260,69 @@ describe("AutomationForm handleActionTypeChange", () => {
           value: "BOOLEAN",
           type: "string",
         },
-        { column: "value", operator: "=", value: 0, type: "number" },
+        {
+          column: "value",
+          operator: "any of",
+          value: ["1", "0"],
+          type: "stringOptions",
+        },
       ],
       actionType: "ANNOTATION_QUEUE",
       actionConfig: { type: "ANNOTATION_QUEUE", queueIds: ["queue-1"] },
+    });
+  });
+
+  it("submits an inclusive numeric score range", async () => {
+    render(<AutomationForm projectId="p1" isEditing={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+      target: { value: "Review latency scores" },
+    });
+
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "Score" }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Score name" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "latency (numeric)" }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Score value condition",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "in between" }));
+
+    fireEvent.change(screen.getByLabelText("Minimum score value"), {
+      target: { value: "0.25" },
+    });
+    fireEvent.change(screen.getByLabelText("Maximum score value"), {
+      target: { value: "0.75" },
+    });
+
+    fireEvent.click(screen.getByText("Select annotation queues"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Needs review" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+
+    await waitFor(() => {
+      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
+      filter: [
+        { column: "name", operator: "=", value: "latency", type: "string" },
+        {
+          column: "dataType",
+          operator: "=",
+          value: "NUMERIC",
+          type: "string",
+        },
+        { column: "value", operator: ">=", value: 0.25, type: "number" },
+        { column: "value", operator: "<=", value: 0.75, type: "number" },
+      ],
     });
   });
 });

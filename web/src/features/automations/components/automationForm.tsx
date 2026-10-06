@@ -74,8 +74,11 @@ const scoreTriggerSchema = z.object({
   key: z.string(),
   name: z.string(),
   dataType: z.enum(["NUMERIC", "BOOLEAN", "CATEGORICAL", "TEXT"]),
-  matchValue: z.boolean(),
+  condition: z.enum(["any", "equals", "oneOf", "between"]),
   value: z.string(),
+  values: z.array(z.string()),
+  minValue: z.string(),
+  maxValue: z.string(),
 });
 
 const annotationQueueSchema = z.object({
@@ -227,15 +230,56 @@ const formSchema = z
     }
     if (
       data.eventSource === TriggerEventSource.Score &&
-      (!data.score.name ||
-        !data.score.dataType ||
-        (data.score.matchValue && data.score.value === ""))
+      (!data.score.name || !data.score.dataType)
     ) {
       ctx.addIssue({
         code: "custom",
         path: ["score"],
-        message: "Select a score and provide the optional match value.",
+        message: "Select a score.",
       });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      data.score.condition === "equals" &&
+      data.score.value === ""
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["score", "value"],
+        message: "Enter a score value.",
+      });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      data.score.condition === "oneOf" &&
+      data.score.values.length === 0
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["score", "values"],
+        message: "Select at least one score value.",
+      });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      data.score.condition === "between"
+    ) {
+      const min = Number(data.score.minValue);
+      const max = Number(data.score.maxValue);
+      if (
+        data.score.minValue === "" ||
+        data.score.maxValue === "" ||
+        !Number.isFinite(min) ||
+        !Number.isFinite(max) ||
+        min > max
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["score", "minValue"],
+          message:
+            "Enter a valid score range whose minimum is not greater than its maximum.",
+        });
+      }
     }
   });
 
@@ -410,9 +454,10 @@ const getScoreTriggerDefaults = (
 ): z.infer<typeof scoreTriggerSchema> => {
   const name = filter.find((item) => item.column === "name")?.value;
   const dataType = filter.find((item) => item.column === "dataType")?.value;
-  const valueFilter = filter.find((item) =>
+  const valueFilters = filter.filter((item) =>
     ["value", "stringValue", "longStringValue"].includes(item.column),
   );
+  const valueFilter = valueFilters[0];
   const validName = typeof name === "string" ? name : "";
   const validDataType =
     dataType === "NUMERIC" ||
@@ -421,16 +466,51 @@ const getScoreTriggerDefaults = (
     dataType === "TEXT"
       ? dataType
       : "NUMERIC";
+  const isRange =
+    validDataType === "NUMERIC" &&
+    valueFilters.length === 2 &&
+    valueFilters.some((item) => item.operator === ">=") &&
+    valueFilters.some((item) => item.operator === "<=");
+  const isMultiValue =
+    valueFilter?.type === "stringOptions" &&
+    valueFilter.operator === "any of" &&
+    Array.isArray(valueFilter.value);
+  const legacyMultiValue =
+    Boolean(valueFilter) &&
+    (validDataType === "BOOLEAN" || validDataType === "CATEGORICAL");
+  const minValue = valueFilters.find((item) => item.operator === ">=")?.value;
+  const maxValue = valueFilters.find((item) => item.operator === "<=")?.value;
 
   return {
     key: validName ? scoreKey(validName, validDataType) : "",
     name: validName,
     dataType: validDataType as z.infer<typeof scoreTriggerSchema>["dataType"],
-    matchValue: Boolean(valueFilter),
+    condition: isRange
+      ? "between"
+      : isMultiValue || legacyMultiValue
+        ? "oneOf"
+        : valueFilter
+          ? "equals"
+          : "any",
     value:
       typeof valueFilter?.value === "string" ||
       typeof valueFilter?.value === "number"
         ? String(valueFilter.value)
+        : "",
+    values: isMultiValue
+      ? valueFilter.value
+      : legacyMultiValue &&
+          (typeof valueFilter?.value === "string" ||
+            typeof valueFilter?.value === "number")
+        ? [String(valueFilter.value)]
+        : [],
+    minValue:
+      typeof minValue === "string" || typeof minValue === "number"
+        ? String(minValue)
+        : "",
+    maxValue:
+      typeof maxValue === "string" || typeof maxValue === "number"
+        ? String(maxValue)
         : "",
   };
 };
@@ -447,9 +527,31 @@ const buildScoreTriggerFilter = (
       value: score.dataType,
     },
   ];
-  if (!score.matchValue) return filter;
+  if (score.condition === "any") return filter;
 
-  if (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") {
+  if (score.condition === "between") {
+    filter.push(
+      {
+        column: "value",
+        type: "number",
+        operator: ">=",
+        value: Number(score.minValue),
+      },
+      {
+        column: "value",
+        type: "number",
+        operator: "<=",
+        value: Number(score.maxValue),
+      },
+    );
+  } else if (score.condition === "oneOf") {
+    filter.push({
+      column: score.dataType === "CATEGORICAL" ? "stringValue" : "value",
+      type: "stringOptions",
+      operator: "any of",
+      value: score.values,
+    });
+  } else if (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") {
     filter.push({
       column: "value",
       type: "number",
@@ -510,15 +612,18 @@ const ScoreTriggerFields = ({
                       key,
                       name: selected.name,
                       dataType: selected.dataType,
-                      matchValue: false,
+                      condition: "any",
                       value: "",
+                      values: [],
+                      minValue: "",
+                      maxValue: "",
                     });
                   }}
                 >
                   <FormControl>
                     <SelectTrigger
                       aria-label="Score name"
-                      className="w-fit max-w-full min-w-48"
+                      className="w-fit max-w-full"
                       disableValueLineClamp
                     >
                       <SelectValue placeholder="Select a score" />
@@ -538,12 +643,15 @@ const ScoreTriggerFields = ({
                 {config ? (
                   <>
                     <Select
-                      value={field.value.matchValue ? "equals" : "any"}
+                      value={field.value.condition}
                       onValueChange={(condition) =>
                         field.onChange({
                           ...field.value,
-                          matchValue: condition === "equals",
+                          condition,
                           value: "",
+                          values: [],
+                          minValue: "",
+                          maxValue: "",
                         })
                       }
                       disabled={disabled}
@@ -559,67 +667,89 @@ const ScoreTriggerFields = ({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="any">has any value</SelectItem>
-                        <SelectItem value="equals">equals</SelectItem>
+                        {config.dataType === "BOOLEAN" ||
+                        config.dataType === "CATEGORICAL" ? (
+                          <SelectItem value="oneOf">is one of</SelectItem>
+                        ) : (
+                          <SelectItem value="equals">equals</SelectItem>
+                        )}
+                        {config.dataType === "NUMERIC" ? (
+                          <SelectItem value="between">in between</SelectItem>
+                        ) : null}
                       </SelectContent>
                     </Select>
-                    {field.value.matchValue ? (
-                      config.dataType === "BOOLEAN" ||
-                      config.dataType === "CATEGORICAL" ? (
-                        <Select
-                          value={field.value.value}
-                          onValueChange={(value) =>
-                            field.onChange({ ...field.value, value })
-                          }
-                          disabled={disabled}
-                        >
-                          <FormControl>
-                            <SelectTrigger
-                              aria-label="Score value"
-                              className="w-fit min-w-32"
-                              disableValueLineClamp
-                            >
-                              <SelectValue placeholder="Select a value" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {(config.categories ?? []).map((category) => (
-                              <SelectItem
-                                key={category.label}
-                                value={
-                                  config.dataType === "BOOLEAN"
-                                    ? String(category.value)
-                                    : category.label
-                                }
-                              >
-                                {category.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
+                    {field.value.condition === "oneOf" ? (
+                      <MultiSelect
+                        title="Select score values"
+                        label="Select score values"
+                        values={field.value.values}
+                        onValueChange={(values) =>
+                          field.onChange({ ...field.value, values })
+                        }
+                        options={(config.categories ?? []).map((category) => ({
+                          value:
+                            config.dataType === "BOOLEAN"
+                              ? String(category.value)
+                              : category.label,
+                          displayValue: category.label,
+                        }))}
+                        className="my-0 w-fit max-w-full"
+                        disabled={disabled}
+                        labelTruncateCutOff={2}
+                      />
+                    ) : field.value.condition === "between" ? (
+                      <>
                         <Input
-                          type={
-                            config.dataType === "NUMERIC" ? "number" : "text"
-                          }
-                          value={field.value.value}
+                          type="number"
+                          value={field.value.minValue}
                           onChange={(event) =>
                             field.onChange({
                               ...field.value,
-                              value: event.target.value,
+                              minValue: event.target.value,
                             })
                           }
                           disabled={disabled}
-                          placeholder="Value"
-                          aria-label="Score value"
-                          className="h-8 w-40"
+                          placeholder="Minimum"
+                          aria-label="Minimum score value"
+                          className="h-8 w-28"
                         />
-                      )
+                        <span>and</span>
+                        <Input
+                          type="number"
+                          value={field.value.maxValue}
+                          onChange={(event) =>
+                            field.onChange({
+                              ...field.value,
+                              maxValue: event.target.value,
+                            })
+                          }
+                          disabled={disabled}
+                          placeholder="Maximum"
+                          aria-label="Maximum score value"
+                          className="h-8 w-28"
+                        />
+                      </>
+                    ) : field.value.condition === "equals" ? (
+                      <Input
+                        type={config.dataType === "NUMERIC" ? "number" : "text"}
+                        value={field.value.value}
+                        onChange={(event) =>
+                          field.onChange({
+                            ...field.value,
+                            value: event.target.value,
+                          })
+                        }
+                        disabled={disabled}
+                        placeholder="Value"
+                        aria-label="Score value"
+                        className="h-8 w-40"
+                      />
                     ) : null}
                   </>
                 ) : null}
               </div>
               <FormDescription>
-                Choose the score and optionally match one exact value.
+                Choose the score values that should trigger this automation.
               </FormDescription>
               <FormMessage />
             </FormItem>
