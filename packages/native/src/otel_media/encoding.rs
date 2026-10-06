@@ -153,6 +153,9 @@ fn visit_python_bytes_literal(
             continue;
         }
         cursor += 1;
+        if cursor == value.len() - 1 {
+            return Err(MediaDecodeError::InvalidPythonBytes);
+        }
         let Some(escaped) = value.get(cursor).copied() else {
             return Err(MediaDecodeError::InvalidPythonBytes);
         };
@@ -337,7 +340,15 @@ mod tests {
             expected_hash
         );
 
-        for invalid in [b"b'bad\\q'".as_slice(), b"b'bad\\x0'", b"b'caf\xc3\xa9'"] {
+        let malformed_single_quote = b"b'abc\\'";
+        let malformed_double_quote = b"b\"abc\\\"";
+        for invalid in [
+            b"b'bad\\q'".as_slice(),
+            b"b'bad\\x0'",
+            b"b'caf\xc3\xa9'",
+            malformed_single_quote.as_slice(),
+            malformed_double_quote.as_slice(),
+        ] {
             assert!(matches!(
                 decode_python_bytes_literal(invalid),
                 Err(MediaDecodeError::InvalidPythonBytes)
@@ -346,6 +357,20 @@ mod tests {
                 hash_encoded_data(invalid, MediaEncoding::PythonBytesLiteral),
                 Err(MediaDecodeError::InvalidPythonBytes)
             ));
+        }
+
+        let valid_single_quote = b"b'abc\\''";
+        let valid_double_quote = b"b\"abc\\\"\"";
+        for (literal, expected) in [
+            (valid_single_quote.as_slice(), b"abc'".as_slice()),
+            (valid_double_quote.as_slice(), b"abc\"".as_slice()),
+        ] {
+            let expected_hash: [u8; 32] = Sha256::digest(expected).into();
+            assert_eq!(decode_python_bytes_literal(literal).unwrap(), expected);
+            assert_eq!(
+                hash_encoded_data(literal, MediaEncoding::PythonBytesLiteral).unwrap(),
+                expected_hash
+            );
         }
     }
 

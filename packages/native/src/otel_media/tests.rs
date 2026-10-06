@@ -236,11 +236,20 @@ fn accepts_the_unpadded_base64_that_node_accepts() {
 }
 
 #[test]
-fn rejects_raw_non_ascii_python_bytes_literals_like_typescript() {
-    let input = br#"{"type":"file","mediaType":"image/png","data":"b'caf\u00e9'"}"#;
-    let result = extract_media(input).expect("valid JSON");
-    assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input);
+fn leaves_invalid_python_bytes_literals_inline_like_typescript() {
+    for input in [
+        br#"{"type":"file","mediaType":"image/png","data":"b'caf\u00e9'"}"#.as_slice(),
+        br#"{"type":"file","mediaType":"image/png","data":"b'abc\\'"}"#,
+        br#"{"type":"file","mediaType":"image/png","data":"b\"abc\\\""}"#,
+    ] {
+        let result = extract_media(input).expect("valid JSON");
+        assert!(
+            result.media.is_empty(),
+            "invalid literal extracted: {}",
+            String::from_utf8_lossy(input)
+        );
+        assert_eq!(result.compact_json, input);
+    }
 }
 
 #[test]
