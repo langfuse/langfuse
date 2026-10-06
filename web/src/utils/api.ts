@@ -171,10 +171,16 @@ export const EXPECTED_TRPC_CONFLICT_PATHS = [
  * wrap `validateWebhookURL` (and related header checks) as BAD_REQUEST.
  * A DNS miss, private IP, or missing remote URL is the user fixing their
  * webhook, not an app failure.
+ *
+ * `prompts.duplicatePrompt` throws BAD_REQUEST only when the chosen name
+ * already exists in the project, or the source prompt is gone. The duplicate
+ * dialog already toasts that copy — expected user-facing state, not a
+ * regression. A 5xx on the same procedure still flows to Sentry.
  */
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
   "datasets.upsertRemoteExperiment",
+  "prompts.duplicatePrompt",
 ] as const;
 
 const getTrpcErrorData = (

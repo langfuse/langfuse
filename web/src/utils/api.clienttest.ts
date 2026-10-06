@@ -496,7 +496,10 @@ describe("isExpectedTrpcClientError", () => {
     // triggerRemoteExperiment / upsertRemoteExperiment throw BAD_REQUEST
     // only when validateWebhookURL rejects a user-configured URL (DNS
     // lookup failed, private IP, …). The UI already toasts the message.
-    for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
+    for (const path of [
+      "datasets.triggerRemoteExperiment",
+      "datasets.upsertRemoteExperiment",
+    ] as const) {
       expect(
         isExpectedTrpcClientError(
           trpcServerError({
@@ -511,6 +514,31 @@ describe("isExpectedTrpcClientError", () => {
     }
   });
 
+  it("treats a duplicate prompt name as expected", () => {
+    // prompts.duplicatePrompt throws BAD_REQUEST when the chosen name
+    // already exists, or the source prompt is gone. The dialog toasts it.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.duplicatePrompt",
+          message: "Prompt name example already exists in project proj_1",
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.duplicatePrompt",
+          message: "Existing prompt not found: prompt_1",
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("does not treat BAD_REQUEST on other procedures as expected", () => {
     // Negative fixture: a missing-projectId / invariant BAD_REQUEST is a
     // client bug and must still reach Sentry. Widening the allowlist
@@ -522,6 +550,25 @@ describe("isExpectedTrpcClientError", () => {
           httpStatus: 400,
           path: "traces.byId",
           message: "Invalid input, projectId is required",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.create",
+          message: "Prompt name example already exists in project proj_1",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: "prompts.duplicatePrompt",
         }),
       ),
     ).toBe(false);
