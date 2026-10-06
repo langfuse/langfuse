@@ -13,6 +13,7 @@ import {
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
+import { cn } from "@/src/utils/tailwind";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
@@ -334,7 +335,7 @@ export function TraceDetailView({
                     (selectedTab === "log" ||
                       (selectedTab === "preview" && isPrettyViewAvailable)) && (
                       <>
-                        <div className="ml-auto h-fit shrink-0 px-2 py-0.5">
+                        <div className="ml-auto h-fit shrink-0 py-0.5 pr-4 pl-2">
                           <Tabs
                             value={
                               selectedTab === "log" && isLogViewVirtualized
@@ -421,7 +422,7 @@ export function TraceDetailView({
             {selectedTab === "messages" && (
               <TabsBarContent
                 value="messages"
-                className="mt-0 min-h-0 flex-1 overflow-auto"
+                className="mt-0 min-h-0 flex-1 overflow-auto px-4"
               >
                 <TraceMessagesView />
               </TabsBarContent>
@@ -433,14 +434,17 @@ export function TraceDetailView({
               className="mt-0 flex max-h-full min-h-0 w-full flex-1"
             >
               <div
-                className={`flex min-h-0 w-full flex-1 flex-col ${
+                className={cn(
+                  "flex min-h-0 w-full flex-1 flex-col",
                   currentView === "json-beta" && isJSONBetaVirtualized
                     ? "overflow-hidden"
-                    : "overflow-auto pb-4"
-                }`}
+                    : "overflow-auto pb-4",
+                  // The JSON beta viewer runs edge to edge with its own toolbar.
+                  currentView !== "json-beta" && "px-4",
+                )}
               >
                 {isAnnotationMode && trace.tags.length > 0 && (
-                  <div className="space-y-1 px-2 pt-1 pb-2">
+                  <div className="space-y-1 pt-1 pb-2">
                     <div className="text-sm font-bold">Tags</div>
                     <TagList selectedTags={trace.tags} isLoading={false} />
                   </div>
@@ -532,7 +536,7 @@ export function TraceDetailView({
                 value="scores"
                 className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden"
               >
-                <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3">
+                <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
                   <ScoresTable
                     projectId={projectId}
                     traceId={trace.id}
@@ -544,6 +548,7 @@ export function TraceDetailView({
                       "userId",
                     ]}
                     localStorageSuffix="TracePreview"
+                    insetToolbar
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />
                 </div>

@@ -46,6 +46,7 @@ import {
   BatchActionQueue,
   QueueJobs,
   createOrgProjectAndApiKey,
+  getScoreById,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
@@ -796,6 +797,29 @@ describe("scores trpc", () => {
       });
 
       expect(score.stringValue).toBe("True");
+    });
+  });
+
+  describe("scores.deleteAnnotationScore", () => {
+    it("deletes a correction ingested via the API", async () => {
+      const correction = createTraceScore({
+        project_id: projectId,
+        name: "output",
+        source: "API",
+        data_type: "CORRECTION",
+        value: 0,
+        long_string_value: "corrected response",
+      });
+      await createScoresCh([correction]);
+
+      await caller.scores.deleteAnnotationScore({
+        projectId,
+        id: correction.id,
+      });
+
+      expect(
+        await getScoreById({ projectId, scoreId: correction.id }),
+      ).toBeUndefined();
     });
   });
 

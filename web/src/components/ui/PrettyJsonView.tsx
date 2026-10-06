@@ -92,7 +92,7 @@ const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
 > = {
   danger: {
     container:
-      "border-dark-red/30 bg-light-red/50 dark:border-dark-red/20 dark:bg-light-red/35",
+      "border-red-100 bg-red-50 text-red-900 dark:border-dark-red/20 dark:bg-light-red/35 dark:text-red-300",
     row: "hover:bg-light-red/50 dark:hover:bg-light-red/35",
     cell: "border-dark-red/20 dark:border-dark-red/15",
   },
@@ -168,7 +168,7 @@ function getContainerClasses(
   const toned = ASSISTANT_TITLES.includes(title || "");
   return cn(
     baseClasses,
-    toned ? "bg-accent-light-green dark:border-accent-dark-green/30" : "",
+    toned ? "bg-surface-output dark:border-border" : "",
     borderless
       ? "rounded-md overflow-clip"
       : scrollable
@@ -483,7 +483,7 @@ function JsonPrettyTable({
         : null;
 
     return (
-      <div className="flex w-max max-w-[40cqw] min-w-40 items-start text-xs/5 wrap-break-word">
+      <div className="flex w-max max-w-[40cqw] min-w-40 items-start gap-1 text-xs/5 wrap-break-word">
         <div
           className="flex h-[1lh] shrink-0 items-center justify-end"
           style={{ width: `${indentationWidth}px` }}
@@ -740,7 +740,6 @@ export function PrettyJsonView(props: {
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
   tone?: PrettyJsonViewTone;
-  inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
@@ -1206,7 +1205,7 @@ export function PrettyJsonView(props: {
 
   const getBackgroundColorClass = () =>
     ASSISTANT_TITLES.includes(props.title || "")
-      ? "bg-accent-light-green rounded-md overflow-clip"
+      ? "bg-surface-output rounded-md overflow-clip"
       : "";
 
   const body = (
@@ -1417,7 +1416,6 @@ export function PrettyJsonView(props: {
       className={cn(
         "flex max-h-full min-h-0 flex-col",
         "group/iosection",
-        props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
       )}
@@ -1427,7 +1425,6 @@ export function PrettyJsonView(props: {
           title={props.title}
           titleIcon={props.titleIcon}
           handleOnCopy={handleOnCopy}
-          inset={props.inset}
           hoverRevealControls
           controlButtons={
             <>

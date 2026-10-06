@@ -8,10 +8,6 @@ import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
-import {
-  KeyboardShortcut,
-  type KeyboardShortcutProps,
-} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<
@@ -127,22 +123,6 @@ const InputCommandItem = React.forwardRef<
 
 InputCommandItem.displayName = CommandPrimitive.Item.displayName;
 
-type InputCommandShortcutProps = KeyboardShortcutProps & {
-  className?: string;
-};
-
-const InputCommandShortcut = ({
-  className,
-  ...props
-}: InputCommandShortcutProps) => {
-  return (
-    <span className={cn("ml-auto hidden md:inline-flex", className)}>
-      <KeyboardShortcut {...props} />
-    </span>
-  );
-};
-InputCommandShortcut.displayName = "CommandShortcut";
-
 export {
   InputCommand,
   InputCommandInput,
@@ -150,6 +130,5 @@ export {
   InputCommandEmpty,
   InputCommandGroup,
   InputCommandItem,
-  InputCommandShortcut,
   InputCommandSeparator,
 };

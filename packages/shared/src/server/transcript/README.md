@@ -93,6 +93,10 @@ to and including the last assistant or tool message before the trace's first
 output, is `conversationHistory` without provenance; everything after it is
 `currentTurn`, each message with the observation that emitted it.
 
+`currentTurn.nestingLevel` is the tree depth of its first contributing generation,
+with fetched roots at zero. It is not a parent/child relationship between threads;
+later, deeper generations do not change it. Missing parents make observations roots.
+
 ```
 input:   User: Refund my order.
          Assistant: [refund call]
@@ -133,21 +137,38 @@ registration and replayed-result suppression happen inside message appending.
 
 ### 1. Select a thread
 
-Continue a thread when it has at least one non-system message and all its
-non-system generation messages appear in the incoming input, regardless of order.
-Supplemental tool responses are not required for this match.
-Otherwise create a new thread. Matching checks presence, not occurrence counts.
+Compare generation messages by role and non-reasoning parts. Continue a thread
+when all its non-system messages with non-reasoning content appear in the incoming
+input, regardless of message order. At least one such message must match: system
+messages and reasoning alone cannot establish continuity. Supplemental tool
+responses are not required. Otherwise create a new thread. Matching checks
+presence, not occurrence counts.
 When several threads match, the most recently created matching thread wins.
+
+Instrumentation should capture the full input and output of each model call,
+including reasoning. Thread matching tolerates missing or changed reasoning and
+provider annotations; it still requires matching text, tool calls, and arguments.
 
 ### 2. Append messages
 
-A message is identified by stable JSON of **role + parts**. Object-property
+A message is identified by stable JSON of **role + non-reasoning parts**. Object-property
 order is ignored; array order matters. `senderName`, `source`, `finishReason`
-and observation provenance are excluded. All fields inside parts are included.
+and observation provenance are excluded. Parts exclude `providerMetadata` and
+tool calls' raw `toolType` from identity; both remain in the returned messages.
+All other non-reasoning part fields, including tool arguments with those names,
+are included.
 
 - **Inputs:** append only occurrences beyond the number already shown in the
   thread, so replayed history disappears but additional identical copies survive (eg user responds "Thank you" twice).
 - **Outputs:** always append, then count them so subsequent inputs do not repeat them.
+- **Reasoning:** compare all reasoning parts in a message as one ordered group,
+  counted by role and content within the thread. Preserve reasoning in new messages;
+  on replay, retain only additional occurrences of the whole group. A changed group
+  is retained in full, without deduplicating its individual parts. Newly seen
+  reasoning in a repeated message is appended on
+  its own with the input observation's provenance; it does not duplicate the
+  accompanying text or calls or rewrite an earlier output. The same history/current
+  turn split applies to these messages.
 - **Registered tool responses:** use call identity, not message occurrence counts.
   Across traces, reused call IDs are matched by call occurrence in complete,
   ordered input history. Ambiguous partial replays remain as input messages.
@@ -173,6 +194,7 @@ and observation provenance are excluded. All fields inside parts are included.
   `[B, C, A, New]` adds only `New`. Existing display order stays `[A, B, C]`.
 - Additional identical input occurrences and always-visible outputs.
 - New system instructions within a continuing conversation.
+- Missing or changed reasoning in otherwise matching history.
 - Multiple threads when their histories distinguish them.
 
 ## Current limitations
@@ -183,6 +205,7 @@ and observation provenance are excluded. All fields inside parts are included.
 - **Identical conversations:** unrelated conversations with matching history can join.
 - **Whole-message matching:** equivalent content split into different messages
   or parts may not match. Reordering parts within a message also changes identity.
+  Splitting or regrouping reasoning can retain repeated reasoning content.
   Registered tool responses are the exception: replay is matched by call ID
   within the thread (and occurrence for reused IDs), even when grouped with other parts.
 - **Name matching is best-effort:** same-name parallel executions can start in a
@@ -197,7 +220,6 @@ and observation provenance are excluded. All fields inside parts are included.
 - Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
 - Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
 - Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.
-- Differences in part-level `providerMetadata` prevents deduplication when the visible message content is otherwise identical. Should production data show strong enough evidence to support this change, this decision should be revisited.
 
 ## Open questions
 

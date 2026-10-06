@@ -344,7 +344,7 @@ const markdownComponents: NonNullable<Options["components"]> = {
     return <h4 className="text-base font-bold">{children}</h4>;
   },
   h5({ children }) {
-    return <h5 className="text-sm font-bold">{children}</h5>;
+    return <h5 className="text-base font-bold">{children}</h5>;
   },
   h6({ children }) {
     return <h6 className="text-xs font-bold">{children}</h6>;
@@ -411,13 +411,13 @@ function MarkdownRenderer({
 
   if (tooLargeOrDeep) {
     return (
-      <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
+      <div className={cn("space-y-2 overflow-x-auto text-base", className)}>
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
           <Info className="h-3 w-3" />
           Content is too large or deeply nested to render as markdown.
           Displaying as plain text.
         </div>
-        <pre className="text-sm break-words whitespace-pre-wrap">
+        <pre className="text-base break-words whitespace-pre-wrap">
           {markdown}
         </pre>
       </div>
@@ -431,7 +431,7 @@ function MarkdownRenderer({
     return (
       <div
         className={cn(
-          "space-y-2 overflow-x-auto text-sm wrap-break-word",
+          "space-y-2 overflow-x-auto text-base wrap-break-word",
           className,
         )}
       >
@@ -574,61 +574,70 @@ export function MarkdownView({
       {afterHeader}
       <div
         className={cn(
-          "io-message-content ph-no-capture text-foreground-secondary grid grid-flow-row gap-2 px-1 pt-1 pb-2",
-          title === "assistant" || title === "Output" || title === "Model"
-            ? "bg-accent-light-green overflow-hidden rounded-md"
-            : "",
+          "io-message-content ph-no-capture text-foreground-secondary px-1 pt-1 pb-2",
           className,
         )}
       >
-        {typeof markdown === "string" ? (
-          // plain string
-          inlineMediaReferenceStrings.length > 0 ? (
-            inlineMediaReferenceStrings.map((referenceString, index) => (
-              <LangfuseMediaView
-                key={`${referenceString}-${index}`}
-                mediaReferenceString={referenceString}
-              />
-            ))
+        <div
+          className={cn(
+            "grid grid-flow-row gap-2",
+            (title === "assistant" ||
+              title === "Output" ||
+              title === "Model") &&
+              "bg-surface-output overflow-hidden rounded-md px-3 py-2",
+          )}
+        >
+          {typeof markdown === "string" ? (
+            // plain string
+            inlineMediaReferenceStrings.length > 0 ? (
+              inlineMediaReferenceStrings.map((referenceString, index) => (
+                <LangfuseMediaView
+                  key={`${referenceString}-${index}`}
+                  mediaReferenceString={referenceString}
+                />
+              ))
+            ) : (
+              <>
+                <MarkdownRenderer
+                  markdown={isCollapsed ? truncatedContent : markdown}
+                />
+                {collapseToggle}
+              </>
+            )
           ) : (
+            // content parts (multi-modal); collapsing hides long TEXT only —
+            // attachments are not text, so media parts render either way. That
+            // also keeps the shared media strip's dedup honest: it assumes any
+            // inline-renderable media did render (LFE-14815).
             <>
-              <MarkdownRenderer
-                markdown={isCollapsed ? truncatedContent : markdown}
-              />
+              {isCollapsed ? (
+                <>
+                  <MarkdownRenderer markdown={truncatedContent} />
+                  {(markdown ?? []).map((content, index) =>
+                    isOpenAITextContentPart(content)
+                      ? null
+                      : renderContentPart(content, index),
+                  )}
+                </>
+              ) : (
+                (markdown ?? []).map(renderContentPart)
+              )}
               {collapseToggle}
             </>
-          )
-        ) : (
-          // content parts (multi-modal); collapsing hides long TEXT only —
-          // attachments are not text, so media parts render either way. That
-          // also keeps the shared media strip's dedup honest: it assumes any
-          // inline-renderable media did render (LFE-14815).
-          <>
-            {isCollapsed ? (
-              <>
-                <MarkdownRenderer markdown={truncatedContent} />
-                {(markdown ?? []).map((content, index) =>
-                  isOpenAITextContentPart(content)
-                    ? null
-                    : renderContentPart(content, index),
-                )}
-              </>
-            ) : (
-              (markdown ?? []).map(renderContentPart)
-            )}
-            {collapseToggle}
-          </>
-        )}
-        {audio ? (
-          <>
-            <MarkdownRenderer
-              markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
-            />
-            <LangfuseMediaView
-              mediaReferenceString={audio.data.referenceString}
-            />
-          </>
-        ) : null}
+          )}
+          {audio ? (
+            <>
+              <MarkdownRenderer
+                markdown={
+                  audio.transcript ? "[Audio] \n" + audio.transcript : ""
+                }
+              />
+              <LangfuseMediaView
+                mediaReferenceString={audio.data.referenceString}
+              />
+            </>
+          ) : null}
+        </div>
       </div>
       {remainingMedia.length > 0 && (
         <>

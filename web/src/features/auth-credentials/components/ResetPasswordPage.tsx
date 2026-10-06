@@ -198,7 +198,7 @@ export function ResetPasswordPage({
           )}
         </div>
 
-        <div className="bg-background mt-10 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="bg-card mt-10 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-12">
           <div className="space-y-6">
             <Form {...form}>
               <form
