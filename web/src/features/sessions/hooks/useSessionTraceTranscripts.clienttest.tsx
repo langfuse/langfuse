@@ -75,6 +75,9 @@ it("bounds concurrent requests and releases slots after success and failure", as
   );
   const { result, unmount, client } = setup();
   await waitFor(() => expect(query).toHaveBeenCalledTimes(4));
+  expect(
+    query.mock.calls.every(([input]) => input.pairTextToolResponses === true),
+  ).toBe(true);
   expect(result.current.get("trace-4")).toEqual({ state: "loading" });
   expect(result.current.has("trace-6")).toBe(false);
 
@@ -103,6 +106,7 @@ it("reuses fresh per-trace cache entries", async () => {
         projectId: "project",
         traceId: traces[0]!.trace.id,
         timestamp: traces[0]!.trace.timestamp,
+        pairTextToolResponses: true,
       },
       "query",
     ),

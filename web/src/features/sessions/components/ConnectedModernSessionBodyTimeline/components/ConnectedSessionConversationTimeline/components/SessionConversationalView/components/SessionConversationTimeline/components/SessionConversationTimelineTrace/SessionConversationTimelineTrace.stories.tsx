@@ -119,22 +119,12 @@ const commonArgs = {
   onOpenObservation: () => {},
   scrollTarget: null,
 };
-const sourceObservation = {
-  id: provenance.observationId,
-  traceId: trace.id,
-  name: "Weather assistant",
-  startTime: trace.timestamp,
-  environment: trace.environment,
-} as TranscriptState["observations"][number];
-
 function transcriptState({
   messages,
   history,
-  observations,
 }: {
   messages: Thread["currentTurn"]["messages"];
   history: Thread["conversationHistory"];
-  observations: TranscriptState["observations"];
 }): TranscriptState {
   return {
     type: "transcript",
@@ -150,14 +140,12 @@ function transcriptState({
         ],
       },
     },
-    observations,
   };
 }
 
 const weatherState = transcriptState({
   messages: result.transcript?.threads[0]?.currentTurn.messages ?? [],
   history: result.transcript?.threads[0]?.conversationHistory ?? [],
-  observations: [sourceObservation],
 });
 export const NestedThreadsHidden = meta.story({
   name: "(Test) Nested Threads Hidden",
@@ -165,7 +153,6 @@ export const NestedThreadsHidden = meta.story({
     ...commonArgs,
     state: {
       type: "transcript",
-      observations: [sourceObservation],
       result: {
         ...result,
         transcript: {
@@ -191,7 +178,6 @@ export const MultipleThreads = meta.story({
     state: {
       type: "transcript",
       result,
-      observations: [sourceObservation],
     },
   },
   play: async ({ canvasElement }) => {
@@ -218,7 +204,6 @@ export const Cutoff = meta.story({
     state: {
       type: "transcript",
       result: { ...result, cutoff: true },
-      observations: [sourceObservation],
     },
   },
 });
@@ -311,7 +296,6 @@ export const EmptyTranscript = meta.story({
     state: transcriptState({
       history: [],
       messages: [],
-      observations: [sourceObservation],
     }),
   },
 });
@@ -322,7 +306,6 @@ export const RenderFalsyValues = meta.story({
     ...commonArgs,
     state: transcriptState({
       history: [],
-      observations: [sourceObservation],
       messages: [
         {
           ...provenance,
@@ -363,7 +346,6 @@ export const GenerationToolCallOnly = meta.story({
     ...commonArgs,
     state: transcriptState({
       history: [],
-      observations: [sourceObservation],
       messages: [
         {
           ...provenance,
@@ -396,7 +378,6 @@ export const ToolResultOnly = meta.story({
     ...commonArgs,
     state: transcriptState({
       history: [],
-      observations: [sourceObservation],
       messages: [
         {
           ...provenance,
@@ -445,7 +426,6 @@ export const KeepDifferentToolData = meta.story({
     ...commonArgs,
     state: transcriptState({
       history: [],
-      observations: [sourceObservation],
       messages: [
         {
           ...provenance,
@@ -533,7 +513,6 @@ export const SystemPromptHistory = meta.story({
           parts: [{ type: "text", text: "Inspect representative failures." }],
         },
       ],
-      observations: [sourceObservation],
       messages: [
         {
           ...provenance,
@@ -583,7 +562,6 @@ export const ToolFailure = meta.story({
     ...commonArgs,
     state: transcriptState({
       history: [],
-      observations: [sourceObservation],
       messages: [
         {
           ...provenance,

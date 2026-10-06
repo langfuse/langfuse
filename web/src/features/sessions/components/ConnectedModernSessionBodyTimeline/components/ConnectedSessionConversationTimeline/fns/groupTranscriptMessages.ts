@@ -58,40 +58,6 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
     }
   }
 
-  position = 0;
-  for (const [index, message] of messages.entries()) {
-    const resultPosition = position;
-    position += message.parts.length;
-    if (message.role !== "tool" || message.source !== "output") continue;
-    if (
-      message.parts.length === 0 ||
-      !message.parts.every((part) => part.type === "text")
-    )
-      continue;
-    const previous = messages[index - 1];
-    if (previous?.role !== "assistant" || previous.source !== "output")
-      continue;
-    const previousCalls = previous.parts.filter(
-      (part) => part.type === "tool-call",
-    );
-    if (previousCalls.length !== 1) continue;
-    const call = previousCalls[0]!;
-    if (!call.toolCallId || calls.get(call.toolCallId)?.count !== 1) continue;
-    if (results.has(call.toolCallId)) continue;
-    results.set(call.toolCallId, {
-      part: {
-        type: "tool-result",
-        toolCallId: call.toolCallId,
-        toolName: call.toolName,
-        output: message.parts.map((part) => part.text).join("\n"),
-      },
-      message,
-      position: resultPosition,
-      partCount: message.parts.length,
-      count: 1,
-    });
-  }
-
   const pairs = new Map<
     number,
     { call: ToolCallPart; result: ToolResultPart; message: T }

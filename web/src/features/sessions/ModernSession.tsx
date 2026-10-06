@@ -113,8 +113,6 @@ export function ModernSession({
           tracesState={tracesState}
           projectId={projectId}
           sessionId={sessionId}
-          sessionMinTimestamp={session.minTimestamp}
-          sessionMaxTimestamp={session.maxTimestamp}
           openPeek={openPeek}
         />
       ) : (

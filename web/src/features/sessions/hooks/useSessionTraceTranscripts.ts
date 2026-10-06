@@ -30,6 +30,7 @@ export function useSessionTraceTranscripts({
         projectId,
         traceId: trace.id,
         timestamp: trace.timestamp,
+        pairTextToolResponses: true,
       };
       return {
         queryKey: getQueryKey(api.events.transcriptByTraceId, input, "query"),

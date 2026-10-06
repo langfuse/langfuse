@@ -1,5 +1,4 @@
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { type RouterOutputs } from "@/src/utils/api";
 import { type ComponentProps } from "react";
 import { SessionConversationalView } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/SessionConversationalView";
 import {
@@ -12,7 +11,6 @@ import { getSessionTranscriptThreads } from "@/src/features/sessions/components/
 export type ConnectedSessionConversationTimelineItem = {
   trace: EventSessionTrace;
   turnNumber: number;
-  observations: RouterOutputs["events"]["sessionAll"]["observations"];
 };
 
 export function ConnectedSessionConversationTimeline(
@@ -23,7 +21,7 @@ export function ConnectedSessionConversationTimeline(
           ComponentProps<typeof SessionConversationalView>,
           { state: "loaded" }
         >,
-        "traces" | "controller" | "onLoadMoreObservations"
+        "traces" | "controller"
       >
   ) & {
     traces: readonly ConnectedSessionConversationTimelineItem[];
@@ -35,22 +33,15 @@ export function ConnectedSessionConversationTimeline(
     controller: SessionConversationTimelineController;
     resultsByTraceId: ReadonlyMap<string, SessionTraceTranscriptState>;
     scrollTarget: SessionConversationTimelineScrollTarget | null;
-    onLoadMoreObservations?: () => void;
   },
 ) {
-  const {
-    traces,
-    openPeek,
-    controller,
-    resultsByTraceId,
-    scrollTarget,
-    onLoadMoreObservations,
-  } = props;
+  const { traces, openPeek, controller, resultsByTraceId, scrollTarget } =
+    props;
 
   return (
     <SessionConversationalView
       {...props}
-      traces={traces.map(({ trace, turnNumber, observations }) => {
+      traces={traces.map(({ trace, turnNumber }) => {
         const result = resultsByTraceId.get(trace.id);
         const state = (() => {
           if (result?.state === "error") return { type: "error" as const };
@@ -63,7 +54,7 @@ export function ConnectedSessionConversationTimeline(
               0
           )
             return { type: "empty" as const };
-          return { type: "transcript" as const, result, observations };
+          return { type: "transcript" as const, result };
         })();
         return {
           trace,
@@ -77,7 +68,6 @@ export function ConnectedSessionConversationTimeline(
         };
       })}
       controller={controller}
-      onLoadMoreObservations={onLoadMoreObservations}
     />
   );
 }

@@ -2,7 +2,6 @@ import { GitBranch, MessageSquareOff } from "lucide-react";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { SessionTranscriptContent } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/SessionTranscriptContent";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
@@ -15,7 +14,6 @@ type PreparedSessionConversationTimelineTraceState =
   | {
       type: "transcript";
       result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
-      observations: RouterOutputs["events"]["sessionAll"]["observations"];
     };
 
 export function SessionConversationTimelineTrace({

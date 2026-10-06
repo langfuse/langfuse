@@ -26,7 +26,6 @@ export function SessionConversationalView(
   ) & {
     traces: ComponentProps<typeof SessionConversationTimeline>["traces"];
     controller: SessionConversationTimelineController;
-    onLoadMoreObservations?: () => void;
   },
 ) {
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -212,7 +211,6 @@ export function SessionConversationalView(
           traces={timelineItems}
           controller={props.controller}
           filterMeasurementKey="transcript"
-          onLoadMoreObservations={props.onLoadMoreObservations}
         />
       </div>
     </div>

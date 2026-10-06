@@ -83,44 +83,52 @@ describe("groupTranscriptMessages", () => {
     ]);
   });
 
-  it.each([
-    { parts: [text("found")], output: "found" },
-    { parts: [text("first"), text("second")], output: "first\nsecond" },
-  ])(
-    "pairs a text-only tool response with the preceding unique call: %j",
-    ({ parts, output }) => {
-      const toolCall = call("a");
-      const response = {
-        ...message(parts),
-        role: "tool" as const,
-        observationId: "tool",
-      };
-      const input = { ...message([toolCall]), observationId: "generation" };
+  it("pairs a server-produced identified tool response", () => {
+    const output = "found";
+    const parts = [{ ...result("a"), toolName: "search", output }];
+    const toolCall = call("a");
+    const response = {
+      ...message(parts),
+      role: "tool" as const,
+      observationId: "tool",
+    };
+    const input = { ...message([toolCall]), observationId: "generation" };
 
-      expect(groupTranscriptMessages([input, response])).toEqual([
-        {
-          type: "tool",
-          message: response,
-          call: toolCall,
-          result: {
-            type: "tool-result",
-            toolCallId: "a",
-            toolName: "search",
-            output,
-          },
+    expect(groupTranscriptMessages([input, response])).toEqual([
+      {
+        type: "tool",
+        message: response,
+        call: toolCall,
+        result: {
+          type: "tool-result",
+          toolCallId: "a",
+          toolName: "search",
+          output,
         },
+      },
+    ]);
+  });
+
+  it.each(["search", "weather"])(
+    "keeps a text response separate from multiple calls including %s",
+    (toolName) => {
+      const input = message([call("a"), { ...call("b"), toolName }]);
+      const response = { ...message([text("found")]), role: "tool" as const };
+      expect(groupTranscriptMessages([input, response])).toEqual([
+        { type: "tool", message: input, call: input.parts[0], result: null },
+        { type: "tool", message: input, call: input.parts[1], result: null },
+        { type: "message", message: response },
       ]);
     },
   );
 
-  it("keeps an ambiguous text response separate from multiple calls", () => {
-    const input = message([call("a"), call("b")]);
-    const response = { ...message([text("found")]), role: "tool" as const };
-    expect(groupTranscriptMessages([input, response])).toEqual([
-      { type: "tool", message: input, call: input.parts[0], result: null },
-      { type: "tool", message: input, call: input.parts[1], result: null },
-      { type: "message", message: response },
-    ]);
+  it("keeps unnamed later responses separate rather than skipping intervening tools", () => {
+    const input = message([call("a")]);
+    const first = { ...message([text("first")]), role: "tool" as const };
+    const second = { ...message([text("second")]), role: "tool" as const };
+    expect(
+      groupTranscriptMessages([input, first, second]).map((row) => row.message),
+    ).toEqual([input, first, second]);
   });
 
   it("does not invent an ID for a text response to an unidentified call", () => {

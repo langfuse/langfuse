@@ -25,14 +25,7 @@ type WorkflowObservation = TranscriptObservation & {
 };
 
 type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
-  state: Pick<TranscriptState, "type" | "result"> & {
-    observations: Array<
-      Pick<
-        TranscriptState["observations"][number],
-        "id" | "traceId" | "name" | "startTime" | "environment"
-      >
-    >;
-  };
+  state: TranscriptState;
 };
 
 const trace = {
@@ -2041,7 +2034,6 @@ const workflowTranscripts = new Map(
         turnNumber: item.turnNumber,
         state: {
           type: "transcript",
-          observations: item.observations,
           result: {
             state: "loaded",
             cutoff: false,
@@ -2105,15 +2097,6 @@ const traces: TraceProps[] = [
           ],
         },
       },
-      observations: [
-        {
-          id: "generation-1",
-          traceId: "trace-1",
-          name: "Order assistant",
-          startTime: new Date("2026-09-24T12:00:00Z"),
-          environment: "default",
-        },
-      ] as Extract<TraceProps["state"], { type: "transcript" }>["observations"],
     },
     onOpenTrace: () => {},
     onOpenObservation: () => {},
@@ -2172,16 +2155,6 @@ function SessionConversationalViewStory({
       ...traces[0]!,
       state: {
         type: "transcript",
-        observations: Array.from({ length: 3 }, (_, batchIndex) => ({
-          id: `batch-${batchIndex}`,
-          traceId: traces[0]!.trace.id,
-          name: `Tool batch ${batchIndex + 1}`,
-          startTime: traces[0]!.trace.timestamp,
-          environment: traces[0]!.trace.environment,
-        })) as Extract<
-          TraceProps["state"],
-          { type: "transcript" }
-        >["observations"],
         result: {
           state: "loaded",
           cutoff: false,
@@ -2240,13 +2213,6 @@ function SessionConversationalViewStory({
   const workflowTraceProps = workflowTraces
     ? (workflowTranscripts.get(workflowTraces) ?? []).map((item) => ({
         ...item,
-        state: {
-          ...item.state,
-          observations: item.state.observations as Extract<
-            TraceProps["state"],
-            { type: "transcript" }
-          >["observations"],
-        },
         onOpenTrace: fn(),
         onOpenObservation: fn(),
         scrollTarget: null,
@@ -2807,10 +2773,6 @@ export const NestedThreadsHidden = meta.story({
         ...traces[0]!,
         state: {
           type: "transcript",
-          observations:
-            traces[0]!.state.type === "transcript"
-              ? traces[0]!.state.observations
-              : [],
           result: {
             state: "loaded",
             cutoff: false,
