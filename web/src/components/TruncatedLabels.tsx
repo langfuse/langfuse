@@ -1,11 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import React from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { PRODUCTION_LABEL, LATEST_PROMPT_LABEL } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -62,40 +58,45 @@ export function TruncatedLabels({
         ),
       )}
       {hasHiddenLabels && (
-        <HoverCard>
-          <HoverCardTrigger asChild>
+        <HoverCard
+          placement="bottom-start"
+          content={
+            <div className="w-80 p-3">
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold">All Labels</h4>
+                <div className="flex flex-wrap gap-1">
+                  {sortedLabels.map((label) =>
+                    showSimpleBadges ? (
+                      <div
+                        key={label}
+                        className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
+                      >
+                        {label}
+                      </div>
+                    ) : (
+                      <StatusBadge
+                        type={label}
+                        key={label}
+                        isLive={label === PRODUCTION_LABEL}
+                        preserveCase
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
             <Button
               variant="outline"
               size="sm"
               className="text-muted-foreground hover:text-foreground h-6 cursor-pointer text-xs"
+              {...getTriggerProps()}
             >
               +{hiddenLabels.length} more
             </Button>
-          </HoverCardTrigger>
-          <HoverCardContent className="w-80 p-3" side="bottom" align="start">
-            <div className="space-y-2">
-              <h4 className="text-sm font-bold">All Labels</h4>
-              <div className="flex flex-wrap gap-1">
-                {sortedLabels.map((label) =>
-                  showSimpleBadges ? (
-                    <div
-                      key={label}
-                      className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
-                    >
-                      {label}
-                    </div>
-                  ) : (
-                    <StatusBadge
-                      type={label}
-                      key={label}
-                      isLive={label === PRODUCTION_LABEL}
-                      preserveCase
-                    />
-                  ),
-                )}
-              </div>
-            </div>
-          </HoverCardContent>
+          )}
         </HoverCard>
       )}
     </div>

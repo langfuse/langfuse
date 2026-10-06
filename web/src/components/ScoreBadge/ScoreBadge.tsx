@@ -37,7 +37,7 @@ export const ScoreBadge = <
           {scores.map((score, index) => {
             return (
               <span
-                key={index}
+                key={score.id}
                 className="inline-flex min-w-0 items-center gap-1"
               >
                 <ScoreValue name={name} score={score} />

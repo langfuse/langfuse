@@ -7,6 +7,7 @@ import { queryClickhouseStream, TupleParam } from "./clickhouse";
 type TraceBatchEventRow = {
   project_id: string;
   trace_id: string;
+  environment: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -136,6 +137,7 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     .selectRaw(
       "e.project_id",
       "e.trace_id",
+      "e.environment",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",

@@ -196,6 +196,7 @@ model Project {
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
+  topicClusteringRuns               TopicClusteringRun[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
   @@index([orgId])
@@ -1081,6 +1082,8 @@ model EvaluatorVersion {
   sourceCode         String?                      @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
   questions          Json?
+
+  topicClusteringRuns TopicClusteringRun[]
 
   @@unique([evaluatorId, version(sort: Desc)])
   @@map("evaluator_versions")
@@ -2029,4 +2032,23 @@ model CloudSpendAlert {
 
   @@index([orgId])
   @@map("cloud_spend_alerts")
+}
+
+model TopicClusteringRun {
+  id              String           @id @default(cuid())
+  projectId       String           @map("project_id")
+  facetId         String           @map("facet_id")
+  facetVersion    Int              @map("facet_version")
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  facet           EvaluatorVersion @relation(fields: [facetId, facetVersion], references: [evaluatorId, version], onDelete: Cascade)
+  status          String           @default("pending")
+  config          Json             @default("{}")
+  error           String?
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
+  topicVersionIds String[]         @default([]) @map("topic_version_ids")
+
+  @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@map("topic_clustering_runs")
 }

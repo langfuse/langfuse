@@ -24,11 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { cn } from "@/src/utils/tailwind";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
@@ -105,28 +101,34 @@ export const LogViewToolbar = memo(function LogViewToolbar({
     <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
       {/* Large Trace indicator - only shown for virtualized mode */}
       {isVirtualized && (
-        <HoverCard openDelay={200}>
-          <HoverCardTrigger asChild>
-            <span className="cursor-help rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-bold text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">
+        <HoverCard
+          openDelay={200}
+          placement="bottom-start"
+          sideOffset={8}
+          content={
+            <div className="w-72 p-3 text-sm">
+              <p className="font-bold">Optimized for performance</p>
+              <p className="text-muted-foreground mt-1.5">
+                This trace has {observationCount?.toLocaleString() ?? "many"}{" "}
+                observations. To keep things smooth:
+              </p>
+              <ul className="text-muted-foreground mt-1.5 list-inside list-disc space-y-0.5">
+                <li>Content loads as you scroll</li>
+                <li>JSON view is disabled</li>
+                <li>Download/copy includes I/O for cached observations only</li>
+              </ul>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <span
+              className="cursor-help rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-bold text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+              tabIndex={0}
+              {...getTriggerProps()}
+            >
               Large Trace
             </span>
-          </HoverCardTrigger>
-          <HoverCardContent
-            align="start"
-            className="w-72 text-sm"
-            sideOffset={8}
-          >
-            <p className="font-bold">Optimized for performance</p>
-            <p className="text-muted-foreground mt-1.5">
-              This trace has {observationCount?.toLocaleString() ?? "many"}{" "}
-              observations. To keep things smooth:
-            </p>
-            <ul className="text-muted-foreground mt-1.5 list-inside list-disc space-y-0.5">
-              <li>Content loads as you scroll</li>
-              <li>JSON view is disabled</li>
-              <li>Download/copy includes I/O for cached observations only</li>
-            </ul>
-          </HoverCardContent>
+          )}
         </HoverCard>
       )}
 
@@ -150,36 +152,45 @@ export const LogViewToolbar = memo(function LogViewToolbar({
       <div className="flex items-center gap-0.5">
         {/* Indent Toggle - only in table view (pretty or json-beta) */}
         {currentView !== "json" && onToggleIndent && (
-          <HoverCard openDelay={200}>
-            <HoverCardTrigger asChild>
-              <Button
-                variant={indentEnabled ? "default" : "ghost"}
-                size="icon"
-                className={cn(
-                  "h-7 w-7",
-                  indentEnabled && "bg-primary text-primary-foreground",
-                  indentDisabled && "cursor-not-allowed opacity-50",
-                )}
-                onClick={indentDisabled ? undefined : onToggleIndent}
-                disabled={indentDisabled}
-                title={
-                  indentDisabled
-                    ? undefined
-                    : indentEnabled
-                      ? "Hide indentation"
-                      : "Show indentation"
-                }
-              >
-                <IndentIncrease className="icon-base" />
-              </Button>
-            </HoverCardTrigger>
-            {indentDisabled && (
-              <HoverCardContent className="w-56 text-sm" sideOffset={8}>
+          <HoverCard
+            openDelay={200}
+            enabled={indentDisabled}
+            sideOffset={8}
+            content={
+              <div className="w-56 p-3 text-sm">
                 <p className="font-bold">Indentation unavailable</p>
                 <p className="text-muted-foreground mt-1">
                   Disabled for deeply nested trees to maintain readability.
                 </p>
-              </HoverCardContent>
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <span
+                tabIndex={indentDisabled ? 0 : undefined}
+                {...getTriggerProps()}
+              >
+                <Button
+                  variant={indentEnabled ? "default" : "ghost"}
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7",
+                    indentEnabled && "bg-primary text-primary-foreground",
+                    indentDisabled && "cursor-not-allowed opacity-50",
+                  )}
+                  onClick={indentDisabled ? undefined : onToggleIndent}
+                  disabled={indentDisabled}
+                  title={
+                    indentDisabled
+                      ? undefined
+                      : indentEnabled
+                        ? "Hide indentation"
+                        : "Show indentation"
+                  }
+                >
+                  <IndentIncrease className="icon-base" />
+                </Button>
+              </span>
             )}
           </HoverCard>
         )}
@@ -235,17 +246,41 @@ export const LogViewToolbar = memo(function LogViewToolbar({
 
         {/* Copy JSON */}
         {onCopyJson && (
-          <HoverCard openDelay={200}>
-            <HoverCardTrigger asChild>
+          <HoverCard
+            openDelay={200}
+            enabled={isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading}
+            sideOffset={8}
+            content={
+              <div className="w-64 p-3 text-sm">
+                <p className="font-bold">Cache-only mode</p>
+                <p className="text-muted-foreground mt-1">
+                  For large traces, only expanded observations include full I/O
+                  data.
+                </p>
+                {loadedObservationCount !== undefined &&
+                  observationCount !== undefined && (
+                    <p className="text-muted-foreground mt-1.5">
+                      <span className="font-bold">
+                        {loadedObservationCount} of {observationCount}
+                      </span>{" "}
+                      observations loaded
+                    </p>
+                  )}
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={
-                      isCopyOrDownloadLoading ? undefined : handleCopyClick
-                    }
+                    {...getTriggerProps({
+                      onClick: isCopyOrDownloadLoading
+                        ? undefined
+                        : handleCopyClick,
+                    })}
                     disabled={isCopyOrDownloadLoading}
                   >
                     {isCopyOrDownloadLoading ? (
@@ -265,24 +300,6 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                       : "Copy as JSON"}
                 </TooltipContent>
               </Tooltip>
-            </HoverCardTrigger>
-            {isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading && (
-              <HoverCardContent className="w-64 text-sm" sideOffset={8}>
-                <p className="font-bold">Cache-only mode</p>
-                <p className="text-muted-foreground mt-1">
-                  For large traces, only expanded observations include full I/O
-                  data.
-                </p>
-                {loadedObservationCount !== undefined &&
-                  observationCount !== undefined && (
-                    <p className="text-muted-foreground mt-1.5">
-                      <span className="font-bold">
-                        {loadedObservationCount} of {observationCount}
-                      </span>{" "}
-                      observations loaded
-                    </p>
-                  )}
-              </HoverCardContent>
             )}
           </HoverCard>
         )}

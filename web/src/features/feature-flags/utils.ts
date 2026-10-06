@@ -6,6 +6,7 @@ import {
   isInternalFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isAdminOnlyFeaturePreviewFlag,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
 } from "./available-flags";
@@ -59,7 +60,7 @@ export const parseFlags = (
     }
 
     if (
-      isFeaturePreviewFlag(flag) &&
+      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;

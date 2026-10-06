@@ -13,11 +13,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
@@ -202,27 +198,36 @@ export function CorrectedOutputField({
               >
                 {compact ? "" : "Corrected Output"}
               </span>
-              <HoverCard>
-                <HoverCardTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground">
+              <HoverCard
+                placement="right"
+                content={
+                  <div className="w-80 p-3 text-xs">
+                    <p>
+                      Corrected outputs allow you to save the expected output
+                      for a trace or observation. Learn more in the{" "}
+                      <Link
+                        href="https://langfuse.com/docs/observability/features/corrections"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-foreground underline"
+                      >
+                        documentation
+                      </Link>
+                      .
+                    </p>
+                  </div>
+                }
+              >
+                {({ getTriggerProps }) => (
+                  <button
+                    type="button"
+                    aria-label="About corrected outputs"
+                    className="text-muted-foreground hover:text-foreground"
+                    {...getTriggerProps()}
+                  >
                     <Info className="icon-base" />
                   </button>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-80 text-xs" side="right">
-                  <p>
-                    Corrected outputs allow you to save the expected output for
-                    a trace or observation. Learn more in the{" "}
-                    <Link
-                      href="https://langfuse.com/docs/observability/features/corrections"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      documentation
-                    </Link>
-                    .
-                  </p>
-                </HoverCardContent>
+                )}
               </HoverCard>
             </div>
             <div className="flex items-center">
