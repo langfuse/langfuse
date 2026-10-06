@@ -4,11 +4,7 @@ import { useSession } from "next-auth/react";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { PopoverContent } from "@/src/components/ui/popover";
 import {
   featurePreviewLabels,
@@ -77,20 +73,30 @@ export function UserFeaturePreviewsControl({
 
   if (!management.allowed) {
     return (
-      <HoverCard openDelay={0} closeDelay={0}>
-        <HoverCardTrigger asChild>
-          <span className="inline-flex cursor-not-allowed">
+      <HoverCard
+        openDelay={0}
+        closeDelay={0}
+        placement="left"
+        content={
+          <div className="w-64 p-3">
+            <p className="text-xs">
+              You can only change this user&apos;s feature flags if you are an
+              administrator in every organization they belong to.
+            </p>
+          </div>
+        }
+      >
+        {({ getTriggerProps }) => (
+          <span
+            className="inline-flex cursor-not-allowed"
+            tabIndex={0}
+            {...getTriggerProps()}
+          >
             <Button variant="outline" size="sm" disabled>
               {enabledCount}/{totalCount} enabled
             </Button>
           </span>
-        </HoverCardTrigger>
-        <HoverCardContent align="center" side="left">
-          <p className="text-xs">
-            You can only change this user&apos;s feature flags if you are an
-            administrator in every organization they belong to.
-          </p>
-        </HoverCardContent>
+        )}
       </HoverCard>
     );
   }

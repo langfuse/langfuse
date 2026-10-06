@@ -5,11 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { HelpCircle, AlertCircle } from "lucide-react";
 import type { InterpretationResult } from "@/src/features/score-analytics/lib/statistics-utils";
 
@@ -114,13 +110,14 @@ export function MetricCard({
             </TooltipProvider>
           )}
         {warning?.show && !isPlaceholder && !isNA && (
-          <HoverCard>
-            <HoverCardTrigger asChild>
-              <AlertCircle className="icon-base cursor-help text-amber-500" />
-            </HoverCardTrigger>
-            <HoverCardContent className="w-80">
-              {warning.content}
-            </HoverCardContent>
+          <HoverCard
+            content={<div className="w-80 p-3">{warning.content}</div>}
+          >
+            {({ getTriggerProps }) => (
+              <span tabIndex={0} {...getTriggerProps()}>
+                <AlertCircle className="icon-base cursor-help text-amber-500" />
+              </span>
+            )}
           </HoverCard>
         )}
       </div>
