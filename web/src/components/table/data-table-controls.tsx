@@ -2009,7 +2009,7 @@ function CategoricalSelectContent({
                       variant="ghost"
                       size="sm"
                       onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-8 text-xs"
+                      className="mt-1 h-auto w-full justify-start gap-1 py-1 pl-2 text-xs"
                     >
                       Show fewer values
                     </Button>
@@ -2023,7 +2023,7 @@ function CategoricalSelectContent({
                           (current) => current + SHOW_MORE_INCREMENT,
                         )
                       }
-                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-8 text-xs"
+                      className="mt-0.5 h-auto w-full justify-start gap-1 py-1 pl-2 text-xs"
                     >
                       Show more values
                     </Button>
