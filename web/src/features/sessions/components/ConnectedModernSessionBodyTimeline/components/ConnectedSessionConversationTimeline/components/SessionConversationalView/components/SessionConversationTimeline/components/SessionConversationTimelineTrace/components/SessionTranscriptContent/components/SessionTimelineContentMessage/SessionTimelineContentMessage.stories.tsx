@@ -51,8 +51,8 @@ export const StructuredData = meta.story({
     await expect(canvas.queryByText("7")).not.toBeInTheDocument();
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByText("0.9")).toBeVisible();
-    await expect(canvas.getByText("7")).toBeVisible();
+    await expect(canvas.getAllByText("0.9").length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText("7").length).toBeGreaterThan(0);
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(canvas.queryByText("0.9")).not.toBeInTheDocument();

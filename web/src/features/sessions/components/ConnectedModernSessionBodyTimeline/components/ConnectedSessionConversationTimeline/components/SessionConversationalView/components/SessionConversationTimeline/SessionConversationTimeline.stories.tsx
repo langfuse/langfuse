@@ -46,7 +46,7 @@ export const LoadMoreObservations = meta.story({
   args: { onLoadMoreObservations: fn() },
   play: async ({ args, canvas }) => {
     const timeline = canvas.getByLabelText("Session conversation timeline");
-    await canvas.findByRole("button", { name: /trace · trace-1/ });
+    await canvas.findByRole("button", { name: /Turn 1.*trace-1/ });
     await waitFor(() => {
       expect(timeline.scrollHeight).toBeGreaterThan(timeline.clientHeight);
     });

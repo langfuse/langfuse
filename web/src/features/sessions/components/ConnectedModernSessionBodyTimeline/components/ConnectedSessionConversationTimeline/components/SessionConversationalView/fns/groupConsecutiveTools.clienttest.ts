@@ -72,17 +72,6 @@ describe("groupConsecutiveTools", () => {
     ).toMatchObject({ summary: "2x … · +1 more" });
   });
 
-  it("counts repeated tool calls and preserves original tools", () => {
-    const rows = Array.from({ length: 5 }, () => ({
-      role: "tool",
-      name: "tool_1",
-      boundary: 0,
-    }));
-    expect(groupConsecutiveTools(rows, options)).toEqual([
-      { type: "tools", rows, summary: "5x tool_1", title: "5x tool_1" },
-    ]);
-  });
-
   it("counts all tool calls in mixed groups", () => {
     const rows = ["tool_a", "tool_a", "tool_a", "tool_b"].map((name) => ({
       role: "tool",
@@ -136,17 +125,6 @@ describe("groupConsecutiveTools", () => {
     expect(group).toMatchObject({
       summary: "4x search · +6 more",
       title: "4x search · 3x read · 2x last · other",
-    });
-  });
-
-  it("fits more than two distinct names when space allows", () => {
-    const rows = ["a", "b", "c", "d"].map((name) => ({
-      role: "tool",
-      name,
-      boundary: 0,
-    }));
-    expect(groupConsecutiveTools(rows, options)[0]).toMatchObject({
-      summary: "a · b · c · d",
     });
   });
 

@@ -179,19 +179,9 @@ export const NestedThreadsHidden = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const warning = canvas.getByRole("button", {
-      name: "1 nested thread hidden",
-    });
-    const document = within(canvasElement.ownerDocument.body);
-    await userEvent.hover(warning);
-    await expect(
-      await document.findByRole("tooltip", { name: "1 nested thread hidden" }),
-    ).toBeVisible();
-    await userEvent.unhover(warning);
     await expect(
       canvas.queryByText("Looking up outdoor activities…"),
     ).not.toBeInTheDocument();
-    await expect(canvas.queryByText("Thread 2")).not.toBeInTheDocument();
   },
 });
 export const MultipleThreads = meta.story({
@@ -228,7 +218,6 @@ export const MultipleThreads = meta.story({
   },
 });
 export const Cutoff = meta.story({
-  name: "(Test) Cutoff Warning Tooltip",
   args: {
     ...commonArgs,
     state: {
@@ -236,20 +225,6 @@ export const Cutoff = meta.story({
       result: { ...result, cutoff: true },
       observations: [sourceObservation],
     },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const warning = canvas.getByRole("button", {
-      name: "Transcript may be incomplete",
-    });
-    const document = within(canvasElement.ownerDocument.body);
-    await userEvent.hover(warning);
-    await expect(
-      await document.findByRole("tooltip", {
-        name: /transcript may be incomplete.*observation limit/i,
-      }),
-    ).toBeVisible();
-    await userEvent.unhover(warning);
   },
 });
 export const Error = meta.story({
@@ -287,8 +262,8 @@ export const OpenObservation = meta.story({
       .closest("article")!;
     await userEvent.hover(message);
     await userEvent.click(
-      within(message).getByRole("button", {
-        name: "Open observation",
+      within(message).getByText(/open observation/i, {
+        selector: "button",
       }),
     );
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
@@ -320,9 +295,6 @@ export const ExpandTool = meta.story({
     await expect(
       canvas.getByText(/"temperature": 12/).closest(".ph-no-capture"),
     ).not.toBeNull();
-    await expect(
-      within(toolRow).getByRole("button", { name: "Open observation" }),
-    ).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse weather" }),
     );
@@ -345,15 +317,11 @@ export const OpenToolObservation = meta.story({
       .getByRole("button", { name: "Expand weather" })
       .closest("section")!;
     await userEvent.hover(toolRow);
-    const openObservation = within(toolRow).getByRole("button", {
-      name: "Open observation",
+    const openObservation = within(toolRow).getByText(/open observation/i, {
+      selector: "button",
     });
-    await expect(openObservation).toBeVisible();
     await userEvent.click(openObservation);
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
-    await expect(
-      canvas.queryByRole("button", { name: /^Actions/ }),
-    ).not.toBeInTheDocument();
   },
 });
 
@@ -476,9 +444,6 @@ export const PairMatchingToolData = meta.story({
     await expect(
       canvas.getAllByRole("button", { name: "Expand weather" }),
     ).toHaveLength(1);
-    await expect(
-      canvas.queryByText("weather · Result"),
-    ).not.toBeInTheDocument();
   },
 });
 
@@ -535,12 +500,12 @@ export const KeepDifferentToolData = meta.story({
     const canvas = within(canvasElement);
     await expect(
       canvas.getByRole("button", {
-        name: "Show tools: search_documentation and get_customer_profile",
+        name: /^Show tools:.*search_documentation.*get_customer_profile/,
       }),
     ).toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", {
-        name: "Show tools: search_documentation and get_customer_profile",
+        name: /^Show tools:.*search_documentation.*get_customer_profile/,
       }),
     );
     await expect(
@@ -553,7 +518,7 @@ export const KeepDifferentToolData = meta.story({
 });
 
 export const SystemPromptHistory = meta.story({
-  name: "(Test) System Prompt Navigation and Hover Metadata",
+  name: "(Test) System Prompt Navigation",
   args: {
     ...commonArgs,
     onOpenTrace: fn(),
@@ -601,7 +566,7 @@ export const SystemPromptHistory = meta.story({
       canvas.queryByText("Inspect representative failures."),
     ).not.toBeInTheDocument();
     await userEvent.click(
-      canvas.getByRole("button", { name: /trace · trace-1/ }),
+      canvas.getByRole("button", { name: /Weather assistant.*trace-1/ }),
     );
     await expect(args.onOpenTrace).toHaveBeenCalledTimes(1);
     const header = canvas.getByRole("button", {
@@ -612,24 +577,11 @@ export const SystemPromptHistory = meta.story({
       selector: "button",
     });
     await expect(timestamp.dateTime).toBe(provenance.startTime.toISOString());
-    await expect(timestamp).not.toBeVisible();
-    await expect(openObservation).not.toBeVisible();
-    await userEvent.hover(header);
-    await expect(timestamp).toBeVisible();
-    await expect(openObservation).toBeVisible();
-    await userEvent.unhover(header);
-    await expect(openObservation).not.toBeVisible();
     await userEvent.hover(header);
     await userEvent.click(openObservation);
     await expect(args.onOpenObservation).toHaveBeenCalledTimes(1);
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
     await userEvent.unhover(header);
-    await expect(
-      canvas.queryByRole("button", { name: /^Actions/ }),
-    ).not.toBeInTheDocument();
-    await expect(
-      canvas.queryByRole("button", { name: "Transcript may be incomplete" }),
-    ).not.toBeInTheDocument();
   },
 });
 

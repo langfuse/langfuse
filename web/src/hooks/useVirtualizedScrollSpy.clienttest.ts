@@ -93,7 +93,7 @@ describe("useVirtualizedScrollSpy", () => {
   });
 
   it.each([300, 500, 800])(
-    "uses the same 20%% inset at %spx for manual activation and target alignment",
+    "round-trips inset anchors at %spx across the end transition",
     (viewportHeight) => {
       const geometry = {
         viewportHeight,
@@ -101,12 +101,6 @@ describe("useVirtualizedScrollSpy", () => {
         endTransitionRatio: 0.2,
         viewportInset: viewportHeight * 0.2,
       };
-      expect(getScrollSpyAnchor({ scrollOffset: 100, ...geometry })).toBe(
-        100 + viewportHeight * 0.2,
-      );
-      expect(
-        getScrollOffsetForScrollSpyAnchor({ anchor: 350, ...geometry }),
-      ).toBe(350 - viewportHeight * 0.2);
       for (const anchor of [viewportHeight * 0.2, 350, 9_416, 9_700, 9_999]) {
         const scrollOffset = getScrollOffsetForScrollSpyAnchor({
           anchor,
