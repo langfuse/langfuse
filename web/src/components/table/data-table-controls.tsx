@@ -522,6 +522,15 @@ export function DataTableControls({
   // (managed environments) still describes itself.
   const facetSummary = (filter: UIFilter): string | null => {
     if (filter.isActive) return getFacetSummary(filter);
+    // An implicit `none of` default (managed environments) can hide values
+    // the option list doesn't show, so every visible option looks kept.
+    const excluded =
+      filter.type === "categorical" ? (filter.excludedValues ?? []) : [];
+    if (excluded.length > 0) {
+      return excluded.length === 1
+        ? `not ${excluded[0]}`
+        : `${excluded.length} excluded`;
+    }
     const keptSubset =
       filter.type === "categorical" &&
       filter.value.length > 0 &&

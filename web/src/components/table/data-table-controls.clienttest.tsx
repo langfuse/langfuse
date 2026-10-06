@@ -1132,6 +1132,27 @@ describe("DataTableControls facet ordering", () => {
     // Unfiltered facet reads "Any" on its collapsed line.
     expect(screen.getByText("Any")).toBeInTheDocument();
   });
+
+  it("names an implicit exclusion instead of Any when every visible option is kept", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            {
+              ...categoricalFilter("environment", "Environment", false),
+              value: ["default", "production"],
+              options: ["default", "production"],
+              operator: "none of",
+              excludedValues: ["langfuse-evaluation"],
+            },
+          ])}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("not langfuse-evaluation")).toBeInTheDocument();
+    expect(screen.queryByText("Any")).not.toBeInTheDocument();
+  });
 });
 
 describe("DataTableControls blocked facets (LFE-11040)", () => {
