@@ -74,7 +74,6 @@ export function EmbeddingMapView({
   topics,
   selectedTopic,
   onSelectTopic,
-  headerActions,
   headerStats,
   onSelectTrace,
   selectedTraceId,
@@ -85,7 +84,6 @@ export function EmbeddingMapView({
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
-  headerActions?: ReactNode;
   headerStats?: ReactNode;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
@@ -131,15 +129,12 @@ export function EmbeddingMapView({
             {headerStats}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            text="All topics"
-            size="sm"
-            variant={selectedTopic === null ? "secondary" : "ghost"}
-            onClick={() => onSelectTopic(null)}
-          />
-          {headerActions}
-        </div>
+        <Button
+          text="All topics"
+          size="sm"
+          variant={selectedTopic === null ? "secondary" : "ghost"}
+          onClick={() => onSelectTopic(null)}
+        />
       </div>
       <div ref={plotRef} className="h-48 w-full sm:h-72 lg:h-80">
         <svg

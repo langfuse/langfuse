@@ -70,8 +70,7 @@ project permissions. Processing additionally requires the project allowlist.
   navigation to the isolated `EmbeddingMapView.tsx`, whose states are shown
   in Storybook. A pure geometry unit test protects distance ratios.
   The view renders its saved 2D UMAP
-  coordinates. Clicking a point pins its summary until another selection; only
-  split view synchronizes selection and pagination with the trace list. Trace IDs
+  coordinates. Clicking a point pins its summary until another selection. Trace IDs
   in the map summary open the shared trace peek. The summary area collapses when
   inactive and fits its content up to a scrollable maximum height. Cards own
   topic filtering, with All topics in the map header to reset it. Topic selection is

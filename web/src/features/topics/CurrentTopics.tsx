@@ -1,8 +1,6 @@
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { type RefObject, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { Columns2 } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -16,7 +14,6 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Toggle } from "@/src/components/design-system/Toggle/Toggle";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { topicColor } from "./topic-map-colors";
@@ -97,23 +94,11 @@ function CurrentFacet({
   timeRange: TopicTimeRange;
 }) {
   const [selection, setSelection] = useState<string | null>(null);
-  const [split, setSplit] = useState(false);
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
   });
-  const tableRef = useRef<HTMLDivElement>(null);
-  function updateTraceTable(update: () => void, revealSelection = split) {
-    if (!revealSelection) {
-      update();
-      return;
-    }
-    flushSync(update);
-    tableRef.current
-      ?.querySelector(".topics-selected-trace")
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }
   function selectTopic(topicId: string | null) {
     setSelection(topicId);
     setSelectedTraceId(null);
@@ -136,32 +121,6 @@ function CurrentFacet({
     if (selected === "awaiting_map") return row.outcome === "awaiting_map";
     return row.topicId === selected;
   });
-  function updateTraceSelection(traceId: string | null, syncTable = split) {
-    setSelectedTraceId(traceId);
-    if (traceId === null || !syncTable) return;
-    let index = visible.findIndex((row) => row.traceId === traceId);
-    if (index < 0) {
-      index = facet.rows.findIndex((row) => row.traceId === traceId);
-      if (index < 0) return;
-      setSelection(null);
-    }
-    setPagination((current) => ({
-      ...current,
-      pageIndex: Math.floor(index / current.pageSize),
-    }));
-  }
-  function selectTrace(traceId: string | null) {
-    updateTraceTable(() => updateTraceSelection(traceId));
-  }
-  function toggleSplit() {
-    updateTraceTable(() => {
-      if (!split) updateTraceSelection(selectedTraceId, true);
-      setSplit(!split);
-    }, !split);
-  }
-  const changePagination: OnChangeFn<PaginationState> = (update) => {
-    updateTraceTable(() => setPagination(update));
-  };
   const outliers = facet.rows.filter((row) => row.outcome === "outlier").length;
   const noTopic = facet.rows.filter(
     (row) =>
@@ -193,7 +152,7 @@ function CurrentFacet({
           summaries. You can configure the minimum there.
         </p>
       )}
-      <div className={cn("grid min-w-0 gap-3", split && "lg:grid-cols-2")}>
+      <div className="grid min-w-0 gap-3">
         {facet.map && (
           <div className="flex min-w-0 flex-col gap-3">
             <TopicEmbeddingMap
@@ -203,24 +162,13 @@ function CurrentFacet({
               topics={facet.map.topics}
               selectedTopic={selected}
               onSelectTopic={selectTopic}
-              onSelectTrace={selectTrace}
+              onSelectTrace={setSelectedTraceId}
               selectedTraceId={selectedTraceId}
               headerStats={counts}
-              headerActions={
-                <Toggle pressed={split} onClick={toggleSplit}>
-                  <Columns2 className="icon-base mr-2" aria-hidden />
-                  Split
-                </Toggle>
-              }
             />
           </div>
         )}
-        <div
-          className={cn(
-            "grid gap-3 sm:grid-cols-2 lg:grid-cols-3",
-            split && "lg:col-span-2 lg:row-start-2",
-          )}
-        >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {facet.topics.map((topic) => (
             <button
               key={topic.id}
@@ -247,12 +195,7 @@ function CurrentFacet({
             </button>
           ))}
         </div>
-        <div
-          className={cn(
-            "flex min-w-0 flex-col gap-3",
-            split && "lg:col-start-2 lg:row-start-1 lg:max-h-[42rem]",
-          )}
-        >
+        <div className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap gap-2">
             <Button
               text={`All traces (${facet.rows.length.toLocaleString()})`}
@@ -286,14 +229,11 @@ function CurrentFacet({
             )}
           </div>
           <CurrentTraceTable
-            tableRef={tableRef}
             projectId={projectId}
             facetId={facet.facetId}
             rows={visible}
             pagination={pagination}
-            onPaginationChange={changePagination}
-            selectedTraceId={split ? selectedTraceId : null}
-            split={split}
+            onPaginationChange={setPagination}
           />
         </div>
       </div>
@@ -302,23 +242,17 @@ function CurrentFacet({
 }
 
 function CurrentTraceTable({
-  tableRef,
   projectId,
   facetId,
   rows,
   pagination,
   onPaginationChange,
-  selectedTraceId,
-  split,
 }: {
-  tableRef: RefObject<HTMLDivElement | null>;
   projectId: string;
   facetId: string;
   rows: Facet["rows"];
   pagination: PaginationState;
   onPaginationChange: OnChangeFn<PaginationState>;
-  selectedTraceId: string | null;
-  split: boolean;
 }) {
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -341,7 +275,7 @@ function CurrentTraceTable({
     {
       accessorKey: "traceId",
       header: "Trace ID",
-      size: split ? 160 : 220,
+      size: 220,
       cell: ({ row }) => (
         <TextLink
           path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
@@ -365,7 +299,7 @@ function CurrentTraceTable({
     {
       accessorKey: "summary",
       header: "Summary",
-      size: split ? 360 : 600,
+      size: 600,
       cell: ({ row }) => (
         <div className="flex flex-col items-start gap-2">
           <p className="break-words whitespace-pre-wrap">
@@ -410,15 +344,10 @@ function CurrentTraceTable({
       )}
     >
       {({ openDialog }) => (
-        <div ref={tableRef} className="min-h-0 min-w-0 overflow-auto">
+        <div className="min-h-0 min-w-0 overflow-auto">
           <DataTable
             tableName="topics-current-traces"
             columns={columns(openDialog)}
-            columnVisibility={{ topicName: !split }}
-            rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
-            getRowClassName={(row) =>
-              row.traceId === selectedTraceId ? "topics-selected-trace" : ""
-            }
             data={{
               isLoading: false,
               isError: false,

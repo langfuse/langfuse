@@ -17,7 +17,6 @@ export function TopicEmbeddingMap({
   topics,
   selectedTopic,
   onSelectTopic,
-  headerActions,
   headerStats,
   onSelectTrace,
   selectedTraceId,
@@ -28,7 +27,6 @@ export function TopicEmbeddingMap({
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
-  headerActions?: ReactNode;
   headerStats?: ReactNode;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
@@ -74,7 +72,6 @@ export function TopicEmbeddingMap({
       topics={topics}
       selectedTopic={selectedTopic}
       onSelectTopic={onSelectTopic}
-      headerActions={headerActions}
       headerStats={headerStats}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
