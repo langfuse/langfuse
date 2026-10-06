@@ -878,6 +878,46 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   3.x/Gemini 1.x catalog tail were not re-checked this run — no new evidence,
   standing exclusions.
 
+- **October 6 2026 audit: full re-fetch found no price or catalog drift; Gemini
+  2.5 family now shows a new-user access-restriction note (not a pricing
+  change)** — Re-fetched the full Anthropic pricing page (model table,
+  cache-hits footnote, Fast mode and Batch tables), the Anthropic
+  models-overview comparison table, a targeted verbatim re-quote of the OpenAI
+  Standard-table rows for `gpt-5.6-sol/terra/luna`, `gpt-5.5`/`gpt-5.5-pro`,
+  the full `gpt-5.4` sub-family, `gpt-5.2`/`gpt-5.2-pro`, `gpt-5.1`, the full
+  `gpt-5`/`gpt-5-mini`/`gpt-5-nano`/`gpt-5-pro` family, `gpt-5.3-codex`, `o1`,
+  `o1-pro`, `o3`, `o3-pro`, `o3-mini`, `o4-mini`, `gpt-4.1` family, `gpt-4o`
+  family, `gpt-4-turbo-2024-04-09`, `gpt-4-0613`, the `gpt-3.5-turbo` family,
+  `davinci-002`, and `babbage-002`, the full OpenAI model catalog, a targeted
+  verbatim re-quote of `ai.google.dev/pricing`'s Gemini 2.5 Pro/Flash/Flash-Lite
+  Paid-tier rows, both Gemini 3.x pricing fetches, and the Gemini models
+  catalog. Every price checked this run — including every `gpt-6-astra`/
+  `gpt-6-sol`/`gpt-6.1-sol`/`gpt-6-luna`, every `claude-*-5-5`/`-5-1` tier, and
+  the full `gemini-2.5-*`/`gemini-3.x-flash` family — matched the pricing file
+  verbatim; no updates were needed. One new finding: a targeted verbatim fetch
+  of `https://ai.google.dev/gemini-api/docs/models` found `gemini-2.5-flash`,
+  `gemini-2.5-flash-lite`, and `gemini-2.5-pro` each now carry an identical
+  note under their section heading: "To ensure reliable performance for
+  everyone, we are limiting access to the 2.5 models to users who have
+  actively used them in the past." This is a new-user access restriction, not
+  a price change or a shutdown — `ai.google.dev/pricing` still lists full,
+  unrestricted Paid-tier pricing for all three models (re-confirmed verbatim
+  this run, matching the file exactly) with no restriction note on that page.
+  No pricing-file or `types.ts` action was taken; flag this if a future audit
+  is asked whether these models are still appropriate as a selectable default
+  for new customers. Also confirmed the agentic-product model ID bumped from
+  `antigravity-preview-05-2026` (seen September 6 2026) to
+  `antigravity-preview-09-2026`, with the same "general-purpose managed agent
+  that autonomously plans, reasons, runs code, manages files, and browses the
+  web inside a secure, isolated Linux sandbox" description — still not a
+  per-token text/chat model, consistent with the existing scope exclusion; no
+  action needed. The Daybreak cyber/Rosalind restricted family, the AWS
+  Bedrock Public Extended Access SKU, `gemini-3-pro-preview`/
+  `gemini-3.1-flash-lite-preview`'s shut-down status, and the deep legacy tail
+  (PaLM bison/gecko, ada/babbage/curie/davinci-00x completions, embeddings,
+  Claude 1.x/2.x/instant, Gemini 1.0/1.5/2.0-flash, `o1-mini`/`o1-preview`)
+  were not re-checked this run — no new evidence, standing exclusions.
+
 Capture:
 
 1. Base input token price per million tokens
