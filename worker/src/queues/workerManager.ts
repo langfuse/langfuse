@@ -15,6 +15,7 @@ import {
   markQueueWorkerRegistered,
 } from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
+import { logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
 
 export class WorkerManager {
@@ -172,11 +173,12 @@ export class WorkerManager {
 
     // Add error handling
     worker.on("failed", (job: Job | undefined, err: Error) => {
-      logger.error(
-        `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
-        err,
-      );
-      traceException(err);
+      logRetryableJobFailure({
+        message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
+        error: err,
+        job,
+        attemptsIncludeCurrentFailure: true,
+      });
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
         ...shardTag,

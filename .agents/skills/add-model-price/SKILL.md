@@ -20,6 +20,7 @@ updates in `packages/shared/`.
   pricing
 - Auditing official provider docs for newly released major models that should
   receive default pricing and, when appropriate, selectable-model coverage
+- Removing retired or shut-down models from the selectable model lists
 
 ## How to Read This Skill
 
@@ -41,6 +42,16 @@ updates in `packages/shared/`.
 - Update `packages/shared/src/server/llm/types.ts` if the model should be
   selectable in playground or evaluation flows.
 - Validate the JSON after editing.
+
+### Retiring a Selectable Model
+
+- Confirm the shutdown or retirement on the provider's official lifecycle page.
+- Remove the model from the selectable arrays in
+  `packages/shared/src/server/llm/types.ts` so the model picker stops
+  offering it.
+- Keep its entry in `default-model-prices.json` for historical cost lookups.
+- Do not reorder the arrays; if the first (default) entry retires, the next
+  entry becomes the default.
 
 ### Updating an Existing Model
 

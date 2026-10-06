@@ -167,7 +167,7 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
         region: "auto",
         exportFrequency: "daily",
         fileType: BlobStorageIntegrationFileType.PARQUET,
-        enabled: false,
+        enabled: true,
       }),
       expect.anything(),
     );
