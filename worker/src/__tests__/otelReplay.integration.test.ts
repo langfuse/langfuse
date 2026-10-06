@@ -2,6 +2,7 @@ import "./helpers/otelReplaySetup";
 
 import { createHash, randomUUID } from "node:crypto";
 import { Decimal } from "decimal.js";
+import { validateOtelJson } from "@langfuse/native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../env";
 import { env as sharedEnv, type SharedEnv } from "@langfuse/shared/src/env";
@@ -673,7 +674,22 @@ describe(
       .toString("utf8")
       .replace('"doubleValue":0.25', '"doubleValue":1e309');
 
+    let nestedInput: unknown = "leaf";
+    for (let depth = 0; depth < 120; depth++) nestedInput = { x: nestedInput };
+    const scanBudgetInput = focusedReplayBytes({
+      attributes: [
+        stringAttribute(
+          "langfuse.observation.input",
+          JSON.stringify({
+            marker: "data: ",
+            items: Array.from({ length: 32 }, () => nestedInput),
+          }),
+        ),
+      ],
+    });
+
     it.each([
+      ["native scan budget", scanBudgetInput],
       ["deep JSON nesting", Buffer.from(shallowDocument)],
       ["invalid UTF-8", invalidUtf8Bytes],
       [
@@ -691,6 +707,13 @@ describe(
     ] as const)(
       "preserves the TypeScript path for %s input",
       async (name, bytes) => {
+        if (name === "native scan budget") {
+          // Prove this uses the fallback before comparing persistence; a late
+          // detector must not conceal a native scan that silently stopped early.
+          await expect(validateOtelJson(bytes)).rejects.toMatchObject({
+            code: "ERR_OTEL_UNSUPPORTED",
+          });
+        }
         const comparison = await runOtelReplayComparison({
           bytes,
           projectId: `${PROJECT_ID}-fallback-${name}`,
