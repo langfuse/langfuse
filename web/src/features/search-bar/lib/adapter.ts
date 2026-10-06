@@ -21,7 +21,7 @@
 // - NOT lowers at this boundary (none-of / does-not-contain / inverted
 //   comparisons / inverted booleans); gaps error via fields.negationIssue.
 
-import { resolveFilterTarget } from "./targeting";
+import { resolveAttachedTarget } from "./targeting";
 import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
@@ -377,38 +377,12 @@ function lowerFilter(
   scoreTypes?: ScoreTypeContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
-  const field = registry.resolveField(node.key);
-  const targeted =
-    node.target || (field && registry.targeting?.supports(field));
-  const target = targeted ? resolveFilterTarget(node, registry) : undefined;
+  const target = resolveAttachedTarget(node, registry);
   if (target && "error" in target) {
     errors.push(target.error);
     return;
   }
-  const conditions: SingleEventsFilter[] = [];
-  lowerUntargetedFilter(
-    node,
-    negated,
-    conditions,
-    errors,
-    scoreTypes,
-    registry,
-  );
-  out.push(
-    ...conditions.map((condition) =>
-      target ? { ...condition, target: target.id } : condition,
-    ),
-  );
-}
 
-function lowerUntargetedFilter(
-  node: FilterNode,
-  negated: boolean,
-  out: SingleEventsFilter[],
-  errors: string[],
-  scoreTypes?: ScoreTypeContext,
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): void {
   if (node.values.length === 0) {
     // The parser already flags every empty-value FilterNode at this span — and
     // with the exact wording for each shape (bare key, operator prefix
@@ -437,33 +411,49 @@ function lowerUntargetedFilter(
     }
   }
 
+  // One node can emit several conditions (multi-value, score expansion), so
+  // stamp a resolved target onto each before appending.
+  const conditions: SingleEventsFilter[] = [];
   switch (ref.type) {
     case "pseudo":
       // Global search scopes are handled by lowerFilterNode.
-      lowerHas(node, negated, out, errors, registry);
-      return;
+      lowerHas(node, negated, conditions, errors, registry);
+      break;
     case "metadata":
-      lowerMetadata(node, ref.key, negated, out, errors, ref.column);
-      return;
+      lowerMetadata(node, ref.key, negated, conditions, errors);
+      break;
     case "scores":
-      lowerScores(node, ref.key, ref.level, negated, out, errors, scoreTypes);
-      return;
+      lowerScores(
+        node,
+        ref.key,
+        ref.level,
+        negated,
+        conditions,
+        errors,
+        scoreTypes,
+      );
+      break;
     case "field":
       switch (ref.field.kind) {
         case "number":
-          lowerNumber(node, ref.field, negated, out, errors);
-          return;
+          lowerNumber(node, ref.field, negated, conditions, errors);
+          break;
         case "datetime":
-          lowerDatetime(node, ref.field, negated, out, errors);
-          return;
+          lowerDatetime(node, ref.field, negated, conditions, errors);
+          break;
         case "boolean":
-          lowerBoolean(node, ref.field, negated, out, errors);
-          return;
+          lowerBoolean(node, ref.field, negated, conditions, errors);
+          break;
         case "text":
-          lowerText(node, ref.field, negated, out, errors);
-          return;
+          lowerText(node, ref.field, negated, conditions, errors);
+          break;
       }
   }
+  out.push(
+    ...conditions.map((condition) =>
+      target ? { ...condition, target: target.id } : condition,
+    ),
+  );
 }
 
 /** AST string op -> Langfuse string filter operator (positive polarity). */
@@ -751,11 +741,10 @@ function lowerMetadata(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
-  column = "metadata",
 ): void {
   if (node.values.length > 1) {
     errors.push(
-      `${node.key} supports a single value — any-of metadata groups are not supported`,
+      `metadata.${quoteIfNeeded(key)} supports a single value — any-of metadata groups are not supported`,
     );
     return;
   }
@@ -764,7 +753,7 @@ function lowerMetadata(
   if (node.op === "~") {
     out.push({
       type: "stringObject",
-      column,
+      column: "metadata",
       key,
       operator: negated ? "does not contain" : "contains",
       value,
@@ -775,7 +764,7 @@ function lowerMetadata(
     // negationIssue blocks negated forms before this point.
     out.push({
       type: "stringObject",
-      column,
+      column: "metadata",
       key,
       operator: stringOperatorOf(node.op)!,
       value,
@@ -787,13 +776,13 @@ function lowerMetadata(
   // surface the same suggestion.
   if (negated) {
     errors.push(
-      `negated equality on metadata is not representable — use -${node.key}:*value* (does not contain)`,
+      `negated equality on metadata is not representable — use -metadata.${quoteIfNeeded(key)}:*value* (does not contain)`,
     );
     return;
   }
   out.push({
     type: "stringObject",
-    column,
+    column: "metadata",
     key,
     operator: "=",
     value,
@@ -982,16 +971,6 @@ function lowerHas(
   }
   for (const v of node.values) {
     const target = registry.resolveField(v);
-    if (target?.type === "metadata") {
-      out.push({
-        type: "stringObject",
-        column: target.column ?? "metadata",
-        key: target.key,
-        operator: negated ? "is not set" : "is set",
-        value: "",
-      });
-      continue;
-    }
     if (target === null || target.type !== "field") {
       errors.push(`has: expects a field name, got "${v}"`);
       continue;

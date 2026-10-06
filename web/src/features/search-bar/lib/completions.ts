@@ -23,7 +23,6 @@ import {
 } from "./langQ";
 import {
   EVENTS_FIELD_REGISTRY,
-  metadataNamespaces,
   SCORE_COLUMNS,
   type FieldDef,
   type FieldRegistry,
@@ -229,16 +228,14 @@ function fieldOptions(
       })),
     );
   }
-  if (includeVirtual) {
-    for (const namespace of Object.keys(metadataNamespaces(registry))) {
-      opts.push({
-        id: `field:${namespace}.`,
-        kind: "field",
-        label: `${namespace}.`,
-        detail: `metadata key path, e.g. ${namespace}.region:eu`,
-        fieldId: `${namespace}.`,
-      });
-    }
+  if (includeVirtual && registry.metadata) {
+    opts.push({
+      id: "field:metadata.",
+      kind: "field",
+      label: "metadata.",
+      detail: "metadata key path, e.g. metadata.region:eu",
+      fieldId: "metadata.",
+    });
   }
   if (includeVirtual && registry.scores) {
     opts.push(
@@ -659,7 +656,6 @@ function matchOperatorOptions(
 // ---- key-path suggestions (metadata.*, scores.*, traceScores.*) ----
 
 type PathKind = {
-  column?: string;
   prefix: string;
   canonical: string;
   level?: "observation" | "trace";
@@ -670,6 +666,7 @@ type PathKind = {
 // no score-name dropdown. (`tracescore.` singular matches the `score.`/`scores.`
 // observation-level pair.)
 const PATH_PREFIXES: PathKind[] = [
+  { prefix: "metadata.", canonical: "metadata." },
   { prefix: "tracescores.", canonical: "traceScores.", level: "trace" },
   { prefix: "trace_scores.", canonical: "traceScores.", level: "trace" },
   { prefix: "tracescore.", canonical: "traceScores.", level: "trace" },
@@ -682,17 +679,8 @@ function pathKindOf(
   registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
-  const paths = [
-    ...Object.entries(metadataNamespaces(registry)).map(
-      ([namespace, column]) => ({
-        prefix: `${namespace.toLowerCase()}.`,
-        canonical: `${namespace}.`,
-        column,
-      }),
-    ),
-    ...PATH_PREFIXES,
-  ];
-  for (const kind of paths) {
+  for (const kind of PATH_PREFIXES) {
+    if (kind.canonical === "metadata." && !registry.metadata) continue;
     if (kind.canonical === "scores." && !registry.scores) continue;
     if (kind.canonical === "traceScores." && !registry.traceScores) continue;
     if (lower.startsWith(kind.prefix)) {
@@ -721,11 +709,11 @@ function keyPathOptions(
   // still matches (otherwise the first `"` drops every option and the popover
   // silently closes).
   const rankKey = typedKey.replace(/^"/, "").replace(/"$/, "");
-  if (kind.column) {
-    const options = observedValues(observed, kind.column).map((o) => ({
-      id: `key:${kind.canonical}${o.value}`,
+  if (kind.canonical === "metadata.") {
+    const options = observedValues(observed, "metadata").map((o) => ({
+      id: `key:metadata.${o.value}`,
       kind: "field" as const,
-      label: `${kind.canonical}${o.value}`,
+      label: `metadata.${o.value}`,
       // The observed JSON type of the path (display-only — metadata filters
       // always lower to stringObject regardless). Paths seen with multiple
       // types carry no type hint; counts stay the fallback like other lists.
@@ -734,7 +722,7 @@ function keyPathOptions(
     }));
     return {
       title: SECTION_KEYS,
-      options: rankFilter(options, `${kind.canonical}${rankKey}`),
+      options: rankFilter(options, `metadata.${rankKey}`),
     };
   }
   const numericColumn =
@@ -881,10 +869,7 @@ function valueStageSections(input: ValueStageInput): {
 
     case "metadata": {
       if (observed === undefined) return { sections: [], loading: true };
-      const all = observedValues(
-        observed,
-        `${ref.column ?? "metadata"}.${ref.key}`,
-      ).map((o) => ({
+      const all = observedValues(observed, `metadata.${ref.key}`).map((o) => ({
         id: `value:${o.value}`,
         kind: "value" as const,
         label: o.value,
@@ -1309,6 +1294,58 @@ function scopeSwitchOptions(
 }
 
 /**
+ * Completions for `@…` after a targetable filter. Parses the text before the
+ * caret to find that filter; returns null when `@` is free text or the
+ * preceding condition already has a target.
+ */
+function planTargetCompletions(
+  input: string,
+  start: number,
+  token: string,
+  to: number,
+  registry: FieldRegistry,
+): CompletionPlan | null {
+  if (!registry.targeting || !token.startsWith("@")) return null;
+  const prefix = parse(input.slice(0, start), registry);
+  const parsed =
+    prefix.ast?.kind === "and" ? prefix.ast.children.at(-1) : prefix.ast;
+  const candidate = parsed?.kind === "not" ? parsed.child : parsed;
+  const condition = candidate?.kind === "filter" ? candidate : null;
+  const field = condition ? registry.resolveField(condition.key) : null;
+  if (
+    !prefix.valid ||
+    condition?.target ||
+    !field ||
+    !registry.targeting.supports(field)
+  ) {
+    return null;
+  }
+  const query = unquote(
+    token.slice(1).replace(/^"/, "").replace(/"$/, ""),
+  ).value.toLowerCase();
+  return {
+    stage: "value",
+    from: start,
+    to,
+    loading: false,
+    sections: [
+      {
+        title: "Target",
+        options: registry.targeting.targets
+          .filter((target) => target.label.toLowerCase().includes(query))
+          .map((target) => ({
+            id: `target:${target.id}`,
+            kind: "pattern" as const,
+            label: target.label,
+            textClassName: target.textClassName,
+            insert: serializeTarget(targetReference(target)),
+          })),
+      },
+    ],
+  };
+}
+
+/**
  * The completion plan for the caret context, or null when nothing matches.
  * The plan is a pure function of (text, caret, data) — never of HOW the
  * popover was opened. An empty term (empty bar, trailing blank, after an
@@ -1325,44 +1362,14 @@ export function planInputCompletions(
   const start = term?.from ?? caret;
   const token = term?.raw ?? "";
 
-  if (registry.targeting && token.startsWith("@")) {
-    const prefix = parse(input.slice(0, start), registry);
-    const parsed =
-      prefix.ast?.kind === "and" ? prefix.ast.children.at(-1) : prefix.ast;
-    const candidate = parsed?.kind === "not" ? parsed.child : parsed;
-    const condition = candidate?.kind === "filter" ? candidate : null;
-    const field = condition ? registry.resolveField(condition.key) : null;
-    if (
-      !prefix.valid ||
-      condition?.target ||
-      !field ||
-      !registry.targeting.supports(field)
-    )
-      return null;
-    const query = unquote(
-      token.slice(1).replace(/^"/, "").replace(/"$/, ""),
-    ).value.toLowerCase();
-    return {
-      stage: "value",
-      from: start,
-      to: term?.to ?? caret,
-      loading: false,
-      sections: [
-        {
-          title: "Target",
-          options: registry.targeting.targets
-            .filter((target) => target.label.toLowerCase().includes(query))
-            .map((target) => ({
-              id: `target:${target.id}`,
-              kind: "pattern" as const,
-              label: target.label,
-              textClassName: target.textClassName,
-              insert: serializeTarget(targetReference(target)),
-            })),
-        },
-      ],
-    };
-  }
+  const targetPlan = planTargetCompletions(
+    input,
+    start,
+    token,
+    term?.to ?? caret,
+    registry,
+  );
+  if (targetPlan) return targetPlan;
 
   const negated = token.startsWith("-");
   const tokenBody = negated ? token.slice(1) : token;
@@ -1413,7 +1420,7 @@ export function planInputCompletions(
       // show a loading row while they stream in (lazy mode). Metadata keys are
       // not server-enumerated — they come from the client-side observed-metadata
       // map (lib/metadata-paths.ts) — so there is nothing to request there.
-      if (!path.kind.column) {
+      if (path.kind.canonical !== "metadata.") {
         const scoreColumns =
           path.kind.level === "trace"
             ? SCORE_COLUMNS.trace

@@ -29,6 +29,21 @@ export function resolveFilterTarget(
   return { id: matches[0].id };
 }
 
+/**
+ * Resolve the registry target this filter binds to, or undefined when the
+ * field is not targetable and the node carries no explicit target.
+ */
+export function resolveAttachedTarget(
+  node: FilterNode,
+  registry: FieldRegistry,
+): { id: string } | { error: string } | undefined {
+  const field = registry.resolveField(node.key);
+  if (!node.target && !(field && registry.targeting?.supports(field))) {
+    return undefined;
+  }
+  return resolveFilterTarget(node, registry);
+}
+
 export function targetReference(
   target: FilterTargeting["targets"][number],
 ): NonNullable<FilterNode["target"]> {

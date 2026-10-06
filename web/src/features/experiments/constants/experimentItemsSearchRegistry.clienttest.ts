@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "./experimentItemsSearchRegistry";
 import { planCommit, filterStateToQueryText } from "@/src/features/search-bar";
+import { supportsExperimentItemFilterTarget } from "../lib/experimentItemsFilterTargeting";
 
 import {
   singleFilterList,
@@ -44,7 +45,7 @@ describe("experiment item search contract", () => {
       ],
     });
   });
-  it("maps each metadata namespace to its own backend column", () => {
+  it("preserves backend-specific metadata filters without emitting a generic metadata column", () => {
     const filters: FilterState = [
       {
         column: "itemMetadata",
@@ -61,20 +62,20 @@ describe("experiment item search contract", () => {
         value: "test",
       },
     ];
-    const result = filterStateToQueryText(
-      filters,
-      undefined,
-      EXPERIMENT_ITEMS_FIELD_REGISTRY,
-    );
-    expect(result.skippedFilters).toEqual([]);
-    expect(result.text).toContain("itemMetadata.language");
-    expect(result.text).toContain("eventMetadata.model");
     expect(
-      planCommit(result.text, undefined, EXPERIMENT_ITEMS_FIELD_REGISTRY),
-    ).toMatchObject({
-      status: "committed",
-      filters,
-    });
+      filterStateToQueryText(
+        filters,
+        undefined,
+        EXPERIMENT_ITEMS_FIELD_REGISTRY,
+      ).skippedFilters,
+    ).toEqual(filters);
+    expect(
+      planCommit(
+        "metadata.language:en",
+        undefined,
+        EXPERIMENT_ITEMS_FIELD_REGISTRY,
+      ).status,
+    ).toBe("invalid");
     expect(
       planCommit(
         "traceScores.quality:1",
@@ -94,13 +95,13 @@ describe("experiment filter targets", () => {
         { id: "baseline", label: "baseline", keyword: true },
         { id: "run-b", label: "Claude Sonnet", textClassName: "text-pink-500" },
       ],
-      supports: () => true,
+      supports: supportsExperimentItemFilterTarget,
     },
   };
 
-  it("targets status and both metadata namespaces, including key presence", () => {
+  it("targets status conditions independently of scores", () => {
     const result = planCommit(
-      'level:ERROR @"Claude Sonnet" itemMetadata.language:en eventMetadata.model:test @"Claude Sonnet" has:itemMetadata.version @baseline',
+      'level:ERROR @"Claude Sonnet" scores.quality:>0.8',
       undefined,
       registry,
     );
@@ -108,14 +109,7 @@ describe("experiment filter targets", () => {
       status: "committed",
       filters: [
         { column: "level", target: "run-b" },
-        { column: "itemMetadata", key: "language", target: "baseline" },
-        { column: "eventMetadata", key: "model", target: "run-b" },
-        {
-          column: "itemMetadata",
-          key: "version",
-          operator: "is set",
-          target: "baseline",
-        },
+        { column: "scores_avg", key: "quality", target: "baseline" },
       ],
     });
     if (result.status !== "committed") throw new Error("Expected valid query");
@@ -124,42 +118,31 @@ describe("experiment filter targets", () => {
     expect(planCommit(query.text, undefined, registry)).toMatchObject({
       filters: result.filters,
     });
-    const restored = decodeFiltersGeneric(encodeFiltersGeneric(result.filters));
-    expect(restored).toEqual(result.filters);
+    expect(decodeFiltersGeneric(encodeFiltersGeneric(result.filters))).toEqual(
+      result.filters,
+    );
     expect(
-      groupExperimentFilters(restored, "run-a", ["run-a", "run-b"]).groups,
+      groupExperimentFilters(result.filters, "run-a", ["run-a", "run-b"])
+        .groups,
     ).toMatchObject([
-      {
-        runId: "run-b",
-        filters: [{ column: "level" }, { column: "eventMetadata" }],
-      },
-      {
-        runId: "run-a",
-        filters: [{ column: "itemMetadata" }, { column: "itemMetadata" }],
-      },
+      { runId: "run-b", filters: [{ column: "level" }] },
+      { runId: "run-a", filters: [{ column: "scores_avg" }] },
     ]);
-    for (const condition of [
-      "level:ERROR",
-      "itemMetadata.language:en",
-      "eventMetadata.model:test",
-      "has:itemMetadata.version",
-    ]) {
-      const input = `${condition} @`;
-      expect(
-        flattenOptions(
-          planInputCompletions(
-            {
-              input,
-              caret: input.length,
-              observed: {},
-              recents: [],
-              currentQueryText: input,
-            },
-            registry,
-          ),
-        ).map((option) => option.label),
-      ).toEqual(["baseline", "Claude Sonnet"]);
-    }
+    const input = "level:ERROR @";
+    expect(
+      flattenOptions(
+        planInputCompletions(
+          {
+            input,
+            caret: input.length,
+            observed: {},
+            recents: [],
+            currentQueryText: input,
+          },
+          registry,
+        ),
+      ).map((option) => option.label),
+    ).toEqual(["baseline", "Claude Sonnet"]);
   });
 
   it("binds targets to conditions and round-trips them through editable text", () => {
