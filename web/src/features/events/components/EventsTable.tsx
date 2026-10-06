@@ -1984,8 +1984,8 @@ export default function ObservationsEventsTable({
               // This is a table-internal sticky band below PageHeader. Using
               // top-banner-offset here pushes the band down by the viewport
               // header/banner offset and leaves a large blank gap above it.
-              // pb-1.5 gives the band a bit more breathing room above the table.
-              searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
+              // pb-3 gives the band breathing room above the table.
+              searchBarMode && "bg-background sticky top-0 z-30 pb-3",
             )}
           >
             {/* Search bar row: full-width query composer. In bar mode it sticks
@@ -2020,6 +2020,7 @@ export default function ObservationsEventsTable({
                     onRequestColumns={requestColumns}
                     aiDataContext={aiDataContext}
                     aiScoreNames={aiScoreNames}
+                    className="px-3 pt-3"
                   />
                 </div>
               </div>
@@ -2027,6 +2028,7 @@ export default function ObservationsEventsTable({
             {/* Toolbar spanning full width */}
             <DataTableToolbar
               columns={columns}
+              className={searchBarMode ? "px-3" : undefined}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
               tableName={eventsFilterConfig.tableName}
