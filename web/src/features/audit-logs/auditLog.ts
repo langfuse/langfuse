@@ -143,13 +143,17 @@ export async function auditLog(
   const persistRecord = isAuditLogEnabled();
 
   const db = prisma ?? _prisma;
-  const shared = {
+  // Defer JSON.stringify(before/after) until we know the record will be
+  // persisted — a full prompt or observation object is non-trivial to
+  // serialise, and unlicensed self-hosted instances call auditLog() on every
+  // mutation only to discard it at the persistRecord gate below.
+  const makeShared = () => ({
     resourceType: log.resourceType,
     resourceId: log.resourceId,
     action: log.action,
     before: log.before ? JSON.stringify(log.before) : undefined,
     after: log.after ? JSON.stringify(log.after) : undefined,
-  };
+  });
 
   if ("apiKeyId" in log) {
     // Sequential find + create, not $transaction. Interactive transactions
@@ -188,7 +192,7 @@ export async function auditLog(
         orgId: log.orgId,
         projectId: log.projectId,
         type: AuditLogRecordType.API_KEY,
-        ...shared,
+        ...makeShared(),
       },
     });
 
@@ -214,7 +218,7 @@ export async function auditLog(
         projectId: log.session.projectId,
         userProjectRole: log.session.projectRole,
         type: AuditLogRecordType.USER,
-        ...shared,
+        ...makeShared(),
       },
     });
 
@@ -240,7 +244,7 @@ export async function auditLog(
         projectId: log.projectId,
         userProjectRole: log.projectRole,
         type: AuditLogRecordType.USER,
-        ...shared,
+        ...makeShared(),
       },
     });
 
