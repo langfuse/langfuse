@@ -1,3 +1,6 @@
+import { orderObservations } from "@langfuse/shared/src/server/transcript/ordering";
+import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
+import { type TranscriptObservation } from "@langfuse/shared/src/server/transcript/types";
 import preview from "@/.storybook/preview";
 import { type ComponentProps, useRef, useState } from "react";
 import { expect, fn, userEvent, within, waitFor } from "storybook/test";
@@ -11,6 +14,15 @@ import { type SessionConversationTimelineTrace } from "@/src/features/sessions/c
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 
 type TranscriptState = Extract<TraceProps["state"], { type: "transcript" }>;
+type WorkflowObservation = TranscriptObservation & {
+  environment: string;
+  latency: number | null;
+  model: string | null;
+  inputTruncated: boolean;
+  outputTruncated: boolean;
+  metadataTruncated: boolean;
+};
+
 type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
   state: Pick<TranscriptState, "type" | "result"> & {
     observations: Array<
@@ -22,5605 +34,1959 @@ type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
   };
 };
 
-// Generated from the pre-transcript workflow observations at d50d19c5f8.
-const supportAgentWorkflow: WorkflowTrace[] = [
+const trace = {
+  id: "trace-order-support-8f3a2",
+  name: "Resolve delivery address request",
+  timestamp: new Date("2026-01-01T12:14:03.000Z"),
+  environment: "production",
+  userId: "customer-48291",
+  observationCount: 5,
+  latencyMs: 4260,
+  scores: [],
+} satisfies TraceProps["trace"];
+
+const observations: Array<
+  Pick<
+    WorkflowObservation,
+    | "id"
+    | "name"
+    | "type"
+    | "startTime"
+    | "input"
+    | "output"
+    | "metadata"
+    | "latency"
+    | "inputTruncated"
+    | "outputTruncated"
+    | "metadataTruncated"
+  > & { latency: number }
+> = [
   {
-    trace: {
-      id: "trace-order-support-8f3a2",
-      name: "Resolve delivery address request",
-      timestamp: new Date("2026-01-01T12:14:03.000Z"),
-      environment: "production",
-      userId: "customer-48291",
-      observationCount: 5,
-      latencyMs: 4260,
-      scores: [],
-    },
-    turnNumber: 1,
-    state: {
-      type: "transcript",
-      result: {
-        state: "loaded",
-        cutoff: false,
-        transcript: {
-          threads: [
-            {
-              conversationHistory: [],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "system",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "You are Acme's customer support agent. Verify order details before making changes. Never promise an address update after an order has shipped.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "generation-1",
-                    traceId: "trace-order-support-8f3a2",
-                    startTime: new Date("2026-01-01T12:14:03.000Z"),
-                    endTime: new Date("2026-01-01T12:14:03.810Z"),
-                  },
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Hi, I just noticed order #LF-20481 is going to my old address. Can you send it to 12 Market Street, San Francisco, CA 94105 instead?",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "generation-1",
-                    traceId: "trace-order-support-8f3a2",
-                    startTime: new Date("2026-01-01T12:14:03.000Z"),
-                    endTime: new Date("2026-01-01T12:14:03.810Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "I'll check whether the order can still be updated.",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-order-lookup",
-                        toolName: "Get order",
-                        input: { orderId: "LF-20481" },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "generation-1",
-                    traceId: "trace-order-support-8f3a2",
-                    startTime: new Date("2026-01-01T12:14:03.000Z"),
-                    endTime: new Date("2026-01-01T12:14:03.810Z"),
-                  },
-                  {
-                    observationId: "tool-order-lookup",
-                    traceId: "trace-order-support-8f3a2",
-                    startTime: new Date("2026-01-01T12:14:03.810Z"),
-                    endTime: new Date("2026-01-01T12:14:04.150Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-order-lookup",
-                        toolName: "Get order",
-                        output: {
-                          orderId: "LF-20481",
-                          status: "processing",
-                          carrier: "UPS",
-                          estimatedDelivery: "2026-01-04",
-                          shippingAddress: {
-                            line1: "800 Pine Street",
-                            city: "Seattle",
-                            state: "WA",
-                            postalCode: "98101",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 0,
-                observations: [
-                  { id: "generation-1", traceId: "trace-order-support-8f3a2" },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-order-lookup",
-                      output: {
-                        orderId: "LF-20481",
-                        status: "processing",
-                        addressCanBeChanged: true,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "reasoning",
-                        content: {
-                          kind: "text",
-                          text: "The order is still processing and permits address changes, so it is safe to update it.",
-                        },
-                      },
-                      {
-                        type: "text",
-                        text: "The order is still processing, so I can update the delivery address.",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-address-update",
-                        toolName: "Update shipping address",
-                        input: {
-                          orderId: "LF-20481",
-                          address: "12 Market Street, San Francisco, CA 94105",
-                        },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "generation-2",
-                    traceId: "trace-order-support-8f3a2",
-                    startTime: new Date("2026-01-01T12:14:04.150Z"),
-                    endTime: new Date("2026-01-01T12:14:05.080Z"),
-                  },
-                  {
-                    observationId: "tool-address-update",
-                    traceId: "trace-order-support-8f3a2",
-                    startTime: new Date("2026-01-01T12:14:05.080Z"),
-                    endTime: new Date("2026-01-01T12:14:05.410Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-address-update",
-                        toolName: "Update shipping address",
-                        output: {
-                          success: true,
-                          confirmationId: "addr_7b19c2",
-                          updatedAt: "2026-01-01T12:14:05.410Z",
-                        },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 0,
-                observations: [
-                  { id: "generation-2", traceId: "trace-order-support-8f3a2" },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-address-update",
-                      output: { success: true, confirmationId: "addr_7b19c2" },
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Your shipping address has been updated to **12 Market Street, San Francisco, CA 94105**.\n\nOrder **#LF-20481** is still expected by **January 4**. You'll receive tracking details by email once it ships.",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "generation-3",
-                    traceId: "trace-order-support-8f3a2",
-                    startTime: new Date("2026-01-01T12:14:05.410Z"),
-                    endTime: new Date("2026-01-01T12:14:06.260Z"),
-                  },
-                ],
-                nestingLevel: 0,
-                observations: [
-                  { id: "generation-3", traceId: "trace-order-support-8f3a2" },
-                ],
-              },
-            },
-          ],
-        },
+    id: "generation-1",
+    name: "Plan support response",
+    type: "GENERATION",
+    startTime: new Date("2026-01-01T12:14:03.000Z"),
+    input: JSON.stringify([
+      {
+        role: "system",
+        content:
+          "You are Acme's customer support agent. Verify order details before making changes. Never promise an address update after an order has shipped.",
       },
-      observations: [
+      {
+        role: "user",
+        content:
+          "Hi, I just noticed order #LF-20481 is going to my old address. Can you send it to 12 Market Street, San Francisco, CA 94105 instead?",
+      },
+    ]),
+    output: JSON.stringify({
+      role: "assistant",
+      content: "I'll check whether the order can still be updated.",
+      tool_calls: [
         {
-          id: "generation-1",
-          traceId: "trace-order-support-8f3a2",
-          name: "Plan support response",
-          startTime: new Date("2026-01-01T12:14:03.000Z"),
-          environment: "production",
-        },
-        {
-          id: "tool-order-lookup",
-          traceId: "trace-order-support-8f3a2",
-          name: "Get order",
-          startTime: new Date("2026-01-01T12:14:03.810Z"),
-          environment: "production",
-        },
-        {
-          id: "generation-2",
-          traceId: "trace-order-support-8f3a2",
-          name: "Decide next action",
-          startTime: new Date("2026-01-01T12:14:04.150Z"),
-          environment: "production",
-        },
-        {
-          id: "tool-address-update",
-          traceId: "trace-order-support-8f3a2",
-          name: "Update shipping address",
-          startTime: new Date("2026-01-01T12:14:05.080Z"),
-          environment: "production",
-        },
-        {
-          id: "generation-3",
-          traceId: "trace-order-support-8f3a2",
-          name: "Compose final response",
-          startTime: new Date("2026-01-01T12:14:05.410Z"),
-          environment: "production",
+          id: "call-order-lookup",
+          type: "function",
+          function: {
+            name: "Get order",
+            arguments: '{"orderId":"LF-20481"}',
+          },
         },
       ],
-    },
-  },
-];
-const codingAgentWorkflow: WorkflowTrace[] = [
-  {
-    trace: {
-      id: "trace-demo-research-turn",
-      name: "Research recipe dashboard density setting",
-      timestamp: new Date("2026-01-02T09:30:00.000Z"),
-      environment: "storybook",
-      userId: "demo-user",
-      observationCount: 26,
-      latencyMs: 87347,
-      scores: [],
-    },
-    turnNumber: 2,
-    state: {
-      type: "transcript",
-      result: {
-        state: "loaded",
-        cutoff: false,
-        transcript: {
-          threads: [
-            {
-              conversationHistory: [],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Build a fictional recipe planner dashboard with a compact density option. Inspect the codebase, update the existing component and tests, then verify the change.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "research-generation-1",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:00.006Z"),
-                    endTime: new Date("2026-01-02T09:30:13.230Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "I will load the frontend and Storybook guidance, index the fictional repository, and locate the dashboard entry points.",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "research-generation-1",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:00.006Z"),
-                    endTime: new Date("2026-01-02T09:30:13.230Z"),
-                  },
-                  {
-                    observationId: "research-tool-1",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.230Z"),
-                    endTime: new Date("2026-01-02T09:30:13.294Z"),
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-research-tool-1",
-                        toolName: "skill",
-                        input: { name: "typescript" },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-1",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.230Z"),
-                    endTime: new Date("2026-01-02T09:30:13.294Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-research-tool-1",
-                        toolName: "skill",
-                        output: { loaded: true },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-2",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.232Z"),
-                    endTime: new Date("2026-01-02T09:30:13.293Z"),
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-research-tool-2",
-                        toolName: "skill",
-                        input: { name: "storybook" },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-2",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.232Z"),
-                    endTime: new Date("2026-01-02T09:30:13.293Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-research-tool-2",
-                        toolName: "skill",
-                        output: { loaded: true },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-3",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.234Z"),
-                    endTime: new Date("2026-01-02T09:30:13.285Z"),
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-research-tool-3",
-                        toolName: "skill",
-                        input: { name: "frontend-guidelines" },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-3",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.234Z"),
-                    endTime: new Date("2026-01-02T09:30:13.285Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-research-tool-3",
-                        toolName: "skill",
-                        output: { loaded: true },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-4",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.236Z"),
-                    endTime: new Date("2026-01-02T09:30:17.828Z"),
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-research-tool-4",
-                        toolName: "grepika_add_workspace",
-                        input: { path: "~/demo/recipe-planner" },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-4",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.236Z"),
-                    endTime: new Date("2026-01-02T09:30:17.828Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-research-tool-4",
-                        toolName: "grepika_add_workspace",
-                        output: { indexedFiles: 214 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-5",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.238Z"),
-                    endTime: new Date("2026-01-02T09:30:13.334Z"),
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-research-tool-5",
-                        toolName: "tilth_tilth_search",
-                        input: { query: "RecipeDashboard" },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-5",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.238Z"),
-                    endTime: new Date("2026-01-02T09:30:13.334Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-research-tool-5",
-                        toolName: "tilth_tilth_search",
-                        output: { matches: 6 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-6",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.240Z"),
-                    endTime: new Date("2026-01-02T09:30:13.629Z"),
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-research-tool-6",
-                        toolName: "tilth_tilth_files",
-                        input: { patterns: ["src/features/recipes/**/*"] },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-6",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:13.240Z"),
-                    endTime: new Date("2026-01-02T09:30:13.629Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-research-tool-6",
-                        toolName: "tilth_tilth_files",
-                        output: { files: 12 },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "research-generation-1",
-                    traceId: "trace-demo-research-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "I will inspect the matching files.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-research-tool-1",
-                      output: "TypeScript guidance loaded.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-research-tool-2",
-                      output: "Storybook guidance loaded.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-research-tool-3",
-                      output: "Frontend guidance loaded.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-research-tool-4",
-                      output: "The demo workspace is indexed.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-research-tool-5",
-                      output: "Found the dashboard and tests.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-research-tool-6",
-                      output: "Found twelve recipe feature files.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-read-component",
-                        toolName: "tilth_tilth_read",
-                        input: {
-                          path: "src/features/recipes/RecipeDashboard.tsx",
-                        },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-read-test",
-                        toolName: "tilth_tilth_read",
-                        input: {
-                          path: "src/features/recipes/RecipeDashboard.test.tsx",
-                        },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-package",
-                        toolName: "bash",
-                        input: {
-                          command: "pnpm --filter demo-app test --help",
-                        },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-search-state",
-                        toolName: "tilth_tilth_search",
-                        input: { query: "sessionStorage" },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-list-stories",
-                        toolName: "tilth_tilth_files",
-                        input: { patterns: ["src/**/*.stories.tsx"] },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "research-generation-2",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:17.828Z"),
-                    endTime: new Date("2026-01-02T09:31:01.021Z"),
-                  },
-                  {
-                    observationId: "research-tool-7",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:01.021Z"),
-                    endTime: new Date("2026-01-02T09:31:01.031Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-read-component",
-                        toolName: "tilth_tilth_read",
-                        output: {
-                          lines: 186,
-                          summary:
-                            "Dashboard component with toolbar and task cards.",
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-8",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:01.023Z"),
-                    endTime: new Date("2026-01-02T09:31:01.026Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-read-test",
-                        toolName: "tilth_tilth_read",
-                        output: {
-                          lines: 122,
-                          summary: "Existing rendering and filtering tests.",
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-9",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:01.025Z"),
-                    endTime: new Date("2026-01-02T09:31:35.012Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-package",
-                        toolName: "bash",
-                        output:
-                          "Usage: test [filters]\nAll command examples are fictional.",
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-10",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:01.027Z"),
-                    endTime: new Date("2026-01-02T09:31:07.889Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-search-state",
-                        toolName: "tilth_tilth_search",
-                        output: { matches: 4 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-11",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:01.029Z"),
-                    endTime: new Date("2026-01-02T09:31:08.138Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-list-stories",
-                        toolName: "tilth_tilth_files",
-                        output: { files: 19 },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "research-generation-2",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-7",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-8",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-9",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-10",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-11",
-                    traceId: "trace-demo-research-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "The dashboard uses local state and has an established toolbar checkbox pattern.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "research-generation-3",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:01.031Z"),
-                    endTime: new Date("2026-01-02T09:31:10.691Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-index",
-                        toolName: "grepika_index",
-                        input: { force: false },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-read-storage",
-                        toolName: "tilth_tilth_read",
-                        input: { path: "src/hooks/useSessionPreference.ts" },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-find-tests",
-                        toolName: "tilth_tilth_files",
-                        input: {
-                          patterns: ["src/features/recipes/*.test.tsx"],
-                        },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-find-config",
-                        toolName: "tilth_tilth_files",
-                        input: { patterns: ["**/vitest.config.*"] },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-search-checkbox",
-                        toolName: "tilth_tilth_search",
-                        input: { query: "Hide archived" },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "research-generation-3",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:01.031Z"),
-                    endTime: new Date("2026-01-02T09:31:10.691Z"),
-                  },
-                  {
-                    observationId: "research-tool-12",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:10.691Z"),
-                    endTime: new Date("2026-01-02T09:31:10.918Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-index",
-                        toolName: "grepika_index",
-                        output: { indexedFiles: 214 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-13",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:10.693Z"),
-                    endTime: new Date("2026-01-02T09:31:10.698Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-read-storage",
-                        toolName: "tilth_tilth_read",
-                        output: { lines: 48 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-14",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:10.695Z"),
-                    endTime: new Date("2026-01-02T09:31:10.697Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-find-tests",
-                        toolName: "tilth_tilth_files",
-                        output: { files: 2 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-15",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:10.697Z"),
-                    endTime: new Date("2026-01-02T09:31:10.703Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-find-config",
-                        toolName: "tilth_tilth_files",
-                        output: { files: 1 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-16",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:10.699Z"),
-                    endTime: new Date("2026-01-02T09:31:10.835Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-search-checkbox",
-                        toolName: "tilth_tilth_search",
-                        output: { matches: 1 },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "research-generation-3",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-12",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-13",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-14",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-15",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-16",
-                    traceId: "trace-demo-research-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-index",
-                      output: "Index refreshed.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-read-storage",
-                      output: "A session preference hook already exists.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-find-tests",
-                      output: "Two nearby test files found.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-find-config",
-                      output: "One Vitest config found.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-search-checkbox",
-                      output: "Found an analogous toolbar checkbox.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "I have the implementation pattern and will confirm its callers before editing.",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-final-search",
-                        toolName: "tilth_tilth_search",
-                        input: { query: "useSessionPreference" },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-final-files",
-                        toolName: "tilth_tilth_files",
-                        input: { patterns: ["src/features/recipes/*"] },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-related",
-                        toolName: "grepika_search",
-                        input: { query: "recipe filtering toolbar" },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "research-generation-4",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:10.701Z"),
-                    endTime: new Date("2026-01-02T09:31:24.651Z"),
-                  },
-                  {
-                    observationId: "research-tool-17",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:24.651Z"),
-                    endTime: new Date("2026-01-02T09:31:24.787Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-final-search",
-                        toolName: "tilth_tilth_search",
-                        output: { matches: 7 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-18",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:24.653Z"),
-                    endTime: new Date("2026-01-02T09:31:24.997Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-final-files",
-                        toolName: "tilth_tilth_files",
-                        output: { files: 9 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "research-tool-19",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:24.655Z"),
-                    endTime: new Date("2026-01-02T09:31:24.661Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-related",
-                        toolName: "grepika_search",
-                        output: { matches: 3 },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "research-generation-4",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-17",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-18",
-                    traceId: "trace-demo-research-turn",
-                  },
-                  {
-                    id: "research-tool-19",
-                    traceId: "trace-demo-research-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "I will confirm the final integration points.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-final-search",
-                      output: "The hook is already used by seven components.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-final-files",
-                      output: "The dashboard and test are colocated.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-related",
-                      output: "The toolbar owns all recipe filters.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Research complete. I will add the compact-density checkbox to the existing toolbar, persist it with the session preference hook, and extend the colocated interaction test.",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "research-generation-5",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:31:24.657Z"),
-                    endTime: new Date("2026-01-02T09:31:31.951Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "I mapped the dashboard, its state ownership, and the closest interaction tests. The implementation can stay local to the existing component.",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "research-agent-turn",
-                    traceId: "trace-demo-research-turn",
-                    startTime: new Date("2026-01-02T09:30:00.000Z"),
-                    endTime: new Date("2026-01-02T09:31:27.347Z"),
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "research-generation-5",
-                    traceId: "trace-demo-research-turn",
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      },
-      observations: [
-        {
-          id: "research-agent-turn",
-          traceId: "trace-demo-research-turn",
-          name: "opencode.turn",
-          startTime: new Date("2026-01-02T09:30:00.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-user-message",
-          traceId: "trace-demo-research-turn",
-          name: "opencode.message.user",
-          startTime: new Date("2026-01-02T09:30:00.001Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-generation-1",
-          traceId: "trace-demo-research-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:30:00.006Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-1",
-          traceId: "trace-demo-research-turn",
-          name: "skill",
-          startTime: new Date("2026-01-02T09:30:13.230Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-2",
-          traceId: "trace-demo-research-turn",
-          name: "skill",
-          startTime: new Date("2026-01-02T09:30:13.232Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-3",
-          traceId: "trace-demo-research-turn",
-          name: "skill",
-          startTime: new Date("2026-01-02T09:30:13.234Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-4",
-          traceId: "trace-demo-research-turn",
-          name: "grepika_add_workspace",
-          startTime: new Date("2026-01-02T09:30:13.236Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-5",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_search",
-          startTime: new Date("2026-01-02T09:30:13.238Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-6",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_files",
-          startTime: new Date("2026-01-02T09:30:13.240Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-generation-2",
-          traceId: "trace-demo-research-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:30:17.828Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-7",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_read",
-          startTime: new Date("2026-01-02T09:31:01.021Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-8",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_read",
-          startTime: new Date("2026-01-02T09:31:01.023Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-9",
-          traceId: "trace-demo-research-turn",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:31:01.025Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-10",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_search",
-          startTime: new Date("2026-01-02T09:31:01.027Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-11",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_files",
-          startTime: new Date("2026-01-02T09:31:01.029Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-generation-3",
-          traceId: "trace-demo-research-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:31:01.031Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-12",
-          traceId: "trace-demo-research-turn",
-          name: "grepika_index",
-          startTime: new Date("2026-01-02T09:31:10.691Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-13",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_read",
-          startTime: new Date("2026-01-02T09:31:10.693Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-14",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_files",
-          startTime: new Date("2026-01-02T09:31:10.695Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-15",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_files",
-          startTime: new Date("2026-01-02T09:31:10.697Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-16",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_search",
-          startTime: new Date("2026-01-02T09:31:10.699Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-generation-4",
-          traceId: "trace-demo-research-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:31:10.701Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-17",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_search",
-          startTime: new Date("2026-01-02T09:31:24.651Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-18",
-          traceId: "trace-demo-research-turn",
-          name: "tilth_tilth_files",
-          startTime: new Date("2026-01-02T09:31:24.653Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-tool-19",
-          traceId: "trace-demo-research-turn",
-          name: "grepika_search",
-          startTime: new Date("2026-01-02T09:31:24.655Z"),
-          environment: "storybook",
-        },
-        {
-          id: "research-generation-5",
-          traceId: "trace-demo-research-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:31:24.657Z"),
-          environment: "storybook",
-        },
-      ],
-    },
+    }),
+    metadata: { model: "gpt-4.1", region: "us-west-2" },
+    latency: 0.81,
+    inputTruncated: false,
+    outputTruncated: false,
+    metadataTruncated: false,
   },
   {
-    trace: {
-      id: "trace-demo-implementation-turn",
-      name: "Implement recipe dashboard density setting",
-      timestamp: new Date("2026-01-02T09:32:00.000Z"),
-      environment: "storybook",
-      userId: "demo-user",
-      observationCount: 20,
-      latencyMs: 167662,
-      scores: [],
-    },
-    turnNumber: 3,
-    state: {
-      type: "transcript",
-      result: {
-        state: "loaded",
-        cutoff: false,
-        transcript: {
-          threads: [
-            {
-              conversationHistory: [],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Build a fictional recipe planner dashboard with a compact density option. Inspect the codebase, update the existing component and tests, then verify the change.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "implementation-generation-1",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:00.006Z"),
-                    endTime: new Date("2026-01-02T09:32:20.469Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "I will make the smallest component and test change.",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-patch-1",
-                        toolName: "apply_patch",
-                        input: {
-                          patch:
-                            "Synthetic dashboard patch with no source code.",
-                        },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-generation-1",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:00.006Z"),
-                    endTime: new Date("2026-01-02T09:32:20.469Z"),
-                  },
-                  {
-                    observationId: "implementation-tool-1",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:20.469Z"),
-                    endTime: new Date("2026-01-02T09:32:20.492Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-patch-1",
-                        toolName: "apply_patch",
-                        output: { success: true, filesChanged: 1 },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "implementation-generation-1",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-1",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "assistant",
-                  parts: [
-                    { type: "text", text: "The component change is applied." },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-patch-1",
-                      output: "Updated one fictional file.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-diff",
-                        toolName: "tilth_tilth_diff",
-                        input: {
-                          scope: "src/features/recipes/RecipeDashboard.tsx",
-                        },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-search-tests",
-                        toolName: "tilth_tilth_search",
-                        input: { query: "RecipeDashboard tests" },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-read-tests",
-                        toolName: "tilth_tilth_read",
-                        input: {
-                          path: "src/features/recipes/RecipeDashboard.test.tsx",
-                        },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-generation-2",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:20.492Z"),
-                    endTime: new Date("2026-01-02T09:32:25.733Z"),
-                  },
-                  {
-                    observationId: "implementation-tool-2",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:25.733Z"),
-                    endTime: new Date("2026-01-02T09:32:25.816Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-diff",
-                        toolName: "tilth_tilth_diff",
-                        output: { additions: 18, deletions: 2 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "implementation-tool-3",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:25.735Z"),
-                    endTime: new Date("2026-01-02T09:32:25.932Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-search-tests",
-                        toolName: "tilth_tilth_search",
-                        output: { matches: 4 },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "implementation-tool-4",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:25.737Z"),
-                    endTime: new Date("2026-01-02T09:32:25.933Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-read-tests",
-                        toolName: "tilth_tilth_read",
-                        output: { lines: 122 },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "implementation-generation-2",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-2",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-3",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-4",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-diff",
-                      output: "The component diff is scoped.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-search-tests",
-                      output: "Found the colocated tests.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-read-tests",
-                      output: "The test uses user-visible queries.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-patch-tests",
-                        toolName: "apply_patch",
-                        input: { patch: "Synthetic interaction test patch." },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-generation-3",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:25.739Z"),
-                    endTime: new Date("2026-01-02T09:32:36.057Z"),
-                  },
-                  {
-                    observationId: "implementation-tool-5",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:36.057Z"),
-                    endTime: new Date("2026-01-02T09:32:36.061Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-patch-tests",
-                        toolName: "apply_patch",
-                        output: { success: true, filesChanged: 1 },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "implementation-generation-3",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-5",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-patch-tests",
-                      output: "Updated one fictional test file.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "The implementation and test are ready. I will run both targeted checks in parallel.",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-test",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "pnpm --filter demo-app test RecipeDashboard.test.tsx",
-                        },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-lint",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "pnpm --filter demo-app lint RecipeDashboard.tsx",
-                        },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-generation-4",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:36.061Z"),
-                    endTime: new Date("2026-01-02T09:33:37.348Z"),
-                  },
-                  {
-                    observationId: "implementation-tool-6",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:33:37.348Z"),
-                    endTime: new Date("2026-01-02T09:33:52.200Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-test",
-                        toolName: "bash",
-                        output: {
-                          testFiles: 1,
-                          testsPassed: 6,
-                          testsFailed: 0,
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "implementation-tool-7",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:33:37.350Z"),
-                    endTime: new Date("2026-01-02T09:34:29.162Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-lint",
-                        toolName: "bash",
-                        output: "Lint completed successfully with no warnings.",
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "implementation-generation-4",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-6",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-7",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Targeted tests and lint passed. Inspect the final diff and repository status.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "implementation-generation-5",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:33:37.352Z"),
-                    endTime: new Date("2026-01-02T09:34:01.037Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-status",
-                        toolName: "bash",
-                        input: { command: "git status --short" },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-format",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "pnpm prettier --check src/features/recipes/RecipeDashboard.tsx",
-                        },
-                        toolType: "function",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-diff-stat",
-                        toolName: "bash",
-                        input: { command: "git diff --stat" },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-generation-5",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:33:37.352Z"),
-                    endTime: new Date("2026-01-02T09:34:01.037Z"),
-                  },
-                  {
-                    observationId: "implementation-tool-8",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:34:01.037Z"),
-                    endTime: new Date("2026-01-02T09:34:01.176Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-status",
-                        toolName: "bash",
-                        output: {
-                          modified: [
-                            "RecipeDashboard.tsx",
-                            "RecipeDashboard.test.tsx",
-                          ],
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "implementation-tool-9",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:34:01.039Z"),
-                    endTime: new Date("2026-01-02T09:34:15.318Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-format",
-                        toolName: "bash",
-                        output: { checked: 1, formatted: true },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "implementation-tool-10",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:34:01.041Z"),
-                    endTime: new Date("2026-01-02T09:34:01.640Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-diff-stat",
-                        toolName: "bash",
-                        output: {
-                          filesChanged: 2,
-                          insertions: 37,
-                          deletions: 4,
-                        },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "implementation-generation-5",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-8",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-9",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-10",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-status",
-                      output: "Only the two intended files changed.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-format",
-                      output: "Formatting passed.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-diff-stat",
-                      output: "The diff is compact.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "I will run the final focused Storybook check.",
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "call-storybook",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "pnpm --filter demo-app test-storybook RecipeDashboard.stories.tsx",
-                        },
-                        toolType: "function",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-generation-6",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:34:01.043Z"),
-                    endTime: new Date("2026-01-02T09:34:36.907Z"),
-                  },
-                  {
-                    observationId: "implementation-tool-11",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:34:36.907Z"),
-                    endTime: new Date("2026-01-02T09:35:05.901Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "call-storybook",
-                        toolName: "bash",
-                        output: {
-                          storyFiles: 1,
-                          testsPassed: 8,
-                          testsFailed: 0,
-                        },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "implementation-generation-6",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                  {
-                    id: "implementation-tool-11",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "I will run the final focused Storybook check.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: "call-storybook",
-                      output: "Eight Storybook tests passed.",
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Implemented a compact density option for the fictional recipe dashboard, persisted it for the browser tab, and added interaction coverage. Targeted tests, Storybook, formatting, and lint all pass.",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-generation-7",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:34:36.909Z"),
-                    endTime: new Date("2026-01-02T09:34:47.684Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Implemented the compact recipe cards, added coverage, and verified tests and lint.",
-                      },
-                    ],
-                    source: "output",
-                    observationId: "implementation-agent-turn",
-                    traceId: "trace-demo-implementation-turn",
-                    startTime: new Date("2026-01-02T09:32:00.000Z"),
-                    endTime: new Date("2026-01-02T09:34:47.662Z"),
-                  },
-                ],
-                nestingLevel: 1,
-                observations: [
-                  {
-                    id: "implementation-generation-7",
-                    traceId: "trace-demo-implementation-turn",
-                  },
-                ],
-              },
-            },
-          ],
-        },
+    id: "tool-order-lookup",
+    name: "Get order",
+    type: "TOOL",
+    startTime: new Date("2026-01-01T12:14:03.810Z"),
+    input: JSON.stringify({ orderId: "LF-20481" }),
+    output: JSON.stringify({
+      orderId: "LF-20481",
+      status: "processing",
+      carrier: "UPS",
+      estimatedDelivery: "2026-01-04",
+      shippingAddress: {
+        line1: "800 Pine Street",
+        city: "Seattle",
+        state: "WA",
+        postalCode: "98101",
       },
-      observations: [
-        {
-          id: "implementation-agent-turn",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.turn",
-          startTime: new Date("2026-01-02T09:32:00.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-user-message",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.message.user",
-          startTime: new Date("2026-01-02T09:32:00.001Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-generation-1",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:32:00.006Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-1",
-          traceId: "trace-demo-implementation-turn",
-          name: "apply_patch",
-          startTime: new Date("2026-01-02T09:32:20.469Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-generation-2",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:32:20.492Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-2",
-          traceId: "trace-demo-implementation-turn",
-          name: "tilth_tilth_diff",
-          startTime: new Date("2026-01-02T09:32:25.733Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-3",
-          traceId: "trace-demo-implementation-turn",
-          name: "tilth_tilth_search",
-          startTime: new Date("2026-01-02T09:32:25.735Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-4",
-          traceId: "trace-demo-implementation-turn",
-          name: "tilth_tilth_read",
-          startTime: new Date("2026-01-02T09:32:25.737Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-generation-3",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:32:25.739Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-5",
-          traceId: "trace-demo-implementation-turn",
-          name: "apply_patch",
-          startTime: new Date("2026-01-02T09:32:36.057Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-generation-4",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:32:36.061Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-6",
-          traceId: "trace-demo-implementation-turn",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:33:37.348Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-7",
-          traceId: "trace-demo-implementation-turn",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:33:37.350Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-generation-5",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:33:37.352Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-8",
-          traceId: "trace-demo-implementation-turn",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:34:01.037Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-9",
-          traceId: "trace-demo-implementation-turn",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:34:01.039Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-10",
-          traceId: "trace-demo-implementation-turn",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:34:01.041Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-generation-6",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:34:01.043Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-tool-11",
-          traceId: "trace-demo-implementation-turn",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:34:36.907Z"),
-          environment: "storybook",
-        },
-        {
-          id: "implementation-generation-7",
-          traceId: "trace-demo-implementation-turn",
-          name: "opencode.generation",
-          startTime: new Date("2026-01-02T09:34:36.909Z"),
-          environment: "storybook",
-        },
-      ],
-    },
+    }),
+    metadata: { cache: "miss", toolCallId: "call-order-lookup" },
+    latency: 0.34,
+    inputTruncated: false,
+    outputTruncated: false,
+    metadataTruncated: false,
   },
-];
-const langfuseAssistantWorkflow: WorkflowTrace[] = [
   {
-    trace: {
-      id: "trace-demo-error-analysis",
-      name: "Analyze fictional travel-assistant failures",
-      timestamp: new Date("2026-01-02T09:35:00.000Z"),
-      environment: "storybook",
-      userId: "user-demo-analyst",
-      observationCount: 43,
-      latencyMs: 205058,
-      scores: [],
-    },
-    turnNumber: 4,
-    state: {
-      type: "transcript",
-      result: {
-        state: "loaded",
-        cutoff: false,
-        transcript: {
-          threads: [
-            {
-              conversationHistory: [],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "system",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "You are a demo observability analyst. Use only fictional project data.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:00.000Z"),
-                    endTime: new Date("2026-01-02T09:35:06.370Z"),
-                  },
-                  {
-                    role: "system",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Inspect representative failures before proposing a taxonomy or remediation.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:00.000Z"),
-                    endTime: new Date("2026-01-02T09:35:06.370Z"),
-                  },
-                  {
-                    role: "system",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Never expose identifiers or payloads from real users.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:00.000Z"),
-                    endTime: new Date("2026-01-02T09:35:06.370Z"),
-                  },
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Analyze failed traces for a fictional travel assistant. Sample representative failures, group recurring causes into a taxonomy, recommend what to fix first, and suggest how to track the top issue.",
-                        providerMetadata: {
-                          demo: { cacheControl: "temporary" },
-                        },
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:00.000Z"),
-                    endTime: new Date("2026-01-02T09:35:06.370Z"),
-                  },
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "<screen_context>\nCurrent page: /project/project-demo-travel-assistant/traces\nActive filter: level is ERROR\n  Saved view: booking-assistant, route-planner, fare-checker\n  </screen_context>\n  <current_time>2026-01-02T09:35:00.000Z</current_time>",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:00.000Z"),
-                    endTime: new Date("2026-01-02T09:35:06.370Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-1-1",
-                        toolName: "skill",
-                        input: { name: "error-analysis" },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:00.000Z"),
-                    endTime: new Date("2026-01-02T09:35:06.370Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-1-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:06.370Z"),
-                    endTime: new Date("2026-01-02T09:35:06.371Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-1-1",
-                        toolName: "skill",
-                        output:
-                          "Use representative samples, separate symptoms from root causes, and quantify each recurring category.",
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-1-1","toolName":"skill","output":"Use representative samples, separate symptoms from root causes, and quantify each recurring category."}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-2",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:07.000Z"),
-                    endTime: new Date("2026-01-02T09:35:12.345Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-2-1",
-                        toolName: "langfuseDocs_getLangfuseDocsPage",
-                        input: {
-                          pathOrUrl: "/docs/observability/errors",
-                          silent: false,
-                        },
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-2-2",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: ["id", "name", "level", "statusMessage"],
-                          fromStartTime: "2026-01-01T00:00:00Z",
-                          toStartTime: "2026-01-08T00:00:00Z",
-                          level: "ERROR",
-                          limit: 25,
-                          silent: false,
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-2",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:07.000Z"),
-                    endTime: new Date("2026-01-02T09:35:12.345Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-2-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:12.345Z"),
-                    endTime: new Date("2026-01-02T09:35:12.635Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-2-1",
-                        toolName: "langfuseDocs_getLangfuseDocsPage",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-2-1",
-                          toolName: "langfuseDocs_getLangfuseDocsPage",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuseDocs_getLangfuseDocsPage",
-                            content:
-                              "Synthetic guidance for investigating failed traces.",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "error-analysis-tool-2-2",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:12.345Z"),
-                    endTime: new Date("2026-01-02T09:35:12.578Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-2-2",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-2-2",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: { count: 25, cursor: "cursor-demo-page-2" },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-2-1","toolName":"langfuseDocs_getLangfuseDocsPage","output":{"type":"tool-result","toolName":"langfuseDocs_getLangfuseDocsPage","content":"Synthetic guidance for investigating failed traces."}},{"toolCallId":"error-analysis-call-2-2","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":25,"cursor":"cursor-demo-page-2"}}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-3",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:13.000Z"),
-                    endTime: new Date("2026-01-02T09:35:15.759Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-3-1",
-                        toolName: "bash",
-                        input: {
-                          command: "jq 'group_by(.name)' synthetic-errors.json",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-3",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:13.000Z"),
-                    endTime: new Date("2026-01-02T09:35:15.759Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-3-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:15.759Z"),
-                    endTime: new Date("2026-01-02T09:35:17.300Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-3-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-3-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:00:13Z",
-                            completedAt: "2026-01-08T09:00:14Z",
-                            exitCode: 0,
-                            stdout:
-                              "booking-assistant: 11\nroute-planner: 8\nfare-checker: 6",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-3-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:13Z","completedAt":"2026-01-08T09:00:14Z","exitCode":0,"stdout":"booking-assistant: 11\\nroute-planner: 8\\nfare-checker: 6","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-4",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:17.000Z"),
-                    endTime: new Date("2026-01-02T09:35:22.457Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-4-1",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "jq 'group_by(.statusMessage)' synthetic-errors.json",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-4",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:17.000Z"),
-                    endTime: new Date("2026-01-02T09:35:22.457Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-4-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:22.457Z"),
-                    endTime: new Date("2026-01-02T09:35:22.652Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-4-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-4-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:00:17Z",
-                            completedAt: "2026-01-08T09:00:17Z",
-                            exitCode: 0,
-                            stdout:
-                              "timeout: 9\ninvalid itinerary: 7\nmissing fare: 5\nother: 4",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-4-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:17Z","completedAt":"2026-01-08T09:00:17Z","exitCode":0,"stdout":"timeout: 9\\ninvalid itinerary: 7\\nmissing fare: 5\\nother: 4","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-5",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:23.000Z"),
-                    endTime: new Date("2026-01-02T09:35:28.896Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-5-1",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: [
-                            "id",
-                            "traceId",
-                            "input",
-                            "output",
-                            "statusMessage",
-                          ],
-                          filter: [
-                            {
-                              column: "statusMessage",
-                              operator: "contains",
-                              value: "timeout",
-                            },
-                          ],
-                          fromStartTime: "2026-01-01T00:00:00Z",
-                          toStartTime: "2026-01-08T00:00:00Z",
-                          level: "ERROR",
-                          limit: 10,
-                          silent: false,
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-5",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:23.000Z"),
-                    endTime: new Date("2026-01-02T09:35:28.896Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-5-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:28.896Z"),
-                    endTime: new Date("2026-01-02T09:35:29.115Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-5-1",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-5-1",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: {
-                              count: 10,
-                              sample: "synthetic timeout observations",
-                            },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-5-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":10,"sample":"synthetic timeout observations"}}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-6",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:29.000Z"),
-                    endTime: new Date("2026-01-02T09:35:31.974Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-6-1",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "jq '.[] | [.name, .statusMessage]' synthetic-timeouts.json",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-6",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:29.000Z"),
-                    endTime: new Date("2026-01-02T09:35:31.974Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-6-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:31.974Z"),
-                    endTime: new Date("2026-01-02T09:35:32.181Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-6-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-6-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:00:29Z",
-                            completedAt: "2026-01-08T09:00:29Z",
-                            exitCode: 0,
-                            stdout:
-                              "upstream timeout: 6\nretry exhausted: 3\nclient cancelled: 1",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 0,
-                observations: [
-                  {
-                    id: "error-analysis-generation-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-1-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-2",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-2-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-2-2",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-3",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-3-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-4",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-4-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-5",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-5-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-6",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-6-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "You are a demo observability analyst. Use only fictional project data.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Inspect representative failures before proposing a taxonomy or remediation.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Never expose identifiers or payloads from real users.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Analyze failed traces for a fictional travel assistant. Sample representative failures, group recurring causes into a taxonomy, recommend what to fix first, and suggest how to track the top issue.",
-                      providerMetadata: { demo: { cacheControl: "temporary" } },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-1-1",
-                      toolName: "skill",
-                      input: { name: "error-analysis" },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-1-1","toolName":"skill","output":"Use representative samples, separate symptoms from root causes, and quantify each recurring category."}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-2-1",
-                      toolName: "langfuseDocs_getLangfuseDocsPage",
-                      input: {
-                        pathOrUrl: "/docs/observability/errors",
-                        silent: false,
-                      },
-                    },
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-2-2",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: ["id", "name", "level", "statusMessage"],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 25,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-2-1","toolName":"langfuseDocs_getLangfuseDocsPage","output":{"type":"tool-result","toolName":"langfuseDocs_getLangfuseDocsPage","content":"Synthetic guidance for investigating failed traces."}},{"toolCallId":"error-analysis-call-2-2","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":25,"cursor":"cursor-demo-page-2"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-3-1",
-                      toolName: "bash",
-                      input: {
-                        command: "jq 'group_by(.name)' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-3-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:13Z","completedAt":"2026-01-08T09:00:14Z","exitCode":0,"stdout":"booking-assistant: 11\\nroute-planner: 8\\nfare-checker: 6","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-4-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq 'group_by(.statusMessage)' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-4-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:17Z","completedAt":"2026-01-08T09:00:17Z","exitCode":0,"stdout":"timeout: 9\\ninvalid itinerary: 7\\nmissing fare: 5\\nother: 4","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-5-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: [
-                          "id",
-                          "traceId",
-                          "input",
-                          "output",
-                          "statusMessage",
-                        ],
-                        filter: [
-                          {
-                            column: "statusMessage",
-                            operator: "contains",
-                            value: "timeout",
-                          },
-                        ],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 10,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-5-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":10,"sample":"synthetic timeout observations"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-6-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq '.[] | [.name, .statusMessage]' synthetic-timeouts.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-6-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:29Z","completedAt":"2026-01-08T09:00:29Z","exitCode":0,"stdout":"upstream timeout: 6\\nretry exhausted: 3\\nclient cancelled: 1","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "<screen_context>\nCurrent page: /project/project-demo-travel-assistant/traces\nActive filter: level is ERROR\n  Saved view: booking-assistant, route-planner, fare-checker\n  </screen_context>\n  <current_time>2026-01-02T09:35:32.000Z</current_time>",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-7",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:32.000Z"),
-                    endTime: new Date("2026-01-02T09:35:40.043Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-7-1",
-                        toolName: "langfuse_getObservationFilterValues",
-                        input: {
-                          column: "model",
-                          fromStartTime: "2026-01-01T00:00:00Z",
-                          toStartTime: "2026-01-08T00:00:00Z",
-                          limit: 20,
-                          silent: false,
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-7",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:32.000Z"),
-                    endTime: new Date("2026-01-02T09:35:40.043Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-7-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:40.043Z"),
-                    endTime: new Date("2026-01-02T09:35:40.327Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-7-1",
-                        toolName: "langfuse_getObservationFilterValues",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-7-1",
-                          toolName: "langfuse_getObservationFilterValues",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_getObservationFilterValues",
-                            output: [
-                              "demo-chat-large",
-                              "demo-chat-fast",
-                              "demo-embed-small",
-                            ],
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-7-1","toolName":"langfuse_getObservationFilterValues","output":{"type":"tool-result","toolName":"langfuse_getObservationFilterValues","output":["demo-chat-large","demo-chat-fast","demo-embed-small"]}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-8",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:41.000Z"),
-                    endTime: new Date("2026-01-02T09:35:44.716Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-8-1",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "jq 'group_by([.model,.name])' synthetic-errors.json",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-8",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:41.000Z"),
-                    endTime: new Date("2026-01-02T09:35:44.716Z"),
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-8-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:41Z","completedAt":"2026-01-08T09:00:41Z","exitCode":0,"stdout":"demo-chat-fast / route-planner: 8\\ndemo-chat-large / booking-assistant: 11","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-9",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:44.000Z"),
-                    endTime: new Date("2026-01-02T09:35:59.801Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-9-1",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: [
-                            "id",
-                            "traceId",
-                            "input",
-                            "output",
-                            "metadata",
-                          ],
-                          filter: [
-                            {
-                              column: "statusMessage",
-                              operator: "contains",
-                              value: "invalid itinerary",
-                            },
-                          ],
-                          fromStartTime: "2026-01-01T00:00:00Z",
-                          toStartTime: "2026-01-08T00:00:00Z",
-                          level: "ERROR",
-                          limit: 10,
-                          silent: false,
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-9",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:44.000Z"),
-                    endTime: new Date("2026-01-02T09:35:59.801Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-8-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:44.716Z"),
-                    endTime: new Date("2026-01-02T09:35:44.916Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-8-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-8-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:00:41Z",
-                            completedAt: "2026-01-08T09:00:41Z",
-                            exitCode: 0,
-                            stdout:
-                              "demo-chat-fast / route-planner: 8\ndemo-chat-large / booking-assistant: 11",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "error-analysis-tool-9-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:35:59.801Z"),
-                    endTime: new Date("2026-01-02T09:36:00.003Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-9-1",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-9-1",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: {
-                              count: 7,
-                              sample: "synthetic itinerary validation failures",
-                            },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-9-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":7,"sample":"synthetic itinerary validation failures"}}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-10",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:01.000Z"),
-                    endTime: new Date("2026-01-02T09:36:06.819Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-10-1",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "jq '.[] | .metadata.validationReason' synthetic-itineraries.json",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-10",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:01.000Z"),
-                    endTime: new Date("2026-01-02T09:36:06.819Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-10-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:06.819Z"),
-                    endTime: new Date("2026-01-02T09:36:07.002Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-10-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-10-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:01:01Z",
-                            completedAt: "2026-01-08T09:01:01Z",
-                            exitCode: 0,
-                            stdout:
-                              "impossible connection: 4\nmissing airport: 2\ndate ordering: 1",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-10-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:01Z","completedAt":"2026-01-08T09:01:01Z","exitCode":0,"stdout":"impossible connection: 4\\nmissing airport: 2\\ndate ordering: 1","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-11",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:07.000Z"),
-                    endTime: new Date("2026-01-02T09:36:21.948Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-11-1",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: [
-                            "id",
-                            "traceId",
-                            "input",
-                            "output",
-                            "metadata",
-                          ],
-                          filter: [
-                            {
-                              column: "statusMessage",
-                              operator: "contains",
-                              value: "missing fare",
-                            },
-                          ],
-                          fromStartTime: "2026-01-01T00:00:00Z",
-                          toStartTime: "2026-01-08T00:00:00Z",
-                          limit: 10,
-                          silent: false,
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-11",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:07.000Z"),
-                    endTime: new Date("2026-01-02T09:36:21.948Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-11-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:21.948Z"),
-                    endTime: new Date("2026-01-02T09:36:22.623Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-11-1",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-11-1",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: {
-                              count: 5,
-                              sample: "synthetic pricing lookup failures",
-                            },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-11-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":5,"sample":"synthetic pricing lookup failures"}}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-12",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:22.000Z"),
-                    endTime: new Date("2026-01-02T09:36:29.054Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-12-1",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "jq 'group_by([.metadata.provider,.metadata.cache])' synthetic-fares.json",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-12",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:22.000Z"),
-                    endTime: new Date("2026-01-02T09:36:29.054Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-12-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:29.054Z"),
-                    endTime: new Date("2026-01-02T09:36:29.253Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-12-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-12-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:01:22Z",
-                            completedAt: "2026-01-08T09:01:22Z",
-                            exitCode: 0,
-                            stdout:
-                              "provider unavailable / cache miss: 4\nmalformed response: 1",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-12-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:22Z","completedAt":"2026-01-08T09:01:22Z","exitCode":0,"stdout":"provider unavailable / cache miss: 4\\nmalformed response: 1","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-13",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:30.000Z"),
-                    endTime: new Date("2026-01-02T09:36:39.036Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-13-1",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "node scripts/summarize-synthetic-errors.mjs",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-13",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:30.000Z"),
-                    endTime: new Date("2026-01-02T09:36:39.036Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-13-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:39.036Z"),
-                    endTime: new Date("2026-01-02T09:36:39.235Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-13-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-13-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:01:30Z",
-                            completedAt: "2026-01-08T09:01:30Z",
-                            exitCode: 0,
-                            stdout:
-                              "upstream reliability 36%\nvalidation 28%\ndata availability 20%\nother 16%",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 0,
-                observations: [
-                  {
-                    id: "error-analysis-generation-7",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-7-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-8",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-9",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-8-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-9-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-10",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-10-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-11",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-11-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-12",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-12-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-13",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-13-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "You are a demo observability analyst. Use only fictional project data.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Inspect representative failures before proposing a taxonomy or remediation.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Never expose identifiers or payloads from real users.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Analyze failed traces for a fictional travel assistant. Sample representative failures, group recurring causes into a taxonomy, recommend what to fix first, and suggest how to track the top issue.",
-                      providerMetadata: { demo: { cacheControl: "temporary" } },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-1-1",
-                      toolName: "skill",
-                      input: { name: "error-analysis" },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-1-1","toolName":"skill","output":"Use representative samples, separate symptoms from root causes, and quantify each recurring category."}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-2-1",
-                      toolName: "langfuseDocs_getLangfuseDocsPage",
-                      input: {
-                        pathOrUrl: "/docs/observability/errors",
-                        silent: false,
-                      },
-                    },
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-2-2",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: ["id", "name", "level", "statusMessage"],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 25,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-2-1","toolName":"langfuseDocs_getLangfuseDocsPage","output":{"type":"tool-result","toolName":"langfuseDocs_getLangfuseDocsPage","content":"Synthetic guidance for investigating failed traces."}},{"toolCallId":"error-analysis-call-2-2","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":25,"cursor":"cursor-demo-page-2"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-3-1",
-                      toolName: "bash",
-                      input: {
-                        command: "jq 'group_by(.name)' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-3-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:13Z","completedAt":"2026-01-08T09:00:14Z","exitCode":0,"stdout":"booking-assistant: 11\\nroute-planner: 8\\nfare-checker: 6","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-4-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq 'group_by(.statusMessage)' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-4-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:17Z","completedAt":"2026-01-08T09:00:17Z","exitCode":0,"stdout":"timeout: 9\\ninvalid itinerary: 7\\nmissing fare: 5\\nother: 4","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-5-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: [
-                          "id",
-                          "traceId",
-                          "input",
-                          "output",
-                          "statusMessage",
-                        ],
-                        filter: [
-                          {
-                            column: "statusMessage",
-                            operator: "contains",
-                            value: "timeout",
-                          },
-                        ],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 10,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-5-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":10,"sample":"synthetic timeout observations"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-6-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq '.[] | [.name, .statusMessage]' synthetic-timeouts.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-6-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:29Z","completedAt":"2026-01-08T09:00:29Z","exitCode":0,"stdout":"upstream timeout: 6\\nretry exhausted: 3\\nclient cancelled: 1","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-7-1",
-                      toolName: "langfuse_getObservationFilterValues",
-                      input: {
-                        column: "model",
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        limit: 20,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-7-1","toolName":"langfuse_getObservationFilterValues","output":{"type":"tool-result","toolName":"langfuse_getObservationFilterValues","output":["demo-chat-large","demo-chat-fast","demo-embed-small"]}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-8-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq 'group_by([.model,.name])' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-8-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:41Z","completedAt":"2026-01-08T09:00:41Z","exitCode":0,"stdout":"demo-chat-fast / route-planner: 8\\ndemo-chat-large / booking-assistant: 11","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-9-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: [
-                          "id",
-                          "traceId",
-                          "input",
-                          "output",
-                          "metadata",
-                        ],
-                        filter: [
-                          {
-                            column: "statusMessage",
-                            operator: "contains",
-                            value: "invalid itinerary",
-                          },
-                        ],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 10,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-9-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":7,"sample":"synthetic itinerary validation failures"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-10-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq '.[] | .metadata.validationReason' synthetic-itineraries.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-10-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:01Z","completedAt":"2026-01-08T09:01:01Z","exitCode":0,"stdout":"impossible connection: 4\\nmissing airport: 2\\ndate ordering: 1","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-11-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: [
-                          "id",
-                          "traceId",
-                          "input",
-                          "output",
-                          "metadata",
-                        ],
-                        filter: [
-                          {
-                            column: "statusMessage",
-                            operator: "contains",
-                            value: "missing fare",
-                          },
-                        ],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        limit: 10,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-11-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":5,"sample":"synthetic pricing lookup failures"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-12-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq 'group_by([.metadata.provider,.metadata.cache])' synthetic-fares.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-12-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:22Z","completedAt":"2026-01-08T09:01:22Z","exitCode":0,"stdout":"provider unavailable / cache miss: 4\\nmalformed response: 1","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-13-1",
-                      toolName: "bash",
-                      input: {
-                        command: "node scripts/summarize-synthetic-errors.mjs",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-13-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:30Z","completedAt":"2026-01-08T09:01:30Z","exitCode":0,"stdout":"upstream reliability 36%\\nvalidation 28%\\ndata availability 20%\\nother 16%","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "<screen_context>\nCurrent page: /project/project-demo-travel-assistant/traces\nActive filter: level is ERROR\n  Saved view: booking-assistant, route-planner, fare-checker\n  </screen_context>\n  <current_time>2026-01-02T09:36:39.000Z</current_time>",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-14",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:39.000Z"),
-                    endTime: new Date("2026-01-02T09:36:51.964Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-14-1",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          cursor: "cursor-demo-page-2",
-                          environment: "production-demo",
-                          fields: ["id", "name", "level", "statusMessage"],
-                          fromStartTime: "2026-01-01T00:00:00Z",
-                          toStartTime: "2026-01-08T00:00:00Z",
-                          level: "ERROR",
-                          limit: 25,
-                          silent: false,
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-14",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:39.000Z"),
-                    endTime: new Date("2026-01-02T09:36:51.964Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-14-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:51.964Z"),
-                    endTime: new Date("2026-01-02T09:36:52.156Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-14-1",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-14-1",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: { count: 25, cursor: null },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-14-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":25,"cursor":null}}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-15",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:52.000Z"),
-                    endTime: new Date("2026-01-02T09:36:57.249Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-15-1",
-                        toolName: "bash",
-                        input: {
-                          command: "node scripts/merge-synthetic-samples.mjs",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-15",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:52.000Z"),
-                    endTime: new Date("2026-01-02T09:36:57.249Z"),
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-15-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:52Z","completedAt":"2026-01-08T09:01:52Z","exitCode":0,"stdout":"50 observations classified; 46 matched the draft taxonomy","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-16",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:57.000Z"),
-                    endTime: new Date("2026-01-02T09:37:06.648Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-16-1",
-                        toolName: "bash",
-                        input: {
-                          command:
-                            "node scripts/select-synthetic-representatives.mjs",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-16",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:57.000Z"),
-                    endTime: new Date("2026-01-02T09:37:06.648Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-15-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:36:57.249Z"),
-                    endTime: new Date("2026-01-02T09:36:57.446Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-15-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-15-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:01:52Z",
-                            completedAt: "2026-01-08T09:01:52Z",
-                            exitCode: 0,
-                            stdout:
-                              "50 observations classified; 46 matched the draft taxonomy",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "error-analysis-tool-16-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:06.648Z"),
-                    endTime: new Date("2026-01-02T09:37:07.078Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-16-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-16-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:01:57Z",
-                            completedAt: "2026-01-08T09:01:57Z",
-                            exitCode: 0,
-                            stdout:
-                              "trace-demo-timeout\ntrace-demo-validation\ntrace-demo-fare\ntrace-demo-other",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-16-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:57Z","completedAt":"2026-01-08T09:01:57Z","exitCode":0,"stdout":"trace-demo-timeout\\ntrace-demo-validation\\ntrace-demo-fare\\ntrace-demo-other","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-17",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:08.000Z"),
-                    endTime: new Date("2026-01-02T09:37:26.765Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-17-1",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: ["*"],
-                          limit: 100,
-                          silent: false,
-                          traceId: "trace-demo-timeout",
-                        },
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-17-2",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: ["*"],
-                          limit: 100,
-                          silent: false,
-                          traceId: "trace-demo-validation",
-                        },
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-17-3",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: ["*"],
-                          limit: 100,
-                          silent: false,
-                          traceId: "trace-demo-fare",
-                        },
-                      },
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-17-4",
-                        toolName: "langfuse_listObservations",
-                        input: {
-                          fields: ["*"],
-                          limit: 100,
-                          silent: false,
-                          traceId: "trace-demo-other",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-17",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:08.000Z"),
-                    endTime: new Date("2026-01-02T09:37:26.765Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-17-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:26.765Z"),
-                    endTime: new Date("2026-01-02T09:37:27.972Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-17-1",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-17-1",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: {
-                              observations: 14,
-                              category: "upstream timeout",
-                            },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "error-analysis-tool-17-2",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:26.765Z"),
-                    endTime: new Date("2026-01-02T09:37:26.903Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-17-2",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-17-2",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: {
-                              observations: 9,
-                              category: "itinerary validation",
-                            },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "error-analysis-tool-17-3",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:26.765Z"),
-                    endTime: new Date("2026-01-02T09:37:26.904Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-17-3",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-17-3",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: {
-                              observations: 11,
-                              category: "fare unavailable",
-                            },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    observationId: "error-analysis-tool-17-4",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:26.765Z"),
-                    endTime: new Date("2026-01-02T09:37:26.885Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-17-4",
-                        toolName: "langfuse_listObservations",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-17-4",
-                          toolName: "langfuse_listObservations",
-                          output: {
-                            type: "tool-result",
-                            toolName: "langfuse_listObservations",
-                            output: {
-                              observations: 7,
-                              category: "uncategorized",
-                            },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-17-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":14,"category":"upstream timeout"}}},{"toolCallId":"error-analysis-call-17-2","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":9,"category":"itinerary validation"}}},{"toolCallId":"error-analysis-call-17-3","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":11,"category":"fare unavailable"}}},{"toolCallId":"error-analysis-call-17-4","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":7,"category":"uncategorized"}}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-18",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:28.000Z"),
-                    endTime: new Date("2026-01-02T09:37:35.902Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-18-1",
-                        toolName: "bash",
-                        input: {
-                          command: "node scripts/compare-synthetic-traces.mjs",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-18",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:28.000Z"),
-                    endTime: new Date("2026-01-02T09:37:35.902Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-18-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:35.902Z"),
-                    endTime: new Date("2026-01-02T09:37:37.826Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-18-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-18-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:02:28Z",
-                            completedAt: "2026-01-08T09:02:30Z",
-                            exitCode: 0,
-                            stdout:
-                              "timeouts originate at the inventory provider; validation failures originate before model invocation; missing fares follow cache misses",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                ],
-                nestingLevel: 0,
-                observations: [
-                  {
-                    id: "error-analysis-generation-14",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-14-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-15",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-16",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-15-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-16-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-17",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-17-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-17-2",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-17-3",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-17-4",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-18",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-18-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "You are a demo observability analyst. Use only fictional project data.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Inspect representative failures before proposing a taxonomy or remediation.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "system",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Never expose identifiers or payloads from real users.",
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Analyze failed traces for a fictional travel assistant. Sample representative failures, group recurring causes into a taxonomy, recommend what to fix first, and suggest how to track the top issue.",
-                      providerMetadata: { demo: { cacheControl: "temporary" } },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-1-1",
-                      toolName: "skill",
-                      input: { name: "error-analysis" },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-1-1","toolName":"skill","output":"Use representative samples, separate symptoms from root causes, and quantify each recurring category."}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-2-1",
-                      toolName: "langfuseDocs_getLangfuseDocsPage",
-                      input: {
-                        pathOrUrl: "/docs/observability/errors",
-                        silent: false,
-                      },
-                    },
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-2-2",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: ["id", "name", "level", "statusMessage"],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 25,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-2-1","toolName":"langfuseDocs_getLangfuseDocsPage","output":{"type":"tool-result","toolName":"langfuseDocs_getLangfuseDocsPage","content":"Synthetic guidance for investigating failed traces."}},{"toolCallId":"error-analysis-call-2-2","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":25,"cursor":"cursor-demo-page-2"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-3-1",
-                      toolName: "bash",
-                      input: {
-                        command: "jq 'group_by(.name)' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-3-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:13Z","completedAt":"2026-01-08T09:00:14Z","exitCode":0,"stdout":"booking-assistant: 11\\nroute-planner: 8\\nfare-checker: 6","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-4-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq 'group_by(.statusMessage)' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-4-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:17Z","completedAt":"2026-01-08T09:00:17Z","exitCode":0,"stdout":"timeout: 9\\ninvalid itinerary: 7\\nmissing fare: 5\\nother: 4","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-5-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: [
-                          "id",
-                          "traceId",
-                          "input",
-                          "output",
-                          "statusMessage",
-                        ],
-                        filter: [
-                          {
-                            column: "statusMessage",
-                            operator: "contains",
-                            value: "timeout",
-                          },
-                        ],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 10,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-5-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":10,"sample":"synthetic timeout observations"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-6-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq '.[] | [.name, .statusMessage]' synthetic-timeouts.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-6-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:29Z","completedAt":"2026-01-08T09:00:29Z","exitCode":0,"stdout":"upstream timeout: 6\\nretry exhausted: 3\\nclient cancelled: 1","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-7-1",
-                      toolName: "langfuse_getObservationFilterValues",
-                      input: {
-                        column: "model",
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        limit: 20,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-7-1","toolName":"langfuse_getObservationFilterValues","output":{"type":"tool-result","toolName":"langfuse_getObservationFilterValues","output":["demo-chat-large","demo-chat-fast","demo-embed-small"]}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-8-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq 'group_by([.model,.name])' synthetic-errors.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-8-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:00:41Z","completedAt":"2026-01-08T09:00:41Z","exitCode":0,"stdout":"demo-chat-fast / route-planner: 8\\ndemo-chat-large / booking-assistant: 11","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-9-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: [
-                          "id",
-                          "traceId",
-                          "input",
-                          "output",
-                          "metadata",
-                        ],
-                        filter: [
-                          {
-                            column: "statusMessage",
-                            operator: "contains",
-                            value: "invalid itinerary",
-                          },
-                        ],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 10,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-9-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":7,"sample":"synthetic itinerary validation failures"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-10-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq '.[] | .metadata.validationReason' synthetic-itineraries.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-10-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:01Z","completedAt":"2026-01-08T09:01:01Z","exitCode":0,"stdout":"impossible connection: 4\\nmissing airport: 2\\ndate ordering: 1","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-11-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: [
-                          "id",
-                          "traceId",
-                          "input",
-                          "output",
-                          "metadata",
-                        ],
-                        filter: [
-                          {
-                            column: "statusMessage",
-                            operator: "contains",
-                            value: "missing fare",
-                          },
-                        ],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        limit: 10,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-11-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":5,"sample":"synthetic pricing lookup failures"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-12-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "jq 'group_by([.metadata.provider,.metadata.cache])' synthetic-fares.json",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-12-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:22Z","completedAt":"2026-01-08T09:01:22Z","exitCode":0,"stdout":"provider unavailable / cache miss: 4\\nmalformed response: 1","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-13-1",
-                      toolName: "bash",
-                      input: {
-                        command: "node scripts/summarize-synthetic-errors.mjs",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-13-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:30Z","completedAt":"2026-01-08T09:01:30Z","exitCode":0,"stdout":"upstream reliability 36%\\nvalidation 28%\\ndata availability 20%\\nother 16%","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-14-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        cursor: "cursor-demo-page-2",
-                        environment: "production-demo",
-                        fields: ["id", "name", "level", "statusMessage"],
-                        fromStartTime: "2026-01-01T00:00:00Z",
-                        toStartTime: "2026-01-08T00:00:00Z",
-                        level: "ERROR",
-                        limit: 25,
-                        silent: false,
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-14-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"count":25,"cursor":null}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-15-1",
-                      toolName: "bash",
-                      input: {
-                        command: "node scripts/merge-synthetic-samples.mjs",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-15-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:52Z","completedAt":"2026-01-08T09:01:52Z","exitCode":0,"stdout":"50 observations classified; 46 matched the draft taxonomy","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-16-1",
-                      toolName: "bash",
-                      input: {
-                        command:
-                          "node scripts/select-synthetic-representatives.mjs",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-16-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:01:57Z","completedAt":"2026-01-08T09:01:57Z","exitCode":0,"stdout":"trace-demo-timeout\\ntrace-demo-validation\\ntrace-demo-fare\\ntrace-demo-other","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-17-1",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: ["*"],
-                        limit: 100,
-                        silent: false,
-                        traceId: "trace-demo-timeout",
-                      },
-                    },
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-17-2",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: ["*"],
-                        limit: 100,
-                        silent: false,
-                        traceId: "trace-demo-validation",
-                      },
-                    },
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-17-3",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: ["*"],
-                        limit: 100,
-                        silent: false,
-                        traceId: "trace-demo-fare",
-                      },
-                    },
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-17-4",
-                      toolName: "langfuse_listObservations",
-                      input: {
-                        fields: ["*"],
-                        limit: 100,
-                        silent: false,
-                        traceId: "trace-demo-other",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-17-1","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":14,"category":"upstream timeout"}}},{"toolCallId":"error-analysis-call-17-2","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":9,"category":"itinerary validation"}}},{"toolCallId":"error-analysis-call-17-3","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":11,"category":"fare unavailable"}}},{"toolCallId":"error-analysis-call-17-4","toolName":"langfuse_listObservations","output":{"type":"tool-result","toolName":"langfuse_listObservations","output":{"observations":7,"category":"uncategorized"}}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "assistant",
-                  parts: [
-                    {
-                      type: "tool-call",
-                      toolCallId: "error-analysis-call-18-1",
-                      toolName: "bash",
-                      input: {
-                        command: "node scripts/compare-synthetic-traces.mjs",
-                      },
-                    },
-                  ],
-                  source: "input",
-                },
-                {
-                  role: "tool",
-                  parts: [
-                    {
-                      type: "tool-result",
-                      toolCallId: null,
-                      output:
-                        '[{"toolCallId":"error-analysis-call-18-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:02:28Z","completedAt":"2026-01-08T09:02:30Z","exitCode":0,"stdout":"timeouts originate at the inventory provider; validation failures originate before model invocation; missing fares follow cache misses","stderr":""}}]',
-                    },
-                  ],
-                  source: "input",
-                },
-              ],
-              currentTurn: {
-                messages: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "<screen_context>\nCurrent page: /project/project-demo-travel-assistant/traces\nActive filter: level is ERROR\n  Saved view: booking-assistant, route-planner, fare-checker\n  </screen_context>\n  <current_time>2026-01-02T09:37:39.000Z</current_time>",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-19",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:39.000Z"),
-                    endTime: new Date("2026-01-02T09:38:00.138Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "tool-call",
-                        toolCallId: "error-analysis-call-19-1",
-                        toolName: "bash",
-                        input: {
-                          command: "node scripts/rank-synthetic-fixes.mjs",
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-19",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:37:39.000Z"),
-                    endTime: new Date("2026-01-02T09:38:00.138Z"),
-                  },
-                  {
-                    observationId: "error-analysis-tool-19-1",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:38:00.138Z"),
-                    endTime: new Date("2026-01-02T09:38:01.921Z"),
-                    role: "tool",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "error-analysis-call-19-1",
-                        toolName: "bash",
-                        output: {
-                          type: "tool-result",
-                          toolCallId: "error-analysis-call-19-1",
-                          toolName: "bash",
-                          output: {
-                            startedAt: "2026-01-08T09:02:39Z",
-                            completedAt: "2026-01-08T09:02:41Z",
-                            exitCode: 0,
-                            stdout:
-                              "1 provider timeout handling\n2 itinerary pre-validation\n3 fare cache fallback\n4 improve unknown-error metadata",
-                            stderr: "",
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    role: "tool",
-                    parts: [
-                      {
-                        type: "tool-result",
-                        toolCallId: null,
-                        output:
-                          '[{"toolCallId":"error-analysis-call-19-1","toolName":"bash","output":{"startedAt":"2026-01-08T09:02:39Z","completedAt":"2026-01-08T09:02:41Z","exitCode":0,"stdout":"1 provider timeout handling\\n2 itinerary pre-validation\\n3 fare cache fallback\\n4 improve unknown-error metadata","stderr":""}}]',
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-20",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:38:02.000Z"),
-                    endTime: new Date("2026-01-02T09:38:24.149Z"),
-                  },
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Summarize the taxonomy, recommend the first fix, and suggest a durable way to track it.",
-                      },
-                    ],
-                    source: "input",
-                    observationId: "error-analysis-generation-20",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:38:02.000Z"),
-                    endTime: new Date("2026-01-02T09:38:24.149Z"),
-                  },
-                  {
-                    role: "assistant",
-                    parts: [
-                      {
-                        type: "data",
-                        value: {
-                          taxonomy: {
-                            primaryIssue: "tool-timeout",
-                            affectedWorkflow: "booking-assistant",
-                            recommendedFix: "Add bounded retries with backoff",
-                          },
-                          tracking: {
-                            metric: "tool_error_rate",
-                            owner: "agent-platform",
-                          },
-                        },
-                      },
-                    ],
-                    source: "output",
-                    observationId: "error-analysis-generation-20",
-                    traceId: "trace-demo-error-analysis",
-                    startTime: new Date("2026-01-02T09:38:02.000Z"),
-                    endTime: new Date("2026-01-02T09:38:24.149Z"),
-                  },
-                ],
-                nestingLevel: 0,
-                observations: [
-                  {
-                    id: "error-analysis-generation-19",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-tool-19-1",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                  {
-                    id: "error-analysis-generation-20",
-                    traceId: "trace-demo-error-analysis",
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      },
-      observations: [
+    id: "generation-2",
+    name: "Decide next action",
+    type: "GENERATION",
+    startTime: new Date("2026-01-01T12:14:04.150Z"),
+    input: JSON.stringify({
+      role: "tool",
+      tool_call_id: "call-order-lookup",
+      content: JSON.stringify({
+        orderId: "LF-20481",
+        status: "processing",
+        addressCanBeChanged: true,
+      }),
+    }),
+    output: JSON.stringify({
+      role: "assistant",
+      content: [
         {
-          id: "error-analysis-generation-1",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:00.000Z"),
-          environment: "storybook",
+          type: "reasoning",
+          text: "The order is still processing and permits address changes, so it is safe to update it.",
         },
         {
-          id: "error-analysis-tool-1-1",
-          traceId: "trace-demo-error-analysis",
-          name: "skill",
-          startTime: new Date("2026-01-02T09:35:06.370Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-2",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:07.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-2-1",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuseDocs_getLangfuseDocsPage",
-          startTime: new Date("2026-01-02T09:35:12.345Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-2-2",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:35:12.345Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-3",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:13.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-3-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:35:15.759Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-4",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:17.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-4-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:35:22.457Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-5",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:23.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-5-1",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:35:28.896Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-6",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:29.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-6-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:35:31.974Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-7",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:32.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-7-1",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_getObservationFilterValues",
-          startTime: new Date("2026-01-02T09:35:40.043Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-8",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:41.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-8-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:35:44.716Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-9",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:35:44.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-9-1",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:35:59.801Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-10",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:36:01.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-10-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:36:06.819Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-11",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:36:07.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-11-1",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:36:21.948Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-12",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:36:22.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-12-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:36:29.054Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-13",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:36:30.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-13-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:36:39.036Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-14",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:36:39.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-14-1",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:36:51.964Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-15",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:36:52.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-15-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:36:57.249Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-16",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:36:57.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-16-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:37:06.648Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-17",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:37:08.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-17-1",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:37:26.765Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-17-2",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:37:26.765Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-17-3",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:37:26.765Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-17-4",
-          traceId: "trace-demo-error-analysis",
-          name: "langfuse_listObservations",
-          startTime: new Date("2026-01-02T09:37:26.765Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-18",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:37:28.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-18-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:37:35.902Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-19",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:37:39.000Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-tool-19-1",
-          traceId: "trace-demo-error-analysis",
-          name: "bash",
-          startTime: new Date("2026-01-02T09:38:00.138Z"),
-          environment: "storybook",
-        },
-        {
-          id: "error-analysis-generation-20",
-          traceId: "trace-demo-error-analysis",
-          name: "invoke-model",
-          startTime: new Date("2026-01-02T09:38:02.000Z"),
-          environment: "storybook",
+          type: "text",
+          text: "The order is still processing, so I can update the delivery address.",
         },
       ],
+      tool_calls: [
+        {
+          id: "call-address-update",
+          type: "function",
+          function: {
+            name: "Update shipping address",
+            arguments: JSON.stringify({
+              orderId: "LF-20481",
+              address: {
+                line1: "12 Market Street",
+                city: "San Francisco",
+                state: "CA",
+                postalCode: "94105",
+                country: "US",
+              },
+            }),
+          },
+        },
+      ],
+    }),
+    metadata: { model: "gpt-4.1", finishReason: "tool_calls" },
+    latency: 0.93,
+    inputTruncated: false,
+    outputTruncated: false,
+    metadataTruncated: false,
+  },
+  {
+    id: "tool-address-update",
+    name: "Update shipping address",
+    type: "TOOL",
+    startTime: new Date("2026-01-01T12:14:05.080Z"),
+    input: JSON.stringify({
+      orderId: "LF-20481",
+      address: "12 Market Street, San Francisco, CA 94105",
+    }),
+    output: JSON.stringify({
+      success: true,
+      confirmationId: "addr_7b19c2",
+      updatedAt: "2026-01-01T12:14:05.410Z",
+    }),
+    metadata: {
+      service: "order-management",
+      toolCallId: "call-address-update",
     },
+    latency: 0.33,
+    inputTruncated: false,
+    outputTruncated: false,
+    metadataTruncated: false,
+  },
+  {
+    id: "generation-3",
+    name: "Compose final response",
+    type: "GENERATION",
+    startTime: new Date("2026-01-01T12:14:05.410Z"),
+    input: JSON.stringify({
+      role: "tool",
+      tool_call_id: "call-address-update",
+      content: JSON.stringify({ success: true, confirmationId: "addr_7b19c2" }),
+    }),
+    output: JSON.stringify({
+      role: "assistant",
+      content:
+        "Your shipping address has been updated to **12 Market Street, San Francisco, CA 94105**.\n\nOrder **#LF-20481** is still expected by **January 4**. You'll receive tracking details by email once it ships.",
+    }),
+    metadata: { model: "gpt-4.1", finishReason: "stop" },
+    latency: 0.85,
+    inputTruncated: false,
+    outputTruncated: false,
+    metadataTruncated: false,
   },
 ];
 
-for (const item of [...codingAgentWorkflow, ...langfuseAssistantWorkflow]) {
-  const transcript = item.state.result.transcript;
-  if (!transcript || transcript.threads.length === 0) continue;
-  const threads = transcript.threads;
-  transcript.threads = [
-    {
-      conversationHistory: threads[0]!.conversationHistory,
-      currentTurn: {
-        nestingLevel: 0,
-        messages: threads.flatMap((thread) => thread.currentTurn.messages),
-        observations: threads.flatMap(
-          (thread) => thread.currentTurn.observations,
-        ),
-      },
-    },
-  ];
+const agentPrompt =
+  "Build a fictional recipe planner dashboard with a compact density option. Inspect the codebase, update the existing component and tests, then verify the change.";
+const researchTraceId = "trace-demo-research-turn";
+const implementationTraceId = "trace-demo-implementation-turn";
+const fixtureStart = new Date("2026-01-02T09:30:00.000Z").getTime();
+
+const telemetryMetadata = {
+  agent: "demo-coding-agent",
+  "attributes.langfuse.environment": "storybook",
+  "attributes.langfuse.internal.is_app_root": false,
+  "attributes.langfuse.plugin.version": "0.0.0-demo",
+  "attributes.langfuse.user.id": "demo-user",
+  "attributes.session.id": "session-demo-recipe-planner",
+  "resourceAttributes.service.name": "fictional-editor",
+  "resourceAttributes.telemetry.sdk.language": "typescript",
+  "resourceAttributes.telemetry.sdk.name": "demo-sdk",
+  "resourceAttributes.telemetry.sdk.version": "0.0.0-demo",
+  "scope.name": "demo-coding-agent",
+  "scope.version": "0.0.0-demo",
+};
+
+const fixtureToolCallIds = new Map<string, string[]>();
+
+function fixtureToolOutput(
+  output: TranscriptObservation["output"],
+  toolName: string,
+  toolCallId: string | undefined,
+) {
+  if (output === null) return null;
+  const payload: unknown = (() => {
+    try {
+      return typeof output === "string" ? JSON.parse(output) : output;
+    } catch {
+      return output;
+    }
+  })();
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "type" in payload &&
+    payload.type === "tool-result"
+  ) {
+    return JSON.stringify(payload);
+  }
+  return JSON.stringify({
+    type: "tool-result",
+    toolName,
+    toolCallId: toolCallId ?? fixtureToolCallIds.get(toolName)?.shift(),
+    output: payload,
+  });
 }
+
+function codingAgentObservation({
+  traceId,
+  id,
+  parentObservationId,
+  type,
+  name,
+  offsetMs,
+  latency,
+  input,
+  output,
+  metadata,
+}: {
+  traceId: string;
+  id: string;
+  parentObservationId: string | null;
+  type: "AGENT" | "EVENT" | "GENERATION" | "TOOL";
+  name: string;
+  offsetMs: number;
+  latency: number | null;
+  input: string | null;
+  output: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  return {
+    id,
+    traceId,
+    parentObservationId,
+    name,
+    type,
+    startTime: new Date(fixtureStart + offsetMs),
+    endTime:
+      latency === null
+        ? null
+        : new Date(fixtureStart + offsetMs + latency * 1_000),
+    environment: "storybook",
+    input,
+    output:
+      type === "TOOL"
+        ? fixtureToolOutput(
+            output,
+            name,
+            typeof metadata?.toolCallId === "string"
+              ? metadata.toolCallId
+              : undefined,
+          )
+        : output,
+    metadata: {
+      ...telemetryMetadata,
+      "attributes.langfuse.observation.type": type.toLowerCase(),
+      ...(type === "GENERATION"
+        ? {
+            finish: "stop",
+            messageID: `message-${id}`,
+            mode: "build",
+            modelID: "demo-model-1",
+            providerID: "demo-provider",
+          }
+        : {}),
+      ...(type === "AGENT"
+        ? { modelID: "demo-model-1", providerID: "demo-provider" }
+        : {}),
+      ...(type === "TOOL" ? { callID: `call-${id}`, tool: name } : {}),
+      ...metadata,
+    },
+    latency,
+    model: type === "GENERATION" ? "demo-model-1" : null,
+    inputTruncated: false,
+    outputTruncated: false,
+    metadataTruncated: false,
+  } satisfies WorkflowObservation;
+}
+
+const userMessage = JSON.stringify([
+  { role: "user", content: [{ type: "text", text: agentPrompt }] },
+]);
+const assistantMessage = (content: string) =>
+  JSON.stringify([{ role: "assistant", content }]);
+const toolResult = (toolCallId: string, content: string) => ({
+  role: "tool",
+  tool_call_id: toolCallId,
+  content,
+});
+const assistantToolCalls = (
+  content: string | null,
+  calls: Array<{ id: string; name: string; arguments: object }>,
+) => {
+  for (const call of calls) {
+    const ids = fixtureToolCallIds.get(call.name) ?? [];
+    ids.push(call.id);
+    fixtureToolCallIds.set(call.name, ids);
+  }
+  return JSON.stringify([
+    {
+      role: "assistant",
+      content,
+      tool_calls: calls.map((call) => ({
+        id: call.id,
+        type: "function",
+        function: {
+          name: call.name,
+          arguments: JSON.stringify(call.arguments),
+        },
+      })),
+    },
+  ]);
+};
+
+const researchTurnId = "research-agent-turn";
+const researchCodingAgentObservations = [
+  codingAgentObservation({
+    traceId: researchTraceId,
+    id: researchTurnId,
+    parentObservationId: "session-root-demo",
+    type: "AGENT",
+    name: "opencode.turn",
+    offsetMs: 0,
+    latency: 87.347,
+    input: userMessage,
+    output: assistantMessage(
+      "I mapped the dashboard, its state ownership, and the closest interaction tests. The implementation can stay local to the existing component.",
+    ),
+  }),
+  codingAgentObservation({
+    traceId: researchTraceId,
+    id: "research-user-message",
+    parentObservationId: researchTurnId,
+    type: "EVENT",
+    name: "opencode.message.user",
+    offsetMs: 1,
+    latency: 0,
+    input: userMessage,
+    output: null,
+  }),
+  codingAgentObservation({
+    traceId: researchTraceId,
+    id: "research-generation-1",
+    parentObservationId: researchTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 6,
+    latency: 13.224,
+    input: userMessage,
+    output: assistantToolCalls(
+      "I will load the frontend and Storybook guidance, index the fictional repository, and locate the dashboard entry points.",
+      [
+        {
+          id: "call-research-tool-1",
+          name: "skill",
+          arguments: { name: "typescript" },
+        },
+        {
+          id: "call-research-tool-2",
+          name: "skill",
+          arguments: { name: "storybook" },
+        },
+        {
+          id: "call-research-tool-3",
+          name: "skill",
+          arguments: { name: "frontend-guidelines" },
+        },
+        {
+          id: "call-research-tool-4",
+          name: "grepika_add_workspace",
+          arguments: { path: "~/demo/recipe-planner" },
+        },
+        {
+          id: "call-research-tool-5",
+          name: "tilth_tilth_search",
+          arguments: { query: "RecipeDashboard" },
+        },
+        {
+          id: "call-research-tool-6",
+          name: "tilth_tilth_files",
+          arguments: { patterns: ["src/features/recipes/**/*"] },
+        },
+      ],
+    ),
+  }),
+  ...[
+    [
+      "research-tool-1",
+      "skill",
+      13_230,
+      0.064,
+      { name: "typescript" },
+      { loaded: true },
+    ],
+    [
+      "research-tool-2",
+      "skill",
+      13_232,
+      0.061,
+      { name: "storybook" },
+      { loaded: true },
+    ],
+    [
+      "research-tool-3",
+      "skill",
+      13_234,
+      0.051,
+      { name: "frontend-guidelines" },
+      { loaded: true },
+    ],
+    [
+      "research-tool-4",
+      "grepika_add_workspace",
+      13_236,
+      4.592,
+      { path: "~/demo/recipe-planner" },
+      { indexedFiles: 214 },
+    ],
+    [
+      "research-tool-5",
+      "tilth_tilth_search",
+      13_238,
+      0.096,
+      { query: "RecipeDashboard" },
+      { matches: 6 },
+    ],
+    [
+      "research-tool-6",
+      "tilth_tilth_files",
+      13_240,
+      0.389,
+      { patterns: ["src/features/recipes/**/*"] },
+      { files: 12 },
+    ],
+  ].map(([id, name, offsetMs, latency, input, output]) =>
+    codingAgentObservation({
+      traceId: researchTraceId,
+      id: id as string,
+      parentObservationId: "research-generation-1",
+      type: "TOOL",
+      name: name as string,
+      offsetMs: offsetMs as number,
+      latency: latency as number,
+      input: JSON.stringify(input),
+      output: JSON.stringify(output),
+    }),
+  ),
+  codingAgentObservation({
+    traceId: researchTraceId,
+    id: "research-generation-2",
+    parentObservationId: researchTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 17_828,
+    latency: 43.193,
+    input: JSON.stringify([
+      { role: "assistant", content: "I will inspect the matching files." },
+      toolResult("call-research-tool-1", "TypeScript guidance loaded."),
+      toolResult("call-research-tool-2", "Storybook guidance loaded."),
+      toolResult("call-research-tool-3", "Frontend guidance loaded."),
+      toolResult("call-research-tool-4", "The demo workspace is indexed."),
+      toolResult("call-research-tool-5", "Found the dashboard and tests."),
+      toolResult("call-research-tool-6", "Found twelve recipe feature files."),
+    ]),
+    output: assistantToolCalls(null, [
+      {
+        id: "call-read-component",
+        name: "tilth_tilth_read",
+        arguments: { path: "src/features/recipes/RecipeDashboard.tsx" },
+      },
+      {
+        id: "call-read-test",
+        name: "tilth_tilth_read",
+        arguments: { path: "src/features/recipes/RecipeDashboard.test.tsx" },
+      },
+      {
+        id: "call-package",
+        name: "bash",
+        arguments: { command: "pnpm --filter demo-app test --help" },
+      },
+      {
+        id: "call-search-state",
+        name: "tilth_tilth_search",
+        arguments: { query: "sessionStorage" },
+      },
+      {
+        id: "call-list-stories",
+        name: "tilth_tilth_files",
+        arguments: { patterns: ["src/**/*.stories.tsx"] },
+      },
+    ]),
+  }),
+  ...[
+    [
+      "research-tool-7",
+      "tilth_tilth_read",
+      61_021,
+      0.01,
+      { path: "src/features/recipes/RecipeDashboard.tsx" },
+      {
+        lines: 186,
+        summary: "Dashboard component with toolbar and task cards.",
+      },
+    ],
+    [
+      "research-tool-8",
+      "tilth_tilth_read",
+      61_023,
+      0.003,
+      { path: "src/features/recipes/RecipeDashboard.test.tsx" },
+      { lines: 122, summary: "Existing rendering and filtering tests." },
+    ],
+    [
+      "research-tool-9",
+      "bash",
+      61_025,
+      33.987,
+      { command: "pnpm --filter demo-app test --help" },
+      "Usage: test [filters]\nAll command examples are fictional.",
+    ],
+    [
+      "research-tool-10",
+      "tilth_tilth_search",
+      61_027,
+      6.862,
+      { query: "sessionStorage" },
+      { matches: 4 },
+    ],
+    [
+      "research-tool-11",
+      "tilth_tilth_files",
+      61_029,
+      7.109,
+      { patterns: ["src/**/*.stories.tsx"] },
+      { files: 19 },
+    ],
+  ].map(([id, name, offsetMs, latency, input, output]) =>
+    codingAgentObservation({
+      traceId: researchTraceId,
+      id: id as string,
+      parentObservationId: "research-generation-2",
+      type: "TOOL",
+      name: name as string,
+      offsetMs: offsetMs as number,
+      latency: latency as number,
+      input: JSON.stringify(input),
+      output: typeof output === "string" ? output : JSON.stringify(output),
+    }),
+  ),
+  codingAgentObservation({
+    traceId: researchTraceId,
+    id: "research-generation-3",
+    parentObservationId: researchTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 61_031,
+    latency: 9.66,
+    input:
+      "The dashboard uses local state and has an established toolbar checkbox pattern.",
+    output: assistantToolCalls(null, [
+      { id: "call-index", name: "grepika_index", arguments: { force: false } },
+      {
+        id: "call-read-storage",
+        name: "tilth_tilth_read",
+        arguments: { path: "src/hooks/useSessionPreference.ts" },
+      },
+      {
+        id: "call-find-tests",
+        name: "tilth_tilth_files",
+        arguments: { patterns: ["src/features/recipes/*.test.tsx"] },
+      },
+      {
+        id: "call-find-config",
+        name: "tilth_tilth_files",
+        arguments: { patterns: ["**/vitest.config.*"] },
+      },
+      {
+        id: "call-search-checkbox",
+        name: "tilth_tilth_search",
+        arguments: { query: "Hide archived" },
+      },
+    ]),
+  }),
+  ...[
+    [
+      "research-tool-12",
+      "grepika_index",
+      70_691,
+      0.227,
+      { force: false },
+      { indexedFiles: 214 },
+    ],
+    [
+      "research-tool-13",
+      "tilth_tilth_read",
+      70_693,
+      0.005,
+      { path: "src/hooks/useSessionPreference.ts" },
+      { lines: 48 },
+    ],
+    [
+      "research-tool-14",
+      "tilth_tilth_files",
+      70_695,
+      0.002,
+      { patterns: ["src/features/recipes/*.test.tsx"] },
+      { files: 2 },
+    ],
+    [
+      "research-tool-15",
+      "tilth_tilth_files",
+      70_697,
+      0.006,
+      { patterns: ["**/vitest.config.*"] },
+      { files: 1 },
+    ],
+    [
+      "research-tool-16",
+      "tilth_tilth_search",
+      70_699,
+      0.136,
+      { query: "Hide archived" },
+      { matches: 1 },
+    ],
+  ].map(([id, name, offsetMs, latency, input, output]) =>
+    codingAgentObservation({
+      traceId: researchTraceId,
+      id: id as string,
+      parentObservationId: "research-generation-3",
+      type: "TOOL",
+      name: name as string,
+      offsetMs: offsetMs as number,
+      latency: latency as number,
+      input: JSON.stringify(input),
+      output: JSON.stringify(output),
+    }),
+  ),
+  codingAgentObservation({
+    traceId: researchTraceId,
+    id: "research-generation-4",
+    parentObservationId: researchTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 70_701,
+    latency: 13.95,
+    input: JSON.stringify([
+      { role: "assistant", content: null },
+      toolResult("call-index", "Index refreshed."),
+      toolResult(
+        "call-read-storage",
+        "A session preference hook already exists.",
+      ),
+      toolResult("call-find-tests", "Two nearby test files found."),
+      toolResult("call-find-config", "One Vitest config found."),
+      toolResult(
+        "call-search-checkbox",
+        "Found an analogous toolbar checkbox.",
+      ),
+    ]),
+    output: assistantToolCalls(
+      "I have the implementation pattern and will confirm its callers before editing.",
+      [
+        {
+          id: "call-final-search",
+          name: "tilth_tilth_search",
+          arguments: { query: "useSessionPreference" },
+        },
+        {
+          id: "call-final-files",
+          name: "tilth_tilth_files",
+          arguments: { patterns: ["src/features/recipes/*"] },
+        },
+        {
+          id: "call-related",
+          name: "grepika_search",
+          arguments: { query: "recipe filtering toolbar" },
+        },
+      ],
+    ),
+  }),
+  ...[
+    [
+      "research-tool-17",
+      "tilth_tilth_search",
+      84_651,
+      0.136,
+      { query: "useSessionPreference" },
+      { matches: 7 },
+    ],
+    [
+      "research-tool-18",
+      "tilth_tilth_files",
+      84_653,
+      0.344,
+      { patterns: ["src/features/recipes/*"] },
+      { files: 9 },
+    ],
+    [
+      "research-tool-19",
+      "grepika_search",
+      84_655,
+      0.006,
+      { query: "recipe filtering toolbar" },
+      { matches: 3 },
+    ],
+  ].map(([id, name, offsetMs, latency, input, output]) =>
+    codingAgentObservation({
+      traceId: researchTraceId,
+      id: id as string,
+      parentObservationId: "research-generation-4",
+      type: "TOOL",
+      name: name as string,
+      offsetMs: offsetMs as number,
+      latency: latency as number,
+      input: JSON.stringify(input),
+      output: JSON.stringify(output),
+    }),
+  ),
+  codingAgentObservation({
+    traceId: researchTraceId,
+    id: "research-generation-5",
+    parentObservationId: researchTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 84_657,
+    latency: 7.294,
+    input: JSON.stringify([
+      {
+        role: "assistant",
+        content: "I will confirm the final integration points.",
+      },
+      toolResult(
+        "call-final-search",
+        "The hook is already used by seven components.",
+      ),
+      toolResult("call-final-files", "The dashboard and test are colocated."),
+      toolResult("call-related", "The toolbar owns all recipe filters."),
+    ]),
+    output: assistantMessage(
+      "Research complete. I will add the compact-density checkbox to the existing toolbar, persist it with the session preference hook, and extend the colocated interaction test.",
+    ),
+  }),
+];
+
+const implementationTurnId = "implementation-agent-turn";
+const implementationCodingAgentObservations = [
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: implementationTurnId,
+    parentObservationId: "session-root-demo",
+    type: "AGENT",
+    name: "opencode.turn",
+    offsetMs: 120_000,
+    latency: 167.662,
+    input: userMessage,
+    output: assistantMessage(
+      "Implemented the compact recipe cards, added coverage, and verified tests and lint.",
+    ),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-user-message",
+    parentObservationId: implementationTurnId,
+    type: "EVENT",
+    name: "opencode.message.user",
+    offsetMs: 120_001,
+    latency: 0,
+    input: userMessage,
+    output: null,
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-generation-1",
+    parentObservationId: implementationTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 120_006,
+    latency: 20.463,
+    input: userMessage,
+    output: assistantToolCalls(
+      "I will make the smallest component and test change.",
+      [
+        {
+          id: "call-patch-1",
+          name: "apply_patch",
+          arguments: {
+            file: "src/features/recipes/RecipeDashboard.tsx",
+            change: "Add compact density preference.",
+          },
+        },
+      ],
+    ),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-tool-1",
+    parentObservationId: "implementation-generation-1",
+    type: "TOOL",
+    name: "apply_patch",
+    offsetMs: 140_469,
+    latency: 0.023,
+    input: JSON.stringify({
+      patch: "Synthetic dashboard patch with no source code.",
+    }),
+    output: JSON.stringify({ success: true, filesChanged: 1 }),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-generation-2",
+    parentObservationId: implementationTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 140_492,
+    latency: 5.241,
+    input: JSON.stringify([
+      { role: "assistant", content: "The component change is applied." },
+      toolResult("call-patch-1", "Updated one fictional file."),
+    ]),
+    output: assistantToolCalls(null, [
+      {
+        id: "call-diff",
+        name: "tilth_tilth_diff",
+        arguments: { scope: "src/features/recipes/RecipeDashboard.tsx" },
+      },
+      {
+        id: "call-search-tests",
+        name: "tilth_tilth_search",
+        arguments: { query: "RecipeDashboard tests" },
+      },
+      {
+        id: "call-read-tests",
+        name: "tilth_tilth_read",
+        arguments: { path: "src/features/recipes/RecipeDashboard.test.tsx" },
+      },
+    ]),
+  }),
+  ...[
+    [
+      "implementation-tool-2",
+      "tilth_tilth_diff",
+      145_733,
+      0.083,
+      { scope: "src/features/recipes/RecipeDashboard.tsx" },
+      { additions: 18, deletions: 2 },
+    ],
+    [
+      "implementation-tool-3",
+      "tilth_tilth_search",
+      145_735,
+      0.197,
+      { query: "RecipeDashboard tests" },
+      { matches: 4 },
+    ],
+    [
+      "implementation-tool-4",
+      "tilth_tilth_read",
+      145_737,
+      0.196,
+      { path: "src/features/recipes/RecipeDashboard.test.tsx" },
+      { lines: 122 },
+    ],
+  ].map(([id, name, offsetMs, latency, input, output]) =>
+    codingAgentObservation({
+      traceId: implementationTraceId,
+      id: id as string,
+      parentObservationId: "implementation-generation-2",
+      type: "TOOL",
+      name: name as string,
+      offsetMs: offsetMs as number,
+      latency: latency as number,
+      input: JSON.stringify(input),
+      output: JSON.stringify(output),
+    }),
+  ),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-generation-3",
+    parentObservationId: implementationTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 145_739,
+    latency: 10.318,
+    input: JSON.stringify([
+      { role: "assistant", content: null },
+      toolResult("call-diff", "The component diff is scoped."),
+      toolResult("call-search-tests", "Found the colocated tests."),
+      toolResult("call-read-tests", "The test uses user-visible queries."),
+    ]),
+    output: assistantToolCalls(null, [
+      {
+        id: "call-patch-tests",
+        name: "apply_patch",
+        arguments: {
+          file: "src/features/recipes/RecipeDashboard.test.tsx",
+          change: "Cover compact density persistence.",
+        },
+      },
+    ]),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-tool-5",
+    parentObservationId: "implementation-generation-3",
+    type: "TOOL",
+    name: "apply_patch",
+    offsetMs: 156_057,
+    latency: 0.004,
+    input: JSON.stringify({ patch: "Synthetic interaction test patch." }),
+    output: JSON.stringify({ success: true, filesChanged: 1 }),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-generation-4",
+    parentObservationId: implementationTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 156_061,
+    latency: 61.287,
+    input: JSON.stringify([
+      { role: "assistant", content: null },
+      toolResult("call-patch-tests", "Updated one fictional test file."),
+    ]),
+    output: assistantToolCalls(
+      "The implementation and test are ready. I will run both targeted checks in parallel.",
+      [
+        {
+          id: "call-test",
+          name: "bash",
+          arguments: {
+            command: "pnpm --filter demo-app test RecipeDashboard.test.tsx",
+          },
+        },
+        {
+          id: "call-lint",
+          name: "bash",
+          arguments: {
+            command: "pnpm --filter demo-app lint RecipeDashboard.tsx",
+          },
+        },
+      ],
+    ),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-tool-6",
+    parentObservationId: "implementation-generation-4",
+    type: "TOOL",
+    name: "bash",
+    offsetMs: 217_348,
+    latency: 14.852,
+    input: JSON.stringify({
+      command: "pnpm --filter demo-app test RecipeDashboard.test.tsx",
+    }),
+    output: JSON.stringify({ testFiles: 1, testsPassed: 6, testsFailed: 0 }),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-tool-7",
+    parentObservationId: "implementation-generation-4",
+    type: "TOOL",
+    name: "bash",
+    offsetMs: 217_350,
+    latency: 51.812,
+    input: JSON.stringify({
+      command: "pnpm --filter demo-app lint RecipeDashboard.tsx",
+    }),
+    output: "Lint completed successfully with no warnings.",
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-generation-5",
+    parentObservationId: implementationTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 217_352,
+    latency: 23.685,
+    input:
+      "Targeted tests and lint passed. Inspect the final diff and repository status.",
+    output: assistantToolCalls(null, [
+      {
+        id: "call-status",
+        name: "bash",
+        arguments: { command: "git status --short" },
+      },
+      {
+        id: "call-format",
+        name: "bash",
+        arguments: {
+          command:
+            "pnpm prettier --check src/features/recipes/RecipeDashboard.tsx",
+        },
+      },
+      {
+        id: "call-diff-stat",
+        name: "bash",
+        arguments: { command: "git diff --stat" },
+      },
+    ]),
+  }),
+  ...[
+    [
+      "implementation-tool-8",
+      241_037,
+      0.139,
+      { command: "git status --short" },
+      { modified: ["RecipeDashboard.tsx", "RecipeDashboard.test.tsx"] },
+    ],
+    [
+      "implementation-tool-9",
+      241_039,
+      14.279,
+      {
+        command:
+          "pnpm prettier --check src/features/recipes/RecipeDashboard.tsx",
+      },
+      { checked: 1, formatted: true },
+    ],
+    [
+      "implementation-tool-10",
+      241_041,
+      0.599,
+      { command: "git diff --stat" },
+      { filesChanged: 2, insertions: 37, deletions: 4 },
+    ],
+  ].map(([id, offsetMs, latency, input, output]) =>
+    codingAgentObservation({
+      traceId: implementationTraceId,
+      id: id as string,
+      parentObservationId: "implementation-generation-5",
+      type: "TOOL",
+      name: "bash",
+      offsetMs: offsetMs as number,
+      latency: latency as number,
+      input: JSON.stringify(input),
+      output: JSON.stringify(output),
+    }),
+  ),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-generation-6",
+    parentObservationId: implementationTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 241_043,
+    latency: 35.864,
+    input: JSON.stringify([
+      { role: "assistant", content: null },
+      toolResult("call-status", "Only the two intended files changed."),
+      toolResult("call-format", "Formatting passed."),
+      toolResult("call-diff-stat", "The diff is compact."),
+    ]),
+    output: assistantToolCalls(
+      "I will run the final focused Storybook check.",
+      [
+        {
+          id: "call-storybook",
+          name: "bash",
+          arguments: {
+            command:
+              "pnpm --filter demo-app test-storybook RecipeDashboard.stories.tsx",
+          },
+        },
+      ],
+    ),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-tool-11",
+    parentObservationId: "implementation-generation-6",
+    type: "TOOL",
+    name: "bash",
+    offsetMs: 276_907,
+    latency: 28.994,
+    input: JSON.stringify({
+      command:
+        "pnpm --filter demo-app test-storybook RecipeDashboard.stories.tsx",
+    }),
+    output: JSON.stringify({ storyFiles: 1, testsPassed: 8, testsFailed: 0 }),
+  }),
+  codingAgentObservation({
+    traceId: implementationTraceId,
+    id: "implementation-generation-7",
+    parentObservationId: implementationTurnId,
+    type: "GENERATION",
+    name: "opencode.generation",
+    offsetMs: 276_909,
+    latency: 10.775,
+    input: JSON.stringify([
+      {
+        role: "assistant",
+        content: "I will run the final focused Storybook check.",
+      },
+      toolResult("call-storybook", "Eight Storybook tests passed."),
+    ]),
+    output: assistantMessage(
+      "Implemented a compact density option for the fictional recipe dashboard, persisted it for the browser tab, and added interaction coverage. Targeted tests, Storybook, formatting, and lint all pass.",
+    ),
+  }),
+];
+
+const inAppAgentTraceId = "trace-demo-error-analysis";
+const inAppAgentTurnId = "error-analysis-agent-turn";
+const inAppAgentPrompt =
+  "Analyze failed traces for a fictional travel assistant. Sample representative failures, group recurring causes into a taxonomy, recommend what to fix first, and suggest how to track the top issue.";
+const inAppAgentMetadata = {
+  cloud_region: "DEMO",
+  conversation_id: "conversation-demo-error-analysis",
+  execution_runtime: "worker",
+  langfuse_ai_feature: "in-app-agent",
+  langfuse_project_id: "project-demo-travel-assistant",
+  langfuse_user_email: "redacted",
+  langfuse_user_id: "user-demo-analyst",
+  langfuse_user_is_admin: false,
+  prompt_name: "demo-in-app-agent-system-prompt",
+  prompt_version: 1,
+  run_id: "run-demo-error-analysis",
+};
+
+const inAppAgentActions: Array<{
+  offsetMs: number;
+  latency: number;
+  summary: string;
+  tools: Array<{
+    name: string;
+    latency: number;
+    input: Record<string, unknown>;
+    output: unknown;
+    outputAsText?: boolean;
+  }>;
+}> = [
+  {
+    offsetMs: 300_000,
+    latency: 6.37,
+    summary: "I will load the error-analysis workflow before inspecting data.",
+    tools: [
+      {
+        name: "skill",
+        latency: 0.001,
+        input: { name: "error-analysis" },
+        output:
+          "Use representative samples, separate symptoms from root causes, and quantify each recurring category.",
+        outputAsText: true,
+      },
+    ],
+  },
+  {
+    offsetMs: 307_000,
+    latency: 5.345,
+    summary:
+      "I will confirm the analysis guidance and retrieve a bounded sample of failed observations.",
+    tools: [
+      {
+        name: "langfuseDocs_getLangfuseDocsPage",
+        latency: 0.29,
+        input: { pathOrUrl: "/docs/observability/errors", silent: false },
+        output: {
+          type: "tool-result",
+          toolName: "langfuseDocs_getLangfuseDocsPage",
+          content: "Synthetic guidance for investigating failed traces.",
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.233,
+        input: {
+          fields: ["id", "name", "level", "statusMessage"],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 25,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 25, cursor: "cursor-demo-page-2" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 313_000,
+    latency: 2.759,
+    summary:
+      "I will summarize the first sample locally without exposing payloads.",
+    tools: [
+      {
+        name: "bash",
+        latency: 1.541,
+        input: { command: "jq 'group_by(.name)' synthetic-errors.json" },
+        output: {
+          startedAt: "2026-01-08T09:00:13Z",
+          completedAt: "2026-01-08T09:00:14Z",
+          exitCode: 0,
+          stdout: "booking-assistant: 11\nroute-planner: 8\nfare-checker: 6",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 317_000,
+    latency: 5.457,
+    summary: "I will inspect status-message frequencies in the sample.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.195,
+        input: {
+          command: "jq 'group_by(.statusMessage)' synthetic-errors.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:00:17Z",
+          completedAt: "2026-01-08T09:00:17Z",
+          exitCode: 0,
+          stdout: "timeout: 9\ninvalid itinerary: 7\nmissing fare: 5\nother: 4",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 323_000,
+    latency: 5.896,
+    summary: "I will fetch examples from the largest failure category.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.219,
+        input: {
+          fields: ["id", "traceId", "input", "output", "statusMessage"],
+          filter: [
+            { column: "statusMessage", operator: "contains", value: "timeout" },
+          ],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 10,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 10, sample: "synthetic timeout observations" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 329_000,
+    latency: 2.974,
+    summary: "I will compare error signatures across those examples.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.207,
+        input: {
+          command: "jq '.[] | [.name, .statusMessage]' synthetic-timeouts.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:00:29Z",
+          completedAt: "2026-01-08T09:00:29Z",
+          exitCode: 0,
+          stdout:
+            "upstream timeout: 6\nretry exhausted: 3\nclient cancelled: 1",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 332_000,
+    latency: 8.043,
+    summary:
+      "I will discover the available model values before filtering further.",
+    tools: [
+      {
+        name: "langfuse_getObservationFilterValues",
+        latency: 0.284,
+        input: {
+          column: "model",
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          limit: 20,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_getObservationFilterValues",
+          output: ["demo-chat-large", "demo-chat-fast", "demo-embed-small"],
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 341_000,
+    latency: 3.716,
+    summary: "I will quantify failures by model and operation.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.2,
+        input: {
+          command: "jq 'group_by([.model,.name])' synthetic-errors.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:00:41Z",
+          completedAt: "2026-01-08T09:00:41Z",
+          exitCode: 0,
+          stdout:
+            "demo-chat-fast / route-planner: 8\ndemo-chat-large / booking-assistant: 11",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 344_000,
+    latency: 15.801,
+    summary: "I will inspect invalid-itinerary failures as the second cluster.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.202,
+        input: {
+          fields: ["id", "traceId", "input", "output", "metadata"],
+          filter: [
+            {
+              column: "statusMessage",
+              operator: "contains",
+              value: "invalid itinerary",
+            },
+          ],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 10,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: {
+            count: 7,
+            sample: "synthetic itinerary validation failures",
+          },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 361_000,
+    latency: 5.819,
+    summary: "I will extract the common validation causes.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.183,
+        input: {
+          command:
+            "jq '.[] | .metadata.validationReason' synthetic-itineraries.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:01:01Z",
+          completedAt: "2026-01-08T09:01:01Z",
+          exitCode: 0,
+          stdout:
+            "impossible connection: 4\nmissing airport: 2\ndate ordering: 1",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 367_000,
+    latency: 14.948,
+    summary: "I will inspect missing-fare failures as the third cluster.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.675,
+        input: {
+          fields: ["id", "traceId", "input", "output", "metadata"],
+          filter: [
+            {
+              column: "statusMessage",
+              operator: "contains",
+              value: "missing fare",
+            },
+          ],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          limit: 10,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 5, sample: "synthetic pricing lookup failures" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 382_000,
+    latency: 7.054,
+    summary: "I will compare provider and cache behavior for missing fares.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.199,
+        input: {
+          command:
+            "jq 'group_by([.metadata.provider,.metadata.cache])' synthetic-fares.json",
+        },
+        output: {
+          startedAt: "2026-01-08T09:01:22Z",
+          completedAt: "2026-01-08T09:01:22Z",
+          exitCode: 0,
+          stdout: "provider unavailable / cache miss: 4\nmalformed response: 1",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 390_000,
+    latency: 9.036,
+    summary: "I will calculate an initial taxonomy and prevalence table.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.199,
+        input: { command: "node scripts/summarize-synthetic-errors.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:01:30Z",
+          completedAt: "2026-01-08T09:01:30Z",
+          exitCode: 0,
+          stdout:
+            "upstream reliability 36%\nvalidation 28%\ndata availability 20%\nother 16%",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 399_000,
+    latency: 12.964,
+    summary:
+      "I will page through additional failures to check whether the taxonomy holds.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 0.192,
+        input: {
+          cursor: "cursor-demo-page-2",
+          environment: "production-demo",
+          fields: ["id", "name", "level", "statusMessage"],
+          fromStartTime: "2026-01-01T00:00:00Z",
+          toStartTime: "2026-01-08T00:00:00Z",
+          level: "ERROR",
+          limit: 25,
+          silent: false,
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { count: 25, cursor: null },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 412_000,
+    latency: 5.249,
+    summary: "I will merge both pages and recompute category shares.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.197,
+        input: { command: "node scripts/merge-synthetic-samples.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:01:52Z",
+          completedAt: "2026-01-08T09:01:52Z",
+          exitCode: 0,
+          stdout: "50 observations classified; 46 matched the draft taxonomy",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 417_000,
+    latency: 9.648,
+    summary:
+      "I will identify representative trace IDs for each major category.",
+    tools: [
+      {
+        name: "bash",
+        latency: 0.43,
+        input: { command: "node scripts/select-synthetic-representatives.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:01:57Z",
+          completedAt: "2026-01-08T09:01:57Z",
+          exitCode: 0,
+          stdout:
+            "trace-demo-timeout\ntrace-demo-validation\ntrace-demo-fare\ntrace-demo-other",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 428_000,
+    latency: 18.765,
+    summary: "I will inspect four representative traces in parallel.",
+    tools: [
+      {
+        name: "langfuse_listObservations",
+        latency: 1.207,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-timeout",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 14, category: "upstream timeout" },
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.138,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-validation",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 9, category: "itinerary validation" },
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.139,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-fare",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 11, category: "fare unavailable" },
+        },
+      },
+      {
+        name: "langfuse_listObservations",
+        latency: 0.12,
+        input: {
+          fields: ["*"],
+          limit: 100,
+          silent: false,
+          traceId: "trace-demo-other",
+        },
+        output: {
+          type: "tool-result",
+          toolName: "langfuse_listObservations",
+          output: { observations: 7, category: "uncategorized" },
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 448_000,
+    latency: 7.902,
+    summary: "I will compare the causal chains in those representative traces.",
+    tools: [
+      {
+        name: "bash",
+        latency: 1.924,
+        input: { command: "node scripts/compare-synthetic-traces.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:02:28Z",
+          completedAt: "2026-01-08T09:02:30Z",
+          exitCode: 0,
+          stdout:
+            "timeouts originate at the inventory provider; validation failures originate before model invocation; missing fares follow cache misses",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 459_000,
+    latency: 21.138,
+    summary:
+      "I will calculate impact and confidence for the recommended priority order.",
+    tools: [
+      {
+        name: "bash",
+        latency: 1.783,
+        input: { command: "node scripts/rank-synthetic-fixes.mjs" },
+        output: {
+          startedAt: "2026-01-08T09:02:39Z",
+          completedAt: "2026-01-08T09:02:41Z",
+          exitCode: 0,
+          stdout:
+            "1 provider timeout handling\n2 itinerary pre-validation\n3 fare cache fallback\n4 improve unknown-error metadata",
+          stderr: "",
+        },
+      },
+    ],
+  },
+  {
+    offsetMs: 482_000,
+    latency: 22.149,
+    summary:
+      "The dominant failure mode is upstream inventory timeout, followed by invalid itinerary construction and missing fare data. Fix timeout retries and circuit breaking first, then add deterministic itinerary validation before model invocation. Track the top category with a categorical evaluator or an annotation queue.",
+    tools: [],
+  },
+];
+
+const inAppAgentSystemMessages = [
+  {
+    role: "system",
+    content:
+      "You are a demo observability analyst. Use only fictional project data.",
+  },
+  {
+    role: "system",
+    content:
+      "Inspect representative failures before proposing a taxonomy or remediation.",
+  },
+  {
+    role: "system",
+    content: "Never expose identifiers or payloads from real users.",
+    providerOptions: { demo: { cacheControl: "temporary" } },
+  },
+];
+
+const inAppAgentObservations = [
+  ...inAppAgentActions.flatMap((action, actionIndex) => {
+    const generationId = `error-analysis-generation-${actionIndex + 1}`;
+    const previousMessages = inAppAgentActions
+      .slice(0, actionIndex)
+      .flatMap((previousAction, previousActionIndex) => [
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: previousAction.tools.map((tool, toolIndex) => ({
+            toolCallId: `error-analysis-call-${previousActionIndex + 1}-${toolIndex + 1}`,
+            toolName: tool.name,
+            args: tool.input,
+          })),
+        },
+        ...previousAction.tools.map((tool, toolIndex) => ({
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: `error-analysis-call-${previousActionIndex + 1}-${toolIndex + 1}`,
+              toolName: tool.name,
+              output: tool.output,
+            },
+          ],
+        })),
+      ]);
+    const runtimeContextOffsetMs = (() => {
+      if (actionIndex < 6) {
+        return inAppAgentActions[0]!.offsetMs;
+      }
+      if (actionIndex < 13) {
+        return inAppAgentActions[6]!.offsetMs;
+      }
+      if (actionIndex < 18) {
+        return inAppAgentActions[13]!.offsetMs;
+      }
+      return inAppAgentActions[18]!.offsetMs;
+    })();
+    const generationInput = JSON.stringify({
+      messages: [
+        ...inAppAgentSystemMessages,
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: inAppAgentPrompt,
+              providerOptions: { demo: { cacheControl: "temporary" } },
+            },
+          ],
+          providerOptions: { demo: { cacheControl: "temporary" } },
+        },
+        ...previousMessages,
+        ...(actionIndex === inAppAgentActions.length - 1
+          ? [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Summarize the taxonomy, recommend the first fix, and suggest a durable way to track it.",
+                  },
+                ],
+                providerOptions: {
+                  demo: { cacheControl: "temporary" },
+                },
+              },
+            ]
+          : []),
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `<screen_context>
+Current page: /project/project-demo-travel-assistant/traces
+Active filter: level is ERROR
+  Saved view: booking-assistant, route-planner, fare-checker
+  </screen_context>
+  <current_time>${new Date(fixtureStart + runtimeContextOffsetMs).toISOString()}</current_time>`,
+            },
+          ],
+        },
+      ],
+      providerOptions: { demo: { region: "local" } },
+      toolChoice: { type: "auto" },
+      tools: [
+        { name: "langfuse_listObservations" },
+        { name: "langfuse_getObservationFilterValues" },
+        { name: "langfuseDocs_getLangfuseDocsPage" },
+        { name: "bash" },
+      ],
+    });
+    const generationOutput = (() => {
+      if (actionIndex === inAppAgentActions.length - 1) {
+        return JSON.stringify({
+          role: "assistant",
+          content: [
+            {
+              taxonomy: {
+                primaryIssue: "tool-timeout",
+                affectedWorkflow: "booking-assistant",
+                recommendedFix: "Add bounded retries with backoff",
+              },
+              tracking: {
+                metric: "tool_error_rate",
+                owner: "agent-platform",
+              },
+            },
+          ],
+        });
+      }
+      if (action.tools.length > 0) {
+        return JSON.stringify({
+          tool_calls: action.tools.map((tool, toolIndex) => ({
+            args: tool.input,
+            toolCallId: `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`,
+            toolName: tool.name,
+          })),
+        });
+      }
+      return JSON.stringify({ text: action.summary });
+    })();
+
+    return [
+      codingAgentObservation({
+        traceId: inAppAgentTraceId,
+        id: generationId,
+        parentObservationId: inAppAgentTurnId,
+        type: "GENERATION",
+        name: "invoke-model",
+        offsetMs: action.offsetMs,
+        latency: action.latency,
+        input: generationInput,
+        output: generationOutput,
+        metadata: { ...inAppAgentMetadata, finish_reason: "stop" },
+      }),
+      ...action.tools.map((tool, toolIndex) => {
+        const toolCallId = `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`;
+        return codingAgentObservation({
+          traceId: inAppAgentTraceId,
+          id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
+          parentObservationId: inAppAgentTurnId,
+          type: "TOOL",
+          name: tool.name,
+          offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
+          latency: tool.latency,
+          input: JSON.stringify(tool.input),
+          output: tool.outputAsText
+            ? String(tool.output)
+            : JSON.stringify({
+                type: "tool-result",
+                toolCallId,
+                toolName: tool.name,
+                output: tool.output,
+              }),
+          metadata: {
+            ...inAppAgentMetadata,
+            parentMessageId: `message-demo-${actionIndex + 1}`,
+            toolCallApprovalSource: "automatic",
+            toolCallId,
+          },
+        });
+      }),
+    ];
+  }),
+];
+
+const inAppAgentTrace = {
+  id: inAppAgentTraceId,
+  name: "Analyze fictional travel-assistant failures",
+  timestamp: new Date(fixtureStart + 300_000),
+  environment: "storybook",
+  userId: "user-demo-analyst",
+  observationCount: inAppAgentObservations.length,
+  latencyMs: 205_058,
+  scores: [],
+} satisfies TraceProps["trace"];
+
+const researchCodingAgentTrace = {
+  id: researchTraceId,
+  name: "Research recipe dashboard density setting",
+  timestamp: new Date(fixtureStart),
+  environment: "storybook",
+  userId: "demo-user",
+  observationCount: researchCodingAgentObservations.length,
+  latencyMs: 87_347,
+  scores: [],
+} satisfies TraceProps["trace"];
+
+const implementationCodingAgentTrace = {
+  id: implementationTraceId,
+  name: "Implement recipe dashboard density setting",
+  timestamp: new Date(fixtureStart + 120_000),
+  environment: "storybook",
+  userId: "demo-user",
+  observationCount: implementationCodingAgentObservations.length,
+  latencyMs: 167_662,
+  scores: [],
+} satisfies TraceProps["trace"];
+
+type WorkflowFixture = Pick<TraceProps, "trace" | "turnNumber"> & {
+  observations: Array<TranscriptObservation & { environment: string }>;
+};
+
+const supportAgentWorkflow: WorkflowFixture[] = [
+  {
+    trace,
+    turnNumber: 1,
+    observations: observations.map((observation) => ({
+      ...observation,
+      output:
+        observation.type === "TOOL"
+          ? fixtureToolOutput(
+              observation.output,
+              observation.name ?? "",
+              typeof observation.metadata?.toolCallId === "string"
+                ? observation.metadata.toolCallId
+                : undefined,
+            )
+          : observation.output,
+      traceId: trace.id,
+      parentObservationId: null,
+      endTime: new Date(
+        observation.startTime.getTime() + observation.latency * 1_000,
+      ),
+      environment: trace.environment,
+    })),
+  },
+];
+const codingAgentWorkflow: WorkflowFixture[] = [
+  {
+    trace: researchCodingAgentTrace,
+    turnNumber: 2,
+    observations: researchCodingAgentObservations,
+  },
+  {
+    trace: implementationCodingAgentTrace,
+    turnNumber: 3,
+    observations: implementationCodingAgentObservations,
+  },
+];
+const langfuseAssistantWorkflow: WorkflowFixture[] = [
+  {
+    trace: inAppAgentTrace,
+    turnNumber: 4,
+    observations: inAppAgentObservations,
+  },
+];
+
+const workflowTranscripts = new Map(
+  [supportAgentWorkflow, codingAgentWorkflow, langfuseAssistantWorkflow].map(
+    (workflow) => [
+      workflow,
+      workflow.map(
+        (item): WorkflowTrace => ({
+          trace: item.trace,
+          turnNumber: item.turnNumber,
+          state: {
+            type: "transcript",
+            observations: item.observations,
+            result: {
+              state: "loaded",
+              cutoff: false,
+              transcript: assembleTranscript(
+                orderObservations(item.observations),
+              ),
+            },
+          },
+        }),
+      ),
+    ],
+  ),
+);
 
 const traces: TraceProps[] = [
   {
@@ -5712,7 +2078,7 @@ function SessionConversationalViewStory({
   groupedTools = false,
   searchQueryOverride,
 }: {
-  workflowTraces?: typeof supportAgentWorkflow;
+  workflowTraces?: WorkflowFixture[];
   isLoading?: boolean;
   isSearchPending?: boolean;
   groupedTools?: boolean;
@@ -5796,7 +2162,7 @@ function SessionConversationalViewStory({
     },
   ];
   const workflowTraceProps = workflowTraces
-    ? workflowTraces.map((item) => ({
+    ? (workflowTranscripts.get(workflowTraces) ?? []).map((item) => ({
         ...item,
         state: {
           ...item.state,
