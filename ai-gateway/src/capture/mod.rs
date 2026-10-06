@@ -286,21 +286,6 @@ fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>,
     })
 }
 
-/// The `model` of a request body that is not captured, within the capture's limits.
-pub(crate) fn request_model(headers: &HeaderMap, body: &[u8]) -> Option<String> {
-    #[derive(serde::Deserialize)]
-    struct Model<'a> {
-        #[serde(borrow)]
-        model: std::borrow::Cow<'a, str>,
-    }
-    if body.is_empty() || body.len() > MAX_INPUT_CAPTURE_BYTES || !identity_encoding(headers) {
-        return None;
-    }
-    serde_json::from_slice::<Model<'_>>(body)
-        .ok()
-        .and_then(|request| bounded_string(&request.model))
-}
-
 fn bounded_string(value: &str) -> Option<String> {
     (value.len() <= MAX_FACT_STRING).then(|| value.to_owned())
 }

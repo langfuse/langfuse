@@ -172,7 +172,7 @@ does not set CORS headers, so no `Access-Control-Expose-Headers` is involved.
 ### Resolution context
 
 Once Web resolution succeeds, the request also carries its tenant, and once it is
-sent upstream, the provider connection and model it was sent to. Requests rejected
+sent upstream, the provider connection it was sent to. Requests rejected
 before resolution carry none of them. A resolved request that fails before reaching
 the provider, such as a 413 body or 503 execution capacity rejection, carries only
 the tenant. Provider failures before response headers (502/504) still name the
@@ -185,12 +185,12 @@ connection that was tried.
 | `langfuse-provider` | `gateway.provider` | `provider` | Stable lowercase provider type, `openai` or `anthropic` |
 | `langfuse-provider-connection-id` | `gateway.provider.connection.id` | `provider_connection_id` | Opaque provider connection ID |
 | — | `gateway.provider.connection.name` | `provider_connection_name` | The connection's user-chosen name; never sent to callers |
-| `langfuse-model` | `gateway.upstream.model` | `upstream_model` | The request's `model`, which the relay forwards unchanged |
+| — | `gateway.upstream.model` | `upstream_model` | The request's `model`, which the relay forwards unchanged; never sent to callers |
 
 The provider fields describe the latest upstream attempt, so with fallbacks they
-name the connection that served the response, or the last one tried. The model is
-read from the request body when it is uncompressed JSON of at most 5 MiB; the
-models routes have none. Its header is omitted unless the value is printable ASCII.
+name the connection that served the response, or the last one tried. The model
+comes from the request capture's existing parse, so it is recorded only on the
+generation routes listed above, when the body is uncompressed JSON of at most 5 MiB.
 The span fields are declared empty on the `http.server` span and recorded after
 resolution; child spans do not repeat them. JSON log lines emitted inside the
 request after they are recorded repeat them as top-level keys, like `request_id`.

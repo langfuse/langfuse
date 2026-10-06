@@ -534,7 +534,6 @@ fn assert_request_correlation(
         ("langfuse-project-id", "project-1"),
         ("langfuse-provider", "openai"),
         ("langfuse-provider-connection-id", "connection-1"),
-        ("langfuse-model", "test-model"),
     ] {
         assert_eq!(header(name), expected, "{name}");
     }
@@ -543,6 +542,7 @@ fn assert_request_correlation(
             .to_str()
             .is_ok_and(|value| !value.contains("Production key"))
     }));
+    assert!(!response.contains_key("langfuse-model"));
     let events: Vec<_> = recording
         .events()
         .into_iter()

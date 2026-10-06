@@ -337,7 +337,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
 }
 
 #[tokio::test]
-async fn resolved_requests_name_the_provider_connection_and_model_sent_upstream() {
+async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to() {
     let web = FakeServer::start(|request| async move {
         let body = to_bytes(request.into_body(), 1024).await.unwrap();
         let api_format =
@@ -364,25 +364,18 @@ async fn resolved_requests_name_the_provider_connection_and_model_sent_upstream(
             .header("content-type", "application/json")
             .body(body)
     };
-    for (request, provider_type, model) in [
+    for (request, provider_type) in [
         (
             anthropic(
                 "messages/count_tokens",
                 r#"{"messages":[],"model":"claude-opus-4-1"}"#,
             ),
             "anthropic",
-            Some("claude-opus-4-1"),
         ),
+        (gateway.models().bearer_auth("gateway-openai"), "openai"),
         (
-            gateway.models().bearer_auth("gateway-openai"),
-            "openai",
-            None,
-        ),
-        // Not a valid header value; the other headers are still sent.
-        (
-            anthropic("messages", r#"{"model":"claude-\u00e9","messages":[]}"#),
+            anthropic("messages", r#"{"model":"claude-opus-4-1","messages":[]}"#),
             "anthropic",
-            None,
         ),
     ] {
         let response = request.send().await.unwrap();
@@ -396,7 +389,8 @@ async fn resolved_requests_name_the_provider_connection_and_model_sent_upstream(
             header("langfuse-provider-connection-id"),
             Some("connection-1")
         );
-        assert_eq!(header("langfuse-model"), model);
+        // The model is an operator-side span and log field only.
+        assert_eq!(header("langfuse-model"), None);
     }
     assert_eq!(provider.calls(), 3);
 }

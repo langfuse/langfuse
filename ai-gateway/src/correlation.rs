@@ -19,7 +19,6 @@ const PROJECT_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-project-
 const PROVIDER_HEADER: HeaderName = HeaderName::from_static("langfuse-provider");
 const PROVIDER_CONNECTION_ID_HEADER: HeaderName =
     HeaderName::from_static("langfuse-provider-connection-id");
-const MODEL_HEADER: HeaderName = HeaderName::from_static("langfuse-model");
 const CLIENT_REQUEST_ID_HEADER: &str = "x-request-id";
 const MAX_CLIENT_REQUEST_ID_BYTES: usize = 256;
 
@@ -149,7 +148,7 @@ impl RequestCorrelation {
     }
 
     /// Only a resolved request advertises its tenant, and only a request sent
-    /// upstream its provider. The connection name stays out of responses.
+    /// upstream its provider. The connection name and model stay out of responses.
     pub fn apply_resolution_headers(&self, headers: &mut HeaderMap) {
         let Some(tenant) = &self.tenant else {
             return;
@@ -161,18 +160,8 @@ impl RequestCorrelation {
         if let Some(upstream) = &self.upstream {
             values.push((PROVIDER_HEADER, upstream.provider));
             values.push((PROVIDER_CONNECTION_ID_HEADER, &upstream.connection_id));
-            if let Some(model) = &upstream.model {
-                values.push((MODEL_HEADER, model));
-            }
         }
-        // `HeaderValue` admits non-ASCII bytes, which most clients cannot read as text.
         for (name, value) in values {
-            if !value
-                .bytes()
-                .all(|byte| byte == b' ' || byte.is_ascii_graphic())
-            {
-                continue;
-            }
             if let Ok(value) = HeaderValue::from_str(value) {
                 headers.insert(name, value);
             }
