@@ -13,9 +13,11 @@ import {
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
+import { type Session } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 import {
   createExternalMediaStorageRepository,
@@ -23,6 +25,32 @@ import {
 } from "@/src/features/external-media-storage/server/repository";
 
 const EXTERNAL_MEDIA_URL_TTL_SECONDS = 5 * 60;
+
+export type ExternalMediaStorageAuditActor =
+  | { session: Session }
+  | { apiKeyId: string; orgId: string };
+
+async function auditConfigurationChange({
+  action,
+  actor,
+  projectId,
+}: {
+  action: "update" | "delete";
+  actor: ExternalMediaStorageAuditActor;
+  projectId: string;
+}) {
+  const event = {
+    action,
+    resourceType: "externalMediaStorageIntegration" as const,
+    resourceId: projectId,
+  };
+
+  await auditLog(
+    "session" in actor
+      ? { ...event, session: actor.session }
+      : { ...event, ...actor, projectId },
+  );
+}
 
 function isKeyWithinPrefix(key: string, prefix: string | null) {
   const normalizedPrefix = prefix?.trim().replace(/\/+$/, "");
@@ -68,9 +96,11 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
     },
 
     async saveConfiguration({
+      actor,
       projectId,
       values,
     }: {
+      actor: ExternalMediaStorageAuditActor;
       projectId: string;
       values: ExternalMediaStorageFormValues;
     }) {
@@ -119,10 +149,16 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         },
       });
 
-      return;
+      await auditConfigurationChange({ action: "update", actor, projectId });
     },
 
-    async deleteConfiguration(projectId: string) {
+    async deleteConfiguration({
+      actor,
+      projectId,
+    }: {
+      actor: ExternalMediaStorageAuditActor;
+      projectId: string;
+    }) {
       const existing = await repository.findByProjectId(projectId);
       if (!existing) {
         throw new InvalidRequestError(
@@ -130,6 +166,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
       await repository.deleteByProjectId(projectId);
+      await auditConfigurationChange({ action: "delete", actor, projectId });
     },
 
     async resolveUrl({ projectId, uri }: { projectId: string; uri: string }) {

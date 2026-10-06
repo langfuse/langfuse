@@ -1,10 +1,8 @@
 import { InvalidRequestError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { type Session } from "next-auth";
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
 import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
 import { externalMediaStorageFormSchema } from "@/src/features/external-media-storage/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -12,20 +10,6 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-
-function assertIntegrationAccess({
-  projectId,
-  session,
-}: {
-  projectId: string;
-  session: Session;
-}) {
-  throwIfNoProjectAccess({
-    session,
-    projectId,
-    scope: "integrations:CRUD",
-  });
-}
 
 function asBadRequest(error: unknown): never {
   if (error instanceof InvalidRequestError) {
@@ -38,9 +22,10 @@ export const externalMediaStorageRouter = createTRPCRouter({
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      assertIntegrationAccess({
+      throwIfNoProjectAccess({
         projectId: input.projectId,
         session: ctx.session,
+        scope: "integrations:CRUD",
       });
       return {
         config: await createExternalMediaStorageService(
@@ -56,9 +41,10 @@ export const externalMediaStorageRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      assertIntegrationAccess({
+      throwIfNoProjectAccess({
         projectId: input.projectId,
         session: ctx.session,
+        scope: "integrations:CRUD",
       });
 
       const { projectId: _projectId, ...values } = input;
@@ -66,14 +52,9 @@ export const externalMediaStorageRouter = createTRPCRouter({
         const result = await createExternalMediaStorageService(
           ctx.prisma,
         ).saveConfiguration({
+          actor: { session: ctx.session },
           projectId: ctx.session.projectId,
           values,
-        });
-        await auditLog({
-          session: ctx.session,
-          action: "update",
-          resourceType: "externalMediaStorageIntegration",
-          resourceId: ctx.session.projectId,
         });
         return result;
       } catch (error) {
@@ -88,21 +69,19 @@ export const externalMediaStorageRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      assertIntegrationAccess({
+      throwIfNoProjectAccess({
         projectId: input.projectId,
         session: ctx.session,
+        scope: "integrations:CRUD",
       });
 
       try {
         await createExternalMediaStorageService(ctx.prisma).deleteConfiguration(
-          ctx.session.projectId,
+          {
+            actor: { session: ctx.session },
+            projectId: ctx.session.projectId,
+          },
         );
-        await auditLog({
-          session: ctx.session,
-          action: "delete",
-          resourceType: "externalMediaStorageIntegration",
-          resourceId: ctx.session.projectId,
-        });
       } catch (error) {
         logger.error("Failed to delete external media storage integration", {
           projectId: ctx.session.projectId,
@@ -115,9 +94,10 @@ export const externalMediaStorageRouter = createTRPCRouter({
   testObject: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), uri: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      assertIntegrationAccess({
+      throwIfNoProjectAccess({
         projectId: input.projectId,
         session: ctx.session,
+        scope: "integrations:CRUD",
       });
 
       try {

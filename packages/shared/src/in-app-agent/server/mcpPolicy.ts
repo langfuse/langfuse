@@ -212,6 +212,22 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "project:read" },
   },
+  getExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "integrations:CRUD" },
+  },
+  configureExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  deleteExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  testExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "integrations:CRUD" },
+  },
   queryMetrics: {
     approval: "auto",
     availability: { scope: "project:read" },
