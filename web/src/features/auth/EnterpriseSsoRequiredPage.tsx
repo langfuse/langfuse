@@ -156,7 +156,7 @@ function ScheduledSsoRedirect({
   onError,
 }: {
   providerId: string;
-  callbackUrl: string | undefined;
+  callbackUrl: string;
   onError: (err: unknown) => void;
 }) {
   useEffect(() => {
@@ -220,10 +220,10 @@ function EnterpriseSsoRequired({
 
   // The page is reachable with an arbitrary `callbackUrl`, and the redirect
   // below needs no interaction, so the destination is sanitized the same way
-  // the sign-in page sanitizes `targetPath`.
-  const safeCallbackUrl = callbackUrl
-    ? getSafeRedirectPath(callbackUrl)
-    : undefined;
+  // the sign-in page sanitizes `targetPath`. Defaulting to "/" keeps the
+  // destination explicit: next-auth would otherwise fall back to the current
+  // URL, which is this interstitial.
+  const safeCallbackUrl = callbackUrl ? getSafeRedirectPath(callbackUrl) : "/";
 
   const enforcedDomain = emailDomain(email);
 
@@ -240,8 +240,13 @@ function EnterpriseSsoRequired({
 
   // Domains enforced through AUTH_DOMAINS_WITH_SSO_ENFORCEMENT reach this page
   // without a custom SSO config, so there is nothing to redirect to and the
-  // manual form stays the only way forward.
-  const autoRedirect = deriveAutoRedirect(enforcedDomain, enforcedProvider);
+  // manual form stays the only way forward. A surfaced error does the same:
+  // the automatic attempt has failed, so the form has to come back for the
+  // user to retry with.
+  const autoRedirect =
+    error === null
+      ? deriveAutoRedirect(enforcedDomain, enforcedProvider)
+      : "unavailable";
 
   // Stable so that a parent re-render cannot restart the scheduled redirect.
   const handleRedirectError = useCallback((err: unknown) => {

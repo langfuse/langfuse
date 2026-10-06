@@ -56,6 +56,10 @@ function mockCheckSso(response: { status: number; providerId?: string }) {
 }
 
 beforeEach(() => {
+  // react-query and testing-library both need time to keep moving to settle,
+  // so mocked time tracks the real clock. The delay assertion below is still
+  // sound because the timer is only armed once the redirect notice mounts,
+  // which is the point the assertion measures from.
   vi.useFakeTimers({ shouldAdvanceTime: true });
   signInMock.mockReset();
   signInMock.mockResolvedValue(undefined);
@@ -85,6 +89,11 @@ describe("EnterpriseSsoRequiredPage", () => {
     ).toBeInTheDocument();
     await screen.findByText(/Redirecting to your identity provider/);
 
+    // The visible delay is the point of the interstitial: nothing navigates
+    // while the user is still reading. Asserted first so that nothing else
+    // runs between the timer being armed and this check.
+    expect(signInMock).not.toHaveBeenCalled();
+
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/auth/check-sso",
       expect.objectContaining({
@@ -93,16 +102,36 @@ describe("EnterpriseSsoRequiredPage", () => {
       }),
     );
 
-    // The visible delay is the point of the interstitial: nothing navigates
-    // while the user is still reading.
-    expect(signInMock).not.toHaveBeenCalled();
-
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(signInMock).toHaveBeenCalledTimes(1);
-    expect(signInMock).toHaveBeenCalledWith("acme-okta", {
-      callbackUrl: undefined,
+    // Explicit, so that next-auth does not default to the current URL and
+    // send the user back to this interstitial.
+    expect(signInMock).toHaveBeenCalledWith("acme-okta", { callbackUrl: "/" });
+  });
+
+  it("brings the form back when starting the redirect fails", async () => {
+    // Without this the page would keep claiming a redirect is in flight while
+    // offering nothing to retry with.
+    mockCheckSso({ status: 200, providerId: "acme-okta" });
+    signInMock.mockRejectedValue(new Error("network down"));
+    routerState.query = { email: "user@acme.com" };
+
+    renderPage();
+
+    await screen.findByText(/Redirecting to your identity provider/);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const retry = await screen.findByRole("button", {
+      name: /Continue with Enterprise SSO/,
     });
+    expect(retry).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Redirecting to your identity provider/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/Something went wrong/)).toBeInTheDocument();
+    // The address is still prefilled, so retrying is one click.
+    expect(screen.getByLabelText(/Email/)).toHaveValue("user@acme.com");
   });
 
   it("keeps the manual form when the domain has no custom SSO config", async () => {
