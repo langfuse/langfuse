@@ -272,7 +272,6 @@ describe("MCP public API tools", () => {
         "deleteDatasetRun",
         "deleteEvaluationRule",
         "deleteEvaluator",
-        "deleteExternalMediaStorage",
         "deleteModel",
         "deleteScoreConfig",
         "detachEvaluatorFromEvaluationRule",
