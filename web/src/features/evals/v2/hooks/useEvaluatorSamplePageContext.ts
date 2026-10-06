@@ -31,7 +31,7 @@ export function useEvaluatorSamplePageContext({
     if (!observationId || !traceId || !startTime) return;
 
     if (selectedConversationId) {
-      evaluatorAssistantTestResultStore.expect({
+      evaluatorAssistantTestResultStore.expectFromPageContext({
         projectId,
         evaluatorId,
         conversationId: selectedConversationId,

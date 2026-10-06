@@ -29,11 +29,13 @@ export function createEvaluatorAssistantTestResultStore({
   let snapshot: ResultSnapshot = EMPTY_SNAPSHOT;
   const listeners = new Set<Listener>();
   const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const pendingHandoffs = new Map<string, ResultExpectation>();
 
   const notify = () => {
     for (const listener of listeners) listener();
   };
   const clearKey = (key: string) => {
+    pendingHandoffs.delete(key);
     if (!snapshot.has(key)) return;
 
     const timer = expiryTimers.get(key);
@@ -52,6 +54,16 @@ export function createEvaluatorAssistantTestResultStore({
       key,
       setTimeout(() => clearKey(key), ttlMs),
     );
+  };
+  const setExpectation = (key: string, expectation: ResultExpectation) => {
+    const next = new Map(snapshot);
+    next.set(key, {
+      ...snapshot.get(key),
+      ...expectation,
+    });
+    snapshot = next;
+    scheduleExpiry(key);
+    notify();
   };
 
   return {
@@ -80,15 +92,28 @@ export function createEvaluatorAssistantTestResultStore({
       observationId: string | null;
     }) {
       const key = resultKey(projectId, evaluatorId);
-      const next = new Map(snapshot);
-      next.set(key, {
-        ...snapshot.get(key),
+      const expectation = {
         conversationId,
         observationId,
-      });
-      snapshot = next;
-      scheduleExpiry(key);
-      notify();
+      };
+      pendingHandoffs.set(key, expectation);
+      setExpectation(key, expectation);
+    },
+    expectFromPageContext({
+      projectId,
+      evaluatorId,
+      conversationId,
+      observationId,
+    }: {
+      projectId: string;
+      evaluatorId: string;
+      conversationId: string;
+      observationId: string | null;
+    }) {
+      const key = resultKey(projectId, evaluatorId);
+      if (pendingHandoffs.has(key)) return;
+
+      setExpectation(key, { conversationId, observationId });
     },
     publish({
       projectId,
@@ -106,7 +131,7 @@ export function createEvaluatorAssistantTestResultStore({
       result: unknown;
     }) {
       const key = resultKey(projectId, evaluatorId);
-      const expected = snapshot.get(key);
+      const expected = pendingHandoffs.get(key) ?? snapshot.get(key);
       if (
         !expected ||
         expected.conversationId !== conversationId ||
@@ -117,6 +142,7 @@ export function createEvaluatorAssistantTestResultStore({
         return false;
       }
 
+      pendingHandoffs.delete(key);
       const next = new Map(snapshot);
       next.delete(key);
       next.set(key, { ...expected, toolCallId, result });
@@ -126,6 +152,7 @@ export function createEvaluatorAssistantTestResultStore({
           const timer = expiryTimers.get(oldestKey);
           if (timer) clearTimeout(timer);
           expiryTimers.delete(oldestKey);
+          pendingHandoffs.delete(oldestKey);
           next.delete(oldestKey);
         }
       }
