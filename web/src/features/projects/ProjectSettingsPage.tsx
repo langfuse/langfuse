@@ -41,6 +41,7 @@ import { WebCalloutIntegrationCard } from "@/src/features/web-callouts";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { api } from "@/src/utils/api";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -407,6 +408,10 @@ const Integrations = (props: { projectId: string }) => {
     projectId: props.projectId,
     scope: "integrations:CRUD",
   });
+  const showExternalMediaStorage = useIsFeatureEnabled("externalMediaStorage", {
+    enableForAdmins: false,
+    projectId: props.projectId,
+  });
 
   const allowBlobStorageIntegration = useHasEntitlement(
     "scheduled-blob-exports",
@@ -493,6 +498,23 @@ const Integrations = (props: { projectId: string }) => {
             </Button>
           </div>
         </Card>
+
+        {showExternalMediaStorage ? (
+          <Card className="p-3">
+            <span className="font-bold">External Media Storage</span>
+            <p className="text-primary mb-4 text-sm">
+              Resolve media referenced by s3:// URIs from your own Amazon S3 or
+              S3-compatible bucket.
+            </p>
+            <ActionButton
+              variant="secondary"
+              hasAccess={hasAccess}
+              href={`/project/${props.projectId}/settings/integrations/external-media-storage`}
+            >
+              Configure
+            </ActionButton>
+          </Card>
+        ) : null}
 
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">

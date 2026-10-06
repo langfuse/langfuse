@@ -1,6 +1,7 @@
 import { assertUnreachable } from "@langfuse/shared";
 
 export const featurePreviewFlags = [
+  "externalMediaStorage",
   "modernSession",
   "sessionTimeline",
 ] as const;
@@ -36,6 +37,7 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
+  externalMediaStorage: "External Media Storage",
   modernSession: "Compact Session View",
   sessionTimeline: "Session Timeline",
 } satisfies Record<FeaturePreviewFlag, string>;
@@ -48,6 +50,9 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
+  if (flag === "externalMediaStorage") {
+    return true;
+  }
   if (flag === "modernSession" || flag === "sessionTimeline") {
     return context.v4BetaEnabled;
   }
