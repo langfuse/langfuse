@@ -4,6 +4,7 @@ import { normalizeIO } from "../normalized-io";
 import type { Transcript } from "./types";
 import {
   append,
+  createThread,
   findThread,
   messageKey,
   splitTurn,
@@ -52,7 +53,7 @@ export function assembleTranscript(
 ): Transcript | null {
   const startedAt = onTimings ? performance.now() : 0;
   let normalizationMs = 0;
-  const states: ThreadState[] = [];
+  const threads: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
 
   for (const observation of orderedObservations.filter(isRelevantObservation)) {
@@ -65,25 +66,16 @@ export function assembleTranscript(
     }
     if (input.length === 0 && output.length === 0) continue;
 
-    // Registered responses do not participate in thread selection.
-    let state = findThread(states, input);
-    const isNewThread = !state;
-    if (!state) {
-      // Open new thread
-      state = {
-        thread: { messages: [], observations: [] },
-        messages: [],
-        shownCounts: new Map(),
-      };
-      states.push(state);
+    let thread = findThread(threads, input);
+    if (!thread) {
+      thread = createThread();
+      threads.push(thread);
     }
-    append(state, observation, input, output, isNewThread, toolCalls);
+    append(thread, observation, input, output, toolCalls);
   }
 
-  const transcript = states.length
-    ? {
-        threads: states.map(({ thread }) => splitTurn(thread)),
-      }
+  const transcript = threads.length
+    ? { threads: threads.map(splitTurn) }
     : null;
   onTimings?.({
     normalizationMs,

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import fs from "fs";
@@ -944,7 +943,7 @@ describe("Media Upload API", () => {
 
       // Create a modified copy of the PNG file bytes by changing a single byte
       const modifiedFileBytes = Buffer.from(validPNG.fileBytes);
-      modifiedFileBytes[0] = modifiedFileBytes[0] ^ 0xff; // Flip bits of first byte
+      modifiedFileBytes[0] = 255 - modifiedFileBytes[0];
 
       const result = await runMediaUploadEndToEndTest({
         ...validPNG,

@@ -144,76 +144,87 @@ export function ComposerTokens({
   freeTextReason?: string | null;
   registry?: FieldRegistry;
 }): React.ReactNode {
-  const segments = deriveComposerSegments(draft, scoreTypes, registry);
-  const out: React.ReactNode[] = [];
-  let cursor = 0;
-  for (const segment of segments) {
-    if (segment.from > cursor) {
-      out.push(
-        ...renderPlainText(draft.slice(cursor, segment.from), `ws:${cursor}`),
-      );
-    }
-    const visibleKind: TokenKind =
-      segment.kind === "invalid" && !showDiagnostics
-        ? "freeText"
-        : segment.kind;
-    // "Not applied on this surface" — a filter column the chart can't honour,
-    // or free text a chart ignores.
-    const deactivated =
-      deactivationReason(segment, fieldReason, freeTextReason) !== null;
-    const highlighted = segment.id === highlightedSegmentId;
-    // No native `title`: hover copy is the styled per-token tooltip that
-    // SearchComposer positions (explanation, or the error once diagnostics are
-    // revealed). A second, slower browser tooltip on top of it just doubles up.
-    const content = (
-      <>
-        {segment.kind === "filter" ? (
-          <FilterTokenBody segment={segment} />
-        ) : (
-          segment.raw
-        )}
-        {/* Word-joiner INSIDE the pill. The caret at the token's trailing edge
+  const out = React.useMemo(() => {
+    const segments = deriveComposerSegments(draft, scoreTypes, registry);
+    const out: React.ReactNode[] = [];
+    let cursor = 0;
+    for (const segment of segments) {
+      if (segment.from > cursor) {
+        out.push(
+          ...renderPlainText(draft.slice(cursor, segment.from), `ws:${cursor}`),
+        );
+      }
+      const visibleKind: TokenKind =
+        segment.kind === "invalid" && !showDiagnostics
+          ? "freeText"
+          : segment.kind;
+      // "Not applied on this surface" — a filter column the chart can't honour,
+      // or free text a chart ignores.
+      const deactivated =
+        deactivationReason(segment, fieldReason, freeTextReason) !== null;
+      const highlighted = segment.id === highlightedSegmentId;
+      // No native `title`: hover copy is the styled per-token tooltip that
+      // SearchComposer positions (explanation, or the error once diagnostics are
+      // revealed). A second, slower browser tooltip on top of it just doubles up.
+      const content = (
+        <>
+          {segment.kind === "filter" ? (
+            <FilterTokenBody segment={segment} />
+          ) : (
+            segment.raw
+          )}
+          {/* Word-joiner INSIDE the pill. The caret at the token's trailing edge
             lands on this joiner, which sits BEFORE the pill's right padding — so
             WebKit/Safari paints the caret inside the pill at the glyph instead
             of past the chrome. A sibling joiner (outside the span) made Safari
             paint the caret past the padding + margin (the "caret renders outside
             the block" bug). */}
-        {WORD_JOINER}
-      </>
-    );
-    out.push(
-      segment.kind === "filter" ? (
-        <FilterToken
-          key={segment.id}
-          data-testid="search-bar-token"
-          data-kind={visibleKind}
-          data-segment-id={segment.id}
-          deactivated={deactivated}
-          highlighted={highlighted}
-        >
-          {content}
-        </FilterToken>
-      ) : (
-        <span
-          key={segment.id}
-          data-testid="search-bar-token"
-          data-kind={visibleKind}
-          data-deactivated={deactivated || undefined}
-          data-segment-id={segment.id}
-          className={composerTokenVariants({
-            kind: visibleKind,
-            deactivated,
-            highlighted,
-          })}
-        >
-          {content}
-        </span>
-      ),
-    );
-    cursor = segment.to;
-  }
-  if (cursor < draft.length) {
-    out.push(...renderPlainText(draft.slice(cursor), `tail:${cursor}`));
-  }
+          {WORD_JOINER}
+        </>
+      );
+      out.push(
+        segment.kind === "filter" ? (
+          <FilterToken
+            key={segment.id}
+            data-testid="search-bar-token"
+            data-kind={visibleKind}
+            data-segment-id={segment.id}
+            deactivated={deactivated}
+            highlighted={highlighted}
+          >
+            {content}
+          </FilterToken>
+        ) : (
+          <span
+            key={segment.id}
+            data-testid="search-bar-token"
+            data-kind={visibleKind}
+            data-deactivated={deactivated || undefined}
+            data-segment-id={segment.id}
+            className={composerTokenVariants({
+              kind: visibleKind,
+              deactivated,
+              highlighted,
+            })}
+          >
+            {content}
+          </span>
+        ),
+      );
+      cursor = segment.to;
+    }
+    if (cursor < draft.length) {
+      out.push(...renderPlainText(draft.slice(cursor), `tail:${cursor}`));
+    }
+    return out;
+  }, [
+    draft,
+    scoreTypes,
+    registry,
+    showDiagnostics,
+    fieldReason,
+    freeTextReason,
+    highlightedSegmentId,
+  ]);
   return <>{out}</>;
 }

@@ -12,6 +12,7 @@ export const organizationScopes = [
   "organizationMembers:read",
   "organizationMembers:CUD",
   "langfuseCloudBilling:CRUD",
+  "organizationUsage:read",
   "orgAuditLogs:read",
 ] as const;
 
@@ -30,6 +31,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organizationMembers:CUD",
     "organizationMembers:read",
     "langfuseCloudBilling:CRUD",
+    "organizationUsage:read",
     "orgAuditLogs:read",
   ],
   ADMIN: [
@@ -40,6 +42,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "gateway:invoke",
     "organizationMembers:CUD",
     "organizationMembers:read",
+    "organizationUsage:read",
     "orgAuditLogs:read",
   ],
   MEMBER: ["gateway:invoke", "organizationMembers:read"],

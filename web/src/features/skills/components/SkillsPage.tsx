@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import Link from "next/link";
 import { FileCode2, Plus, Trash } from "lucide-react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -130,11 +131,11 @@ function SkillsList({
     },
   });
 
-  let tableData: AsyncTableData<SkillRow[]> = { status: "loading" };
-  if (skills.isError)
-    tableData = { status: "error", error: skills.error.message };
-  else if (skills.data)
-    tableData = { status: "success", data: skills.data.data };
+  const tableData = useMemo<AsyncTableData<SkillRow[]>>(() => {
+    if (skills.isError) return { status: "error", error: skills.error.message };
+    if (skills.data) return { status: "success", data: skills.data.data };
+    return { status: "loading" };
+  }, [skills.isError, skills.error, skills.data]);
   const hasFilters = Boolean(searchQuery) || queryFilter.filterState.length > 0;
   const isEmptyProject =
     skills.data?.meta.totalItems === 0 &&

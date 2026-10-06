@@ -551,6 +551,14 @@ export default function SignInPage({
       "langfuse_last_used_auth_method",
       null,
     );
+  // The enterprise SSO step redirects before a password field is ever shown,
+  // so the browser password manager has no credential to offer and the address
+  // has to be retyped on every sign-in. Holds the last address that resolved to
+  // an enterprise SSO provider; empty for every other outcome.
+  const [lastUsedSsoEmail, setLastUsedSsoEmail] = useLocalStorage<string>(
+    "langfuse_last_used_sso_email",
+    "",
+  );
 
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -578,6 +586,31 @@ export default function SignInPage({
       password: "",
     },
   });
+
+  // Restoring the remembered address is a browser-storage sync, not a render
+  // derivation: the server render cannot see localStorage, and React skips
+  // assigning `input.value` while hydrating, so a value folded into
+  // `defaultValues` would leave the field looking empty. Only an untouched,
+  // empty field is filled, which keeps `?email=` and anything already typed.
+  useEffect(() => {
+    if (!lastUsedSsoEmail) return;
+    // An instance can drop its last SSO config after an address was
+    // remembered. The resulting one-step form never runs the lookup that
+    // would clear it, so discard it here instead of prefilling a sign-in
+    // method the instance no longer offers.
+    if (!authProviders.sso) {
+      setLastUsedSsoEmail("");
+      return;
+    }
+    if (credentialsForm.getValues("email")) return;
+    credentialsForm.setValue("email", lastUsedSsoEmail);
+  }, [
+    authProviders.sso,
+    credentialsForm,
+    lastUsedSsoEmail,
+    setLastUsedSsoEmail,
+  ]);
+
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,
   ) {
@@ -739,6 +772,7 @@ export default function SignInPage({
 
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
+        setLastUsedSsoEmail(email.data);
 
         signIn(
           providerId,
@@ -747,7 +781,12 @@ export default function SignInPage({
         return; // stop further execution – page redirect expected
       }
 
-      // No SSO – fall back to password step
+      // No SSO – fall back to password step. 404 is the only answer that means
+      // "this domain has no SSO provider"; any other failure status says
+      // nothing about the domain, so it must not discard a remembered address.
+      if (res.status === 404) {
+        setLastUsedSsoEmail("");
+      }
       setShowPasswordStep(true);
 
       // Auto-focus password input when password step becomes visible
@@ -794,7 +833,7 @@ export default function SignInPage({
         </div>
 
         {isLangfuseCloud && (
-          <div className="bg-card mt-4 -mb-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
+          <div className="bg-card mt-4 -mb-4 rounded-lg p-3 text-center text-sm shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-6">
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
@@ -808,7 +847,7 @@ export default function SignInPage({
 
         {isLangfuseCloud && <CloudRegionSwitch />}
 
-        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
           <div className="space-y-6">
             {/* Email / (optional) password form – only when credentials auth is enabled */}
             {authProviders.credentials && (

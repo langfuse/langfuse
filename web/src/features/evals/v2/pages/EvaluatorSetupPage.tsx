@@ -6,6 +6,7 @@ import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
 import {
   observationVariableMappingList,
+  isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
   type EvalTemplateType,
   type FilterState,
@@ -84,6 +85,8 @@ import { EvaluatorAssistantHeaderAction } from "@/src/features/evals/v2/componen
 import { EvaluatorAssistantEditDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/EvaluatorAssistantEditDialog";
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 
 const EVALUATOR_EDITOR_MODE_STORAGE_KEY =
   "langfuse:code-evaluator-editor-mode:v1";
@@ -118,7 +121,7 @@ type InitialEvaluator = {
   id: string;
   name: string;
   description: string | null;
-  type: EvalTemplateType;
+  type: Exclude<EvalTemplateType, "FACET">;
   definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
@@ -162,6 +165,9 @@ export async function navigateToEvaluatorDetail({
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
+  if (version.type === "FACET") {
+    throw new Error("Facets cannot be edited as evaluators");
+  }
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -226,7 +232,7 @@ export function EvaluatorSetupPage(
         mode: "create";
         projectId: string;
         initialDraft: EvaluatorSetupDraft | null;
-        initialType: EvalTemplateType;
+        initialType: Exclude<EvalTemplateType, "FACET">;
         creationSource: EvaluatorCreationSource;
       }
     | {
@@ -332,6 +338,35 @@ export function EvaluatorSetupPage(
       .getState()
       .actions.setDefaultModel(projectDefaultModel.defaultModel);
   }, [evaluatorSetupStore, projectDefaultModel.defaultModel]);
+  const modelDraft = useStore(
+    evaluatorSetupStore,
+    useShallow((state) => ({
+      type: state.type,
+      modelMode: state.modelMode,
+      defaultModel: state.defaultModel,
+      selectedModel: state.selectedModel,
+      hasChangedModelSelection: state.hasChangedModelSelection,
+    })),
+  );
+  const effectiveDraftModel =
+    modelDraft.type === "CODE"
+      ? null
+      : modelDraft.type === "LLM_AS_JUDGE" && modelDraft.modelMode === "default"
+        ? modelDraft.defaultModel
+        : modelDraft.selectedModel;
+  const draftResolvesEvaluatorBlock = Boolean(
+    initialEvaluator?.blockedAt &&
+    isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+      initialEvaluator.blockReason,
+    ) &&
+    !projectDefaultModel.connectionsPending &&
+    isJudgeModelAvailable(
+      effectiveDraftModel,
+      projectDefaultModel.providerGroups,
+    ) &&
+    (modelDraft.hasChangedModelSelection ||
+      initialEvaluator.blockReason === "DEFAULT_EVAL_MODEL_MISSING"),
+  );
   const codeDraft = useStore(
     evaluatorSetupStore,
     useShallow((state) => ({
@@ -414,6 +449,11 @@ export function EvaluatorSetupPage(
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: "evaluators-v2",
     isV4: true,
+    extractParamsValuesFromRow: (observation: SampleObservation) => ({
+      observation: observation.id,
+      traceId: observation.traceId ?? "",
+      timestamp: observation.startTime.toISOString(),
+    }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       reader: "trace",
@@ -734,6 +774,18 @@ export function EvaluatorSetupPage(
           });
         }
         initialSnapshot.current = getCurrentSnapshot(state);
+        utils.evalsV2.get.setData(
+          { projectId, evaluatorId: evaluator.id },
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  blockedAt: evaluator.blockedAt,
+                  blockReason: evaluator.blockReason,
+                  blockMessage: evaluator.blockMessage,
+                }
+              : current,
+        );
         await Promise.all([
           utils.evalsV2.filterOptions.invalidate({ projectId }),
           utils.evalsV2.versions.invalidate({
@@ -952,6 +1004,7 @@ export function EvaluatorSetupPage(
       defaultModel={projectDefaultModel.defaultModel}
       providerGroups={projectDefaultModel.providerGroups}
       providerAdapters={projectDefaultModel.providerAdapters}
+      connectionsPending={projectDefaultModel.connectionsPending}
       canSetProjectDefault={projectDefaultModel.canUpdate}
       onConfigureProviders={() => {
         onboardingAnalytics?.track(
@@ -1016,7 +1069,7 @@ export function EvaluatorSetupPage(
               {},
             );
             if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.traceId);
+              sampleTracePeekNavigation.openPeek(observation.id, observation);
             }
           }}
         />
@@ -1166,7 +1219,8 @@ export function EvaluatorSetupPage(
                 timeRange={timeRange}
                 setTimeRange={setTimeRange}
               />
-              {persistedEvaluatorUi?.blockedAt ? (
+              {persistedEvaluatorUi?.blockedAt &&
+              !draftResolvesEvaluatorBlock ? (
                 <div className="mx-3 mt-3">
                   <EvaluatorBlockedBanner
                     projectId={projectId}

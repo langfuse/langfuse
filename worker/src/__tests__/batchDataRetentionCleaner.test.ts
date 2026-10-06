@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { afterEach, beforeEach, expect, describe, it, vi } from "vitest";
 import { randomUUID } from "crypto";
 import {
@@ -656,7 +655,9 @@ describe("BatchDataRetentionCleaner", () => {
       const extend = vi.fn(async () => {
         const isCandidateStreamActive =
           integrationHooks.activeCandidateStreams > 0;
-        extendedDuringCandidateStream ||= isCandidateStreamActive;
+        if (isCandidateStreamActive) {
+          extendedDuringCandidateStream = true;
+        }
         return isCandidateStreamActive;
       });
       (

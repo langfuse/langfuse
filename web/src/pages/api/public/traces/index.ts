@@ -247,7 +247,13 @@ export default withMiddlewares(
           ),
         );
 
-        await traceDeletionProcessor(auth.scope.projectId, traceIds);
+        await traceDeletionProcessor(auth.scope.projectId, traceIds, {
+          actor: {
+            type: "API_KEY",
+            apiKeyId: auth.scope.apiKeyId,
+            publicKey: auth.scope.publicKey,
+          },
+        });
 
         return { message: "Traces deleted successfully" };
       },

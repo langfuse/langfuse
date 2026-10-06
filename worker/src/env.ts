@@ -121,6 +121,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
     .number()
     .int()
@@ -148,6 +151,27 @@ const EnvSchema = z.object({
     .positive()
     .max(10_000)
     .default(60),
+  // Weight budgets use ingestion-time estimates; 0 disables a budget.
+  LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(1_500),
+  LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(64 * 1024 * 1024),
+  LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(5_000),
+  LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(50 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_STRATEGY: z
     .enum(["project", "locality"])
     .default("project"),

@@ -167,7 +167,7 @@ export function ExperimentGridSummaryValues({
               {!isLoading && movement && (
                 <div
                   className="flex shrink-0 items-center gap-2 text-xs font-normal"
-                  title={`${movement.unchanged} unchanged; ${movement.notComparable} not comparable`}
+                  title={`${movement.changed} items changed compared to baseline; ${movement.unchanged} unchanged; ${movement.notComparable} uncomparable`}
                 >
                   {dataType === "CATEGORICAL" ? (
                     <span aria-label={`${movement.changed} changed items`}>

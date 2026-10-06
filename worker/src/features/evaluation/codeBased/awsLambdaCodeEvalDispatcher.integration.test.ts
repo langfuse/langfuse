@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { describe, expect, it } from "vitest";
 import {
   AwsLambdaCodeEvalDispatcher,
@@ -11,9 +10,15 @@ const endpoint = process.env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT;
 const describeWithFloci = endpoint ? describe : describe.skip;
 const FLOCI_TEST_TIMEOUT_MS = 30_000;
 
-process.env.AWS_ACCESS_KEY_ID ??= "test";
-process.env.AWS_SECRET_ACCESS_KEY ??= "test";
-process.env.AWS_REGION ??= "us-east-1";
+if (process.env.AWS_ACCESS_KEY_ID === undefined) {
+  process.env.AWS_ACCESS_KEY_ID = "test";
+}
+if (process.env.AWS_SECRET_ACCESS_KEY === undefined) {
+  process.env.AWS_SECRET_ACCESS_KEY = "test";
+}
+if (process.env.AWS_REGION === undefined) {
+  process.env.AWS_REGION = "us-east-1";
+}
 
 const baseInput: DispatchInput = {
   scope: {
