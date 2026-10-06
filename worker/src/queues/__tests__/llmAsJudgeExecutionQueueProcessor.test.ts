@@ -402,20 +402,40 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         kind: "validation",
         message: mediaNotFoundError.message,
         statusCode: 400,
-        isRetryable: false,
+        isRetryable: true,
         error: mediaNotFoundError,
         validationError: {
           code: "media-not-found",
         },
         blockReason: null,
       } as ReturnType<typeof classifyEvaluatorLlmError>);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
 
       const job = createMockJob();
 
-      await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
-        mediaNotFoundError,
+      await expect(llmAsJudgeExecutionQueueProcessor(job)).resolves.toBe(
+        undefined,
       );
-      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+      expect(retryLLMRateLimitError).toHaveBeenCalledWith(
+        job,
+        expect.objectContaining({
+          table: "job_executions",
+          idField: "jobExecutionId",
+          queueName,
+        }),
+      );
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.DELAYED,
+          executionTraceId: "test-trace-id",
+        }),
+      });
     });
 
     it("should set ERROR status for non-retryable LLM errors", async () => {
