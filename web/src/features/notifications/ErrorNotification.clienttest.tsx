@@ -53,7 +53,14 @@ describe("ErrorNotification", () => {
       });
     });
 
-    view.rerender(<ErrorNotification {...props} />);
+    view.rerender(
+      <ErrorNotification
+        {...props}
+        type="WARNING"
+        path="scores.byId"
+        traceId={undefined}
+      />,
+    );
 
     expect(mocks.capture).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mocks.capture.mock.calls[0]?.[1])).not.toContain(
