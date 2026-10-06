@@ -37,11 +37,16 @@ Current shape:
     "devTerminalDescription": "Main development terminal running the development server"
   },
   "mcpServers": {
+    "next-devtools": {
+      "transport": "stdio",
+      "command": "pnpm",
+      "args": ["dlx", "next-devtools-mcp@0.4.0"]
+    },
     "playwright": {
       "transport": "stdio",
-      "command": "npx",
+      "command": "pnpm",
       "args": [
-        "-y",
+        "dlx",
         "@playwright/mcp@latest",
         "--isolated",
         "--save-session",
@@ -103,6 +108,12 @@ Current shape:
 }
 ```
 
+## Next.js Runtime Diagnostics
+
+With `pnpm run dev:web` running, use `next-devtools`: `nextjs_index` finds the
+server; `nextjs_call` reads errors, routes, and logs. Use `compile_route` for
+compilation checks and Playwright for browser interaction.
+
 ## How Shims Are Generated
 
 `scripts/agents/sync-agent-shims.mjs` reads `.agents/config.json` and writes the
@@ -135,6 +146,12 @@ mode. That release does not support this mode on Bedrock, Vertex, or Foundry.
 Project-local `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` files can
 disable the fallback; remove local compatibility files or choose the mode
 that loads both formats. See the [instruction loader documentation](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md).
+
+## Hosted Claude Code Review
+
+Root [`REVIEW.md`](../REVIEW.md) defines review rules, severity, and reporting.
+It references domain skills for technical guidance. Claude's hosted reviewer
+loads it automatically; request it explicitly for local `/code-review` runs.
 
 ## Validation
 
@@ -182,8 +199,8 @@ For `stdio` servers:
   "mcpServers": {
     "example": {
       "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "some-package"]
+      "command": "pnpm",
+      "args": ["dlx", "some-package"]
     }
   }
 }

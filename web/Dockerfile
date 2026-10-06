@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.3 pnpm@12.6.0
+RUN npm install -g turbo@2.11.6 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -130,7 +130,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 WORKDIR /app
 
 COPY . .
-RUN turbo prune --scope=web --docker
+RUN turbo prune web --docker
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
 

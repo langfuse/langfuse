@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import Link from "next/link";
 import { FileCode2, Plus, Trash } from "lucide-react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -130,11 +131,11 @@ function SkillsList({
     },
   });
 
-  let tableData: AsyncTableData<SkillRow[]> = { status: "loading" };
-  if (skills.isError)
-    tableData = { status: "error", error: skills.error.message };
-  else if (skills.data)
-    tableData = { status: "success", data: skills.data.data };
+  const tableData = useMemo<AsyncTableData<SkillRow[]>>(() => {
+    if (skills.isError) return { status: "error", error: skills.error.message };
+    if (skills.data) return { status: "success", data: skills.data.data };
+    return { status: "loading" };
+  }, [skills.isError, skills.error, skills.data]);
   const hasFilters = Boolean(searchQuery) || queryFilter.filterState.length > 0;
   const isEmptyProject =
     skills.data?.meta.totalItems === 0 &&
@@ -324,14 +325,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Link>
     </Button>
   );
@@ -348,7 +349,7 @@ function EmptySkills({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-24 text-center">
-      <FileCode2 className="text-muted-foreground h-9 w-9" />
+      <FileCode2 className="text-muted-foreground icon-xl" />
       <div>
         <h2 className="font-bold">Create your first skill</h2>
         <p className="text-muted-foreground mt-1 text-sm">

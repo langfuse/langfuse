@@ -12,11 +12,13 @@ vi.mock("next-auth/react", () => ({
 
 const mockSession = ({
   aiGateway,
+  langfuseTopics = false,
   admin = false,
   enableExperimentalFeatures = false,
   internalFeatures,
 }: {
   aiGateway: boolean;
+  langfuseTopics?: boolean;
   admin?: boolean;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
@@ -28,12 +30,13 @@ const mockSession = ({
         admin,
         featureFlags: testFeatureFlags({
           aiGateway: false,
+          langfuseTopics,
           [INTERNAL_FEATURE_FLAG]: internalFeatures,
         }),
         organizations: [
           {
             id: "org-1",
-            featureFlags: testFeatureFlags({ aiGateway }),
+            featureFlags: testFeatureFlags({ aiGateway, langfuseTopics }),
             projects: [],
           },
         ],
@@ -71,27 +74,20 @@ describe("useIsFeatureEnabled", () => {
     },
   );
 
-  it("does not let admin or experimental-feature overrides enable restricted flags", () => {
+  it("requires explicit opt-in for restricted and admin-only flags despite admin and experimental overrides", () => {
     mockSession({
       aiGateway: false,
       admin: true,
       enableExperimentalFeatures: true,
     });
+    const { result, rerender } = renderHook(() => ({
+      aiGateway: useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
+      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+    }));
+    expect(result.current).toEqual({ aiGateway: false, langfuseTopics: false });
 
-    const { result } = renderHook(() =>
-      useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
-    );
-
-    expect(result.current).toBe(false);
-  });
-
-  it("returns the server-resolved organization flag", () => {
-    mockSession({ aiGateway: true });
-
-    const { result } = renderHook(() =>
-      useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
-    );
-
-    expect(result.current).toBe(true);
+    mockSession({ aiGateway: true, langfuseTopics: true });
+    rerender();
+    expect(result.current).toEqual({ aiGateway: true, langfuseTopics: true });
   });
 });

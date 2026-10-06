@@ -24,12 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardPortal,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
@@ -118,7 +113,6 @@ export function MembersSettingsTable({
         accessorKey: "providers",
         header: "SSO Provider",
         enableHiding: true,
-        nullValue: "-",
       }),
       {
         accessorKey: "orgRole",
@@ -147,10 +141,12 @@ export function MembersSettingsTable({
           if (!project || !hasOrgCudAccess) return select;
 
           return (
-            <HoverCard openDelay={0} closeDelay={0}>
-              <HoverCardTrigger asChild>{select}</HoverCardTrigger>
-              <HoverCardPortal>
-                <HoverCardContent align="center" side="right">
+            <HoverCard
+              openDelay={0}
+              closeDelay={0}
+              placement="right"
+              content={
+                <div className="w-64 p-3">
                   <p className="text-xs">
                     The organization-level role can be edited in the{" "}
                     <Link
@@ -161,8 +157,14 @@ export function MembersSettingsTable({
                     </Link>
                     .
                   </p>
-                </HoverCardContent>
-              </HoverCardPortal>
+                </div>
+              }
+            >
+              {({ getTriggerProps }) => (
+                <span className="inline-flex" {...getTriggerProps()}>
+                  {select}
+                </span>
+              )}
             </HoverCard>
           );
         },

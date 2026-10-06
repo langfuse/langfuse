@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -164,12 +165,12 @@ export function SingleSelect({
               </span>
             ) : null}
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         className={cn(
-          "max-w-[calc(100vw-2rem)] p-0",
+          "ph-no-capture max-w-[calc(100vw-2rem)] p-0",
           showOptionValue ? "w-[400px]" : "w-[200px]",
         )}
         align="start"
@@ -216,7 +217,7 @@ export function SingleSelect({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-base mr-2",
                         isSelected ? "visible" : "invisible",
                       )}
                     />
@@ -272,7 +273,7 @@ export function SingleSelect({
                   value={search.trim()}
                   onSelect={() => commit(search.trim())}
                 >
-                  <Plus className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Plus className="icon-base mr-2 shrink-0 opacity-50" />
                   <div className="overflow-x-hidden text-ellipsis whitespace-nowrap">
                     Use &ldquo;{search.trim()}&rdquo;
                   </div>

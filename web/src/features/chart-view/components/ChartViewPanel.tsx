@@ -97,7 +97,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
             </div>
           ) : isLoading ? (
             <div className="text-muted-foreground flex h-full items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 className="icon-lg animate-spin" />
             </div>
           ) : (
             <ChartCanvas
@@ -126,7 +126,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
               aria-label="Collapse panel"
               onClick={() => setOpen(false)}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="icon-sm text-icon-foreground" />
             </Button>
           </div>
           <PanelField label="Chart type">
@@ -161,7 +161,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
             aria-label="Expand panel"
             onClick={() => setOpen(true)}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="icon-sm text-icon-foreground" />
           </Button>
         </div>
       )}

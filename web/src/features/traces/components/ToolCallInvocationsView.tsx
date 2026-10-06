@@ -48,9 +48,12 @@ export function ToolCallInvocationsView({
   }
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("flex flex-col gap-1", className)}>
       {toolCalls.map((toolCall, index) => {
         const invocationNumber = toolCallNumbers?.[index];
+        // Without a paired result the arguments are the whole card and need no label.
+        const response = toolCall.response ?? undefined;
+        const hasResponse = response !== undefined;
         // Parse arguments if they're a JSON string
         let parsedArguments = toolCall.arguments;
         if (typeof toolCall.arguments === "string") {
@@ -66,19 +69,20 @@ export function ToolCallInvocationsView({
           <div
             key={`${toolCall.id}-${index}`}
             className={cn(
-              "w-full border-t px-2 py-2",
-              (message.role === "assistant" ||
+              "py-2",
+              message.role === "assistant" ||
                 message.name === "Output" ||
-                message.name === "Model") &&
-                "bg-accent-light-green",
+                message.name === "Model"
+                ? "bg-surface-output rounded-md px-3"
+                : "w-full border-t",
             )}
           >
             {/* Card header */}
             <div className="flex w-full items-center justify-between gap-2 py-1">
               {/* Left: Tool icon + number + name */}
               <div className="flex items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5" />
-                <span className="text-foreground font-mono text-xs font-bold">
+                <Wrench className="text-muted-foreground icon-base" />
+                <span className="text-foreground-secondary text-sm">
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>
                   )}
@@ -96,9 +100,11 @@ export function ToolCallInvocationsView({
 
             {/* Arguments view */}
             <div className="py-2 [&_.io-message-content]:px-0">
-              <div className="text-muted-foreground mb-1.5 text-xs font-bold">
-                Arguments
-              </div>
+              {hasResponse && (
+                <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  Arguments
+                </div>
+              )}
               <PrettyJsonView
                 json={parsedArguments}
                 currentView="pretty"
@@ -109,16 +115,16 @@ export function ToolCallInvocationsView({
             {/* Response view: paired tool result. Only the normalized-parser
                 projection sets `response`, so this section is beta-only by
                 data presence — legacy messages never carry the field. */}
-            {toolCall.response !== undefined && toolCall.response !== null && (
+            {response && (
               <div className="py-2 [&_.io-message-content]:px-0">
                 <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                   Response
-                  {toolCall.response?.isError && (
+                  {response.isError && (
                     <span className="text-dark-red ml-1">(error)</span>
                   )}
                 </div>
                 <PrettyJsonView
-                  json={parseIfJsonString(toolCall.response.output)}
+                  json={parseIfJsonString(response.output)}
                   currentView="pretty"
                   codeClassName="text-xs"
                 />

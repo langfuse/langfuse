@@ -58,6 +58,7 @@ import {
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
@@ -107,6 +108,7 @@ export function PromptEditorContent({
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
   });
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const activeMessageIndex = activeMessageId
     ? state.promptMessageIds.indexOf(activeMessageId)
@@ -130,6 +132,9 @@ export function PromptEditorContent({
     const toIndex = state.promptMessageIds.indexOf(String(over.id));
     if (fromIndex < 0 || toIndex < 0) return;
     state.actions.reorderPromptMessage(fromIndex, toIndex);
+    onboardingAnalytics?.track("eval:onboarding_prompt_modified", {
+      modification: "messages_reordered",
+    });
   };
 
   return (
@@ -161,9 +166,26 @@ export function PromptEditorContent({
                 sampleObject,
               })}
               previewEnabled={state.promptPreviewEnabled}
-              onPreviewEnabledChange={state.actions.setPromptPreviewEnabled}
-              onChange={(next) => state.actions.setPromptMessage(index, next)}
-              onRemove={() => state.actions.removePromptMessage(index)}
+              onPreviewEnabledChange={(isEnabled) => {
+                state.actions.setPromptPreviewEnabled(isEnabled);
+                onboardingAnalytics?.track("eval:onboarding_preview_toggled", {
+                  isEnabled,
+                });
+              }}
+              onChange={(next) => {
+                state.actions.setPromptMessage(index, next);
+                onboardingAnalytics?.track(
+                  "eval:onboarding_prompt_modified",
+                  { modification: "message_edited" },
+                  { onceKey: "prompt_message_edited" },
+                );
+              }}
+              onRemove={() => {
+                state.actions.removePromptMessage(index);
+                onboardingAnalytics?.track("eval:onboarding_prompt_modified", {
+                  modification: "message_removed",
+                });
+              }}
             />
           ))}
         </SortableContext>
@@ -175,9 +197,12 @@ export function PromptEditorContent({
           onClick={() => {
             state.actions.setPromptPreviewEnabled(false);
             state.actions.addPromptMessage();
+            onboardingAnalytics?.track("eval:onboarding_prompt_modified", {
+              modification: "message_added",
+            });
           }}
         >
-          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <Plus className="icon-base text-icon-foreground shrink-0" />
           Add message
         </Button>
       </div>
@@ -241,7 +266,7 @@ function SortablePromptMessage({
     <Badge variant="tertiary" className="h-5 shrink-0 gap-1 leading-none">
       {warningReason ? (
         <TriangleAlert
-          className="text-dark-yellow h-3.5 w-3.5"
+          className="icon-sm text-dark-yellow"
           aria-label={
             hasEmptyContent
               ? "Empty prompt message"
@@ -283,7 +308,7 @@ function SortablePromptMessage({
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="h-3.5 w-3.5" />
+          <GripVertical className="icon-base" />
         </button>
       ) : null}
       <PromptVariableEditor
@@ -312,7 +337,7 @@ function SortablePromptMessage({
             >
               <ChevronDown
                 className={cn(
-                  "h-3.5 w-3.5 shrink-0 transition-transform",
+                  "icon-sm text-icon-foreground shrink-0 transition-transform",
                   !expanded && "-translate-x-0.5 -rotate-90",
                 )}
               />
@@ -352,7 +377,7 @@ function SortablePromptMessage({
                 aria-label="Prompt message settings"
                 title="Prompt message settings"
               >
-                <MoreVertical className="h-3.5 w-3.5" />
+                <MoreVertical className="icon-sm text-icon-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
@@ -374,7 +399,7 @@ function SortablePromptMessage({
                   >
                     <span className="flex-1">{role.label}</span>
                     {message.role === role.value ? (
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="icon-base text-icon-foreground" />
                     ) : null}
                   </DropdownMenuItem>
                 );
@@ -385,7 +410,7 @@ function SortablePromptMessage({
                   copy(message.content).catch(() => undefined);
                 }}
               >
-                <Copy className="mr-2 h-3.5 w-3.5" />
+                <Copy className="icon-base text-icon-foreground mr-2" />
                 Copy prompt
               </DropdownMenuItem>
               {messageCount > 1 ? (
@@ -393,7 +418,7 @@ function SortablePromptMessage({
                   className="text-destructive focus:text-destructive"
                   onSelect={onRemove}
                 >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  <Trash2 className="icon-base mr-2" />
                   Delete message
                 </DropdownMenuItem>
               ) : null}

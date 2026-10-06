@@ -6,6 +6,7 @@ import {
   CircleAlert,
   FileWarning,
   Info,
+  type LucideIcon,
   MessageSquareOff,
   MoreHorizontal,
   TriangleAlert,
@@ -34,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Tooltip as DSTooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -122,13 +124,40 @@ function SessionTimelineStatusIndicator({
           role="img"
           aria-label={`${observation.level}: ${observation.statusMessage}`}
         >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          <Icon className="icon-base" aria-hidden="true" />
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-sm whitespace-pre-wrap">
         {observation.statusMessage}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * Badge for a state an observation header reports next to its duration, e.g.
+ * truncated content. The label is both the accessible name and the tooltip.
+ */
+function SessionTimelineMarkerIcon({
+  icon: Icon,
+  label,
+}: {
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <DSTooltip label={label}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+          role="img"
+          aria-label={label}
+        >
+          <Icon className="icon-sm" aria-hidden="true" />
+        </span>
+      )}
+    </DSTooltip>
   );
 }
 
@@ -372,7 +401,7 @@ function SessionTimelineToolRow({
         >
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 transition-transform",
+              "icon-base transition-transform",
               !isExpanded && "-rotate-90",
             )}
             aria-hidden="true"
@@ -400,7 +429,10 @@ function SessionTimelineToolRow({
                   className="text-muted-foreground hover:text-foreground shrink-0"
                   aria-label={`Actions for ${observation.name ?? observation.id}`}
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                  <MoreHorizontal
+                    className="icon-sm text-icon-foreground"
+                    aria-hidden="true"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <SessionObservationActionsMenuContent
@@ -416,7 +448,7 @@ function SessionTimelineToolRow({
                   role="img"
                   aria-label="Actions available on parent observation"
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                  <MoreHorizontal className="icon-base" aria-hidden="true" />
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top">
@@ -530,34 +562,22 @@ function SessionTimelineConversationObservation({
               <SessionTimelineStatusIndicator observation={observation} />
             ) : null}
             {isTruncated ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="Content truncated"
-                title="Content truncated"
-              >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={FileWarning}
+                label="Content truncated"
+              />
             ) : null}
             {hasNoConversationalContent ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="No conversational content"
-                title="No conversational content"
-              >
-                <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={MessageSquareOff}
+                label="No conversational content"
+              />
             ) : null}
             {observation.metadataTruncated ? (
-              <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="Metadata omitted because it is too large"
-                title="Metadata omitted because it is too large"
-              >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
-              </span>
+              <SessionTimelineMarkerIcon
+                icon={FileWarning}
+                label="Metadata omitted because it is too large"
+              />
             ) : null}
             {observation.latency !== null && observation.type !== "EVENT" ? (
               <span className="text-muted-foreground font-mono text-[11px]">
@@ -578,7 +598,7 @@ function SessionTimelineConversationObservation({
                     aria-label={`Actions for ${observation.name ?? observation.id}`}
                   >
                     <MoreHorizontal
-                      className="h-3.5 w-3.5"
+                      className="icon-sm text-icon-foreground"
                       aria-hidden="true"
                     />
                   </Button>
@@ -769,20 +789,27 @@ function LoadedSessionConversationTimeline({
       ]),
     );
   }, [observations]);
-  let collapsedObservationIds = collapseState.observationIds;
-  if (
-    scrollTarget &&
-    scrollTarget.requestId !== collapseState.scrollRequestId
-  ) {
+  const collapsedObservationIds = useMemo(() => {
+    if (
+      !scrollTarget ||
+      scrollTarget.requestId === collapseState.scrollRequestId
+    ) {
+      return collapseState.observationIds;
+    }
     const target = observations.find(
       ({ observation }) => observation.id === scrollTarget.observationId,
     );
     const observationIds = new Set(collapseState.observationIds);
     target?.ancestorObservationIds.forEach((id) => observationIds.delete(id));
-    collapsedObservationIds = observationIds;
+    return observationIds;
+  }, [scrollTarget, collapseState, observations]);
+  if (
+    scrollTarget &&
+    scrollTarget.requestId !== collapseState.scrollRequestId
+  ) {
     setCollapseState({
       scrollRequestId: scrollTarget.requestId,
-      observationIds,
+      observationIds: collapsedObservationIds,
     });
   }
 
@@ -995,9 +1022,15 @@ function LoadedSessionConversationTimeline({
                     }}
                   >
                     {isCollapsed ? (
-                      <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
+                      <ChevronsUpDown
+                        className="icon-sm text-icon-foreground"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      <ChevronDown
+                        className="icon-sm text-icon-foreground"
+                        aria-hidden="true"
+                      />
                     )}
                   </Button>
                   {isCollapsed ? (

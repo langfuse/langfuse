@@ -152,7 +152,7 @@ export default function PromptsPage() {
                     disabled={isExporting}
                     {...getTriggerProps()}
                   >
-                    <UploadIcon className="mr-1 h-4 w-4" />
+                    <UploadIcon className="icon-base text-icon-foreground mr-1" />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
@@ -167,14 +167,19 @@ export default function PromptsPage() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="mr-1 h-4 w-4" />
+                    <Download className="icon-base text-icon-foreground mr-1" />
                     Import
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
             )}
             <ActionButton
-              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              icon={
+                <PlusIcon
+                  className="icon-base text-icon-foreground"
+                  aria-hidden="true"
+                />
+              }
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               trackingEventName="prompts:new_form_open"

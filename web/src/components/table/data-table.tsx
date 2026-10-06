@@ -174,6 +174,8 @@ const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
 ): CSSProperties => {
   const isPinned = column.getIsPinned();
+  const coversRightScrollbarGutter =
+    isPinned === "right" && column.getIsLastColumn("right");
 
   return {
     left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
@@ -181,7 +183,19 @@ const getCommonPinningStyles = <TData,>(
     position: isPinned ? "sticky" : "relative",
     width: column.getSize(),
     zIndex: isPinned ? 10 : 0,
-    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+    backgroundColor: isPinned
+      ? "var(--surface-context, hsl(var(--background)))"
+      : undefined,
+    // Repeated outer shadows paint through the stable scrollbar gutter even
+    // when a table cell clips its contents. Only the outermost right-pinned
+    // column owns them, so adjacent pinned columns retain their normal offsets.
+    boxShadow: coversRightScrollbarGutter
+      ? [
+          "16px 0 0 hsl(var(--background))",
+          "32px 0 0 hsl(var(--background))",
+          "48px 0 0 hsl(var(--background))",
+        ].join(", ")
+      : undefined,
   };
 };
 
@@ -190,13 +204,8 @@ const getPinningClasses = <TData,>(column: Column<TData>): string => {
   const isPinned = column.getIsPinned();
   const isLastLeftPinnedColumn =
     isPinned === "left" && column.getIsLastColumn("left");
-  const isFirstRightPinnedColumn =
-    isPinned === "right" && column.getIsFirstColumn("right");
 
-  return cn(
-    isLastLeftPinnedColumn && "border-r border-border",
-    isFirstRightPinnedColumn && "border-l border-border",
-  );
+  return cn(isLastLeftPinnedColumn && "border-r border-border");
 };
 
 const getCellPaddingClassName = (padding: DataTableCellPadding) => {
@@ -212,8 +221,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 const cellBackgroundClassNames = {
   gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
-  green:
-    "bg-accent-light-green [&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+  green: "bg-surface-output [&_[data-slot=skeleton]]:bg-muted-foreground/20",
 } satisfies Record<DataTableCellBackground, string>;
 
 const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
@@ -313,7 +321,9 @@ export function DataTable<TData extends object, TValue>({
       left: columns
         .filter((col) => col.isPinnedLeft)
         .map((col) => col.id || col.accessorKey),
-      right: [],
+      right: columns
+        .filter((col) => col.isPinnedRight)
+        .map((col) => col.id || col.accessorKey),
     }),
     [columns],
   );
@@ -682,7 +692,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
+        <div className="bg-surface sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
             isLoading={

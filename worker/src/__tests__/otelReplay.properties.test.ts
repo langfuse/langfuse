@@ -642,9 +642,10 @@ const directedCases: ReplayCase[] = [
 async function assertReplayPersists(params: ReplayCase): Promise<void> {
   const replay = buildReplayCase(params);
   const { storedRows } = await runOtelReplay({
-    resourceSpans: replay.resourceSpans,
+    bytes: Buffer.from(JSON.stringify(replay.resourceSpans)),
     projectId: replay.projectId,
     fileKey: FILE_KEY,
+    mediaUploadEnabled: true,
   });
 
   expect(storedRows).toHaveLength(replay.expectedRows.length);

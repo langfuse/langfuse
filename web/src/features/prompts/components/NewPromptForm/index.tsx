@@ -1,6 +1,6 @@
 import capitalize from "lodash/capitalize";
 import router from "next/router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -64,15 +64,16 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
-  let initialPromptVariant: PromptVariant | null;
-  try {
-    initialPromptVariant = PromptVariantSchema.parse({
-      type: initialPrompt?.type,
-      prompt: initialPrompt?.prompt?.valueOf(),
-    });
-  } catch (_err) {
-    initialPromptVariant = null;
-  }
+  const initialPromptVariant = useMemo<PromptVariant | null>(() => {
+    try {
+      return PromptVariantSchema.parse({
+        type: initialPrompt?.type,
+        prompt: initialPrompt?.prompt?.valueOf(),
+      });
+    } catch (_err) {
+      return null;
+    }
+  }, [initialPrompt]);
 
   const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,
@@ -264,7 +265,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.
-                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
+                            <SquareArrowOutUpRight className="icon-sm ml-1" />
                           </Link>
                         ) : null}
                       </div>

@@ -1,5 +1,6 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
-import { ChevronRight, ChevronDown, Wrench } from "lucide-react";
+/* eslint-disable @repo/no-style-props */
+import { Wrench } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -7,11 +8,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
 // Tool definition extracted from messages
@@ -125,12 +122,7 @@ function ToolGroupHoverContent({
   toolNameToDefinitionNumber?: Map<string, number>;
 }) {
   return (
-    <HoverCardContent
-      side="bottom"
-      align="start"
-      sideOffset={6}
-      className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-    >
+    <>
       <div className="flex flex-col gap-1 p-2">
         {tools.map((tool, index) => {
           const callCount = toolCallCounts.get(tool.name) ?? 0;
@@ -144,7 +136,7 @@ function ToolGroupHoverContent({
               className="flex min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1"
             >
               <div className="flex min-w-0 items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                <Wrench className="text-muted-foreground icon-base shrink-0" />
                 <span
                   className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
                   title={tool.name}
@@ -169,7 +161,7 @@ function ToolGroupHoverContent({
           );
         })}
       </div>
-    </HoverCardContent>
+    </>
   );
 }
 
@@ -207,7 +199,7 @@ function ToolGroupSummary({
       <div className="flex min-w-0 items-center gap-2">
         <Wrench
           className={cn(
-            "text-muted-foreground h-3.5 w-3.5 shrink-0",
+            "text-muted-foreground icon-base shrink-0",
             isCalledGroup && "text-dark-green",
           )}
         />
@@ -233,9 +225,9 @@ function ToolGroupSummary({
           {expanded ? "hide" : "show"}
         </Badge>
         {expanded ? (
-          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+          <DropdownIndicator />
         ) : (
-          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+          <DropdownIndicator direction="right" />
         )}
       </div>
     </button>
@@ -246,13 +238,24 @@ function ToolGroupSummary({
   }
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>{summaryButton}</HoverCardTrigger>
-      <ToolGroupHoverContent
-        tools={tools}
-        toolCallCounts={toolCallCounts}
-        toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-      />
+    <HoverCard
+      openDelay={200}
+      closeDelay={100}
+      placement="bottom-start"
+      sideOffset={6}
+      content={
+        <div className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto">
+          <ToolGroupHoverContent
+            tools={tools}
+            toolCallCounts={toolCallCounts}
+            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+          />
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div {...getTriggerProps()}>{summaryButton}</div>
+      )}
     </HoverCard>
   );
 }
@@ -284,26 +287,30 @@ function ToolCallStatusBadge({
   }
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <div className="inline-flex">{badge}</div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        side="bottom"
-        align="end"
-        sideOffset={6}
-        className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-      >
-        <div className="border-border border-b px-3 py-2">
-          <div className="text-foreground text-xs font-bold">
-            Tool call arguments
+    <HoverCard
+      openDelay={200}
+      closeDelay={100}
+      placement="bottom-end"
+      sideOffset={6}
+      content={
+        <div className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto">
+          <div className="border-border border-b px-3 py-2">
+            <div className="text-foreground text-xs font-bold">
+              Tool call arguments
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
+            </div>
           </div>
-          <div className="text-muted-foreground text-xs">
-            {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
-          </div>
+          <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
         </div>
-        <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
-      </HoverCardContent>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div className="inline-flex" tabIndex={0} {...getTriggerProps()}>
+          {badge}
+        </div>
+      )}
     </HoverCard>
   );
 }
@@ -339,7 +346,7 @@ function ToolDefinitionRow({
         aria-expanded={isExpanded}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <Wrench className="text-muted-foreground icon-base shrink-0" />
           <span
             className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
             title={tool.name}
@@ -359,9 +366,9 @@ function ToolDefinitionRow({
           />
 
           {isExpanded ? (
-            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+            <DropdownIndicator />
           ) : (
-            <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+            <DropdownIndicator direction="right" />
           )}
         </div>
       </button>
@@ -491,10 +498,6 @@ export function ToolCallDefinitionCard({
       ),
     [tools, toolCallCounts],
   );
-
-  if (!tools || tools.length === 0) {
-    return null;
-  }
 
   const calledToolsShouldCollapse =
     calledTools.length > CALLED_TOOLS_COLLAPSE_THRESHOLD;

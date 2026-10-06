@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
-import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
+import { Plus, TriangleAlert } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -228,7 +229,7 @@ export function ScoreOutputSection({
                   disabled={readOnly}
                 >
                   {numericBoundsLabel}
-                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  <DropdownIndicator />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-72">
@@ -312,11 +313,11 @@ export function ScoreOutputSection({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span
-                            className="text-dark-yellow h-4 w-4 shrink-0"
+                            className="text-dark-yellow inline-flex shrink-0"
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
                             <TriangleAlert
-                              className="h-4 w-4"
+                              className="icon-base text-icon-foreground"
                               aria-hidden="true"
                             />
                           </span>
@@ -326,9 +327,7 @@ export function ScoreOutputSection({
                         </TooltipContent>
                       </Tooltip>
                     ) : null}
-                    {!readOnly ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                    ) : null}
+                    {!readOnly ? <DropdownIndicator /> : null}
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>
@@ -357,7 +356,7 @@ export function ScoreOutputSection({
                     aria-label="Add category"
                     title="Add category"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="icon-base text-icon-foreground" />
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

@@ -416,7 +416,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 onClick={() => setStep("select-evaluator")}
                 disabled={runEvaluationMutation.isPending}
               >
-                <ChevronLeft className="mr-1 h-4 w-4" />
+                <ChevronLeft className="icon-base text-icon-foreground mr-1" />
                 Back
               </Button>
             ) : (
@@ -425,7 +425,16 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
             <div className="flex items-center gap-2">
               {step !== "confirm" ? (
-                <CreateEvaluatorButton href={createEvaluatorHref} />
+                <CreateEvaluatorButton
+                  href={createEvaluatorHref}
+                  onClick={() => {
+                    // The legacy (v3) editor is not part of the onboarding funnel.
+                    if (forceV3Experience) return;
+                    capture("eval:onboarding_started", {
+                      entryPoint: "batch_evaluation",
+                    });
+                  }}
+                />
               ) : null}
               {showMappingEditor ? (
                 <MappingRunButton
@@ -460,18 +469,25 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   );
 }
 
-function CreateEvaluatorButton({ href }: { href: string }) {
+function CreateEvaluatorButton({
+  href,
+  onClick,
+}: {
+  href: string;
+  onClick: () => void;
+}) {
   return (
     <Button variant="secondary" className="gap-1.5" asChild>
       <Link
         href={href}
+        onClick={onClick}
         target="_blank"
         rel="noreferrer"
         aria-label="Create new Evaluator (opens in a new tab)"
       >
-        <Plus className="size-4 shrink-0" aria-hidden="true" />
+        <Plus className="icon-base shrink-0" aria-hidden="true" />
         Create new Evaluator
-        <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+        <ExternalLink className="icon-base shrink-0" aria-hidden="true" />
       </Link>
     </Button>
   );

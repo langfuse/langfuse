@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -6,7 +6,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { ListFilter, ChevronsUpDown, X, Check } from "lucide-react";
+import { ListFilter, X, Check } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useMemo, useState } from "react";
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -89,7 +90,7 @@ function FilterPillWithTarget({
       variant="secondary"
       className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
     >
-      <ListFilter className="h-3 w-3 shrink-0" />
+      <ListFilter className="icon-sm shrink-0" />
       <span className="truncate" title={filterLabel}>
         {filterLabel}
       </span>
@@ -103,7 +104,7 @@ function FilterPillWithTarget({
             <span className="max-w-[100px] truncate" title={experimentName}>
               {experimentName}
             </span>
-            <ChevronsUpDown className="h-3 w-3 opacity-50" />
+            <DropdownIndicator direction="up-down" size="sm" nudge />
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-1" align="start">
@@ -127,7 +128,7 @@ function FilterPillWithTarget({
               >
                 <div className="flex h-4 w-4 items-center justify-center">
                   {exp.experimentId === experimentId && (
-                    <Check className="text-primary h-3 w-3" />
+                    <Check className="text-primary icon-sm" />
                   )}
                 </div>
                 <span className="truncate" title={exp.experimentName}>
@@ -147,7 +148,7 @@ function FilterPillWithTarget({
           onRemove();
         }}
       >
-        <X className="h-3 w-3" />
+        <X className="icon-base text-icon-foreground" />
       </Button>
     </Badge>
   );
@@ -175,10 +176,6 @@ export function ExperimentFilterPills({
       })),
     );
   }, [filtersByExperiment, selectedExperimentNames]);
-
-  if (allFilters.length === 0) {
-    return null;
-  }
 
   return (
     <div

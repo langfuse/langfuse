@@ -5,7 +5,6 @@ import {
   type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
-  type EvalTemplateType,
   type EvaluatorPromptMessage,
 } from "@langfuse/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -21,6 +20,8 @@ import type {
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+type EditableEvaluatorType = NormalizedEvaluatorDefinition["type"];
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import { questionsToDrafts } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
@@ -91,7 +92,7 @@ function buildInitialQuestions(
 }
 
 type EvaluatorSetupStoreActions = {
-  setType: (type: EvalTemplateType) => void;
+  setType: (type: EditableEvaluatorType) => void;
   setQuestion: (question: DecisionModelQuestionDraft) => void;
   addQuestion: (question: DecisionModelQuestionDraft) => void;
   removeQuestion: (id: string) => void;
@@ -130,7 +131,7 @@ type EvaluatorSetupStoreActions = {
 
 export type EvaluatorSetupStoreState = {
   initialDefinition: NormalizedEvaluatorDefinition | undefined;
-  type: EvalTemplateType;
+  type: EditableEvaluatorType;
   promptMessages: EvaluatorPromptMessage[];
   /** Stable client-only ids used by drag-and-drop; never persisted. */
   promptMessageIds: string[];
@@ -151,6 +152,7 @@ export type EvaluatorSetupStoreState = {
   defaultModel: JudgeModel | null;
   selectedModel: JudgeModel | null;
   modelParams: ModelConfig | null;
+  hasChangedModelSelection: boolean;
   selectedObservation: SampleObservation | null;
   sampleFilter: FilterState;
   promptPreviewEnabled: boolean;
@@ -184,7 +186,7 @@ export function createEvaluatorSetupStore({
     definition: NormalizedEvaluatorDefinition;
   } | null;
   initialSampleFilter?: FilterState;
-  initialType?: EvalTemplateType;
+  initialType?: EditableEvaluatorType;
   defaultModel?: JudgeModel | null;
   mode: "create" | "edit";
 }): EvaluatorSetupStore {
@@ -246,6 +248,7 @@ export function createEvaluatorSetupStore({
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.modelParams
         : null,
+    hasChangedModelSelection: false,
     selectedObservation: null,
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
@@ -460,12 +463,14 @@ export function createEvaluatorSetupStore({
         })),
       setActiveMapping: (activeMapping) => set({ activeMapping }),
       setModelPickerOpen: (modelPickerOpen) => set({ modelPickerOpen }),
-      setModelMode: (modelMode) => set({ modelMode }),
+      setModelMode: (modelMode) =>
+        set({ modelMode, hasChangedModelSelection: true }),
       setDefaultModel: (defaultModel) => set({ defaultModel }),
       selectModel: (selectedModel) =>
         set((state) => ({
           selectedModel,
           modelMode: "custom",
+          hasChangedModelSelection: true,
           modelParams:
             state.selectedModel?.provider === selectedModel.provider &&
             state.selectedModel.model === selectedModel.model
@@ -473,7 +478,12 @@ export function createEvaluatorSetupStore({
               : null,
         })),
       configureModel: (selectedModel, modelParams) =>
-        set({ selectedModel, modelParams, modelMode: "custom" }),
+        set({
+          selectedModel,
+          modelParams,
+          modelMode: "custom",
+          hasChangedModelSelection: true,
+        }),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
       setSampleFilter: (sampleFilter) => set({ sampleFilter }),
@@ -515,6 +525,7 @@ export function createEvaluatorSetupStore({
               modelMode: "custom",
               selectedModel,
               modelParams: null,
+              hasChangedModelSelection: true,
             };
           }
 
@@ -530,6 +541,7 @@ export function createEvaluatorSetupStore({
             modelMode: selectedModel ? "custom" : "default",
             selectedModel,
             modelParams: selectedModel ? definition.modelParams : null,
+            hasChangedModelSelection: true,
           };
         }),
     },

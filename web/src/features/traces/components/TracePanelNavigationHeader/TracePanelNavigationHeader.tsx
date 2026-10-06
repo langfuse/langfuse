@@ -23,11 +23,12 @@ import {
 } from "@/src/components/ui/tooltip";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   ChevronDown,
   FoldVertical,
   UnfoldVertical,
-  MoreHorizontal,
+  MoreVertical,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -98,7 +99,7 @@ function TracePanelNavigationHeaderExpanded({
   const analyticsDimensions = useTraceAnalyticsDimensions();
   const [headerContainerRef, headerContainerSize] =
     useElementSize<HTMLDivElement>();
-  const isSearchWrapped = (headerContainerSize?.width ?? Infinity) <= 439;
+  const isSearchWrapped = (headerContainerSize?.width ?? Infinity) <= 299;
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
@@ -175,9 +176,9 @@ function TracePanelNavigationHeaderExpanded({
     <>
       <DropdownMenuItem onSelect={handleToggleTreeNodes}>
         {isEverythingCollapsed ? (
-          <UnfoldVertical className="mr-2 h-3.5 w-3.5" />
+          <UnfoldVertical className="icon-base text-icon-foreground mr-2" />
         ) : (
-          <FoldVertical className="mr-2 h-3.5 w-3.5" />
+          <FoldVertical className="icon-base text-icon-foreground mr-2" />
         )}
         {isEverythingCollapsed ? "Expand all" : "Collapse all"}
       </DropdownMenuItem>
@@ -189,14 +190,14 @@ function TracePanelNavigationHeaderExpanded({
     <div
       key="search"
       className={cn(
-        "@max-[439px]/navheader:bg-background @max-[439px]/navheader:focus-within:border-ring @max-[439px]/navheader:focus-within:ring-ring/30 relative col-start-2 row-start-1 min-w-0 @max-[439px]/navheader:col-span-3 @max-[439px]/navheader:col-start-1 @max-[439px]/navheader:row-start-2 @max-[439px]/navheader:ml-1 @max-[439px]/navheader:rounded-md @max-[439px]/navheader:border @max-[439px]/navheader:shadow-xs @max-[439px]/navheader:focus-within:ring-2 @max-[439px]/navheader:[&>div]:p-0",
+        "@max-[299px]/navheader:bg-background @max-[299px]/navheader:focus-within:border-ring @max-[299px]/navheader:focus-within:ring-ring/30 relative col-start-2 row-start-1 min-w-0 @max-[299px]/navheader:col-span-3 @max-[299px]/navheader:col-start-1 @max-[299px]/navheader:row-start-2 @max-[299px]/navheader:ml-1 @max-[299px]/navheader:rounded-md @max-[299px]/navheader:border @max-[299px]/navheader:shadow-xs @max-[299px]/navheader:focus-within:ring-2 @max-[299px]/navheader:[&>div]:p-0",
         isDetailPanelCollapsed && "pl-1",
       )}
     >
       <CommandInput
         showBorder={false}
         placeholder="Search"
-        className="@max-[439px]/navheader:placeholder:text-muted-foreground h-7 min-w-0 border-0 pr-0 focus:ring-0 @max-[439px]/navheader:h-[1.625rem]"
+        className="@max-[299px]/navheader:placeholder:text-muted-foreground placeholder:text-muted-foreground h-7 min-w-0 border-0 pr-0 text-xs placeholder:font-mono focus:ring-0 @max-[299px]/navheader:h-[1.625rem]"
         value={searchInputValue}
         onValueChange={setSearchInputValue}
         onKeyDown={handleSearchKeyDown}
@@ -210,7 +211,7 @@ function TracePanelNavigationHeaderExpanded({
           it fits. Search moves below the controls before that switch collapses,
           and remains the same input across every layout. */}
       <div ref={headerContainerRef} className="@container/navheader">
-        <div className="grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center pr-2 pl-1 @max-[439px]/navheader:min-h-0 @max-[439px]/navheader:gap-y-1 @max-[439px]/navheader:pt-1 @max-[439px]/navheader:pb-1.5">
+        <div className="grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center py-1 pr-3 pl-1 @max-[299px]/navheader:min-h-0 @max-[299px]/navheader:gap-y-1 @max-[299px]/navheader:pt-1 @max-[299px]/navheader:pb-1.5">
           {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
               version. Hidden while the detail panel is closed (nothing useful to
               collapse the full-width tree/timeline into). */}
@@ -243,9 +244,9 @@ function TracePanelNavigationHeaderExpanded({
                 className="h-7 w-7"
               >
                 {isEverythingCollapsed ? (
-                  <UnfoldVertical className="h-3.5 w-3.5" />
+                  <UnfoldVertical className="icon-base text-icon-foreground" />
                 ) : (
-                  <FoldVertical className="h-3.5 w-3.5" />
+                  <FoldVertical className="icon-base text-icon-foreground" />
                 )}
               </Button>
 
@@ -262,7 +263,7 @@ function TracePanelNavigationHeaderExpanded({
                     aria-label="More options"
                     className="h-7 w-7"
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <MoreVertical className="icon-base text-icon-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-64">
@@ -321,7 +322,7 @@ function TracePanelNavigationHeaderExpanded({
                       {TRACE_VIEW_LABELS[activeView]}
                       <ChevronDown
                         className={cn(
-                          "h-3.5 w-3.5 transition-transform",
+                          "text-foreground-tertiary icon-base transition-transform",
                           isOpen && "rotate-180",
                         )}
                       />
@@ -367,70 +368,32 @@ function ViewModeSwitch({
   onSelect: (view: TraceViewMode) => void;
 }) {
   return (
-    <div className="bg-muted/60 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
-      <ViewModeSegment
-        active={activeView === "tree"}
-        onClick={() => onSelect("tree")}
-        label="Tree"
-      />
-      {/* One Timeline. What it IS depends on the Compact Timeline feature
-          preview — see TracePanelNavigation — rather than on a third segment
-          the user has to understand. */}
-      <ViewModeSegment
-        active={activeView === "timeline"}
-        onClick={() => onSelect("timeline")}
-        label="Timeline"
-      />
-      <ViewModeSegment
-        active={activeView === "graph"}
-        onClick={() => onSelect("graph")}
-        label="Graph"
-        disabled={Boolean(graphDisabledReason)}
-        title={graphDisabledReason}
-      />
-    </div>
-  );
-}
-
-function ViewModeSegment({
-  active,
-  onClick,
-  label,
-  disabled = false,
-  title,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  disabled?: boolean;
-  /** Why the view is unavailable; shown in a tooltip. */
-  title?: string;
-}) {
-  const segment = (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      aria-disabled={disabled || undefined}
-      aria-pressed={active}
-      title={disabled ? undefined : label}
-      className={cn(
-        "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
-        disabled && "cursor-not-allowed opacity-40",
-        active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-      )}
+    <Tabs
+      value={activeView}
+      onValueChange={(value) => onSelect(value as TraceViewMode)}
     >
-      {label}
-    </button>
-  );
-
-  // A native title does not reliably surface on a segment this small.
-  if (!disabled || !title) return segment;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{segment}</TooltipTrigger>
-      <TooltipContent>{title}</TooltipContent>
-    </Tooltip>
+      <Tabs.List size="md" aria-label="Trace view">
+        <Tabs.Trigger value="tree" label="Tree" />
+        {/* One Timeline. What it IS depends on the Compact Timeline feature
+            preview — see TracePanelNavigation — rather than on a third segment
+            the user has to understand. */}
+        <Tabs.Trigger value="timeline" label="Timeline" />
+        {graphDisabledReason ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
+              >
+                <Tabs.Trigger value="graph" disabled label="Graph" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{graphDisabledReason}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tabs.Trigger value="graph" label="Graph" />
+        )}
+      </Tabs.List>
+    </Tabs>
   );
 }

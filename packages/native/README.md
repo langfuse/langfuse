@@ -8,12 +8,18 @@ other workspace package:
 import { hello } from "@langfuse/native";
 ```
 
+The addon provides telemetry, a health-check function, ClickHouse Native
+encoding, and Topics numerical clustering. Topics calls
+`clusterTopicEmbeddings(embeddings, settings)` from a Node child process so
+CPU-bound fits can be killed without blocking the worker.
+
 ## Layout
 
 | Path                  | Purpose                                                                      |
 | --------------------- | ---------------------------------------------------------------------------- |
 | `src/lib.rs`          | Rust source. Every `#[napi]` item is exported to Node.js.                    |
 | `src/telemetry.rs`    | Metrics and log setup shared by all native code; see Observability.          |
+| `src/topics.rs`       | Seeded UMAP reductions and HDBSCAN for Topics.                               |
 | `Cargo.toml`          | Crate manifest (`cdylib`). `Cargo.lock` is committed.                        |
 | `build.rs`            | napi-rs build hook.                                                          |
 | `rust-toolchain.toml` | Pinned compiler version, kept equal to the one `worker/Dockerfile` installs. |
@@ -48,6 +54,12 @@ pnpm --filter @langfuse/native run build:debug  # unoptimised build
 pnpm --filter @langfuse/native run lint         # cargo fmt --check && cargo clippy -D warnings
 pnpm --filter @langfuse/native run test         # Rust tests; uses ClickHouse when available
 ```
+
+These commands delegate to `rust:*` scripts in the `langfuse-rust` pnpm
+concurrency group, shared with the gateway across worktrees using the same
+pnpm `stateDir`. This limits concurrent Rust tasks, including tasks launched
+by Turbo; each compiler still controls its own threads. Run `pnpm tasks status`
+to inspect running and waiting tasks. Direct Cargo commands bypass the group.
 
 `pnpm run dev`, `pnpm run build`, `pnpm run test`, and the worker's
 `typecheck`/`lint` tasks build this package first through turbo, so the addon

@@ -95,6 +95,7 @@ export class GatewayResolveService {
         version: 1 as const,
         connection: {
           id: context.connection.id,
+          name: context.connection.name,
           provider:
             context.connection.provider.toLowerCase() as GatewayProviderId,
           api_format: params.apiFormat,

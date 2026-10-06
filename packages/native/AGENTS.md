@@ -2,9 +2,10 @@
 
 ## Purpose
 
-- Rust native addon (napi-rs) loaded in-process by the worker as
-  `@langfuse/native`. Exports telemetry, the startup probe, and the prepared-event
-  Native codec; see `README.md` for build and deployment layout.
+- Rust native addon (napi-rs) loaded by the worker as `@langfuse/native`.
+  Exports telemetry, the startup probe, the prepared-event Native codec, and
+  Topics clustering. Topics runs in a Node child so its synchronous fit can be
+  killed at the deadline. See `README.md` for build and deployment layout.
 
 ## Maintenance Contract
 
@@ -22,6 +23,8 @@
   mirrors dd-trace and the winston logger (`DD_*`, `LANGFUSE_LOG_*`).
 - The worker calls `initTelemetry()` once in `worker/src/initialize.ts` and
   imports functions from `@langfuse/native` directly; keep call sites few.
+- Keep finite Rust commands behind the package's `rust:*` scripts so pnpm's
+  shared `langfuse-rust` concurrency group also covers builds launched by Turbo.
 - `PreparedEvent` snapshots finalized JS rows into owned Rust fields;
   `encodeClickhouseEvents()` asynchronously encodes batches of those handles.
   Keep column definitions in `src/native_schema.rs` and JS handles off worker threads.
@@ -35,5 +38,9 @@
   `pnpm --filter worker run test nativeHello`. The test loads the compiled
   addon; `pnpm turbo run test --filter=worker` builds it first, a direct
   vitest run does not.
+- For Topics numerical changes, run `cargo test --features napi/dyn-symbols topics`
+  here and `pnpm --filter worker run test features/topics` from the repository root.
+  Compare grouping and final classifier assignments, not raw 2D coordinates,
+  when changing the numerical backend.
 - When touching the build pipeline, build the worker image:
   `docker build -f worker/Dockerfile .` and check `/api/health` on it.

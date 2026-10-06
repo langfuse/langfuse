@@ -24,7 +24,8 @@ import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { ChevronDown, Columns3, Trash } from "lucide-react";
+import { Columns3, Trash } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -126,7 +127,7 @@ const DatasetRunTableMultiSelectAction = ({
               onClick={() => capture("dataset_run:compare_view_click")}
             >
               Actions ({selectedRunIds.length} selected)
-              <ChevronDown className="h-5 w-5" />
+              <DropdownIndicator nudge />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent key="dropdown-menu-content">
@@ -138,12 +139,12 @@ const DatasetRunTableMultiSelectAction = ({
               }}
             >
               <DropdownMenuItem>
-                <Columns3 className="mr-2 h-4 w-4" />
+                <Columns3 className="icon-base text-icon-foreground mr-2" />
                 <span>Compare</span>
               </DropdownMenuItem>
             </Link>
             <DropdownMenuItem key="delete" onClick={openDialog}>
-              <Trash className="mr-2 h-4 w-4" />
+              <Trash className="icon-base text-icon-foreground mr-2" />
               <span>Delete</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -501,7 +502,7 @@ function DatasetRunsTableInternal(
               disabled={!hasDeleteAccess}
               onSelect={() => props.openDeleteDatasetRunDialog(id)}
             >
-              <Trash className="mr-2 h-4 w-4" />
+              <Trash className="icon-base text-icon-foreground mr-2" />
               Delete
             </DropdownMenuItem>
           </>

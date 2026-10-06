@@ -65,7 +65,7 @@ const iconMap = {
   EXPERIMENT: FlaskConical,
 } as const;
 
-const iconVariants = cva("h-4 w-4", {
+const iconVariants = cva("shrink-0", {
   variants: {
     type: {
       TRACE: "text-observation-trace",
@@ -102,16 +102,16 @@ export function ItemTypeIcon({
   className?: string;
 }) {
   const Icon = iconMap[type];
-  return <Icon className={cn("shrink-0", iconVariants({ type }), className)} />;
+  return (
+    <Icon className={cn("icon-base", iconVariants({ type }), className)} />
+  );
 }
 
 export function renderFilterIcon(value: string): React.ReactNode {
   const type = value as LangfuseItemType;
   const Icon = iconMap[type];
   if (!Icon) return null;
-  return (
-    <Icon className={cn("h-3.5 w-3.5 shrink-0", iconVariants({ type }))} />
-  );
+  return <Icon className={cn("icon-base", iconVariants({ type }))} />;
 }
 
 /**
@@ -135,13 +135,11 @@ export function ItemBadge({
   isSmall?: boolean;
   className?: string;
 }) {
-  const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
+  const Icon = iconMap[type] || ListTree;
 
-  // Modify this line to ensure the icon is properly sized
   const iconClass = cn(
-    "shrink-0",
+    isSmall ? "icon-sm" : "icon-base",
     iconVariants({ type }),
-    isSmall ? "h-3 w-3" : "h-4 w-4",
     className,
   );
 
@@ -153,11 +151,7 @@ export function ItemBadge({
       title={label}
       className={cn(
         "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap",
-        // With a label the horizontal padding is what separates the icon from the
-        // text. Without one there is nothing to separate, and the padding only
-        // made a square icon sit in a rectangle. `max-w-none` is what lets it be
-        // square: `max-w-fit` caps the width at the icon's own width, so a set
-        // size would apply to the height alone.
+        // Icon-only: square box, `max-w-none` so the width is not capped at the icon.
         showLabel
           ? "px-1"
           : cn(

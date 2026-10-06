@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -26,15 +27,26 @@ type LineChartStoryProps = {
 };
 
 const LineChartDemo = (props: LineChartStoryProps) => {
+  const chartData = useMemo(() => {
+    if (props.variant === "many-lines") return manyLinesData;
+    if (props.variant === "boundary-points") return boundaryPointData;
+    if (props.variant === "negative-values") return negativeData;
+    if (props.variant === "intermittent") return intermittentData;
+    if (props.variant === "intraday") return intradayData;
+    if (props.variant === "year-boundary") return yearBoundaryData;
+    if (props.variant === "monthly") return monthlyData;
+    if (props.variant === "empty") return [];
+    return data;
+  }, [props.variant]);
   if (
     props.variant === "category-short-labels" ||
     props.variant === "category-long-labels" ||
     props.variant === "category-hidden-labels"
   ) {
-    let categoryChartData = categoryData;
-    if (props.variant === "category-short-labels") {
-      categoryChartData = shortCategoryData;
-    }
+    const categoryChartData =
+      props.variant === "category-short-labels"
+        ? shortCategoryData
+        : categoryData;
     return (
       <LineChart
         data={categoryChartData}
@@ -48,18 +60,6 @@ const LineChartDemo = (props: LineChartStoryProps) => {
     );
   }
 
-  let chartData: Array<{
-    x: Date;
-    values: Record<string, number | null>;
-  }> = data;
-  if (props.variant === "many-lines") chartData = manyLinesData;
-  if (props.variant === "boundary-points") chartData = boundaryPointData;
-  if (props.variant === "negative-values") chartData = negativeData;
-  if (props.variant === "intermittent") chartData = intermittentData;
-  if (props.variant === "intraday") chartData = intradayData;
-  if (props.variant === "year-boundary") chartData = yearBoundaryData;
-  if (props.variant === "monthly") chartData = monthlyData;
-  if (props.variant === "empty") chartData = [];
   const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
 
   return (

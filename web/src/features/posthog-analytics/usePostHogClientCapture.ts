@@ -2,6 +2,7 @@ import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
+import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
@@ -219,6 +220,29 @@ const events = {
     "detach_evaluator",
     "filter_reused",
   ],
+  // Evaluator creation funnel (gallery -> setup page -> saved dialog). Props
+  // are typed in EvalOnboardingEventMap: metadata only, never search text,
+  // prompt content, names or filter values.
+  eval: [
+    "onboarding_started",
+    "onboarding_step_completed",
+    "onboarding_completed",
+    "onboarding_gallery_searched",
+    "onboarding_gallery_section_selected",
+    "onboarding_evaluator_type_changed",
+    "onboarding_preview_toggled",
+    "onboarding_sample_observation_previewed",
+    "onboarding_prompt_modified",
+    "onboarding_llm_connection_tab_opened",
+    "onboarding_model_picker_opened",
+    "onboarding_model_changed",
+    "onboarding_ai_generate_requested",
+    "onboarding_sampling_changed",
+    "onboarding_historic_eval_toggled",
+    "onboarding_scope_changed",
+    "onboarding_create_rule_opened",
+    "onboarding_execution_skipped",
+  ],
   // One-shot batch evaluation from the events / experiments tables.
   // Counts and enums only — never mapping contents or observation payloads.
   batch_eval: ["run"],
@@ -318,18 +342,15 @@ const events = {
   // distinguishes picker vs table-selection vs url (deep link / redirect) vs
   // auto — so the auto-selected comparison stays out of "users who compare".
   //
-  // Two events from the original plan went away with the surfaces they
-  // measured: `analytics_tab_opened` (the Analytics route is
-  // deleted) and `charts_section_toggled` (the charts accordion is replaced by
-  // an always-on metric strip). `chart_metric_changed` now belongs to that
-  // strip and `item_regression_filter_applied` to the score-comparison filter:
-  // same question, same name, so the event history stays continuous.
   experiment: [
     "comparison_changed",
     "comparison_picker_opened",
     "baseline_changed",
     "auto_comparison_preference_changed",
     "chart_metric_changed",
+    "chart_added",
+    "chart_removed",
+    "chart_type_changed",
     "layout_changed",
     "diff_mode_changed",
     "score_column_scope_toggled",
@@ -466,11 +487,10 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
-type EventProperties = AnnotationEventMap & {
-  [E in Exclude<EventName, keyof AnnotationEventMap>]: Record<
-    string,
-    any
-  > | null;
+type TypedEventMap = AnnotationEventMap & EvalOnboardingEventMap;
+
+type EventProperties = TypedEventMap & {
+  [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;
 };
 
 export const usePostHogClientCapture = () => {

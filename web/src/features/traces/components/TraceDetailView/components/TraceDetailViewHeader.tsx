@@ -1,3 +1,4 @@
+import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *
@@ -35,7 +36,6 @@ import { CollapsibleBadgeRow } from "@/src/features/traces/components/Collapsibl
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
 import {
-  ChevronDown,
   EllipsisVertical,
   LockIcon,
   MessageSquare,
@@ -44,6 +44,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { cn } from "@/src/utils/tailwind";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
@@ -124,7 +125,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   variant="ghost"
                   {...getTriggerProps()}
                 >
-                  <EllipsisVertical className="h-4 w-4" />
+                  <EllipsisVertical className="icon-sm text-icon-foreground" />
                 </Button>
               )}
             </ConnectedDetailHeaderActionsMenuController>
@@ -172,22 +173,15 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                       mobileActionsTriggerRef.current?.focus({
                                         preventScroll: true,
                                       });
-                                      openDrawer({
-                                        scoreTarget: {
-                                          type: "trace",
+                                      openDrawer(
+                                        prepareTraceAnnotation({
                                           traceId: trace.id,
-                                        },
-                                        scores: traceScores,
-                                        analyticsData: {
-                                          type: "trace",
-                                          source: "TraceDetail",
-                                          isV4,
-                                        },
-                                        scoreMetadata: {
                                           projectId,
                                           environment: trace.environment,
-                                        },
-                                      });
+                                          scores: traceScores,
+                                          isV4,
+                                        }),
+                                      );
                                     },
                                   },
                                 ]
@@ -236,7 +230,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                 ref: mobileActionsTriggerRef,
                               })}
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal className="icon-base text-icon-foreground" />
                             </Button>
                           )}
                         </DropdownMenu>
@@ -267,9 +261,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   className="gap-1"
                   {...getTriggerProps()}
                 >
-                  <PlusIcon className="h-3.5 w-3.5" />
+                  <PlusIcon className="icon-base" />
                   <span>Add to</span>
-                  <ChevronDown className="h-3 w-3" />
+                  <DropdownIndicator size="sm" nudge />
                 </Button>
               )}
             </ConnectedTraceObservationAddToDropdownMenuController>
@@ -282,28 +276,21 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     size="sm"
                     disabled={disabled}
                     onClick={() =>
-                      openDrawer({
-                        scoreTarget: {
-                          type: "trace",
+                      openDrawer(
+                        prepareTraceAnnotation({
                           traceId: trace.id,
-                        },
-                        scores: traceScores,
-                        analyticsData: {
-                          type: "trace",
-                          source: "TraceDetail",
-                          isV4,
-                        },
-                        scoreMetadata: {
                           projectId,
                           environment: trace.environment,
-                        },
-                      })
+                          scores: traceScores,
+                          isV4,
+                        }),
+                      )
                     }
                   >
                     {disabled ? (
-                      <LockIcon className="mr-1.5 h-3 w-3" />
+                      <LockIcon className="icon-base mr-1.5" />
                     ) : (
-                      <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                      <SquarePen className="icon-base mr-1.5" />
                     )}
                     <span>Annotate</span>
                   </Button>
@@ -319,10 +306,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               className="gap-1"
             >
               {commentDrawerControl.disabled ? (
-                <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                <MessageSquareOff className="icon-base text-muted-foreground" />
               ) : (
                 <>
-                  <MessageSquare className="h-3.5 w-3.5" />
+                  <MessageSquare className="icon-base" />
                   <span>{commentActionLabel}</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />

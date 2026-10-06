@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -191,12 +192,12 @@ export function MultiSelect({
               <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                 {selectedBadges}
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <DropdownIndicator />
             </>
           ) : (
             <>
               {label ?? "Select"}
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <DropdownIndicator />
               {selectedValues.size > 0 && (
                 <>
                   <Separator orientation="vertical" className="mr-auto h-4" />
@@ -215,7 +216,7 @@ export function MultiSelect({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="center">
+      <PopoverContent className="ph-no-capture w-[200px] p-0" align="center">
         <InputCommand>
           <InputCommandInput
             placeholder={title}
@@ -228,7 +229,10 @@ export function MultiSelect({
                 role="status"
                 className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
               >
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                <Loader2
+                  className="icon-base animate-spin"
+                  aria-hidden="true"
+                />
                 Loading…
               </div>
             )}
@@ -252,7 +256,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="icon-base" />
                     </div>
                     <div className="font-bold">
                       {allSelectedState ? "Deselect All" : "Select All"}
@@ -293,7 +297,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="icon-base" />
                     </div>
                     <div
                       className={cn(
@@ -362,7 +366,7 @@ export function MultiSelect({
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >
-                    <Check className="h-4 w-4" />
+                    <Check className="icon-base" />
                   </div>
                   <Input
                     type="text"

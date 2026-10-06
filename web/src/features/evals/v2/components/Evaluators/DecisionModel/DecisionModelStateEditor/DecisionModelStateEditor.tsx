@@ -123,7 +123,7 @@ export function DecisionModelStateEditor({
 
       <div>
         <Button type="button" variant="outline" size="sm" onClick={onAddField}>
-          <Plus className="mr-1 h-3.5 w-3.5" />
+          <Plus className="icon-base text-icon-foreground mr-1" />
           Add field
         </Button>
       </div>
@@ -144,7 +144,7 @@ export function DecisionModelStateEditor({
                   tooLarge && "text-dark-yellow flex items-center gap-1",
                 )}
               >
-                {tooLarge ? <TriangleAlert className="h-3.5 w-3.5" /> : null}
+                {tooLarge ? <TriangleAlert className="icon-base" /> : null}
                 {Object.keys(statePreview).length} field
                 {Object.keys(statePreview).length === 1 ? "" : "s"} ·{" "}
                 {stateSize.toLocaleString()} chars
@@ -158,7 +158,7 @@ export function DecisionModelStateEditor({
           </span>
           <ChevronDown
             className={cn(
-              "h-4 w-4 shrink-0 transition-transform",
+              "text-foreground-tertiary icon-base shrink-0 transition-transform",
               previewOpen ? "rotate-180" : "rotate-0",
             )}
           />

@@ -47,6 +47,7 @@ export const TopbarAccount = ({
           size="lg"
           src={user.image ?? undefined}
           displayName={name || email || "User"}
+          email={email || undefined}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4} className="min-w-56">

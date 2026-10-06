@@ -22,7 +22,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
@@ -170,7 +171,10 @@ export function AnnotationQueueFormDialogContent({
                           if (event.button === 1) onManageScoreConfigsClick();
                         }}
                       >
-                        <Settings2 className="size-3" aria-hidden="true" />
+                        <Settings2
+                          className="icon-base text-icon-foreground"
+                          aria-hidden="true"
+                        />
                         Manage score configs
                       </Link>
                     </Button>
@@ -233,9 +237,9 @@ export function AnnotationQueueFormDialogContent({
                         >
                           <div className="flex items-center gap-2">
                             {isAdvancedOpen ? (
-                              <ChevronDown className="text-muted-foreground h-4 w-4" />
+                              <DropdownIndicator nudge />
                             ) : (
-                              <ChevronRight className="text-muted-foreground h-4 w-4" />
+                              <DropdownIndicator direction="right" nudge />
                             )}
                             <span className="text-sm font-bold">
                               User Assignment
