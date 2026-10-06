@@ -33,6 +33,21 @@ const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
   latency: "hsl(var(--chart-2))",
 };
 
+/** Widest y-axis label in px at the strip's default height and scale. */
+export function estimateYLabelWidthPx(
+  maxValue: number,
+  metric: OutlierStripMetricKey,
+): number {
+  const ticks = prepareOutlierYTicks({
+    maxValue,
+    metric,
+    plotHeightPx: 49,
+    scale: "sqrt",
+  });
+  const chars = Math.max(0, ...ticks.map((tick) => tick.label.length));
+  return chars * 6;
+}
+
 /** Pointer travel before a press becomes a range-drag instead of a click. */
 const DRAG_THRESHOLD_PX = 5;
 
