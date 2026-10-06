@@ -101,7 +101,7 @@ export function createEvaluatorAssistantTestResultStore({
       projectId: string;
       evaluatorId: string;
       conversationId: string;
-      observationId: string | null;
+      observationId?: string | null;
       toolCallId: string;
       result: unknown;
     }) {
@@ -111,6 +111,7 @@ export function createEvaluatorAssistantTestResultStore({
         !expected ||
         expected.conversationId !== conversationId ||
         (expected.observationId !== null &&
+          observationId !== undefined &&
           expected.observationId !== observationId)
       ) {
         return false;
