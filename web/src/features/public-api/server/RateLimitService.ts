@@ -14,6 +14,7 @@ import {
   logger,
   createNewRedisInstance,
   redisQueueRetryOptions,
+  createAdminIssue,
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
@@ -80,6 +81,7 @@ export class RateLimitService {
   async rateLimitRequest(
     scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
+    route?: string,
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -95,12 +97,15 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
-    return new RateLimitHelper(await this.checkRateLimit(scope, resource));
+    return new RateLimitHelper(
+      await this.checkRateLimit(scope, resource, route),
+    );
   }
 
   async checkRateLimit(
     scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
+    route?: string,
   ) {
     const effectiveConfig = getRateLimitConfig(scope, resource);
 
@@ -170,6 +175,37 @@ export class RateLimitService {
         plan: scope.plan,
         resource: resource,
       });
+
+      if (scope.projectId && RateLimitService.redis) {
+        try {
+          const issueKey = `admin-issue:rate-limit:${resource}:${scope.orgId}:${scope.projectId}`;
+          const claimed = await RateLimitService.redis.set(
+            issueKey,
+            "1",
+            "PX",
+            Math.max(1, res.msBeforeNext),
+            "NX",
+          );
+          if (claimed === "OK") {
+            const created = await createAdminIssue({
+              projectId: scope.projectId,
+              name: "Rate limit exceeded",
+              issue: {
+                description: `${route ?? resource} exceeded the ${resource} rate limit of ${effectiveConfig.points} requests per ${effectiveConfig.durationInSec} seconds. Retry after ${Math.ceil(res.msBeforeNext / 1000)} seconds.`,
+                priority: 2,
+              },
+            });
+            if (!created) {
+              await RateLimitService.redis.pexpire(
+                issueKey,
+                Math.min(30_000, Math.max(1, res.msBeforeNext)),
+              );
+            }
+          }
+        } catch (error) {
+          logger.error("Failed to record rate limit admin issue", error);
+        }
+      }
     }
 
     return res;

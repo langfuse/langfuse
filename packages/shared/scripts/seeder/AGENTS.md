@@ -29,8 +29,14 @@ pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
+pnpm run seed -- unpriced-generations  # v4 events: two unmatched model names, four token-using generations each, no cost
 pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
+pnpm run seed -- nested-prompts  # composed chat prompt nested 4 levels deep (API max) via the public prompt API
+pnpm run seed -- failing-integrations  # CSV blob export that last hit a ClickHouse timeout + PostHog disabled after a config error (admin issue checks)
+pnpm run seed -- failing-integrations --blob-storage disabled --posthog none --project <other-project>  # blob export disabled after a credentials error (one blob integration per project)
+pnpm run seed -- long-metadata-values  # one OTel span with metadata values over 200 characters; the worker raises the "Long metadata values" admin issue
+pnpm run seed -- apply admin-issues-demo  # every scenario listed in configs/admin-issues-demo.json, in order (one config per demo)
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,
@@ -42,6 +48,10 @@ progress output. Full usage and the need→command table live in the
 ## Layout
 
 - `cli.ts` — entry point (`pnpm run seed`, i.e. shared `seed:scenario`)
+- `config.ts`, `configs/` — `apply <config>`: one JSON file lists the
+  scenarios (and their flags) for a whole demo; add a step instead of a
+  new command. The seeder never runs migrations — run
+  `pnpm --filter=shared run db:deploy` first.
 - `doctor.ts` — stack checks with remediation commands; scenarios run a fast
   preflight subset before writing
 - `scenarios/` — one file per scenario plus shared `rng.ts`, `payload.ts`,

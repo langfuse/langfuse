@@ -76,6 +76,7 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
+import { longMetadataValueTracker } from "../../features/metadata-long-values";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -522,6 +523,7 @@ export class IngestionService {
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
   ): Promise<number> {
+    longMetadataValueTracker.record(eventRecord);
     const persistedRecord = withSerializedEventByteLength(
       await applyObservationFieldOverflow(eventRecord),
     );

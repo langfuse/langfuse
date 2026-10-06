@@ -1,0 +1,157 @@
+import { randomUUID } from "crypto";
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { InternalServerError } from "@langfuse/shared";
+
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import {
+  AdminIssueDetectionQueue,
+  adminIssueDefinitions,
+  type AdminIssueDefinition,
+  QueueJobs,
+  type QueueName,
+  type TQueueJobTypes,
+} from "@langfuse/shared/src/server";
+
+const ISSUE_LIST_LIMIT = 100;
+
+export const adminIssuesRouter = createTRPCRouter({
+  getIssues: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      // Deduplicate before limiting so recurring rules cannot crowd out other issues.
+      const latestIssues = await ctx.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM (
+          SELECT DISTINCT ON (issue_definition_id) id, created_at
+          FROM issue_logs
+          WHERE project_id = ${input.projectId}
+          ORDER BY issue_definition_id, created_at DESC, id DESC
+        ) AS latest
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${ISSUE_LIST_LIMIT}
+      `;
+      const issues = await ctx.prisma.issueLog.findMany({
+        where: {
+          projectId: input.projectId,
+          id: { in: latestIssues.map(({ id }) => id) },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      });
+
+      return issues.map((issue) => {
+        const definition: AdminIssueDefinition | undefined = Object.values(
+          adminIssueDefinitions,
+        ).find((definition) => definition.id === issue.issueDefinitionId);
+
+        return {
+          id: issue.id,
+          issueDefinitionId: issue.issueDefinitionId,
+          // Rows can outlive the rule that created them, so fall back to the stored id.
+          ruleName: definition?.name ?? issue.issueDefinitionId,
+          group: definition?.group ?? "other",
+          ctaLabel: definition?.ctaLabel ?? "View details",
+          description: issue.description,
+          priority: issue.priority,
+          ctaLink: issue.ctaLink,
+          createdAt: issue.createdAt,
+          doneAt: issue.doneAt,
+          ignoredAt: issue.ignoredAt,
+        };
+      });
+    }),
+
+  setIgnored: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        issueId: z.string(),
+        ignored: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const result = await ctx.prisma.issueLog.updateMany({
+        where: { id: input.issueId, projectId: input.projectId },
+        data: {
+          ignoredAt: input.ignored ? new Date() : null,
+          ignoreReason: null,
+        },
+      });
+      if (result.count === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Issue not found" });
+      }
+      return { success: true };
+    }),
+
+  setDone: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        issueId: z.string(),
+        done: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+      const result = await ctx.prisma.issueLog.updateMany({
+        where: { id: input.issueId, projectId: input.projectId },
+        data: input.done
+          ? { doneAt: new Date(), ignoredAt: null, ignoreReason: null }
+          : { doneAt: null },
+      });
+      if (result.count === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Issue not found" });
+      }
+      return { success: true };
+    }),
+
+  runDetection: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const queue = AdminIssueDetectionQueue.getInstance();
+      if (!queue) {
+        throw new InternalServerError(
+          "AdminIssueDetectionQueue not initialized",
+        );
+      }
+
+      // Repeated clicks collapse into one job until the queued job completes or fails.
+      await queue.add(
+        QueueJobs.AdminIssueDetectionJob,
+        {
+          id: randomUUID(),
+          name: QueueJobs.AdminIssueDetectionJob,
+          timestamp: new Date(),
+          payload: { projectId: input.projectId },
+        } satisfies TQueueJobTypes[QueueName.AdminIssueDetectionQueue],
+        { deduplication: { id: `admin-issue-detection-${input.projectId}` } },
+      );
+
+      return { success: true };
+    }),
+});

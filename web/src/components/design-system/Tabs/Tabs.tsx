@@ -26,6 +26,7 @@ const tabsListVariants = cva(
         default: "inline-flex",
         full: "grid w-full auto-cols-fr grid-flow-col",
         packed: "inline-flex",
+        start: "flex w-full justify-start",
       },
       gap: {
         none: "",

@@ -217,6 +217,7 @@ export const submitFeedback = async ({
   const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
     scope,
     "feedback",
+    "Product feedback submission",
   );
   if (rateLimitCheck?.isRateLimited()) {
     recordIncrement("langfuse.feedback.submission", 1, {

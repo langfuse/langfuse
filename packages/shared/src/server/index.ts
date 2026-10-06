@@ -5,6 +5,15 @@ import {
 } from "./repositories/events";
 
 export * from "./services/StorageService";
+export { adminIssueDefinitions } from "../features/adminIssues/adminIssueDefinitions";
+export type { AdminIssueDefinition } from "../features/adminIssues/adminIssueDefinitions";
+export { createAdminIssue } from "../features/adminIssues/createAdminIssue";
+export {
+  buildLongMetadataValuesIssue,
+  LONG_METADATA_VALUE_THRESHOLD,
+  type LongMetadataValueKey,
+} from "../features/adminIssues/rules/longMetadataValues";
+export { executeAdminIssueRules } from "../features/adminIssues/executeAdminIssueRules";
 export * from "./media";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";
@@ -123,6 +132,8 @@ export * from "./redis/mixpanelIntegrationProcessingQueue";
 export * from "./redis/blobStorageIntegrationQueue";
 export * from "./redis/blobStorageIntegrationProcessingQueue";
 export * from "./redis/dataRetentionQueue";
+export * from "./redis/adminIssueScheduleQueue";
+export * from "./redis/adminIssueDetectionQueue";
 export * from "./redis/dataRetentionProcessingQueue";
 export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/meteringDataPostgresExportQueue";

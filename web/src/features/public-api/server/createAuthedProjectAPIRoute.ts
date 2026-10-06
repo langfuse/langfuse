@@ -257,6 +257,7 @@ export const createAuthedProjectAPIRoute = <
       await RateLimitService.getInstance().rateLimitRequest(
         auth.scope,
         routeConfig.rateLimitResource || "public-api",
+        `${req.method} ${routeConfig.name}`,
       );
 
     if (rateLimitResponse?.isRateLimited()) {
