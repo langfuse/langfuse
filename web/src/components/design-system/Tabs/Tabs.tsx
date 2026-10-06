@@ -289,7 +289,7 @@ function TabsTrigger({
       className={cn(
         tabsTriggerVariants({ size, variant }),
         slidingIndicator &&
-          "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+          "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent",
       )}
     >
       {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
