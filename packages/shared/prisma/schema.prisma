@@ -81,9 +81,11 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  userConnections           UserConnection[]
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  slackAgentLinks           SlackAgentUserLink[]
 
   @@map("users")
 }
@@ -196,6 +198,7 @@ model Project {
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
+  userConnections                   UserConnection[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
   @@index([orgId])
@@ -229,6 +232,7 @@ model ApiKey {
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
+  userConnections     UserConnection[]
 
   @@index(orgId)
   @@index(projectId)
@@ -237,6 +241,28 @@ model ApiKey {
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
   @@map("api_keys")
+}
+
+model UserConnection {
+  id             String    @id @default(cuid())
+  projectId      String    @map("project_id")
+  apiKeyId       String    @map("api_key_id")
+  provider       String
+  workspaceId    String    @map("workspace_id")
+  externalUserId String    @map("external_user_id")
+  userId         String?   @map("user_id")
+  linkTokenHash  String?   @unique @map("link_token_hash")
+  linkExpiresAt  DateTime? @map("link_expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  apiKey         ApiKey    @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, apiKeyId, provider, workspaceId, externalUserId], map: "user_connections_identity_key")
+  @@index([apiKeyId])
+  @@index([userId])
+  @@map("user_connections")
 }
 
 enum GatewayIngestionMode {
@@ -1938,6 +1964,20 @@ model Monitor {
   @@index([schedulerBatchId])
   @@index([nextRunAt, schedulerBatchId], map: "monitors_scheduler_tick_idx")
   @@map("monitors")
+}
+
+model SlackAgentUserLink {
+  id          String   @id @default(cuid())
+  teamId      String   @map("team_id")
+  slackUserId String   @map("slack_user_id")
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([teamId, slackUserId])
+  @@index([userId])
+  @@map("slack_agent_user_links")
 }
 
 // Slack Integration: Stores centralized Slack workspace connection for each project

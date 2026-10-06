@@ -51,6 +51,7 @@ type AuditableResource =
   | "dashboardWidget"
   | "dashboard"
   | "slackIntegration"
+  | "userConnection"
   | "cloudSpendAlert"
   | "verifiedDomain"
   | "ssoConfig"

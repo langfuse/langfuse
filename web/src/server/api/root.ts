@@ -52,6 +52,7 @@ import { automationsRouter } from "@/src/features/automations/server/router";
 import { monitorsRouter } from "@/src/server/api/routers/monitors";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { slackRouter } from "@/src/features/slack/server/router";
+import { slackAgentRouter } from "@/src/features/slack-agent/server/router";
 import { supportRouter } from "@/src/features/support-chat/trpc/supportRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
@@ -60,6 +61,7 @@ import { notificationPreferencesRouter } from "@/src/server/api/routers/notifica
 import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRouter";
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+import { agentUserConnectionsRouter } from "@/src/features/in-app-agent/server/userConnectionRouter";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
@@ -70,6 +72,7 @@ import { skillRouter } from "@/src/features/skills/server/skill-router";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
+  agentUserConnections: agentUserConnectionsRouter,
   annotationQueues: queueRouter,
   annotationQueueItems: queueItemRouter,
   annotationQueueAssignments: queueAssignmentRouter,
@@ -124,6 +127,7 @@ export const appRouter = createTRPCRouter({
   automations: automationsRouter,
   monitors: monitorsRouter,
   slack: slackRouter,
+  slackAgent: slackAgentRouter,
   supportRouter: supportRouter,
   onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,

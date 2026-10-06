@@ -165,6 +165,26 @@ async function main() {
     update: {},
   });
 
+  // An execution-only identity for the read-only agent API demo.
+  const agentDemoUser = await prisma.user.upsert({
+    where: { id: "slack-agent-demo" },
+    update: { admin: false, v4BetaEnabled: true },
+    create: {
+      id: "slack-agent-demo",
+      name: "Slack Agent Demo",
+      email: "slack-agent-demo@example.com",
+      admin: false,
+      v4BetaEnabled: true,
+    },
+  });
+  await prisma.organizationMembership.upsert({
+    where: {
+      orgId_userId: { orgId: seedOrgId, userId: agentDemoUser.id },
+    },
+    create: { orgId: seedOrgId, userId: agentDemoUser.id, role: "VIEWER" },
+    update: { role: "VIEWER" },
+  });
+
   await prisma.projectMembership.upsert({
     where: {
       projectId_userId: {

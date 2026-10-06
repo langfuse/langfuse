@@ -52,6 +52,11 @@
   `src/server/repositories/environments.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
+- `UserConnection` binds a confirmed external user identity to a Langfuse user,
+  project, and bridge API key; expiring link tokens are stored as digests.
+- `SlackAgentUserLink` binds a verified Slack workspace/user to a Langfuse user;
+  web owns linking and authorization, while worker execution retains its normal
+  conversation-owner and project-permission checks.
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
   unclustered installs): `clickhouse/migrations/canonical/*`

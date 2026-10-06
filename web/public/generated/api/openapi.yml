@@ -39,6 +39,239 @@ info:
     - Self-hosted deployments: interactive API reference at `/api/docs` and
     OpenAPI spec at `/api/openapi.yaml`
 paths:
+  /api/public/agent/connections:
+    post:
+      description: >-
+        Resolve a Slack sender's account connection for the authenticated
+        project
+
+        API key. If unlinked, returns a single-use link valid for ten minutes.
+
+        Deliver the link privately to the Slack sender. The user must sign in to
+
+        Langfuse and explicitly confirm the connection before any run can start.
+
+        The bridge is trusted to obtain workspace and user IDs from Slack
+        events.
+
+        A confirmed connection delegates that user's identity to this API key;
+
+        keep bridge credentials private. Reissuing a pending link invalidates
+        the
+
+        previous link. Linked connections return userId and no linkUrl.
+      operationId: agentConnections_create
+      tags:
+        - AgentConnections
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConnection'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: &ref_0
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentConnectionRequest'
+  /api/public/agent/runs:
+    post:
+      description: >-
+        Experimental, opt-in API enabled for
+        LANGFUSE_IN_APP_AGENT_API_PROJECT_ID.
+
+        Authenticate with the Slack bridge's project API key and provide a
+        verified
+
+        user connection created through the account-linking flow. Connections
+        are
+
+        bound to that API key. Runs use the linked user's current project
+        permissions.
+
+        Only that user's API-created conversations are accessible.
+
+
+        Queue a message for background execution. Reuse the same idempotencyKey
+
+        when retrying a message; a different message or conversation with the
+
+        same key returns 409. A new conversation is created when conversationId
+
+        is omitted. At most one run may execute in a conversation at a time.
+      operationId: agent_create
+      tags:
+        - Agent
+      parameters: []
+      responses:
+        '202':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunReference'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRunRequest'
+  /api/public/agent/runs/{runId}:
+    get:
+      description: Get a run's status and assistant text. Poll until a terminal status.
+      operationId: agent_get
+      tags:
+        - Agent
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: connectionId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRun'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/agent/runs/{runId}/cancel:
+    post:
+      description: Request cancellation. Poll the run to observe its final status.
+      operationId: agent_cancel
+      tags:
+        - Agent
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: connectionId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunReference'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/annotation-queues:
     get:
       description: Get all annotation queues
@@ -92,8 +325,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security: &ref_0
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Create an annotation queue
       operationId: annotationQueues_createQueue
@@ -9143,6 +9375,110 @@ paths:
       security: *ref_0
 components:
   schemas:
+    CreateAgentConnectionRequest:
+      title: CreateAgentConnectionRequest
+      type: object
+      properties:
+        provider:
+          type: string
+          const: slack
+        workspaceId:
+          type: string
+          description: Slack workspace ID starting with T.
+        externalUserId:
+          type: string
+          description: Slack sender ID starting with U or W.
+      required:
+        - provider
+        - workspaceId
+        - externalUserId
+    AgentConnection:
+      title: AgentConnection
+      type: object
+      properties:
+        connectionId:
+          type: string
+        userId:
+          type: string
+          nullable: true
+        linkUrl:
+          type: string
+          nullable: true
+      required:
+        - connectionId
+        - userId
+        - linkUrl
+    CreateAgentRunRequest:
+      title: CreateAgentRunRequest
+      type: object
+      properties:
+        connectionId:
+          type: string
+          description: >-
+            Verified account connection belonging to the authenticated project
+            API key.
+        message:
+          type: string
+          description: Nonempty message, up to 32000 characters after trimming.
+        conversationId:
+          type: string
+          nullable: true
+          description: An existing API-created conversation to continue.
+        idempotencyKey:
+          type: string
+          description: >-
+            Unique per message within the configured project and user; 1 to 200
+            characters.
+      required:
+        - connectionId
+        - message
+        - idempotencyKey
+    AgentRunReference:
+      title: AgentRunReference
+      type: object
+      properties:
+        runId:
+          type: string
+        conversationId:
+          type: string
+      required:
+        - runId
+        - conversationId
+    AgentRunStatus:
+      title: AgentRunStatus
+      type: string
+      enum:
+        - QUEUED
+        - RUNNING
+        - AWAITING_APPROVAL
+        - SUCCEEDED
+        - FAILED
+        - CANCELLED
+    AgentRun:
+      title: AgentRun
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/AgentRunStatus'
+        text:
+          type: string
+          nullable: true
+          description: Assistant text produced so far; excludes tool results and reasoning.
+        errorCode:
+          type: string
+          nullable: true
+          description: >-
+            Failure or truncation code. A succeeded run may have step_limit or
+            output_limit when its answer was truncated.
+        cancelRequested:
+          type: boolean
+      required:
+        - status
+        - text
+        - errorCode
+        - cancelRequested
+      allOf:
+        - $ref: '#/components/schemas/AgentRunReference'
     AnnotationQueueStatus:
       title: AnnotationQueueStatus
       type: string
