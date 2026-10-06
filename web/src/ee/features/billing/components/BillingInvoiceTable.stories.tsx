@@ -66,11 +66,11 @@ export const Stripe = meta.story({
       canvas.getAllByRole("button", { name: "Open actions menu" })[0]!,
     );
     const menu = within(canvasElement.ownerDocument.body);
-    await expect(menu.getByRole("menuitem", { name: "View" })).toHaveAttribute(
+    await expect(menu.getByRole("link", { name: "View" })).toHaveAttribute(
       "href",
       invoices[0]!.hostedInvoiceUrl,
     );
-    await expect(menu.getByRole("menuitem", { name: "PDF" })).toHaveAttribute(
+    await expect(menu.getByRole("link", { name: "PDF" })).toHaveAttribute(
       "href",
       invoices[0]!.invoicePdfUrl,
     );

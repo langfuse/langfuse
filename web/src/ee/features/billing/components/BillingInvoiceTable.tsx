@@ -43,7 +43,7 @@ export function BillingInvoiceTable({
             if (status === "paid") return "success";
             if (status === "open") return "warning";
             if (status === "uncollectible" || status === "void") return "error";
-            return "warning";
+            return "unknown";
           })();
           return { value: status, variant };
         },

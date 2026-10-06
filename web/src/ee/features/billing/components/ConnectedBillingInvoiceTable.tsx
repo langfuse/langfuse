@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { type PaginationBarState } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -19,6 +19,8 @@ export function ConnectedBillingInvoiceTable() {
         | { startingAfter?: never; endingBefore: string }
       )
   >({ pageIndex: 0, pageSize: 10 });
+  // Reuse the requests for visited pages even when the current request fails.
+  const pageHistory = useRef([pagination]);
 
   const invoicesQuery = api.cloudBilling.getInvoices.useQuery(
     {
@@ -48,10 +50,17 @@ export function ConnectedBillingInvoiceTable() {
   const onPaginationChange = (next: PaginationBarState) => {
     if (invoicesQuery.isFetching) return;
     if (next.pageSize !== pagination.pageSize || next.pageIndex === 0) {
-      setPagination({ pageIndex: 0, pageSize: next.pageSize });
+      const firstPage = { pageIndex: 0, pageSize: next.pageSize };
+      pageHistory.current = [firstPage];
+      setPagination(firstPage);
       return;
     }
     if (next.pageIndex === pagination.pageIndex) return;
+    if (next.pageIndex < pagination.pageIndex) {
+      const previousPage = pageHistory.current[next.pageIndex];
+      if (previousPage) setPagination(previousPage);
+      return;
+    }
     const cursors = {
       next: undefined,
       prev: undefined,
@@ -63,13 +72,15 @@ export function ConnectedBillingInvoiceTable() {
       const startingAfter =
         cursors.next ?? rows.findLast((row) => row.id !== "preview")?.id;
       if (!startingAfter) return;
-      setPagination({ ...next, startingAfter });
+      const nextPage = {
+        pageIndex: next.pageIndex,
+        pageSize: next.pageSize,
+        startingAfter,
+      };
+      pageHistory.current[next.pageIndex] = nextPage;
+      setPagination(nextPage);
       return;
     }
-    const endingBefore =
-      cursors.prev ?? rows.find((row) => row.id !== "preview")?.id;
-    if (!endingBefore) return;
-    setPagination({ ...next, endingBefore });
   };
 
   return (
