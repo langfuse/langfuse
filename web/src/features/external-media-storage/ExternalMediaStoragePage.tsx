@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useRouter } from "next/router";
 
 import { ActionButton } from "@/src/components/ActionButton";
@@ -152,6 +153,16 @@ export default function ExternalMediaStoragePage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
+        actionButtonsRight: (
+          <Button asChild variant="secondary">
+            <Link
+              href="https://langfuse.com/docs/observability/features/multi-modality#external-s3-media"
+              target="_blank"
+            >
+              Integration Docs ↗
+            </Link>
+          </Button>
+        ),
       }}
     >
       <p className="text-primary mb-4 text-sm">
