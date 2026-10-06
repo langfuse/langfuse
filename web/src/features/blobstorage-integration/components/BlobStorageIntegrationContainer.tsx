@@ -95,12 +95,12 @@ export const BlobStorageIntegrationContainer = ({
     return <IntegrationSettingsSkeleton />;
   }
 
-  const handleSubmit = (values: BlobStorageIntegrationFormSchema) => {
+  const handleSubmit = (
+    values: BlobStorageIntegrationFormSchema,
+    onSaved: () => void,
+  ) => {
     capture("integrations:blob_storage_form_submitted");
-    mut.mutate({
-      projectId,
-      ...values,
-    });
+    mut.mutate({ projectId, ...values }, { onSuccess: onSaved });
   };
 
   return (

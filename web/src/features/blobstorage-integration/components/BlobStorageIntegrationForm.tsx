@@ -46,7 +46,12 @@ export const BlobStorageIntegrationForm = ({
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
   isSaving: boolean;
-  onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
+  // Call `onSaved` once the values are persisted; a failed save never calls
+  // it, so the draft stays dirty.
+  onSubmit: (
+    values: BlobStorageIntegrationFormSchema,
+    onSaved: () => void,
+  ) => void;
   // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
   // the container next to Save — they act on the persisted entity, not on
   // this draft. `isDirty` lets them refuse to act while the draft has
@@ -81,11 +86,14 @@ export const BlobStorageIntegrationForm = ({
   const fileType = useWatch({ control, name: "fileType" });
   const { isDirty } = blobStorageForm.formState;
 
-  // Rebase dirty tracking on the submitted values: same-entity saves do not
-  // remount (see container key), so the draft would otherwise stay dirty.
+  // After a successful save, the submitted values become the clean baseline.
+  // Same-entity saves do not remount (see container key), so without this the
+  // draft would stay dirty. keepValues preserves anything typed mid-save.
   const submit = blobStorageForm.handleSubmit((values) => {
-    onSubmit(values);
-    blobStorageForm.reset(blobStorageForm.getValues());
+    const submitted = blobStorageForm.getValues();
+    onSubmit(values, () =>
+      blobStorageForm.reset(submitted, { keepValues: true }),
+    );
   });
 
   return (
