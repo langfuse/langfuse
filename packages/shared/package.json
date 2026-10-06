@@ -55,6 +55,10 @@
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
     },
+    "./src/utils/json": {
+      "import": "./dist/src/utils/json.js",
+      "require": "./dist/src/utils/json.js"
+    },
     "./src/utils/normalized-io": {
       "import": "./dist/src/utils/normalized-io/index.js",
       "require": "./dist/src/utils/normalized-io/index.js"
