@@ -30,9 +30,9 @@ export function TracePanelNavigationButton({
       className="h-7 w-7 shrink-0"
     >
       {isPanelCollapsed ? (
-        <PanelLeftOpen className="h-3.5 w-3.5" />
+        <PanelLeftOpen className="icon-base text-icon-foreground" />
       ) : (
-        <PanelLeftClose className="h-3.5 w-3.5" />
+        <PanelLeftClose className="icon-base text-icon-foreground" />
       )}
     </Button>
   );

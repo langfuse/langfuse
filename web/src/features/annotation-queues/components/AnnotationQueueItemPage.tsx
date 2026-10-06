@@ -395,7 +395,7 @@ function AnnotationQueueRunContent({
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
-          <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
+          <SearchXIcon className="text-muted-foreground icon-xl mb-2" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
@@ -474,7 +474,7 @@ function AnnotationQueueRunContent({
                   )}
                   aria-label="Previous item"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="icon-base text-icon-foreground" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowLeft"]} />
                   </span>
@@ -522,7 +522,7 @@ function AnnotationQueueRunContent({
                   variant="outline"
                   aria-label="Skip to next item"
                 >
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="icon-base text-icon-foreground" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowRight"]} />
                   </span>
@@ -576,7 +576,7 @@ function AnnotationQueueRunContent({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Keyboard className="h-4 w-4" />
+              <Keyboard className="icon-base" />
               Keyboard shortcuts
             </DialogTitle>
           </DialogHeader>

@@ -103,7 +103,7 @@ export function Badge({
         <TrailingIcon
           aria-hidden
           className={cn(
-            "size-3 shrink-0",
+            "icon-sm shrink-0",
             trailingIconTone === "link"
               ? "text-foreground-tertiary -ml-0.5"
               : "text-foreground-tertiary",

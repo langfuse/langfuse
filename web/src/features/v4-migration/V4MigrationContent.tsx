@@ -190,7 +190,7 @@ function Section({
         </span>
         <span className="flex-1" />
         {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
-        <ChevronRight className="text-foreground-tertiary size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight className="text-foreground-tertiary icon-base shrink-0 transition-transform group-data-[state=open]:rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>
@@ -332,9 +332,9 @@ function CodeBlockWithCopy({
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
         {copied ? (
-          <Check className="h-3.5 w-3.5" />
+          <Check className="icon-base text-icon-foreground" />
         ) : (
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="icon-base text-icon-foreground" />
         )}
       </Button>
     </div>
@@ -774,7 +774,7 @@ export function V4MigrationEvalsSection({
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
-                  <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                  <BotMessageSquare className="icon-base text-icon-foreground mr-1.5" />
                   Use Assistant
                 </>
               ) : (
@@ -1434,7 +1434,7 @@ export function V4MigrationAgentUpgradeSection({
       </div>
       <div className="flex flex-col gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="mr-1.5 h-4 w-4 shrink-0" />
+          <Copy className="icon-base mr-1.5 shrink-0" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
@@ -1718,7 +1718,7 @@ export function V4MigrationDetailsContent({
                       aria-label="Why compare traces?"
                       className="shrink-0"
                     >
-                      <Info className="h-3.5 w-3.5" />
+                      <Info className="icon-base" />
                     </button>
                   </HoverCardTrigger>
                   <HoverCardPortal>

@@ -102,7 +102,7 @@ export function Table<TData extends object>({
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
-              className="text-muted-foreground/30 size-4 animate-pulse"
+              className="text-muted-foreground/30 icon-base animate-pulse"
               aria-hidden="true"
             />
           </div>
@@ -202,19 +202,19 @@ export function Table<TData extends object>({
                             </span>
                             {!isSorted && (
                               <ArrowUpDown
-                                className="ml-1.5 size-3 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
+                                className="icon-sm ml-1.5 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "ASC" && (
                               <ArrowUp
-                                className="ml-1.5 size-3 shrink-0"
+                                className="icon-sm ml-1.5 shrink-0"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "DESC" && (
                               <ArrowDown
-                                className="ml-1.5 size-3 shrink-0"
+                                className="icon-sm ml-1.5 shrink-0"
                                 aria-hidden="true"
                               />
                             )}

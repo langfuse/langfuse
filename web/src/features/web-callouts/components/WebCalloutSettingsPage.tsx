@@ -371,7 +371,7 @@ function WebCalloutEndpointDialog(props: {
                             size="icon"
                             onClick={() => remove(index)}
                           >
-                            <X className="h-4 w-4" />
+                            <X className="icon-base text-icon-foreground" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Remove header</TooltipContent>
@@ -391,7 +391,7 @@ function WebCalloutEndpointDialog(props: {
                   })
                 }
               >
-                <Plus className="mr-1 h-4 w-4" />
+                <Plus className="icon-base text-icon-foreground mr-1" />
                 Add header
               </Button>
             </div>
@@ -457,7 +457,7 @@ export function WebCalloutIntegrationCard(props: {
   return (
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">
-        <Webhook className="text-foreground h-5 w-5" />
+        <Webhook className="text-foreground icon-lg" />
         <span className="font-bold">Web Callouts</span>
       </div>
       <p className="text-primary mb-4 text-sm">

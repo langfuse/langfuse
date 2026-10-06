@@ -72,6 +72,7 @@
   --color-control-border: hsl(var(--control-border));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
   --color-foreground-secondary: hsl(var(--foreground-secondary));
+  --color-icon-foreground: hsl(var(--icon-foreground));
   --color-surface-code: hsl(var(--surface-code));
   --color-surface-code-header: hsl(var(--surface-code-header));
   --color-surface-sunken: hsl(var(--surface-sunken));
@@ -327,6 +328,8 @@
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
     --foreground-tertiary: 240 5% 64.9%; /* zinc-400 */
+    /* Icon glyphs next to text: same tier as muted-foreground. */
+    --icon-foreground: 240 3.8% 46.1%; /* zinc-500 */
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
@@ -556,6 +559,7 @@
     --muted-foreground: 0 0% 54%;
     --foreground-secondary: 0 0% 62%;
     --foreground-tertiary: 0 0% 40%;
+    --icon-foreground: 0 0% 54%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
     --surface-sunken: 0 0% 4%;
@@ -866,6 +870,27 @@
     border-right: 2px solid currentColor !important;
     border-bottom: 2px solid currentColor !important;
   }
+}
+
+/* Icon size scale: icon-sm 12px, icon-base 14px (default), icon-lg 20px, icon-xl 28px. */
+@utility icon-sm {
+  width: calc(var(--spacing) * 3);
+  height: calc(var(--spacing) * 3);
+}
+
+@utility icon-base {
+  width: calc(var(--spacing) * 3.5);
+  height: calc(var(--spacing) * 3.5);
+}
+
+@utility icon-lg {
+  width: calc(var(--spacing) * 5);
+  height: calc(var(--spacing) * 5);
+}
+
+@utility icon-xl {
+  width: calc(var(--spacing) * 7);
+  height: calc(var(--spacing) * 7);
 }
 
 /* A scrollport that says so. Overlay scrollbars — the platform default on

@@ -65,7 +65,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         onClick={() => onSubmit(value)}
         className="text-foreground-tertiary hover:bg-accent hover:text-accent-foreground flex aspect-square shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Search className="h-4 w-4" />
+        <Search className="icon-base" />
       </button>
       <input
         ref={ref}

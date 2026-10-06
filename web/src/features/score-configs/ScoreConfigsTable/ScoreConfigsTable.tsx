@@ -173,7 +173,7 @@ export function ScoreConfigsTable({
         id: "add-score-config",
         label: "Add new score config",
         variant: "secondary",
-        icon: <PlusIcon className="size-4" aria-hidden="true" />,
+        icon: <PlusIcon className="icon-base" aria-hidden="true" />,
         disabled: createAction.disabled !== undefined,
         loading: createAction.loading,
         title: createAction.disabled?.reason,
