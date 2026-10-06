@@ -208,7 +208,7 @@ function CurrentFacet({
               headerStats={counts}
               headerActions={
                 <Toggle pressed={split} onClick={toggleSplit}>
-                  <Columns2 className="mr-2 h-4 w-4" aria-hidden />
+                  <Columns2 className="icon-base mr-2" aria-hidden />
                   Split
                 </Toggle>
               }
