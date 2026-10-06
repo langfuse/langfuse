@@ -97,18 +97,19 @@ const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
     cell: "border-dark-red/20 dark:border-dark-red/15",
   },
   warning: {
-    container: "border-dark-yellow/40 bg-light-yellow/80",
-    row: "hover:bg-light-yellow/80",
-    cell: "border-dark-yellow/20",
+    container:
+      "border-yellow-100 bg-yellow-50 text-yellow-900 dark:border-dark-yellow/20 dark:bg-light-yellow/35 dark:text-yellow-300",
+    row: "hover:bg-light-yellow/50 dark:hover:bg-light-yellow/35",
+    cell: "border-dark-yellow/20 dark:border-dark-yellow/15",
   },
   muted: {
-    container: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
-    row: "hover:bg-muted/30",
-    cell: "border-muted-foreground/15",
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
+    cell: "border-border",
   },
   neutral: {
-    container: "bg-card",
-    row: "hover:bg-card",
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
     cell: "border-border",
   },
 };
