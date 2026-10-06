@@ -34,11 +34,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import {
@@ -344,13 +340,16 @@ function SortablePromptMessage({
             </Button>
             {messageCount > 1 || message.role !== "user" || warningReason ? (
               warningReason ? (
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" tabIndex={0}>
+                <Tooltip label={warningReason} delay={0}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex"
+                      tabIndex={0}
+                    >
                       {roleBadge}
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{warningReason}</TooltipContent>
+                  )}
                 </Tooltip>
               ) : (
                 roleBadge

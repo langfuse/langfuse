@@ -29,13 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { Tooltip as DSTooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -113,9 +107,10 @@ function SessionTimelineStatusIndicator({
   const colors = getLevelColors(observation.level);
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip label={observation.statusMessage ?? ""}>
+      {({ getTriggerProps }) => (
         <span
+          {...getTriggerProps()}
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
             colors.bg,
@@ -126,10 +121,7 @@ function SessionTimelineStatusIndicator({
         >
           <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-sm whitespace-pre-wrap">
-        {observation.statusMessage}
-      </TooltipContent>
+      )}
     </Tooltip>
   );
 }
@@ -146,7 +138,7 @@ function SessionTimelineMarkerIcon({
   label: string;
 }) {
   return (
-    <DSTooltip label={label}>
+    <Tooltip label={label}>
       {({ getTriggerProps }) => (
         <span
           {...getTriggerProps()}
@@ -157,7 +149,7 @@ function SessionTimelineMarkerIcon({
           <Icon className="h-3 w-3" aria-hidden="true" />
         </span>
       )}
-    </DSTooltip>
+    </Tooltip>
   );
 }
 
@@ -438,19 +430,17 @@ function SessionTimelineToolRow({
               />
             </DropdownMenu>
           ) : !observation ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip label="Actions are available on the parent observation">
+              {({ getTriggerProps }) => (
                 <span
+                  {...getTriggerProps()}
                   className="text-muted-foreground/50 flex h-6 w-6 shrink-0 items-center justify-center"
                   role="img"
                   aria-label="Actions available on parent observation"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Actions are available on the parent observation
-              </TooltipContent>
+              )}
             </Tooltip>
           ) : null}
         </span>
@@ -831,211 +821,204 @@ function LoadedSessionConversationTimeline({
   });
 
   return (
-    <TooltipProvider>
-      <div className="flex flex-col gap-1">
-        {visibleObservations.map((item, index) => {
-          const {
-            observation,
-            parsed,
-            processedMessages,
-            phase,
-            ancestorObservationIds,
-            nestedObservationCounts,
-          } = item;
-          const isToolStart =
-            item.type === "observation" &&
-            observation.type === "TOOL" &&
-            phase === "start";
-          const isEmptyEnd =
-            item.type === "observation" &&
-            phase === "end" &&
-            processedMessages.messages.length === 0 &&
-            !(
-              observation.outputTruncated && hasPreviewValue(observation.output)
-            );
-          const hasNestedObservations =
-            Object.keys(nestedObservationCounts).length > 0;
-          const hasSingleNestedTool =
-            Object.keys(nestedObservationCounts).length === 1 &&
-            nestedObservationCounts.TOOL === 1;
-          const nestedObservationSummary = hasNestedObservations
-            ? (nestedObservationSummaries.get(observation.id) ?? "")
-            : "";
-          const isCollapsed = collapsedObservationIds.has(observation.id);
-          const itemId = item.type === "tool" ? item.id : observation.id;
-          const isToolExpanded = expandedToolObservationIds.has(itemId);
-          const hasChatBubbles =
-            item.type === "observation" &&
-            observation.type !== "TOOL" &&
-            (observation.inputTruncated || observation.outputTruncated
-              ? (phase !== "end" && hasPreviewValue(observation.input)) ||
-                (phase !== "start" && hasPreviewValue(observation.output))
-              : processedMessages.messages.length > 0);
-          const moveCollapseControlUp = !isCollapsed && hasChatBubbles;
-          const isHighlightedSubsection =
-            highlightedSubsectionId === observation.id && phase === "start";
-          const isHighlightedDescendant = highlightedSubsectionId
-            ? ancestorObservationIds.includes(highlightedSubsectionId)
-            : false;
+    <div className="flex flex-col gap-1">
+      {visibleObservations.map((item, index) => {
+        const {
+          observation,
+          parsed,
+          processedMessages,
+          phase,
+          ancestorObservationIds,
+          nestedObservationCounts,
+        } = item;
+        const isToolStart =
+          item.type === "observation" &&
+          observation.type === "TOOL" &&
+          phase === "start";
+        const isEmptyEnd =
+          item.type === "observation" &&
+          phase === "end" &&
+          processedMessages.messages.length === 0 &&
+          !(observation.outputTruncated && hasPreviewValue(observation.output));
+        const hasNestedObservations =
+          Object.keys(nestedObservationCounts).length > 0;
+        const hasSingleNestedTool =
+          Object.keys(nestedObservationCounts).length === 1 &&
+          nestedObservationCounts.TOOL === 1;
+        const nestedObservationSummary = hasNestedObservations
+          ? (nestedObservationSummaries.get(observation.id) ?? "")
+          : "";
+        const isCollapsed = collapsedObservationIds.has(observation.id);
+        const itemId = item.type === "tool" ? item.id : observation.id;
+        const isToolExpanded = expandedToolObservationIds.has(itemId);
+        const hasChatBubbles =
+          item.type === "observation" &&
+          observation.type !== "TOOL" &&
+          (observation.inputTruncated || observation.outputTruncated
+            ? (phase !== "end" && hasPreviewValue(observation.input)) ||
+              (phase !== "start" && hasPreviewValue(observation.output))
+            : processedMessages.messages.length > 0);
+        const moveCollapseControlUp = !isCollapsed && hasChatBubbles;
+        const isHighlightedSubsection =
+          highlightedSubsectionId === observation.id && phase === "start";
+        const isHighlightedDescendant = highlightedSubsectionId
+          ? ancestorObservationIds.includes(highlightedSubsectionId)
+          : false;
 
-          const depth = ancestorObservationIds.length;
+        const depth = ancestorObservationIds.length;
 
-          return (
-            <div
-              key={
-                item.type === "tool" ? item.id : `${observation.id}-${phase}`
-              }
-              data-session-observation-depth={depth}
-              className="relative"
-            >
-              {ancestorObservationIds.length > 0 ? (
-                <span
-                  data-session-observation-rail-depth={depth - 1}
-                  className={cn(
-                    "pointer-events-none absolute -top-1 -bottom-1 left-[7px] w-px transition-colors",
-                    isHighlightedDescendant ? "bg-primary/60" : "bg-border",
-                  )}
-                  aria-hidden="true"
-                />
-              ) : null}
-              {depth === 0 &&
-              ((phase === "start" && !isToolStart) ||
-                (phase === "complete" &&
-                  (hasChatBubbles || isToolExpanded))) ? (
-                <span
-                  data-session-observation-rail-depth={depth}
-                  className={cn(
-                    "pointer-events-none absolute top-[22px] left-[7px] w-px transition-colors",
-                    "bg-border",
-                    phase === "start" ? "-bottom-1" : "bottom-0",
-                  )}
-                  aria-hidden="true"
-                />
-              ) : null}
-              {depth === 0 && phase === "end" ? (
-                <span
-                  data-session-observation-rail-depth={depth}
-                  className="bg-border pointer-events-none absolute -top-1 bottom-0 left-[7px] w-px"
-                  aria-hidden="true"
-                />
-              ) : null}
-              {item.type === "tool" ? (
-                <SessionTimelineToolRow
-                  id={item.id}
-                  name={item.toolCall.toolName}
-                  startTime={observation.startTime}
-                  latency={null}
-                  input={item.toolCall.input}
-                  output={undefined}
-                  isExpanded={isToolExpanded}
-                  showRailEnd={false}
-                  onExpandedChange={(isExpanded) =>
-                    setExpandedToolObservationIds((current) => {
-                      const next = new Set(current);
-                      if (isExpanded) next.add(itemId);
-                      else next.delete(itemId);
-                      return next;
-                    })
-                  }
-                  onOpenInTraceView={() => onOpenObservation(observation.id)}
-                />
-              ) : !isEmptyEnd &&
-                (observation.type !== "TOOL" || phase !== "end") ? (
-                <SessionTimelineObservation
-                  observation={observation}
-                  parsed={parsed}
-                  processedMessages={processedMessages}
-                  phase={phase}
-                  isToolExpanded={isToolExpanded}
-                  showRailEnd={
-                    depth === 0 &&
-                    (observation.type !== "TOOL" ||
-                      index === visibleObservations.length - 1)
-                  }
-                  onToolExpandedChange={(isExpanded) =>
-                    setExpandedToolObservationIds((current) => {
-                      const next = new Set(current);
-                      if (isExpanded) next.add(itemId);
-                      else next.delete(itemId);
-                      return next;
-                    })
-                  }
-                  onOpenInTraceView={() => onOpenObservation(observation.id)}
-                  actions={observationActions}
-                />
-              ) : null}
-              {phase === "start" &&
-              hasNestedObservations &&
-              !hasSingleNestedTool ? (
-                <div
-                  className={cn(
-                    "relative",
-                    moveCollapseControlUp ? "h-0" : "h-7",
-                  )}
-                >
-                  {isHighlightedSubsection ? (
-                    <span
-                      data-session-collapse-rail-highlight
-                      className={cn(
-                        "bg-primary/60 pointer-events-none absolute -bottom-1 left-[7px] w-px",
-                        moveCollapseControlUp ? "-top-2" : "top-5",
-                      )}
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
+        return (
+          <div
+            key={item.type === "tool" ? item.id : `${observation.id}-${phase}`}
+            data-session-observation-depth={depth}
+            className="relative"
+          >
+            {ancestorObservationIds.length > 0 ? (
+              <span
+                data-session-observation-rail-depth={depth - 1}
+                className={cn(
+                  "pointer-events-none absolute -top-1 -bottom-1 left-[7px] w-px transition-colors",
+                  isHighlightedDescendant ? "bg-primary/60" : "bg-border",
+                )}
+                aria-hidden="true"
+              />
+            ) : null}
+            {depth === 0 &&
+            ((phase === "start" && !isToolStart) ||
+              (phase === "complete" && (hasChatBubbles || isToolExpanded))) ? (
+              <span
+                data-session-observation-rail-depth={depth}
+                className={cn(
+                  "pointer-events-none absolute top-[22px] left-[7px] w-px transition-colors",
+                  "bg-border",
+                  phase === "start" ? "-bottom-1" : "bottom-0",
+                )}
+                aria-hidden="true"
+              />
+            ) : null}
+            {depth === 0 && phase === "end" ? (
+              <span
+                data-session-observation-rail-depth={depth}
+                className="bg-border pointer-events-none absolute -top-1 bottom-0 left-[7px] w-px"
+                aria-hidden="true"
+              />
+            ) : null}
+            {item.type === "tool" ? (
+              <SessionTimelineToolRow
+                id={item.id}
+                name={item.toolCall.toolName}
+                startTime={observation.startTime}
+                latency={null}
+                input={item.toolCall.input}
+                output={undefined}
+                isExpanded={isToolExpanded}
+                showRailEnd={false}
+                onExpandedChange={(isExpanded) =>
+                  setExpandedToolObservationIds((current) => {
+                    const next = new Set(current);
+                    if (isExpanded) next.add(itemId);
+                    else next.delete(itemId);
+                    return next;
+                  })
+                }
+                onOpenInTraceView={() => onOpenObservation(observation.id)}
+              />
+            ) : !isEmptyEnd &&
+              (observation.type !== "TOOL" || phase !== "end") ? (
+              <SessionTimelineObservation
+                observation={observation}
+                parsed={parsed}
+                processedMessages={processedMessages}
+                phase={phase}
+                isToolExpanded={isToolExpanded}
+                showRailEnd={
+                  depth === 0 &&
+                  (observation.type !== "TOOL" ||
+                    index === visibleObservations.length - 1)
+                }
+                onToolExpandedChange={(isExpanded) =>
+                  setExpandedToolObservationIds((current) => {
+                    const next = new Set(current);
+                    if (isExpanded) next.add(itemId);
+                    else next.delete(itemId);
+                    return next;
+                  })
+                }
+                onOpenInTraceView={() => onOpenObservation(observation.id)}
+                actions={observationActions}
+              />
+            ) : null}
+            {phase === "start" &&
+            hasNestedObservations &&
+            !hasSingleNestedTool ? (
+              <div
+                className={cn(
+                  "relative",
+                  moveCollapseControlUp ? "h-0" : "h-7",
+                )}
+              >
+                {isHighlightedSubsection ? (
+                  <span
+                    data-session-collapse-rail-highlight
                     className={cn(
-                      "bg-background text-muted-foreground hover:text-foreground absolute z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full",
+                      "bg-primary/60 pointer-events-none absolute -bottom-1 left-[7px] w-px",
                       moveCollapseControlUp ? "-top-2" : "top-5",
                     )}
-                    style={{ left: "7.5px" }}
-                    aria-expanded={!isCollapsed}
-                    aria-label={`${isCollapsed ? "Show" : "Hide"} ${nestedObservationSummary}`}
-                    onMouseEnter={() => {
-                      if (!isCollapsed) {
-                        setHoveredSubsectionId(observation.id);
-                      }
-                    }}
-                    onMouseLeave={() => setHoveredSubsectionId(null)}
-                    onFocus={() => {
-                      if (!isCollapsed) {
-                        setFocusedSubsectionId(observation.id);
-                      }
-                    }}
-                    onBlur={() => setFocusedSubsectionId(null)}
-                    onClick={() => {
-                      setHoveredSubsectionId(null);
-                      setFocusedSubsectionId(null);
-                      setCollapseState((current) => {
-                        const observationIds = new Set(current.observationIds);
-                        if (isCollapsed) {
-                          observationIds.delete(observation.id);
-                        } else observationIds.add(observation.id);
-                        return { ...current, observationIds };
-                      });
-                    }}
-                  >
-                    {isCollapsed ? (
-                      <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
-                    ) : (
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                    )}
-                  </Button>
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={cn(
+                    "bg-background text-muted-foreground hover:text-foreground absolute z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full",
+                    moveCollapseControlUp ? "-top-2" : "top-5",
+                  )}
+                  style={{ left: "7.5px" }}
+                  aria-expanded={!isCollapsed}
+                  aria-label={`${isCollapsed ? "Show" : "Hide"} ${nestedObservationSummary}`}
+                  onMouseEnter={() => {
+                    if (!isCollapsed) {
+                      setHoveredSubsectionId(observation.id);
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredSubsectionId(null)}
+                  onFocus={() => {
+                    if (!isCollapsed) {
+                      setFocusedSubsectionId(observation.id);
+                    }
+                  }}
+                  onBlur={() => setFocusedSubsectionId(null)}
+                  onClick={() => {
+                    setHoveredSubsectionId(null);
+                    setFocusedSubsectionId(null);
+                    setCollapseState((current) => {
+                      const observationIds = new Set(current.observationIds);
+                      if (isCollapsed) {
+                        observationIds.delete(observation.id);
+                      } else observationIds.add(observation.id);
+                      return { ...current, observationIds };
+                    });
+                  }}
+                >
                   {isCollapsed ? (
-                    <span className="text-muted-foreground absolute top-5 left-5 -translate-y-1/2 text-xs">
-                      {nestedObservationSummary}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </TooltipProvider>
+                    <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                  )}
+                </Button>
+                {isCollapsed ? (
+                  <span className="text-muted-foreground absolute top-5 left-5 -translate-y-1/2 text-xs">
+                    {nestedObservationSummary}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

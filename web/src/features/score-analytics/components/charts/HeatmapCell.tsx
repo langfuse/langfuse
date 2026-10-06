@@ -1,13 +1,9 @@
 /* eslint-disable @repo/no-style-props */
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { getContrastColor } from "@/src/features/score-analytics/lib/color-scales";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { cloneElement, useState } from "react";
 
 interface HeatmapCellProps {
   cell?: HeatmapCell;
@@ -139,12 +135,17 @@ function CellWithData({
   // Only wrap with tooltip if renderTooltip is provided
   if (renderTooltip) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>{cellContent}</TooltipTrigger>
-        <TooltipContent className="max-w-xs">
-          {renderTooltip(cell)}
-        </TooltipContent>
-      </Tooltip>
+      <CustomTooltip content={<>{renderTooltip(cell)}</>}>
+        {({ getTriggerProps }) =>
+          cloneElement(
+            cellContent,
+            getTriggerProps({
+              onMouseEnter: handleMouseEnter,
+              onMouseLeave: handleMouseLeave,
+            }),
+          )
+        }
+      </CustomTooltip>
     );
   }
 

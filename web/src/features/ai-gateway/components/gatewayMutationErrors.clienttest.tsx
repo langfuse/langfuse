@@ -2,7 +2,6 @@ import { TRPCClientError } from "@trpc/client";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { Button } from "@/src/components/ui/button";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 const {
@@ -349,11 +348,9 @@ describe("gateway mutation local error handling", () => {
 
   it("create gateway api key dialog routes tRPC failures locally and ignores blank metadata rows", async () => {
     render(
-      <TooltipProvider>
-        <CreateGatewayApiKeyDialogController organizationId="org-1">
-          {({ openDialog }) => <Button onClick={openDialog}>Issue key</Button>}
-        </CreateGatewayApiKeyDialogController>
-      </TooltipProvider>,
+      <CreateGatewayApiKeyDialogController organizationId="org-1">
+        {({ openDialog }) => <Button onClick={openDialog}>Issue key</Button>}
+      </CreateGatewayApiKeyDialogController>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Issue key" }));

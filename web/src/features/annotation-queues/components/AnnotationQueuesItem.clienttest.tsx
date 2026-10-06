@@ -46,11 +46,6 @@ vi.mock("@/src/features/events", () => ({
 vi.mock("@/src/components/layouts/page", () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/src/components/ui/tooltip", () => ({
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  TooltipTrigger: ({ children }: { children: ReactNode }) => children,
-  TooltipContent: () => null,
-}));
 vi.mock("@/src/features/scores", () => ({
   hasModifier: () => false,
   isCompleteShortcut: () => false,

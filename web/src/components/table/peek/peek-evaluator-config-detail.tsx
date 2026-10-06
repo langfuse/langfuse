@@ -8,11 +8,7 @@ import {
   useEvaluatorFormTemplate,
 } from "@/src/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { AlertTriangle, UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
@@ -180,17 +176,20 @@ const PeekViewEvaluatorConfigDetail = ({
           </span>
         )}
         {evalConfig.evalTemplate && (
-          <Tooltip>
-            <TooltipTrigger>
-              {evalConfig.evalTemplate.projectId === null ? (
-                <LangfuseIcon size={16} />
-              ) : (
-                <UserCircle2Icon className="h-4 w-4" />
-              )}
-            </TooltipTrigger>
-            <TooltipContent>
-              {evalConfig.evalTemplate.partner ?? "Langfuse"}
-            </TooltipContent>
+          <Tooltip label={evalConfig.evalTemplate.partner ?? "Langfuse"}>
+            {({ getTriggerProps }) => (
+              <button
+                {...getTriggerProps()}
+                type="button"
+                aria-label="Evaluator author"
+              >
+                {evalConfig.evalTemplate?.projectId === null ? (
+                  <LangfuseIcon size={16} />
+                ) : (
+                  <UserCircle2Icon className="h-4 w-4" />
+                )}
+              </button>
+            )}
           </Tooltip>
         )}
       </CardDescription>

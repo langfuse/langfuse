@@ -37,11 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
@@ -1189,9 +1185,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           className="flex shrink-0 items-center gap-0.5"
           data-movable-resizable-panel-ignore-drag="true"
         >
-          <Tooltip delayDuration={100} disableHoverableContent>
-            <TooltipTrigger asChild>
+          <Tooltip
+            label="Start new conversation"
+            delay={100}
+            hoverableContent={false}
+          >
+            {({ getTriggerProps }) => (
               <Button
+                {...getTriggerProps()}
                 type="button"
                 variant="ghost"
                 size="icon"
@@ -1201,8 +1202,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               >
                 <Plus className="size-3" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Start new conversation</TooltipContent>
+            )}
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
@@ -1214,10 +1214,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               }
             }}
           >
-            <Tooltip delayDuration={100} disableHoverableContent>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label="Conversation history"
+              delay={100}
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
                 <DropdownMenuTrigger asChild>
                   <Button
+                    {...getTriggerProps()}
                     type="button"
                     variant="ghost"
                     size="icon"
@@ -1241,8 +1246,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Conversation history</TooltipContent>
+              )}
             </Tooltip>
             <DropdownMenuContent
               align="end"
@@ -1320,9 +1324,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </DropdownMenu>
           {/* Mobile is always full-screen, so there is nothing to expand. */}
           {!isHandheld ? (
-            <Tooltip delayDuration={100} disableHoverableContent>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label={isExpanded ? "Collapse window" : "Expand window"}
+              delay={100}
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   type="button"
                   variant="ghost"
                   size="icon"
@@ -1338,16 +1347,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     <Maximize2 className="size-3" />
                   )}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isExpanded ? "Collapse window" : "Expand window"}
-              </TooltipContent>
+              )}
             </Tooltip>
           ) : null}
           {props.showCloseButton !== false ? (
-            <Tooltip delayDuration={100} disableHoverableContent>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label={isHandheld ? "Close assistant" : "Minimize assistant"}
+              delay={100}
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   type="button"
                   variant="ghost"
                   size="icon"
@@ -1365,10 +1376,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     <Minus className="size-3" />
                   )}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isHandheld ? "Close assistant" : "Minimize assistant"}
-              </TooltipContent>
+              )}
             </Tooltip>
           ) : null}
         </div>

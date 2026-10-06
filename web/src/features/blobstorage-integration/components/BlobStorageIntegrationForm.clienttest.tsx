@@ -6,7 +6,6 @@ import {
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
 import {
   buildBlobStorageFormValues,
@@ -38,16 +37,14 @@ const ui = (
   initialValues: BlobStorageFormValues,
   onSubmit: (values: unknown) => void = () => {},
 ) => (
-  <TooltipProvider>
-    <BlobStorageIntegrationForm
-      key={key}
-      initialValues={initialValues}
-      exportSourceCtx={exportSourceCtx}
-      persistedExportSource={null}
-      isSaving={false}
-      onSubmit={onSubmit}
-    />
-  </TooltipProvider>
+  <BlobStorageIntegrationForm
+    key={key}
+    initialValues={initialValues}
+    exportSourceCtx={exportSourceCtx}
+    persistedExportSource={null}
+    isSaving={false}
+    onSubmit={onSubmit}
+  />
 );
 
 const bucketInput = () =>

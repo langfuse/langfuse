@@ -35,11 +35,7 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { api, type RouterInputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -94,15 +90,18 @@ function RuleEvaluatorsCell({
         <Badge variant="secondary">{assignment.evaluator.name}</Badge>
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="secondary" className="font-normal">
+        <Tooltip
+          label={hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
+        >
+          {({ getTriggerProps }) => (
+            <Badge
+              {...getTriggerProps()}
+              variant="secondary"
+              className="font-normal"
+            >
               +{overflowItemCount}
             </Badge>
-          </TooltipTrigger>
-          <TooltipContent>
-            {hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
-          </TooltipContent>
+          )}
         </Tooltip>
       )}
     />

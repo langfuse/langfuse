@@ -14,7 +14,7 @@ function MaintainerIcon({ maintainer }: { maintainer: string }) {
 
 export function MaintainerTooltip({ maintainer }: { maintainer: string }) {
   return (
-    <Tooltip label={maintainer}>
+    <Tooltip label={maintainer} delay={700}>
       {({ getTriggerProps }) => (
         <button
           {...getTriggerProps()}

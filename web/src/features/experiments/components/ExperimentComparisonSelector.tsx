@@ -3,11 +3,7 @@ import { Check, X } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
@@ -448,26 +444,30 @@ export function ExperimentComparisonSelector({
           if (position >= MAX_VISIBLE_COMPARISON_CHIPS) {
             // One badge stands in for the whole tail; the rest render nothing.
             return position === MAX_VISIBLE_COMPARISON_CHIPS ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <CustomTooltip
+                content={
+                  <>
+                    {hiddenSelectedOptions.map((hidden) => (
+                      <p key={hidden.experimentId}>
+                        {hidden.experimentName}
+                        {hidden.startTime
+                          ? ` · ${formatRunRecency(hidden.startTime)}`
+                          : ""}
+                      </p>
+                    ))}
+                  </>
+                }
+              >
+                {({ getTriggerProps }) => (
                   <Badge
+                    {...getTriggerProps()}
                     variant="secondary"
                     className="shrink-0 px-2 py-0.5 text-xs"
                   >
                     +{hiddenSelectedOptions.length}
                   </Badge>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[280px]">
-                  {hiddenSelectedOptions.map((hidden) => (
-                    <p key={hidden.experimentId}>
-                      {hidden.experimentName}
-                      {hidden.startTime
-                        ? ` · ${formatRunRecency(hidden.startTime)}`
-                        : ""}
-                    </p>
-                  ))}
-                </TooltipContent>
-              </Tooltip>
+                )}
+              </CustomTooltip>
             ) : null;
           }
 

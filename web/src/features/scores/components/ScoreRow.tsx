@@ -9,11 +9,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -172,9 +168,25 @@ export const ScoreRow = ({
               <ScoreDetailRow
                 label="Metadata"
                 value={
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="line-clamp-1 cursor-help">
+                  <CustomTooltip
+                    content={
+                      <div className="text-xs wrap-break-word">
+                        {metadata && Object.keys(metadata).length > 0 ? (
+                          <JSONView
+                            codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
+                            json={metadata}
+                          />
+                        ) : (
+                          <Skeleton className="h-12 w-full" />
+                        )}
+                      </div>
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <span
+                        {...getTriggerProps()}
+                        className="line-clamp-1 cursor-help"
+                      >
                         {(() => {
                           try {
                             return metadata && Object.keys(metadata).length > 0
@@ -185,18 +197,8 @@ export const ScoreRow = ({
                           }
                         })()}
                       </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="w-[400px] text-xs wrap-break-word">
-                      {metadata && Object.keys(metadata).length > 0 ? (
-                        <JSONView
-                          codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
-                          json={metadata}
-                        />
-                      ) : (
-                        <Skeleton className="h-12 w-full" />
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
+                    )}
+                  </CustomTooltip>
                 }
               />
             )}

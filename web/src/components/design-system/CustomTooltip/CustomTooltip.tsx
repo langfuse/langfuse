@@ -8,6 +8,7 @@ import {
   safePolygon,
   shift,
   useDismiss,
+  useClick,
   useFloating,
   useFocus,
   useHover,
@@ -21,22 +22,26 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
 type CustomTooltipProps = {
   children: (controls: {
-    getTriggerProps: () => ReturnType<
-      ReturnType<typeof useInteractions>["getReferenceProps"]
-    >;
+    getTriggerProps: (
+      props?: React.HTMLProps<HTMLElement>,
+    ) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
   }) => React.ReactNode;
   content: React.ReactElement;
   delay?: number;
   hoverableContent?: boolean;
   placement?: Placement;
+  activation?: "hover" | "hover-and-click";
+  disabled?: boolean;
 };
 
 function CustomTooltip({
   children,
   content,
-  delay = 700,
+  delay = 300,
   hoverableContent = true,
   placement = "top",
+  activation = "hover",
+  disabled = false,
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const layerContainer = useLayerContainer("tooltip");
@@ -50,15 +55,20 @@ function CustomTooltip({
     whileElementsMounted: autoUpdate,
   });
   const hover = useHover(context, {
+    enabled: !disabled,
     delay: { open: delay, close: 0 },
     handleClose: hoverableContent ? safePolygon() : undefined,
   });
-  const focus = useFocus(context);
+  const focus = useFocus(context, { enabled: !disabled });
+  const click = useClick(context, {
+    enabled: !disabled && activation === "hover-and-click",
+  });
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: "tooltip" });
   const { getFloatingProps, getReferenceProps } = useInteractions([
     hover,
     focus,
+    click,
     dismiss,
     role,
   ]);
@@ -66,12 +76,13 @@ function CustomTooltip({
   return (
     <>
       {children({
-        getTriggerProps: () =>
+        getTriggerProps: (props) =>
           getReferenceProps({
+            ...props,
             ref: refs.setReference,
           }),
       })}
-      {isOpen ? (
+      {isOpen && !disabled ? (
         <FloatingPortal root={layerContainer}>
           <div
             ref={refs.setFloating}

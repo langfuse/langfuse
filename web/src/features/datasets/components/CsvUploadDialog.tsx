@@ -8,11 +8,7 @@ import {
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { File } from "lucide-react";
 
 type CsvUploadDialogProps = {
@@ -50,13 +46,13 @@ export function CsvUploadDialog({
           <DialogTitle className="flex items-center gap-2">
             Upload CSV
             {csvFile && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <File className="text-muted-foreground h-4 w-4" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[300px]">
-                  {csvFile.name}
-                </TooltipContent>
+              <Tooltip label={csvFile.name}>
+                {({ getTriggerProps }) => (
+                  <File
+                    {...getTriggerProps()}
+                    className="text-muted-foreground h-4 w-4"
+                  />
+                )}
               </Tooltip>
             )}
           </DialogTitle>

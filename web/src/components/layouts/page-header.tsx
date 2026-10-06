@@ -15,12 +15,7 @@ import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import {
   PageTabs,
   type PageTabsProps,
@@ -191,21 +186,20 @@ const PageHeader = ({
                     {titleContent ? (
                       titleContent
                     ) : titleTooltip ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              className="cursor-help wrap-break-word"
-                              data-testid="page-header-title"
-                            >
-                              {title}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            {titleTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <CustomTooltip
+                        content={<>{titleTooltip}</>}
+                        placement="bottom"
+                      >
+                        {({ getTriggerProps }) => (
+                          <span
+                            {...getTriggerProps()}
+                            className="cursor-help wrap-break-word"
+                            data-testid="page-header-title"
+                          >
+                            {title}
+                          </span>
+                        )}
+                      </CustomTooltip>
                     ) : (
                       <span
                         className="wrap-break-word"

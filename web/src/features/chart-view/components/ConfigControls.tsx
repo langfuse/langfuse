@@ -8,11 +8,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 import {
   type AggregationFn,
@@ -182,9 +178,10 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
 
         if (showLabels) return item;
         return (
-          <Tooltip key={ct.value}>
-            <TooltipTrigger asChild>{item}</TooltipTrigger>
-            <TooltipContent>{ct.label}</TooltipContent>
+          <Tooltip key={ct.value} label={ct.label}>
+            {({ getTriggerProps }) =>
+              React.cloneElement(item, getTriggerProps())
+            }
           </Tooltip>
         );
       })}

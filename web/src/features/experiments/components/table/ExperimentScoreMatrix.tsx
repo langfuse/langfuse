@@ -9,11 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DiffLabel } from "@/src/features/datasets";
 import {
   getScoreDataTypeExplanation,
@@ -299,15 +295,17 @@ export const ExperimentScoreMatrix = ({
                   >
                     <span className="flex min-w-0 items-baseline gap-1">
                       {icon && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-muted-foreground shrink-0 cursor-default">
+                        <Tooltip
+                          label={getScoreDataTypeExplanation(scoreRow.dataType)}
+                        >
+                          {({ getTriggerProps }) => (
+                            <span
+                              {...getTriggerProps()}
+                              className="text-muted-foreground shrink-0 cursor-default"
+                            >
                               {icon}
                             </span>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[280px]">
-                            {getScoreDataTypeExplanation(scoreRow.dataType)}
-                          </TooltipContent>
+                          )}
                         </Tooltip>
                       )}
                       <span className="truncate" title={scoreRow.label}>

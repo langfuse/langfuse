@@ -1,10 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { GitCompareArrows, X } from "lucide-react";
 import {
   describeScoreComparisonFilter,
@@ -47,18 +43,15 @@ export const ScoreComparisonFilterPills = ({
             <span className="truncate" title={label}>
               {label}
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground shrink-0 cursor-default underline decoration-dotted">
+            <Tooltip label="Comparing one experiment's score against another's is not something the items query can express, so this narrows the items loaded on the current page. Page through to check the rest of the run.">
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="text-muted-foreground shrink-0 cursor-default underline decoration-dotted"
+                >
                   this page
                 </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[280px]">
-                Comparing one experiment&apos;s score against another&apos;s is
-                not something the items query can express, so this narrows the
-                items loaded on the current page. Page through to check the rest
-                of the run.
-              </TooltipContent>
+              )}
             </Tooltip>
             <Button
               variant="ghost"

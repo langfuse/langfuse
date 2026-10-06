@@ -1,11 +1,7 @@
 import { InfoIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 
 export function InfoTooltip({
   label,
@@ -15,14 +11,14 @@ export function InfoTooltip({
   children: ReactNode;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <CustomTooltip content={<>{children}</>}>
+      {({ getTriggerProps }) => (
         <InfoIcon
+          {...getTriggerProps()}
           className="text-muted-foreground h-3.5 w-3.5 cursor-help"
           aria-label={label}
         />
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{children}</TooltipContent>
-    </Tooltip>
+      )}
+    </CustomTooltip>
   );
 }

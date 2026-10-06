@@ -14,12 +14,7 @@ import { Input } from "@/src/components/ui/input";
 import { Separator } from "@/src/components/ui/separator";
 import { Sheet, SheetContent } from "@/src/components/ui/sheet";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
 const SIDEBAR_WIDTH = "11.5rem";
@@ -156,29 +151,27 @@ const SidebarProvider = React.forwardRef<
 
     return (
       <SidebarContext.Provider value={contextValue}>
-        <TooltipProvider>
-          <div
-            style={
-              {
-                "--sidebar-width": SIDEBAR_WIDTH,
-                "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-                ...style,
-              } as React.CSSProperties
-            }
-            className={cn(
-              // No text-sidebar-foreground here: this wrapper contains the
-              // MAIN CONTENT too, and the dimmed sidebar text tint (60% grey
-              // in dark) must not leak into it. The Sidebar containers below
-              // set it on themselves.
-              "group/sidebar-wrapper min-h-screen-with-banner has-data-[variant=inset]:bg-sidebar flex w-full",
-              className,
-            )}
-            ref={ref}
-            {...props}
-          >
-            {children}
-          </div>
-        </TooltipProvider>
+        <div
+          style={
+            {
+              "--sidebar-width": SIDEBAR_WIDTH,
+              "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+              ...style,
+            } as React.CSSProperties
+          }
+          className={cn(
+            // No text-sidebar-foreground here: this wrapper contains the
+            // MAIN CONTENT too, and the dimmed sidebar text tint (60% grey
+            // in dark) must not leak into it. The Sidebar containers below
+            // set it on themselves.
+            "group/sidebar-wrapper min-h-screen-with-banner has-data-[variant=inset]:bg-sidebar flex w-full",
+            className,
+          )}
+          ref={ref}
+          {...props}
+        >
+          {children}
+        </div>
       </SidebarContext.Provider>
     );
   },
@@ -586,7 +579,7 @@ const SidebarMenuButton = React.forwardRef<
   React.ComponentProps<"button"> & {
     asChild?: boolean;
     isActive?: boolean;
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+    tooltip?: string;
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
   (
@@ -620,27 +613,17 @@ const SidebarMenuButton = React.forwardRef<
       return button;
     }
 
-    if (typeof tooltip === "string") {
-      tooltip = {
-        children: tooltip,
-      };
-    }
-
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
-        {/* No extra Portal, no z-index: TooltipContent already portals into the
-            `tooltip` overlay layer, which paints above the whole app by layer
-            ORDER (see context/LayerContext/LayerContext.tsx). The old outer Portal re-parented
-            to <body> and `relative isolate z-9999` escaped via a magic number —
-            both are now obsolete and the `isolate` even risked trapping it. */}
-        <TooltipContent
-          side="right"
-          align="center"
-          hidden={state !== "collapsed" || isMobile}
-          className="text-sm font-bold"
-          {...tooltip}
-        />
+      <Tooltip
+        label={tooltip}
+        placement="right"
+        disabled={state !== "collapsed" || isMobile}
+      >
+        {({ getTriggerProps }) => (
+          <Slot ref={ref}>
+            {React.cloneElement(button, getTriggerProps(props))}
+          </Slot>
+        )}
       </Tooltip>
     );
   },

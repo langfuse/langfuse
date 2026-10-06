@@ -322,150 +322,148 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   });
 
   return (
-    <>
-      <Dialog
-        open
-        onOpenChange={(open) =>
-          !open && !runEvaluationMutation.isPending && props.onClose()
+    <Dialog
+      open
+      onOpenChange={(open) =>
+        !open && !runEvaluationMutation.isPending && props.onClose()
+      }
+    >
+      <DialogContent
+        {...(showMappingEditor ? { size: "lg" as const } : {})}
+        className={
+          showMappingEditor
+            ? "flex max-h-[85vh] min-h-[38vh] flex-col"
+            : "flex max-h-[62vh] min-h-[38vh] max-w-2xl flex-col"
         }
       >
-        <DialogContent
-          {...(showMappingEditor ? { size: "lg" as const } : {})}
+        <DialogHeader>
+          <DialogTitle>
+            {isExperimentsSource
+              ? `Evaluate items from ${displayCount} experiment${displayCount === 1 ? "" : "s"}`
+              : sourceTable === SourceTable.EXPERIMENT_ITEMS
+                ? `Evaluate up to ${displayCount} experiment item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"}`
+                : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
+          </DialogTitle>
+          <DialogDescription>
+            {step === "confirm"
+              ? "Review your evaluation configuration before running."
+              : showMappingEditor
+                ? "Select evaluators and review their variable mappings."
+                : "Select one or more evaluators."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody
           className={
             showMappingEditor
-              ? "flex max-h-[85vh] min-h-[38vh] flex-col"
-              : "flex max-h-[62vh] min-h-[38vh] max-w-2xl flex-col"
+              ? "min-h-0 flex-1 overflow-y-auto"
+              : "flex-1 overflow-hidden"
           }
         >
-          <DialogHeader>
-            <DialogTitle>
-              {isExperimentsSource
-                ? `Evaluate items from ${displayCount} experiment${displayCount === 1 ? "" : "s"}`
-                : sourceTable === SourceTable.EXPERIMENT_ITEMS
-                  ? `Evaluate up to ${displayCount} experiment item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"}`
-                  : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
-            </DialogTitle>
-            <DialogDescription>
-              {step === "confirm"
-                ? "Review your evaluation configuration before running."
-                : showMappingEditor
-                  ? "Select evaluators and review their variable mappings."
-                  : "Select one or more evaluators."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogBody
-            className={
-              showMappingEditor
-                ? "min-h-0 flex-1 overflow-y-auto"
-                : "flex-1 overflow-hidden"
-            }
-          >
-            {isExperiencePending ? (
-              <Skeleton className="h-20 w-full" />
-            ) : step === "select-evaluator" ? (
-              showMappingEditor ? (
-                <EvaluatorMappingStep
-                  projectId={projectId}
-                  store={ruleSetupStore}
-                  evaluatorOptions={evaluatorOptions}
-                  isQueryLoading={evaluatorsQuery.isLoading}
-                  isQueryError={evaluatorsQuery.isError}
-                  queryErrorMessage={evaluatorsQuery.error?.message}
-                  search={mappingSearch}
-                  onSearchChange={(value) => {
-                    setMappingSearch(value);
-                    debouncedMappingSearch(value);
-                  }}
-                  sampleObject={sampleObject}
-                  costObservationCount={costObservationCount}
-                />
-              ) : (
-                <EvaluatorSelectionStep
-                  eligibleEvaluators={eligibleEvaluators}
-                  selectedEvaluators={selectedEvaluators}
-                  isQueryLoading={evaluatorsQuery.isLoading}
-                  isQueryError={evaluatorsQuery.isError}
-                  queryErrorMessage={evaluatorsQuery.error?.message}
-                  previewObservation={previewQuery.data?.[0]}
-                  isPreviewLoading={previewQuery.isLoading}
-                  selectedEvaluatorIds={selectedEvaluatorIds}
-                  evaluatorSearchQuery={evaluatorSearchQuery}
-                  onSearchQueryChange={setEvaluatorSearchQuery}
-                  onToggleEvaluator={toggleEvaluatorSelection}
-                />
-              )
-            ) : (
-              <ConfirmationStep
+          {isExperiencePending ? (
+            <Skeleton className="h-20 w-full" />
+          ) : step === "select-evaluator" ? (
+            showMappingEditor ? (
+              <EvaluatorMappingStep
                 projectId={projectId}
-                displayCount={displayCount}
-                evaluators={selectedEvaluators.map((evaluator) => ({
-                  id: evaluator.id,
-                  name: evaluator.scoreName,
-                }))}
-                hideCount={sourceTable !== SourceTable.EVENTS}
-                sourceTable={sourceTable}
+                store={ruleSetupStore}
+                evaluatorOptions={evaluatorOptions}
+                isQueryLoading={evaluatorsQuery.isLoading}
+                isQueryError={evaluatorsQuery.isError}
+                queryErrorMessage={evaluatorsQuery.error?.message}
+                search={mappingSearch}
+                onSearchChange={(value) => {
+                  setMappingSearch(value);
+                  debouncedMappingSearch(value);
+                }}
+                sampleObject={sampleObject}
+                costObservationCount={costObservationCount}
               />
-            )}
-          </DialogBody>
+            ) : (
+              <EvaluatorSelectionStep
+                eligibleEvaluators={eligibleEvaluators}
+                selectedEvaluators={selectedEvaluators}
+                isQueryLoading={evaluatorsQuery.isLoading}
+                isQueryError={evaluatorsQuery.isError}
+                queryErrorMessage={evaluatorsQuery.error?.message}
+                previewObservation={previewQuery.data?.[0]}
+                isPreviewLoading={previewQuery.isLoading}
+                selectedEvaluatorIds={selectedEvaluatorIds}
+                evaluatorSearchQuery={evaluatorSearchQuery}
+                onSearchQueryChange={setEvaluatorSearchQuery}
+                onToggleEvaluator={toggleEvaluatorSelection}
+              />
+            )
+          ) : (
+            <ConfirmationStep
+              projectId={projectId}
+              displayCount={displayCount}
+              evaluators={selectedEvaluators.map((evaluator) => ({
+                id: evaluator.id,
+                name: evaluator.scoreName,
+              }))}
+              hideCount={sourceTable !== SourceTable.EVENTS}
+              sourceTable={sourceTable}
+            />
+          )}
+        </DialogBody>
 
-          <DialogFooter className="flex justify-between">
-            {step === "confirm" ? (
+        <DialogFooter className="flex justify-between">
+          {step === "confirm" ? (
+            <Button
+              variant="ghost"
+              onClick={() => setStep("select-evaluator")}
+              disabled={runEvaluationMutation.isPending}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Back
+            </Button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex items-center gap-2">
+            {step !== "confirm" ? (
+              <CreateEvaluatorButton
+                href={createEvaluatorHref}
+                onClick={() => {
+                  // The legacy (v3) editor is not part of the onboarding funnel.
+                  if (forceV3Experience) return;
+                  capture("eval:onboarding_started", {
+                    entryPoint: "batch_evaluation",
+                  });
+                }}
+              />
+            ) : null}
+            {showMappingEditor ? (
+              <MappingRunButton
+                disabledReason={mappingRunDisabledReason}
+                selectedCount={selectedCount}
+                loading={runEvaluationMutation.isPending}
+                onClick={onSubmit}
+              />
+            ) : step === "select-evaluator" ? (
               <Button
-                variant="ghost"
-                onClick={() => setStep("select-evaluator")}
-                disabled={runEvaluationMutation.isPending}
+                onClick={() => setStep("confirm")}
+                disabled={isExperiencePending || selectedCount === 0}
               >
-                <ChevronLeft className="mr-1 h-4 w-4" />
-                Back
+                Continue{" "}
+                {selectedCount > 0
+                  ? `with ${selectedCount} evaluator(s)`
+                  : null}
               </Button>
             ) : (
-              <div />
+              <Button
+                onClick={onSubmit}
+                loading={runEvaluationMutation.isPending}
+              >
+                Run Evaluation
+              </Button>
             )}
-
-            <div className="flex items-center gap-2">
-              {step !== "confirm" ? (
-                <CreateEvaluatorButton
-                  href={createEvaluatorHref}
-                  onClick={() => {
-                    // The legacy (v3) editor is not part of the onboarding funnel.
-                    if (forceV3Experience) return;
-                    capture("eval:onboarding_started", {
-                      entryPoint: "batch_evaluation",
-                    });
-                  }}
-                />
-              ) : null}
-              {showMappingEditor ? (
-                <MappingRunButton
-                  disabledReason={mappingRunDisabledReason}
-                  selectedCount={selectedCount}
-                  loading={runEvaluationMutation.isPending}
-                  onClick={onSubmit}
-                />
-              ) : step === "select-evaluator" ? (
-                <Button
-                  onClick={() => setStep("confirm")}
-                  disabled={isExperiencePending || selectedCount === 0}
-                >
-                  Continue{" "}
-                  {selectedCount > 0
-                    ? `with ${selectedCount} evaluator(s)`
-                    : null}
-                </Button>
-              ) : (
-                <Button
-                  onClick={onSubmit}
-                  loading={runEvaluationMutation.isPending}
-                >
-                  Run Evaluation
-                </Button>
-              )}
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -521,7 +519,7 @@ function MappingRunButton({
   }
 
   return (
-    <Tooltip label={disabledReason} hoverableContent={false}>
+    <Tooltip label={disabledReason} hoverableContent={false} delay={700}>
       {({ getTriggerProps }) => (
         <span
           {...getTriggerProps()}

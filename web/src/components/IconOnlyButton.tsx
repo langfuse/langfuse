@@ -53,7 +53,7 @@ export const IconOnlyButton = React.forwardRef<
 ) {
   const isDisabled = disabled || Boolean(disabledReason);
   return (
-    <Tooltip label={disabledReason ?? label}>
+    <Tooltip label={disabledReason ?? label} delay={700}>
       {({ getTriggerProps }) => (
         <span
           {...getTriggerProps()}

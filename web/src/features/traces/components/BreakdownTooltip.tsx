@@ -1,11 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { useState } from "react";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import Decimal from "decimal.js";
 import Link from "next/link";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
@@ -41,8 +35,6 @@ export const BreakdownTooltip = ({
   priceSource,
   costSource,
 }: BreakdownTooltipProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-
   // Aggregate details if array is provided
   const aggregatedDetails = Array.isArray(details)
     ? details.reduce<Details>((acc, curr) => {
@@ -94,16 +86,11 @@ export const BreakdownTooltip = ({
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
 
   return (
-    <TooltipProvider>
-      <Tooltip open={isOpen} onOpenChange={setIsOpen}>
-        <TooltipTrigger
-          className="flex cursor-pointer"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {children}
-        </TooltipTrigger>
-        <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-4">
-          <div className="grid min-w-0 grid-cols-[max-content_7rem_max-content] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_max-content]">
+    <CustomTooltip
+      activation="hover-and-click"
+      content={
+        <div className="p-2.5">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_6rem_max-content] gap-x-3 gap-y-4">
             <div className="col-span-3 flex min-w-0 flex-col gap-1">
               <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
@@ -196,9 +183,19 @@ export const BreakdownTooltip = ({
               variant="total"
             />
           </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <button
+          {...getTriggerProps()}
+          type="button"
+          className="flex cursor-pointer"
+        >
+          {children}
+        </button>
+      )}
+    </CustomTooltip>
   );
 };
 

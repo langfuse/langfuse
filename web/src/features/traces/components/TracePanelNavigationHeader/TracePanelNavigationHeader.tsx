@@ -16,11 +16,7 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -41,7 +37,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback } from "react";
+import { cloneElement, useCallback } from "react";
 import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
@@ -428,9 +424,8 @@ function ViewModeSegment({
   // A native title does not reliably surface on a segment this small.
   if (!disabled || !title) return segment;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{segment}</TooltipTrigger>
-      <TooltipContent>{title}</TooltipContent>
+    <Tooltip label={title}>
+      {({ getTriggerProps }) => cloneElement(segment, getTriggerProps())}
     </Tooltip>
   );
 }

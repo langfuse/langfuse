@@ -18,12 +18,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Input } from "@/src/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEffect, useState } from "react";
 
@@ -130,45 +125,32 @@ export function DataTablePagination<TData>({
             Total&nbsp;{compactNumberFormatter(exactTotal)}
           </span>
         ) : showApproxTotal ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className={totalCountClassName}>
-                  Total&nbsp;≈&nbsp;
-                  {approxTotalCount != null ? (
-                    compactNumberFormatter(approxTotalCount)
-                  ) : (
-                    <span className="inline-flex align-middle">
-                      <Spinner size="xxs" variant="muted" display="inline" />
-                    </span>
-                  )}
-                  {approxTotalCountIsPartialScope &&
-                    approxTotalCount != null && (
-                      // Marks that the estimate ignores some filters (can exceed row count).
-                      <span className="text-muted-foreground/70 ml-0.5 align-super text-[0.65rem] leading-none">
-                        *
-                      </span>
-                    )}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs font-normal">
-                {approxTotalCountIsPartialScope ? (
-                  <>
-                    Approximate count over the active column filters and time
-                    range only. It excludes full-text search, score, and comment
-                    filters, so it can be noticeably higher than the number of
-                    matching rows.
-                  </>
+          <Tooltip
+            label={
+              approxTotalCountIsPartialScope
+                ? "Approximate count over the active column filters and time range only. It excludes full-text search, score, and comment filters, so it can be noticeably higher than the number of matching rows."
+                : "Approximate number of matching rows for the active filters and time range, estimated with ClickHouse's HyperLogLog (typically within a few percent of the true count)."
+            }
+          >
+            {({ getTriggerProps }) => (
+              <span {...getTriggerProps()} className={totalCountClassName}>
+                Total&nbsp;≈&nbsp;
+                {approxTotalCount != null ? (
+                  compactNumberFormatter(approxTotalCount)
                 ) : (
-                  <>
-                    Approximate number of matching rows for the active filters
-                    and time range, estimated with ClickHouse&apos;s HyperLogLog
-                    (typically within a few percent of the true count).
-                  </>
+                  <span className="inline-flex align-middle">
+                    <Spinner size="xxs" variant="muted" display="inline" />
+                  </span>
                 )}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                {approxTotalCountIsPartialScope && approxTotalCount != null && (
+                  // Marks that the estimate ignores some filters (can exceed row count).
+                  <span className="text-muted-foreground/70 ml-0.5 align-super text-[0.65rem] leading-none">
+                    *
+                  </span>
+                )}
+              </span>
+            )}
+          </Tooltip>
         ) : null}
         <div className="flex shrink-0 items-center gap-2">
           <p className="text-sm font-bold whitespace-nowrap @min-[440px]/pagination:hidden">
@@ -232,24 +214,21 @@ export function DataTablePagination<TData>({
             ) : (
               `Page ${currentPage}`
             )}
-            {!hideTotalCount && (
-              <>
-                {pageCount !== -1 ? (
-                  <span>of {pageCount}</span>
-                ) : (
-                  <span>
-                    of{" "}
-                    {isLoading ? (
-                      <span className="ml-1 inline-flex align-middle">
-                        <Spinner size="xxs" variant="muted" display="inline" />
-                      </span>
-                    ) : (
-                      1
-                    )}
-                  </span>
-                )}
-              </>
-            )}
+            {!hideTotalCount &&
+              (pageCount !== -1 ? (
+                <span>of {pageCount}</span>
+              ) : (
+                <span>
+                  of{" "}
+                  {isLoading ? (
+                    <span className="ml-1 inline-flex align-middle">
+                      <Spinner size="xxs" variant="muted" display="inline" />
+                    </span>
+                  ) : (
+                    1
+                  )}
+                </span>
+              ))}
           </div>
 
           <div className="flex items-center gap-2">

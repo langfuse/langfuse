@@ -1,11 +1,7 @@
 import { useStore } from "zustand";
 import { Button } from "@/src/components/ui/button";
 import { DialogFooter } from "@/src/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   type createRuleSetupStore,
   isRuleDraftDirty,
@@ -64,11 +60,15 @@ export function RuleDialogFooter({
         {dirty ? "Cancel" : "Close"}
       </Button>
       {nameMissing && !nameAIAssistanceAvailable && canEdit ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex cursor-not-allowed">{saveButton}</span>
-          </TooltipTrigger>
-          <TooltipContent>Add a rule name before saving.</TooltipContent>
+        <Tooltip label="Add a rule name before saving.">
+          {({ getTriggerProps }) => (
+            <span
+              {...getTriggerProps()}
+              className="inline-flex cursor-not-allowed"
+            >
+              {saveButton}
+            </span>
+          )}
         </Tooltip>
       ) : (
         saveButton

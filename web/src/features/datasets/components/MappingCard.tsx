@@ -14,11 +14,7 @@ import {
 import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 function SchemaKeyDropZone({
   schemaKey,
@@ -205,15 +201,20 @@ export function MappingCard({
                 >
                   Direct Mapping
                 </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground h-3 w-3" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-[250px]" side="left">
-                    {useDirectMappingForInput
+                <Tooltip
+                  label={
+                    useDirectMappingForInput
                       ? "Map entire CSV columns directly to the input field."
-                      : "Map CSV columns to individual schema fields."}
-                  </TooltipContent>
+                      : "Map CSV columns to individual schema fields."
+                  }
+                  placement="left"
+                >
+                  {({ getTriggerProps }) => (
+                    <InfoIcon
+                      {...getTriggerProps()}
+                      className="text-muted-foreground h-3 w-3"
+                    />
+                  )}
                 </Tooltip>
               </div>
             )}
@@ -264,15 +265,20 @@ export function MappingCard({
                   >
                     Direct mapping
                   </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <InfoIcon className="text-muted-foreground h-3 w-3" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[250px]" side="left">
-                      {useDirectMappingForExpectedOutput
+                  <Tooltip
+                    label={
+                      useDirectMappingForExpectedOutput
                         ? "Map entire CSV columns directly to the expected output field."
-                        : "Map CSV columns to individual schema fields."}
-                    </TooltipContent>
+                        : "Map CSV columns to individual schema fields."
+                    }
+                    placement="left"
+                  >
+                    {({ getTriggerProps }) => (
+                      <InfoIcon
+                        {...getTriggerProps()}
+                        className="text-muted-foreground h-3 w-3"
+                      />
+                    )}
                   </Tooltip>
                 </div>
               )}

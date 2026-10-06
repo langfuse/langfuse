@@ -27,11 +27,7 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
@@ -426,13 +422,15 @@ export function CodeEvalTemplateFormBody({
         </div>
         {shouldShowFormatButton ? (
           formatDisabledReason ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex cursor-not-allowed">
+            <Tooltip label={formatDisabledReason}>
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="inline-flex cursor-not-allowed"
+                >
                   {formatButton}
                 </span>
-              </TooltipTrigger>
-              <TooltipContent>{formatDisabledReason}</TooltipContent>
+              )}
             </Tooltip>
           ) : (
             formatButton

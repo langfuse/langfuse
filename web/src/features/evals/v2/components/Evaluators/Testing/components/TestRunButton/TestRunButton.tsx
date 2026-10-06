@@ -1,11 +1,7 @@
 import { Play } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 /** Starts a test run for the evaluator's currently selected sample. */
 export function TestRunButton({
@@ -36,13 +32,16 @@ export function TestRunButton({
   );
 
   return disabledReason ? (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+    <Tooltip label={disabledReason}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex cursor-not-allowed"
+          tabIndex={0}
+        >
           {button}
         </span>
-      </TooltipTrigger>
-      <TooltipContent>{disabledReason}</TooltipContent>
+      )}
     </Tooltip>
   ) : (
     button

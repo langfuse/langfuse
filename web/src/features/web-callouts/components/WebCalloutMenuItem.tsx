@@ -1,11 +1,7 @@
 import { Webhook } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
@@ -101,9 +97,10 @@ export function WebCalloutButton({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip label={label}>
+      {({ getTriggerProps }) => (
         <Button
+          {...getTriggerProps()}
           aria-label={label}
           title={label}
           variant="outline"
@@ -115,8 +112,7 @@ export function WebCalloutButton({
         >
           <Webhook className="h-4 w-4" />
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      )}
     </Tooltip>
   );
 }

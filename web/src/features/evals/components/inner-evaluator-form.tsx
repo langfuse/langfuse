@@ -77,11 +77,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   BetweenHorizonalStart,
   CircleDot,
@@ -874,16 +870,16 @@ export const InnerEvaluatorForm = (props: {
                     <FormLabel>
                       Run on{" "}
                       {props.mode === "edit" && (
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <InfoIcon className="text-muted-foreground size-3" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[200px] p-2">
-                            <span className="leading-4">
-                              An evaluator&apos;s target data may only be
-                              configured at creation.
-                            </span>
-                          </TooltipContent>
+                        <Tooltip label="An evaluator's target data may only be configured at creation.">
+                          {({ getTriggerProps }) => (
+                            <button
+                              {...getTriggerProps()}
+                              type="button"
+                              aria-label="About evaluator target"
+                            >
+                              <InfoIcon className="text-muted-foreground size-3" />
+                            </button>
+                          )}
                         </Tooltip>
                       )}
                     </FormLabel>
@@ -1075,25 +1071,18 @@ export const InnerEvaluatorForm = (props: {
                               {field.value.includes("EXISTING") &&
                                 !props.disabled &&
                                 (props.mode === "edit" ? (
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <InfoIcon className="text-muted-foreground size-3" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="max-w-[300px] p-2">
-                                      <span className="leading-4">
-                                        This evaluator has already run on
-                                        existing{" "}
-                                        {getTargetDisplayName(
-                                          form.watch("target"),
-                                        )}{" "}
-                                        once. Set up a new evaluator to re-run
-                                        on existing{" "}
-                                        {getTargetDisplayName(
-                                          form.watch("target"),
-                                        )}
-                                        .
-                                      </span>
-                                    </TooltipContent>
+                                  <Tooltip
+                                    label={`This evaluator has already run on existing ${getTargetDisplayName(form.watch("target"))} once. Set up a new evaluator to re-run on existing ${getTargetDisplayName(form.watch("target"))}.`}
+                                  >
+                                    {({ getTriggerProps }) => (
+                                      <button
+                                        {...getTriggerProps()}
+                                        type="button"
+                                        aria-label="About existing evaluations"
+                                      >
+                                        <InfoIcon className="text-muted-foreground size-3" />
+                                      </button>
+                                    )}
                                   </Tooltip>
                                 ) : (
                                   <ExecutionCountTooltip

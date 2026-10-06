@@ -8,11 +8,7 @@ import { type Period } from "./time-picker-utils";
 import { getTimezoneDetails, getShortLocalTimezone } from "@/src/utils/dates";
 import { TimeIcon } from "@/src/components/ui/time-icon";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 interface TimePickerProps {
   date: Date | undefined;
@@ -94,13 +90,12 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
         />
       </div>
       <div className="ml-1 flex items-center">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="whitespace-nowrap">{shortTimezone}</span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" align="center">
-            {timezoneDetails}
-          </TooltipContent>
+        <Tooltip label={timezoneDetails} placement="bottom">
+          {({ getTriggerProps }) => (
+            <span {...getTriggerProps()} className="whitespace-nowrap">
+              {shortTimezone}
+            </span>
+          )}
         </Tooltip>
       </div>
     </div>

@@ -5,11 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useReadPath } from "@/src/features/events";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -21,7 +17,7 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { useMutation } from "@tanstack/react-query";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
-import { useState } from "react";
+import { cloneElement, useState } from "react";
 
 type PublishObjectProps = {
   kind: "trace" | "session";
@@ -281,9 +277,10 @@ const Base = (props: {
             if (!props.tooltip) return trigger;
             // Suppress the hover tooltip while the share popover is open.
             return (
-              <Tooltip open={isOpen ? false : undefined}>
-                <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-                <TooltipContent>{props.tooltip}</TooltipContent>
+              <Tooltip label={props.tooltip} disabled={isOpen}>
+                {({ getTriggerProps }) =>
+                  cloneElement(trigger, getTriggerProps())
+                }
               </Tooltip>
             );
           })()}

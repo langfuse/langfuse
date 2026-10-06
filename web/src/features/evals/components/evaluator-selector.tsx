@@ -16,11 +16,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -186,9 +182,19 @@ export function EvaluatorSelector({
                       template.id === selectedTemplateId && "bg-secondary",
                     )}
                   >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex min-w-0 items-center">
+                    <CustomTooltip
+                      placement="right"
+                      content={
+                        <div className="max-h-[70dvh] overflow-y-auto">
+                          <TemplatePreviewTooltipContent template={template} />
+                        </div>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <div
+                          {...getTriggerProps()}
+                          className="flex min-w-0 items-center"
+                        >
                           <span className="truncate" title={template.name}>
                             {template.name}
                           </span>
@@ -198,31 +204,31 @@ export function EvaluatorSelector({
                             />
                           ) : null}
                         </div>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
-                      >
-                        <TemplatePreviewTooltipContent template={template} />
-                      </TooltipContent>
-                    </Tooltip>
+                      )}
+                    </CustomTooltip>
                     {isInvalid && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                          <p>Requires project-level evaluation model</p>
-                          <Link
-                            href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 block text-blue-600 hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Configure default model
-                          </Link>
-                        </TooltipContent>
-                      </Tooltip>
+                      <CustomTooltip
+                        content={
+                          <div className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
+                            <p>Requires project-level evaluation model</p>
+                            <Link
+                              href={`/project/${projectId}/evals/default-model`}
+                              className="mt-2 block text-blue-600 hover:underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Configure default model
+                            </Link>
+                          </div>
+                        }
+                      >
+                        {({ getTriggerProps }) => (
+                          <AlertCircle
+                            {...getTriggerProps()}
+                            className="ml-1 h-4 w-4 text-yellow-500"
+                          />
+                        )}
+                      </CustomTooltip>
                     )}
                     {template.id === selectedTemplateId && (
                       <CheckIcon className="ml-auto h-4 w-4" />
@@ -236,53 +242,54 @@ export function EvaluatorSelector({
         )}
 
         {filteredTemplates.langfuse.length > 0 && (
-          <>
-            <InputCommandGroup heading="Langfuse managed evaluators">
-              {filteredTemplates.langfuse.map((template) => {
-                const isInvalid = isTemplateInvalid(template);
+          <InputCommandGroup heading="Langfuse managed evaluators">
+            {filteredTemplates.langfuse.map((template) => {
+              const isInvalid = isTemplateInvalid(template);
 
-                return (
-                  <InputCommandItem
-                    key={`langfuse-${template.id}`}
-                    disabled={isInvalid}
-                    onSelect={() => {
-                      onTemplateSelect(
-                        template.id,
-                        template.name,
-                        template.version,
-                      );
-                    }}
-                    className={cn(
-                      template.id === selectedTemplateId && "bg-secondary",
-                    )}
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="mr-1 flex min-w-0 items-center">
-                          <span className="truncate" title={template.name}>
-                            {template.name}
-                          </span>
-                          {template.type === EvalTemplateType.CODE ? (
-                            <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={template.sourceCodeLanguage}
-                            />
-                          ) : null}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
-                      >
+              return (
+                <InputCommandItem
+                  key={`langfuse-${template.id}`}
+                  disabled={isInvalid}
+                  onSelect={() => {
+                    onTemplateSelect(
+                      template.id,
+                      template.name,
+                      template.version,
+                    );
+                  }}
+                  className={cn(
+                    template.id === selectedTemplateId && "bg-secondary",
+                  )}
+                >
+                  <CustomTooltip
+                    placement="right"
+                    content={
+                      <div className="max-h-[70dvh] overflow-y-auto">
                         <TemplatePreviewTooltipContent template={template} />
-                      </TooltipContent>
-                    </Tooltip>
-                    <MaintainerTooltip maintainer={getMaintainer(template)} />
-                    {isInvalid && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
+                      </div>
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <div
+                        {...getTriggerProps()}
+                        className="mr-1 flex min-w-0 items-center"
+                      >
+                        <span className="truncate" title={template.name}>
+                          {template.name}
+                        </span>
+                        {template.type === EvalTemplateType.CODE ? (
+                          <CodeTemplateLanguageIcon
+                            sourceCodeLanguage={template.sourceCodeLanguage}
+                          />
+                        ) : null}
+                      </div>
+                    )}
+                  </CustomTooltip>
+                  <MaintainerTooltip maintainer={getMaintainer(template)} />
+                  {isInvalid && (
+                    <CustomTooltip
+                      content={
+                        <div className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
                           <Link
                             href={`/project/${projectId}/evals/default-model`}
@@ -292,17 +299,24 @@ export function EvaluatorSelector({
                           >
                             Configure default model
                           </Link>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                    {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
-                    )}
-                  </InputCommandItem>
-                );
-              })}
-            </InputCommandGroup>
-          </>
+                        </div>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <AlertCircle
+                          {...getTriggerProps()}
+                          className="ml-1 h-4 w-4 text-yellow-500"
+                        />
+                      )}
+                    </CustomTooltip>
+                  )}
+                  {template.id === selectedTemplateId && (
+                    <CheckIcon className="ml-auto h-4 w-4" />
+                  )}
+                </InputCommandItem>
+              );
+            })}
+          </InputCommandGroup>
         )}
       </InputCommandList>
     </InputCommand>

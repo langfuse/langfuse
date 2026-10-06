@@ -8,7 +8,6 @@ import {
 import type { VisibilityState } from "@tanstack/react-table";
 import type { ComponentProps } from "react";
 import { ExperimentGridCell } from "./ExperimentGridCell";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 const metadataQuery = vi.hoisted(() => vi.fn(() => ({ data: undefined })));
 
@@ -39,61 +38,59 @@ const renderGridCell = (
   overrides: Partial<ComponentProps<typeof ExperimentGridCell>> = {},
 ) =>
   render(
-    <TooltipProvider>
-      <ExperimentGridCell
-        projectId="project-id"
-        itemId="item-id"
-        onExperimentClick={onExperimentClick}
-        onAnnotate={onAnnotate}
-        output={output}
-        level="GENERATION"
-        startTime={new Date("2026-07-30T10:00:00.000Z")}
-        observationId="observation-id"
-        traceId="trace-id"
-        singleLine={false}
-        scores={{
-          [observationScoreKey]: {
-            type: "NUMERIC",
-            values: [0.8],
-            average: 0.8,
-            id: "score-id",
-            hasMetadata: true,
-            comment: "Evaluator comment",
-            executionTraceId: "execution-trace-id",
-          },
-        }}
-        traceScores={{
-          [traceScoreKey]: {
-            type: "NUMERIC",
-            values: [0.9],
-            average: 0.9,
-            id: "trace-score-id",
-          },
-        }}
-        observationScoreOrder={[observationScoreKey]}
-        traceScoreOrder={[traceScoreKey]}
-        isBaseline={isBaseline}
-        baselineScores={{
-          [observationScoreKey]: {
-            type: "NUMERIC",
-            values: [0.3],
-            average: 0.3,
-            id: "baseline-score-id",
-          },
-        }}
-        baselineTraceScores={{
-          [traceScoreKey]: {
-            type: "NUMERIC",
-            values: [0.7],
-            average: 0.7,
-            id: "baseline-trace-score-id",
-          },
-        }}
-        columnVisibility={columnVisibility}
-        showScoreLevelLabels={showScoreLevelLabels}
-        {...overrides}
-      />
-    </TooltipProvider>,
+    <ExperimentGridCell
+      projectId="project-id"
+      itemId="item-id"
+      onExperimentClick={onExperimentClick}
+      onAnnotate={onAnnotate}
+      output={output}
+      level="GENERATION"
+      startTime={new Date("2026-07-30T10:00:00.000Z")}
+      observationId="observation-id"
+      traceId="trace-id"
+      singleLine={false}
+      scores={{
+        [observationScoreKey]: {
+          type: "NUMERIC",
+          values: [0.8],
+          average: 0.8,
+          id: "score-id",
+          hasMetadata: true,
+          comment: "Evaluator comment",
+          executionTraceId: "execution-trace-id",
+        },
+      }}
+      traceScores={{
+        [traceScoreKey]: {
+          type: "NUMERIC",
+          values: [0.9],
+          average: 0.9,
+          id: "trace-score-id",
+        },
+      }}
+      observationScoreOrder={[observationScoreKey]}
+      traceScoreOrder={[traceScoreKey]}
+      isBaseline={isBaseline}
+      baselineScores={{
+        [observationScoreKey]: {
+          type: "NUMERIC",
+          values: [0.3],
+          average: 0.3,
+          id: "baseline-score-id",
+        },
+      }}
+      baselineTraceScores={{
+        [traceScoreKey]: {
+          type: "NUMERIC",
+          values: [0.7],
+          average: 0.7,
+          id: "baseline-trace-score-id",
+        },
+      }}
+      columnVisibility={columnVisibility}
+      showScoreLevelLabels={showScoreLevelLabels}
+      {...overrides}
+    />,
   );
 
 describe("ExperimentGridCell", () => {

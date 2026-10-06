@@ -3,11 +3,8 @@ import type { ReactNode } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { InlineFilterState } from "@/src/features/filters";
 import {
@@ -36,9 +33,10 @@ export function RuleFilterPills({
     if (!reason) return <span key={key}>{content}</span>;
 
     return (
-      <Tooltip key={key}>
-        <TooltipTrigger asChild>
+      <Tooltip key={key} label={reason}>
+        {({ getTriggerProps }) => (
           <span
+            {...getTriggerProps()}
             tabIndex={0}
             aria-disabled="true"
             data-testid="disabled-rule-filter"
@@ -46,8 +44,7 @@ export function RuleFilterPills({
           >
             {content}
           </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-80">{reason}</TooltipContent>
+        )}
       </Tooltip>
     );
   };
@@ -148,18 +145,23 @@ export function RuleFilterPills({
         <InlineFilterState filterState={[item.condition]} className="m-0" />
       )}
       renderOverflow={({ overflowItemCount }) => (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="secondary" className="font-normal">
-              +{overflowItemCount}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-96">
-            <div className="flex flex-wrap gap-1">
+        <CustomTooltip
+          content={
+            <div className="flex max-w-96 flex-wrap gap-1">
               <InlineFilterState filterState={filter} className="m-0" />
             </div>
-          </TooltipContent>
-        </Tooltip>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <Badge
+              {...getTriggerProps()}
+              variant="secondary"
+              className="font-normal"
+            >
+              +{overflowItemCount}
+            </Badge>
+          )}
+        </CustomTooltip>
       )}
     />
   );

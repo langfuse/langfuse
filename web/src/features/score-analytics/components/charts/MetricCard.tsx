@@ -1,10 +1,5 @@
 import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   HoverCard,
   HoverCardContent,
@@ -69,16 +64,14 @@ export function MetricCard({
       <div className="flex items-center gap-1">
         <p className="text-muted-foreground text-xs">{label}</p>
         {helpText && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="text-muted-foreground h-3 w-3" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs">
-                <p className="text-xs">{helpText}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip label={helpText}>
+            {({ getTriggerProps }) => (
+              <HelpCircle
+                {...getTriggerProps()}
+                className="text-muted-foreground h-3 w-3"
+              />
+            )}
+          </Tooltip>
         )}
       </div>
 
@@ -97,21 +90,17 @@ export function MetricCard({
           !isPlaceholder &&
           !isNA &&
           interpretation.strength !== "N/A" && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant={getBadgeVariant(interpretation.color)}
-                    className="px-1.5 py-0 text-[10px] font-normal opacity-70"
-                  >
-                    {interpretation.strength}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  <p className="text-xs">{interpretation.description}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip label={interpretation.description}>
+              {({ getTriggerProps }) => (
+                <Badge
+                  {...getTriggerProps()}
+                  variant={getBadgeVariant(interpretation.color)}
+                  className="px-1.5 py-0 text-[10px] font-normal opacity-70"
+                >
+                  {interpretation.strength}
+                </Badge>
+              )}
+            </Tooltip>
           )}
         {warning?.show && !isPlaceholder && !isNA && (
           <HoverCard>
