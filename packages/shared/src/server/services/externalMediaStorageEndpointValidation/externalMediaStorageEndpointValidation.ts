@@ -1,11 +1,11 @@
-import { env } from "../../env";
+import { env } from "../../../env";
 import {
   type OutboundUrlConnectionValidationOptions,
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../outbound-url";
+} from "../../outbound-url";
 
 const EXTERNAL_MEDIA_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "External media storage endpoint";

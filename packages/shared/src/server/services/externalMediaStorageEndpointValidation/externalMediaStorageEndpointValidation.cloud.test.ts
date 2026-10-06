@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { validateExternalMediaStorageEndpoint } from "./externalMediaStorageEndpointValidation";
 
-vi.mock("../../env", () => ({
+vi.mock("../../../env", () => ({
   env: {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
   },

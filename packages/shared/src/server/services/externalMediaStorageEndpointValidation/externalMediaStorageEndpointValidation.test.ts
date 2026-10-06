@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { OutboundUrlValidationError } from "../outbound-url";
+import { OutboundUrlValidationError } from "../../outbound-url";
 import { validateExternalMediaStorageEndpoint } from "./externalMediaStorageEndpointValidation";
 
-vi.mock("../../env", () => ({
+vi.mock("../../../env", () => ({
   env: {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST: [],

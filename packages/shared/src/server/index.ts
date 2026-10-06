@@ -67,7 +67,7 @@ export * from "./llm/ai-sdk/providers/vertex";
 export * from "./llm/ai-sdk/providers/vertexAuth";
 export * from "./outbound-url";
 export * from "./services/blobStorageEndpointValidation";
-export * from "./services/externalMediaStorageEndpointValidation";
+export * from "./services/externalMediaStorageEndpointValidation/externalMediaStorageEndpointValidation";
 export * from "./llm/getInternalTracingHandler";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
