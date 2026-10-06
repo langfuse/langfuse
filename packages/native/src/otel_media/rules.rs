@@ -39,6 +39,9 @@ pub(super) enum MediaScanMode {
     /// An OTLP KeyValue list. The `key` is a metadata name, while the
     /// corresponding `value` contains the data-bearing AnyValue subtree.
     Attributes,
+    /// OTLP AnyValue wrappers retain their schema context until a string value
+    /// becomes an ordinary payload; nested map keys must remain structural.
+    AnyValue,
     /// The OTLP envelope itself. Only known payload-bearing descendants enter
     /// `Payload`; arbitrary envelope fields stay untouched.
     Envelope,
@@ -121,8 +124,15 @@ pub(super) fn media_scan_mode_for_field(parent: MediaScanMode, field: &str) -> M
         MediaScanMode::Attributes => match field {
             // OTLP KeyValue keys are metadata names, never media payloads.
             "key" => MediaScanMode::Disabled,
-            "value" => MediaScanMode::Payload,
-            _ => MediaScanMode::Payload,
+            "value" => MediaScanMode::AnyValue,
+            "values" => MediaScanMode::Attributes,
+            _ => MediaScanMode::Disabled,
+        },
+        MediaScanMode::AnyValue => match field {
+            "kvlistValue" => MediaScanMode::Attributes,
+            "arrayValue" | "values" => MediaScanMode::AnyValue,
+            "stringValue" | "bytesValue" => MediaScanMode::Payload,
+            _ => MediaScanMode::Disabled,
         },
         MediaScanMode::Envelope => match field {
             // These fields contain OTLP envelope objects. Their known
@@ -133,7 +143,7 @@ pub(super) fn media_scan_mode_for_field(parent: MediaScanMode, field: &str) -> M
             // Attribute values and log bodies are the data-bearing boundary
             // consumed by the normalizer and legacy media processor.
             "attributes" => MediaScanMode::Attributes,
-            "body" | "value" | "arrayValue" | "kvlistValue" | "values" => MediaScanMode::Payload,
+            "body" | "value" => MediaScanMode::AnyValue,
             _ => MediaScanMode::Disabled,
         },
     }
