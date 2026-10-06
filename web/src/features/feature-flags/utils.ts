@@ -1,10 +1,12 @@
 /* eslint-disable no-nested-ternary */
 import {
   availableFlags,
+  featurePreviewFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
   isInternalFlag,
   isFeaturePreviewFlag,
+  isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
@@ -60,6 +62,14 @@ export const parseFlags = (
 
     if (
       isFeaturePreviewFlag(flag) &&
+      isOrganizationOnlyFeaturePreviewFlag(flag)
+    ) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      isFeaturePreviewFlag(flag) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;
@@ -96,7 +106,13 @@ export const parseFlagsWithOrganizationDefaults = (
   const featurePreviewDefaults =
     filterFeaturePreviewFlags(organizationDefaults);
 
-  return parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  const flags = parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  for (const flag of featurePreviewFlags) {
+    if (isOrganizationOnlyFeaturePreviewFlag(flag)) {
+      flags[flag] = featurePreviewDefaults.includes(flag);
+    }
+  }
+  return flags;
 };
 
 type ContextualFeatureFlagUser = {

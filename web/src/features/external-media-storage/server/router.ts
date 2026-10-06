@@ -1,4 +1,4 @@
-import { InvalidRequestError } from "@langfuse/shared";
+import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -19,6 +19,19 @@ function asBadRequest(error: unknown): never {
 }
 
 export const externalMediaStorageRouter = createTRPCRouter({
+  isFeatureEnabled: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        projectId: input.projectId,
+        session: ctx.session,
+        scope: "project:read",
+      });
+      return createExternalMediaStorageService(ctx.prisma).isFeatureEnabled(
+        ctx.session.projectId,
+      );
+    }),
+
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -58,6 +71,9 @@ export const externalMediaStorageRouter = createTRPCRouter({
         });
         return result;
       } catch (error) {
+        if (error instanceof ForbiddenError) {
+          throw error;
+        }
         logger.error("Failed to update external media storage integration", {
           projectId: ctx.session.projectId,
           error,
@@ -83,6 +99,9 @@ export const externalMediaStorageRouter = createTRPCRouter({
           },
         );
       } catch (error) {
+        if (error instanceof ForbiddenError) {
+          throw error;
+        }
         logger.error("Failed to delete external media storage integration", {
           projectId: ctx.session.projectId,
           error,
@@ -106,6 +125,9 @@ export const externalMediaStorageRouter = createTRPCRouter({
           uri: input.uri,
         });
       } catch (error) {
+        if (error instanceof ForbiddenError) {
+          throw error;
+        }
         if (error instanceof InvalidRequestError) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         }

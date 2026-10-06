@@ -11,7 +11,7 @@ import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
-  featurePreviewFlags,
+  userFeaturePreviewFlags,
   setUserFeaturePreview,
   hasInternalAccess,
   INTERNAL_FEATURE_FLAG,
@@ -142,7 +142,7 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        flag: z.enum(featurePreviewFlags),
+        flag: z.enum(userFeaturePreviewFlags),
         enabled: z.boolean(),
       }),
     )

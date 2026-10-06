@@ -98,6 +98,7 @@ import {
   handleDeleteExternalMediaStorage,
   handleGetExternalMediaStorage,
 } from "@/src/features/mcp/server/externalMediaStorage/tools";
+import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
@@ -1982,6 +1983,17 @@ describe("MCP Write Tools", () => {
   describe("external media storage tools", () => {
     it("configures, reads, and deletes project storage with audit logs", async () => {
       const setup = await createMcpTestSetup();
+
+      await expect(
+        externalMediaStorageFeature.isEnabled(setup.context),
+      ).resolves.toBe(false);
+      await prisma.organization.update({
+        where: { id: setup.context.orgId },
+        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+      });
+      await expect(
+        externalMediaStorageFeature.isEnabled(setup.context),
+      ).resolves.toBe(true);
 
       await expect(
         handleConfigureExternalMediaStorage(

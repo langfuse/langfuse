@@ -8,7 +8,7 @@ import {
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
+import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -22,6 +22,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 const orgIds: string[] = [];
 
+async function enableExternalMediaStorage(orgId: string) {
+  await prisma.organization.update({
+    where: { id: orgId },
+    data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+  });
+}
+
 async function prepareIntegration({
   bucketName = "media-bucket",
   enabled = true,
@@ -33,6 +40,7 @@ async function prepareIntegration({
 }) {
   const { org, project } = await createOrgProjectAndApiKey();
   orgIds.push(org.id);
+  await enableExternalMediaStorage(org.id);
   await prisma.externalMediaStorageIntegration.create({
     data: {
       projectId: project.id,
@@ -57,6 +65,22 @@ describe("external media storage service", () => {
 
   afterAll(async () => {
     await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
+  });
+
+  it("uses the organization default as the feature gate", async () => {
+    const { org, project } = await createOrgProjectAndApiKey();
+    orgIds.push(org.id);
+    const service = createExternalMediaStorageService(prisma);
+
+    await expect(service.isFeatureEnabled(project.id)).resolves.toBe(false);
+    await expect(service.getConfiguration(project.id)).rejects.toThrow(
+      "External media storage is not enabled for this organization",
+    );
+
+    await enableExternalMediaStorage(org.id);
+
+    await expect(service.isFeatureEnabled(project.id)).resolves.toBe(true);
+    await expect(service.getConfiguration(project.id)).resolves.toBeNull();
   });
 
   it("never returns the stored secret in configuration responses", async () => {
@@ -141,6 +165,7 @@ describe("external media storage service", () => {
     const configuredProject = await prepareIntegration({ prefix: null });
     const { org, project: otherProject } = await createOrgProjectAndApiKey();
     orgIds.push(org.id);
+    await enableExternalMediaStorage(org.id);
 
     await expect(
       createExternalMediaStorageService(prisma).resolveUrl({

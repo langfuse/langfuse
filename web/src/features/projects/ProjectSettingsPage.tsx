@@ -41,7 +41,6 @@ import { WebCalloutIntegrationCard } from "@/src/features/web-callouts";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { api } from "@/src/utils/api";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -408,10 +407,10 @@ const Integrations = (props: { projectId: string }) => {
     projectId: props.projectId,
     scope: "integrations:CRUD",
   });
-  const showExternalMediaStorage = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
-    projectId: props.projectId,
-  });
+  const showExternalMediaStorage =
+    api.externalMediaStorage.isFeatureEnabled.useQuery({
+      projectId: props.projectId,
+    }).data === true;
 
   const allowBlobStorageIntegration = useHasEntitlement(
     "scheduled-blob-exports",

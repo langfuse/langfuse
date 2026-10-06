@@ -133,6 +133,21 @@ describe("organization feature preview defaults", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
+  it("enables organization-only previews without a personal preview", async () => {
+    const { caller, org } = await prepare();
+
+    await expect(
+      caller.organizations.setFeatureFlagOrgDefault({
+        orgId: org.id,
+        flag: "externalMediaStorage",
+        enabled: true,
+      }),
+    ).resolves.toMatchObject({
+      defaults: ["externalMediaStorage"],
+      enabled: true,
+    });
+  });
+
   it("rejects internal flags at the input boundary", async () => {
     const { caller, org } = await prepare();
 

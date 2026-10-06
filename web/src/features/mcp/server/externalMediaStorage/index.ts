@@ -1,3 +1,6 @@
+import { prisma } from "@langfuse/shared/src/db";
+
+import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
 import { type McpFeatureModule } from "@/src/features/mcp/server/registry";
 
 import {
@@ -33,4 +36,8 @@ export const externalMediaStorageFeature = {
       handler: handleTestExternalMediaStorage,
     },
   ],
+  isEnabled: (context) =>
+    createExternalMediaStorageService(prisma).isFeatureEnabled(
+      context.projectId,
+    ),
 } as const satisfies McpFeatureModule;

@@ -113,6 +113,21 @@ describe("parseFlags", () => {
     expect(optedOut.modernSession).toBe(false);
   });
 
+  it("enables organization-only previews exclusively through organization defaults", () => {
+    const personalOnly = parseFlags(["externalMediaStorage"], {
+      email: "user@example.com",
+      v4BetaEnabled: true,
+    });
+    const organizationEnabled = parseFlagsWithOrganizationDefaults(
+      ["feature-preview:externalMediaStorage:disabled"],
+      ["externalMediaStorage"],
+      { email: "user@example.com", v4BetaEnabled: true },
+    );
+
+    expect(personalOnly.externalMediaStorage).toBe(false);
+    expect(organizationEnabled.externalMediaStorage).toBe(true);
+  });
+
   it("does not apply a Session Timeline organization default without Compact Session", () => {
     const flags = parseFlagsWithOrganizationDefaults([], ["sessionTimeline"], {
       email: "user@example.com",

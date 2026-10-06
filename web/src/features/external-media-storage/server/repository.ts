@@ -6,6 +6,23 @@ import {
 
 export function createExternalMediaStorageRepository(prisma: PrismaClient) {
   return {
+    async isFeatureEnabled(projectId: string) {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          organization: {
+            select: { featureFlagOrgDefaults: true },
+          },
+        },
+      });
+
+      return (
+        project?.organization.featureFlagOrgDefaults.includes(
+          "externalMediaStorage",
+        ) ?? false
+      );
+    },
+
     findByProjectId(projectId: string) {
       return prisma.externalMediaStorageIntegration.findUnique({
         where: { projectId },

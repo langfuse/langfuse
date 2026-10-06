@@ -1,12 +1,29 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const featurePreviewFlags = [
+export const organizationOnlyFeaturePreviewFlags = [
   "externalMediaStorage",
+] as const;
+
+export const userFeaturePreviewFlags = [
   "modernSession",
   "sessionTimeline",
 ] as const;
 
+export const featurePreviewFlags = [
+  ...organizationOnlyFeaturePreviewFlags,
+  ...userFeaturePreviewFlags,
+] as const;
+
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
+
+export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
+
+export const isOrganizationOnlyFeaturePreviewFlag = (
+  flag: FeaturePreviewFlag,
+): flag is (typeof organizationOnlyFeaturePreviewFlags)[number] =>
+  organizationOnlyFeaturePreviewFlags.some(
+    (organizationFlag) => organizationFlag === flag,
+  );
 
 const restrictedFlags = ["aiGateway"] as const;
 
@@ -21,7 +38,9 @@ export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
  */
 export const INTERNAL_FEATURE_FLAG = "internalFeatures" as const;
 
-export type UserFeatureFlag = FeaturePreviewFlag | typeof INTERNAL_FEATURE_FLAG;
+export type UserFeatureFlag =
+  | UserFeaturePreviewFlag
+  | typeof INTERNAL_FEATURE_FLAG;
 
 export const isInternalFlag = (
   flag: string,

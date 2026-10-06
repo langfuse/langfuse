@@ -1,6 +1,7 @@
 import {
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BlobStorageIntegrationType,
+  ForbiddenError,
   InvalidRequestError,
   isS3KeyWithinPrefix,
   normalizeBlobStorageRegion,
@@ -82,9 +83,21 @@ function createStorageService(integration: ExternalMediaStorageRecord) {
 
 export function createExternalMediaStorageService(prisma: PrismaClient) {
   const repository = createExternalMediaStorageRepository(prisma);
+  const assertFeatureEnabled = async (projectId: string) => {
+    if (!(await repository.isFeatureEnabled(projectId))) {
+      throw new ForbiddenError(
+        "External media storage is not enabled for this organization",
+      );
+    }
+  };
 
   return {
+    isFeatureEnabled(projectId: string) {
+      return repository.isFeatureEnabled(projectId);
+    },
+
     async getConfiguration(projectId: string) {
+      await assertFeatureEnabled(projectId);
       const integration = await repository.findByProjectId(projectId);
       if (!integration) return null;
 
@@ -106,6 +119,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       projectId: string;
       values: ExternalMediaStorageFormValues;
     }) {
+      await assertFeatureEnabled(projectId);
       if (values.endpoint) {
         await validateBlobStorageEndpoint(values.endpoint);
       }
@@ -161,6 +175,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       actor: ExternalMediaStorageAuditActor;
       projectId: string;
     }) {
+      await assertFeatureEnabled(projectId);
       const existing = await repository.findByProjectId(projectId);
       if (!existing) {
         throw new InvalidRequestError(
@@ -172,6 +187,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
     },
 
     async resolveUrl({ projectId, uri }: { projectId: string; uri: string }) {
+      await assertFeatureEnabled(projectId);
       const parsed = parseS3Uri(uri);
       if (!parsed) {
         throw new InvalidRequestError(
@@ -204,6 +220,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
     },
 
     async testObject({ projectId, uri }: { projectId: string; uri: string }) {
+      await assertFeatureEnabled(projectId);
       const parsed = parseS3Uri(uri);
       if (!parsed) {
         throw new InvalidRequestError(

@@ -19,6 +19,7 @@ import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
   featurePreviewLabels,
+  isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -110,7 +111,10 @@ export function OrganizationFeaturePreviewsSettings({
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;
-          const requiresPersonalEnablement = !selected && !enabledForAdmin;
+          const requiresPersonalEnablement =
+            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
+            !selected &&
+            !enabledForAdmin;
           return (
             <Card
               key={flag}
@@ -144,8 +148,8 @@ export function OrganizationFeaturePreviewsSettings({
       </div>
 
       <p className="text-muted-foreground text-xs">
-        Defaults apply only in this organization. A user&apos;s global personal
-        opt-out always wins.
+        Defaults apply only in this organization. Personal opt-outs apply to
+        user-level previews.
       </p>
 
       <AlertDialog
@@ -169,7 +173,8 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedChange?.enabled ? (
+          {proposedChange?.enabled &&
+          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
             <Alert>
               <Alert.Title>Already enabled for you</Alert.Title>
               <Alert.Description>

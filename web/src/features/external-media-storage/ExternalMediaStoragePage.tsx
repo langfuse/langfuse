@@ -14,7 +14,6 @@ import { ExternalMediaStorageForm } from "@/src/features/external-media-storage/
 import { TestMediaObjectDialog } from "@/src/features/external-media-storage/components/TestMediaObjectDialog/TestMediaObjectDialog";
 import { testSignedMediaUrlCors } from "@/src/features/external-media-storage/fns/testSignedMediaUrlCors";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
@@ -42,10 +41,12 @@ export default function ExternalMediaStoragePage() {
     projectId,
     scope: "integrations:CRUD",
   });
-  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
-    projectId,
-  });
+  const featureAvailability =
+    api.externalMediaStorage.isFeatureEnabled.useQuery(
+      { projectId },
+      { enabled: Boolean(projectId) },
+    );
+  const isFeatureEnabled = featureAvailability.data === true;
   const canLoadConfig = Boolean(projectId && hasAccess && isFeatureEnabled);
   const utils = api.useUtils();
   const configuration = api.externalMediaStorage.get.useQuery(
@@ -170,6 +171,10 @@ export default function ExternalMediaStoragePage() {
         S3-compatible bucket.
       </p>
       {(() => {
+        if (featureAvailability.isPending) {
+          return <IntegrationSettingsSkeleton />;
+        }
+
         if (!isFeatureEnabled) {
           return (
             <p className="text-sm">
