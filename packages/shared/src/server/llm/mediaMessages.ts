@@ -57,6 +57,8 @@ const EVALUATOR_MEDIA_TYPES = new Set([
 ]);
 
 const EVALUATOR_MEDIA_URL_UNSUPPORTED_ADAPTERS = new Set<LLMAdapter>([
+  // Bedrock Converse accepts inline bytes and S3 locations, but not HTTP(S) URLs.
+  // https://github.com/aws-samples/amazon-bedrock-samples/issues/684
   LLMAdapter.Bedrock,
 ]);
 
