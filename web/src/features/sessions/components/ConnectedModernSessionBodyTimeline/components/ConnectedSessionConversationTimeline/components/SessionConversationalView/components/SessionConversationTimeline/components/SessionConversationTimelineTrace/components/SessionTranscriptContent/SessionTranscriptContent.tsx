@@ -1,6 +1,7 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { type TranscriptMessageGroup } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
+import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { SessionTimelineToolRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineToolRow/SessionTimelineToolRow";
 import { Wrench } from "lucide-react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
@@ -25,17 +26,18 @@ export function SessionTranscriptContent({
   } | null;
 }) {
   const rows = getSessionTranscriptRows(result.transcript);
+  const { visibleThreads } = getSessionTranscriptThreads(result.transcript);
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
         <p className="text-muted-foreground text-sm">No transcript messages.</p>
       )}
-      {result.transcript?.threads.map((thread, threadIndex) => (
+      {visibleThreads.map(({ threadIndex }) => (
         <div
           key={threadIndex}
           className="space-y-4 [&>[data-session-system-row]:has(+[data-session-system-row])]:mb-1 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
         >
-          {(result.transcript?.threads.length ?? 0) > 1 && (
+          {visibleThreads.length > 1 && (
             <h3 className="text-muted-foreground text-xs font-bold">
               Thread {threadIndex + 1}
             </h3>

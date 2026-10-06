@@ -1,4 +1,4 @@
-import { MessageSquareOff } from "lucide-react";
+import { GitBranch, MessageSquareOff } from "lucide-react";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -6,6 +6,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { SessionTranscriptContent } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/SessionTranscriptContent";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
+import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 
 type PreparedSessionConversationTimelineTraceState =
   | { type: "loading" }
@@ -36,6 +37,10 @@ export function SessionConversationTimelineTrace({
     requestId: number;
   } | null;
 }) {
+  const hiddenThreadCount =
+    state.type === "transcript"
+      ? getSessionTranscriptThreads(state.result.transcript).hiddenThreadCount
+      : 0;
   return (
     <div
       className="px-4 pb-14 sm:px-6 lg:px-10"
@@ -61,6 +66,22 @@ export function SessionConversationTimelineTrace({
         >
           Open trace
         </button>
+        {hiddenThreadCount > 0 && (
+          <Tooltip
+            label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
+          >
+            {({ getTriggerProps }) => (
+              <button
+                {...getTriggerProps()}
+                type="button"
+                className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
+                aria-label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
+              >
+                <GitBranch className="icon-base" aria-hidden="true" />
+              </button>
+            )}
+          </Tooltip>
+        )}
         {state.type === "transcript" && state.result.cutoff && (
           <Tooltip label="This transcript may be incomplete because the observation limit was reached.">
             {({ getTriggerProps }) => (

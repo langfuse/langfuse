@@ -2139,12 +2139,14 @@ const traces: TraceProps[] = [
 
 function SessionConversationalViewStory({
   workflowTraces,
+  transcriptTraces,
   isLoading = false,
   isSearchPending = false,
   groupedTools = false,
   searchQueryOverride,
 }: {
   workflowTraces?: WorkflowFixture[];
+  transcriptTraces?: TraceProps[];
   isLoading?: boolean;
   isSearchPending?: boolean;
   groupedTools?: boolean;
@@ -2241,7 +2243,7 @@ function SessionConversationalViewStory({
         onOpenObservation: fn(),
         scrollTarget: null,
       }))
-    : traces;
+    : (transcriptTraces ?? traces);
   const displayedTraces = groupedTools ? toolTraces : workflowTraceProps;
   const controller = useSessionConversationTimelineController(displayedTraces);
   if (isLoading) {
@@ -2315,6 +2317,88 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
 });
 export default meta;
+export const NestedThreadsHidden = meta.story({
+  name: "(Test) Nested Threads Hidden",
+  args: {
+    transcriptTraces: [
+      {
+        ...traces[0]!,
+        state: {
+          type: "transcript",
+          observations:
+            traces[0]!.state.type === "transcript"
+              ? traces[0]!.state.observations
+              : [],
+          result: {
+            state: "loaded",
+            cutoff: false,
+            transcript: {
+              threads: [
+                { nestingLevel: 0, text: "Main agent checks the order." },
+                { nestingLevel: 1, text: "Nested agent checks inventory." },
+                { nestingLevel: 2, text: "Deeply nested agent checks stock." },
+                { nestingLevel: 0, text: "Main agent confirms delivery." },
+              ].map(({ nestingLevel, text }) => ({
+                conversationHistory: [],
+                currentTurn: {
+                  nestingLevel,
+                  observations: [],
+                  messages: [
+                    {
+                      observationId: "generation-1",
+                      traceId: "trace-1",
+                      startTime: traces[0]!.trace.timestamp,
+                      endTime: null,
+                      role: "assistant",
+                      source: "output",
+                      parts: [{ type: "text", text }],
+                    },
+                  ],
+                },
+              })),
+            },
+          },
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await expect(
+      sidebar.queryByRole("button", { name: "2 nested threads hidden" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      sidebar.queryByText("2 nested threads hidden"),
+    ).not.toBeInTheDocument();
+    const warning = await timeline.findByRole("button", {
+      name: "2 nested threads hidden",
+    });
+    const document = within(canvasElement.ownerDocument.body);
+    await userEvent.hover(warning);
+    await expect(
+      await document.findByRole("tooltip", { name: "2 nested threads hidden" }),
+    ).toBeVisible();
+    await userEvent.unhover(warning);
+    for (const surface of [sidebar, timeline]) {
+      for (const text of [
+        "Main agent checks the order.",
+        "Main agent confirms delivery.",
+      ]) {
+        await expect(await surface.findByText(text)).toBeInTheDocument();
+      }
+      for (const text of [
+        "Nested agent checks inventory.",
+        "Deeply nested agent checks stock.",
+      ]) {
+        await expect(surface.queryByText(text)).not.toBeInTheDocument();
+      }
+    }
+  },
+});
 export const Loading = meta.story({
   name: "(Test) Loading",
   args: { isLoading: true },

@@ -159,6 +159,41 @@ const weatherState = transcriptState({
   history: result.transcript?.threads[0]?.conversationHistory ?? [],
   observations: [sourceObservation],
 });
+export const NestedThreadsHidden = meta.story({
+  name: "(Test) Nested Threads Hidden",
+  args: {
+    ...commonArgs,
+    state: {
+      type: "transcript",
+      observations: [sourceObservation],
+      result: {
+        ...result,
+        transcript: {
+          threads: (result.transcript?.threads ?? []).map((thread, index) => ({
+            ...thread,
+            currentTurn: { ...thread.currentTurn, nestingLevel: index + 2 },
+          })),
+        },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const warning = canvas.getByRole("button", {
+      name: "1 nested thread hidden",
+    });
+    const document = within(canvasElement.ownerDocument.body);
+    await userEvent.hover(warning);
+    await expect(
+      await document.findByRole("tooltip", { name: "1 nested thread hidden" }),
+    ).toBeVisible();
+    await userEvent.unhover(warning);
+    await expect(
+      canvas.queryByText("Looking up outdoor activities…"),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Thread 2")).not.toBeInTheDocument();
+  },
+});
 export const MultipleThreads = meta.story({
   name: "(Test) Multiple Threads Without History",
   args: {

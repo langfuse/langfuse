@@ -8,6 +8,7 @@ import {
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
+import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 
 export type ConnectedSessionConversationTimelineItem = {
   trace: EventSessionTrace;
@@ -56,7 +57,11 @@ export function ConnectedSessionConversationTimeline(
           if (result?.state === "error") return { type: "error" as const };
           if (!result || result.state === "loading")
             return { type: "loading" as const };
-          if (getSessionTranscriptRows(result.transcript).length === 0)
+          if (
+            getSessionTranscriptRows(result.transcript).length === 0 &&
+            getSessionTranscriptThreads(result.transcript).hiddenThreadCount ===
+              0
+          )
             return { type: "empty" as const };
           return { type: "transcript" as const, result, observations };
         })();

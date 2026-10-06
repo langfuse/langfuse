@@ -17,6 +17,7 @@ export type SessionConversationSidebarTrace = {
   turnNumber: number;
   idleGapSeconds: number | null;
   threadCount?: number;
+  hiddenThreadCount?: number;
   transcriptRows:
     | Array<{
         id: string;

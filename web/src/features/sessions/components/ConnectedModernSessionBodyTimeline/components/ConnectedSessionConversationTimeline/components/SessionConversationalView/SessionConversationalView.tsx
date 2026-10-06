@@ -6,6 +6,7 @@ import {
 import { SessionConversationTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/SessionConversationTimeline";
 import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
+import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 
 export function SessionConversationalView(
@@ -128,6 +129,10 @@ export function SessionConversationalView(
             )
           : transcriptRows;
       if (props.searchQuery && matchingRows?.length === 0) continue;
+      const threadVisibility =
+        item.state.type === "transcript"
+          ? getSessionTranscriptThreads(item.state.result.transcript)
+          : undefined;
       sidebarTraces.push({
         trace: item.trace,
         turnNumber: item.turnNumber,
@@ -136,10 +141,8 @@ export function SessionConversationalView(
             ? null
             : computeIdleGapSeconds(props.traces[index - 1]!.trace, item.trace),
         transcriptRows: matchingRows,
-        threadCount:
-          item.state.type === "transcript"
-            ? item.state.result.transcript?.threads.length
-            : undefined,
+        threadCount: threadVisibility?.visibleThreads.length,
+        hiddenThreadCount: threadVisibility?.hiddenThreadCount,
       });
     }
   }
