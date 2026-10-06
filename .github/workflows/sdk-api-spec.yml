@@ -23,7 +23,8 @@ on:
         type: string
 
 concurrency:
-  group: sdk-api-spec-${{ github.ref }}-${{ inputs.python_sdk_base_branch || 'main' }}-${{ inputs.js_sdk_base_branch || 'main' }}
+  # `:` cannot appear in a branch name, so distinct branch pairs never collide.
+  group: sdk-api-spec-${{ github.ref }}:${{ inputs.python_sdk_base_branch || 'main' }}:${{ inputs.js_sdk_base_branch || 'main' }}
   cancel-in-progress: true
 
 permissions:
@@ -266,9 +267,9 @@ jobs:
           NEW_PR_NUMBER="${NEW_PR_URL##*/}"
 
           # Only retire stale bot PRs after their replacement exists, and only
-          # on the default branch: bot PRs into release branches are merged or
-          # closed by hand.
-          if [ "$PYTHON_SDK_BASE_BRANCH" != "main" ]; then
+          # on push runs to main. Manual runs never close bot PRs, so an open
+          # release-branch or hand-dispatched PR survives until merged or closed.
+          if [ "$GITHUB_EVENT_NAME" != "push" ]; then
             exit 0
           fi
           "$GH_BIN" pr list --repo langfuse/langfuse-python --author langfuse-bot --base main --state open --json number --jq '.[].number' | while read -r pr_number; do
@@ -329,9 +330,9 @@ jobs:
           NEW_PR_NUMBER="${NEW_PR_URL##*/}"
 
           # Only retire stale bot PRs after their replacement exists, and only
-          # on the default branch: bot PRs into release branches are merged or
-          # closed by hand.
-          if [ "$JS_SDK_BASE_BRANCH" != "main" ]; then
+          # on push runs to main. Manual runs never close bot PRs, so an open
+          # release-branch or hand-dispatched PR survives until merged or closed.
+          if [ "$GITHUB_EVENT_NAME" != "push" ]; then
             exit 0
           fi
           "$GH_BIN" pr list --repo langfuse/langfuse-js --author langfuse-bot --base main --state open --json number --jq '.[].number' | while read -r pr_number; do
