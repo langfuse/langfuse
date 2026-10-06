@@ -1946,15 +1946,35 @@ const supportAgentWorkflow: WorkflowFixture[] = [
 const codingAgentWorkflow: WorkflowFixture[] = [
   {
     trace: researchCodingAgentTrace,
-    turnNumber: 2,
+    turnNumber: 1,
     observations: researchCodingAgentObservations,
   },
   {
     trace: implementationCodingAgentTrace,
-    turnNumber: 3,
+    turnNumber: 2,
     observations: implementationCodingAgentObservations,
   },
 ];
+for (const workflow of codingAgentWorkflow) {
+  const history: Array<{ role: string; [key: string]: unknown }> = [];
+  for (const observation of workflow.observations) {
+    if (observation.type !== "GENERATION") continue;
+    const input = (observation.input as string).startsWith("[")
+      ? (JSON.parse(observation.input as string) as typeof history)
+      : [{ role: "user", content: observation.input }];
+    history.push(
+      ...(history.length === 0
+        ? input
+        : input.filter(
+            (message) => message.role === "tool" || message.role === "user",
+          )),
+    );
+    observation.input = JSON.stringify(history);
+    history.push(
+      ...(JSON.parse(observation.output as string) as typeof history),
+    );
+  }
+}
 const langfuseAssistantWorkflow: WorkflowFixture[] = [
   {
     trace: inAppAgentTrace,
@@ -2396,7 +2416,15 @@ export const ConsecutiveToolGroups = meta.story({
   },
 });
 export const CodingAgentWorkflow = meta.story({
+  name: "(Test) Coding Agent Workflow",
   args: { workflowTraces: codingAgentWorkflow },
+  play: async () => {
+    const transcripts = workflowTranscripts.get(codingAgentWorkflow);
+    await expect(transcripts).toHaveLength(2);
+    for (const workflow of transcripts ?? []) {
+      await expect(workflow.state.result.transcript?.threads).toHaveLength(1);
+    }
+  },
 });
 export const LangfuseAssistantWorkflow = meta.story({
   args: { workflowTraces: langfuseAssistantWorkflow },
