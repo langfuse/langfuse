@@ -48,7 +48,6 @@ export function ConnectedBillingInvoiceTable() {
   })();
 
   const onPaginationChange = (next: PaginationBarState) => {
-    if (invoicesQuery.isFetching) return;
     if (next.pageSize !== pagination.pageSize || next.pageIndex === 0) {
       const firstPage = { pageIndex: 0, pageSize: next.pageSize };
       pageHistory.current = [firstPage];
@@ -61,6 +60,7 @@ export function ConnectedBillingInvoiceTable() {
       if (previousPage) setPagination(previousPage);
       return;
     }
+    if (invoicesQuery.isFetching) return;
     const cursors = {
       next: undefined,
       prev: undefined,

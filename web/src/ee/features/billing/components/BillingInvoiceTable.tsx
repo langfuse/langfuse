@@ -16,14 +16,19 @@ export type BillingInvoiceRow = Omit<
   "created"
 > & { created: Date };
 
+type BillingInvoiceTableProps = Pick<
+  TableProps<BillingInvoiceRow>,
+  "data" | "loadingRowCount"
+> & {
+  showBreakdownColumns: boolean;
+  pagination: PaginationBarProps;
+};
+
 export function BillingInvoiceTable({
   showBreakdownColumns,
   pagination,
   ...tableProps
-}: Pick<TableProps<BillingInvoiceRow>, "data" | "loadingRowCount"> & {
-  showBreakdownColumns: boolean;
-  pagination: PaginationBarProps;
-}) {
+}: BillingInvoiceTableProps) {
   const columns = useMemo<LangfuseColumnDef<BillingInvoiceRow>[]>(
     () => [
       createDateTableColumn<BillingInvoiceRow>({
