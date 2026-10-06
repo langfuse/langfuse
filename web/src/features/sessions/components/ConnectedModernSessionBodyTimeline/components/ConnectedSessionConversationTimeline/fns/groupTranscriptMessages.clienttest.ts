@@ -47,11 +47,13 @@ describe("groupTranscriptMessages", () => {
         ]),
         observationId: "generation",
         startTime: new Date(0),
+        timing: { startTime: new Date(0), endTime: new Date(1000) },
       },
       {
         ...message([secondResult, text("result context"), firstResult]),
         observationId: "tool",
         startTime: new Date(1),
+        timing: { startTime: new Date(1), endTime: new Date(101) },
       },
     ];
 
@@ -59,7 +61,7 @@ describe("groupTranscriptMessages", () => {
       { type: "message", message: { ...messages[0], parts: [text("before")] } },
       {
         type: "tool",
-        message: messages[0],
+        message: messages[1],
         call: firstCall,
         result: firstResult,
       },
@@ -69,7 +71,7 @@ describe("groupTranscriptMessages", () => {
       },
       {
         type: "tool",
-        message: messages[0],
+        message: messages[1],
         call: secondCall,
         result: secondResult,
       },

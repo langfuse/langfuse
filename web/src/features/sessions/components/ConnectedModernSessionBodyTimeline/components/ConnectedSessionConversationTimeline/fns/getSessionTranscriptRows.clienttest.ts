@@ -140,13 +140,13 @@ describe("getSessionTranscriptRows", () => {
     ]);
   });
 
-  it("gives messages and paired tools distinct IDs within one observation", () => {
+  it("gives messages and paired tools distinct IDs while preserving result provenance", () => {
     const rows = getSessionTranscriptRows(transcript);
     expect(
       rows.map(({ id, row }) => [id, row.type, row.message.observationId]),
     ).toEqual([
       ["0:0", "message", "generation"],
-      ["0:1", "tool", "generation"],
+      ["0:1", "tool", "tool"],
       ["0:2", "message", "generation"],
     ]);
     expect(rows[1]?.row).toMatchObject({

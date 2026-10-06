@@ -26,7 +26,7 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
   >();
   const results = new Map<
     string,
-    { part: ToolResultPart; position: number; count: number }
+    { part: ToolResultPart; message: T; position: number; count: number }
   >();
   let position = 0;
   for (const message of messages) {
@@ -42,6 +42,7 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
         const previous = results.get(part.toolCallId);
         results.set(part.toolCallId, {
           part,
+          message,
           position,
           count: (previous?.count ?? 0) + 1,
         });
@@ -52,7 +53,7 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
 
   const pairs = new Map<
     number,
-    { call: ToolCallPart; result: ToolResultPart }
+    { call: ToolCallPart; result: ToolResultPart; message: T }
   >();
   const consumedResults = new Set<number>();
   for (const [id, call] of calls) {
@@ -63,7 +64,11 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
       result.position <= call.position
     )
       continue;
-    pairs.set(call.position, { call: call.part, result: result.part });
+    pairs.set(call.position, {
+      call: call.part,
+      result: result.part,
+      message: result.message,
+    });
     consumedResults.add(result.position);
   }
 
@@ -82,7 +87,7 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
       if (pair) {
         changed = true;
         flush();
-        groups.push({ type: "tool", message, ...pair });
+        groups.push({ type: "tool", ...pair });
       } else if (consumedResults.has(position)) {
         changed = true;
       } else if (part.type === "tool-call") {
