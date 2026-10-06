@@ -10,6 +10,9 @@ pub mod native_codec;
 mod native_js;
 pub(crate) mod native_schema;
 mod telemetry;
+mod topics;
+
+pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
 
 use std::sync::Arc;
 use std::time::Duration;

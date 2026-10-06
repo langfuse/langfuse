@@ -125,23 +125,40 @@ export function collectTypeModelChanges(baseTypes, currentTypes, typesDiff) {
   for (const { name } of selectableModelArrays) {
     const before = baseArrays.get(name);
     const after = currentArrays.get(name);
-    const currentModelNames = new Set(after.models.map(normalize));
-    const removedModels = before.models.filter(
-      (modelName) => !currentModelNames.has(normalize(modelName)),
-    );
-    if (removedModels.length > 0) {
-      throw new Error(
-        `Automated selectable-model removal is not allowed: ${removedModels.join(", ")}`,
-      );
+    if (after.models.length === 0) {
+      throw new Error(`${name} must keep at least one selectable model`);
     }
-    if (before.models[0] !== after.models[0]) {
+    const currentModelNames = new Set(after.models.map(normalize));
+    const survivingBaseModels = before.models.filter((modelName) =>
+      currentModelNames.has(normalize(modelName)),
+    );
+    for (const modelName of before.models) {
+      if (!currentModelNames.has(normalize(modelName))) {
+        changes.push({
+          arrayName: name,
+          expectedChange: "removed",
+          modelName,
+          provider: after.provider,
+        });
+      }
+    }
+    // The first entry is the default model and the connection test model. It
+    // may only change by retiring it, and then the next surviving entry takes
+    // its place; choosing a different default is a human decision.
+    if (
+      before.models[0] !== after.models[0] &&
+      (currentModelNames.has(normalize(before.models[0])) ||
+        after.models[0] !== survivingBaseModels[0])
+    ) {
       throw new Error(`${name} must keep its first default model unchanged`);
     }
 
     let baseIndex = 0;
     const baseModelNames = new Set(before.models.map(normalize));
     for (const modelName of after.models) {
-      if (normalize(before.models[baseIndex] ?? "") === normalize(modelName)) {
+      if (
+        normalize(survivingBaseModels[baseIndex] ?? "") === normalize(modelName)
+      ) {
         baseIndex += 1;
       } else if (baseModelNames.has(normalize(modelName))) {
         throw new Error(`${name} may not reorder existing model entries`);
@@ -156,7 +173,7 @@ export function collectTypeModelChanges(baseTypes, currentTypes, typesDiff) {
     }
   }
 
-  const additionsFromDiff = [];
+  const diffChanges = { added: [], removed: [] };
   for (const line of typesDiff.split("\n")) {
     if (line.startsWith("+++") || line.startsWith("---")) continue;
     if (!line.startsWith("+") && !line.startsWith("-")) continue;
@@ -169,23 +186,20 @@ export function collectTypeModelChanges(baseTypes, currentTypes, typesDiff) {
     }
 
     const [, sign, modelName] = match;
-    if (sign === "-") {
-      throw new Error(
-        `Automated selectable-model removal is not allowed: ${modelName}`,
-      );
-    }
-    additionsFromDiff.push(normalize(modelName));
+    diffChanges[sign === "+" ? "added" : "removed"].push(normalize(modelName));
   }
 
-  const semanticAdditions = changes.map((change) =>
-    normalize(change.modelName),
-  );
-  additionsFromDiff.sort();
-  semanticAdditions.sort();
-  if (JSON.stringify(additionsFromDiff) !== JSON.stringify(semanticAdditions)) {
-    throw new Error(
-      "Selectable-model diff does not match additive changes in the approved model arrays",
-    );
+  for (const expectedChange of ["added", "removed"]) {
+    const fromDiff = diffChanges[expectedChange].sort();
+    const semantic = changes
+      .filter((change) => change.expectedChange === expectedChange)
+      .map((change) => normalize(change.modelName))
+      .sort();
+    if (JSON.stringify(fromDiff) !== JSON.stringify(semantic)) {
+      throw new Error(
+        "Selectable-model diff does not match model additions and removals in the approved model arrays",
+      );
+    }
   }
 
   return changes;
@@ -194,7 +208,14 @@ export function collectTypeModelChanges(baseTypes, currentTypes, typesDiff) {
 export function mergeModelChanges(pricingChanges, typeModelChanges) {
   const changesByModel = new Map();
   for (const change of typeModelChanges) {
-    changesByModel.set(normalize(change.modelName), change);
+    const key = normalize(change.modelName);
+    const existing = changesByModel.get(key);
+    if (existing && existing.expectedChange !== change.expectedChange) {
+      throw new Error(
+        `Selectable model cannot be both added and removed in one audit: ${change.modelName}`,
+      );
+    }
+    changesByModel.set(key, change);
   }
   for (const change of pricingChanges) {
     changesByModel.set(normalize(change.modelName), change);
@@ -227,6 +248,19 @@ export function validateOfficialSources(sources, model) {
 }
 
 export function validateChangedModelRow(row) {
+  if (row.change === "removed") {
+    if (row.officialSources.length === 0) {
+      throw new Error(
+        `Removed selectable models require official retirement evidence: ${row.model}`,
+      );
+    }
+    if (!row.comments.trim()) {
+      throw new Error(
+        `Removed selectable models require a comment explaining why: ${row.model}`,
+      );
+    }
+    return;
+  }
   if (row.priceConfirmed !== "yes") {
     throw new Error(
       `Changed model rows require confirmed prices: ${row.model}`,
@@ -379,7 +413,7 @@ export function reconcileAuditOutput(
       normalize(matchingRows[0].provider) !== normalize(change.provider)
     ) {
       throw new Error(
-        `${change.arrayName} additions require provider ${change.provider}: ${change.modelName}`,
+        `${change.arrayName} changes require provider ${change.provider}: ${change.modelName}`,
       );
     }
   }
@@ -402,7 +436,7 @@ export function reconcileAuditOutput(
   }
 
   for (const row of output.modelsChecked) {
-    if (!["added", "updated"].includes(row.change)) continue;
+    if (!["added", "updated", "removed"].includes(row.change)) continue;
     if (expectedChangesByModel.has(normalizeReportedModel(row.model))) continue;
 
     if (hasRepositoryDiff) {
@@ -457,6 +491,7 @@ export function renderAuditSummary(output) {
     none: "None",
     updated: "Updated",
     added: "Added",
+    removed: "Removed",
     unresolved: "Unresolved",
   };
   const modelRows = output.modelsChecked.map((row) => {

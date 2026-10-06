@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.52.0",
+  "version": "4.53.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -82,7 +82,6 @@
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
-    "@radix-ui/react-hover-card": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-progress": "^1.1.8",
@@ -196,8 +195,8 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/chroma-js": "^3.1.2",
     "@types/cors": "^2.8.19",
-    "@types/d3-selection": "^3.0.11",
     "@types/d3-scale": "^4.0.9",
+    "@types/d3-selection": "^3.0.11",
     "@types/d3-shape": "^3.2.0",
     "@types/d3-zoom": "^3.0.8",
     "@types/lodash": "^4.17.24",

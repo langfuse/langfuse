@@ -8,11 +8,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
 // Tool definition extracted from messages
@@ -126,12 +122,7 @@ function ToolGroupHoverContent({
   toolNameToDefinitionNumber?: Map<string, number>;
 }) {
   return (
-    <HoverCardContent
-      side="bottom"
-      align="start"
-      sideOffset={6}
-      className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-    >
+    <>
       <div className="flex flex-col gap-1 p-2">
         {tools.map((tool, index) => {
           const callCount = toolCallCounts.get(tool.name) ?? 0;
@@ -170,7 +161,7 @@ function ToolGroupHoverContent({
           );
         })}
       </div>
-    </HoverCardContent>
+    </>
   );
 }
 
@@ -247,13 +238,24 @@ function ToolGroupSummary({
   }
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>{summaryButton}</HoverCardTrigger>
-      <ToolGroupHoverContent
-        tools={tools}
-        toolCallCounts={toolCallCounts}
-        toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-      />
+    <HoverCard
+      openDelay={200}
+      closeDelay={100}
+      placement="bottom-start"
+      sideOffset={6}
+      content={
+        <div className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto">
+          <ToolGroupHoverContent
+            tools={tools}
+            toolCallCounts={toolCallCounts}
+            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+          />
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div {...getTriggerProps()}>{summaryButton}</div>
+      )}
     </HoverCard>
   );
 }
@@ -285,26 +287,30 @@ function ToolCallStatusBadge({
   }
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <div className="inline-flex">{badge}</div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        side="bottom"
-        align="end"
-        sideOffset={6}
-        className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-      >
-        <div className="border-border border-b px-3 py-2">
-          <div className="text-foreground text-xs font-bold">
-            Tool call arguments
+    <HoverCard
+      openDelay={200}
+      closeDelay={100}
+      placement="bottom-end"
+      sideOffset={6}
+      content={
+        <div className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto">
+          <div className="border-border border-b px-3 py-2">
+            <div className="text-foreground text-xs font-bold">
+              Tool call arguments
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
+            </div>
           </div>
-          <div className="text-muted-foreground text-xs">
-            {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
-          </div>
+          <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
         </div>
-        <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
-      </HoverCardContent>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div className="inline-flex" tabIndex={0} {...getTriggerProps()}>
+          {badge}
+        </div>
+      )}
     </HoverCard>
   );
 }

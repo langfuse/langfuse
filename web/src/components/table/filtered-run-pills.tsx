@@ -1,10 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { api } from "@/src/utils/api";
 import { ListFilter } from "lucide-react";
 import React, { useMemo } from "react";
@@ -88,30 +84,36 @@ export function FilteredRunPills({
     <div className={`flex flex-wrap items-center gap-1 ${className ?? ""}`}>
       {allFilters.map((item) => {
         return (
-          <HoverCard key={item.key}>
-            <HoverCardTrigger asChild>
+          <HoverCard
+            key={item.key}
+            content={
+              <div className="w-64 p-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    {item.runName}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="bg-muted rounded-md px-2 py-1 text-sm">
+                      {formatFilterForPill(item.filter)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
               <Badge
                 variant="secondary"
                 className="hover:bg-secondary/80 cursor-pointer text-xs transition-colors"
+                tabIndex={0}
+                {...getTriggerProps()}
               >
                 <ListFilter className="icon-sm mr-1" />
                 <div className="font-normal">
                   {formatFilterForPill(item.filter)}
                 </div>
               </Badge>
-            </HoverCardTrigger>
-            <HoverCardContent className="w-64">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  {item.runName}
-                </div>
-                <div className="space-y-1">
-                  <div className="bg-muted rounded-md px-2 py-1 text-sm">
-                    {formatFilterForPill(item.filter)}
-                  </div>
-                </div>
-              </div>
-            </HoverCardContent>
+            )}
           </HoverCard>
         );
       })}

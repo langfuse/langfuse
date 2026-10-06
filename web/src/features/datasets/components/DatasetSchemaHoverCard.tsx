@@ -1,9 +1,5 @@
 import { ArrowUpRight, LockIcon, Copy, Check } from "lucide-react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import type { Prisma } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
@@ -53,74 +49,78 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
   };
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>
+    <HoverCard
+      openDelay={200}
+      closeDelay={100}
+      collisionPadding={20}
+      content={
+        <div className="max-h-[80vh] w-[400px] overflow-auto p-3">
+          <p className="text-sm font-bold">{title}</p>
+          <p className="text-muted-foreground pt-2 text-sm">
+            Learn more about{" "}
+            <a
+              href="https://json-schema.org/learn/miscellaneous-examples"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground inline-flex items-center underline"
+            >
+              JSON Schema
+              <ArrowUpRight className="icon-sm ml-0.5" />
+            </a>
+          </p>
+          <div className="mt-2">
+            <CodeMirrorEditor
+              mode="json"
+              value={schemaString}
+              onChange={() => {}} // Read-only
+              className="max-h-[250px] overflow-y-auto"
+              editable={false}
+            />
+          </div>
+
+          {exampleObject && (
+            <>
+              <Separator className="my-4" />
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold">Example Object</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyExample}
+                  className="h-7 px-2"
+                >
+                  {copied ? (
+                    <Check className="icon-base text-icon-foreground" />
+                  ) : (
+                    <Copy className="icon-base text-icon-foreground" />
+                  )}
+                </Button>
+              </div>
+              <div className="mt-2">
+                <CodeMirrorEditor
+                  mode="json"
+                  value={exampleObject}
+                  className="max-h-[250px] overflow-y-auto"
+                  editable={false}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
         <Button
           variant="ghost"
           className="text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1.5 rounded p-1 text-xs transition-colors"
           aria-label={`View ${title}`}
           size="sm"
+          {...getTriggerProps()}
         >
           <LockIcon className="icon-base text-icon-foreground" />
           {showLabel && <span>Schema enforced</span>}
         </Button>
-      </HoverCardTrigger>
-      <HoverCardContent
-        className="max-h-[80vh] w-[400px] overflow-auto"
-        collisionPadding={20}
-      >
-        <p className="text-sm font-bold">{title}</p>
-        <p className="text-muted-foreground pt-2 text-sm">
-          Learn more about{" "}
-          <a
-            href="https://json-schema.org/learn/miscellaneous-examples"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground inline-flex items-center underline"
-          >
-            JSON Schema
-            <ArrowUpRight className="icon-sm ml-0.5" />
-          </a>
-        </p>
-        <div className="mt-2">
-          <CodeMirrorEditor
-            mode="json"
-            value={schemaString}
-            onChange={() => {}} // Read-only
-            className="max-h-[250px] overflow-y-auto"
-            editable={false}
-          />
-        </div>
-
-        {exampleObject && (
-          <>
-            <Separator className="my-4" />
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold">Example Object</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopyExample}
-                className="h-7 px-2"
-              >
-                {copied ? (
-                  <Check className="icon-base text-icon-foreground" />
-                ) : (
-                  <Copy className="icon-base text-icon-foreground" />
-                )}
-              </Button>
-            </div>
-            <div className="mt-2">
-              <CodeMirrorEditor
-                mode="json"
-                value={exampleObject}
-                className="max-h-[250px] overflow-y-auto"
-                editable={false}
-              />
-            </div>
-          </>
-        )}
-      </HoverCardContent>
+      )}
     </HoverCard>
   );
 };
