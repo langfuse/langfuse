@@ -115,9 +115,6 @@ const symbolSizeClass = {
   xs: "text-xs",
 } as const;
 
-/** Set by TooltipContent so shortcuts inside a tooltip render as keycaps. */
-export const KeyboardShortcutInTooltipContext = React.createContext(false);
-
 export type KeyboardShortcutProps = {
   ref?: React.Ref<HTMLElement>;
   title?: string;
@@ -128,11 +125,9 @@ export function KeyboardShortcut({
   ref,
   keys,
   title,
-  variant: variantProp,
+  variant = "default",
   size,
 }: KeyboardShortcutProps) {
-  const inTooltip = React.useContext(KeyboardShortcutInTooltipContext);
-  const variant = variantProp ?? (inTooltip ? "keycap" : "default");
   const isMac = useIsMac();
   const letterClass = variant === "keycap" ? undefined : "-translate-y-0.5";
 

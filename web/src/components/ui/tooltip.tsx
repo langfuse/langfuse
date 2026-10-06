@@ -6,7 +6,6 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { KeyboardShortcutInTooltipContext } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 
 const TOOLTIP_DELAY_MS = 150;
 
@@ -40,11 +39,7 @@ const TooltipContent = React.forwardRef<
           className,
         )}
         {...props}
-      >
-        <KeyboardShortcutInTooltipContext.Provider value={true}>
-          {props.children}
-        </KeyboardShortcutInTooltipContext.Provider>
-      </TooltipPrimitive.Content>
+      />
     </TooltipPrimitive.Portal>
   );
 });

@@ -21,9 +21,9 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
 type CustomTooltipProps = {
   children: (controls: {
-    getTriggerProps: () => ReturnType<
-      ReturnType<typeof useInteractions>["getReferenceProps"]
-    >;
+    getTriggerProps: (
+      props?: React.HTMLProps<HTMLElement>,
+    ) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
   }) => React.ReactNode;
   content: React.ReactElement;
   delay?: number;
@@ -31,10 +31,22 @@ type CustomTooltipProps = {
   placement?: Placement;
 };
 
+function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
+  return (value: T | null) => {
+    refs.forEach((ref) => {
+      if (typeof ref === "function") {
+        ref(value);
+      } else if (ref) {
+        ref.current = value;
+      }
+    });
+  };
+}
+
 function CustomTooltip({
   children,
   content,
-  delay = 700,
+  delay = 150,
   hoverableContent = true,
   placement = "top",
 }: CustomTooltipProps) {
@@ -66,10 +78,13 @@ function CustomTooltip({
   return (
     <>
       {children({
-        getTriggerProps: () =>
-          getReferenceProps({
-            ref: refs.setReference,
-          }),
+        getTriggerProps: (props = {}) => {
+          const { ref, ...triggerProps } = props;
+          return getReferenceProps({
+            ...triggerProps,
+            ref: mergeRefs(ref, refs.setReference),
+          });
+        },
       })}
       {isOpen ? (
         <FloatingPortal root={layerContainer}>
