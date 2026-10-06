@@ -34,6 +34,7 @@ type UpsertBlobStorageIntegrationInput = {
   exportSource?: AnalyticsIntegrationExportSource;
   exportFieldGroups?: ObservationFieldGroupFull[];
   compressed?: boolean;
+  mediaStorageEnabled?: boolean;
 };
 
 function resolveExportStartDate(params: {
@@ -128,6 +129,7 @@ export async function upsertBlobStorageIntegration(params: {
     exportSource: data.exportSource,
     exportFieldGroups: data.exportFieldGroups,
     compressed: data.compressed ?? true,
+    mediaStorageEnabled: data.mediaStorageEnabled,
   };
 
   return prisma.$transaction(async (tx) => {
@@ -184,6 +186,7 @@ export async function upsertBlobStorageIntegration(params: {
           data: {
             ...writeData,
             ...(createId ? { id: createId } : {}),
+            mediaStorageEnabled: data.mediaStorageEnabled ?? false,
             exportSource: params.createExportSource,
             // Parquet is the default export format; apply it when the caller omits
             // fileType on CREATE. This app-level fallback (not the Prisma column
