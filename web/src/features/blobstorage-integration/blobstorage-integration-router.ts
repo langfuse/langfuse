@@ -15,6 +15,7 @@ import {
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server";
 import { TRPCError } from "@trpc/server";
+import { type Session } from "next-auth";
 import { env } from "@/src/env.mjs";
 import {
   logger,
@@ -66,19 +67,35 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return error.message;
 };
 
+const assertBlobStorageIntegrationAccess = ({
+  session,
+  projectId,
+}: {
+  session: Session;
+  projectId: string;
+}) => {
+  if (!session.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+  throwIfNoProjectAccess({
+    session,
+    projectId,
+    scope: "integrations:CRUD",
+  });
+  throwIfNoEntitlement({
+    entitlement: "scheduled-blob-exports",
+    projectId,
+    sessionUser: session.user,
+  });
+};
+
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
+      assertBlobStorageIntegrationAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "integrations:CRUD",
-      });
-      throwIfNoEntitlement({
-        entitlement: "scheduled-blob-exports",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
       });
       try {
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
@@ -120,15 +137,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        throwIfNoEntitlement({
-          entitlement: "scheduled-blob-exports",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
         });
 
         const existingIntegration =
@@ -200,15 +211,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        throwIfNoEntitlement({
-          entitlement: "scheduled-blob-exports",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
         });
         await auditLog({
           session: ctx.session,
@@ -238,15 +243,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        throwIfNoEntitlement({
-          entitlement: "scheduled-blob-exports",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
         });
 
         // Check if integration exists and is enabled
@@ -351,15 +350,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        throwIfNoEntitlement({
-          entitlement: "scheduled-blob-exports",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
         });
 
         // Get persisted configuration
