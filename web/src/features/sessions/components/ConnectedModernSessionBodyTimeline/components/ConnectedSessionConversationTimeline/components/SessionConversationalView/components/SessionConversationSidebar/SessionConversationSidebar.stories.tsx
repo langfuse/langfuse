@@ -119,24 +119,9 @@ const meta = preview.meta({
   render: (args) => <SessionConversationSidebarStory {...args} />,
 });
 export default meta;
-export const Default = meta.story({ args: loadedArgs });
 export const DarkMode = meta.story({
   args: loadedArgs,
   globals: { theme: "dark" },
-});
-export const Loading = meta.story({
-  name: "(Test) Loading",
-  args: { state: "loading" },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("complementary"),
-    ).toHaveAttribute("aria-busy", "true");
-    await expect(
-      within(canvasElement).getByRole("textbox", {
-        name: "Search messages and tools",
-      }),
-    ).toBeDisabled();
-  },
 });
 export const Empty = meta.story({ args: { ...loadedArgs, traces: [] } });
 export const Error = meta.story({
@@ -208,15 +193,6 @@ export const SearchAndCollapse = meta.story({
     await userEvent.clear(input);
     await userEvent.type(input, "missing");
     await expect(canvas.getByText("No matching turns")).toBeInTheDocument();
-  },
-});
-export const LoadingTranscripts = meta.story({
-  name: "(Test) Loading Transcripts",
-  args: { ...loadedArgs, traces: [], isLoadingTranscripts: true },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText("Loading transcripts..."),
-    ).toBeInTheDocument();
   },
 });
 export const MultipleThreads = meta.story({

@@ -11,18 +11,6 @@ const meta = preview.meta({
 
 export default meta;
 
-export const Assistant = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "text",
-        text: "The normalized parser preserves **markdown**, structured data, and provider-independent message roles.",
-      },
-    ],
-  },
-});
-
 export const NamedUser = meta.story({
   args: {
     role: "user",
@@ -86,22 +74,6 @@ export const MixedTextAndData = meta.story({
       canvas.getByText("The structured result follows."),
     ).toBeVisible();
     await expect(canvasElement).toHaveTextContent("confidence");
-  },
-});
-
-export const Reasoning = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "reasoning",
-        content: {
-          kind: "text",
-          text: "I should compare the observation payloads before answering.",
-        },
-      },
-      { type: "text", text: "Here is the result." },
-    ],
   },
 });
 

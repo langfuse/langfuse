@@ -273,12 +273,40 @@ function SessionConversationalViewStory({
 
 const meta = preview.meta({ component: SessionConversationalViewStory });
 export default meta;
-export const Loading = meta.story({ args: { isLoading: true } });
+export const Loading = meta.story({
+  name: "(Test) Loading",
+  args: { isLoading: true },
+  play: async ({ canvasElement }) => {
+    const sidebar = within(canvasElement).getByRole("complementary");
+    await expect(sidebar).toHaveAttribute("aria-busy", "true");
+    await expect(
+      within(sidebar).getByRole("textbox", {
+        name: "Search messages and tools",
+      }),
+    ).toBeDisabled();
+  },
+});
 export const SupportAgentWorkflow = meta.story({
   name: "(Test) Support Agent Workflow",
   args: { workflowTraces: supportAgentWorkflow },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    for (const name of [
+      "System message",
+      "User message",
+      "Assistant message",
+    ]) {
+      await expect(
+        sidebar.getAllByRole("button", { name }).length,
+      ).toBeGreaterThan(0);
+    }
+    await expect(
+      sidebar.getByRole("button", { name: "tool: Get order" }),
+    ).toBeInTheDocument();
+    await expect(
+      sidebar.getByRole("textbox", { name: "Search messages and tools" }),
+    ).toBeEnabled();
     await expect(
       within(canvas.getByLabelText("Session conversation timeline")).getByText(
         /Hi, I just noticed order #LF-20481/,

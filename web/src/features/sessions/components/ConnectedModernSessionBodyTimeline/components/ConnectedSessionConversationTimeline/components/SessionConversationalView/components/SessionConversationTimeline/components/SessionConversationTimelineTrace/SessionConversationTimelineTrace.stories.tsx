@@ -221,9 +221,6 @@ export const Cutoff = meta.story({
     await userEvent.unhover(warning);
   },
 });
-export const Loading = meta.story({
-  args: { ...commonArgs, state: { type: "loading" } },
-});
 export const Error = meta.story({
   args: { ...commonArgs, state: { type: "error" } },
 });
@@ -534,59 +531,6 @@ export const KeepDifferentToolData = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Expand get_customer_profile" }),
     ).toBeInTheDocument();
-  },
-});
-
-export const CodingAgentSubagentTurn = meta.story({
-  args: {
-    ...commonArgs,
-    state: {
-      ...weatherState,
-      result: {
-        ...weatherState.result,
-        transcript: {
-          threads: [
-            {
-              conversationHistory: [],
-              currentTurn: {
-                nestingLevel: 0,
-                observations: [],
-                messages: [
-                  {
-                    ...provenance,
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      { type: "text", text: "Delegating the code review." },
-                    ],
-                  },
-                ],
-              },
-            },
-            {
-              conversationHistory: [],
-              currentTurn: {
-                nestingLevel: 1,
-                observations: [],
-                messages: [
-                  {
-                    ...provenance,
-                    role: "assistant",
-                    source: "output",
-                    parts: [
-                      {
-                        type: "text",
-                        text: "Add a test for an empty search query.",
-                      },
-                    ],
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      },
-    },
   },
 });
 

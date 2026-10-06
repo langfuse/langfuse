@@ -26,10 +26,6 @@ const meta = preview.meta({
 
 export default meta;
 
-export const SystemPrompt = meta.story({
-  args: { parts: systemPromptParts },
-});
-
 export const ExpandSystemPrompt = meta.story({
   name: "(Test) Expands System Prompt",
   args: { parts: systemPromptParts },
