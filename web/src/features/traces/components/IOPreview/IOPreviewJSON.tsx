@@ -10,11 +10,7 @@ import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
 import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import {
   InlineCommentSelectionProvider,
   useInlineCommentSelectionOptional,
@@ -763,24 +759,32 @@ function IOPreviewJSONInner({
           </span>
         ))}
         {needsVirtualization && (
-          <HoverCard>
-            <HoverCardTrigger asChild>
-              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
+          <HoverCard
+            placement="bottom-end"
+            content={
+              <div className="w-80 p-3">
+                <div className="space-y-2">
+                  <p className="text-base font-bold">Virtualized View</p>
+                  <p className="text-muted-foreground text-xs">
+                    This view is using virtualization due to a large number of
+                    keys ({rowCounts.input.toLocaleString()} input,{" "}
+                    {rowCounts.output.toLocaleString()} output,{" "}
+                    {rowCounts.metadata.toLocaleString()} metadata). Only
+                    visible rows are rendered for optimal performance.
+                  </p>
+                </div>
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <span
+                className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold"
+                tabIndex={0}
+                {...getTriggerProps()}
+              >
                 Virtualized
               </span>
-            </HoverCardTrigger>
-            <HoverCardContent className="w-80" side="bottom" align="end">
-              <div className="space-y-2">
-                <p className="text-base font-bold">Virtualized View</p>
-                <p className="text-muted-foreground text-xs">
-                  This view is using virtualization due to a large number of
-                  keys ({rowCounts.input.toLocaleString()} input,{" "}
-                  {rowCounts.output.toLocaleString()} output,{" "}
-                  {rowCounts.metadata.toLocaleString()} metadata). Only visible
-                  rows are rendered for optimal performance.
-                </p>
-              </div>
-            </HoverCardContent>
+            )}
           </HoverCard>
         )}
       </div>

@@ -1,10 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-  HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { SelectItem } from "@/src/components/ui/select";
 import {
   projectNoneRoleComment,
@@ -30,17 +25,13 @@ export const RoleSelectItem = ({
   const projectScopes = reduceScopesToListItems(projectRoleAccessRights, role);
 
   return (
-    <HoverCard openDelay={0} closeDelay={0}>
-      <HoverCardTrigger asChild>
-        <SelectItem value={role} className="max-w-56">
-          <span>
-            {formatRole(role)}
-            {isProjectNoneRole ? " (keep default role)" : ""}
-          </span>
-        </SelectItem>
-      </HoverCardTrigger>
-      <HoverCardPortal>
-        <HoverCardContent hideWhenDetached={true} align="center" side="right">
+    <HoverCard
+      openDelay={0}
+      closeDelay={0}
+      hideWhenDetached
+      placement="right"
+      content={
+        <div className="w-64 p-3">
           {isProjectNoneRole ? (
             <div className="text-xs">{projectNoneRoleComment}</div>
           ) : isOrgNoneRole ? (
@@ -59,8 +50,17 @@ export const RoleSelectItem = ({
               </p>
             </>
           )}
-        </HoverCardContent>
-      </HoverCardPortal>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <SelectItem value={role} className="max-w-56" {...getTriggerProps()}>
+          <span>
+            {formatRole(role)}
+            {isProjectNoneRole ? " (keep default role)" : ""}
+          </span>
+        </SelectItem>
+      )}
     </HoverCard>
   );
 };
