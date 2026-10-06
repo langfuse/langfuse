@@ -314,7 +314,7 @@ export function IOPreview({
 
       {showEmptyState && (
         <div className="py-2">
-          <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+          <div className="relative flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
             <Button
               variant="ghost"
               size="sm"
@@ -337,11 +337,11 @@ export function IOPreview({
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
                 <BookOpen className="text-muted-foreground h-4 w-4" />
               </div>
-              <h3 className="text-sm font-bold">
+              <h3 className="text-base font-bold">
                 Looks like this trace didn&apos;t receive an input or output.
               </h3>
             </div>
-            <p className="text-muted-foreground max-w-sm text-sm">
+            <p className="text-muted-foreground max-w-sm text-base">
               Add it in your code to make debugging a lot easier.
             </p>
             <ActionButton
