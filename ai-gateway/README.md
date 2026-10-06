@@ -4,11 +4,12 @@ A standalone Rust gateway for native provider APIs under two namespaces:
 
 | Namespace | Endpoints | Generation ingested |
 | --- | --- | --- |
-| `/openai/v1` | `POST /responses`, `POST /responses/compact`, `GET /models` | Responses and compact |
+| `/openai/v1` | `POST /responses`, `POST /responses/compact`, `POST /chat/completions`, `GET /models` | Responses, compact and Chat Completions |
 | `/anthropic/v1` | `POST /messages`, `POST /messages/count_tokens`, `GET /models` | Messages |
 
 Web resolves the gateway key to a trusted provider connection for the namespace's API
-format; Rust relays native JSON or SSE without rewriting provider bytes. Models listings
+format; Rust relays native JSON or SSE without rewriting provider bytes, except that a
+streamed Chat Completions request is asked for its usage (see below). Models listings
 are GET proxies of the provider catalog and token counting returns the native count;
 neither is ingested as a generation. A bounded capture layer captures request/response
 facts and logs capture completeness at debug level. Each finalized generation is
@@ -155,7 +156,8 @@ metadata; it is not forwarded to Web or the provider. The provider's own request
 generation metadata, and its response header is still relayed unchanged.
 
 When the request will produce a Langfuse generation (`/openai/v1/responses`,
-`/openai/v1/responses/compact` and `/anthropic/v1/messages` with inference telemetry
+`/openai/v1/responses/compact`, `/openai/v1/chat/completions` and
+`/anthropic/v1/messages` with inference telemetry
 configured), the response also carries `langfuse-trace-id` and
 `langfuse-observation-id`: the uploaded generation's trace ID, after `traceparent`
 and agent turn grouping, and its OpenTelemetry span ID, which Langfuse stores as the
@@ -234,6 +236,11 @@ curl http://localhost:8080/openai/v1/responses/compact \
   -H 'Content-Type: application/json' \
   -d '{"model":"gpt-4.1","input":[]}'
 
+curl http://localhost:8080/openai/v1/chat/completions \
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}]}'
+
 curl http://localhost:8080/openai/v1/models \
   -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"
 ```
@@ -249,7 +256,27 @@ client = OpenAI(
 )
 response = client.responses.create(model="gpt-4.1-mini", input="Say hello")
 print(response.output_text)
+completion = client.chat.completions.create(
+    model="gpt-4.1-mini", messages=[{"role": "user", "content": "Say hello"}]
+)
+print(completion.choices[0].message.content)
 ```
+
+### Chat Completions streaming usage
+
+OpenAI reports usage for a streamed Chat Completions request only when the request
+sets `stream_options.include_usage`. When a request has `"stream":true` and does not
+set it to `true`, the gateway adds `"include_usage":true` to the upstream copy so the
+generation still gets token usage and cost; other `stream_options` fields and every
+other top-level member keep their original bytes and order. The recorded input and
+model parameters are the caller's own request. The response stream is relayed byte
+for byte, so a client that did not request usage still receives OpenAI's final usage
+chunk: an extra event with an empty `choices` array and a `usage` object, just before
+`data: [DONE]`. The other chunks of such a stream also carry `"usage":null`. Clients
+must tolerate a chunk without choices, as they already must when they request usage
+themselves. Requests that already ask for usage, content-encoded bodies, ambiguous
+bodies (duplicate `stream` or `stream_options` members) and non-streamed requests are
+forwarded unchanged.
 
 ### Anthropic Messages and Claude Code
 
@@ -389,8 +416,9 @@ attribution. Full mode includes the captured input/output; usage mode omits cont
 Completion-start time is emitted only for upstream `text/event-stream` responses,
 on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
 and streams without a captured content delta have no completion-start time or TTFT.
-OpenAI Responses usage is projected into the receiver's strict native schema, keeping
-its nested detail counters. Anthropic usage is uploaded exactly as the provider reported
+OpenAI Responses and Chat Completions usage are projected into the receiver's strict
+native schemas (`input_tokens`/`output_tokens` or `prompt_tokens`/`completion_tokens`,
+plus `total_tokens`), keeping their nested detail counters. Anthropic usage is uploaded exactly as the provider reported
 it; ingestion decides what to price. Usage is not duplicated in metadata. Missing usage
 is not reported as zero.
 
@@ -402,7 +430,7 @@ each field describes:
 | `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
 | `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
 | `ingestion.mode`                                                                            | Effective capture mode                                                      |
-| `request.api_format`                                                                        | Native API contract: `openai.responses` or `anthropic.messages`             |
+| `request.api_format`                                                                        | Native API contract: `openai.responses`, `openai.chat-completions` or `anthropic.messages` |
 | `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
 | `response.id`                                                                               | Native response object's ID                                                 |
 | `response.status_code`                                                                      | HTTP status returned to the caller                                          |
@@ -599,7 +627,8 @@ stored under `langfuse.gateway.request.*` only in full mode.
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
 subtract cached tokens, or synthesize totals. Missing usage stays null.
-`api_format` identifies the payload format (`openai.responses` or `anthropic.messages`).
+`api_format` identifies the payload format (`openai.responses`,
+`openai.chat-completions` or `anthropic.messages`); it is also the generation's name.
 
 For Anthropic Messages, `message_start` supplies the response ID, actual model and the
 usage baseline; `message_delta` supplies `stop_reason` and cumulative usage counters that
@@ -628,6 +657,28 @@ stopped blocks are recorded; an unfinished block, tool input that is not valid J
 unknown delta type or a block past the budget is left out and makes the output
 partial. Usage mode records neither input nor output.
 
+For OpenAI Chat Completions, scalar model parameters (`temperature`, `top_p`, `n`,
+`max_tokens`, `max_completion_tokens`, `presence_penalty`, `frequency_penalty`, `seed`,
+`logprobs`, `top_logprobs`, `service_tier`, `parallel_tool_calls`, `reasoning_effort`,
+`verbosity`, `stream`, `store`, `prompt_cache_retention`) are recorded in both modes.
+In full mode `stop`, `response_format`, `tool_choice`, `function_call`, `stream_options`,
+`logit_bias`, `modalities`, `audio`, `prediction` and `web_search_options` also become
+model parameters, `metadata`, `prompt_cache_key`, `safety_identifier` and `user` become
+`langfuse.gateway.request.*`, and `messages`, `tools`, legacy `functions` and unknown
+fields remain the input. The output is the native `{"choices":[...]}` list: JSON
+responses contribute their choices at EOF; streams rebuild each choice from its
+`delta` chunks. Text fragments (`content`, `refusal`, tool and function `arguments`,
+audio data) are appended, `tool_calls` are merged by their `index`, `role`, `id` and
+`type` are kept once, and each choice records its `finish_reason`. Each chunk supplies
+the response ID, actual model and service tier; the usage chunk supplies usage.
+`data: [DONE]` is the terminal event, and every choice needs a `finish_reason` for
+full-mode output to be complete. A choice whose fragments exceed the retained-output
+budget is left out and makes the output partial. `completion_start_ms` is set by the
+first delta with non-empty text, refusal, tool or function arguments, or audio; role
+headers and tool names do not count. A `finish_reason` of `length` or
+`content_filter` sets a `WARNING` level, and an `error` object in the body or a chunk
+marks the generation failed, with its `code` and `message` retained only in full mode.
+
 For OpenAI Responses SSE, only `response.output_item.done` adds output. Terminal Responses events
 provide model, service tier, status and usage; their repeated output is not copied.
 Deltas are never stitched or retained. A disconnect midway through an item loses
@@ -652,7 +703,8 @@ content does not make it false. Request inspection failure does not invalidate a
 fully captured response, and downstream cancellation does not erase completed capture.
 
 The implementation separates shared `ExecutionCapture` lifecycle/timing, the
-`OpenAiResponsesCapture` and `AnthropicMessagesCapture` adapters, the shared
+`OpenAiResponsesCapture`, `OpenAiChatCompletionsCapture` and `AnthropicMessagesCapture`
+adapters, the shared
 `ResponseBody` content-type sniffing and bounded `SseDecoder`. A private
 `ProtocolCapture` enum dispatches to the adapter selected by API format. Finalization
 hands an owned `InferenceFacts` record to telemetry for a safe debug summary and
@@ -746,7 +798,8 @@ async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
 Each call sends `POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
 `{"apiFormat":"<format>"}`, where the format is the one the public route serves
-(`openai.responses` for every `/openai/v1` route). The client neither receives nor
+(`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.responses` for
+the other `/openai/v1` routes). The client neither receives nor
 parses an inference request body. Reuse the resolver across requests: its connection
 pool is shared, while credentials and execution contexts stay request-local.
 
@@ -766,7 +819,7 @@ invalid response, even if Web selected it.
 
 | Provider | API format | Official origin | Credential |
 | --- | --- | --- | --- |
-| `openai` | `openai.responses` | `https://api.openai.com/v1` | `{"type":"Bearer","token":…}` → `Authorization: Bearer` |
+| `openai` | `openai.responses`, `openai.chat-completions` | `https://api.openai.com/v1` | `{"type":"Bearer","token":…}` → `Authorization: Bearer` |
 | `anthropic` | `anthropic.messages` | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
 
 `ProviderConnection::credential()` exposes the secret in its header position

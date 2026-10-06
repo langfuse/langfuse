@@ -428,6 +428,54 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
 }
 
 #[tokio::test]
+async fn chat_completions_resolve_only_an_openai_connection_for_that_format() {
+    let mut chat = success("project-1", "provider-token");
+    chat["connection"]["api_format"] = json!("openai.chat-completions");
+    let body = chat.clone();
+    let web = FakeWeb::start(move |request| {
+        let body = body.clone();
+        async move {
+            assert_eq!(
+                to_bytes(request.into_body(), 1024).await.unwrap(),
+                r#"{"apiFormat":"openai.chat-completions"}"#
+            );
+            response(body)
+        }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiChatCompletions,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.connection().provider(), Provider::OpenAi);
+    assert_eq!(
+        context.connection().api_format(),
+        ApiFormat::OpenAiChatCompletions
+    );
+    assert!(matches!(
+        context.connection().credential(),
+        ProviderCredential::Bearer("provider-token")
+    ));
+
+    // A Responses connection does not serve a Chat Completions request, or vice versa.
+    assert_invalid_context_for(
+        success("project-1", "provider-token"),
+        ApiFormat::OpenAiChatCompletions,
+    )
+    .await;
+    assert_invalid_context_for(chat.clone(), ApiFormat::OpenAiResponses).await;
+    let mut anthropic = anthropic_success("provider-key");
+    anthropic["connection"]["api_format"] = json!("openai.chat-completions");
+    assert_invalid_context_for(anthropic, ApiFormat::OpenAiChatCompletions).await;
+}
+
+#[tokio::test]
 async fn rejects_connections_whose_provider_format_origin_and_credential_disagree() {
     // Web returned an Anthropic connection for an OpenAI Responses request, or the
     // OpenAI connection with Anthropic's credential scheme.

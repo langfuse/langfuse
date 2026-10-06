@@ -348,6 +348,10 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      // Return the server-resolved window so widgets share it without adding
+      // a render-time timestamp to the fallback query input.
+      const to = new Date();
+      const from = addDays(to, -MOST_RECENT_LOOKBACK_DAYS);
       const filter: FilterState = [
         // The selected window is the one that came back empty; every other
         // filter the user applied still holds.
@@ -356,7 +360,7 @@ export const experimentsRouter = createTRPCRouter({
           column: "startTime",
           type: "datetime",
           operator: ">=",
-          value: addDays(new Date(), -MOST_RECENT_LOOKBACK_DAYS),
+          value: from,
         },
       ];
 
@@ -368,7 +372,7 @@ export const experimentsRouter = createTRPCRouter({
         limit: input.limit,
       });
 
-      return { data: experiments };
+      return { data: experiments, dateRange: { from, to } };
     }),
 
   byId: protectedProjectProcedure

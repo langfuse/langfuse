@@ -103,6 +103,11 @@ pub(crate) fn resolution_response_for(
             "base_url": "https://api.openai.com/v1",
             "auth": {"type": "Bearer", "token": provider_secret}
         }),
+        ApiFormat::OpenAiChatCompletions => json!({
+            "id": "connection-1", "provider": "openai", "api_format": "openai.chat-completions",
+            "base_url": "https://api.openai.com/v1",
+            "auth": {"type": "Bearer", "token": provider_secret}
+        }),
         ApiFormat::AnthropicMessages => json!({
             "id": "connection-1", "provider": "anthropic", "api_format": "anthropic.messages",
             "base_url": "https://api.anthropic.com/v1",

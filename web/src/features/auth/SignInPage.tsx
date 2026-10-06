@@ -551,6 +551,14 @@ export default function SignInPage({
       "langfuse_last_used_auth_method",
       null,
     );
+  // The enterprise SSO step redirects before a password field is ever shown,
+  // so the browser password manager has no credential to offer and the address
+  // has to be retyped on every sign-in. Holds the last address that resolved to
+  // an enterprise SSO provider; empty for every other outcome.
+  const [lastUsedSsoEmail, setLastUsedSsoEmail] = useLocalStorage<string>(
+    "langfuse_last_used_sso_email",
+    "",
+  );
 
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -578,6 +586,31 @@ export default function SignInPage({
       password: "",
     },
   });
+
+  // Restoring the remembered address is a browser-storage sync, not a render
+  // derivation: the server render cannot see localStorage, and React skips
+  // assigning `input.value` while hydrating, so a value folded into
+  // `defaultValues` would leave the field looking empty. Only an untouched,
+  // empty field is filled, which keeps `?email=` and anything already typed.
+  useEffect(() => {
+    if (!lastUsedSsoEmail) return;
+    // An instance can drop its last SSO config after an address was
+    // remembered. The resulting one-step form never runs the lookup that
+    // would clear it, so discard it here instead of prefilling a sign-in
+    // method the instance no longer offers.
+    if (!authProviders.sso) {
+      setLastUsedSsoEmail("");
+      return;
+    }
+    if (credentialsForm.getValues("email")) return;
+    credentialsForm.setValue("email", lastUsedSsoEmail);
+  }, [
+    authProviders.sso,
+    credentialsForm,
+    lastUsedSsoEmail,
+    setLastUsedSsoEmail,
+  ]);
+
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,
   ) {
@@ -739,6 +772,7 @@ export default function SignInPage({
 
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
+        setLastUsedSsoEmail(email.data);
 
         signIn(
           providerId,
@@ -747,7 +781,12 @@ export default function SignInPage({
         return; // stop further execution – page redirect expected
       }
 
-      // No SSO – fall back to password step
+      // No SSO – fall back to password step. 404 is the only answer that means
+      // "this domain has no SSO provider"; any other failure status says
+      // nothing about the domain, so it must not discard a remembered address.
+      if (res.status === 404) {
+        setLastUsedSsoEmail("");
+      }
       setShowPasswordStep(true);
 
       // Auto-focus password input when password step becomes visible

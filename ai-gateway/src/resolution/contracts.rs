@@ -10,6 +10,8 @@ use std::{collections::BTreeMap, fmt};
 pub enum ApiFormat {
     #[serde(rename = "openai.responses")]
     OpenAiResponses,
+    #[serde(rename = "openai.chat-completions")]
+    OpenAiChatCompletions,
     #[serde(rename = "anthropic.messages")]
     AnthropicMessages,
 }
@@ -32,8 +34,10 @@ impl Provider {
     fn supports(self, api_format: ApiFormat) -> bool {
         matches!(
             (self, api_format),
-            (Self::OpenAi, ApiFormat::OpenAiResponses)
-                | (Self::Anthropic, ApiFormat::AnthropicMessages)
+            (
+                Self::OpenAi,
+                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
+            ) | (Self::Anthropic, ApiFormat::AnthropicMessages)
         )
     }
 
