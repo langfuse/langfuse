@@ -1409,7 +1409,7 @@ export function SearchComposer({
           // Prominent primary control. Block (not flex) so inline pills never
           // break across a wrap. Balanced padding: a small, even gutter on all
           // sides (the left no longer dwarfs the inter-pill gap and top), py
-          // centers a single line near min-h-9 and the box grows when wrapped.
+          // centers a single line near min-h-8 and the box grows when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
           // Box + text metrics are shared with the preview surface

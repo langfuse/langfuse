@@ -177,30 +177,53 @@ export async function scheduleObservationEvals(
     data: observation,
   });
 
-  // Process each assignment of every matching rule/config.
-  await Promise.all(
-    matchingConfigs.flatMap(({ config, assignments }) =>
-      assignments.map((assignment) =>
-        processMatchingConfig({
-          observation,
-          matchingConfig: config,
-          assignment,
-          observationS3Path,
-          schedulerDeps,
-          executionMode,
-          executionScopeId,
-        }).catch((error) => {
-          logger.error("Failed to process observation eval assignment", {
-            configId: config.id,
-            assignmentId: assignment.id,
-            observationId: observation.span_id,
-            projectId: observation.project_id,
-            error,
-          });
-        }),
-      ),
+  const assignmentAttempts = matchingConfigs.flatMap(
+    ({ config, assignments }) =>
+      assignments.map((assignment) => ({ config, assignment })),
+  );
+
+  const results = await Promise.allSettled(
+    assignmentAttempts.map(({ config, assignment }) =>
+      processMatchingConfig({
+        observation,
+        matchingConfig: config,
+        assignment,
+        observationS3Path,
+        schedulerDeps,
+        executionMode,
+        executionScopeId,
+      }),
     ),
   );
+
+  const failures = results.flatMap((result, index) => {
+    if (result.status === "fulfilled") return [];
+
+    const { config, assignment } = assignmentAttempts[index];
+    logger.error("Failed to process observation eval assignment", {
+      configId: config.id,
+      assignmentId: assignment.id,
+      observationId: observation.span_id,
+      projectId: observation.project_id,
+      error: result.reason,
+    });
+
+    return [result.reason];
+  });
+
+  if (failures.length > 0) {
+    const firstFailure = failures[0];
+    const firstFailureMessage =
+      firstFailure instanceof Error
+        ? firstFailure.message
+        : "Unknown scheduling error";
+    const remainingFailureCount = failures.length - 1;
+
+    throw new AggregateError(
+      failures,
+      `Failed to schedule ${failures.length} of ${assignmentAttempts.length} observation eval assignment(s): ${firstFailureMessage}${remainingFailureCount > 0 ? ` (${remainingFailureCount} more failure(s))` : ""}`,
+    );
+  }
 }
 
 interface ProcessConfigParams {

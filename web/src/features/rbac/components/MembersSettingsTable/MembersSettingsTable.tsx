@@ -118,7 +118,6 @@ export function MembersSettingsTable({
         accessorKey: "providers",
         header: "SSO Provider",
         enableHiding: true,
-        nullValue: "-",
       }),
       {
         accessorKey: "orgRole",

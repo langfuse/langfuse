@@ -23,6 +23,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   ChevronDown,
   FoldVertical,
@@ -367,70 +368,32 @@ function ViewModeSwitch({
   onSelect: (view: TraceViewMode) => void;
 }) {
   return (
-    <div className="bg-muted/60 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
-      <ViewModeSegment
-        active={activeView === "tree"}
-        onClick={() => onSelect("tree")}
-        label="Tree"
-      />
-      {/* One Timeline. What it IS depends on the Compact Timeline feature
-          preview — see TracePanelNavigation — rather than on a third segment
-          the user has to understand. */}
-      <ViewModeSegment
-        active={activeView === "timeline"}
-        onClick={() => onSelect("timeline")}
-        label="Timeline"
-      />
-      <ViewModeSegment
-        active={activeView === "graph"}
-        onClick={() => onSelect("graph")}
-        label="Graph"
-        disabled={Boolean(graphDisabledReason)}
-        title={graphDisabledReason}
-      />
-    </div>
-  );
-}
-
-function ViewModeSegment({
-  active,
-  onClick,
-  label,
-  disabled = false,
-  title,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  disabled?: boolean;
-  /** Why the view is unavailable; shown in a tooltip. */
-  title?: string;
-}) {
-  const segment = (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      aria-disabled={disabled || undefined}
-      aria-pressed={active}
-      title={disabled ? undefined : label}
-      className={cn(
-        "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
-        disabled && "cursor-not-allowed opacity-40",
-        active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-      )}
+    <Tabs
+      value={activeView}
+      onValueChange={(value) => onSelect(value as TraceViewMode)}
     >
-      {label}
-    </button>
-  );
-
-  // A native title does not reliably surface on a segment this small.
-  if (!disabled || !title) return segment;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{segment}</TooltipTrigger>
-      <TooltipContent>{title}</TooltipContent>
-    </Tooltip>
+      <Tabs.List size="md" aria-label="Trace view">
+        <Tabs.Trigger value="tree" label="Tree" />
+        {/* One Timeline. What it IS depends on the Compact Timeline feature
+            preview — see TracePanelNavigation — rather than on a third segment
+            the user has to understand. */}
+        <Tabs.Trigger value="timeline" label="Timeline" />
+        {graphDisabledReason ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
+              >
+                <Tabs.Trigger value="graph" disabled label="Graph" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{graphDisabledReason}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tabs.Trigger value="graph" label="Graph" />
+        )}
+      </Tabs.List>
+    </Tabs>
   );
 }

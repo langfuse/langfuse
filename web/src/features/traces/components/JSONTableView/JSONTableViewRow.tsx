@@ -35,7 +35,7 @@ function JSONTableViewRowInner<T>({
   const expandedContentId = `expanded-content-${itemKey}`;
 
   return (
-    <div className="border-border bg-background border-b">
+    <div className="border-border bg-surface border-b">
       {/* Preview row - always visible */}
       <div
         className={cn(
