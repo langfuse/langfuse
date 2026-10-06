@@ -9,9 +9,20 @@ import {
   type InAppAgentModelConfig,
 } from "../../in-app-agent/server/modelProvider";
 import { resolveLangfuseAIOpenAICall } from "../../in-app-agent/server/openaiCompatibility";
-import { type ChatMessage, LLMAdapter, type TraceSinkParams } from "./types";
-import { generateLLMText, mapLegacyLLMCompletionParams } from "./llmText";
+import {
+  type ChatMessage,
+  ChatMessageRole,
+  ChatMessageType,
+  LLMAdapter,
+  type TraceSinkParams,
+} from "./types";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+} from "./llmText";
 import { randomBytes } from "crypto";
+import { z, type ZodType } from "zod";
 
 export function isLangfuseAITracingConfigured() {
   return Boolean(env.LANGFUSE_AI_FEATURES_PROJECT_ID);
@@ -78,6 +89,71 @@ export async function generateLangfuseAIText(params: {
   });
 
   return result.text;
+}
+
+export function getLangfuseAIModelInfo():
+  | { provider: InAppAgentModelConfig["provider"]; modelId: string }
+  | undefined {
+  const modelConfig = getInAppAgentModelConfig();
+
+  return modelConfig
+    ? { provider: modelConfig.provider, modelId: modelConfig.modelId }
+    : undefined;
+}
+
+export async function generateLangfuseAIObject<OUTPUT>(params: {
+  messages: ChatMessage[];
+  schema: ZodType<OUTPUT>;
+  model?: string;
+  maxTokens?: number;
+  traceSinkParams?: TraceSinkParams;
+  timeout?: number;
+}): Promise<OUTPUT> {
+  const modelConfig = getInAppAgentModelConfig({ modelId: params.model });
+
+  if (!modelConfig) {
+    throw new Error("Langfuse AI completion model is not configured.");
+  }
+
+  const maxTokens: { max_tokens?: number } =
+    params.maxTokens !== undefined ? { max_tokens: params.maxTokens } : {};
+  const completionParams = toLangfuseAICompletionParams({
+    modelConfig,
+    messages:
+      modelConfig.provider === "bedrock"
+        ? [
+            ...params.messages,
+            {
+              role: ChatMessageRole.User,
+              type: ChatMessageType.User,
+              content: `Return one JSON object and nothing else. It must satisfy this JSON Schema:\n${JSON.stringify(z.toJSONSchema(params.schema))}`,
+            } satisfies ChatMessage,
+          ]
+        : params.messages,
+    maxTokens,
+  });
+  const result = await generateLLMText({
+    ...mapLegacyLLMCompletionParams(completionParams),
+    ...(modelConfig.provider === "bedrock"
+      ? {}
+      : { output: createLLMOutput(params.schema) }),
+    trace: params.traceSinkParams,
+    timeout: params.timeout,
+  });
+
+  if (modelConfig.provider !== "bedrock") {
+    return params.schema.parse(result.output);
+  }
+
+  const firstBrace = result.text.indexOf("{");
+  const lastBrace = result.text.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace <= firstBrace) {
+    throw new Error("The model did not return a JSON object.");
+  }
+
+  return params.schema.parse(
+    JSON.parse(result.text.slice(firstBrace, lastBrace + 1)),
+  );
 }
 
 function toLangfuseAICompletionParams(params: {
