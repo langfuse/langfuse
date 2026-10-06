@@ -83,6 +83,8 @@ import {
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { InAppAgentContextualLanding } from "@/src/features/in-app-agent/components/InAppAgentContextualLanding";
+import type { InAppAgentContextualLanding as InAppAgentContextualLandingConfig } from "@/src/features/in-app-agent/lib/contextualLanding";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -909,6 +911,7 @@ export type InAppAgentWindowProps = {
   quickActionContext: InAppAgentQuickActionContext;
   focusedQuickActions?: readonly InAppAgentQuickAction[];
   quickActionResetKey: string;
+  contextualLanding?: InAppAgentContextualLandingConfig;
   selectedConversationId: string | undefined;
   /** Titles the window. Null until the server has named the conversation,
    * which is when the product name shows instead. */
@@ -999,6 +1002,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
+    contextualLanding,
     focusedQuickActions,
     quickActionContext,
     quickActionResetKey,
@@ -1395,23 +1399,35 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             {messages.length === 0 &&
             isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
-                <div>
-                  <BotMessageSquare className="text-muted-foreground icon-xl mx-auto" />
-                </div>
-                <InAppAgentQuickActionPicker
-                  key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
-                  focusedActions={focusedQuickActions}
-                  initialContext={quickActionContext}
-                  isDisabled={isSubmitDisabled}
-                  onSelectAction={(action, context, position) => {
-                    capture("in_app_agent:quick_action_started", {
-                      quickActionKey: action.id,
-                      quickActionCategory: context,
-                      position,
-                    });
-                    submitInput(action.prompt);
-                  }}
-                />
+                {contextualLanding ? (
+                  <InAppAgentContextualLanding
+                    landing={contextualLanding}
+                    isDisabled={isSubmitDisabled}
+                    onSelectExample={(example) => {
+                      submitInput(example.prompt);
+                    }}
+                  />
+                ) : (
+                  <>
+                    <div>
+                      <BotMessageSquare className="text-muted-foreground icon-xl mx-auto" />
+                    </div>
+                    <InAppAgentQuickActionPicker
+                      key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
+                      focusedActions={focusedQuickActions}
+                      initialContext={quickActionContext}
+                      isDisabled={isSubmitDisabled}
+                      onSelectAction={(action, context, position) => {
+                        capture("in_app_agent:quick_action_started", {
+                          quickActionKey: action.id,
+                          quickActionCategory: context,
+                          position,
+                        });
+                        submitInput(action.prompt);
+                      }}
+                    />
+                  </>
+                )}
               </div>
             ) : null}
 
@@ -1622,7 +1638,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder={
                 hasSettledAssistantReply
                   ? "Reply..."
-                  : "Let me know what I can do for you..."
+                  : (contextualLanding?.placeholder ??
+                    "Let me know what I can do for you...")
               }
               rows={1}
               className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"

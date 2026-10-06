@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
   InAppAgentWindow,
@@ -24,6 +24,10 @@ import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
+import {
+  clearInAppAgentContextualLanding,
+  useInAppAgentContextualLanding,
+} from "@/src/features/in-app-agent/lib/contextualLanding";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -48,6 +52,14 @@ export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
   const router = useRouter();
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const contextualLanding = useInAppAgentContextualLanding(projectId);
+  const contextualSubmitInFlightRef = useRef(false);
+  const [isContextualSubmitInFlight, setIsContextualSubmitInFlight] =
+    useState(false);
   const {
     activityByConversationId,
     conversations,
@@ -69,7 +81,7 @@ export function ControlledInAppAgentWindow(
     selectConversation,
     selectedConversationId,
     selectedConversationTitle,
-    submit,
+    submit: submitToAssistant,
     submitFeedback,
   } = useInAppAiAgent();
   const isCancellingRun = execution.isCancelling;
@@ -111,6 +123,7 @@ export function ControlledInAppAgentWindow(
     isRunning ||
     isAnimating ||
     isSubmitting ||
+    isContextualSubmitInFlight ||
     pendingToolApprovals.length > 0 ||
     displayedPendingToolApprovals.length > 0;
   // Settle from the durable run, not from attach/animation. A finished
@@ -163,11 +176,45 @@ export function ControlledInAppAgentWindow(
       runningToolCallIds,
     ],
   );
+  const activeContextualLanding =
+    messages.length === 0 ? contextualLanding : undefined;
+  const submitContextualRequest = async (
+    input: string,
+    options?: Parameters<typeof submitToAssistant>[1],
+  ) => {
+    if (!activeContextualLanding) {
+      return submitToAssistant(input, options);
+    }
+    if (contextualSubmitInFlightRef.current) {
+      return false;
+    }
+
+    contextualSubmitInFlightRef.current = true;
+    setIsContextualSubmitInFlight(true);
+    try {
+      const submitted = await activeContextualLanding.onSubmit(input);
+      if (submitted && projectId) {
+        clearInAppAgentContextualLanding(projectId);
+      }
+      return submitted;
+    } finally {
+      contextualSubmitInFlightRef.current = false;
+      setIsContextualSubmitInFlight(false);
+    }
+  };
 
   const closeButtonProps =
     props.showCloseButton === false
       ? ({ showCloseButton: false } as const)
-      : ({ showCloseButton: true, onClose: props.onClose } as const);
+      : ({
+          showCloseButton: true,
+          onClose: () => {
+            if (projectId) {
+              clearInAppAgentContextualLanding(projectId);
+            }
+            props.onClose();
+          },
+        } as const);
 
   return (
     <InAppAgentWindow
@@ -183,6 +230,7 @@ export function ControlledInAppAgentWindow(
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}
       quickActionResetKey={quickActionResetKey}
+      contextualLanding={activeContextualLanding}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
       activityByConversationId={activityByConversationId}
@@ -193,12 +241,20 @@ export function ControlledInAppAgentWindow(
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}
-      onSelectConversation={selectConversation}
+      onSelectConversation={(conversationId) => {
+        if (projectId) {
+          clearInAppAgentContextualLanding(projectId);
+        }
+        selectConversation(conversationId);
+      }}
       onNewConversation={() => {
+        if (projectId) {
+          clearInAppAgentContextualLanding(projectId);
+        }
         selectConversation(null);
       }}
       onExpandedChange={props.onExpandedChange}
-      onSubmit={submit}
+      onSubmit={submitContextualRequest}
       executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
       onAlwaysAllowToolCall={alwaysAllowToolCall}

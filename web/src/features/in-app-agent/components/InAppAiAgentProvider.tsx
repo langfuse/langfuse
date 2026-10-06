@@ -74,6 +74,7 @@ import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
+import { clearInAppAgentContextualLanding } from "@/src/features/in-app-agent/lib/contextualLanding";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -980,6 +981,7 @@ function InAppAiAgentProviderInner({
         return;
       }
 
+      clearInAppAgentContextualLanding(projectId);
       setError((currentError) =>
         isInAppAgentRateLimited(currentError) ? currentError : null,
       );
@@ -999,6 +1001,7 @@ function InAppAiAgentProviderInner({
       activityByConversationId,
       markConversationHandled,
       open,
+      projectId,
       releaseSubmitLock,
       resetAgent,
       setSelectedConversationId,
@@ -1263,6 +1266,7 @@ function InAppAiAgentProviderInner({
       const nextOpen = evaluateSetStateAction(action, open);
 
       if (!nextOpen) {
+        clearInAppAgentContextualLanding(projectId);
         // Collapse the drawer when closing
         setIsExpanded(false);
 
@@ -1279,6 +1283,7 @@ function InAppAiAgentProviderInner({
     [
       attachToConversation,
       open,
+      projectId,
       releaseSubmitLock,
       selectedConversationId,
       setOpen,

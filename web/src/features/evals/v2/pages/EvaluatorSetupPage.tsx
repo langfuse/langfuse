@@ -68,9 +68,10 @@ import {
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import {
+  clearInAppAgentContextualLanding,
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent";
 import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
 import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
@@ -80,11 +81,14 @@ import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/hooks/use
 import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantTestResultSync";
 import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
-import { EvaluatorAssistantDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantDialog/EvaluatorAssistantDialog";
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import {
+  getEvaluatorAssistantLanding,
+  useEvaluatorAssistantLanding,
+} from "@/src/features/evals/v2/hooks/useEvaluatorAssistantLanding";
 
 export function getEvaluatorSetupHeaderState() {
   return { title: "Configure evaluator" } as const;
@@ -104,6 +108,29 @@ export function getEvaluatorAssistantMode({
   if (!isAssistantAvailable || evaluatorType === "DECISION_MODEL") return null;
   if (mode === "edit") return "edit";
   return isScratchCreation ? "create" : null;
+}
+
+export function openEvaluatorAssistantLanding({
+  selectConversation,
+  activateLanding,
+  openAssistant,
+  clearLanding,
+}: {
+  selectConversation: (conversationId: null) => void;
+  activateLanding: () => boolean;
+  openAssistant: () => boolean;
+  clearLanding: () => void;
+}) {
+  selectConversation(null);
+  if (!activateLanding()) {
+    return false;
+  }
+  if (openAssistant()) {
+    return true;
+  }
+
+  clearLanding();
+  return false;
 }
 
 type InitialEvaluator = {
@@ -247,6 +274,7 @@ export function EvaluatorSetupPage(
   const capture = usePostHogClientCapture();
   const {
     openAssistant,
+    selectConversation,
     selectedConversationId,
     submit: submitToAssistant,
   } = useInAppAiAgent();
@@ -369,6 +397,32 @@ export function EvaluatorSetupPage(
     evaluatorType: codeDraft.type,
     isAssistantAvailable: isAssistantLauncherVisible,
   });
+  const assistantLanding =
+    assistantDialogMode && assistantEvaluatorType
+      ? getEvaluatorAssistantLanding({
+          id: `evaluator:${evaluatorId}`,
+          mode: assistantDialogMode,
+          evaluatorType: assistantEvaluatorType,
+          onSubmit: async (request) => {
+            capture("evaluators:assistant_entry_interaction", {
+              action:
+                assistantDialogMode === "create"
+                  ? "submit_create"
+                  : "submit_edit",
+              evaluatorType: assistantEvaluatorType,
+              requestLength: request.length,
+            });
+            return submitEvaluatorAssistantRequest(
+              request,
+              assistantEvaluatorType,
+            );
+          },
+        })
+      : null;
+  const activateAssistantLanding = useEvaluatorAssistantLanding({
+    projectId,
+    landing: assistantLanding,
+  });
   const codeValidation = useCodeEvalSourceValidation({
     enabled: codeDraft.type === "CODE",
     sourceCode: codeDraft.sourceCode,
@@ -411,7 +465,6 @@ export function EvaluatorSetupPage(
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const [assistantDialogOpen, setAssistantDialogOpen] = useState(false);
   const assistantDialogTriggerRef = useRef<HTMLButtonElement>(null);
   const [versionConflictOpen, setVersionConflictOpen] = useState(false);
   const [savedEvaluator, setSavedEvaluator] = useState<{
@@ -1214,7 +1267,13 @@ export function EvaluatorSetupPage(
                             : "open_edit",
                         evaluatorType: codeDraft.type,
                       });
-                      setAssistantDialogOpen(true);
+                      openEvaluatorAssistantLanding({
+                        selectConversation,
+                        activateLanding: activateAssistantLanding,
+                        openAssistant: () => openAssistant("evaluator_editor"),
+                        clearLanding: () =>
+                          clearInAppAgentContextualLanding(projectId),
+                      });
                     },
                   }
                 : null
@@ -1224,29 +1283,6 @@ export function EvaluatorSetupPage(
           />
         </div>
       </EvalOnboardingAnalyticsProvider>
-      {assistantDialogMode && assistantEvaluatorType ? (
-        <EvaluatorAssistantDialog
-          open={assistantDialogOpen}
-          mode={assistantDialogMode}
-          evaluatorType={assistantEvaluatorType === "CODE" ? "code" : "judge"}
-          returnFocusRef={assistantDialogTriggerRef}
-          onOpenChange={setAssistantDialogOpen}
-          onAssistantSubmit={(request) => {
-            capture("evaluators:assistant_entry_interaction", {
-              action:
-                assistantDialogMode === "create"
-                  ? "submit_create"
-                  : "submit_edit",
-              evaluatorType: assistantEvaluatorType,
-              requestLength: request.length,
-            });
-            return submitEvaluatorAssistantRequest(
-              request,
-              assistantEvaluatorType,
-            );
-          }}
-        />
-      ) : null}
       {initialEvaluator ? (
         <EvaluatorVersionHistorySheet
           open={historyOpen}

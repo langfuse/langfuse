@@ -8,6 +8,7 @@ import {
   getEvaluatorSetupHeaderState,
   getEvaluatorVersionDefinition,
   navigateToEvaluatorDetail,
+  openEvaluatorAssistantLanding,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
@@ -94,6 +95,42 @@ describe("getEvaluatorAssistantMode", () => {
     },
   ] as const)("$name resolves to $expected", ({ input, expected }) => {
     expect(getEvaluatorAssistantMode(input)).toBe(expected);
+  });
+});
+
+describe("openEvaluatorAssistantLanding", () => {
+  it("selects a fresh conversation and activates the landing before opening", () => {
+    const callOrder: string[] = [];
+
+    expect(
+      openEvaluatorAssistantLanding({
+        selectConversation: () => callOrder.push("new-conversation"),
+        activateLanding: () => {
+          callOrder.push("activate");
+          return true;
+        },
+        openAssistant: () => {
+          callOrder.push("open");
+          return true;
+        },
+        clearLanding: () => callOrder.push("clear"),
+      }),
+    ).toBe(true);
+    expect(callOrder).toEqual(["new-conversation", "activate", "open"]);
+  });
+
+  it("clears the landing when the Assistant cannot open", () => {
+    const clearLanding = vi.fn();
+
+    expect(
+      openEvaluatorAssistantLanding({
+        selectConversation: vi.fn(),
+        activateLanding: () => true,
+        openAssistant: () => false,
+        clearLanding,
+      }),
+    ).toBe(false);
+    expect(clearLanding).toHaveBeenCalledOnce();
   });
 });
 
