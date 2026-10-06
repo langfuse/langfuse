@@ -63,15 +63,14 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "seek-project",
-      "param2": "seek-project",
-      "param3": "T2",
-      "param4": [
+      "param1": [
         "NUMERIC",
         "BOOLEAN",
         "CATEGORICAL",
         "TEXT",
       ],
+      "param2": "seek-project",
+      "param3": "T2",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -107,20 +106,10 @@ FROM
     SELECT s.*
     FROM scores AS s
     FINAL
-    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
-        SELECT DISTINCT
-            s.project_id,
-            toDate(s.timestamp),
-            s.name,
-            s.id
-        FROM scores AS s
-        WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
-    )) AND (
-        s.data_type IN ({param4:Array(String)})
-    ) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+    WHERE (s.data_type IN ({param1:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
 ) AS s
 ORDER BY s.timestamp DESC
-SETTINGS do_not_merge_across_partitions_select_final = 1",
+SETTINGS do_not_merge_across_partitions_select_final = 1, use_skip_indexes_if_final = 1, use_skip_indexes_if_final_exact_mode = 1",
   },
 ]
 `;
@@ -180,15 +169,14 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "seek-project",
-      "param2": [
+      "param1": [
         "NUMERIC",
         "BOOLEAN",
         "CATEGORICAL",
         "TEXT",
       ],
-      "param3": "seek-project",
-      "param4": "0.5",
+      "param2": "seek-project",
+      "param3": "0.5",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -224,10 +212,10 @@ FROM
     SELECT s.*
     FROM scores AS s
     FINAL
-    WHERE (s.project_id = {param1:String}) AND (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
+    WHERE (s.data_type IN ({param1:Array(String)})) AND (project_id = {param2:String}) AND (s.value > {param3:Decimal64(12)})
 ) AS s
 ORDER BY s.timestamp DESC
-SETTINGS do_not_merge_across_partitions_select_final = 1",
+SETTINGS do_not_merge_across_partitions_select_final = 1, use_skip_indexes_if_final = 1, use_skip_indexes_if_final_exact_mode = 1",
   },
 ]
 `;

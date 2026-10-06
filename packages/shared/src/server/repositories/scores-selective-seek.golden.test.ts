@@ -151,7 +151,8 @@ describeWithFormat("scores selective-seek: emitted SQL", () => {
     { name: "no filter", filter: [] as FilterState },
   ];
 
-  describe("eligible → seek phase present", () => {
+  // The rows path reads FINAL and prunes via skip indexes instead of the seek.
+  describe("eligible → seek on count, skip indexes under FINAL on rows", () => {
     for (const { name, filter } of eligible) {
       it(`count: ${name}`, async () => {
         const q = await captureCountSql(filter);
@@ -160,8 +161,10 @@ describeWithFormat("scores selective-seek: emitted SQL", () => {
       });
       it(`rows: ${name}`, async () => {
         const q = await captureRowsSql(filter);
-        expect(q.query).toContain("SELECT DISTINCT");
-        expect(q.query).toMatch(SEEK_TUPLE_IN);
+        expect(q.query).not.toContain("SELECT DISTINCT");
+        expect(q.query).not.toMatch(SEEK_TUPLE_IN);
+        expect(q.query).toContain("use_skip_indexes_if_final = 1");
+        expect(q.query).toContain("use_skip_indexes_if_final_exact_mode = 1");
       });
     }
   });

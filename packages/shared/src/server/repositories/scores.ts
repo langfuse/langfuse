@@ -1645,7 +1645,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
-  // ── Selective seek ────────────────────────────────────────────────────────
+  // ── Selective seek (count path only) ──────────────────────────────────────
   // A highly selective score-only filter (single trace/observation/id, or a
   // name) otherwise reconstructs the whole project before the outer WHERE
   // discards almost everything. When at least one score-only conjunct is
@@ -1666,7 +1666,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // re-applying P in the outer WHERE post-dedup. The seek's projection is the
   // dedup key only, all immutable within a group, so the resulting tuple IN
   // touches only dedup-key columns and is safe pre-dedup.
-  const seekEligible = scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
+  //
+  // The rows path reads FINAL and lets ClickHouse prune instead (see Dedup).
+  const seekEligible =
+    props.select === "count" &&
+    scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
   const seekSubquery = seekEligible
     ? `
         SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id
@@ -1676,10 +1680,10 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`
     : "";
 
-  // Pre-dedup inner scan: project scope + coarse date prune only. Mutable-column
-  // filters run post-dedup in the outer WHERE (see the dedup rule below). When
-  // the seek fired, the tuple IN restricts the reconstruct scan to seeked keys;
-  // it references only dedup-key columns, so it is safe pre-dedup.
+  // Count-path pre-dedup scan: project scope + coarse date prune only.
+  // Mutable-column filters run post-dedup in the outer WHERE (see the dedup rule
+  // below). When the seek fired, the tuple IN restricts the reconstruct scan to
+  // seeked keys; it references only dedup-key columns, so it is safe pre-dedup.
   const innerScanWhere = `
         WHERE s.project_id = {projectId: String}
         ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
@@ -1689,16 +1693,21 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   const outerConditions = `s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
 
+  // Rows-path FINAL scan. The project scope comes from scoreOnlyFilterRes
+  // (getProjectIdDefaultFilter).
+  const rowsScanWhere = `
+        WHERE ${outerConditions}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}`;
+
   // ── Dedup ─────────────────────────────────────────────────────────────────
   // Rule: filter AFTER dedup, never before. value / comment / timestamp /
   // trace_id are mutable across versions, so filtering raw rows can surface a
   // stale version (filter value>0.5 on v1=0.9→v2=0.1 keeps v1; FINAL keeps none).
-  // The pre-dedup scan carries only project scope + a coarse toDate prune
-  // (innerDatePruneQuery) + the seek (when eligible), which keep or drop whole
-  // dedup keys, so the latest version is never lost pre-dedup.
   //
   // The count path reconstructs each score's latest version with one argMax
-  // GROUP BY pass, then filters.
+  // GROUP BY pass, then filters. Its pre-dedup scan carries only project scope
+  // + a coarse toDate prune (innerDatePruneQuery) + the seek (when eligible),
+  // which keep or drop whole dedup keys, so the latest version is never lost.
   //
   // The rows path reads `scores FINAL`. ClickHouse evaluates WHERE conditions on
   // non-sorting-key columns after the FINAL merge, so the outer filters only see
@@ -1709,6 +1718,15 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // version of a key shares a partition: toDate(timestamp) is in the sorting key
   // and a day never spans two months. The setting applies to every FINAL read in
   // the query; the traces CTE reads without FINAL.
+  //
+  // use_skip_indexes_if_final lets the bloom-filter skip indexes (id, trace_id,
+  // session_id, ...) prune granules under FINAL. A skip index only sees the
+  // granules whose rows match, which can drop a newer version of the same key
+  // and resurface a stale one (v1 trace_id=T1, v2 trace_id=T2: filtering T1
+  // would return v1). use_skip_indexes_if_final_exact_mode re-adds every
+  // granule sharing a primary-key range with a selected one, so FINAL still
+  // sees all versions. Both default to 1 since ClickHouse 25.6 but are set
+  // explicitly so a `compatibility` profile setting cannot turn them off.
   //
   // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the FINAL subquery so
   // pagination follows the requested sort (and a traces-column sort can
@@ -1740,13 +1758,15 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       FROM (
         SELECT s.*
         FROM scores s FINAL
-        ${innerScanWhere}
-        AND ${outerConditions}
+        ${rowsScanWhere}
       ) s
       ${eventsJoin}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-      SETTINGS do_not_merge_across_partitions_select_final = 1
+      SETTINGS
+        do_not_merge_across_partitions_select_final = 1,
+        use_skip_indexes_if_final = 1,
+        use_skip_indexes_if_final_exact_mode = 1
     `;
 
   const input = {
