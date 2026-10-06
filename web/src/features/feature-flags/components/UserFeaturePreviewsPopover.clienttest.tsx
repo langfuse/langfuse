@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import type { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
-import { featurePreviewFlags } from "../available-flags";
+import { userFeaturePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -124,6 +124,7 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },
@@ -139,9 +140,9 @@ describe("UserFeaturePreviewsControl", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        // Derived: the counter's denominator is the number of registered
-        // previews, so a new preview must not fail this test.
-        name: new RegExp(`0/${featurePreviewFlags.length} enabled`, "i"),
+        // Derived: the counter's denominator is the number of user previews,
+        // so a new preview must not fail this test.
+        name: new RegExp(`0/${userFeaturePreviewFlags.length} enabled`, "i"),
       }),
     ).toBeDisabled();
   });
@@ -151,12 +152,18 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },
       management: { allowed: true },
     });
 
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Toggle External Media Storage for user",
+      }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: "Toggle Compact Session View for user",
@@ -187,6 +194,7 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },
@@ -214,6 +222,7 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },
