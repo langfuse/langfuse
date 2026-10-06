@@ -610,6 +610,16 @@ const EnvSchema = z.object({
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+  // Estimated-token budget for the in-app agent conversation replay. When
+  // set, tool results that fall outside the budget (counted from the newest
+  // message backwards) are replaced with a short placeholder when deriving
+  // replay messages. Persisted events are never modified. Unset disables
+  // compaction entirely.
+  LANGFUSE_IN_APP_AGENT_REPLAY_TOKEN_BUDGET: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
   LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
     .enum(["url", "inline", "disabled"])
     .optional(),

@@ -42,6 +42,8 @@ import {
 } from "./toolResults";
 import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./mcpPolicy";
 import { getToolFailureMessage } from "./toolErrors";
+import { IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN } from "./tunables";
+import { env } from "../../env";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
@@ -439,6 +441,9 @@ export async function getConversationMessagesForReplay(params: {
 }) {
   return sanitizeConversationMessagesForReplay(
     await getConversationMessages(params),
+    {
+      replayTokenBudget: env.LANGFUSE_IN_APP_AGENT_REPLAY_TOKEN_BUDGET,
+    },
   );
 }
 
@@ -606,6 +611,7 @@ function getMessagesFromPersistedEvents(
 
 function sanitizeConversationMessagesForReplay(
   messages: readonly AgUiMessage[],
+  options?: { replayTokenBudget?: number },
 ): readonly AgUiMessage[] {
   const messagesWithoutReasoning = messages.filter(
     (message) => message.role !== "reasoning",
@@ -616,9 +622,89 @@ function sanitizeConversationMessagesForReplay(
   const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
     messagesWithoutRedirectActions,
   );
-  return stripAssistantRunIds(
-    dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
+  return compactToolResultsToReplayBudget(
+    stripAssistantRunIds(
+      dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
+    ),
+    options?.replayTokenBudget,
   );
+}
+
+function estimateReplayTokens(message: AgUiMessage): number {
+  if (message.role === "tool") {
+    return Math.ceil(message.content.length / IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN);
+  }
+  if (message.role === "assistant") {
+    const toolCallChars = (message.toolCalls ?? []).reduce(
+      (total, toolCall) =>
+        total +
+        toolCall.function.arguments.length +
+        toolCall.function.name.length +
+        toolCall.id.length,
+      0,
+    );
+    return Math.ceil(
+      ((message.content?.length ?? 0) + toolCallChars) /
+        IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN,
+    );
+  }
+  const content =
+    typeof message.content === "string"
+      ? message.content
+      : JSON.stringify(message.content ?? "");
+  return Math.ceil(content.length / IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN);
+}
+
+/**
+ * Bounds replayed context by replacing tool results that fall outside the
+ * token budget — counted from the newest message backwards so the most
+ * recent turns keep their full payloads — with a short placeholder. Messages
+ * are never dropped or reordered, so assistant tool-call pairing survives.
+ * Persisted events are untouched; this only shapes what is replayed into the
+ * model. An undefined or non-positive budget disables compaction.
+ */
+export function compactToolResultsToReplayBudget(
+  messages: readonly AgUiMessage[],
+  replayTokenBudget?: number,
+): readonly AgUiMessage[] {
+  if (replayTokenBudget === undefined || replayTokenBudget <= 0) {
+    return messages;
+  }
+
+  // Suffix sums from the newest message: cumulativeTokensFromEnd[i] is the
+  // estimated cost of replaying messages[i..end]. A message is compacted when
+  // even the newest-to-it window exceeds the budget, so the cut point only
+  // ever moves backwards as the conversation grows.
+  const cumulativeTokensFromEnd = new Array<number>(messages.length);
+  let total = 0;
+  for (let index = messages.length - 1; index >= 0; index--) {
+    total += estimateReplayTokens(messages[index]);
+    cumulativeTokensFromEnd[index] = total;
+  }
+
+  if (total <= replayTokenBudget) {
+    return messages;
+  }
+
+  let changed = false;
+  const compactedMessages = messages.map((message, index): AgUiMessage => {
+    if (
+      message.role !== "tool" ||
+      cumulativeTokensFromEnd[index] <= replayTokenBudget ||
+      message.content.length <=
+        IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN /* placeholder would not shrink it */
+    ) {
+      return message;
+    }
+
+    changed = true;
+    return {
+      ...message,
+      content: `[Tool output omitted from replay to stay within the context budget (toolCallId: ${message.toolCallId}, original size ~${message.content.length} chars). Re-run the tool if the data is still needed.]`,
+    };
+  });
+
+  return changed ? compactedMessages : messages;
 }
 
 export function redactSilentToolMessages(messages: readonly AgUiMessage[]) {

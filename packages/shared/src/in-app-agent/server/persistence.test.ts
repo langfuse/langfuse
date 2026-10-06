@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import type { PrismaClient } from "../../db";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { buildInAppAgentToolApprovalEvent } from "../approvalEvents";
+import type { AgUiMessage } from "../schema";
 import {
+  compactToolResultsToReplayBudget,
   createSandboxToolCallFileAccumulator,
   getConversationMessages,
   partitionPendingRunEvents,
@@ -139,5 +141,82 @@ describe("partitionPendingRunEvents", () => {
       eventsToAppend: [],
       retainedEvents: [start, sidecar, args, end],
     });
+  });
+});
+
+describe("compactToolResultsToReplayBudget", () => {
+  const toolMessage = (id: string, content: string): AgUiMessage => ({
+    id: `message-${id}`,
+    role: "tool",
+    toolCallId: `call-${id}`,
+    content,
+  });
+  const userMessage = (id: string, content: string): AgUiMessage => ({
+    id: `message-${id}`,
+    role: "user",
+    content,
+  });
+
+  // chars/4 token estimate: 4000 chars -> 1000 tokens
+  const bigTool = (id: string) => toolMessage(id, "x".repeat(4000));
+
+  it("returns messages unchanged without a budget", () => {
+    const messages = [bigTool("old"), userMessage("u", "hello")];
+
+    expect(compactToolResultsToReplayBudget(messages, undefined)).toBe(messages);
+  });
+
+  it("returns messages unchanged when within budget", () => {
+    const messages = [bigTool("old"), userMessage("u", "hello")];
+
+    expect(compactToolResultsToReplayBudget(messages, 2000)).toBe(messages);
+  });
+
+  it("compacts only tool results outside the budget, newest kept intact", () => {
+    const messages = [
+      bigTool("oldest"),
+      userMessage("middle", "hi"), // 1 token
+      bigTool("newest"),
+    ]; // suffix tokens: [2001, 1001, 1000]
+
+    const result = compactToolResultsToReplayBudget(messages, 1500);
+
+    expect(result).toHaveLength(3);
+    const oldestToolResultContent = result[0]?.content ?? "";
+    expect(result[0]).toMatchObject({
+      id: "message-oldest",
+      role: "tool",
+      toolCallId: "call-oldest",
+    });
+    expect(oldestToolResultContent).toContain("call-oldest");
+    expect(oldestToolResultContent).toContain("omitted from replay");
+    expect(oldestToolResultContent.length).toBeLessThan(200);
+    expect(result[1]).toBe(messages[1]);
+    expect(result[2]).toBe(messages[2]);
+  });
+
+  it("never modifies non-tool messages even outside the budget", () => {
+    const longUser = userMessage("u", "y".repeat(4000));
+    const messages = [longUser, bigTool("new")]; // suffix: [1001, 1000]
+
+    const result = compactToolResultsToReplayBudget(messages, 500);
+
+    expect(result[0]).toBe(longUser);
+    expect(result[1]?.content).toContain("omitted from replay");
+  });
+
+  it("keeps tool results a placeholder would not shrink", () => {
+    const tiny = toolMessage("tiny", "ok"); // 1 token, shorter than any placeholder
+    const big = bigTool("big");
+    const result = compactToolResultsToReplayBudget([tiny, big], 1);
+
+    expect(result[0]?.content).toBe("ok");
+    expect(result[1]?.content).toContain("omitted from replay");
+  });
+
+  it("leaves messages exactly at the budget uncompacted", () => {
+    const messages = [bigTool("a"), bigTool("b")]; // suffix: [2000, 1000]
+
+    expect(compactToolResultsToReplayBudget(messages, 2000)).toBe(messages);
   });
 });
