@@ -91,6 +91,7 @@ export function createAnnotationFormActions({
   );
   let savedStatusTimer: ReturnType<typeof setTimeout> | undefined;
   let isClosed = true;
+  const pendingCommentFlushes = new Map<string, () => void>();
   const scheduleSavedStatusClear = () => {
     if (savedStatusTimer) clearTimeout(savedStatusTimer);
     if (isClosed) return;
@@ -522,6 +523,16 @@ export function createAnnotationFormActions({
         numericValue,
       });
       if (isPresent(value)) upsert(key, target, value, stringValue);
+    },
+    registerPendingCommentFlush(
+      key: string,
+      flush: (() => void) | null,
+    ) {
+      if (flush) pendingCommentFlushes.set(key, flush);
+      else pendingCommentFlushes.delete(key);
+    },
+    flushPendingEdits() {
+      for (const flush of pendingCommentFlushes.values()) flush();
     },
     saveComment(
       key: string,

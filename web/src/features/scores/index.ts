@@ -52,6 +52,7 @@ export {
   isOpenDialogPresent,
   isTypingTarget,
 } from "@/src/features/scores/lib/keyboardShortcuts";
+export { prepareAnnotationQueueComplete } from "@/src/features/scores/lib/prepareAnnotationQueueComplete";
 export { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 export {
   mergeAggregatesWithCache,
@@ -73,6 +74,7 @@ export { transformToAnnotationScores } from "@/src/features/scores/lib/transform
 export { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
 export { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 export type {
+  AnnotationRefreshHandle,
   AnnotationScore,
   CategoryCounts,
   ChartBin,

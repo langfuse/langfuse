@@ -92,6 +92,7 @@ export type AnnotationPanelData = {
 export type AnnotationRefreshHandle = {
   focus: () => void;
   refresh: (data: AnnotationPanelData) => void;
+  flushPendingEdits: () => void;
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

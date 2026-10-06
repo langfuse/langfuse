@@ -37,6 +37,8 @@ import {
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
+  prepareAnnotationQueueComplete,
+  type AnnotationRefreshHandle,
 } from "@/src/features/scores";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
@@ -227,10 +229,18 @@ function AnnotationQueueRunContent({
     () => run.actions.next(dependencies),
     [run, dependencies],
   );
-  const handleComplete = useCallback(
-    () => run.actions.complete(dependencies),
-    [run, dependencies],
-  );
+  const annotationRefreshRef = useRef<AnnotationRefreshHandle>(null);
+  const requestComplete = useCallback(() => {
+    if (
+      !prepareAnnotationQueueComplete({
+        flushPendingEdits: () =>
+          annotationRefreshRef.current?.flushPendingEdits(),
+      })
+    ) {
+      return;
+    }
+    run.actions.complete(dependencies);
+  }, [run, dependencies]);
 
   // Brief highlight on the button when its shortcut fires.
   const [shortcutPulse, setShortcutPulse] = useState<
@@ -273,31 +283,8 @@ function AnnotationQueueRunContent({
         if (isOpenDialogPresent()) return;
         if (isPending && !isTransitioning && !objectData.isError) {
           event.preventDefault();
-          // An out-of-range numeric score is vetoed on blur (no mutation fires),
-          // so completing now would silently drop it. Scan *all* numeric score
-          // inputs — not just the focused one — because the invalid value stays
-          // in the DOM after Tabbing away (`:invalid` = native min/max overflow;
-          // step="any" keeps decimals valid, mirroring validateNumericScore).
-          const invalidNumber = document.querySelector<HTMLInputElement>(
-            '[data-annotation-form] input[type="number"]:invalid',
-          );
-          if (invalidNumber) {
-            invalidNumber.focus();
-            invalidNumber.reportValidity();
-            return;
-          }
-          // Text/numeric score fields persist on blur. Flush a focused one first
-          // so feedback typed right before ⌘/Ctrl+Enter isn't lost when we
-          // navigate away (its onBlur fires the save mutation synchronously).
-          const active = document.activeElement;
-          if (
-            active instanceof HTMLTextAreaElement ||
-            active instanceof HTMLInputElement
-          ) {
-            active.blur();
-          }
           pulse("complete");
-          handleComplete();
+          requestComplete();
         }
         return;
       }
@@ -361,7 +348,7 @@ function AnnotationQueueRunContent({
     isTransitioning,
     objectData.isError,
     objectData.isLoading,
-    handleComplete,
+    requestComplete,
     handleNavigateNext,
     handleNavigateBack,
     pulse,
@@ -418,6 +405,7 @@ function AnnotationQueueRunContent({
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            annotationRefreshRef={annotationRefreshRef}
           />
         );
       case AnnotationQueueObjectType.SESSION:
@@ -427,6 +415,7 @@ function AnnotationQueueRunContent({
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            annotationRefreshRef={annotationRefreshRef}
           />
         );
       default:
@@ -546,7 +535,7 @@ function AnnotationQueueRunContent({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    onClick={handleComplete}
+                    onClick={requestComplete}
                     size="lg"
                     className={cn(
                       "mr-2 w-full gap-1.5 transition-colors duration-150",

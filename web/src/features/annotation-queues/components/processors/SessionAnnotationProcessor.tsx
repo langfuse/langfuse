@@ -24,6 +24,8 @@ import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "lucide-react";
+import type { AnnotationRefreshHandle } from "@/src/features/scores";
+import type { Ref } from "react";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -35,6 +37,7 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  annotationRefreshRef?: Ref<AnnotationRefreshHandle>;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -45,7 +48,7 @@ const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, annotationRefreshRef }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const { isV4 } = useReadPath();
 
@@ -286,6 +289,7 @@ export const SessionAnnotationProcessor: React.FC<
     <AnnotationDrawerSection
       item={item}
       isV4={isV4}
+      annotationRefreshRef={annotationRefreshRef}
       scoreTarget={{
         type: "session",
         sessionId: item.objectId,
