@@ -232,6 +232,7 @@ describe("organization feature preview defaults", () => {
       // not a registered preview, so it is filtered out rather than surfacing
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
+      externalMediaStorage: false,
       modernSession: false,
       sessionTimeline: false,
     });
@@ -492,6 +493,7 @@ describe("organization member feature preview overrides", () => {
     // The state map surfaces every preview; the raw `featureFlags` array stays
     // hidden, which is what this guards.
     expect(row?.featurePreviews).toEqual({
+      externalMediaStorage: false,
       modernSession: true,
       sessionTimeline: false,
     });
