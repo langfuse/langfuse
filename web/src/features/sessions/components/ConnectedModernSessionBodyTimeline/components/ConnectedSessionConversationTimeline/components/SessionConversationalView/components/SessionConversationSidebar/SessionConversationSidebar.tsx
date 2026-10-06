@@ -1,4 +1,10 @@
-import { useCallback, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
@@ -63,6 +69,67 @@ export function SessionConversationSidebar(
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
   const listRef = useRef<HTMLDivElement>(null);
+  const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
+  const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{
+    width: number;
+    fontKey: string;
+    measureSummary: (summary: string) => number;
+  } | null>(null);
+  const measureToolGroupLabel = useCallback(() => {
+    const label = listRef.current?.querySelector<HTMLElement>(
+      "[data-session-tool-group-label]",
+    );
+    if (!label) return;
+    const context =
+      textContextRef.current ??
+      document.createElement("canvas").getContext("2d");
+    if (!context) return;
+    textContextRef.current = context;
+    const style = getComputedStyle(label);
+    context.font =
+      style.font ||
+      `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const letterSpacing = Number.parseFloat(style.letterSpacing) || 0;
+    const fontKey = `${context.font}:${letterSpacing}:${context.measureText("Wmi0123456789").width}`;
+    const width = Math.max(0, label.getBoundingClientRect().width - 1);
+    setToolGroupMeasurement((previous) => {
+      if (previous?.width === width && previous.fontKey === fontKey)
+        return previous;
+      return {
+        width,
+        fontKey,
+        measureSummary: (summary) => {
+          const text = /^[0-9]+x\s/.test(summary)
+            ? summary
+            : `Tool: ${summary}`;
+          return (
+            context.measureText(text).width + [...text].length * letterSpacing
+          );
+        },
+      };
+    });
+  }, []);
+  // Virtualized labels can mount after the sidebar's initial layout.
+  useLayoutEffect(measureToolGroupLabel);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(measureToolGroupLabel);
+    observer?.observe(list);
+    let active = true;
+    document.fonts?.ready.then(() => {
+      if (active) measureToolGroupLabel();
+    });
+    document.fonts?.addEventListener("loadingdone", measureToolGroupLabel);
+    return () => {
+      active = false;
+      observer?.disconnect();
+      document.fonts?.removeEventListener("loadingdone", measureToolGroupLabel);
+    };
+  }, [measureToolGroupLabel, props.state]);
   const isSidebarPointerDownRef = useRef(false);
   const autoFollowPausedUntilRef = useRef(0);
   const virtualizer = useVirtualizer({
@@ -330,6 +397,11 @@ export function SessionConversationSidebar(
                                     props.search.trim() === "" &&
                                     row.role === "tool",
                                   getBoundary: (row) => row.toolGroupId,
+                                  getToolName: (row) => row.label,
+                                  summaryBudget:
+                                    toolGroupMeasurement?.width ?? Infinity,
+                                  measureSummary:
+                                    toolGroupMeasurement?.measureSummary,
                                 }).map((group, groupIndex, groups) => {
                                   if (group.type === "tools") {
                                     const firstTool = group.rows[0]!;
@@ -344,9 +416,7 @@ export function SessionConversationSidebar(
                                               Tool calls
                                             </h4>
                                             <div className="text-muted-foreground whitespace-pre-line">
-                                              {group.rows
-                                                .map((row) => row.label)
-                                                .join("\n")}
+                                              {group.title}
                                             </div>
                                           </div>
                                         }
@@ -355,7 +425,7 @@ export function SessionConversationSidebar(
                                           <button
                                             {...getTriggerProps()}
                                             type="button"
-                                            aria-label={`Tools: ${group.summary}`}
+                                            aria-label={`Tool: ${group.title}`}
                                             onClick={() =>
                                               props.onSelect(
                                                 targetIndex,
@@ -367,9 +437,12 @@ export function SessionConversationSidebar(
                                           >
                                             <span
                                               className="min-w-0 flex-1 truncate"
-                                              title={group.summary}
+                                              data-session-tool-group-label
+                                              title={group.title}
                                             >
-                                              {group.summary}
+                                              {/^[0-9]+x\s/.test(group.summary)
+                                                ? group.summary
+                                                : `Tool: ${group.summary}`}
                                             </span>
                                           </button>
                                         )}

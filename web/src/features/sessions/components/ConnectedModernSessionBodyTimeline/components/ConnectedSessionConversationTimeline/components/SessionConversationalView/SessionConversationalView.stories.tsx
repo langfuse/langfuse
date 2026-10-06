@@ -2534,32 +2534,75 @@ export const ConsecutiveToolGroups = meta.story({
     const timeline = within(
       canvas.getByLabelText("Session conversation timeline"),
     );
-    for (const summary of ["5 tool calls", "2 tool calls", "7 tool calls"]) {
-      await expect(sidebar.getByText(summary)).toBeInTheDocument();
+    const longNames = Array.from(
+      { length: 7 },
+      (_, index) => `very_long_tool_name_${index}`,
+    ).join(" · ");
+    const sidebarElement = canvas.getByRole("complementary");
+    const longToolLabel = sidebar
+      .getByRole("button", { name: `Tool: ${longNames}` })
+      .querySelector<HTMLElement>("[data-session-tool-group-label]");
+    if (!longToolLabel) throw new Error("Missing tool group label");
+    const originalWidth = sidebarElement.style.width;
+    try {
+      sidebarElement.style.width = "180px";
+      await waitFor(() => {
+        expect(longToolLabel.textContent).toContain("more");
+        expect(longToolLabel.scrollWidth).toBeLessThanOrEqual(
+          longToolLabel.clientWidth + 1,
+        );
+      });
+      const narrowSummary = longToolLabel.textContent;
+      sidebarElement.style.width = "650px";
+      await waitFor(() => {
+        expect(longToolLabel.textContent).not.toBe(narrowSummary);
+        expect(longToolLabel.textContent).toContain("very_long_tool_name_1");
+        expect(longToolLabel.scrollWidth).toBeLessThanOrEqual(
+          longToolLabel.clientWidth + 1,
+        );
+      });
+      await expect(longToolLabel).toHaveAttribute("title", longNames);
+    } finally {
+      sidebarElement.style.width = originalWidth;
+    }
+    for (const summary of ["5x tool_1", "tool_a · tool_b", longNames]) {
+      await expect(
+        sidebar.getByRole("button", { name: `Tool: ${summary}` }),
+      ).toBeInTheDocument();
       await expect(
         timeline.getByRole("button", { name: `Show tools: ${summary}` }),
       ).toHaveAttribute("aria-expanded", "false");
     }
-    await userEvent.click(sidebar.getByText("2 tool calls"));
     await expect(
-      timeline.getByRole("button", { name: "Hide tools: 2 tool calls" }),
+      sidebar.getByRole("button", { name: "Tool: 5x tool_1" }),
+    ).toHaveTextContent(/^5x tool_1$/);
+    await expect(
+      sidebar.getByRole("button", { name: "Tool: tool_a · tool_b" }),
+    ).toHaveTextContent(/^Tool: tool_a · tool_b$/);
+    await userEvent.click(
+      sidebar.getByRole("button", { name: "Tool: tool_a · tool_b" }),
+    );
+    await expect(
+      timeline.getByRole("button", { name: "Hide tools: tool_a · tool_b" }),
     ).toHaveAttribute("aria-expanded", "true");
     await expect(
       timeline.getByRole("button", { name: "Expand tool_b" }),
     ).toBeInTheDocument();
     await userEvent.click(
-      timeline.getByRole("button", { name: "Hide tools: 2 tool calls" }),
+      timeline.getByRole("button", { name: "Hide tools: tool_a · tool_b" }),
     );
     await expect(
-      timeline.getByRole("button", { name: "Show tools: 2 tool calls" }),
+      timeline.getByRole("button", { name: "Show tools: tool_a · tool_b" }),
     ).toHaveAttribute("aria-expanded", "false");
     await userEvent.type(sidebar.getByRole("textbox"), "tool_1");
     await expect(
       sidebar.getAllByRole("button", { name: "tool: tool_1" }),
     ).toHaveLength(5);
-    await expect(sidebar.queryByText("2 tool calls")).not.toBeInTheDocument();
     await expect(
-      timeline.getByRole("button", { name: "Show tools: 7 tool calls" }),
+      sidebar.queryByRole("button", { name: "Tool: tool_a · tool_b" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      timeline.getByRole("button", { name: `Show tools: ${longNames}` }),
     ).toBeInTheDocument();
   },
 });

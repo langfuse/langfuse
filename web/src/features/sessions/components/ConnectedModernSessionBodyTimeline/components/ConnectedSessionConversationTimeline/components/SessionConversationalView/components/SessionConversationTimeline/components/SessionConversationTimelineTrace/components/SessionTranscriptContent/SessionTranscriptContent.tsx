@@ -85,6 +85,11 @@ function SessionTranscriptThread({
   const groups = groupConsecutiveTools(rows, {
     isTool: ({ row }) => row.type === "tool",
     getBoundary: ({ threadIndex }) => threadIndex,
+    getToolName: ({ row }) =>
+      row.type === "tool"
+        ? (row.call?.toolName ?? row.result?.toolName)
+        : undefined,
+    summaryBudget: 72,
   });
   return groups.map((group) => {
     if (group.type === "tools") {
@@ -92,6 +97,7 @@ function SessionTranscriptThread({
         <SessionTranscriptToolGroup
           key={group.rows[0]!.id}
           summary={group.summary}
+          title={group.title}
           rows={group.rows}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
@@ -179,10 +185,12 @@ function SessionTranscriptRow({
 
 function SessionTranscriptToolGroup({
   summary,
+  title,
   rows,
   ...props
 }: {
   summary: string;
+  title: string;
 } & ComponentProps<typeof SessionTranscriptThread>) {
   const [expansion, setExpansion] = useState<{
     isExpanded: boolean;
@@ -199,8 +207,9 @@ function SessionTranscriptToolGroup({
   return (
     <SessionTimelineCollapsibleRow
       label={summary}
+      labelTitle={title}
       showHoverDivider={false}
-      labelActionName={`${isOpen ? "Hide" : "Show"} tools: ${summary}`}
+      labelActionName={`${isOpen ? "Hide" : "Show"} tools: ${title}`}
       icon={<Wrench className="icon-base text-observation-tool shrink-0" />}
       isExpanded={isOpen}
       onExpandedChange={(isExpanded) =>

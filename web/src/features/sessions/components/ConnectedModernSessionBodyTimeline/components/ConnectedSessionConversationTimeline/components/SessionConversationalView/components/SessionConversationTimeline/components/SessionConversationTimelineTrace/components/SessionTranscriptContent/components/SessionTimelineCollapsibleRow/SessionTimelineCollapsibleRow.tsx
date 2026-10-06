@@ -5,6 +5,7 @@ import { cn } from "@/src/utils/tailwind";
 export function SessionTimelineCollapsibleRow({
   label,
   labelActionName,
+  labelTitle,
   searchableLabel,
   icon,
   isExpanded,
@@ -16,6 +17,7 @@ export function SessionTimelineCollapsibleRow({
 }: {
   label: string;
   labelActionName?: string;
+  labelTitle?: string;
   searchableLabel?: boolean;
   icon?: ReactNode;
   isExpanded: boolean;
@@ -51,7 +53,7 @@ export function SessionTimelineCollapsibleRow({
           )}
           <span
             className="min-w-0 truncate text-xs font-normal hover:underline"
-            title={label}
+            title={labelTitle ?? label}
             data-session-search-content={searchableLabel || undefined}
           >
             {label}
