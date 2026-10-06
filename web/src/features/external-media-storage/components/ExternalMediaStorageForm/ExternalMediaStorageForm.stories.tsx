@@ -30,12 +30,18 @@ const meta = preview.meta({
   },
   render: (args) => (
     <div className="max-w-xl p-6">
-      <ExternalMediaStorageForm {...args} />
-      <div className="mt-3 flex justify-end">
-        <Button form="external-media-storage-story-form" type="submit">
-          Save
-        </Button>
-      </div>
+      <ExternalMediaStorageForm
+        {...args}
+        renderActions={({ isDirty }) => (
+          <Button
+            form="external-media-storage-story-form"
+            type="submit"
+            disabled={!isDirty}
+          >
+            Save
+          </Button>
+        )}
+      />
     </div>
   ),
 });
@@ -72,6 +78,14 @@ export const Submits = meta.story({
     const canvas = within(canvasElement);
     onSubmit.mockClear();
 
+    const saveButton = canvas.getByRole("button", { name: "Save" });
+    const bucketNameInput = canvas.getByLabelText("Bucket Name");
+    await expect(saveButton).toBeDisabled();
+    await userEvent.type(bucketNameInput, "temporary");
+    await expect(saveButton).toBeEnabled();
+    await userEvent.clear(bucketNameInput);
+    await expect(saveButton).toBeDisabled();
+
     await userEvent.type(canvas.getByLabelText("Bucket Name"), "media-bucket");
     await userEvent.type(canvas.getByLabelText("Access Key ID"), "access-key");
     await userEvent.type(
@@ -82,7 +96,7 @@ export const Submits = meta.story({
       canvas.getByLabelText("Media Prefix (optional)"),
       "media/",
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await userEvent.click(saveButton);
 
     await expect(onSubmit).toHaveBeenCalledWith(
       {

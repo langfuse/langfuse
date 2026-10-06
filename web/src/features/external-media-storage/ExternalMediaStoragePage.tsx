@@ -193,52 +193,56 @@ export default function ExternalMediaStoragePage() {
         return (
           <>
             <Header title="Configuration" />
-            <Card className="p-3">
-              {configuration.isLoading || !configuration.data ? (
+            {configuration.isLoading || !configuration.data ? (
+              <Card className="p-3">
                 <IntegrationSettingsSkeleton />
-              ) : (
-                <ExternalMediaStorageForm
-                  key={config?.updatedAt?.toString() ?? "new"}
-                  formId={EXTERNAL_MEDIA_STORAGE_FORM_ID}
-                  initialValues={initialValues}
-                  secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
-                  onSubmit={(values) =>
-                    updateMutation.mutate({ projectId, ...values })
-                  }
-                />
-              )}
-            </Card>
-            <div className="mt-3 flex justify-end gap-2">
-              {config ? (
-                <ConfirmationDialogController
-                  title="Delete external media storage?"
-                  text="Media stored in this bucket will no longer be resolved in Langfuse."
-                  confirmLabel="Delete"
-                  variant="destructive"
-                  loading={deleteMutation.isPending}
-                  onConfirm={() => deleteMutation.mutateAsync({ projectId })}
-                >
-                  {({ openDialog }) => (
-                    <ActionButton
-                      variant="destructive-secondary"
-                      hasAccess={hasAccess}
-                      onClick={openDialog}
+              </Card>
+            ) : (
+              <ExternalMediaStorageForm
+                key={config?.updatedAt?.toString() ?? "new"}
+                formId={EXTERNAL_MEDIA_STORAGE_FORM_ID}
+                initialValues={initialValues}
+                secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
+                onSubmit={(values) =>
+                  updateMutation.mutate({ projectId, ...values })
+                }
+                renderActions={({ isDirty }) => (
+                  <>
+                    {config ? (
+                      <ConfirmationDialogController
+                        title="Delete external media storage?"
+                        text="Media stored in this bucket will no longer be resolved in Langfuse."
+                        confirmLabel="Delete"
+                        variant="destructive"
+                        loading={deleteMutation.isPending}
+                        onConfirm={() =>
+                          deleteMutation.mutateAsync({ projectId })
+                        }
+                      >
+                        {({ openDialog }) => (
+                          <ActionButton
+                            variant="destructive-secondary"
+                            hasAccess={hasAccess}
+                            onClick={openDialog}
+                          >
+                            Delete
+                          </ActionButton>
+                        )}
+                      </ConfirmationDialogController>
+                    ) : null}
+                    {renderTestAction()}
+                    <Button
+                      form={EXTERNAL_MEDIA_STORAGE_FORM_ID}
+                      type="submit"
+                      loading={updateMutation.isPending}
+                      disabled={!isDirty}
                     >
-                      Delete
-                    </ActionButton>
-                  )}
-                </ConfirmationDialogController>
-              ) : null}
-              {renderTestAction()}
-              <Button
-                form={EXTERNAL_MEDIA_STORAGE_FORM_ID}
-                type="submit"
-                loading={updateMutation.isPending}
-                disabled={configuration.isLoading || !configuration.data}
-              >
-                Save
-              </Button>
-            </div>
+                      Save
+                    </Button>
+                  </>
+                )}
+              />
+            )}
           </>
         );
       })()}
