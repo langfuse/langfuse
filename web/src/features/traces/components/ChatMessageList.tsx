@@ -118,9 +118,9 @@ export function ChatMessageList({
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
       <div className="flex max-h-full min-h-0 flex-col gap-2">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {visibleMessages.map(({ message, originalIndex }) => (
-            <div className="flex flex-col gap-1" key={originalIndex}>
+            <div className="flex flex-col" key={originalIndex}>
               <ChatMessage
                 message={message}
                 shouldRenderMarkdown={shouldRenderMarkdown}
@@ -136,7 +136,7 @@ export function ChatMessageList({
                     variant="ghost"
                     size="xs"
                     onClick={() => setCollapsed((v) => !v)}
-                    className="text-muted-foreground hover:text-foreground w-fit pl-2 underline hover:bg-transparent"
+                    className="text-muted-foreground hover:text-foreground mt-1 mb-2 w-fit px-0 underline hover:bg-transparent"
                   >
                     {isCollapsed
                       ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`

@@ -25,7 +25,7 @@
     "lint:fix": "pnpm run rust:lint:fix",
     "rust:lint:fix": "pnpm run prepare-clickhouse-rs && cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
     "test": "pnpm run rust:test",
-    "rust:test": "pnpm run prepare-clickhouse-rs && cargo test --locked"
+    "rust:test": "pnpm run prepare-clickhouse-rs && cargo test --locked --features napi/dyn-symbols"
   },
   "napi": {
     "binaryName": "langfuse-native",

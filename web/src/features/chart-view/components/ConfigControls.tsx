@@ -175,7 +175,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
                 : "h-7 w-7 p-0",
             )}
           >
-            <Icon className={showLabels ? "h-4 w-4" : "h-3.5 w-3.5"} />
+            <Icon className={showLabels ? "icon-base" : "icon-base"} />
             {showLabels ? <span>{ct.label}</span> : null}
           </ToggleGroupItem>
         );

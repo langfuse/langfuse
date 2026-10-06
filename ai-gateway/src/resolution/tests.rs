@@ -95,6 +95,7 @@ fn success(project: &str, provider_token: &str) -> Value {
         "version": 1,
         "connection": {
             "id": "connection-1",
+            "name": "Primary OpenAI",
             "provider": "openai",
             "api_format": "openai.responses",
             "base_url": "https://api.openai.com/v1",
@@ -138,7 +139,9 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
         .await
         .unwrap();
     assert_eq!(context.connection().id(), "connection-1");
+    assert_eq!(context.connection().name(), Some("Primary OpenAI"));
     assert_eq!(context.connection().provider(), Provider::OpenAi);
+    assert_eq!(context.connection().provider().as_str(), "openai");
     assert!(matches!(
         context.connection().credential(),
         ProviderCredential::Bearer("private-provider-token")
@@ -407,7 +410,10 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
         .await
         .unwrap();
     assert_eq!(context.connection().id(), "connection-anthropic");
+    // Web deployments that predate connection names omit the field.
+    assert_eq!(context.connection().name(), None);
     assert_eq!(context.connection().provider(), Provider::Anthropic);
+    assert_eq!(context.connection().provider().as_str(), "anthropic");
     assert_eq!(
         context.connection().api_format(),
         ApiFormat::AnthropicMessages

@@ -216,6 +216,23 @@ fn request_id(response: &reqwest::Response) -> String {
     id
 }
 
+/// A request that never reaches the provider has no generation, and names only
+/// its tenant, and only if it was resolved.
+fn assert_pre_upstream_headers(headers: &reqwest::header::HeaderMap, resolved: bool) {
+    assert!(!headers.contains_key("langfuse-trace-id"));
+    assert!(!headers.contains_key("langfuse-observation-id"));
+    for name in ["langfuse-organization-id", "langfuse-project-id"] {
+        assert_eq!(headers.contains_key(name), resolved, "{name}");
+    }
+    for name in [
+        "langfuse-provider",
+        "langfuse-provider-connection-id",
+        "langfuse-model",
+    ] {
+        assert!(!headers.contains_key(name), "{name}");
+    }
+}
+
 #[tokio::test]
 async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() {
     let web = FakeServer::start(|request| async move {
@@ -240,22 +257,30 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
     let unconfigured = Gateway::start(None).await;
     let configured = Gateway::start(Some(inference(&web, &provider))).await;
     let mut seen = std::collections::HashSet::new();
-    for (request, status, anthropic) in [
-        (unconfigured.post(), StatusCode::SERVICE_UNAVAILABLE, false),
+    for (request, status, anthropic, resolved) in [
+        (
+            unconfigured.post(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            false,
+            false,
+        ),
         (
             unconfigured.messages(),
             StatusCode::SERVICE_UNAVAILABLE,
             true,
+            false,
         ),
-        (configured.post(), StatusCode::UNAUTHORIZED, false),
+        (configured.post(), StatusCode::UNAUTHORIZED, false, false),
         (
             unconfigured.chat_completions(),
             StatusCode::SERVICE_UNAVAILABLE,
+            false,
             false,
         ),
         (
             configured.chat_completions().bearer_auth("rejected"),
             StatusCode::UNAUTHORIZED,
+            false,
             false,
         ),
         (
@@ -265,16 +290,19 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
                 .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
+            true,
         ),
         (
             configured.post().bearer_auth("rejected"),
             StatusCode::UNAUTHORIZED,
+            false,
             false,
         ),
         (
             configured.messages().header("x-api-key", "rejected"),
             StatusCode::UNAUTHORIZED,
             true,
+            false,
         ),
         (
             configured
@@ -283,6 +311,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
                 .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
+            true,
         ),
     ] {
         let response = request
@@ -292,8 +321,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             .unwrap();
         assert_eq!(response.status(), status);
         let id = request_id(&response);
-        assert!(!response.headers().contains_key("langfuse-trace-id"));
-        assert!(!response.headers().contains_key("langfuse-observation-id"));
+        assert_pre_upstream_headers(response.headers(), resolved);
         let body: serde_json::Value =
             serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
         assert_eq!(body["request_id"], id.as_str());
@@ -306,6 +334,65 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
         assert!(seen.insert(id), "request IDs must be unique");
     }
     assert_eq!(provider.calls(), 0);
+}
+
+#[tokio::test]
+async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to() {
+    let web = FakeServer::start(|request| async move {
+        let body = to_bytes(request.into_body(), 1024).await.unwrap();
+        let api_format =
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap()["apiFormat"].clone();
+        resolution_response_for(
+            serde_json::from_value(api_format).unwrap(),
+            "provider-secret",
+        )
+    })
+    .await;
+    let provider = FakeServer::start(|_| async {
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from("{}"))
+            .unwrap()
+    })
+    .await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let client = reqwest::Client::new();
+    let anthropic = |path: &str, body: &'static str| {
+        client
+            .post(format!("{}/anthropic/v1/{path}", gateway.url))
+            .header("x-api-key", "gateway-anthropic")
+            .header("content-type", "application/json")
+            .body(body)
+    };
+    for (request, provider_type) in [
+        (
+            anthropic(
+                "messages/count_tokens",
+                r#"{"messages":[],"model":"claude-opus-4-1"}"#,
+            ),
+            "anthropic",
+        ),
+        (gateway.models().bearer_auth("gateway-openai"), "openai"),
+        (
+            anthropic("messages", r#"{"model":"claude-opus-4-1","messages":[]}"#),
+            "anthropic",
+        ),
+    ] {
+        let response = request.send().await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let headers = response.headers();
+        let header = |name: &str| headers.get(name).map(|value| value.to_str().unwrap());
+        assert_eq!(header("langfuse-organization-id"), Some("org-1"));
+        assert_eq!(header("langfuse-project-id"), Some("project-1"));
+        assert_eq!(header("langfuse-provider"), Some(provider_type));
+        assert_eq!(
+            header("langfuse-provider-connection-id"),
+            Some("connection-1")
+        );
+        // The model is an operator-side span and log field only.
+        assert_eq!(header("langfuse-model"), None);
+    }
+    assert_eq!(provider.calls(), 3);
 }
 
 impl Drop for Gateway {

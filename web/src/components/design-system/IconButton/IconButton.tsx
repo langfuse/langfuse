@@ -25,15 +25,17 @@ const buttonVariants = cva(
   },
 );
 
-const iconVariants = cva("shrink-0", {
+const iconVariants = cva("text-icon-foreground shrink-0", {
   variants: {
     size: {
-      xs: "size-3",
-      sm: "size-4",
-      md: "size-4",
+      xs: "icon-sm",
+      sm: "icon-base",
+      md: "icon-base",
     },
   },
-  defaultVariants: { size: "md" },
+  defaultVariants: {
+    size: "md",
+  },
 });
 
 type NativeButtonProps = Omit<

@@ -57,11 +57,11 @@ impl Recording {
                 tracing_subscriber::fmt::layer()
                     .json()
                     .flatten_event(true)
-                    .map_event_format(crate::observability::logs::WithRequestId)
+                    .map_event_format(crate::observability::logs::WithCorrelationFields)
                     .with_writer(move || buffer.clone()),
             )
             .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")))
-            .with(crate::observability::logs::RequestIdSpans);
+            .with(crate::observability::logs::CorrelationSpans);
         Self {
             _guard: tracing::subscriber::set_default(subscriber),
             _provider: provider,
@@ -510,6 +510,39 @@ fn assert_request_correlation(
     assert_attribute(server, "gateway.request.id", request_id.to_owned());
     assert_attribute(server, "gateway.client.request.id", "client-request-canary");
     assert_attribute(server, "provider_request_id", "req_upstream");
+    let resolution = [
+        ("langfuse.organization.id", "organization_id", "org-1"),
+        ("langfuse.project.id", "project_id", "project-1"),
+        ("gateway.provider", "provider", "openai"),
+        (
+            "gateway.provider.connection.id",
+            "provider_connection_id",
+            "connection-1",
+        ),
+        (
+            "gateway.provider.connection.name",
+            "provider_connection_name",
+            "Production key",
+        ),
+        ("gateway.upstream.model", "upstream_model", "test-model"),
+    ];
+    for (attribute, _, expected) in resolution {
+        assert_attribute(server, attribute, expected);
+    }
+    for (name, expected) in [
+        ("langfuse-organization-id", "org-1"),
+        ("langfuse-project-id", "project-1"),
+        ("langfuse-provider", "openai"),
+        ("langfuse-provider-connection-id", "connection-1"),
+    ] {
+        assert_eq!(header(name), expected, "{name}");
+    }
+    assert!(response.values().all(|value| {
+        value
+            .to_str()
+            .is_ok_and(|value| !value.contains("Production key"))
+    }));
+    assert!(!response.contains_key("langfuse-model"));
     let events: Vec<_> = recording
         .events()
         .into_iter()
@@ -525,6 +558,11 @@ fn assert_request_correlation(
     }
     for event in &events {
         assert_eq!(event["request_id"], request_id, "{event}");
+        if event["message"] == "gateway response started" {
+            for (_, key, expected) in resolution {
+                assert_eq!(event[key], expected, "{event}");
+            }
+        }
     }
     for (name, headers, payload) in observed {
         assert_eq!(

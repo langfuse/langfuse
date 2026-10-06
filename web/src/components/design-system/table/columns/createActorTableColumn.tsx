@@ -44,7 +44,7 @@ export function createActorTableColumn<TData extends RowData>({
             title={`API key ${label}`}
           >
             <KeyRound
-              className="text-muted-foreground size-4 shrink-0"
+              className="text-muted-foreground icon-base shrink-0"
               aria-hidden="true"
             />
             <span className="truncate font-mono" title={label}>

@@ -378,7 +378,7 @@ function buildTraceColumns(
               ) : (
                 <span>-</span>
               )}
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -443,7 +443,7 @@ function buildTraceColumns(
       isFixedPosition: true,
       renderMenu: () => (
         <DropdownMenuItem className="text-destructive">
-          <Trash className="mr-2 h-4 w-4" />
+          <Trash className="icon-base mr-2" />
           Delete trace
         </DropdownMenuItem>
       ),
@@ -1289,17 +1289,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="icon-sm text-icon-foreground" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
-              <Trash className="h-4 w-4" />
+              <Trash className="icon-sm text-icon-foreground" />
             </Button>
           </div>
         );
       }
       return (
         <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
-          <Trash className="h-4 w-4" />
+          <Trash className="icon-sm text-icon-foreground" />
         </Button>
       );
     },
@@ -1402,7 +1402,7 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
               className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
               <IdTableCell value={name} />
-              <PlusCircle className="h-3.5 w-3.5 shrink-0" />
+              <PlusCircle className="icon-base shrink-0" />
             </button>
           );
         case "link":
@@ -1509,6 +1509,6 @@ export const TestManualIOCellBackground = meta.story({
     if (!row) throw new globalThis.Error("Row not found");
 
     await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
-    await expect(row.cells[outputIndex]).toHaveClass("bg-accent-light-green");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
   },
 });

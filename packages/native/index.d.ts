@@ -13,6 +13,12 @@ export declare class PreparedEvent {
 }
 
 /**
+ * Fits topic clusters and a separate 2D display projection in memory.
+ * This is CPU-bound and synchronous; call it in a killable child process.
+ */
+export declare function clusterTopicEmbeddings(embeddings: Array<Array<number>>, settings: TopicClusteringSettings): TopicClusteringResult
+
+/**
  * Encode prepared event handles as Native blocks.
  *
  * The array is the batch merge point. Each handle already owns an immutable typed row, so the
@@ -71,4 +77,17 @@ export interface TelemetryOptions {
   dogstatsdAddress?: string
   /** How often aggregated metrics are flushed to the agent, in milliseconds. */
   flushIntervalMs?: number
+}
+
+export interface TopicClusteringResult {
+  status: string
+  labels: Array<number>
+  coordinates: Array<Array<number>>
+}
+
+export interface TopicClusteringSettings {
+  minimumCount: number
+  minClusterSize: number
+  /** Number of neighboring samples, excluding the sample itself. */
+  minSamples: number
 }

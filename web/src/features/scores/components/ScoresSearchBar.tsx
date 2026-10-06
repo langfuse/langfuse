@@ -13,6 +13,7 @@ export function ScoresSearchBar({
   setFilterState,
   filterOptions,
   isLoading,
+  inset = false,
 }: {
   projectId: string;
   isV4: boolean;
@@ -21,6 +22,7 @@ export function ScoresSearchBar({
   setFilterState: (filters: FilterState) => void;
   filterOptions: Parameters<typeof toObservedOptions>[0];
   isLoading: boolean;
+  inset?: boolean;
 }) {
   const registry = useMemo(
     () => scoresFieldRegistry(filterConfig),
@@ -36,6 +38,7 @@ export function ScoresSearchBar({
       setFilterState={setFilterState}
       observed={observed}
       registry={registry}
+      inset={inset}
     />
   );
 }

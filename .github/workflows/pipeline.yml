@@ -531,6 +531,17 @@ jobs:
     env:
       VITEST_MAX_WORKERS: "6"
       NODE_ENV: test
+      REDIS_CONNECTION_STRING: redis://127.0.0.1:6379
+    services:
+      redis:
+        image: redis:7.2.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1485,7 +1496,7 @@ jobs:
   build-docker-image-release:
     needs: all-ci-passed
     # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
-    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: false && always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: "protected branches"
     strategy:
       fail-fast: false

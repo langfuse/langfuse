@@ -1,10 +1,29 @@
 import { useState } from "react";
-import { MediaTag } from "../../MediaTag/MediaTag";
+import { MediaTag, type MediaTagStatus } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
 import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
+import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
+type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
+
+function getS3MediaStatus({
+  armed,
+  isError,
+  hasData,
+}: {
+  armed: boolean;
+  isError: boolean;
+  hasData: boolean;
+}): MediaTagStatus {
+  if (!armed) return "idle";
+  if (isError) return "error";
+  if (hasData) return "ready";
+  return "loading";
+}
 
 /**
  * Container that connects a classified media value to the pure `MediaTag`: it
@@ -13,9 +32,15 @@ type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
  */
 export function MediaReferenceTag({
   descriptor,
+  label,
 }: {
   descriptor: MediaDescriptor;
+  label?: string;
 }) {
+  if (descriptor.kind === "s3") {
+    return <S3MediaTag descriptor={descriptor} label={label} />;
+  }
+
   if (descriptor.kind !== "langfuseRef") {
     return (
       <MediaTag
@@ -27,6 +52,65 @@ export function MediaReferenceTag({
   }
 
   return <LangfuseRefMediaTag descriptor={descriptor} />;
+}
+
+function S3MediaTag({
+  descriptor,
+  label,
+}: {
+  descriptor: S3Descriptor;
+  label?: string;
+}) {
+  const router = useRouter();
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const [armed, setArmed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const resolved = api.media.resolveExternalMedia.useQuery(
+    { projectId: projectId ?? "", uri: descriptor.uri },
+    {
+      enabled: armed && isFeatureEnabled && Boolean(projectId),
+      staleTime: 4 * 60 * 1000,
+      refetchInterval: open ? 4 * 60 * 1000 : false,
+      retry: false,
+      meta: { silentHttpCodes: [404] },
+    },
+  );
+
+  if (!isFeatureEnabled) return descriptor.uri;
+
+  const isSignedUrlExpired =
+    resolved.data?.expiresAt !== undefined &&
+    resolved.data.expiresAt.getTime() <= Date.now();
+  const status = getS3MediaStatus({
+    armed,
+    isError: resolved.isError,
+    hasData: Boolean(resolved.data) && !isSignedUrlExpired,
+  });
+
+  return (
+    <MediaTag
+      contentType={descriptor.contentType}
+      label={label}
+      status={status}
+      url={isSignedUrlExpired ? undefined : resolved.data?.url}
+      errorDetail={descriptor.uri}
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          if (armed && isSignedUrlExpired) resolved.refetch();
+          setArmed(true);
+        }
+      }}
+    />
+  );
 }
 
 function LangfuseRefMediaTag({
