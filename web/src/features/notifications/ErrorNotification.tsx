@@ -4,6 +4,7 @@ import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { AlertTriangle, Check, Copy, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 interface ErrorNotificationProps {
   error: string;
@@ -28,10 +29,23 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
+  const didCaptureShown = useRef(false);
   const isError = type === "ERROR";
   const textColor = isError
     ? "text-destructive-foreground"
     : "text-dark-yellow";
+
+  useEffect(() => {
+    if (didCaptureShown.current) return;
+    didCaptureShown.current = true;
+
+    capture("toast:shown", {
+      toastType: type,
+      source: path ? "trpc" : "application",
+      ...(path ? { path } : {}),
+      hasErrorId: Boolean(traceId),
+    });
+  }, [capture, path, traceId, type]);
 
   return (
     <div className="flex justify-between">
