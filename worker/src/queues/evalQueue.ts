@@ -391,7 +391,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      if (isTerminalError) return;
+      if (isTerminalError || (isMediaNotFoundError && isFinalAttempt)) return;
 
       traceException(e);
       logger.error(
