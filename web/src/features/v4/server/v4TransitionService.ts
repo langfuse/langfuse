@@ -164,12 +164,16 @@ export const getLegacyIntegrationSummaries = async ({
       integration,
     ]),
   );
-  const blobStorageByProjectId = new Map(
-    blobStorageIntegrations.map((integration) => [
-      integration.projectId,
-      integration,
-    ]),
-  );
+  const blobStorageByProjectId = new Map<
+    string,
+    (typeof blobStorageIntegrations)[number]
+  >();
+  for (const integration of blobStorageIntegrations) {
+    const current = blobStorageByProjectId.get(integration.projectId);
+    if (!current || isEnabledLegacyIntegration(integration)) {
+      blobStorageByProjectId.set(integration.projectId, integration);
+    }
+  }
 
   return projectIds.map((projectId) => {
     const legacyIntegrations = getLegacyIntegrations({

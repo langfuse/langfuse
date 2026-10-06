@@ -20,6 +20,14 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { auditLog } from "@/src/features/audit-logs/server";
+
+vi.mock("@/src/features/audit-logs/server", async (importOriginal) => {
+  const actual = await importOriginal<{ auditLog: typeof auditLog }>();
+  return {
+    auditLog: vi.fn(actual.auditLog),
+  };
+});
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -121,6 +129,7 @@ const createIntegration = async ({
 }) =>
   prisma.blobStorageIntegration.create({
     data: {
+      id: projectId,
       projectId,
       type: "S3",
       bucketName: "test-bucket",
@@ -228,7 +237,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
       const stillThere = await prisma.blobStorageIntegration.findUnique({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(stillThere).not.toBeNull();
     });
@@ -263,10 +272,96 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const integration = await prisma.blobStorageIntegration.findUnique({
-        where: { projectId: project.id },
+        where: { id: project.id },
         select: { region: true },
       });
       expect(integration?.region).toBe("us-west-2");
+    });
+  });
+
+  describe("legacy integration identity", () => {
+    it("updates the migrated row for the existing settings contract", async () => {
+      const { caller, project } = await prepare();
+      const encryptedSecret = encrypt("persisted-secret");
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { id: project.id },
+        data: {
+          bucketName: "legacy-bucket",
+          secretAccessKey: encryptedSecret,
+          exportSource: "EVENTS",
+        },
+      });
+
+      const updated = await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        bucketName: "updated-legacy-bucket",
+        secretAccessKey: null,
+      });
+
+      expect(updated.id).toBe(project.id);
+      await expect(
+        prisma.blobStorageIntegration.findMany({
+          where: { projectId: project.id },
+          select: {
+            id: true,
+            bucketName: true,
+            secretAccessKey: true,
+          },
+        }),
+      ).resolves.toEqual([
+        {
+          id: project.id,
+          bucketName: "updated-legacy-bucket",
+          secretAccessKey: encryptedSecret,
+        },
+      ]);
+    });
+  });
+
+  describe("atomic audit logging", () => {
+    it("rolls back an update when audit persistence fails", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      vi.mocked(auditLog).mockRejectedValueOnce(
+        new Error("audit log unavailable"),
+      );
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          bucketName: "updated-bucket",
+        }),
+      ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+
+      await expect(
+        prisma.blobStorageIntegration.findUniqueOrThrow({
+          where: { id: project.id },
+          select: { bucketName: true },
+        }),
+      ).resolves.toEqual({ bucketName: "test-bucket" });
+    });
+
+    it("rolls back a delete when audit persistence fails", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      vi.mocked(auditLog).mockRejectedValueOnce(
+        new Error("audit log unavailable"),
+      );
+
+      await expect(
+        caller.blobStorageIntegration.delete({
+          projectId: project.id,
+        }),
+      ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+
+      await expect(
+        prisma.blobStorageIntegration.findUnique({
+          where: { id: project.id },
+        }),
+      ).resolves.not.toBeNull();
     });
   });
 
@@ -291,6 +386,7 @@ describe("Blob Storage Integration tRPC Router", () => {
           name: QueueJobs.BlobStorageIntegrationProcessingJob,
           payload: {
             projectId: project.id,
+            integrationId: project.id,
           },
         }),
         expect.objectContaining({
@@ -581,7 +677,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const stored = await prisma.blobStorageIntegration.findUnique({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(stored?.exportFieldGroups).toStrictEqual([
         ...OBSERVATION_FIELD_GROUPS_FULL,
@@ -628,7 +724,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       // handling, not the cutoff.
       await createIntegration({ projectId: project.id });
       await prisma.blobStorageIntegration.update({
-        where: { projectId: project.id },
+        where: { id: project.id },
         data: { createdAt: INTEGRATION_PRE_CUTOFF },
       });
 
@@ -653,7 +749,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       // handling, not the cutoff.
       await createIntegration({ projectId: project.id });
       await prisma.blobStorageIntegration.update({
-        where: { projectId: project.id },
+        where: { id: project.id },
         data: { createdAt: INTEGRATION_PRE_CUTOFF },
       });
 
@@ -715,7 +811,7 @@ describe("Blob Storage Integration tRPC Router", () => {
         // when an existing pre-cutoff row classifies the exporter as legacy.
         await createIntegration({ projectId: project.id });
         await prisma.blobStorageIntegration.update({
-          where: { projectId: project.id },
+          where: { id: project.id },
           data: { createdAt: INTEGRATION_PRE_CUTOFF },
         });
         await expect(
@@ -997,7 +1093,7 @@ describe("Blob Storage Integration tRPC Router", () => {
         await createIntegration({ projectId: project.id });
         // Backdate the row to before the integration cutoff (legacy exporter).
         await prisma.blobStorageIntegration.update({
-          where: { projectId: project.id },
+          where: { id: project.id },
           data: { createdAt: INTEGRATION_PRE_CUTOFF },
         });
         await expect(
@@ -1046,7 +1142,7 @@ describe("Blob Storage Integration tRPC Router", () => {
         await createIntegration({ projectId: project.id });
         // Post-date the row to on/after the integration cutoff (not legacy).
         await prisma.blobStorageIntegration.update({
-          where: { projectId: project.id },
+          where: { id: project.id },
           data: { createdAt: INTEGRATION_POST_CUTOFF },
         });
         await expect(
@@ -1093,7 +1189,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.exportSource).toBe("EVENTS");
     });
@@ -1115,7 +1211,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.exportSource).toBe("EVENTS");
     });
@@ -1135,7 +1231,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
     });
@@ -1159,7 +1255,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.exportSource).toBe("EVENTS");
     });
@@ -1179,7 +1275,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.exportSource).toBe("EVENTS");
     });
@@ -1200,7 +1296,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
     });
@@ -1217,7 +1313,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.fileType).toBe("PARQUET");
     });
@@ -1226,7 +1322,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const { caller, project } = await prepare();
       await createIntegration({ projectId: project.id });
       await prisma.blobStorageIntegration.update({
-        where: { projectId: project.id },
+        where: { id: project.id },
         data: { fileType: "PARQUET" },
       });
 
@@ -1238,7 +1334,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.fileType).toBe("PARQUET");
       expect(row.enabled).toBe(false);
@@ -1250,7 +1346,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const { caller, project } = await prepare();
       await createIntegration({ projectId: project.id });
       await prisma.blobStorageIntegration.update({
-        where: { projectId: project.id },
+        where: { id: project.id },
         data: { fileType: "PARQUET" },
       });
 
@@ -1262,7 +1358,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.fileType).toBe("PARQUET");
       expect(row.enabled).toBe(false);
@@ -1278,7 +1374,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
-        where: { projectId: project.id },
+        where: { id: project.id },
       });
       expect(row.fileType).toBe("PARQUET");
     });

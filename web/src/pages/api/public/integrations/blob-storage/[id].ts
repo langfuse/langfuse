@@ -25,31 +25,33 @@ async function handleDeleteBlobStorageIntegration(
   }
 
   // Check if the integration exists and belongs to a project in the organization
-  const integration = await prisma.blobStorageIntegration.findUnique({
-    where: { projectId: id },
-    include: {
-      project: {
-        select: { orgId: true },
-      },
+  const integration = await prisma.blobStorageIntegration.findFirst({
+    where: {
+      id,
+      project: { orgId: scope.orgId },
     },
   });
 
-  if (!integration || integration.project.orgId !== scope.orgId) {
+  if (!integration) {
     throw new LangfuseNotFoundError("Blob storage integration not found");
   }
 
-  // Delete the integration
-  await prisma.blobStorageIntegration.delete({
-    where: { projectId: id },
-  });
+  await prisma.$transaction(async (tx) => {
+    await tx.blobStorageIntegration.delete({
+      where: { id, projectId: integration.projectId },
+    });
 
-  await auditLog({
-    action: "delete",
-    resourceType: "blobStorageIntegration",
-    resourceId: integration.projectId,
-    projectId: integration.projectId,
-    orgId: scope.orgId,
-    apiKeyId: scope.apiKeyId,
+    await auditLog(
+      {
+        action: "delete",
+        resourceType: "blobStorageIntegration",
+        resourceId: integration.id,
+        projectId: integration.projectId,
+        orgId: scope.orgId,
+        apiKeyId: scope.apiKeyId,
+      },
+      tx,
+    );
   });
 
   return res.status(200).json({
@@ -68,21 +70,19 @@ async function handleGetBlobStorageIntegrationStatus(
     throw new InvalidRequestError("Invalid integration ID");
   }
 
-  const integration = await prisma.blobStorageIntegration.findUnique({
-    where: { projectId: id },
-    include: {
-      project: {
-        select: { orgId: true },
-      },
+  const integration = await prisma.blobStorageIntegration.findFirst({
+    where: {
+      id,
+      project: { orgId: scope.orgId },
     },
   });
 
-  if (!integration || integration.project.orgId !== scope.orgId) {
+  if (!integration) {
     throw new LangfuseNotFoundError("Blob storage integration not found");
   }
 
   const responseData: BlobStorageIntegrationStatusResponseType = {
-    id: integration.projectId,
+    id: integration.id,
     projectId: integration.projectId,
     syncStatus: deriveSyncStatus(integration),
     enabled: integration.enabled,

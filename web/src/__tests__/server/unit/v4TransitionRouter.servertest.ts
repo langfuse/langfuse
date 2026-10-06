@@ -811,6 +811,11 @@ describe("v4TransitionRouter", () => {
             enabled: true,
             exportSource: "TRACES_OBSERVATIONS_EVENTS",
           },
+          {
+            projectId,
+            enabled: true,
+            exportSource: "EVENTS",
+          },
         ]),
       },
     };

@@ -2,9 +2,14 @@ import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
+import blobStorageIntegrationsHandler from "@/src/pages/api/public/integrations/blob-storage";
+import blobStorageIntegrationHandler from "@/src/pages/api/public/integrations/blob-storage/[id]";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { createMocks } from "node-mocks-http";
+import type { NextApiRequest, NextApiResponse } from "next";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
@@ -15,6 +20,13 @@ import {
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+
+vi.mock("@/src/features/audit-logs/server", async (importOriginal) => {
+  const actual = await importOriginal<{ auditLog: typeof auditLog }>();
+  return {
+    auditLog: vi.fn(actual.auditLog),
+  };
+});
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -187,7 +199,7 @@ describe("Blob Storage Integrations API", () => {
           exportMode: "FULL_HISTORY",
         },
       });
-      testIntegrationId = integration.projectId;
+      testIntegrationId = integration.id;
     });
 
     afterAll(async () => {
@@ -297,11 +309,73 @@ describe("Blob Storage Integrations API", () => {
       expect(response.body).not.toHaveProperty("secretAccessKey");
 
       // Verify it was saved to database
-      const savedIntegration = await prisma.blobStorageIntegration.findUnique({
+      const savedIntegration = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(savedIntegration).toBeDefined();
       expect(savedIntegration?.bucketName).toBe("test-bucket");
+    });
+
+    it("rolls back a create when audit persistence fails", async () => {
+      vi.mocked(auditLog).mockRejectedValueOnce(
+        new Error("audit log unavailable"),
+      );
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "PUT",
+        headers: {
+          authorization: createBasicAuthHeader(testApiKey, testApiSecretKey),
+        },
+        body: {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+        },
+      });
+
+      await blobStorageIntegrationsHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(500);
+      await expect(
+        prisma.blobStorageIntegration.count({
+          where: { projectId: testProject1Id },
+        }),
+      ).resolves.toBe(0);
+    });
+
+    it("should handle concurrent creates idempotently", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+      };
+      const auth = createBasicAuthHeader(testApiKey, testApiSecretKey);
+
+      const responses = await Promise.all([
+        makeZodVerifiedAPICall(
+          BlobStorageIntegrationResponseSchema,
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          requestBody,
+          auth,
+          200,
+        ),
+        makeZodVerifiedAPICall(
+          BlobStorageIntegrationResponseSchema,
+          "PUT",
+          "/api/public/integrations/blob-storage",
+          requestBody,
+          auth,
+          200,
+        ),
+      ]);
+
+      expect(responses.map(({ body }) => body.id)).toEqual([
+        testProject1Id,
+        testProject1Id,
+      ]);
+      await expect(
+        prisma.blobStorageIntegration.count({
+          where: { projectId: testProject1Id },
+        }),
+      ).resolves.toBe(1);
     });
 
     it("should update an existing blob storage integration", async () => {
@@ -309,6 +383,7 @@ describe("Blob Storage Integrations API", () => {
       // which only grandfathered (pre-integration-cutoff) rows may carry.
       await prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "old-bucket",
@@ -346,6 +421,59 @@ describe("Blob Storage Integrations API", () => {
       expect(response.body.bucketName).toBe("updated-bucket");
       expect(response.body.enabled).toBe(true);
       expect(response.body.exportFrequency).toBe("weekly");
+      await expect(
+        prisma.blobStorageIntegration.count({
+          where: { projectId: testProject1Id },
+        }),
+      ).resolves.toBe(1);
+    });
+
+    it("should not overwrite an integration created through the settings UI", async () => {
+      const uiIntegration = await prisma.blobStorageIntegration.create({
+        data: {
+          id: "ui-created-integration",
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "ui-bucket",
+          region: "us-east-1",
+          accessKeyId: "ui-key",
+          secretAccessKey: "ui-secret",
+          prefix: "ui/",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "PARQUET",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          bucketName: "api-bucket",
+          prefix: "api/",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      expect(response.body.id).toBe(testProject1Id);
+      await expect(
+        prisma.blobStorageIntegration.findUniqueOrThrow({
+          where: { id: uiIntegration.id },
+          select: { bucketName: true, prefix: true },
+        }),
+      ).resolves.toEqual({ bucketName: "ui-bucket", prefix: "ui/" });
+      await expect(
+        prisma.blobStorageIntegration.count({
+          where: { projectId: testProject1Id },
+        }),
+      ).resolves.toBe(2);
     });
 
     it("should validate required fields", async () => {
@@ -529,7 +657,7 @@ describe("Blob Storage Integrations API", () => {
       expect(response.status).toBe(200);
 
       // Query database directly to check how secretAccessKey is stored
-      const savedIntegration = await prisma.blobStorageIntegration.findUnique({
+      const savedIntegration = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
 
@@ -579,7 +707,7 @@ describe("Blob Storage Integrations API", () => {
       expect(response.status).toBe(200);
       expect(response.body.compressed).toBe(false);
 
-      const savedIntegration = await prisma.blobStorageIntegration.findUnique({
+      const savedIntegration = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(savedIntegration?.compressed).toBe(false);
@@ -599,7 +727,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportFieldGroups).toHaveLength(11);
@@ -610,6 +738,7 @@ describe("Blob Storage Integrations API", () => {
       // column default, which only grandfathered rows may carry.
       await prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "initial-bucket",
@@ -640,7 +769,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
@@ -682,6 +811,7 @@ describe("Blob Storage Integrations API", () => {
     ) =>
       prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "seed-bucket",
@@ -940,7 +1070,7 @@ describe("Blob Storage Integrations API", () => {
       expect(putResponse.status).toBe(200);
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
@@ -1004,7 +1134,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.bucketName).toBe("updated-bucket");
@@ -1162,6 +1292,7 @@ describe("Blob Storage Integrations API", () => {
       // Pre-seed an OBSERVATIONS_V2 row with a custom field-group subset
       await prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "initial-bucket",
@@ -1197,7 +1328,7 @@ describe("Blob Storage Integrations API", () => {
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
       // DB row preserved on both columns; bucket updated
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportSource).toBe("EVENTS");
@@ -1209,6 +1340,7 @@ describe("Blob Storage Integrations API", () => {
       // Pre-seed an OBSERVATIONS_V2 row with a custom field-group subset
       await prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "initial-bucket",
@@ -1245,7 +1377,7 @@ describe("Blob Storage Integrations API", () => {
       expect(putResponse.body.exportSource).toBe("OBSERVATIONS_V2");
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportSource).toBe("EVENTS");
@@ -1256,6 +1388,7 @@ describe("Blob Storage Integrations API", () => {
       // Pre-seed an OBSERVATIONS_V2 row with a custom field-group subset
       await prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "initial-bucket",
@@ -1291,7 +1424,7 @@ describe("Blob Storage Integrations API", () => {
       expect(putResponse.body.exportSource).toBe("OBSERVATIONS_V2");
       expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
@@ -1338,7 +1471,7 @@ describe("Blob Storage Integrations API", () => {
           exportMode: "FULL_HISTORY",
         },
       });
-      testIntegrationId = integration.projectId; // Based on current implementation, ID is projectId
+      testIntegrationId = integration.id;
     });
 
     afterEach(async () => {
@@ -1362,11 +1495,9 @@ describe("Blob Storage Integrations API", () => {
       expect(response.body.message).toBeDefined();
 
       // Verify it was deleted from database
-      const deletedIntegration = await prisma.blobStorageIntegration.findUnique(
-        {
-          where: { projectId: testIntegrationId },
-        },
-      );
+      const deletedIntegration = await prisma.blobStorageIntegration.findFirst({
+        where: { id: testIntegrationId },
+      });
       expect(deletedIntegration).toBeNull();
     });
 
@@ -1376,7 +1507,7 @@ describe("Blob Storage Integrations API", () => {
         resourceId: testIntegrationId,
         action: "delete",
         orgId: testOrgId,
-        projectId: testIntegrationId,
+        projectId: testProject1Id,
         apiKeyId: testApiKeyId,
       };
       const auditLogCountBefore = await prisma.auditLog.count({
@@ -1396,6 +1527,28 @@ describe("Blob Storage Integrations API", () => {
         where: auditLogWhere,
       });
       expect(auditLogCountAfter).toBe(auditLogCountBefore + 1);
+    });
+
+    it("rolls back a delete when audit persistence fails", async () => {
+      vi.mocked(auditLog).mockRejectedValueOnce(
+        new Error("audit log unavailable"),
+      );
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { id: testIntegrationId },
+        headers: {
+          authorization: createBasicAuthHeader(testApiKey, testApiSecretKey),
+        },
+      });
+
+      await blobStorageIntegrationHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(500);
+      await expect(
+        prisma.blobStorageIntegration.findUnique({
+          where: { id: testIntegrationId },
+        }),
+      ).resolves.not.toBeNull();
     });
 
     it("should return 404 for non-existent integration", async () => {
@@ -1430,7 +1583,7 @@ describe("Blob Storage Integrations API", () => {
 
       const result = await makeAPICall(
         "DELETE",
-        `/api/public/integrations/blob-storage/${otherOrgIntegration.projectId}`,
+        `/api/public/integrations/blob-storage/${otherOrgIntegration.id}`,
         undefined,
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
@@ -1444,7 +1597,7 @@ describe("Blob Storage Integrations API", () => {
 
       // Clean up
       await prisma.blobStorageIntegration.delete({
-        where: { projectId: otherProjectId },
+        where: { id: otherOrgIntegration.id },
       });
     });
 
@@ -1533,6 +1686,7 @@ describe("Blob Storage Integrations API", () => {
         // pre-integration-cutoff rows.
         await prisma.blobStorageIntegration.create({
           data: {
+            id: testProject1Id,
             projectId: testProject1Id,
             type: "S3",
             bucketName: "seed-bucket",
@@ -1682,6 +1836,7 @@ describe("Blob Storage Integrations API", () => {
         });
         await prisma.blobStorageIntegration.create({
           data: {
+            id: testProject1Id,
             projectId: testProject1Id,
             type: "S3",
             bucketName: "test-bucket",
@@ -1729,6 +1884,7 @@ describe("Blob Storage Integrations API", () => {
     const seedIntegration = (createdAt: Date) =>
       prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "existing-bucket",
@@ -1862,7 +2018,7 @@ describe("Blob Storage Integrations API", () => {
       expect(result.status).toBe(200);
       expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.exportSource).toBe("EVENTS");
@@ -1873,6 +2029,7 @@ describe("Blob Storage Integrations API", () => {
     const seedParquetIntegration = () =>
       prisma.blobStorageIntegration.create({
         data: {
+          id: testProject1Id,
           projectId: testProject1Id,
           type: "S3",
           bucketName: "test-bucket",
@@ -1916,7 +2073,7 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(result.status).toBe(200);
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.fileType).toBe("PARQUET");
@@ -1937,7 +2094,7 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(result.status).toBe(200);
 
-      const saved = await prisma.blobStorageIntegration.findUnique({
+      const saved = await prisma.blobStorageIntegration.findFirst({
         where: { projectId: testProject1Id },
       });
       expect(saved?.fileType).toBe(validBlobStorageConfig.fileType);

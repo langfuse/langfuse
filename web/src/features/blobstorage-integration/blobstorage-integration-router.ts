@@ -100,6 +100,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
       try {
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
+            id: input.projectId,
             projectId: input.projectId,
           },
           omit: {
@@ -143,9 +144,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         const existingIntegration =
-          await ctx.prisma.blobStorageIntegration.findUnique({
-            where: { projectId: input.projectId },
-            select: { createdAt: true, exportSource: true },
+          await ctx.prisma.blobStorageIntegration.findFirst({
+            where: {
+              id: input.projectId,
+              projectId: input.projectId,
+            },
+            select: { id: true, createdAt: true, exportSource: true },
           });
 
         // Validates the requested source and resolves what a CREATE should
@@ -158,19 +162,24 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           existingIntegration,
         });
 
-        await auditLog({
-          session: ctx.session,
-          action: "update",
-          resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
-        });
-
         const { projectId, ...rest } = input;
 
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
+          integrationId: existingIntegration?.id,
+          createId: projectId,
           createExportSource,
+          persistAuditLog: (tx, resourceId) =>
+            auditLog(
+              {
+                session: ctx.session,
+                action: "update",
+                resourceType: "blobStorageIntegration",
+                resourceId,
+              },
+              tx,
+            ),
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
@@ -215,17 +224,22 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           session: ctx.session,
           projectId: input.projectId,
         });
-        await auditLog({
-          session: ctx.session,
-          action: "delete",
-          resourceType: "blobStorageIntegration",
-          resourceId: input.projectId,
-        });
-
-        await ctx.prisma.blobStorageIntegration.delete({
-          where: {
-            projectId: input.projectId,
-          },
+        await ctx.prisma.$transaction(async (tx) => {
+          await tx.blobStorageIntegration.delete({
+            where: {
+              id: input.projectId,
+              projectId: input.projectId,
+            },
+          });
+          await auditLog(
+            {
+              session: ctx.session,
+              action: "delete",
+              resourceType: "blobStorageIntegration",
+              resourceId: input.projectId,
+            },
+            tx,
+          );
         });
       } catch (e) {
         if (e instanceof TRPCError) {
@@ -249,8 +263,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         // Check if integration exists and is enabled
-        const integration = await ctx.prisma.blobStorageIntegration.findUnique({
+        const integration = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
+            id: input.projectId,
             projectId: input.projectId,
           },
         });
@@ -291,6 +306,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             timestamp: new Date(),
             payload: {
               projectId: input.projectId,
+              integrationId: integration.id,
             },
           },
           {
@@ -356,8 +372,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         // Get persisted configuration
-        const integration = await ctx.prisma.blobStorageIntegration.findUnique({
+        const integration = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
+            id: input.projectId,
             projectId: input.projectId,
           },
         });
