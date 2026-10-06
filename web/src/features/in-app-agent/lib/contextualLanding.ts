@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { createProjectScopedRegistrationStore } from "./projectScopedRegistrationStore";
 
 type InAppAgentContextualLandingExample = {
   id: string;
@@ -15,12 +16,8 @@ export type InAppAgentContextualLanding = {
   onSubmit: (input: string) => Promise<boolean>;
 };
 
-type RegisteredLanding = {
-  owner: symbol;
-  landing: InAppAgentContextualLanding;
-};
-
-const registeredLandings = new Map<string, Map<string, RegisteredLanding>>();
+const registeredLandings =
+  createProjectScopedRegistrationStore<InAppAgentContextualLanding>();
 const activeLandingIds = new Map<string, string>();
 const listeners = new Map<string, Set<() => void>>();
 
@@ -34,26 +31,18 @@ export function registerInAppAgentContextualLanding(
   projectId: string,
   landing: InAppAgentContextualLanding,
 ) {
-  const owner = Symbol(landing.id);
-  const projectLandings =
-    registeredLandings.get(projectId) ?? new Map<string, RegisteredLanding>();
-
-  projectLandings.set(landing.id, { owner, landing });
-  registeredLandings.set(projectId, projectLandings);
-
+  const unregister = registeredLandings.register(
+    projectId,
+    landing.id,
+    landing,
+  );
   if (activeLandingIds.get(projectId) === landing.id) {
     emitChange(projectId);
   }
 
   return () => {
-    const currentLanding = registeredLandings.get(projectId)?.get(landing.id);
-    if (currentLanding?.owner !== owner) {
+    if (!unregister()) {
       return;
-    }
-
-    projectLandings.delete(landing.id);
-    if (projectLandings.size === 0) {
-      registeredLandings.delete(projectId);
     }
 
     if (activeLandingIds.get(projectId) === landing.id) {
@@ -67,7 +56,7 @@ export function activateInAppAgentContextualLanding(
   projectId: string,
   landingId: string,
 ) {
-  if (!registeredLandings.get(projectId)?.has(landingId)) {
+  if (!registeredLandings.has(projectId, landingId)) {
     return false;
   }
 
@@ -90,7 +79,7 @@ export function getInAppAgentContextualLanding(projectId: string) {
     return undefined;
   }
 
-  return registeredLandings.get(projectId)?.get(activeLandingId)?.landing;
+  return registeredLandings.get(projectId, activeLandingId);
 }
 
 export function subscribeToInAppAgentContextualLanding(

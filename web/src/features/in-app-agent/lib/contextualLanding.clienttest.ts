@@ -72,6 +72,31 @@ describe("in-app agent contextual landing", () => {
     expect(getInAppAgentContextualLanding("project-1")).toBeUndefined();
   });
 
+  it("reactively exposes a replacement for the active landing", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeToInAppAgentContextualLanding(
+      "project-1",
+      listener,
+    );
+    const unregisterOld = registerInAppAgentContextualLanding(
+      "project-1",
+      landing("evaluator", "Old"),
+    );
+    activateInAppAgentContextualLanding("project-1", "evaluator");
+
+    const unregisterNew = registerInAppAgentContextualLanding(
+      "project-1",
+      landing("evaluator", "New"),
+    );
+
+    expect(getInAppAgentContextualLanding("project-1")?.title).toBe("New");
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    unregisterOld();
+    unregisterNew();
+    unsubscribe();
+  });
+
   it("clears an active landing when its owner unregisters", () => {
     const listener = vi.fn();
     const unsubscribe = subscribeToInAppAgentContextualLanding(
