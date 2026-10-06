@@ -48,15 +48,17 @@ import {
 // `needsVirtualization` note below.
 const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
 
-const STATUS_MESSAGE_BACKGROUND_COLORS: Record<
-  ObservationStatusMessage["level"],
-  string
-> = {
-  ERROR: "var(--light-red)",
-  WARNING: "var(--light-yellow)",
-  DEBUG: "hsl(var(--muted) / 0.3)",
-  DEFAULT: "hsl(var(--card))",
-};
+// Light values are Tailwind red-50 / yellow-50, matching StatusMessageSection.
+function statusMessageBackgroundColor(
+  level: ObservationStatusMessage["level"],
+  isDark: boolean,
+) {
+  if (level === "ERROR")
+    return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
+  if (level === "WARNING")
+    return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
+  return "hsl(var(--surface-output))";
+}
 
 /**
  * Decode a field's \uXXXX escapes, but only when it fits under the decoder's
@@ -499,7 +501,7 @@ function IOPreviewJSONInner({
         key: "status-message",
         title: statusPresentation.title,
         data: parseStructuredStatusMessage(status.message) ?? status.message,
-        backgroundColor: STATUS_MESSAGE_BACKGROUND_COLORS[status.level],
+        backgroundColor: statusMessageBackgroundColor(status.level, isDark),
         minHeight: "4px",
       });
     }
@@ -586,6 +588,7 @@ function IOPreviewJSONInner({
     }
     return result;
   }, [
+    isDark,
     showInput,
     showOutput,
     status,
