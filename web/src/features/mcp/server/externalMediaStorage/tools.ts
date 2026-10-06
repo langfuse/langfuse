@@ -15,7 +15,6 @@ const ExternalMediaStorageBaseSchema = z.object({
   accessKeyId: z.string(),
   secretAccessKey: z.string().optional(),
   prefix: z.string().optional(),
-  enabled: z.boolean(),
   forcePathStyle: z.boolean(),
 });
 const TestObjectInputSchema = z.object({
@@ -70,7 +69,6 @@ export const [
       context,
       attributes: {
         "mcp.storage_type": input.type,
-        "mcp.storage_enabled": input.enabled,
       },
       fn: async () => {
         const { actor, service } = getService(context);

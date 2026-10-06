@@ -25,7 +25,6 @@ export const externalMediaStorageFormSchema = z
       })
       .optional()
       .or(z.literal("")),
-    enabled: z.boolean(),
     forcePathStyle: z.boolean(),
   })
   .superRefine((values, ctx) => {

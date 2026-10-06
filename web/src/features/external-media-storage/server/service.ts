@@ -170,7 +170,6 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
             values.type === BlobStorageIntegrationType.S3_COMPATIBLE
               ? values.forcePathStyle
               : false,
-          enabled: values.enabled,
         },
       });
 
@@ -204,7 +203,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
 
-      const integration = await repository.findEnabledByProjectAndBucket({
+      const integration = await repository.findByProjectAndBucket({
         projectId,
         bucketName: parsed.bucket,
       });
@@ -237,7 +236,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
 
-      const integration = await repository.findEnabledByProjectAndBucket({
+      const integration = await repository.findByProjectAndBucket({
         projectId,
         bucketName: parsed.bucket,
       });

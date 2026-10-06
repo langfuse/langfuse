@@ -29,7 +29,7 @@ export function createExternalMediaStorageRepository(prisma: PrismaClient) {
       });
     },
 
-    findEnabledByProjectAndBucket({
+    findByProjectAndBucket({
       projectId,
       bucketName,
     }: {
@@ -40,7 +40,6 @@ export function createExternalMediaStorageRepository(prisma: PrismaClient) {
         where: {
           projectId,
           bucketName,
-          enabled: true,
         },
       });
     },

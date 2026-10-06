@@ -14,7 +14,6 @@ const defaultValues: ExternalMediaStorageFormValues = {
   accessKeyId: "",
   secretAccessKey: "",
   prefix: "",
-  enabled: true,
   forcePathStyle: false,
 };
 

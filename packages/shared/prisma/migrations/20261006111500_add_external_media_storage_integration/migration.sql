@@ -13,7 +13,6 @@ CREATE TABLE "external_media_storage_integrations" (
     "region" TEXT NOT NULL,
     "endpoint" TEXT,
     "force_path_style" BOOLEAN NOT NULL,
-    "enabled" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

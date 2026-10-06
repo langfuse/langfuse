@@ -28,7 +28,6 @@ const defaultValues: ExternalMediaStorageFormValues = {
   accessKeyId: "",
   secretAccessKey: "",
   prefix: "",
-  enabled: true,
   forcePathStyle: false,
 };
 
@@ -86,13 +85,12 @@ export default function ExternalMediaStoragePage() {
         accessKeyId: config.accessKeyId ?? "",
         secretAccessKey: "",
         prefix: config.prefix ?? "",
-        enabled: config.enabled,
         forcePathStyle: config.forcePathStyle,
       }
     : defaultValues;
 
   const renderTestAction = () => {
-    if (config?.enabled) {
+    if (config) {
       return (
         <DialogController
           renderDialog={() => (

@@ -1410,7 +1410,6 @@ model ExternalMediaStorageIntegration {
   region          String                              @map("region")
   endpoint        String?                             @map("endpoint")
   forcePathStyle  Boolean                             @map("force_path_style")
-  enabled         Boolean
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")

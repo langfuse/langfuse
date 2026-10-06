@@ -2004,7 +2004,6 @@ describe("MCP Write Tools", () => {
             accessKeyId: "test-access-key",
             secretAccessKey: "test-secret-key",
             prefix: "media/",
-            enabled: true,
             forcePathStyle: false,
           },
           setup.context,

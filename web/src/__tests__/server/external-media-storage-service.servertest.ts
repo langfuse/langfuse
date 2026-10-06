@@ -31,11 +31,9 @@ async function enableExternalMediaStorage(orgId: string) {
 
 async function prepareIntegration({
   bucketName = "media-bucket",
-  enabled = true,
   prefix,
 }: {
   bucketName?: string;
-  enabled?: boolean;
   prefix: string | null;
 }) {
   const { org, project } = await createOrgProjectAndApiKey();
@@ -52,7 +50,6 @@ async function prepareIntegration({
       region: "us-east-1",
       endpoint: null,
       forcePathStyle: false,
-      enabled,
     },
   });
   return project;
@@ -118,7 +115,6 @@ describe("external media storage service", () => {
         accessKeyId: "access-key",
         secretAccessKey: "",
         prefix: "",
-        enabled: true,
         forcePathStyle: true,
       },
     });
@@ -176,21 +172,6 @@ describe("external media storage service", () => {
       createExternalMediaStorageService(prisma).resolveUrl({
         projectId: project.id,
         uri,
-      }),
-    ).rejects.toThrow("External media is not available");
-    expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
-  });
-
-  it("does not use a disabled integration", async () => {
-    const project = await prepareIntegration({
-      enabled: false,
-      prefix: null,
-    });
-
-    await expect(
-      createExternalMediaStorageService(prisma).resolveUrl({
-        projectId: project.id,
-        uri: "s3://media-bucket/image.png",
       }),
     ).rejects.toThrow("External media is not available");
     expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();

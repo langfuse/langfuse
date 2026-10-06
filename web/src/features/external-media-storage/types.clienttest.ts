@@ -10,7 +10,6 @@ const validConfiguration = {
   accessKeyId: "access-key",
   secretAccessKey: "secret-key",
   prefix: "",
-  enabled: true,
   forcePathStyle: false,
 };
 
