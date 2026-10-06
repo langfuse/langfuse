@@ -27,10 +27,13 @@ vi.mock("next/router", () => ({
 
 const TITLE_WARNING = /requires a `?DialogTitle`?/;
 
-let consoleError: ReturnType<typeof vi.spyOn>;
+let consoleErrors: string[] = [];
 
 beforeEach(() => {
-  consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  consoleErrors = [];
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrors.push(args.map(String).join(" "));
+  });
 });
 
 afterEach(() => {
@@ -40,9 +43,7 @@ afterEach(() => {
 });
 
 function titleWarnings() {
-  return consoleError.mock.calls
-    .map((call) => call.map(String).join(" "))
-    .filter((message) => TITLE_WARNING.test(message));
+  return consoleErrors.filter((message) => TITLE_WARNING.test(message));
 }
 
 describe("V4IntroDialog", () => {
