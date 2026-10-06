@@ -558,7 +558,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --find-match-selected-background | Background color for selected search matches                       | CodeMirrorEditor                 |
 | --find-match-selected-foreground | Foreground color for selected search matches                       | CodeMirrorEditor                 |
 | --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
-| --surface-sunken                 | Off-white panel behind detail content (zinc-50)                    | Trace detail panel               |
+| --surface-sunken                 | Off-white panel behind detail content (zinc-50)                    | Trace detail panel, nav sidebar  |
 | --surface-output                 | Background of output blocks in the trace preview (zinc-100)        | IOPreview, MarkdownViewer        |
 | --surface                        | Sticky table chrome fill; follows --surface-context                | Table headers, footers           |
 | --observation-<type>-line        | Observation type colour for stroked icons and borders              | ItemTypeIcon, graph nodes        |

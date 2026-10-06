@@ -488,7 +488,7 @@
     --json-value-nullish: var(--color-gray-500);
 
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 100%;
+    --sidebar-background: var(--surface-sunken);
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
@@ -707,7 +707,7 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 2%;
+    --sidebar-background: var(--surface-sunken);
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
