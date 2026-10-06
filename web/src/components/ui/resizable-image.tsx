@@ -123,9 +123,9 @@ export const ResizableImage = ({
         <div
           className={cn(
             "group relative overflow-hidden",
-            fitContent
-              ? "w-full"
-              : cn("w-full", isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full"),
+            fitContent && "w-full",
+            !fitContent && isZoomedIn && "w-fit max-w-full min-w-10",
+            !fitContent && !isZoomedIn && "h-full w-full",
           )}
         >
           {isImageVisible && safeSrc && isValidImage.data?.isValid ? (
@@ -140,7 +140,11 @@ export const ResizableImage = ({
                 title={safeSrc ?? src}
                 className={cn(
                   "rounded border",
-                  fitContent ? "h-auto w-full" : "h-full w-full object-contain",
+                  fitContent && "h-auto w-full",
+                  !fitContent &&
+                    isZoomedIn &&
+                    "h-auto max-h-52 w-auto max-w-full",
+                  !fitContent && !isZoomedIn && "h-full w-full object-contain",
                 )}
                 onError={() => {
                   // An image failing to load is an <img> error Event (a
