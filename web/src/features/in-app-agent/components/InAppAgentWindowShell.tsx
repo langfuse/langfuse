@@ -193,7 +193,7 @@ export function InAppAgentWindowShell({
             onClose();
           }}
         >
-          <DrawerTitle className="sr-only">Assistant</DrawerTitle>
+          <DrawerTitle className="sr-only">Halo</DrawerTitle>
           {children({ isHeaderDragHandleEnabled: false })}
         </DrawerContent>
       </Drawer>

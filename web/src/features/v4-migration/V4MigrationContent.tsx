@@ -112,7 +112,7 @@ const FILTER_SEARCH_BAR_URL =
 const ALERTS_URL = "https://langfuse.com/docs/metrics/features/alerts";
 const CODE_EVALUATORS_URL =
   "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators";
-const LANGFUSE_ASSISTANT_URL = "https://langfuse.com/docs/langfuse-assistant";
+const LANGFUSE_ASSISTANT_URL = "https://langfuse.com/docs/langfuse-halo";
 // Hassieb's 2 minute walkthrough of the upgrade steps. Linked (not embedded)
 // from the Need help footer, so the panel stays free of YouTube player
 // chrome and the CSP frame-src stays untouched. Cloud only: the video covers
@@ -775,7 +775,7 @@ export function V4MigrationEvalsSection({
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
                   <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                  Use Assistant
+                  Use Halo
                 </>
               ) : (
                 "Update evals"
@@ -1319,12 +1319,12 @@ export function V4MigrationHeaderContent({
           >
             code evaluators
           </ExternalLink>
-          , and the{" "}
+          , and{" "}
           <ExternalLink
             href={LANGFUSE_ASSISTANT_URL}
             analytics={{ section: "header", link: "langfuse_assistant_docs" }}
           >
-            Langfuse Assistant
+            Langfuse Halo
           </ExternalLink>
           .
           {actionNeeded

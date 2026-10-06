@@ -90,7 +90,7 @@ export async function seedInAppAgentDemoConversation({
     projectId: summaryPrompt.projectId,
   });
   const assistantIntro =
-    "I'm your Langfuse assistant! I can help you with:\n\n" +
+    "I'm Langfuse Halo! I can help you with:\n\n" +
     "**Langfuse Data & Analysis:**\n" +
     "- Query and explore your traces, observations, and spans\n" +
     "- Review and analyze scores, annotations, and feedback\n" +

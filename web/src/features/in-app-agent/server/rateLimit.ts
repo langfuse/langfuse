@@ -94,7 +94,7 @@ export async function assertInAppAgentRateLimit(
   throw new BaseError(
     "TooManyRequestsError",
     429,
-    `Too many assistant requests. Please retry in ${Math.ceil(
+    `Too many Halo requests. Please retry in ${Math.ceil(
       rateLimitRes.msBeforeNext / 1_000,
     )} seconds.`,
     true,

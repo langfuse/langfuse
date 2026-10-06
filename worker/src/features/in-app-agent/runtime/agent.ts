@@ -63,7 +63,7 @@ import {
   type InAppAgentLanguageModel,
 } from "./model";
 
-const ASSISTANT_TITLE = "Langfuse Assistant";
+const ASSISTANT_TITLE = "Langfuse Halo";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";

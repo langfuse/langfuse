@@ -1360,7 +1360,7 @@ describe("InAppAgentBackgroundClient reconnect", () => {
     });
 
     await expect(result).resolves.toMatchObject({
-      message: "Assistant watch returned an invalid frame",
+      message: "Halo watch returned an invalid frame",
       retryable: false,
     });
   });
@@ -1375,9 +1375,9 @@ describe("getBackgroundRunNotice", () => {
   });
 
   const assistantFailedContinue =
-    "The assistant failed. Send another message to continue.";
+    "Halo failed. Send another message to continue.";
   const assistantFailedTryAgain =
-    "The assistant failed. Send another message to try again.";
+    "Halo failed. Send another message to try again.";
 
   it.each([
     [InAppAgentRunErrorCode.WORKER_LOST, assistantFailedContinue],
@@ -1397,7 +1397,7 @@ describe("getBackgroundRunNotice", () => {
     ],
     [
       InAppAgentRunErrorCode.AGENT_ERROR,
-      "The assistant hit an error before finishing. Send another message to continue.",
+      "Halo hit an error before finishing. Send another message to continue.",
     ],
     ["mystery_code", "The run failed. Try again."],
   ] as const)("maps FAILED %s to the user-facing notice", (errorCode, text) => {
@@ -1417,11 +1417,11 @@ describe("getBackgroundRunNotice", () => {
   it.each([
     [
       InAppAgentRunErrorCode.STEP_LIMIT,
-      "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
+      "Halo had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
     ],
     [
       InAppAgentRunErrorCode.OUTPUT_LIMIT,
-      "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.",
+      "Halo had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.",
     ],
   ] as const)("warns and marks SUCCEEDED %s as stopped", (errorCode, text) => {
     const run = truncatedRun(errorCode);

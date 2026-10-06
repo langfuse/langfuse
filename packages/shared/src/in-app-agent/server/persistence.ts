@@ -43,7 +43,7 @@ import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./mcpPolicy";
 import { getToolFailureMessage } from "./toolErrors";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
-  "Assistant is already responding in this conversation";
+  "Halo is already responding in this conversation";
 
 /** Owner-only authorization with a non-enumerating failure. */
 export function assertOwnedConversation(params: {
@@ -495,7 +495,7 @@ export async function maybeInferAndPersistConversationTitle(params: {
           role: ChatMessageRole.System,
           type: ChatMessageType.System,
           content: `
-Generate a concise title for this Langfuse assistant conversation.
+Generate a concise title for this Langfuse Halo conversation.
 The title should be 3-6 words, one sentence, and not exceed 100 characters.
 The title should focus on the user's task, problem, or topic, and preserve important product names, entities, or task intent.
 
