@@ -25,7 +25,9 @@ const activeLandingIds = new Map<string, string>();
 const listeners = new Map<string, Set<() => void>>();
 
 function emitChange(projectId: string) {
-  listeners.get(projectId)?.forEach((listener) => listener());
+  listeners.get(projectId)?.forEach((listener) => {
+    listener();
+  });
 }
 
 export function registerInAppAgentContextualLanding(

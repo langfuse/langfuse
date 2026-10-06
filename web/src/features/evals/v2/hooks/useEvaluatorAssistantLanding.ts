@@ -146,28 +146,30 @@ export function useEvaluatorAssistantLanding({
 }) {
   const onSubmitRef = useRef(landing?.onSubmit);
   onSubmitRef.current = landing?.onSubmit;
+  const landingId = landing?.id;
+  const title = landing?.title;
+  const description = landing?.description;
+  const examples = landing?.examples;
+  const placeholder = landing?.placeholder;
 
   useEffect(() => {
-    if (!landing) {
+    if (!landingId || !title || !description || !examples) {
       return;
     }
 
     return registerInAppAgentContextualLanding(projectId, {
-      ...landing,
+      id: landingId,
+      title,
+      description,
+      examples,
+      placeholder,
       onSubmit: (input) =>
         onSubmitRef.current?.(input) ?? Promise.resolve(false),
     });
-  }, [
-    landing?.description,
-    landing?.examples,
-    landing?.id,
-    landing?.placeholder,
-    landing?.title,
-    projectId,
-  ]);
+  }, [description, examples, landingId, placeholder, projectId, title]);
 
   return () =>
-    landing
-      ? activateInAppAgentContextualLanding(projectId, landing.id)
+    landingId
+      ? activateInAppAgentContextualLanding(projectId, landingId)
       : false;
 }

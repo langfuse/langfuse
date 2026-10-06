@@ -38,7 +38,7 @@ export function InAppAgentContextualLanding({
               onSelectExample(example);
             }}
           >
-            <span className="text-foreground min-w-0 flex-1 text-xs leading-snug font-medium">
+            <span className="text-foreground min-w-0 flex-1 text-xs leading-snug">
               {example.label}
             </span>
             <ArrowRight

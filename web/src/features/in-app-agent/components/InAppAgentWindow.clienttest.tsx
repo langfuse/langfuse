@@ -1,5 +1,6 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -389,7 +390,9 @@ describe("ControlledInAppAgentWindow composer", () => {
       ],
       onSubmit,
     });
-    activateInAppAgentContextualLanding("project-1", "evaluator");
+    act(() => {
+      activateInAppAgentContextualLanding("project-1", "evaluator");
+    });
     controlledAgent.value.isRunning = false;
 
     render(
@@ -409,7 +412,9 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(onSubmit).toHaveBeenCalledOnce();
 
     resolveSubmit(false);
-    await waitFor(() => expect(example).toBeEnabled());
+    await waitFor(() => {
+      expect(example).toBeEnabled();
+    });
     fireEvent.click(example);
     expect(onSubmit).toHaveBeenCalledTimes(2);
 
@@ -455,7 +460,9 @@ describe("ControlledInAppAgentWindow composer", () => {
       expect(onSubmit).toHaveBeenCalledWith("Use a 1–5 score");
     });
 
-    activateInAppAgentContextualLanding("project-1", "evaluator");
+    act(() => {
+      activateInAppAgentContextualLanding("project-1", "evaluator");
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "Start new conversation" }),
     );
@@ -464,8 +471,20 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByText("Welcome to the Langfuse Assistant"),
     ).toBeInTheDocument();
 
-    activateInAppAgentContextualLanding("project-1", "evaluator");
-    fireEvent.click(screen.getByRole("button", { name: "Minimize assistant" }));
+    act(() => {
+      activateInAppAgentContextualLanding("project-1", "evaluator");
+    });
+    const assistantHeader = screen
+      .getByRole("region", { name: "Assistant" })
+      .querySelector("header");
+    if (!assistantHeader) {
+      throw new Error("Expected the Assistant header");
+    }
+    fireEvent.click(
+      within(assistantHeader).getByRole("button", {
+        name: "Minimize assistant",
+      }),
+    );
     expect(onClose).toHaveBeenCalledOnce();
     expect(
       screen.getByText("Welcome to the Langfuse Assistant"),
