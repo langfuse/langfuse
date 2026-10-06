@@ -36,22 +36,17 @@ async function handleDeleteBlobStorageIntegration(
     throw new LangfuseNotFoundError("Blob storage integration not found");
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.blobStorageIntegration.delete({
-      where: { id, projectId: integration.projectId },
-    });
+  await prisma.blobStorageIntegration.delete({
+    where: { id, projectId: integration.projectId },
+  });
 
-    await auditLog(
-      {
-        action: "delete",
-        resourceType: "blobStorageIntegration",
-        resourceId: integration.id,
-        projectId: integration.projectId,
-        orgId: scope.orgId,
-        apiKeyId: scope.apiKeyId,
-      },
-      tx,
-    );
+  await auditLog({
+    action: "delete",
+    resourceType: "blobStorageIntegration",
+    resourceId: integration.id,
+    projectId: integration.projectId,
+    orgId: scope.orgId,
+    apiKeyId: scope.apiKeyId,
   });
 
   return res.status(200).json({

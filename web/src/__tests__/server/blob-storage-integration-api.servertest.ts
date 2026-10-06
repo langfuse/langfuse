@@ -316,7 +316,7 @@ describe("Blob Storage Integrations API", () => {
       expect(savedIntegration?.bucketName).toBe("test-bucket");
     });
 
-    it("rolls back a create when audit persistence fails", async () => {
+    it("does not roll back a create when audit persistence fails", async () => {
       vi.mocked(auditLog).mockRejectedValueOnce(
         new Error("audit log unavailable"),
       );
@@ -338,7 +338,7 @@ describe("Blob Storage Integrations API", () => {
         prisma.blobStorageIntegration.count({
           where: { projectId: testProject1Id },
         }),
-      ).resolves.toBe(0);
+      ).resolves.toBe(1);
     });
 
     it("should handle concurrent creates idempotently", async () => {
@@ -1529,7 +1529,7 @@ describe("Blob Storage Integrations API", () => {
       expect(auditLogCountAfter).toBe(auditLogCountBefore + 1);
     });
 
-    it("rolls back a delete when audit persistence fails", async () => {
+    it("does not roll back a delete when audit persistence fails", async () => {
       vi.mocked(auditLog).mockRejectedValueOnce(
         new Error("audit log unavailable"),
       );
@@ -1548,7 +1548,7 @@ describe("Blob Storage Integrations API", () => {
         prisma.blobStorageIntegration.findUnique({
           where: { id: testIntegrationId },
         }),
-      ).resolves.not.toBeNull();
+      ).resolves.toBeNull();
     });
 
     it("should return 404 for non-existent integration", async () => {

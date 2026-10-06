@@ -1,5 +1,5 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import {
   CreateBlobStorageIntegrationRequest,
@@ -131,17 +131,6 @@ async function handleUpsertBlobStorageIntegration(
       integrationId,
       createId: validatedData.projectId,
       createExportSource,
-      persistAuditLog: (tx, resourceId) =>
-        auditLog(
-          {
-            action: "update",
-            resourceType: "blobStorageIntegration",
-            resourceId,
-            apiKeyId: scope.apiKeyId,
-            orgId: scope.orgId,
-          },
-          tx,
-        ),
       data: {
         type: validatedData.type,
         bucketName: validatedData.bucketName,
@@ -162,17 +151,16 @@ async function handleUpsertBlobStorageIntegration(
       },
     });
 
-  let integration: Awaited<ReturnType<typeof upsertIntegration>>;
-  try {
-    integration = await upsertIntegration(existingIntegration?.id);
-  } catch (error) {
-    const concurrentCreate =
-      !existingIntegration &&
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002";
-    if (!concurrentCreate) throw error;
-    integration = await upsertIntegration(validatedData.projectId);
-  }
+  const integration = await upsertIntegration(existingIntegration?.id);
+
+  await auditLog({
+    action: "update",
+    resourceType: "blobStorageIntegration",
+    resourceId: integration.id,
+    projectId: integration.projectId,
+    apiKeyId: scope.apiKeyId,
+    orgId: scope.orgId,
+  });
 
   // Transform to API response format, exclude secretAccessKey
   const responseData: BlobStorageIntegrationResponseType = {
