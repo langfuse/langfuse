@@ -19,6 +19,8 @@ mod rules;
 mod scanner;
 
 pub use payload::{EarlyMediaResult, ExtractedMedia, ValidatedPayload};
+pub use scanner::validate;
+#[cfg(test)]
 pub use scanner::validate_and_discover;
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ use super::json::MAX_JSON_DEPTH;
 use super::payload::{EarlyMediaError, MediaEncoding, MediaPayloadKind, MediaSource};
 use super::rules::{may_contain_media_candidate, MEDIA_REFERENCE_PREFIX};
 use super::scanner::media_identity_from_encoded;
-use super::{extract_media, validate_and_discover};
+use super::{extract_media, validate, validate_and_discover};
 use base64::Engine;
 use proptest::prelude::*;
 use serde_json::{json, Value};
@@ -170,6 +170,43 @@ fn recognizes_provider_shapes_and_python_bytes() {
 }
 
 #[test]
+fn keeps_embedded_provider_documents_in_payload_mode() {
+    let encoded = BASE64.encode(b"embedded-provider");
+    let nested = format!(
+        r#"{{"scopeSpans":"provider field","type":"file","mediaType":"image/png","data":"{encoded}"}}"#
+    );
+    let encoded_nested = serde_json::to_string(&nested).expect("serialize nested JSON");
+    let input = format!(r#"{{"text":{encoded_nested}}}"#);
+
+    let result = extract_media(input.as_bytes()).expect("valid embedded provider JSON");
+
+    assert_eq!(result.media.len(), 1);
+    assert_eq!(result.media[0].decode().unwrap(), b"embedded-provider");
+}
+
+#[test]
+fn classifies_each_root_array_object_before_discovery() {
+    let provider_data = BASE64.encode(b"provider-first");
+    let envelope_uri = data_uri(b"envelope-second");
+    let structural_uri = data_uri(b"structural-name");
+    let input = format!(
+        r#"[{{"type":"file","mediaType":"image/png","data":"{provider_data}"}},{{"scopeSpans":[{{"scope":{{"name":"{structural_uri}"}},"spans":[{{"attributes":[{{"key":"{structural_uri}","value":{{"stringValue":"{envelope_uri}"}}}}]}}]}}]}}]"#
+    );
+
+    let result = extract_media(input.as_bytes()).expect("valid mixed root array");
+
+    assert_eq!(result.media.len(), 2);
+    assert_eq!(result.media[0].decode().unwrap(), b"provider-first");
+    assert_eq!(result.media[1].decode().unwrap(), b"envelope-second");
+    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    assert_eq!(compact[1]["scopeSpans"][0]["scope"]["name"], structural_uri);
+    assert_eq!(
+        compact[1]["scopeSpans"][0]["spans"][0]["attributes"][0]["key"],
+        structural_uri
+    );
+}
+
+#[test]
 fn media_prefilter_is_conservative_for_structured_and_escaped_candidates() {
     // Buffer-like OTLP fields contain `type` and `data`, but are not media
     // candidates and should take the validation-only path.
@@ -202,6 +239,58 @@ fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
     assert!(matches!(
         validate_and_discover(invalid),
         Err(EarlyMediaError::TrailingBytes { .. })
+    ));
+}
+
+#[test]
+fn explicit_validation_skips_media_discovery() {
+    let uri = data_uri(b"validation-only");
+    let input = format!(r#"{{"input":"{uri}"}}"#);
+    let validated = validate(input.as_bytes().to_vec(), false).expect("valid JSON");
+    assert!(validated.manifest.entries.is_empty());
+    assert_eq!(validated.into_source(), input.as_bytes());
+}
+
+#[test]
+fn bounds_repeated_small_nested_discovery_work() {
+    let chain = (0..120).fold(r#""leaf""#.to_owned(), |value, _| {
+        format!(r#"{{"x":{value}}}"#)
+    });
+    let item = format!(r#"{{"marker":"data: ","nested":{chain}}}"#);
+    let input = format!(
+        "[{}]",
+        std::iter::repeat_n(item, 32).collect::<Vec<_>>().join(",")
+    );
+
+    assert!(matches!(
+        validate_and_discover(input.into_bytes()),
+        Err(EarlyMediaError::ResourceLimit { .. })
+    ));
+}
+
+#[test]
+fn bounds_oversized_existing_media_reference() {
+    let reference = format!(
+        "@@@langfuseMedia:type=image/png|id={}@@@",
+        "x".repeat(8 * 1024)
+    );
+    let input = format!(r#"{{"existing":"{reference}"}}"#);
+
+    assert!(matches!(
+        validate_and_discover(input.into_bytes()),
+        Err(EarlyMediaError::ResourceLimit { .. })
+    ));
+}
+
+#[test]
+fn bounds_the_number_of_media_candidates() {
+    let uri = data_uri(b"candidate");
+    let values = std::iter::repeat_n(uri.as_str(), 16 * 1024 + 1).collect::<Vec<_>>();
+    let input = format!(r#"{{"text":"{}"}}"#, values.join(" "));
+
+    assert!(matches!(
+        validate_and_discover(input.into_bytes()),
+        Err(EarlyMediaError::ResourceLimit { .. })
     ));
 }
 
@@ -433,6 +522,27 @@ fn distinguishes_valid_surrogate_pairs_from_unsupported_or_invalid_escapes() {
     assert!(matches!(
         extract_media(r#""\\\ud800"#.as_bytes()),
         Err(EarlyMediaError::UnsupportedUnicodeSurrogate { .. })
+    ));
+}
+
+#[test]
+fn propagates_unsupported_embedded_json_shapes_to_the_typescript_path() {
+    let nested_surrogate =
+        serde_json::to_string(r#"{"value":"\ud800"}"#).expect("serialize nested JSON string");
+    let surrogate_input = format!(r#"{{"marker":"data: ","nested":{nested_surrogate}}}"#);
+    assert!(matches!(
+        extract_media(surrogate_input.as_bytes()),
+        Err(EarlyMediaError::UnsupportedUnicodeSurrogate { .. })
+    ));
+
+    let nested_deep = (0..=MAX_JSON_DEPTH).fold(r#""data: ""#.to_owned(), |value, _| {
+        format!(r#"{{"x":{value}}}"#)
+    });
+    let encoded_deep = serde_json::to_string(&nested_deep).expect("serialize deep JSON string");
+    let deep_input = format!(r#"{{"marker":"data: ","nested":{encoded_deep}}}"#);
+    assert!(matches!(
+        extract_media(deep_input.as_bytes()),
+        Err(EarlyMediaError::NestingLimit { .. })
     ));
 }
 

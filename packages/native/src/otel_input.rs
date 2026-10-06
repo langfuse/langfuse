@@ -1,48 +1,47 @@
 //! Owned raw input and extracted-media handles shared by the TS and Rust paths.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use napi::bindgen_prelude::*;
 use napi::JsString;
 use napi_derive::napi;
 
+use crate::native_memory::NativeMemory;
 use crate::native_task::OwnedTask;
 use crate::otel_media::{self, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
 
 #[napi]
 pub struct ValidatedOtelJson {
-    payload: Arc<Mutex<Option<ValidatedPayload>>>,
+    payload: Option<(ValidatedPayload, NativeMemory)>,
 }
 
 #[napi]
 impl ValidatedOtelJson {
     /// Release a superseded masking input without waiting for the JS handle to be collected.
     #[napi(ts_return_type = "Promise<void>")]
-    pub fn dispose(&self) -> AsyncTask<OwnedTask<()>> {
-        let payload = Arc::clone(&self.payload);
-        OwnedTask::run(move || {
-            payload
-                .lock()
-                .map_err(|_| Error::from_reason("OTEL input lock poisoned"))?
-                .take();
+    pub fn dispose(&mut self) -> AsyncTask<OwnedTask<()>> {
+        let payload = self.payload.take();
+        OwnedTask::run("dispose", move || {
+            drop(payload);
             Ok(())
         })
     }
 
     /// Compact the accepted document; media ranges retain its source until both write paths finish.
     #[napi(ts_return_type = "Promise<EarlyOtelBatch>")]
-    pub fn extract(&self, enabled: bool) -> AsyncTask<OwnedTask<EarlyOtelBatch>> {
-        let payload = Arc::clone(&self.payload);
-        OwnedTask::run(move || {
-            let validated = payload
-                .lock()
-                .map_err(|_| Error::from_reason("OTEL input lock poisoned"))?
-                .take()
-                .ok_or_else(|| Error::from_reason("OTEL input already extracted"))?;
+    pub fn extract(&mut self, enabled: bool) -> AsyncTask<OwnedTask<EarlyOtelBatch>> {
+        let payload = self.payload.take();
+        OwnedTask::run("extract", move || {
+            let (validated, memory) = payload.ok_or_else(|| {
+                Error::new(
+                    "ERR_OTEL_CLOSED",
+                    "OTEL input already extracted or disposed",
+                )
+            })?;
             let result = if enabled {
                 validated
                     .compact()
-                    .map_err(|error| Error::from_reason(error.to_string()))?
+                    .map_err(|error| Error::new(error.code(), error.to_string()))?
             } else {
                 let source = validated.into_source();
                 EarlyMediaResult {
@@ -50,19 +49,34 @@ impl ValidatedOtelJson {
                     media: Vec::new(),
                 }
             };
+            let mut batch = ExtractedBatch {
+                json: String::from_utf8(result.compact_json)
+                    .map_err(|_| Error::new("ERR_OTEL_INTERNAL", "compacted JSON is not UTF-8"))?,
+                media: result.media,
+                _memory: memory,
+            };
+            batch._memory.resize(batch.retained_bytes());
             Ok(EarlyOtelBatch {
-                inner: Some(Arc::new(ExtractedBatch {
-                    json: result.compact_json,
-                    media: result.media,
-                })),
+                inner: Some(Arc::new(batch)),
             })
         })
     }
 }
 
 pub(crate) struct ExtractedBatch {
-    pub(crate) json: Vec<u8>,
+    pub(crate) json: String,
     pub(crate) media: Vec<ExtractedMedia>,
+    _memory: NativeMemory,
+}
+
+impl ExtractedBatch {
+    fn retained_bytes(&self) -> usize {
+        self.json.capacity()
+            + self.media.capacity() * std::mem::size_of::<ExtractedMedia>()
+            + self.media.iter().map(ExtractedMedia::retained_bytes).sum::<usize>()
+            // Source-backed entries all share the batch's one source allocation.
+            + self.media.iter().find_map(ExtractedMedia::source_capacity).unwrap_or(0)
+    }
 }
 
 #[napi]
@@ -95,7 +109,7 @@ impl EarlyOtelBatch {
     #[napi(ts_return_type = "Promise<void>")]
     pub fn dispose(&mut self) -> AsyncTask<OwnedTask<()>> {
         let inner = self.inner.take();
-        OwnedTask::run(move || {
+        OwnedTask::run("dispose", move || {
             drop(inner);
             Ok(())
         })
@@ -105,9 +119,7 @@ impl EarlyOtelBatch {
     #[napi(ts_return_type = "string")]
     pub fn json<'env>(&self, env: &'env Env) -> Result<JsString<'env>> {
         let data = self.data()?;
-        let json = std::str::from_utf8(data.json.as_slice())
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        env.create_string(json)
+        env.create_string(&data.json)
     }
 
     #[napi(getter)]
@@ -130,45 +142,53 @@ impl EarlyOtelBatch {
 
     /// Decode one upload at a time without keeping every decoded body alive.
     #[napi(ts_return_type = "Promise<Buffer>")]
-    pub fn media_body(&self, index: u32) -> Result<AsyncTask<OwnedTask<Buffer>>> {
-        let inner = self.data()?;
-        Ok(OwnedTask::run(move || {
+    pub fn media_body(&self, index: u32) -> AsyncTask<OwnedTask<Buffer>> {
+        let inner = self.data();
+        OwnedTask::run("decode", move || {
+            let inner = inner.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
             let media = inner
                 .media
                 .get(index as usize)
-                .ok_or_else(|| Error::from_reason("unknown media index"))?;
+                .ok_or_else(|| Error::new("ERR_OTEL_MEDIA_INDEX", "unknown media index"))?;
             media
                 .decode()
                 .map(Buffer::from)
-                .map_err(|error| Error::from_reason(error.to_string()))
-        }))
+                .map_err(|error| Error::new("ERR_OTEL_MEDIA_DECODE", error.to_string()))
+        })
     }
 
     /// Failed uploads restore only the selected occurrence; successful ones use the service ID.
     #[napi(ts_return_type = "Promise<string>")]
-    pub fn original_media(&self, index: u32) -> Result<AsyncTask<OwnedTask<String>>> {
-        let inner = self.data()?;
-        Ok(OwnedTask::run(move || {
+    pub fn original_media(&self, index: u32) -> AsyncTask<OwnedTask<String>> {
+        let inner = self.data();
+        OwnedTask::run("restore", move || {
+            let inner = inner.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
             inner
                 .media
                 .get(index as usize)
-                .ok_or_else(|| Error::from_reason("unknown media index"))?
+                .ok_or_else(|| Error::new("ERR_OTEL_MEDIA_INDEX", "unknown media index"))?
                 .original_value()
-                .map_err(|error| Error::from_reason(error.to_string()))
-        }))
+                .map_err(|error| Error::new("ERR_OTEL_MEDIA_DECODE", error.to_string()))
+        })
     }
 }
 
 /// Snapshot bytes once on the JS thread. Only Rust-owned memory reaches the validator task;
 /// retaining a mutable Node Buffer across an async read would not enforce that ownership.
 #[napi(ts_return_type = "Promise<ValidatedOtelJson>")]
-pub fn validate_otel_json(bytes: Buffer) -> AsyncTask<OwnedTask<ValidatedOtelJson>> {
+pub fn validate_otel_json(
+    env: Env,
+    bytes: Buffer,
+    discover_media: Option<bool>,
+) -> Result<AsyncTask<OwnedTask<ValidatedOtelJson>>> {
     let bytes = bytes.to_vec();
-    OwnedTask::run(move || {
-        let payload = otel_media::validate_and_discover(bytes)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+    let mut memory = NativeMemory::new(&env, bytes.capacity())?;
+    Ok(OwnedTask::run("validate", move || {
+        let payload = otel_media::validate(bytes, discover_media.unwrap_or(true))
+            .map_err(|error| Error::new(error.code(), error.to_string()))?;
+        memory.resize(payload.retained_bytes());
         Ok(ValidatedOtelJson {
-            payload: Arc::new(Mutex::new(Some(payload))),
+            payload: Some((payload, memory)),
         })
-    })
+    }))
 }
