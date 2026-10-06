@@ -84,6 +84,78 @@ describe("groupTranscriptMessages", () => {
   });
 
   it.each([
+    { parts: [text("found")], output: "found" },
+    { parts: [text("first"), text("second")], output: "first\nsecond" },
+  ])(
+    "pairs a text-only tool response with the preceding unique call: %j",
+    ({ parts, output }) => {
+      const toolCall = call("a");
+      const response = {
+        ...message(parts),
+        role: "tool" as const,
+        observationId: "tool",
+      };
+      const input = { ...message([toolCall]), observationId: "generation" };
+
+      expect(groupTranscriptMessages([input, response])).toEqual([
+        {
+          type: "tool",
+          message: response,
+          call: toolCall,
+          result: {
+            type: "tool-result",
+            toolCallId: "a",
+            toolName: "search",
+            output,
+          },
+        },
+      ]);
+    },
+  );
+
+  it("keeps an ambiguous text response separate from multiple calls", () => {
+    const input = message([call("a"), call("b")]);
+    const response = { ...message([text("found")]), role: "tool" as const };
+    expect(groupTranscriptMessages([input, response])).toEqual([
+      { type: "tool", message: input, call: input.parts[0], result: null },
+      { type: "tool", message: input, call: input.parts[1], result: null },
+      { type: "message", message: response },
+    ]);
+  });
+
+  it("does not invent an ID for a text response to an unidentified call", () => {
+    const toolCall = call(null);
+    const input = message([toolCall]);
+    const response = { ...message([text("found")]), role: "tool" as const };
+    expect(groupTranscriptMessages([input, response])).toEqual([
+      { type: "tool", message: input, call: toolCall, result: null },
+      { type: "message", message: response },
+    ]);
+  });
+
+  it("prefers an explicitly identified result over an adjacent text response", () => {
+    const toolCall = call("a");
+    const toolResult = result("a");
+    const input = message([toolCall]);
+    const response = {
+      ...message([text("unidentified")]),
+      role: "tool" as const,
+    };
+    const identifiedResponse = message([toolResult]);
+    expect(
+      groupTranscriptMessages([input, response, identifiedResponse]),
+    ).toEqual([
+      {
+        type: "tool",
+        message: identifiedResponse,
+        call: toolCall,
+        result: toolResult,
+      },
+      { type: "message", message: response },
+    ]);
+  });
+
+  it.each([
     [call(null), result(null)],
     [call(""), result("")],
     [call("a"), result("b")],

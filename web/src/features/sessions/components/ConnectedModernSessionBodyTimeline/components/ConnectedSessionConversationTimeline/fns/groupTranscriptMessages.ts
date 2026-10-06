@@ -26,7 +26,13 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
   >();
   const results = new Map<
     string,
-    { part: ToolResultPart; message: T; position: number; count: number }
+    {
+      part: ToolResultPart;
+      message: T;
+      position: number;
+      partCount: number;
+      count: number;
+    }
   >();
   let position = 0;
   for (const message of messages) {
@@ -44,11 +50,46 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
           part,
           message,
           position,
+          partCount: 1,
           count: (previous?.count ?? 0) + 1,
         });
       }
       position++;
     }
+  }
+
+  position = 0;
+  for (const [index, message] of messages.entries()) {
+    const resultPosition = position;
+    position += message.parts.length;
+    if (message.role !== "tool" || message.source !== "output") continue;
+    if (
+      message.parts.length === 0 ||
+      !message.parts.every((part) => part.type === "text")
+    )
+      continue;
+    const previous = messages[index - 1];
+    if (previous?.role !== "assistant" || previous.source !== "output")
+      continue;
+    const previousCalls = previous.parts.filter(
+      (part) => part.type === "tool-call",
+    );
+    if (previousCalls.length !== 1) continue;
+    const call = previousCalls[0]!;
+    if (!call.toolCallId || calls.get(call.toolCallId)?.count !== 1) continue;
+    if (results.has(call.toolCallId)) continue;
+    results.set(call.toolCallId, {
+      part: {
+        type: "tool-result",
+        toolCallId: call.toolCallId,
+        toolName: call.toolName,
+        output: message.parts.map((part) => part.text).join("\n"),
+      },
+      message,
+      position: resultPosition,
+      partCount: message.parts.length,
+      count: 1,
+    });
   }
 
   const pairs = new Map<
@@ -69,7 +110,9 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
       result: result.part,
       message: result.message,
     });
-    consumedResults.add(result.position);
+    for (let offset = 0; offset < result.partCount; offset++) {
+      consumedResults.add(result.position + offset);
+    }
   }
 
   const groups: TranscriptMessageGroup<T>[] = [];
