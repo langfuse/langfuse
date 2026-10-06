@@ -1,7 +1,7 @@
 import preview from "@/.storybook/preview";
 import { expect, fn } from "storybook/test";
 import { SessionConversationTimeline } from "./SessionConversationTimeline";
-import { useSessionConversationTimelineController } from "./useSessionConversationTimelineController";
+import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 
 function SessionConversationTimelineStory({
   onLoadMoreObservations,

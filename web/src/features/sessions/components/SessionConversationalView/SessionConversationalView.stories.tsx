@@ -5,13 +5,13 @@ import { SessionConversationalView } from "./SessionConversationalView";
 import {
   useSessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
-} from "../SessionConversationTimeline/useSessionConversationTimelineController";
-import { type SessionConversationTimelineTrace } from "../SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+} from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
+import { type SessionConversationTimelineTrace } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import {
   supportAgentWorkflow,
   codingAgentWorkflow,
   langfuseAssistantWorkflow,
-} from "../SessionConversationTimeline/workflowStoryFixtures";
+} from "@/src/features/sessions/constants/workflowStoryFixtures";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 

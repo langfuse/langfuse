@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Session } from "next-auth";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { eventsRouter } from "@/src/features/events/server/eventsRouter";
+import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import {
@@ -11,15 +11,16 @@ import {
 } from "@/src/features/feature-flags/server";
 
 const mocks = vi.hoisted(() => ({
-  loadTraceTranscript: vi.fn(async () => ({ threads: [] })),
-}));
-
-vi.mock("@/src/features/events/server/loadTraceTranscript", () => ({
-  loadTraceTranscript: mocks.loadTraceTranscript,
+  getObservationsForTraceFromEventsTable: vi.fn(async () => ({
+    observations: [],
+    totalCount: 0,
+  })),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
+  getObservationsForTraceFromEventsTable:
+    mocks.getObservationsForTraceFromEventsTable,
   getTraceByIdFromEventsTable: vi.fn(async () => ({
     id: "trace-id",
     projectId: "project-id",
@@ -36,7 +37,7 @@ describe("events.transcriptByTraceId preview access", () => {
     env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
   const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   beforeEach(() => {
-    mocks.loadTraceTranscript.mockClear();
+    mocks.getObservationsForTraceFromEventsTable.mockClear();
     Object.assign(env, {
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false",
       LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
@@ -113,19 +114,23 @@ describe("events.transcriptByTraceId preview access", () => {
         selfHostedInstancePlan: null,
       },
     } satisfies Session;
-    const caller = eventsRouter.createCaller(
+    const caller = appRouter.createCaller(
       createInnerTRPCContext({ session, headers: {} }),
     );
-    const result = caller.transcriptByTraceId({
+    const result = caller.events.transcriptByTraceId({
       projectId: "project-id",
       traceId: "trace-id",
     });
     if (!allowed) {
       await expect(result).rejects.toMatchObject({ code: "FORBIDDEN" });
-      expect(mocks.loadTraceTranscript).not.toHaveBeenCalled();
+      expect(
+        mocks.getObservationsForTraceFromEventsTable,
+      ).not.toHaveBeenCalled();
       return;
     }
-    await expect(result).resolves.toEqual({ threads: [] });
-    expect(mocks.loadTraceTranscript).toHaveBeenCalledOnce();
+    await expect(result).resolves.toEqual({ transcript: null, cutoff: false });
+    expect(mocks.getObservationsForTraceFromEventsTable).toHaveBeenCalledTimes(
+      2,
+    );
   });
 });

@@ -1,13 +1,13 @@
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type ComponentProps } from "react";
-import { SessionConversationalView } from "../SessionConversationalView/SessionConversationalView";
+import { SessionConversationalView } from "@/src/features/sessions/components/SessionConversationalView/SessionConversationalView";
 import {
   type SessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
-} from "./useSessionConversationTimelineController";
-import { type SessionTraceTranscriptState } from "./useSessionTraceTranscripts";
-import { getSessionTranscriptRows } from "./fns/getSessionTranscriptRows";
+} from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
+import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
+import { getSessionTranscriptRows } from "@/src/features/sessions/fns/getSessionTranscriptRows";
 
 export type ConnectedSessionConversationTimelineItem = {
   trace: EventSessionTrace;

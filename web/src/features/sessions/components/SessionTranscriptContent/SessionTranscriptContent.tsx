@@ -1,15 +1,15 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { type TranscriptMessageGroup } from "../../fns/groupTranscriptMessages";
-import { getSessionTranscriptRows } from "../../fns/getSessionTranscriptRows";
-import { SessionTimelineToolRow } from "./SessionConversationTimelineTrace";
+import { type TranscriptMessageGroup } from "@/src/features/sessions/fns/groupTranscriptMessages";
+import { getSessionTranscriptRows } from "@/src/features/sessions/fns/getSessionTranscriptRows";
+import { SessionTimelineToolRow } from "@/src/features/sessions/components/SessionTimelineToolRow/SessionTimelineToolRow";
 import { Wrench } from "lucide-react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
-import { type SessionTraceTranscriptState } from "../../useSessionTraceTranscripts";
-import { SessionTimelineContentMessage } from "./components/SessionTimelineContentMessage/SessionTimelineContentMessage";
-import { SessionTimelineSystemMessage } from "./components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
-import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
+import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
+import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
+import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
+import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { groupConsecutiveTools } from "../../../fns/groupConsecutiveTools";
+import { groupConsecutiveTools } from "@/src/features/sessions/fns/groupConsecutiveTools";
 
 export function SessionTranscriptContent({
   result,

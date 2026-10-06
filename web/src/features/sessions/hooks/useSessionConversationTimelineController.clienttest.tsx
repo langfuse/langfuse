@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useSessionConversationTimelineController } from "./useSessionConversationTimelineController";
-import { type EventSessionTrace } from "../sessionDetailPageTypes";
+import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 
 const { feedRef, selectTrace } = vi.hoisted(() => ({
   feedRef: { current: null as HTMLDivElement | null },

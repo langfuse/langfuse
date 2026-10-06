@@ -2,11 +2,11 @@ import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
 import {
   SessionConversationSidebar,
   type SessionConversationSidebarTrace,
-} from "../SessionConversationSidebar/SessionConversationSidebar";
-import { SessionConversationTimeline } from "../SessionConversationTimeline/SessionConversationTimeline";
-import { type SessionConversationTimelineController } from "../SessionConversationTimeline/useSessionConversationTimelineController";
-import { getSessionTranscriptRows } from "../SessionConversationTimeline/fns/getSessionTranscriptRows";
-import { computeIdleGapSeconds } from "../sessionIdleGap";
+} from "@/src/features/sessions/components/SessionConversationSidebar/SessionConversationSidebar";
+import { SessionConversationTimeline } from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
+import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
+import { getSessionTranscriptRows } from "@/src/features/sessions/fns/getSessionTranscriptRows";
+import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 
 export function SessionConversationalView(
   props: (

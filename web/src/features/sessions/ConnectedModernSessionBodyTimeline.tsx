@@ -7,11 +7,11 @@ import {
 import {
   type SessionConversationTimelineScrollTarget,
   useSessionConversationTimelineController,
-} from "@/src/features/sessions/SessionConversationTimeline/useSessionConversationTimelineController";
+} from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { useSessionTraceTranscripts } from "./SessionConversationTimeline/useSessionTraceTranscripts";
+import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;

@@ -1,7 +1,7 @@
 import { type ComponentProps, type UIEvent } from "react";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
-import { SessionConversationTimelineTrace } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
-import { type SessionConversationTimelineController } from "./useSessionConversationTimelineController";
+import { SessionConversationTimelineTrace } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 
 export function SessionConversationTimeline({
   traces,

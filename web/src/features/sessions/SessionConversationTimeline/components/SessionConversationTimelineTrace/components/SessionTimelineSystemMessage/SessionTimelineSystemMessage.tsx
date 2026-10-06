@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
-import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
+import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { SessionTimelinePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelinePart/SessionTimelinePart";
 
 export function SessionTimelineSystemMessage({

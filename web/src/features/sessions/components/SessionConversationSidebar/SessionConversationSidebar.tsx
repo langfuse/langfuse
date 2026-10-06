@@ -10,7 +10,7 @@ import {
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
 import { cn } from "@/src/utils/tailwind";
-import { groupConsecutiveTools } from "../fns/groupConsecutiveTools";
+import { groupConsecutiveTools } from "@/src/features/sessions/fns/groupConsecutiveTools";
 
 export type SessionConversationSidebarTrace = {
   trace: EventSessionTrace;
