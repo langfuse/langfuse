@@ -156,22 +156,22 @@ const EnvSchema = z.object({
     .number()
     .int()
     .nonnegative()
-    .default(2_000),
+    .default(1_500),
   LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES: z.coerce
     .number()
     .int()
     .nonnegative()
-    .default(100 * 1024 * 1024),
+    .default(64 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES: z.coerce
     .number()
     .int()
     .nonnegative()
-    .default(10_000),
+    .default(5_000),
   LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES: z.coerce
     .number()
     .int()
     .nonnegative()
-    .default(100 * 1024 * 1024),
+    .default(50 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_STRATEGY: z
     .enum(["project", "locality"])
     .default("project"),

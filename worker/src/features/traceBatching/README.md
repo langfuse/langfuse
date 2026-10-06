@@ -9,27 +9,27 @@ absent from env templates.
 
 ## Controls
 
-| Variable                                          | Default     | Role                                                                                                       |
-| ------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`     | Track accepted direct-v4 event writes in Redis.                                                            |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`     | Schedule idle traces into BullMQ jobs.                                                                     |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Register the batch worker.                                                                                 |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`     | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
-| `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`     | Emit transcript size distributions. Span attributes and failure counters stay on either way.               |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `1`         | Fraction admitted by ingestion, from 0 to 1.                                                               |
-| `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`   | Choose project-order packing or opt-in locality grouping.                                                  |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`        | Maximum traces per job, up to 10,000.                                                                      |
-| `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES`    | `2000`      | Estimated event updates per multi-trace job; `0` disables.                                                 |
-| `LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES` | `104857600` | Estimated serialized event bytes per multi-trace job (100 MiB); `0` disables.                              |
-| `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES`    | `10000`     | Exclude a trace whose pending window exceeds this many event updates; `0` disables.                        |
-| `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `104857600` | Exclude a trace whose pending window exceeds these serialized bytes (100 MiB); `0` disables.               |
-| `LANGFUSE_TRACE_BATCH_MAX_THREADS`                | `2`         | ClickHouse threads per query (positive integer).                                                           |
-| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`             | unset       | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
-| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`              | unset       | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`         | Concurrent batch jobs per worker process.                                                                  |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`    | Idle time before a trace is ready (10 minutes).                                                            |
-| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`   | Pending retention and inactivity expiry (2 hours).                                                         |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`     | Dispatcher cadence (30 seconds).                                                                           |
+| Variable                                          | Default    | Role                                                                                                       |
+| ------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`    | Track accepted direct-v4 event writes in Redis.                                                            |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`    | Schedule idle traces into BullMQ jobs.                                                                     |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`    | Register the batch worker.                                                                                 |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`    | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
+| `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`    | Emit transcript size distributions. Span attributes and failure counters stay on either way.               |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `1`        | Fraction admitted by ingestion, from 0 to 1.                                                               |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`  | Choose project-order packing or opt-in locality grouping.                                                  |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`       | Maximum traces per job, up to 10,000.                                                                      |
+| `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES`    | `1500`     | Estimated event updates per multi-trace job; `0` disables.                                                 |
+| `LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES` | `67108864` | Estimated serialized event bytes per multi-trace job (64 MiB); `0` disables.                               |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES`    | `5000`     | Exclude a trace whose pending window exceeds this many event updates; `0` disables.                        |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `52428800` | Exclude a trace whose pending window exceeds these serialized bytes (50 MiB); `0` disables.                |
+| `LANGFUSE_TRACE_BATCH_MAX_THREADS`                | `2`        | ClickHouse threads per query (positive integer).                                                           |
+| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`             | unset      | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
+| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`              | unset      | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`        | Concurrent batch jobs per worker process.                                                                  |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`   | Idle time before a trace is ready (10 minutes).                                                            |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`  | Pending retention and inactivity expiry (2 hours).                                                         |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`    | Dispatcher cadence (30 seconds).                                                                           |
 
 Producer, dispatcher and consumer can run independently. Sampling reuses the
 evaluator's deterministic trace-ID sampler; every observation of the same trace
