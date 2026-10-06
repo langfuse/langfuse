@@ -26,6 +26,29 @@ const createCodeLanding = {
   ],
 };
 
+const createJudgeLanding = {
+  title: "Create an LLM-as-a-judge evaluator with AI",
+  description:
+    "Describe your evaluation criteria. The Assistant will create the judge and help you test it.",
+  examples: [
+    {
+      id: "helpfulness",
+      label: "Score helpfulness from 1–5 with a short reason",
+      prompt: "Score helpfulness from 1–5 with a one-sentence reason",
+    },
+    {
+      id: "groundedness",
+      label: "Judge whether the answer is grounded in the context",
+      prompt: "Judge whether the answer is grounded in the retrieved context",
+    },
+    {
+      id: "tone",
+      label: "Check whether the answer is clear and professional",
+      prompt: "Check whether the answer is clear and professional",
+    },
+  ],
+};
+
 const editJudgeLanding = {
   title: "Improve this LLM-as-a-judge evaluator",
   description:
@@ -60,6 +83,12 @@ const meta = preview.meta({
 export const CreateCode = meta.story({
   args: {
     landing: createCodeLanding,
+  },
+});
+
+export const CreateJudge = meta.story({
+  args: {
+    landing: createJudgeLanding,
   },
 });
 

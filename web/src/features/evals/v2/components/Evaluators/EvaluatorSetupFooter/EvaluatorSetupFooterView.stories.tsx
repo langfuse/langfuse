@@ -47,6 +47,21 @@ export const Editing = meta.story({
   },
 });
 
+export const UnsupportedEvaluator = meta.story({
+  args: {
+    mode: "create",
+    children: createNextStep,
+    closeLabel: "Close",
+    saveLabel: "Create evaluator",
+    isSaving: false,
+    saveDisabled: false,
+    disabledReason: null,
+    assistantAction: null,
+    onClose: fn(),
+    onSave: fn(),
+  },
+});
+
 export const Disabled = meta.story({
   args: {
     mode: "create",

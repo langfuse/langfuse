@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
+import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
+import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
 import {
   applyEvaluatorSuggestion,
   getEvaluatorAssistantMode,
@@ -27,7 +29,6 @@ describe("getEvaluatorAssistantMode", () => {
       name: "scratch code creation",
       input: {
         mode: "create",
-        isScratchCreation: true,
         evaluatorType: "CODE",
         isAssistantAvailable: true,
       },
@@ -37,7 +38,6 @@ describe("getEvaluatorAssistantMode", () => {
       name: "scratch judge creation",
       input: {
         mode: "create",
-        isScratchCreation: true,
         evaluatorType: "LLM_AS_JUDGE",
         isAssistantAvailable: true,
       },
@@ -47,7 +47,6 @@ describe("getEvaluatorAssistantMode", () => {
       name: "existing evaluator",
       input: {
         mode: "edit",
-        isScratchCreation: false,
         evaluatorType: "CODE",
         isAssistantAvailable: true,
       },
@@ -57,7 +56,6 @@ describe("getEvaluatorAssistantMode", () => {
       name: "Decision Model creation",
       input: {
         mode: "create",
-        isScratchCreation: true,
         evaluatorType: "DECISION_MODEL",
         isAssistantAvailable: true,
       },
@@ -67,27 +65,33 @@ describe("getEvaluatorAssistantMode", () => {
       name: "Decision Model editing",
       input: {
         mode: "edit",
-        isScratchCreation: false,
         evaluatorType: "DECISION_MODEL",
         isAssistantAvailable: true,
       },
       expected: null,
     },
     {
-      name: "template creation",
+      name: "template LLM judge creation",
       input: {
         mode: "create",
-        isScratchCreation: false,
+        evaluatorType: "LLM_AS_JUDGE",
+        isAssistantAvailable: true,
+      },
+      expected: "create",
+    },
+    {
+      name: "template code creation",
+      input: {
+        mode: "create",
         evaluatorType: "CODE",
         isAssistantAvailable: true,
       },
-      expected: null,
+      expected: "create",
     },
     {
       name: "unavailable Assistant",
       input: {
         mode: "edit",
-        isScratchCreation: false,
         evaluatorType: "LLM_AS_JUDGE",
         isAssistantAvailable: false,
       },
@@ -131,6 +135,96 @@ describe("openEvaluatorAssistantLanding", () => {
       }),
     ).toBe(false);
     expect(clearLanding).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["answer-relevance", "LLM_AS_JUDGE"],
+    ["exact-match", "CODE"],
+  ] as const)(
+    "does not reset the %s template draft when opening its landing",
+    (templateKey, expectedType) => {
+      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+        ({ key }) => key === templateKey,
+      );
+      expect(template).toBeDefined();
+      const draft = managedTemplateToEvaluatorSetupDraft(template!);
+      const store = createEvaluatorSetupStore({
+        initialEvaluator: draft,
+        mode: "create",
+      });
+      const snapshot = JSON.stringify(store.getState(), (key, value) =>
+        key === "actions" ? undefined : value,
+      );
+
+      expect(
+        openEvaluatorAssistantLanding({
+          selectConversation: vi.fn(),
+          activateLanding: () => true,
+          openAssistant: () => true,
+          clearLanding: vi.fn(),
+        }),
+      ).toBe(true);
+
+      expect(store.getState().type).toBe(expectedType);
+      expect(
+        JSON.stringify(store.getState(), (key, value) =>
+          key === "actions" ? undefined : value,
+        ),
+      ).toBe(snapshot);
+    },
+  );
+
+  it("preserves a custom judge template's prompt, output, mappings, model, and metadata", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Template judge",
+        description: "Judge from a project evaluator template",
+        definition: {
+          type: "LLM_AS_JUDGE",
+          promptMessages: [
+            { role: "system", content: "Use this rubric" },
+            { role: "user", content: "Judge {{answer}}" },
+          ],
+          provider: "openai",
+          model: "gpt-4.1-mini",
+          modelParams: { temperature: 0.2 },
+          vars: ["answer"],
+          variableMapping: [
+            {
+              templateVariable: "answer",
+              selectedColumnId: "output",
+              jsonSelector: "response.text",
+            },
+          ],
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: {
+              description: "Answer quality",
+              minValue: 1,
+              maxValue: 5,
+            },
+            reasoning: { description: "Explain the score" },
+          },
+        },
+      },
+      mode: "create",
+    });
+    const snapshot = JSON.stringify(store.getState(), (key, value) =>
+      key === "actions" ? undefined : value,
+    );
+
+    openEvaluatorAssistantLanding({
+      selectConversation: vi.fn(),
+      activateLanding: () => true,
+      openAssistant: () => true,
+      clearLanding: vi.fn(),
+    });
+
+    expect(
+      JSON.stringify(store.getState(), (key, value) =>
+        key === "actions" ? undefined : value,
+      ),
+    ).toBe(snapshot);
   });
 });
 

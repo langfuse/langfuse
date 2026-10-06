@@ -96,18 +96,16 @@ export function getEvaluatorSetupHeaderState() {
 
 export function getEvaluatorAssistantMode({
   mode,
-  isScratchCreation,
   evaluatorType,
   isAssistantAvailable,
 }: {
   mode: "create" | "edit";
-  isScratchCreation: boolean;
   evaluatorType: Exclude<EvalTemplateType, "FACET">;
   isAssistantAvailable: boolean;
 }) {
   if (!isAssistantAvailable || evaluatorType === "DECISION_MODEL") return null;
   if (mode === "edit") return "edit";
-  return isScratchCreation ? "create" : null;
+  return "create";
 }
 
 export function openEvaluatorAssistantLanding({
@@ -389,11 +387,8 @@ export function EvaluatorSetupPage(
   );
   const assistantEvaluatorType =
     codeDraft.type === "DECISION_MODEL" ? null : codeDraft.type;
-  const isScratchCreation =
-    props.mode === "create" && props.creationSource.type === "scratch";
   const assistantDialogMode = getEvaluatorAssistantMode({
     mode: props.mode,
-    isScratchCreation,
     evaluatorType: codeDraft.type,
     isAssistantAvailable: isAssistantLauncherVisible,
   });
