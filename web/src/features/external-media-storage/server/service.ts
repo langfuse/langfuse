@@ -13,7 +13,6 @@ import {
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
-import { type Session } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server";
@@ -26,8 +25,11 @@ import {
 
 const EXTERNAL_MEDIA_URL_TTL_SECONDS = 5 * 60;
 
+type AuditLogInput = Parameters<typeof auditLog>[0];
+type AuditLogSession = Extract<AuditLogInput, { session: unknown }>["session"];
+
 export type ExternalMediaStorageAuditActor =
-  | { session: Session }
+  | { session: AuditLogSession }
   | { apiKeyId: string; orgId: string };
 
 async function auditConfigurationChange({
