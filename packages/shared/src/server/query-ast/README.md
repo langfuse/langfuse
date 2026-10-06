@@ -203,9 +203,9 @@ is where tenancy is enforced:
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`total_cost > 1` → `{p:Float64}`).
-5. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
-`SELECT`/`FROM`/`JOIN`in SELECT/WHERE throw`UnscopedRelationError`. Kysely's
-own keyword fragments (`asc`/`desc`) are not relations.
+5. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
+   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`.
+   Kysely's own keyword fragments (`asc`/`desc`) are not relations.
 
 So query bodies here never filter `project_id` by hand — it is redundant, and
 forgetting it is impossible.
