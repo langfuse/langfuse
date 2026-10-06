@@ -102,6 +102,70 @@ export const getChunkWithFlattenedScores = <
   });
 };
 
+/**
+ * Keyset pagination over a timestamp sort. Each page reads rows at or beyond
+ * the last emitted timestamp and excludes the ids already emitted at exactly
+ * that timestamp, so a page costs the same however deep into the export it is
+ * (unlike OFFSET, which re-reads every earlier row) and no row is skipped or
+ * repeated, whatever order the database returns timestamp ties in.
+ */
+class TimestampKeyset {
+  private boundary: Date | undefined;
+  private idsAtBoundary: string[] = [];
+
+  constructor(readonly order: "ASC" | "DESC") {}
+
+  get after(): { timestamp: Date; excludeIds: string[] } | undefined {
+    return this.boundary
+      ? { timestamp: this.boundary, excludeIds: this.idsAtBoundary }
+      : undefined;
+  }
+
+  advance(rows: { id: string; timestamp: Date }[]) {
+    for (const row of rows) {
+      if (this.boundary?.getTime() === row.timestamp.getTime()) {
+        this.idsAtBoundary.push(row.id);
+      } else {
+        this.boundary = row.timestamp;
+        this.idsAtBoundary = [row.id];
+      }
+    }
+  }
+}
+
+// Exports sorted by anything other than the time column keep OFFSET paging.
+const getTimestampKeysetOrder = (
+  orderBy: OrderByState,
+  timeColumn: string,
+): "ASC" | "DESC" | null => {
+  if (!orderBy) return "DESC";
+  return orderBy.column.toLowerCase() === timeColumn.toLowerCase()
+    ? orderBy.order
+    : null;
+};
+
+const keysetFilter = (
+  keyset: TimestampKeyset,
+  timeColumn: string,
+): FilterCondition[] => {
+  const after = keyset.after;
+  if (!after) return [];
+  return [
+    {
+      type: "datetime",
+      column: timeColumn,
+      operator: keyset.order === "DESC" ? "<=" : ">=",
+      value: after.timestamp,
+    },
+    {
+      type: "stringOptions",
+      column: "id",
+      operator: "none of",
+      value: after.excludeIds,
+    },
+  ];
+};
+
 // Events-backed replacement for the legacy getScoresUiTable traces JOIN:
 // loads score rows without trace enrichment, then fills traceName /
 // traceUserId / traceTags from the events table for the page's trace ids.
@@ -156,12 +220,14 @@ export const getDatabaseReadStreamPaginated = async ({
   useEventsTable,
   preferredClickhouseService,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  pageSize = env.BATCH_EXPORT_PAGE_SIZE,
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  pageSize?: number;
   preferredClickhouseService?: PreferredClickhouseService;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
@@ -191,11 +257,23 @@ export const getDatabaseReadStreamPaginated = async ({
 
   switch (tableName) {
     case "scores": {
+      const timeColumn = tableNameToTimeFilterColumn[tableName];
+      const keysetOrder = getTimestampKeysetOrder(orderBy, timeColumn);
+      const keyset = keysetOrder ? new TimestampKeyset(keysetOrder) : null;
+
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const scoresFilter = filter
-            ? [...filter, createdAtCutoffFilter]
-            : [createdAtCutoffFilter];
+          const scoresFilter = [
+            ...(filter ?? []),
+            createdAtCutoffFilter,
+            ...(keyset ? keysetFilter(keyset, timeColumn) : []),
+          ];
+          const page = keyset
+            ? {
+                orderBy: { column: timeColumn, order: keyset.order },
+                offset: 0,
+              }
+            : { orderBy, offset };
 
           // v4-enabled users (snapshotted as useEventsTable at dispatch) read
           // scores without the legacy traces JOIN; trace metadata (name,
@@ -205,20 +283,19 @@ export const getDatabaseReadStreamPaginated = async ({
             ? await getScoresWithTraceMetadataFromEvents({
                 projectId,
                 filter: scoresFilter,
-                orderBy,
                 limit: pageSize,
-                offset,
+                ...page,
                 clickhouseConfigs,
               })
             : await getScoresUiTable({
                 projectId,
                 filter: scoresFilter,
-                orderBy,
                 limit: pageSize,
-                offset,
+                ...page,
                 clickhouseConfigs,
                 preferredClickhouseService,
               });
+          keyset?.advance(scores);
 
           // Get author user info for scores
           // Only users that have valid project write access may write scores
@@ -261,7 +338,7 @@ export const getDatabaseReadStreamPaginated = async ({
             };
           });
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -349,7 +426,7 @@ export const getDatabaseReadStreamPaginated = async ({
             comments: sessionComments.get(row.id) ?? [],
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     case "observations": {
@@ -423,7 +500,7 @@ export const getDatabaseReadStreamPaginated = async ({
             comments: observationComments.get(obs.id) ?? [],
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -546,7 +623,7 @@ export const getDatabaseReadStreamPaginated = async ({
             emptyScoreColumns,
           );
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -597,7 +674,7 @@ export const getDatabaseReadStreamPaginated = async ({
             };
           });
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -627,27 +704,34 @@ export const getDatabaseReadStreamPaginated = async ({
               : "",
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
 
     case "audit_logs": {
+      const keyset = new TimestampKeyset("DESC");
+
       return new DatabaseReadStream<unknown>(
-        async (pageSize: number, offset: number) => {
+        async (pageSize: number) => {
+          const after = keyset.after;
           const auditLogs = await prisma.auditLog.findMany({
             where: {
               projectId: projectId,
               createdAt: {
                 lt: cutoffCreatedAt,
+                ...(after ? { lte: after.timestamp } : {}),
               },
+              ...(after ? { id: { notIn: after.excludeIds } } : {}),
             },
             orderBy: {
               createdAt: "desc",
             },
-            skip: offset,
             take: pageSize,
           });
+          keyset.advance(
+            auditLogs.map((log) => ({ id: log.id, timestamp: log.createdAt })),
+          );
 
           return auditLogs.map((log) => ({
             id: log.id,
@@ -667,7 +751,7 @@ export const getDatabaseReadStreamPaginated = async ({
             after: log.after,
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
