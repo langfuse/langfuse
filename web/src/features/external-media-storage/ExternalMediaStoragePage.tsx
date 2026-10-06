@@ -1,4 +1,3 @@
-import { BlobStorageIntegrationType } from "@langfuse/shared";
 import { useRouter } from "next/router";
 
 import { ActionButton } from "@/src/components/ActionButton";
@@ -20,7 +19,7 @@ import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
 const defaultValues: ExternalMediaStorageFormValues = {
-  type: BlobStorageIntegrationType.S3,
+  type: "S3",
   bucketName: "",
   endpoint: null,
   region: "us-east-1",

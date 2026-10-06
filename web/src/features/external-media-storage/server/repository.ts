@@ -53,8 +53,4 @@ export function createExternalMediaStorageRepository(prisma: PrismaClient) {
   };
 }
 
-export type ExternalMediaStorageRepository = ReturnType<
-  typeof createExternalMediaStorageRepository
->;
-
 export type ExternalMediaStorageRecord = ExternalMediaStorageIntegration;

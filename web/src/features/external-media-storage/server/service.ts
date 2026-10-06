@@ -192,7 +192,6 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       const storageService = createStorageService(integration);
-      await storageService.verifyObjectAccess(parsed.key);
       const signedUrl = await storageService.getSignedUrl(
         parsed.key,
         EXTERNAL_MEDIA_URL_TTL_SECONDS,

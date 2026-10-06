@@ -122,6 +122,7 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },
@@ -149,6 +150,7 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },
@@ -185,6 +187,7 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },
@@ -212,6 +215,7 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
       },

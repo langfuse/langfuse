@@ -60,6 +60,7 @@ export function ExternalMediaStorageForm({
                 <SelectInput
                   value={field.value}
                   onValueChange={field.onChange}
+                  placeholder="Select a storage provider"
                   options={[
                     {
                       value: BlobStorageIntegrationType.S3,

@@ -1,6 +1,11 @@
+CREATE TYPE "ExternalMediaStorageIntegrationType" AS ENUM (
+    'S3',
+    'S3_COMPATIBLE'
+);
+
 CREATE TABLE "external_media_storage_integrations" (
     "project_id" TEXT NOT NULL,
-    "type" "BlobStorageIntegrationType" NOT NULL,
+    "type" "ExternalMediaStorageIntegrationType" NOT NULL,
     "bucket_name" TEXT NOT NULL,
     "prefix" TEXT,
     "access_key_id" TEXT,
