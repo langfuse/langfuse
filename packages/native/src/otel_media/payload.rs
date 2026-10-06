@@ -59,6 +59,25 @@ pub enum MediaEncoding {
     PythonBytesLiteral,
 }
 
+/// Content-derived strings shared by occurrences of the same public reference.
+/// Source ranges and encodings stay on the occurrence so restoration retains
+/// its exact representation rather than just the decoded content identity.
+#[derive(Debug, Eq, PartialEq)]
+pub struct MediaMetadata {
+    pub reference: String,
+    pub content_type: String,
+    pub sha256_hash: String,
+}
+
+impl MediaMetadata {
+    fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self.reference.capacity()
+            + self.content_type.capacity()
+            + self.sha256_hash.capacity()
+    }
+}
+
 /// One media occurrence removed from the compact document.
 ///
 /// The registry is occurrence-based even though `reference` is content-derived
@@ -67,9 +86,7 @@ pub enum MediaEncoding {
 /// two syntactically different values can intentionally share one reference.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExtractedMedia {
-    /// Public content-derived reference inserted into `compact_json`.
-    pub reference: String,
-    pub content_type: String,
+    pub(crate) metadata: Arc<MediaMetadata>,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
     /// Exact source text for the candidate. When the candidate was ASCII-safe
@@ -78,9 +95,6 @@ pub struct ExtractedMedia {
     /// range when its encoded media text survived JSON escaping unchanged;
     /// otherwise it falls back to one owned candidate allocation.
     storage: MediaStorage,
-    /// Full base64 digest used to derive `reference` and to let the TS upload
-    /// adapter skip hashing the decoded body a second time.
-    pub sha256_hash: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -113,10 +127,13 @@ impl ExtractedMedia {
         self.encoded_data().len()
     }
 
-    pub(crate) fn retained_bytes(&self) -> usize {
-        self.reference.capacity()
-            + self.content_type.capacity()
-            + self.sha256_hash.capacity()
+    pub(crate) fn retained_bytes(&self, seen: &mut HashSet<*const MediaMetadata>) -> usize {
+        let metadata = if seen.insert(Arc::as_ptr(&self.metadata)) {
+            self.metadata.retained_bytes()
+        } else {
+            0
+        };
+        metadata
             + match &self.storage {
                 MediaStorage::Owned(bytes) => bytes.capacity(),
                 MediaStorage::Source { .. } => 0,
@@ -165,6 +182,7 @@ impl ValidatedPayload {
 
     /// Retained allocations, excluding allocator bookkeeping and shared-pointer headers.
     pub(crate) fn retained_bytes(&self) -> usize {
+        let mut seen = HashSet::new();
         self.source.capacity()
             + self.manifest.entries.capacity() * std::mem::size_of::<MediaManifestEntry>()
             + self
@@ -172,13 +190,14 @@ impl ValidatedPayload {
                 .entries
                 .iter()
                 .map(|entry| {
-                    entry.content_type.capacity()
-                        + entry.reference.capacity()
-                        + entry.sha256_hash.capacity()
-                        + match &entry.storage {
-                            ManifestMediaStorage::SourceRange(_) => 0,
-                            ManifestMediaStorage::Owned(bytes) => bytes.capacity(),
-                        }
+                    (if seen.insert(Arc::as_ptr(&entry.metadata)) {
+                        entry.metadata.retained_bytes()
+                    } else {
+                        0
+                    }) + match &entry.storage {
+                        ManifestMediaStorage::SourceRange(_) => 0,
+                        ManifestMediaStorage::Owned(bytes) => bytes.capacity(),
+                    }
                 })
                 .sum::<usize>()
             + self.manifest.existing_references.capacity() * std::mem::size_of::<String>()
@@ -226,7 +245,7 @@ pub struct MediaManifest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MediaManifestEntry {
-    pub content_type: String,
+    pub(crate) metadata: Arc<MediaMetadata>,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
     /// Exact raw source span replaced during compaction.
@@ -234,10 +253,6 @@ pub struct MediaManifestEntry {
     /// Source-backed candidate bytes when the raw representation is identical,
     /// or one owned decoded candidate when JSON escaping changed its bytes.
     pub(super) storage: ManifestMediaStorage,
-    pub(super) reference: String,
-    /// Full decoded-content digest computed during discovery. Reusing it during
-    /// compaction avoids decoding and hashing the same large media twice.
-    pub(super) sha256_hash: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -276,9 +291,6 @@ pub enum EarlyMediaError {
     NestingLimit {
         offset: usize,
     },
-    ResourceLimit {
-        offset: usize,
-    },
     InvalidEditPlan {
         entry: usize,
     },
@@ -302,9 +314,6 @@ impl fmt::Display for EarlyMediaError {
             Self::NestingLimit { offset } => {
                 write!(f, "JSON nesting limit exceeded at byte {offset}")
             }
-            Self::ResourceLimit { offset } => {
-                write!(f, "native media resource limit at byte {offset}")
-            }
             Self::InvalidEditPlan { entry } => {
                 write!(
                     f,
@@ -319,13 +328,12 @@ impl std::error::Error for EarlyMediaError {}
 
 impl EarlyMediaError {
     /// Stable NAPI codes distinguish syntax failures from inputs the TS parser
-    /// must validate and process, including scans stopped at a resource limit.
+    /// must validate and process because of representation compatibility.
     pub fn code(&self) -> &'static str {
         match self {
             Self::UnsupportedUnicodeSurrogate { .. }
             | Self::UnsupportedMediaReferenceAmbiguity { .. }
             | Self::NestingLimit { .. }
-            | Self::ResourceLimit { .. }
             | Self::InvalidJson {
                 message: "invalid UTF-8",
                 ..
@@ -368,7 +376,7 @@ fn apply_edit_plan(
     let replacement_bytes = manifest
         .entries
         .iter()
-        .map(|entry| entry.reference.len())
+        .map(|entry| entry.metadata.reference.len())
         .sum::<usize>();
     let removed_bytes = manifest
         .entries
@@ -383,7 +391,7 @@ fn apply_edit_plan(
     let mut cursor = 0;
     for entry in &manifest.entries {
         compact_json.extend_from_slice(&input[cursor..entry.edit_range.start]);
-        compact_json.extend_from_slice(entry.reference.as_bytes());
+        compact_json.extend_from_slice(entry.metadata.reference.as_bytes());
         cursor = entry.edit_range.end;
     }
     compact_json.extend_from_slice(&input[cursor..]);
@@ -408,12 +416,10 @@ fn apply_edit_plan(
                 }),
         };
         media.push(ExtractedMedia {
-            reference: entry.reference,
-            content_type: entry.content_type,
+            metadata: entry.metadata,
             kind: entry.kind,
             encoding: entry.encoding,
             storage,
-            sha256_hash: entry.sha256_hash,
         });
     }
 
@@ -450,9 +456,9 @@ pub(super) fn validate_manifest(
     let existing = manifest.existing_references.iter().collect::<HashSet<_>>();
     let mut representations = HashMap::<&str, &[u8]>::new();
     for (index, entry) in manifest.entries.iter().enumerate() {
-        if existing.contains(&entry.reference) {
+        if existing.contains(&entry.metadata.reference) {
             return Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity {
-                reference: entry.reference.clone(),
+                reference: entry.metadata.reference.clone(),
             });
         }
         let representation = match &entry.storage {
@@ -461,10 +467,10 @@ pub(super) fn validate_manifest(
                 .get(range.clone())
                 .ok_or(EarlyMediaError::InvalidEditPlan { entry: index })?,
         };
-        if let Some(previous) = representations.insert(&entry.reference, representation) {
+        if let Some(previous) = representations.insert(&entry.metadata.reference, representation) {
             if previous != representation {
                 return Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity {
-                    reference: entry.reference.clone(),
+                    reference: entry.metadata.reference.clone(),
                 });
             }
         }

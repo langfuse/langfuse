@@ -151,6 +151,34 @@ describe(
       );
     });
 
+    it.each(["deep objects", "many tiny media"] as const)(
+      "extracts %s entirely through the native API",
+      async (shape) => {
+        const uri = "data:image/png;base64,aGk=";
+        const count = shape === "deep objects" ? 32 : 16_385;
+        let value = JSON.stringify(uri);
+        if (shape === "deep objects") {
+          for (let depth = 0; depth < 120; depth++) value = `{"x":${value}}`;
+        }
+        const source = `[${Array.from({ length: count }, () => value).join(",")}]`;
+        const validated = await validateOtelJson(Buffer.from(source));
+        const batch = await validated.extract(true);
+        try {
+          const media = batch.media;
+          expect(media).toHaveLength(count);
+          expect(batch.json()).not.toContain(uri);
+          expect(batch.json().match(/@@@langfuseMedia:/g)).toHaveLength(count);
+          for (const index of [0, count - 1]) {
+            expect((await batch.mediaBody(index)).toString()).toBe("hi");
+            expect(await batch.originalMedia(index)).toBe(uri);
+          }
+        } finally {
+          await batch.dispose();
+          await validated.dispose();
+        }
+      },
+    );
+
     it("reports embedded unsupported surrogates to the TS fallback", async () => {
       const embedded = JSON.stringify({
         type: "file",

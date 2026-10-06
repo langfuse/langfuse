@@ -45,7 +45,7 @@ fn compaction_changes_only_the_bytes_inside_discovered_data_uris() {
         .zip(&compacted.media)
     {
         assert_eq!(media.original_value().unwrap(), *uri);
-        expected = expected.replacen(uri, &media.reference, 1);
+        expected = expected.replacen(uri, &media.metadata.reference, 1);
     }
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
 }
@@ -80,7 +80,7 @@ fn nested_json_manifest_is_reused_for_the_accepted_payload() {
     assert_eq!(compacted.media.len(), 1);
     assert_eq!(compacted.media[0].decode().unwrap(), b"hi");
     assert_eq!(compacted.media[0].original_value().unwrap(), "aGk=");
-    let expected = input.replacen("aGk=", &compacted.media[0].reference, 1);
+    let expected = input.replacen("aGk=", &compacted.media[0].metadata.reference, 1);
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
     let MediaStorage::Source { bytes, range } = &compacted.media[0].storage else {
         panic!("ASCII-safe nested media should retain the outer source range");
@@ -103,7 +103,8 @@ fn nested_json_manifest_is_reused_for_the_accepted_payload() {
         escaped_result.media[0].decode().unwrap(),
         b"escaped-candidate"
     );
-    let expected = escaped_input.replacen(&escaped_uri, &escaped_result.media[0].reference, 1);
+    let expected =
+        escaped_input.replacen(&escaped_uri, &escaped_result.media[0].metadata.reference, 1);
     assert_eq!(
         String::from_utf8(escaped_result.compact_json).unwrap(),
         expected
@@ -136,8 +137,8 @@ fn nested_duplicate_providers_compact_at_their_original_source_spans() {
     assert_eq!(compacted.media[0].original_value().unwrap(), first_data);
     assert_eq!(compacted.media[1].original_value().unwrap(), second_data);
     let expected = input
-        .replacen(first_data, &compacted.media[0].reference, 1)
-        .replacen(&second_data, &compacted.media[1].reference, 1);
+        .replacen(first_data, &compacted.media[0].metadata.reference, 1)
+        .replacen(&second_data, &compacted.media[1].metadata.reference, 1);
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
     for (media, expected_range) in compacted.media.iter().zip([first_data, &second_data]) {
         let MediaStorage::Source { bytes, range } = &media.storage else {
@@ -198,7 +199,7 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
     let mut expected = source;
     for (uri, media) in uris.iter().zip(&compacted.media) {
         prop_assert_eq!(media.original_value().unwrap(), uri.as_str());
-        expected = expected.replacen(uri, &media.reference, 1);
+        expected = expected.replacen(uri, &media.metadata.reference, 1);
         match &media.storage {
             MediaStorage::Source { bytes, range } => {
                 prop_assert_eq!(&bytes[range.clone()], uri.as_bytes());

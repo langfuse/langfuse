@@ -71,9 +71,10 @@ pub(crate) struct ExtractedBatch {
 
 impl ExtractedBatch {
     fn retained_bytes(&self) -> usize {
+        let mut seen = std::collections::HashSet::new();
         self.json.capacity()
             + self.media.capacity() * std::mem::size_of::<ExtractedMedia>()
-            + self.media.iter().map(ExtractedMedia::retained_bytes).sum::<usize>()
+            + self.media.iter().map(|media| media.retained_bytes(&mut seen)).sum::<usize>()
             // Source-backed entries all share the batch's one source allocation.
             + self.media.iter().find_map(ExtractedMedia::source_capacity).unwrap_or(0)
     }
@@ -131,9 +132,9 @@ impl EarlyOtelBatch {
             .enumerate()
             .map(|(index, media)| ExtractedOtelMedia {
                 index: index as u32,
-                reference: media.reference.clone(),
-                content_type: media.content_type.clone(),
-                sha256_hash: media.sha256_hash.clone(),
+                reference: media.metadata.reference.clone(),
+                content_type: media.metadata.content_type.clone(),
+                sha256_hash: media.metadata.sha256_hash.clone(),
                 kind: media.kind.as_str().to_owned(),
                 original_byte_length: media.original_byte_length() as f64,
             })
