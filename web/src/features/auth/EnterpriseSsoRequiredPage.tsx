@@ -1,12 +1,14 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -20,10 +22,24 @@ import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
 import { reportError } from "@/src/utils/reportError";
 import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
+import { asSingleQueryParam } from "@/src/hooks/useReadyRouteParams";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 const enterpriseSsoFormSchema = z.object({
   email: z.email(),
 });
+
+/**
+ * The page is shown so the user can read why their provider was rejected
+ * before the browser leaves for the identity provider.
+ */
+const AUTO_REDIRECT_DELAY_MS = 1000;
+
+const NO_SSO_CONFIG_MESSAGE =
+  "We couldn't find a custom Enterprise SSO configuration for this domain. Double-check your company email or contact your administrator.";
+
+const UNEXPECTED_ERROR_MESSAGE =
+  "Something went wrong while checking your Enterprise SSO configuration. Please try again.";
 
 const PROVIDER_LABELS: Record<string, string> = {
   google: "Google",
@@ -43,21 +59,199 @@ const PROVIDER_LABELS: Record<string, string> = {
   custom: "Custom OAuth",
 };
 
+type SsoLookup =
+  | { status: "found"; providerId: string }
+  | { status: "no-config" }
+  | { status: "error"; message: string };
+
+function emailDomain(email: string | undefined): string | undefined {
+  return email?.split("@")[1]?.toLowerCase() || undefined;
+}
+
+async function lookupSsoProviderId(domain: string): Promise<SsoLookup> {
+  try {
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      },
+    );
+
+    if (response.ok) {
+      const { providerId } = (await response.json()) as { providerId: string };
+      return { status: "found", providerId };
+    }
+
+    if (response.status === 404) {
+      return { status: "no-config" };
+    }
+
+    const data = (await response.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    return {
+      status: "error",
+      message:
+        data?.message ??
+        "Unable to start the Enterprise SSO sign-in flow. Please try again.",
+    };
+  } catch (err) {
+    reportError(err, {
+      area: "auth.enterpriseSso",
+      expected: isJsonParseSyntaxError(err),
+      extra: { context: "auth.enterpriseSso" },
+    });
+    return { status: "error", message: UNEXPECTED_ERROR_MESSAGE };
+  }
+}
+
+type AutoRedirect = "unavailable" | "pending" | { providerId: string };
+
+function deriveAutoRedirect(
+  domain: string | undefined,
+  lookup: { isPending: boolean; data: SsoLookup | undefined },
+): AutoRedirect {
+  if (domain === undefined) return "unavailable";
+  if (lookup.isPending) return "pending";
+  if (lookup.data?.status === "found") {
+    return { providerId: lookup.data.providerId };
+  }
+  return "unavailable";
+}
+
+/**
+ * While the lookup is still running it is not yet known whether there is a
+ * provider to redirect to, so neither instruction is shown rather than
+ * promising a redirect that may not happen.
+ */
+function instructionFor(autoRedirect: AutoRedirect): string | null {
+  if (autoRedirect === "pending") return null;
+  if (autoRedirect === "unavailable") {
+    return "Enter your company email so we can send you to the correct identity provider.";
+  }
+  return "Taking you there now.";
+}
+
+function SsoRedirectIndicator() {
+  return (
+    <div
+      className="text-muted-foreground flex items-center justify-center gap-3 text-sm"
+      role="status"
+    >
+      <Spinner size="sm" variant="muted" />
+      Redirecting to your identity provider...
+    </div>
+  );
+}
+
+/**
+ * Schedules the redirect to the identity provider. Mounting means a redirect
+ * is pending; unmounting cancels it.
+ */
+function ScheduledSsoRedirect({
+  providerId,
+  callbackUrl,
+  onError,
+}: {
+  providerId: string;
+  callbackUrl: string | undefined;
+  onError: (err: unknown) => void;
+}) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      signIn(providerId, { callbackUrl }).catch(onError);
+    }, AUTO_REDIRECT_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [providerId, callbackUrl, onError]);
+
+  return <SsoRedirectIndicator />;
+}
+
 export default function EnterpriseSsoRequiredPage() {
   const router = useRouter();
+
+  // `router.query` is empty on the first render of a statically-optimized
+  // route, which is indistinguishable from "no email was passed". Waiting for
+  // the real params lets the automatic redirect make that distinction, and
+  // lets the form seed its default value instead of syncing it afterwards.
+  if (!router.isReady) {
+    return (
+      <>
+        <Head>
+          <title>Enterprise SSO Required | Langfuse</title>
+        </Head>
+        <PageFrame>
+          <div className="flex justify-center">
+            <Spinner size="xl" variant="muted" />
+          </div>
+        </PageFrame>
+      </>
+    );
+  }
+
+  const email = asSingleQueryParam(router.query.email);
+
+  return (
+    <EnterpriseSsoRequired
+      // A different address is a different sign-in attempt, so the form's
+      // default value and the lookup start over rather than keeping the
+      // previous one.
+      key={email ?? ""}
+      email={email}
+      attemptedProvider={asSingleQueryParam(router.query.attemptedProvider)}
+      callbackUrl={asSingleQueryParam(router.query.callbackUrl)}
+    />
+  );
+}
+
+function EnterpriseSsoRequired({
+  email,
+  attemptedProvider,
+  callbackUrl,
+}: {
+  email: string | undefined;
+  attemptedProvider: string | undefined;
+  callbackUrl: string | undefined;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const emailFromQuery =
-    typeof router.query.email === "string" ? router.query.email : "";
-  const attemptedProvider =
-    typeof router.query.attemptedProvider === "string"
-      ? router.query.attemptedProvider
-      : undefined;
-  const callbackUrl =
-    typeof router.query.callbackUrl === "string"
-      ? router.query.callbackUrl
-      : undefined;
+  // The page is reachable with an arbitrary `callbackUrl`, and the redirect
+  // below needs no interaction, so the destination is sanitized the same way
+  // the sign-in page sanitizes `targetPath`.
+  const safeCallbackUrl = callbackUrl
+    ? getSafeRedirectPath(callbackUrl)
+    : undefined;
+
+  const enforcedDomain = emailDomain(email);
+
+  // The domain the user was redirected with already determines the provider,
+  // so resolve it up front rather than making the user re-enter the address.
+  const enforcedProvider = useQuery({
+    queryKey: ["enterpriseSsoProvider", enforcedDomain],
+    queryFn: enforcedDomain
+      ? () => lookupSsoProviderId(enforcedDomain)
+      : skipToken,
+    retry: false,
+    staleTime: Infinity,
+  });
+
+  // Domains enforced through AUTH_DOMAINS_WITH_SSO_ENFORCEMENT reach this page
+  // without a custom SSO config, so there is nothing to redirect to and the
+  // manual form stays the only way forward.
+  const autoRedirect = deriveAutoRedirect(enforcedDomain, enforcedProvider);
+
+  // Stable so that a parent re-render cannot restart the scheduled redirect.
+  const handleRedirectError = useCallback((err: unknown) => {
+    reportError(err, {
+      area: "auth.enterpriseSso",
+      expected: isJsonParseSyntaxError(err),
+      extra: { context: "auth.enterpriseSso" },
+    });
+    setError(UNEXPECTED_ERROR_MESSAGE);
+  }, []);
 
   const friendlyProviderName = useMemo(() => {
     if (!attemptedProvider) return undefined;
@@ -69,21 +263,15 @@ export default function EnterpriseSsoRequiredPage() {
   const form = useForm<z.infer<typeof enterpriseSsoFormSchema>>({
     resolver: zodResolver(enterpriseSsoFormSchema),
     defaultValues: {
-      email: emailFromQuery,
+      email: email ?? "",
     },
   });
-
-  useEffect(() => {
-    if (emailFromQuery) {
-      form.setValue("email", emailFromQuery);
-    }
-  }, [emailFromQuery, form]);
 
   async function onSubmit(values: z.infer<typeof enterpriseSsoFormSchema>) {
     setError(null);
     setLoading(true);
 
-    const domain = values.email.split("@")[1]?.toLowerCase();
+    const domain = emailDomain(values.email);
     if (!domain) {
       form.setError("email", { message: "Invalid email address" });
       setLoading(false);
@@ -91,48 +279,18 @@ export default function EnterpriseSsoRequiredPage() {
     }
 
     try {
-      const response = await fetch(
-        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ domain }),
-        },
-      );
+      const lookup = await lookupSsoProviderId(domain);
 
-      if (response.ok) {
-        const { providerId } = (await response.json()) as {
-          providerId: string;
-        };
-        await signIn(providerId, {
-          callbackUrl,
-        });
+      if (lookup.status === "found") {
+        await signIn(lookup.providerId, { callbackUrl: safeCallbackUrl });
         return;
       }
 
-      if (response.status === 404) {
-        setError(
-          "We couldn't find a custom Enterprise SSO configuration for this domain. Double-check your company email or contact your administrator.",
-        );
-        return;
-      }
-
-      const data = (await response.json().catch(() => null)) as {
-        message?: string;
-      } | null;
       setError(
-        data?.message ??
-          "Unable to start the Enterprise SSO sign-in flow. Please try again.",
+        lookup.status === "no-config" ? NO_SSO_CONFIG_MESSAGE : lookup.message,
       );
     } catch (err) {
-      reportError(err, {
-        area: "auth.enterpriseSso",
-        expected: isJsonParseSyntaxError(err),
-        extra: { context: "auth.enterpriseSso" },
-      });
-      setError(
-        "Something went wrong while checking your Enterprise SSO configuration. Please try again.",
-      );
+      handleRedirectError(err);
     } finally {
       setLoading(false);
     }
@@ -147,7 +305,7 @@ export default function EnterpriseSsoRequiredPage() {
       <Head>
         <title>Enterprise SSO Required | Langfuse</title>
       </Head>
-      <div className="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
+      <PageFrame>
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="mx-auto w-fit">
             <LangfuseIcon />
@@ -156,43 +314,59 @@ export default function EnterpriseSsoRequiredPage() {
             Use your Enterprise SSO
           </h1>
           <p className="text-muted-foreground mt-2 text-center text-sm">
-            {description} Enter your company email so we can send you to the
-            correct identity provider.
+            {description} {instructionFor(autoRedirect)}
           </p>
         </div>
 
         <div className="bg-card mt-10 rounded-lg px-6 py-8 shadow-sm sm:mx-auto sm:w-full sm:max-w-md">
-          <Form {...form}>
-            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="jsdoe@example.com"
-                        allowPasswordManager
-                        autoComplete="email"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button
-                type="submit"
-                className="w-full"
-                loading={loading}
-                disabled={loading}
+          {autoRedirect === "pending" ? (
+            <div className="flex justify-center">
+              <Spinner size="md" variant="muted" />
+            </div>
+          ) : null}
+          {typeof autoRedirect === "object" ? (
+            <ScheduledSsoRedirect
+              providerId={autoRedirect.providerId}
+              callbackUrl={safeCallbackUrl}
+              onError={handleRedirectError}
+            />
+          ) : null}
+          {autoRedirect === "unavailable" ? (
+            <Form {...form}>
+              <form
+                className="space-y-6"
+                onSubmit={form.handleSubmit(onSubmit)}
               >
-                Continue with Enterprise SSO
-              </Button>
-            </form>
-          </Form>
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="jsdoe@example.com"
+                          allowPasswordManager
+                          autoComplete="email"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  loading={loading}
+                  disabled={loading}
+                >
+                  Continue with Enterprise SSO
+                </Button>
+              </form>
+            </Form>
+          ) : null}
           {error ? (
             <div className="text-destructive mt-4 text-center text-sm font-bold">
               {error}
@@ -227,7 +401,15 @@ export default function EnterpriseSsoRequiredPage() {
           </a>
           .
         </div>
-      </div>
+      </PageFrame>
     </>
+  );
+}
+
+function PageFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
+      {children}
+    </div>
   );
 }
