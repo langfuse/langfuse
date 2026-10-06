@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Transcript } from "@langfuse/shared/src/server";
+import {
+  recordDistribution,
+  recordIncrement,
+  type Transcript,
+} from "@langfuse/shared/src/server";
 import type { TopicFacet } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
@@ -21,6 +25,11 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v2",
+}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  recordDistribution: vi.fn(),
+  recordIncrement: vi.fn(),
 }));
 vi.mock("./models", () => ({
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
@@ -81,6 +90,8 @@ const usage = {
 };
 
 beforeEach(() => {
+  vi.mocked(recordDistribution).mockClear();
+  vi.mocked(recordIncrement).mockClear();
   state.enabled = true;
   state.facets.mockReset();
   state.stored.mockReset();
@@ -160,6 +171,11 @@ describe("summarizeAssembledTrace", () => {
       },
     });
     expect(written.costDetails.total).toBeCloseTo(0.00001448, 12);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "trace", outcome: "success", unit: "milliseconds" },
+    );
     state.stored.mockImplementation(async (_projectId, _filter, timeRange) =>
       new Date(written.unitStartTime) >= timeRange.from &&
       new Date(written.unitStartTime) < timeRange.to
@@ -205,5 +221,18 @@ describe("summarizeAssembledTrace", () => {
       }),
     ).rejects.toThrow("provider unavailable");
     expect(state.write).not.toHaveBeenCalled();
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "trace", outcome: "failed", unit: "milliseconds" },
+    );
+    // Nested stages report one error, attributed to the failing call.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
+    ).toEqual([
+      ["langfuse.topics.errors", 1, { stage: "summary", reason: "unknown" }],
+    ]);
   });
 });

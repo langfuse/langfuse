@@ -11,26 +11,56 @@ import {
   type TopicFacetVersion,
   type TopicSummary,
 } from "@langfuse/shared/topics";
-import { recordIncrement, type Transcript } from "@langfuse/shared/src/server";
+import {
+  instrumentAsync,
+  recordIncrement,
+  type Transcript,
+} from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
+import { TopicMetrics } from "./metrics";
 import { embedTopicSummary, summarizeTopicTrace } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import { mergeTopicModelUsage, topicSummaryOutputError } from "./summaryResult";
 import { getTopicsModelConfig } from "@langfuse/shared/topics/server";
 
-/**
- * Summarizes one trace from the transcript the batch job already assembled.
- * Does not load observations again.
- */
-export async function summarizeAssembledTrace(input: {
+type AssembledTraceInput = {
   projectId: string;
   traceId: string;
   traceTimestamp: string;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
-}): Promise<"disabled" | "unchanged" | "summarized"> {
+};
+
+/**
+ * Summarizes one trace from the transcript the batch job already assembled.
+ * Does not load observations again.
+ */
+export async function summarizeAssembledTrace(
+  input: AssembledTraceInput,
+): Promise<"disabled" | "unchanged" | "summarized"> {
   if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
+  return instrumentAsync(
+    { name: "topics-trace-summary", traceScope: "topics" },
+    async (span) => {
+      span.setAttributes({
+        "langfuse.project.id": input.projectId,
+        "langfuse.trace.id": input.traceId,
+      });
+      const metrics = new TopicMetrics();
+      const outcome = await metrics.measure("trace", () =>
+        summarizeEnabledTrace(input, metrics),
+      );
+      span.setAttribute("langfuse.topics.trace_outcome", outcome);
+      return outcome;
+    },
+  );
+}
+
+async function summarizeEnabledTrace(
+  input: AssembledTraceInput,
+  metrics: TopicMetrics,
+): Promise<"unchanged" | "summarized"> {
   let prepared: ReturnType<typeof prepareAssembledTopicTranscript> | undefined;
   const models = getTopicsModelConfig();
   if (!models.summaryModel || !models.embeddingModel)
@@ -75,8 +105,9 @@ export async function summarizeAssembledTrace(input: {
       config,
       dimensions,
       embeddingModel: embeddingConfig.embeddingModel,
+      metrics,
     });
-    await writeTopicSummaries([summary]);
+    await metrics.measure("storage", () => writeTopicSummaries([summary]));
     recordIncrement("langfuse.topics.facet_summaries", 1, {
       state: summary.state,
     });
@@ -97,6 +128,7 @@ async function summarizeFacet(input: {
   config: ReturnType<typeof topicProcessingConfigSchema.parse>;
   dimensions: number;
   embeddingModel?: string;
+  metrics: TopicMetrics;
 }): Promise<TopicSummary> {
   const source = {
     projectId: input.projectId,
@@ -126,10 +158,8 @@ async function summarizeFacet(input: {
     metadata: { input: "assembled-transcript" },
   };
   if (!input.hasContent) return base;
-  const result = await summarizeTopicTrace(
-    input.facet,
-    input.text,
-    input.config,
+  const result = await input.metrics.measure("summary", () =>
+    summarizeTopicTrace(input.facet, input.text, input.config),
   );
   const applicable = result.output.status === "applicable";
   const summary = result.output.summary.trim();
@@ -148,10 +178,8 @@ async function summarizeFacet(input: {
       costDetails: result.costDetails,
     };
   }
-  const embedded = await embedTopicSummary(
-    summary,
-    input.dimensions,
-    input.embeddingModel!,
+  const embedded = await input.metrics.measure("embedding", () =>
+    embedTopicSummary(summary, input.dimensions, input.embeddingModel!),
   );
   return {
     ...base,
