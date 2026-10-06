@@ -24,6 +24,7 @@ describe("EvaluatorSetupFooter", () => {
           isSaving={false}
           nameAIAssistanceAvailable={false}
           codeValidation={{ isValid: false, isPending: false }}
+          assistantAction={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />
@@ -53,6 +54,7 @@ describe("EvaluatorSetupFooter", () => {
           isSaving={false}
           nameAIAssistanceAvailable={false}
           codeValidation={null}
+          assistantAction={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />
@@ -96,6 +98,7 @@ describe("EvaluatorSetupFooter", () => {
           isSaving={false}
           nameAIAssistanceAvailable={false}
           codeValidation={null}
+          assistantAction={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />
@@ -111,5 +114,40 @@ describe("EvaluatorSetupFooter", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
       "Category names cannot be empty.",
     );
+  });
+
+  it.each([
+    { isEditing: false, label: "Create with AI" as const },
+    { isEditing: true, label: "Edit with AI" as const },
+  ])("exposes the $label footer action", ({ isEditing, label }) => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "CODE",
+      mode: isEditing ? "edit" : "create",
+    });
+    const onAssistantClick = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <EvaluatorSetupFooter
+          store={store}
+          initialSnapshot=""
+          isEditing={isEditing}
+          isSaving={false}
+          nameAIAssistanceAvailable={false}
+          codeValidation={null}
+          assistantAction={{
+            label,
+            triggerRef: { current: null },
+            onClick: onAssistantClick,
+          }}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    expect(onAssistantClick).toHaveBeenCalledOnce();
   });
 });

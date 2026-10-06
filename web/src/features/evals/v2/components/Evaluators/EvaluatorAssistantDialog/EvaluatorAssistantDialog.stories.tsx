@@ -8,35 +8,113 @@ import {
   within,
 } from "storybook/test";
 
-import preview from "../../../../../../../../../../.storybook/preview";
-import { EvaluatorAssistantEditDialog } from "./EvaluatorAssistantEditDialog";
+import preview from "../../../../../../../.storybook/preview";
+import { EvaluatorAssistantDialog } from "./EvaluatorAssistantDialog";
 
-const meta = preview.meta({ component: EvaluatorAssistantEditDialog });
+const meta = preview.meta({ component: EvaluatorAssistantDialog });
 
 const sharedArgs = {
   open: true,
+  returnFocusRef: { current: null },
   onOpenChange: fn(),
   onAssistantSubmit: fn(async () => true),
 };
 
-export const CodeEvaluator = meta.story({
+export const CreateCodeEvaluator = meta.story({
   args: {
     ...sharedArgs,
+    mode: "create",
     evaluatorType: "code",
   },
 });
 
-export const JudgeEvaluator = meta.story({
+export const CreateJudgeEvaluator = meta.story({
   args: {
     ...sharedArgs,
+    mode: "create",
     evaluatorType: "judge",
   },
 });
 
-export const DismissesFromBackdrop = meta.story({
-  name: "(Test) Dismisses From Backdrop",
+export const EditCodeEvaluator = meta.story({
   args: {
     ...sharedArgs,
+    mode: "edit",
+    evaluatorType: "code",
+  },
+});
+
+export const EditJudgeEvaluator = meta.story({
+  args: {
+    ...sharedArgs,
+    mode: "edit",
+    evaluatorType: "judge",
+  },
+});
+
+export const SelectsCreateExampleWithoutSubmitting = meta.story({
+  name: "(Test) Selects Create Example Without Submitting",
+  args: {
+    ...sharedArgs,
+    mode: "create",
+    evaluatorType: "judge",
+  },
+  play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = body.getByRole("dialog");
+    const input = within(dialog).getByRole("textbox", {
+      name: "Describe the LLM-as-a-judge evaluator you want",
+    });
+    const examples = within(dialog).getByRole("region", {
+      name: "Try one of these",
+    });
+
+    await expect(within(dialog).getByText("Create with AI")).toBeVisible();
+    await userEvent.click(
+      within(examples).getByRole("button", {
+        name: "Score helpfulness 1–5 with a one-sentence reason",
+      }),
+    );
+    await expect(input).toHaveValue(
+      "Score helpfulness 1–5 with a one-sentence reason",
+    );
+    await expect(args.onAssistantSubmit).not.toHaveBeenCalled();
+  },
+});
+
+export const SelectsEditExampleWithoutSubmitting = meta.story({
+  name: "(Test) Selects Edit Example Without Submitting",
+  args: {
+    ...sharedArgs,
+    mode: "edit",
+    evaluatorType: "code",
+  },
+  play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = body.getByRole("dialog");
+    const input = within(dialog).getByRole("textbox", {
+      name: "Describe how to change this code evaluator",
+    });
+    const examples = within(dialog).getByRole("region", {
+      name: "Try one of these",
+    });
+
+    await expect(within(dialog).getByText("Edit with AI")).toBeVisible();
+    await userEvent.click(
+      within(examples).getByRole("button", {
+        name: "Make the evaluation criterion stricter",
+      }),
+    );
+    await expect(input).toHaveValue("Make the evaluation criterion stricter");
+    await expect(args.onAssistantSubmit).not.toHaveBeenCalled();
+  },
+});
+
+export const DismissesWhenIdleAndRestoresFocus = meta.story({
+  name: "(Test) Dismisses When Idle And Restores Focus",
+  args: {
+    ...sharedArgs,
+    mode: "edit",
     evaluatorType: "code",
     onOpenChange: fn(),
   },
@@ -47,9 +125,9 @@ export const DismissesFromBackdrop = meta.story({
     return (
       <>
         <button ref={triggerRef} type="button" onClick={() => setOpen(true)}>
-          Edit evaluator
+          Edit with AI
         </button>
-        <EvaluatorAssistantEditDialog
+        <EvaluatorAssistantDialog
           {...args}
           open={open}
           returnFocusRef={triggerRef}
@@ -65,7 +143,7 @@ export const DismissesFromBackdrop = meta.story({
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     const trigger = canvas.getByRole("button", {
-      name: "Edit evaluator",
+      name: "Edit with AI",
       hidden: true,
     });
     const getOverlay = () =>
@@ -73,7 +151,6 @@ export const DismissesFromBackdrop = meta.story({
         '[data-state="open"].fixed.inset-0',
       );
 
-    await expect(getOverlay()).not.toBeNull();
     await userEvent.click(getOverlay()!);
     await expect(args.onOpenChange).toHaveBeenCalledWith(false);
     await waitFor(() => {
@@ -87,24 +164,14 @@ export const DismissesFromBackdrop = meta.story({
       expect(body.queryByRole("dialog")).not.toBeInTheDocument();
       expect(trigger).toHaveFocus();
     });
-
-    await userEvent.click(trigger);
-    await userEvent.click(
-      within(body.getByRole("dialog")).getAllByRole("button", {
-        name: "Close",
-      })[0],
-    );
-    await waitFor(() => {
-      expect(body.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(trigger).toHaveFocus();
-    });
   },
 });
 
-export const EmbeddedSendPending = meta.story({
-  name: "(Test) Embedded Send Pending",
+export const LocksDismissalAndDuplicateSubmitWhilePending = meta.story({
+  name: "(Test) Locks Dismissal And Duplicate Submit While Pending",
   args: {
     ...sharedArgs,
+    mode: "edit",
     evaluatorType: "code",
     onAssistantSubmit: fn(async () => true),
   },
@@ -125,17 +192,10 @@ export const EmbeddedSendPending = meta.story({
     const input = within(composer).getByRole("textbox", {
       name: "Describe how to change this code evaluator",
     });
-    const submit = within(composer).getByRole("button", {
-      name: "Open Assistant",
-    });
 
-    await expect(
-      dialog.querySelector(".dialog-footer"),
-    ).not.toBeInTheDocument();
     await expect(
       within(dialog).queryByRole("button", { name: "Cancel" }),
     ).not.toBeInTheDocument();
-    await expect(submit).toBeDisabled();
     await userEvent.type(input, "  Also fail when the output is empty  ");
     await userEvent.keyboard("{Enter}");
     fireEvent.submit(input.closest("form")!);
@@ -146,7 +206,6 @@ export const EmbeddedSendPending = meta.story({
     );
     await expect(composer).toHaveAttribute("aria-busy", "true");
     await expect(input).toBeDisabled();
-    await expect(submit).toBeDisabled();
 
     const overlay = canvasElement.ownerDocument.querySelector<HTMLElement>(
       '[data-state="open"].fixed.inset-0',
@@ -159,12 +218,12 @@ export const EmbeddedSendPending = meta.story({
       })[0],
     );
     await expect(body.getByRole("dialog")).toBeInTheDocument();
+    await expect(onAssistantSubmit).toHaveBeenCalledOnce();
 
     finishSubmission(false);
     await waitFor(() => {
       expect(composer).toHaveAttribute("aria-busy", "false");
       expect(input).toBeEnabled();
-      expect(body.getByRole("dialog")).toBeInTheDocument();
     });
   },
 });

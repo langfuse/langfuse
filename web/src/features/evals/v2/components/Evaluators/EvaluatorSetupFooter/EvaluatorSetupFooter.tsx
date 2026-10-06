@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
@@ -17,6 +18,7 @@ export function EvaluatorSetupFooter({
   isSaving,
   nameAIAssistanceAvailable,
   codeValidation,
+  assistantAction,
   onClose,
   onSave,
 }: {
@@ -26,6 +28,11 @@ export function EvaluatorSetupFooter({
   isSaving: boolean;
   nameAIAssistanceAvailable: boolean;
   codeValidation: { isValid: boolean; isPending: boolean } | null;
+  assistantAction: {
+    label: "Create with AI" | "Edit with AI";
+    triggerRef: RefObject<HTMLButtonElement | null>;
+    onClick: () => void;
+  } | null;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -101,6 +108,12 @@ export function EvaluatorSetupFooter({
     isSaving,
     saveDisabled,
     disabledReason,
+    assistantAction: assistantAction
+      ? {
+          ...assistantAction,
+          disabled: isSaving,
+        }
+      : null,
     onClose,
     onSave,
   };
