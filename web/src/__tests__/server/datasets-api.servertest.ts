@@ -1976,8 +1976,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(updatedItem?.expectedOutput).toEqual({ result: "v2" });
 
     // Each response carries the version of the item it returns
-    expect(item1Updated.body.version.getTime()).toBeGreaterThan(
-      item1.body.version.getTime(),
+    expect(new Date(item1Updated.body.version).getTime()).toBeGreaterThan(
+      new Date(item1.body.version).getTime(),
     );
     expect(itemsV1.body.data[0].version).toEqual(item1.body.version);
     expect(updatedItem?.version).toEqual(item1Updated.body.version);
