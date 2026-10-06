@@ -13,10 +13,7 @@ import {
 } from "@langfuse/shared";
 import { nanoid } from "nanoid";
 
-import {
-  getPromptsMeta,
-  type PromptsMetaResponse,
-} from "@/src/features/prompts/server/actions/getPromptsMeta";
+import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
@@ -24,6 +21,8 @@ import {
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
+  PromptService,
+  redis,
 } from "@langfuse/shared/src/server";
 import {
   createUserWithOrgRole,
@@ -1374,39 +1373,29 @@ describe("/api/public/v2/prompts API Endpoint", () => {
   });
 
   describe("when counting a prompt list across prompt writes", () => {
-    it("serves the cached count until a prompt write rotates the epoch", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const countPrompts = async () =>
-        (await getPromptsMeta({ projectId, page: 1, limit: 1 })).meta
-          .totalItems;
-      const createViaService = (name: string) =>
-        createPrompt({
-          name,
-          prompt: "prompt",
-          labels: [],
-          config: {},
+    it("serves the cached count per filter until the epoch rotates", async () => {
+      // CI disables the prompt cache via env, so enable it explicitly.
+      const promptService = new PromptService(prisma, redis, undefined, true);
+      const projectId = randomUUID();
+      const computeCount = vi.fn();
+      const count = (filterKey: string) =>
+        promptService.getPromptListCount({
           projectId,
-          createdBy: "user-1",
-          prisma,
+          filterKey,
+          computeCount,
         });
 
-      await createViaService("prompt-a");
-      expect(await countPrompts()).toBe(1);
+      computeCount.mockResolvedValueOnce(1).mockResolvedValueOnce(5);
+      expect(await count("all")).toBe(1);
+      expect(await count("all")).toBe(1);
+      expect(await count("tag=a")).toBe(5);
+      expect(computeCount).toHaveBeenCalledTimes(2);
 
-      // Bypasses invalidation, so the cached count stays in place.
-      await createPromptInDB({
-        name: "prompt-b",
-        prompt: "prompt",
-        labels: [],
-        version: 1,
-        config: {},
-        projectId,
-        createdBy: "user-1",
-      });
-      expect(await countPrompts()).toBe(1);
+      await promptService.invalidateCache({ projectId });
 
-      await createViaService("prompt-c");
-      expect(await countPrompts()).toBe(3);
+      computeCount.mockResolvedValueOnce(2);
+      expect(await count("all")).toBe(2);
+      expect(computeCount).toHaveBeenCalledTimes(3);
     });
   });
 
