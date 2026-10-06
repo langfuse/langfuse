@@ -1,3 +1,5 @@
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
@@ -9,7 +11,7 @@
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo, useRef } from "react";
+import { memo, useRef } from "react";
 import {
   type ObservationType,
   isGenerationLike,
@@ -44,7 +46,6 @@ import type Decimal from "decimal.js";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useReadPath } from "@/src/features/events";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
@@ -101,6 +102,7 @@ export const ObservationDetailViewHeader = memo(
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
+    const { trace, serverScores } = useTraceData();
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -110,12 +112,15 @@ export const ObservationDetailViewHeader = memo(
         ? `${commentActionLabel} (${commentCount})`
         : commentActionLabel;
     const { isV4: isV4Enabled } = useReadPath();
-    const { trace, serverScores } = useTraceData();
-
-    // Get trace-level scores for V4 dual annotation
-    const traceScores = useMemo(
-      () => serverScores.filter((s) => !s.observationId),
-      [serverScores],
+    const companionTrace = isV4Enabled
+      ? {
+          environment: trace.environment,
+          scores: serverScores.filter((score) => !score.observationId),
+        }
+      : undefined;
+    const prompt = api.prompts.byId.useQuery(
+      { id: observation.promptId ?? "", projectId },
+      { enabled: Boolean(observation.promptId) },
     );
 
     // Format cost and usage values
@@ -259,28 +264,16 @@ export const ObservationDetailViewHeader = memo(
                                           preventScroll: true,
                                         });
                                         openDrawer({
-                                          scoreTarget: {
-                                            type: "trace",
+                                          ...prepareTraceAnnotation({
                                             traceId,
-                                            observationId: observation.id,
-                                          },
-                                          scores: observationScores,
-                                          companionTrace: isV4Enabled
-                                            ? {
-                                                environment: trace.environment,
-                                                scores: traceScores,
-                                              }
-                                            : undefined,
-                                          analyticsData: {
-                                            type: "trace",
-                                            source: "TraceDetail",
-                                            isV4: isV4Enabled,
-                                          },
-                                          scoreMetadata: {
                                             projectId,
                                             environment:
                                               observation.environment,
-                                          },
+                                            observationId: observation.id,
+                                            scores: observationScores,
+                                            isV4: isV4Enabled,
+                                          }),
+                                          companionTrace,
                                         });
                                       },
                                     },
@@ -390,27 +383,15 @@ export const ObservationDetailViewHeader = memo(
                       disabled={disabled}
                       onClick={() =>
                         openDrawer({
-                          scoreTarget: {
-                            type: "trace",
+                          ...prepareTraceAnnotation({
                             traceId,
-                            observationId: observation.id,
-                          },
-                          scores: observationScores,
-                          companionTrace: isV4Enabled
-                            ? {
-                                environment: trace.environment,
-                                scores: traceScores,
-                              }
-                            : undefined,
-                          analyticsData: {
-                            type: "trace",
-                            source: "TraceDetail",
-                            isV4: isV4Enabled,
-                          },
-                          scoreMetadata: {
                             projectId,
                             environment: observation.environment,
-                          },
+                            observationId: observation.id,
+                            scores: observationScores,
+                            isV4: isV4Enabled,
+                          }),
+                          companionTrace,
                         })
                       }
                     >
@@ -492,10 +473,14 @@ export const ObservationDetailViewHeader = memo(
         ) : (
           <CollapsibleBadgeRow>
             {timestampBadge}
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
+            {latencySeconds != null && (
+              <LatencyBadge latencySeconds={latencySeconds} />
+            )}
+            {observation.timeToFirstToken != null && (
+              <TimeToFirstTokenBadge
+                timeToFirstToken={observation.timeToFirstToken}
+              />
+            )}
             {evaluatorId &&
               (observation.environment ===
                 LangfuseInternalTraceEnvironment.LLMJudge ||
@@ -546,9 +531,10 @@ export const ObservationDetailViewHeader = memo(
             {observation.level !== "DEFAULT" && (
               <ObservationLevelBadge level={observation.level} />
             )}
-            {observation.promptId && (
+            {observation.promptId && !prompt.isLoading && prompt.data && (
               <PromptBadge
-                promptId={observation.promptId}
+                promptName={prompt.data.name}
+                promptVersion={prompt.data.version}
                 projectId={projectId}
               />
             )}

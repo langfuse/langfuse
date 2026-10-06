@@ -1,4 +1,10 @@
 import {
+  DECISION_MODEL_LIMITS,
+  DecisionModelChoiceOptionSchema,
+  DecisionModelChoiceQuestionSchema,
+  DecisionModelQuestionType,
+  DecisionModelQuestionsSchema,
+  DecisionModelStateKeySchema,
   EvalOutputDataTypeSchema,
   EvaluatorPromptMessagesSchema,
   EvalTemplateType,
@@ -30,6 +36,52 @@ const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
 
 const McpObservationVariableMappingSchema = observationVariableMapping.extend({
   jsonSelector: z.string().optional(),
+});
+
+const McpDecisionModelQuestionBaseSchema = z.object({
+  id: DecisionModelChoiceQuestionSchema.shape.id.describe(
+    "Stable question identifier.",
+  ),
+  type: z.enum(DecisionModelQuestionType).describe("Decision question type."),
+  scoreName: DecisionModelChoiceQuestionSchema.shape.scoreName.describe(
+    "Name of the score produced by the question.",
+  ),
+  instructions: z
+    .unknown()
+    .describe("Question instructions as text or structured JSON."),
+  options: z
+    .array(
+      z.object({
+        value: DecisionModelChoiceOptionSchema.shape.value,
+        description: z
+          .unknown()
+          .optional()
+          .describe("Option description as text or structured JSON."),
+      }),
+    )
+    .min(DECISION_MODEL_LIMITS.minChoiceOptions)
+    .max(DECISION_MODEL_LIMITS.maxChoiceOptions)
+    .optional()
+    .describe("Choice options. Required when type is `choice`."),
+  levels: z
+    .array(
+      z.object({
+        description: z
+          .unknown()
+          .describe("Level description as text or structured JSON."),
+      }),
+    )
+    .min(DECISION_MODEL_LIMITS.minScoreLevels)
+    .max(DECISION_MODEL_LIMITS.maxScoreLevels)
+    .optional()
+    .describe("Ordered score levels. Required when type is `score`."),
+  criteria: z
+    .object({
+      true: z.unknown().optional(),
+      false: z.unknown().optional(),
+    })
+    .optional()
+    .describe("Optional true/false criteria when type is `noul`."),
 });
 
 const McpEvalOutputDefinitionSchema = z.object({
@@ -79,24 +131,38 @@ const McpEvalOutputDefinitionSchema = z.object({
 export const McpEvaluatorInputBase = z.object({
   name: CreateEvaluatorSchema.shape.name,
   description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
-  type: z.enum(EvalTemplateType),
+  type: z.enum([
+    EvalTemplateType.LLM_AS_JUDGE,
+    EvalTemplateType.CODE,
+    EvalTemplateType.DECISION_MODEL,
+  ]),
   prompt: z.string().min(1).optional(),
   promptMessages: EvaluatorPromptMessagesSchema.optional().describe(
     "Structured prompt messages for LLM-as-a-judge evaluators. Use this instead of prompt to preserve system, user, and assistant message roles.",
   ),
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
-    "Optional custom model configuration. Omit to use the project default model.",
+    "Model configuration. Required for decision-model evaluators. Optional for LLM-as-a-judge evaluators, which use the project default when omitted.",
   ),
   outputDefinition: McpEvalOutputDefinitionSchema.optional().describe(
     "Required for LLM-as-a-judge evaluators. Defines the reasoning and score returned by the evaluator.",
   ),
+  questions: z
+    .array(McpDecisionModelQuestionBaseSchema)
+    .min(1)
+    .max(DECISION_MODEL_LIMITS.maxQuestions)
+    .optional()
+    .describe(
+      "Required for decision-model evaluators. Each question produces its own score.",
+    ),
   sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode.optional(),
   sourceCodeLanguage:
     CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage.optional(),
   variableMapping: z
     .array(McpObservationVariableMappingSchema)
     .optional()
-    .describe("Variable mappings for LLM-as-a-judge evaluators only."),
+    .describe(
+      "Variable mappings for LLM-as-a-judge and decision-model evaluators. Decision-model mappings define the state and require at least one entry.",
+    ),
 });
 
 export const McpEvaluatorDefinitionInputBase = McpEvaluatorInputBase.omit({
@@ -104,7 +170,13 @@ export const McpEvaluatorDefinitionInputBase = McpEvaluatorInputBase.omit({
   description: true,
 });
 
-function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
+const McpEvaluatorRuntimeInputBase = McpEvaluatorInputBase.extend({
+  questions: DecisionModelQuestionsSchema.optional().describe(
+    "Required for decision-model evaluators. Each question produces its own score.",
+  ),
+});
+
+function toEvaluatorInput(input: z.infer<typeof McpEvaluatorRuntimeInputBase>) {
   if (input.type === EvalTemplateType.LLM_AS_JUDGE) {
     return {
       name: input.name,
@@ -123,6 +195,19 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
     };
   }
 
+  if (input.type === EvalTemplateType.DECISION_MODEL) {
+    return {
+      name: input.name,
+      description: input.description ?? null,
+      definition: {
+        type: input.type,
+        questions: input.questions,
+        modelConfig: input.modelConfig,
+        variableMapping: input.variableMapping,
+      },
+    };
+  }
+
   return {
     name: input.name,
     description: input.description ?? null,
@@ -135,7 +220,7 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
 }
 
 function validateEvaluatorInput(
-  input: z.infer<typeof McpEvaluatorInputBase>,
+  input: z.infer<typeof McpEvaluatorRuntimeInputBase>,
   ctx: z.RefinementCtx,
 ) {
   if (
@@ -160,6 +245,43 @@ function validateEvaluatorInput(
       path: ["promptMessages"],
       message: "Provide either prompt or promptMessages, not both.",
     });
+  }
+
+  if (
+    input.type === EvalTemplateType.DECISION_MODEL &&
+    input.variableMapping?.length === 0
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["variableMapping"],
+      message:
+        "Decision-model evaluators require at least one state variable mapping.",
+    });
+  }
+
+  if (input.type === EvalTemplateType.DECISION_MODEL) {
+    input.variableMapping?.forEach(({ templateVariable }, index) => {
+      const parsedStateKey =
+        DecisionModelStateKeySchema.safeParse(templateVariable);
+      if (parsedStateKey.success) return;
+
+      for (const issue of parsedStateKey.error.issues) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["variableMapping", index, "templateVariable"],
+          message: issue.message,
+        });
+      }
+    });
+
+    if (input.modelConfig?.modelParams !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["modelConfig", "modelParams"],
+        message:
+          "Decision-model evaluators do not support model parameters. Provide only provider and model.",
+      });
+    }
   }
 
   if (
@@ -194,7 +316,7 @@ function validateEvaluatorInput(
   }
 }
 
-export const McpEvaluatorInput = McpEvaluatorInputBase.superRefine(
+export const McpEvaluatorInput = McpEvaluatorRuntimeInputBase.superRefine(
   validateEvaluatorInput,
 );
 
@@ -202,13 +324,18 @@ export const McpUpdateEvaluatorInputBase = McpEvaluatorInputBase.extend({
   evaluatorId: z.string(),
 });
 
-export const McpUpdateEvaluatorInput = McpUpdateEvaluatorInputBase.superRefine(
-  ({ evaluatorId: _evaluatorId, ...input }, ctx) =>
-    validateEvaluatorInput(input, ctx),
-);
+const McpUpdateEvaluatorRuntimeInputBase = McpEvaluatorRuntimeInputBase.extend({
+  evaluatorId: z.string(),
+});
+
+export const McpUpdateEvaluatorInput =
+  McpUpdateEvaluatorRuntimeInputBase.superRefine(
+    ({ evaluatorId: _evaluatorId, ...input }, ctx) =>
+      validateEvaluatorInput(input, ctx),
+  );
 
 export function toEvaluatorServiceInput(
-  input: z.infer<typeof McpEvaluatorInputBase>,
+  input: z.infer<typeof McpEvaluatorRuntimeInputBase>,
 ) {
   return CreateEvaluatorWithoutProjectSchema.parse(toEvaluatorInput(input));
 }

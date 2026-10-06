@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -176,10 +176,6 @@ export function ExperimentFilterPills({
       })),
     );
   }, [filtersByExperiment, selectedExperimentNames]);
-
-  if (allFilters.length === 0) {
-    return null;
-  }
 
   return (
     <div

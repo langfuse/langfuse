@@ -776,7 +776,6 @@ export function DashboardWidget({
         {!queryValidation.valid ? (
           <div className="relative min-h-0 flex-1">
             <ChartLoadingState
-              isLoading={true}
               showSpinner={false}
               showHintImmediately={true}
               hintText={queryValidation.reason}
@@ -818,16 +817,17 @@ export function DashboardWidget({
                 )}
               />
             </div>
-            <ChartLoadingState
-              isLoading={chartLoadingState.isLoading}
-              showSpinner={chartLoadingState.showSpinner}
-              showHintImmediately={chartLoadingState.showHintImmediately}
-              hintText={chartLoadingState.hintText}
-              onRetry={queryResult.isError ? handleRetry : undefined}
-              progress={loadingProgress}
-              layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-            />
+            {chartLoadingState.isLoading && (
+              <ChartLoadingState
+                showSpinner={chartLoadingState.showSpinner}
+                showHintImmediately={chartLoadingState.showHintImmediately}
+                hintText={chartLoadingState.hintText}
+                onRetry={queryResult.isError ? handleRetry : undefined}
+                progress={loadingProgress}
+                layout={loadingStateLayout}
+                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              />
+            )}
           </div>
         )}
       </div>

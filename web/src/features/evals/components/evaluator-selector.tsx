@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
@@ -32,19 +31,20 @@ import { SiPython, SiTypescript } from "react-icons/si";
 const CodeTemplateLanguageIcon = ({
   sourceCodeLanguage,
 }: {
-  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"];
+  sourceCodeLanguage:
+    | typeof EvalTemplateSourceCodeLanguage.TYPESCRIPT
+    | typeof EvalTemplateSourceCodeLanguage.PYTHON;
 }) => {
-  const language = (() => {
-    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
-      return { Icon: SiTypescript, title: "TypeScript" };
-    }
-    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
-      return { Icon: SiPython, title: "Python" };
-    }
-    return null;
-  })();
-
-  if (!language) return null;
+  const language = {
+    [EvalTemplateSourceCodeLanguage.TYPESCRIPT]: {
+      Icon: SiTypescript,
+      title: "TypeScript",
+    },
+    [EvalTemplateSourceCodeLanguage.PYTHON]: {
+      Icon: SiPython,
+      title: "Python",
+    },
+  }[sourceCodeLanguage];
 
   const { Icon } = language;
 
@@ -192,7 +192,11 @@ export function EvaluatorSelector({
                           <span className="truncate" title={template.name}>
                             {template.name}
                           </span>
-                          {template.type === EvalTemplateType.CODE ? (
+                          {template.type === EvalTemplateType.CODE &&
+                          (template.sourceCodeLanguage ===
+                            EvalTemplateSourceCodeLanguage.TYPESCRIPT ||
+                            template.sourceCodeLanguage ===
+                              EvalTemplateSourceCodeLanguage.PYTHON) ? (
                             <CodeTemplateLanguageIcon
                               sourceCodeLanguage={template.sourceCodeLanguage}
                             />
@@ -262,7 +266,11 @@ export function EvaluatorSelector({
                           <span className="truncate" title={template.name}>
                             {template.name}
                           </span>
-                          {template.type === EvalTemplateType.CODE ? (
+                          {template.type === EvalTemplateType.CODE &&
+                          (template.sourceCodeLanguage ===
+                            EvalTemplateSourceCodeLanguage.TYPESCRIPT ||
+                            template.sourceCodeLanguage ===
+                              EvalTemplateSourceCodeLanguage.PYTHON) ? (
                             <CodeTemplateLanguageIcon
                               sourceCodeLanguage={template.sourceCodeLanguage}
                             />

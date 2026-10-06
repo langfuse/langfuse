@@ -59,7 +59,7 @@ export function CorrectedOutputField({
   // Diff dialog state
   const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
 
-  // One-line link by default; the full section renders on demand.
+  // When no correction exists, keep the section collapsed until it is opened.
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Merge cache + server data
@@ -159,13 +159,12 @@ export function CorrectedOutputField({
   const handleDeleteWithExitEdit = () => {
     handleDelete();
     setIsEditing(false);
+    setIsExpanded(false);
   };
 
-  // Collapsed to a one-line link by default: corrections are used by a small
-  // share of users, so the full editor UI only takes space once asked for.
-  if (!isExpanded) {
+  if (!isExpanded && !effectiveCorrection) {
     return (
-      <div className="px-2 py-2">
+      <div className="py-2">
         <button
           type="button"
           onClick={() => {
@@ -178,7 +177,7 @@ export function CorrectedOutputField({
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
           <Pencil className="size-3 shrink-0" aria-hidden />
-          {hasContent ? "Corrected output" : "Correct output"}
+          Correct output
         </button>
       </div>
     );
@@ -194,15 +193,12 @@ export function CorrectedOutputField({
         correctedOutput={value}
         strictJsonMode={strictJsonMode}
       />
-      <div className="px-2">
+      <div className="pt-3">
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
             <div className="flex items-center gap-1">
               <span
-                className={cn(
-                  "text-sm font-bold",
-                  compact ? "text-xs" : "text-sm",
-                )}
+                className={cn("font-bold", compact ? "text-xs" : "text-base")}
               >
                 {compact ? "" : "Corrected Output"}
               </span>
@@ -229,7 +225,7 @@ export function CorrectedOutputField({
                 </HoverCardContent>
               </HoverCard>
             </div>
-            <div className="-mr-1 flex items-center">
+            <div className="flex items-center">
               <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                 {!isValidJson && isEditing && hasContent && (
                   <span className="mr-2 text-xs text-red-500">
@@ -317,15 +313,13 @@ export function CorrectedOutputField({
               mode={strictJsonMode ? "json" : "text"}
               minHeight={200}
               placeholder="Enter corrected output..."
-              className="bg-accent-light-green"
             />
           ) : (
             <CodeMirrorEditor
               value={displayValue}
               mode={strictJsonMode ? "json" : "text"}
-              minHeight={200}
               editable={false}
-              className="bg-accent-light-green"
+              className="bg-surface-output [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent!"
             />
           )}
         </div>

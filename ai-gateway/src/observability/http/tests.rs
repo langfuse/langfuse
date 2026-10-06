@@ -57,9 +57,11 @@ impl Recording {
                 tracing_subscriber::fmt::layer()
                     .json()
                     .flatten_event(true)
+                    .map_event_format(crate::observability::logs::WithRequestId)
                     .with_writer(move || buffer.clone()),
             )
-            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
+            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")))
+            .with(crate::observability::logs::RequestIdSpans);
         Self {
             _guard: tracing::subscriber::set_default(subscriber),
             _provider: provider,
@@ -67,11 +69,16 @@ impl Recording {
             output,
         }
     }
-    fn summaries(&self) -> Vec<Value> {
+    fn events(&self) -> Vec<Value> {
         String::from_utf8(self.output.0.lock().unwrap().clone())
             .unwrap()
             .lines()
             .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect()
+    }
+    fn summaries(&self) -> Vec<Value> {
+        self.events()
+            .into_iter()
             .filter(|event| event["message"] == "gateway response started")
             .collect()
     }
@@ -271,6 +278,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
         async {
             Response::builder()
                 .header("content-type", "application/json")
+                .header("x-request-id", "req_upstream")
                 .body(Body::from(PROVIDER_RESPONSE))
                 .unwrap()
         }
@@ -301,6 +309,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     assert!(futures_util::poll!(serving.as_mut()).is_pending());
     let response = app.oneshot(generation_request()).await.unwrap();
     assert_eq!(response.status(), 200);
+    let response_headers = response.headers().clone();
     axum::body::to_bytes(response.into_body(), 4096)
         .await
         .unwrap();
@@ -327,6 +336,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
             assert_generation_context(payload);
         }
     }
+    assert_request_correlation(&response_headers, &recording, server, &observed);
 }
 
 type SpanData = opentelemetry_sdk::trace::SpanData;
@@ -441,6 +451,7 @@ fn generation_request() -> HttpRequest<Body> {
         .header("langfuse-environment", "production")
         .header("langfuse-tags", "one,two")
         .header("langfuse-metadata", "team:search")
+        .header("x-request-id", "client-request-canary")
         .body(Body::from(GENERATION_REQUEST))
         .unwrap()
 }
@@ -472,6 +483,7 @@ fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk:
         "langfuse-environment",
         "langfuse-tags",
         "langfuse-metadata",
+        "x-request-id",
     ] {
         assert!(
             !headers.contains_key(name),
@@ -480,7 +492,67 @@ fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk:
     }
 }
 
-fn assert_generation_context(payload: &Value) {
+/// One gateway request ID links the caller's response, every request log line, the
+/// server span, the Web resolution call and the uploaded generation, whose trace
+/// and observation IDs the response also advertises.
+fn assert_request_correlation(
+    response: &HeaderMap,
+    recording: &Recording,
+    server: &SpanData,
+    observed: &[(&str, HeaderMap, Value)],
+) {
+    let header = |name: &str| response[name].to_str().unwrap();
+    let request_id = header("langfuse-request-id");
+    assert_eq!(
+        header("langfuse-trace-id"),
+        "4bf92f3577b34da6a3ce929d0e0e4736"
+    );
+    assert_attribute(server, "gateway.request.id", request_id.to_owned());
+    assert_attribute(server, "gateway.client.request.id", "client-request-canary");
+    assert_attribute(server, "provider_request_id", "req_upstream");
+    let events: Vec<_> = recording
+        .events()
+        .into_iter()
+        .filter(|event| {
+            event["spans"]
+                .as_array()
+                .is_some_and(|spans| spans.iter().any(|span| span["name"] == "http.server"))
+        })
+        .collect();
+    let messages: Vec<_> = events.iter().map(|event| &event["message"]).collect();
+    for message in ["gateway response started", "gateway execution finished"] {
+        assert!(messages.contains(&&Value::from(message)), "{messages:?}");
+    }
+    for event in &events {
+        assert_eq!(event["request_id"], request_id, "{event}");
+    }
+    for (name, headers, payload) in observed {
+        assert_eq!(
+            headers
+                .get("langfuse-gateway-request-id")
+                .map(|value| value.to_str().unwrap()),
+            (*name == "resolver").then_some(request_id),
+            "{name}"
+        );
+        if *name == "ingestion" {
+            let generation = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+            assert_eq!(generation["traceId"], header("langfuse-trace-id"));
+            assert_eq!(generation["spanId"], header("langfuse-observation-id"));
+            let metadata = assert_generation_context(payload);
+            assert_eq!(metadata["langfuse.gateway.request.id"], request_id);
+            assert_eq!(
+                metadata["langfuse.gateway.client.request.id"],
+                "client-request-canary"
+            );
+            assert_eq!(
+                metadata["langfuse.gateway.upstream.request.id"],
+                "req_upstream"
+            );
+        }
+    }
+}
+
+fn assert_generation_context(payload: &Value) -> Value {
     let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
     assert_eq!(span["traceId"], "4bf92f3577b34da6a3ce929d0e0e4736");
     assert_eq!(span["parentSpanId"], "00f067aa0ba902b7");
@@ -510,4 +582,5 @@ fn assert_generation_context(payload: &Value) {
         serde_json::from_str(attributes["langfuse.observation.metadata"]).unwrap();
     assert_eq!(metadata["team"], "search");
     assert_eq!(metadata["source"], "python");
+    metadata
 }

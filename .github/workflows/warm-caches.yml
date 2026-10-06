@@ -46,10 +46,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # No pinned version on purpose: the action reads "packageManager" from
-      # package.json, so pnpm bumps that update pipeline.yml cannot strand
-      # this satellite workflow on a mismatched pin (which hard-fails the
-      # action, as a previous partially pinned pnpm bump did).
+      # Read devEngines.packageManager from package.json so workflows use
+      # the same pinned pnpm version.
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false

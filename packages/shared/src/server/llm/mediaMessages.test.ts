@@ -338,6 +338,65 @@ describe("compileLangfuseMediaMessages", () => {
     },
   );
 
+  it("leaves media references as provider text for Bedrock URL transport", async () => {
+    const resolver = vi.fn();
+
+    const result = await compileLangfuseMediaMessages({
+      projectId: "project-1",
+      messages: [userMessage(`inspect ${imageRef}`)],
+      adapter: LLMAdapter.Bedrock,
+      transport: "url",
+      resolveMedia: resolver,
+    });
+
+    expect(result).toEqual({
+      providerMessages: [{ role: "user", content: `inspect ${imageRef}` }],
+      traceMessages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "inspect " },
+            {
+              type: "file",
+              data: imageRef,
+              mediaType: "image/jpeg",
+            },
+          ],
+        },
+      ],
+    });
+    expect(resolver).not.toHaveBeenCalled();
+  });
+
+  it("sends media bytes inline for Bedrock when explicitly configured", async () => {
+    const fetchMedia = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+
+    const result = await compileLangfuseMediaMessages({
+      projectId: "project-1",
+      messages: [userMessage(`inspect ${imageRef}`)],
+      adapter: LLMAdapter.Bedrock,
+      transport: "inline",
+      resolveMedia,
+      fetchMedia,
+    });
+
+    expect(result.providerMessages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "inspect " },
+          {
+            type: "file",
+            data: new Uint8Array([1, 2, 3]),
+            mediaType: "image/jpeg",
+          },
+        ],
+      },
+    ]);
+    expect(resolveMedia).toHaveBeenCalledOnce();
+    expect(fetchMedia).toHaveBeenCalledOnce();
+  });
+
   it.each([
     [ChatMessageRole.System, ChatMessageType.System],
     [ChatMessageRole.Developer, ChatMessageType.Developer],

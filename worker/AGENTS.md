@@ -47,9 +47,10 @@
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
   records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
-- Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
-  production OTEL event phase with isolated ClickHouse tables. Setup and scope:
-  `src/features/otel-ingestion/README.md`.
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` feeds raw S3
+  JSON through the production OTEL queue and JSON writer into isolated
+  ClickHouse tables, including retained legacy writes in dual-write mode. Setup
+  and scope: `src/features/otel-ingestion/README.md`.
 - Native codec checks: `pnpm --filter worker run test:native-codec` selects
   `nativeCodec` suites. Build the addon first; the command requires ClickHouse
   whenever the live parity suite is present.

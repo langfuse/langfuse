@@ -3,10 +3,14 @@ import {
   DatasetNameSchema,
   InvalidRequestError,
   LangfuseConflictError,
+  LangfuseNotFoundError,
   Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { validateAllDatasetItems } from "@langfuse/shared/src/server";
+import {
+  isPrismaRecordNotFoundError,
+  validateAllDatasetItems,
+} from "@langfuse/shared/src/server";
 
 type DatasetJson =
   | Prisma.InputJsonObject
@@ -206,32 +210,44 @@ export const updateDataset = async ({
     }
   }
 
-  return await prisma.dataset.update({
-    where: {
-      id_projectId: {
-        id: input.id,
-        projectId,
+  try {
+    return await prisma.dataset.update({
+      where: {
+        id_projectId: {
+          id: input.id,
+          projectId,
+        },
       },
-    },
-    data: {
-      name: input.name ?? undefined,
-      description: input.description ?? undefined,
-      metadata: input.metadata ?? undefined,
-      remoteExperimentUrl: input.remoteExperimentUrl,
-      remoteExperimentPayload: input.remoteExperimentPayload ?? undefined,
-      remoteExperimentEnabled: input.remoteExperimentEnabled ?? undefined,
-      inputSchema:
-        input.inputSchema === undefined
-          ? undefined
-          : input.inputSchema === null
-            ? Prisma.DbNull
-            : input.inputSchema,
-      expectedOutputSchema:
-        input.expectedOutputSchema === undefined
-          ? undefined
-          : input.expectedOutputSchema === null
-            ? Prisma.DbNull
-            : input.expectedOutputSchema,
-    },
-  });
+      data: {
+        name: input.name ?? undefined,
+        description: input.description ?? undefined,
+        metadata: input.metadata ?? undefined,
+        remoteExperimentUrl: input.remoteExperimentUrl,
+        remoteExperimentPayload: input.remoteExperimentPayload ?? undefined,
+        remoteExperimentEnabled: input.remoteExperimentEnabled ?? undefined,
+        inputSchema:
+          input.inputSchema === undefined
+            ? undefined
+            : input.inputSchema === null
+              ? Prisma.DbNull
+              : input.inputSchema,
+        expectedOutputSchema:
+          input.expectedOutputSchema === undefined
+            ? undefined
+            : input.expectedOutputSchema === null
+              ? Prisma.DbNull
+              : input.expectedOutputSchema,
+      },
+    });
+  } catch (error) {
+    // P2025 = row not found; also thrown for cross-project ids, so the 404
+    // does not leak whether the dataset exists in another project.
+    if (isPrismaRecordNotFoundError(error)) {
+      throw new LangfuseNotFoundError(
+        `Dataset ${input.id} not found in project ${projectId}`,
+      );
+    }
+
+    throw error;
+  }
 };

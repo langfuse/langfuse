@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   CircleCheckIcon,
   CircleFadingArrowUp,
@@ -54,11 +54,11 @@ export function SkillLabelsSelect({
     !value.includes("production") && pendingLabels.includes("production");
   const isDemotingFromProduction =
     value.includes("production") && !pendingLabels.includes("production");
-  let saveButtonCopy = "Save labels";
-  if (isPromotingToProduction)
-    saveButtonCopy = "Save and promote to production";
-  else if (isDemotingFromProduction)
-    saveButtonCopy = "Save and remove from production";
+  const saveButtonCopy = useMemo(() => {
+    if (isPromotingToProduction) return "Save and promote to production";
+    if (isDemotingFromProduction) return "Save and remove from production";
+    return "Save labels";
+  }, [isPromotingToProduction, isDemotingFromProduction]);
 
   const toggleLabel = (label: string) => {
     setPendingLabels(

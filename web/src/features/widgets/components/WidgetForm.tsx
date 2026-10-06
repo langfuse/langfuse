@@ -1156,14 +1156,15 @@ export function WidgetForm({
                     selectedAggregation,
                   )}
                 />
-                <ChartLoadingState
-                  isLoading={chartLoadingState.isLoading}
-                  showSpinner={chartLoadingState.showSpinner}
-                  showHintImmediately={chartLoadingState.showHintImmediately}
-                  hintText={chartLoadingState.hintText}
-                  progress={loadingProgress}
-                  className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-                />
+                {chartLoadingState.isLoading && (
+                  <ChartLoadingState
+                    showSpinner={chartLoadingState.showSpinner}
+                    showHintImmediately={chartLoadingState.showHintImmediately}
+                    hintText={chartLoadingState.hintText}
+                    progress={loadingProgress}
+                    className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                  />
+                )}
               </div>
             </div>
           ) : (
@@ -1171,7 +1172,6 @@ export function WidgetForm({
               <div className="flex h-[300px] items-center justify-center">
                 {chartLoadingState.isLoading ? (
                   <ChartLoadingState
-                    isLoading={chartLoadingState.isLoading}
                     showSpinner={chartLoadingState.showSpinner}
                     showHintImmediately={chartLoadingState.showHintImmediately}
                     hintText={chartLoadingState.hintText}
