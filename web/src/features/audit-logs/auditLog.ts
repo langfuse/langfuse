@@ -169,19 +169,7 @@ export async function auditLog(
         ? (apiKey.createdByUserId ?? undefined)
         : undefined;
 
-    if (persistRecord) {
-      await db.auditLog.create({
-        data: {
-          apiKeyId: log.apiKeyId,
-          userId,
-          orgId: log.orgId,
-          projectId: log.projectId,
-          type: AuditLogRecordType.API_KEY,
-          ...shared,
-        },
-      });
-    }
-
+    // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.API_KEY,
       orgId: log.orgId,
@@ -191,24 +179,24 @@ export async function auditLog(
       publicKey: apiKey?.publicKey,
     });
 
+    if (!persistRecord) return;
+
+    await db.auditLog.create({
+      data: {
+        apiKeyId: log.apiKeyId,
+        userId,
+        orgId: log.orgId,
+        projectId: log.projectId,
+        type: AuditLogRecordType.API_KEY,
+        ...shared,
+      },
+    });
+
     return;
   }
 
   if ("session" in log) {
-    if (persistRecord) {
-      await db.auditLog.create({
-        data: {
-          userId: log.session.user.id,
-          orgId: log.session.orgId,
-          userOrgRole: log.session.orgRole,
-          projectId: log.session.projectId,
-          userProjectRole: log.session.projectRole,
-          type: AuditLogRecordType.USER,
-          ...shared,
-        },
-      });
-    }
-
+    // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
       orgId: log.session.orgId,
@@ -216,29 +204,44 @@ export async function auditLog(
       userId: log.session.user.id,
     });
 
+    if (!persistRecord) return;
+
+    await db.auditLog.create({
+      data: {
+        userId: log.session.user.id,
+        orgId: log.session.orgId,
+        userOrgRole: log.session.orgRole,
+        projectId: log.session.projectId,
+        userProjectRole: log.session.projectRole,
+        type: AuditLogRecordType.USER,
+        ...shared,
+      },
+    });
+
     return;
   }
 
   if ("userId" in log) {
-    if (persistRecord) {
-      await db.auditLog.create({
-        data: {
-          userId: log.userId,
-          orgId: log.orgId,
-          userOrgRole: log.orgRole,
-          projectId: log.projectId,
-          userProjectRole: log.projectRole,
-          type: AuditLogRecordType.USER,
-          ...shared,
-        },
-      });
-    }
-
+    // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
       orgId: log.orgId,
       projectId: log.projectId,
       userId: log.userId,
+    });
+
+    if (!persistRecord) return;
+
+    await db.auditLog.create({
+      data: {
+        userId: log.userId,
+        orgId: log.orgId,
+        userOrgRole: log.orgRole,
+        projectId: log.projectId,
+        userProjectRole: log.projectRole,
+        type: AuditLogRecordType.USER,
+        ...shared,
+      },
     });
 
     return;
