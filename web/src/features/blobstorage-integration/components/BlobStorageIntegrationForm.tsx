@@ -49,8 +49,9 @@ export const BlobStorageIntegrationForm = ({
   onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
   // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
   // the container next to Save — they act on the persisted entity, not on
-  // this draft.
-  children?: ReactNode;
+  // this draft. `isDirty` lets them refuse to act while the draft has
+  // unsaved edits that the persisted entity does not reflect.
+  children?: (state: { isDirty: boolean }) => ReactNode;
 }) => {
   // Block the save when the persisted source is no longer selectable rather
   // than silently rewriting it (LFE-10296). The policy context is fixed for
@@ -78,13 +79,18 @@ export const BlobStorageIntegrationForm = ({
 
   const control = blobStorageForm.control;
   const fileType = useWatch({ control, name: "fileType" });
+  const { isDirty } = blobStorageForm.formState;
+
+  // Rebase dirty tracking on the submitted values: same-entity saves do not
+  // remount (see container key), so the draft would otherwise stay dirty.
+  const submit = blobStorageForm.handleSubmit((values) => {
+    onSubmit(values);
+    blobStorageForm.reset(blobStorageForm.getValues());
+  });
 
   return (
     <Form {...blobStorageForm}>
-      <form
-        className="space-y-3"
-        onSubmit={blobStorageForm.handleSubmit(onSubmit)}
-      >
+      <form className="space-y-3" onSubmit={submit}>
         <StorageProviderFields control={control} />
         <ExportScheduleFields control={control} />
         <ExportSourceField
@@ -138,13 +144,10 @@ export const BlobStorageIntegrationForm = ({
         />
       </form>
       <div className="mt-8 flex gap-2">
-        <Button
-          loading={isSaving}
-          onClick={blobStorageForm.handleSubmit(onSubmit)}
-        >
+        <Button loading={isSaving} onClick={submit}>
           Save
         </Button>
-        {children}
+        {children?.({ isDirty })}
       </div>
     </Form>
   );

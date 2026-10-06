@@ -46,9 +46,15 @@ const ui = (
       persistedExportSource={null}
       isSaving={false}
       onSubmit={onSubmit}
-    />
+    >
+      {({ isDirty }) => (
+        <span data-testid="dirty-state">{isDirty ? "dirty" : "clean"}</span>
+      )}
+    </BlobStorageIntegrationForm>
   </TooltipProvider>
 );
+
+const dirtyState = () => screen.getByTestId("dirty-state").textContent;
 
 const bucketInput = () =>
   screen.getByLabelText("Bucket Name") as HTMLInputElement;
@@ -169,7 +175,28 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
         fileType: BlobStorageIntegrationFileType.PARQUET,
         enabled: true,
       }),
-      expect.anything(),
     );
+  });
+
+  it("dirty state: set by an edit, cleared by save", async () => {
+    // Same-entity saves do not remount (key stays "configured"), so the
+    // form itself must rebase dirty tracking on save.
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+    expect(dirtyState()).toBe("clean");
+
+    fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
+    await waitFor(() => expect(dirtyState()).toBe("dirty"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(dirtyState()).toBe("clean"));
+    expect(bucketInput()).toHaveValue("edited-bucket");
   });
 });
