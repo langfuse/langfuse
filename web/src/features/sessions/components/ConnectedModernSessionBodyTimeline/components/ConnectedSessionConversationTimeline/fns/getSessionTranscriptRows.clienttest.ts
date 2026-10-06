@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { type RouterOutputs } from "@/src/utils/api";
 import { getSessionTranscriptRows } from "./getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "./getSessionTranscriptThreads";
+import { getSessionConversationEntries } from "./getSessionConversationEntries";
 
 const transcript = {
   threads: [
@@ -51,6 +52,94 @@ const transcript = {
 >;
 
 describe("getSessionTranscriptRows", () => {
+  it("flattens visible threads with contiguous labels but original identities", () => {
+    const base = transcript.threads[0]!;
+    const entries = getSessionConversationEntries([
+      { trace: { id: "single" }, transcript },
+      {
+        trace: { id: "multi" },
+        transcript: {
+          threads: [
+            base,
+            { ...base, currentTurn: { ...base.currentTurn, nestingLevel: 1 } },
+            base,
+          ],
+        },
+      },
+      { trace: { id: "loading" }, transcript: undefined },
+    ]);
+    expect(entries).toMatchObject([
+      {
+        itemId: "single:0",
+        traceIndex: 0,
+        threadIndex: 0,
+        threadNumber: 1,
+        displayNumber: "1.1",
+        threadCount: 1,
+      },
+      {
+        itemId: "multi:0",
+        traceIndex: 1,
+        threadIndex: 0,
+        threadNumber: 1,
+        displayNumber: "2.1",
+        threadCount: 2,
+      },
+      {
+        itemId: "multi:2",
+        traceIndex: 1,
+        threadIndex: 2,
+        threadNumber: 2,
+        displayNumber: "2.2",
+        threadCount: 2,
+      },
+      {
+        itemId: "loading",
+        traceIndex: 2,
+        displayNumber: "3",
+        threadNumber: undefined,
+      },
+    ]);
+    expect(
+      getSessionConversationEntries([
+        { trace: { id: "single" }, transcript },
+      ])[0],
+    ).toMatchObject({ displayNumber: "1", threadNumber: undefined });
+  });
+  it("keeps empty visible threads and does not count hidden threads for decimal mode", () => {
+    const base = transcript.threads[0]!;
+    expect(
+      getSessionConversationEntries([
+        {
+          trace: { id: "empty-thread" },
+          transcript: {
+            threads: [
+              { ...base, currentTurn: { ...base.currentTurn, messages: [] } },
+              {
+                ...base,
+                currentTurn: { ...base.currentTurn, nestingLevel: 1 },
+              },
+            ],
+          },
+        },
+        { trace: { id: "no-transcript" }, transcript: null },
+      ]),
+    ).toMatchObject([
+      {
+        itemId: "empty-thread:0",
+        displayNumber: "1",
+        threadCount: 1,
+        threadNumber: undefined,
+      },
+      {
+        itemId: "no-transcript",
+        displayNumber: "2",
+        threadIndex: undefined,
+        threadCount: 0,
+      },
+    ]);
+  });
+
   it("gives messages and paired tools distinct IDs within one observation", () => {
     const rows = getSessionTranscriptRows(transcript);
     expect(

@@ -13,6 +13,10 @@ import { cn } from "@/src/utils/tailwind";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
 
 export type SessionConversationSidebarTrace = {
+  itemId?: string;
+  itemIndex?: number;
+  displayNumber?: string;
+  threadNumber?: number;
   trace: EventSessionTrace;
   turnNumber: number;
   idleGapSeconds: number | null;
@@ -66,19 +70,24 @@ export function SessionConversationSidebar(
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: 5,
-    getItemKey: (index) => traces[index]?.trace.id ?? index,
+    getItemKey: (index) =>
+      traces[index]?.itemId ?? traces[index]?.trace.id ?? index,
     onChange: (instance) => {
       if (props.state !== "loaded") return;
-      props.onVisibleTraceIdsChange(
-        instance.getVirtualItems().flatMap((item) => {
-          const traceId = traces[item.index]?.trace.id;
-          return traceId ? [traceId] : [];
-        }),
-      );
+      props.onVisibleTraceIdsChange([
+        ...new Set(
+          instance.getVirtualItems().flatMap((item) => {
+            const traceId = traces[item.index]?.trace.id;
+            return traceId ? [traceId] : [];
+          }),
+        ),
+      ]);
     },
   });
   const activeTraceIndex = activeTraceId
-    ? traces.findIndex(({ trace }) => trace.id === activeTraceId)
+    ? traces.findIndex(
+        ({ trace, itemId }) => (itemId ?? trace.id) === activeTraceId,
+      )
     : -1;
   const setListElement = useCallback(
     (element: HTMLDivElement | null) => {
@@ -198,8 +207,10 @@ export function SessionConversationSidebar(
               if (!sidebarTrace) return null;
               const { trace, turnNumber, idleGapSeconds, transcriptRows } =
                 sidebarTrace;
-              const isCollapsed = !props.expandedTraceIds.has(trace.id);
-              const isActive = trace.id === activeTraceId;
+              const itemId = sidebarTrace.itemId ?? trace.id;
+              const targetIndex = sidebarTrace.itemIndex ?? turnNumber - 1;
+              const isCollapsed = !props.expandedTraceIds.has(itemId);
+              const isActive = itemId === activeTraceId;
               const threads = new Map<
                 number,
                 NonNullable<SessionConversationSidebarTrace["transcriptRows"]>
@@ -211,6 +222,7 @@ export function SessionConversationSidebar(
                 else threads.set(threadIndex, [row]);
               }
               const showThreadHeaders =
+                !sidebarTrace.itemId &&
                 (sidebarTrace.threadCount ?? threads.size) > 1;
               return (
                 <SessionVirtualizedRow
@@ -241,12 +253,12 @@ export function SessionConversationSidebar(
                       <div className="flex w-full items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => props.onSelect(turnNumber - 1)}
+                          onClick={() => props.onSelect(targetIndex)}
                           className="flex min-w-0 flex-1 items-center gap-2 text-left"
                           aria-current={isActive ? "true" : undefined}
                         >
-                          <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
-                            {turnNumber}
+                          <span className="border-border bg-tertiary text-foreground flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]">
+                            {sidebarTrace.displayNumber ?? turnNumber}
                           </span>
                           <span
                             className="min-w-0 flex-1 truncate text-[13px] font-bold"
@@ -260,7 +272,7 @@ export function SessionConversationSidebar(
                           aria-label={
                             isCollapsed ? "Expand turn" : "Collapse turn"
                           }
-                          onClick={() => props.onToggleTraceExpanded(trace.id)}
+                          onClick={() => props.onToggleTraceExpanded(itemId)}
                           className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
                         >
                           <ChevronDown
@@ -346,7 +358,7 @@ export function SessionConversationSidebar(
                                             aria-label={`Tools: ${group.summary}`}
                                             onClick={() =>
                                               props.onSelect(
-                                                turnNumber - 1,
+                                                targetIndex,
                                                 firstTool.observationId,
                                                 firstTool.id,
                                               )
@@ -459,7 +471,7 @@ export function SessionConversationSidebar(
                                       type="button"
                                       onClick={() =>
                                         props.onSelect(
-                                          turnNumber - 1,
+                                          targetIndex,
                                           row.observationId,
                                           row.id,
                                         )

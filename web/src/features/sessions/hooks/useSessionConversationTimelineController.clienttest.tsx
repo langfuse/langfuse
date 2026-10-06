@@ -37,6 +37,33 @@ afterEach(() => {
 });
 
 describe("useSessionConversationTimelineController", () => {
+  it("selects the exact thread item when observations repeat", () => {
+    const feed = document.createElement("div");
+    feedRef.current = feed;
+    feed.scrollTo = vi.fn();
+    for (const [index, itemId] of ["trace:0", "trace:2"].entries()) {
+      const item = document.createElement("div");
+      item.dataset.sessionTraceId = trace.id;
+      item.dataset.sessionItemId = itemId;
+      const row = document.createElement("div");
+      row.dataset.sessionObservationId = "generation";
+      row.getBoundingClientRect = () => new DOMRect(0, index * 100, 100, 0);
+      item.append(row);
+      feed.append(item);
+    }
+    const { result } = renderHook(() =>
+      useSessionConversationTimelineController([
+        { trace, itemId: "trace:0" },
+        { trace, itemId: "trace:2" },
+      ]),
+    );
+    act(() => result.current.onSelect(1, "generation"));
+    expect(selectTrace).toHaveBeenCalledWith(1);
+    expect(feed.scrollTo).toHaveBeenCalledWith({
+      top: 100,
+      behavior: "smooth",
+    });
+  });
   it("scrolls to the exact row when multiple rows share an observation", () => {
     const feed = document.createElement("div");
     const traceElement = document.createElement("div");

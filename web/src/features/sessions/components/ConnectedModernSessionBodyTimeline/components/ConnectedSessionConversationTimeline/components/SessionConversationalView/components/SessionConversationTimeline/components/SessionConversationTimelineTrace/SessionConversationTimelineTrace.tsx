@@ -25,13 +25,23 @@ export function SessionConversationTimelineTrace({
   onOpenTrace,
   onOpenObservation,
   scrollTarget,
+  itemId,
+  threadIndex,
+  threadNumber,
+  displayNumber,
 }: {
+  itemId?: string;
+  threadIndex?: number;
+  threadNumber?: number;
+  displayNumber?: string;
+  threadCount?: number;
   trace: EventSessionTrace;
   turnNumber: number;
   state: PreparedSessionConversationTimelineTraceState;
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
+    itemId?: string;
     observationId: string;
     rowId?: string;
     requestId: number;
@@ -45,18 +55,27 @@ export function SessionConversationTimelineTrace({
     <div
       className="px-4 pb-14 sm:px-6 lg:px-10"
       data-session-trace-id={trace.id}
+      data-session-item-id={itemId}
     >
       <div className="group/trace-header mb-6 flex items-center gap-4 pt-5">
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground ph-no-capture flex shrink-0 items-center gap-2 font-mono text-xs transition-colors"
+          className="text-muted-foreground hover:text-foreground ph-no-capture flex min-w-0 items-center gap-2 font-mono text-xs transition-colors"
           onClick={onOpenTrace}
           title={`${trace.name ?? "Trace"} (${trace.id})`}
         >
-          <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
-            {turnNumber}
+          <span className="border-border bg-tertiary text-foreground flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]">
+            {displayNumber ?? turnNumber}
           </span>
-          <span>trace · {trace.id}</span>
+          <span
+            className="truncate"
+            title={`${trace.name ?? "Trace"} · ${trace.id}`}
+          >
+            {trace.name ?? "Trace"} · {trace.id}
+          </span>
+          {threadNumber !== undefined && (
+            <span className="shrink-0">(Thread {threadNumber})</span>
+          )}
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
         <button
@@ -147,6 +166,7 @@ export function SessionConversationTimelineTrace({
           {...state}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
+          threadIndex={threadIndex}
         />
       )}
     </div>

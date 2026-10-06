@@ -12,6 +12,7 @@ import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPag
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
+import { getSessionConversationEntries } from "./components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
@@ -40,9 +41,9 @@ export function ConnectedModernSessionBodyTimeline({
 }: ConnectedModernSessionBodyTimelineProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
-  const timelineController = useSessionConversationTimelineController(
-    traces.map((trace) => ({ trace })),
-  );
+  const [timelineVisibleTraceIds, setTimelineVisibleTraceIds] = useState<
+    string[]
+  >([]);
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSetSearchQuery = useDebounce(setSearchQuery, 500, false);
@@ -63,11 +64,6 @@ export function ConnectedModernSessionBodyTimeline({
       ? loadedTracePrefix.chunkIndex
       : -1;
   const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
-  const expandedTraceIds = new Set(
-    traces
-      .filter((trace) => !collapsedTraceIds.has(trace.id))
-      .map((trace) => trace.id),
-  );
 
   const traceIndexById = new Map(
     traces.map((trace, index) => [trace.id, index] as const),
@@ -81,14 +77,11 @@ export function ConnectedModernSessionBodyTimeline({
             loadedThroughChunkIndex,
             Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
           ),
-      ...visibleTraceIds.flatMap((traceId) => {
+      ...[...visibleTraceIds, ...timelineVisibleTraceIds].flatMap((traceId) => {
         const traceIndex = traceIndexById.get(traceId);
         if (traceIndex === undefined) return [];
         return [Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE)];
       }),
-      ...timelineController.virtualItems.map((item) =>
-        Math.floor(item.index / SIDEBAR_TRACE_CHUNK_SIZE),
-      ),
     );
     for (let chunkIndex = 0; chunkIndex <= highestChunkIndex; chunkIndex++) {
       activeChunkIndices.add(chunkIndex);
@@ -166,6 +159,35 @@ export function ConnectedModernSessionBodyTimeline({
     traces: traces.map((trace, index) => ({ trace, turnNumber: index + 1 })),
     activeTraceIds: activeTranscriptTraceIds,
   });
+  const entries = getSessionConversationEntries(
+    traces.map((trace) => {
+      const result = resultsByTraceId.get(trace.id);
+      return {
+        trace,
+        transcript: result?.state === "loaded" ? result.transcript : undefined,
+      };
+    }),
+  );
+  const timelineController = useSessionConversationTimelineController(
+    entries.map((entry) => ({
+      trace: traces[entry.traceIndex]!,
+      itemId: entry.itemId,
+    })),
+    (nextTraceIds) =>
+      setTimelineVisibleTraceIds((current) => {
+        if (
+          current.length === nextTraceIds.length &&
+          current.every((id, index) => id === nextTraceIds[index])
+        )
+          return current;
+        return nextTraceIds;
+      }),
+  );
+  const expandedTraceIds = new Set(
+    entries
+      .filter((entry) => !collapsedTraceIds.has(entry.itemId))
+      .map((entry) => entry.itemId),
+  );
 
   const timelineObservationsByTraceId = new Map<
     string,
@@ -293,10 +315,14 @@ export function ConnectedModernSessionBodyTimeline({
     observationId?: string,
     rowId?: string,
   ) => {
-    const traceId = timelineTraces[index]?.trace.id;
+    const entry = entries[index];
+    const traceId = entry
+      ? timelineTraces[entry.traceIndex]?.trace.id
+      : undefined;
     if (observationId && traceId) {
       scrollRequestIdRef.current += 1;
       setScrollTarget({
+        itemId: entry?.itemId,
         traceId,
         observationId,
         rowId,

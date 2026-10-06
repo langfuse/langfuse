@@ -6,7 +6,8 @@ import {
 import { SessionConversationTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/SessionConversationTimeline";
 import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
-import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
+import { getSessionTranscriptThreads } from "../../fns/getSessionTranscriptThreads";
+import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 
 export function SessionConversationalView(
@@ -82,15 +83,36 @@ export function SessionConversationalView(
     };
   }, [highlightName, searchQuery]);
   const sidebarTraces: SessionConversationSidebarTrace[] = [];
+  const entries = getSessionConversationEntries(
+    props.traces.map((item) => ({
+      trace: item.trace,
+      transcript:
+        item.state.type === "transcript"
+          ? item.state.result.transcript
+          : undefined,
+    })),
+  );
+  const timelineItems = entries.map((entry) => {
+    const item = props.traces[entry.traceIndex]!;
+    return {
+      ...item,
+      ...entry,
+      scrollTarget:
+        item.scrollTarget?.itemId && item.scrollTarget.itemId !== entry.itemId
+          ? null
+          : item.scrollTarget,
+    };
+  });
   if (props.state === "loaded" && !props.isSearchPending) {
-    for (const [index, item] of props.traces.entries()) {
+    for (const [itemIndex, item] of timelineItems.entries()) {
       const transcriptRows = (() => {
         if (item.state.type === "error") return null;
         if (item.state.type === "loading") return undefined;
         if (item.state.type === "empty") return [];
         let toolGroupId: string | undefined;
-        return getSessionTranscriptRows(item.state.result.transcript).map(
-          ({ id, threadIndex, row }) => {
+        return getSessionTranscriptRows(item.state.result.transcript)
+          .filter((row) => row.threadIndex === item.threadIndex)
+          .map(({ id, threadIndex, row }) => {
             if (row.type !== "tool") toolGroupId = undefined;
             else if (toolGroupId === undefined) toolGroupId = id;
             const label =
@@ -117,8 +139,7 @@ export function SessionConversationalView(
               label,
               role: row.type === "tool" ? ("tool" as const) : row.message.role,
             };
-          },
-        );
+          });
       })();
       const matchingRows =
         props.searchQuery && transcriptRows
@@ -135,11 +156,18 @@ export function SessionConversationalView(
           : undefined;
       sidebarTraces.push({
         trace: item.trace,
+        itemId: item.itemId,
+        itemIndex,
+        displayNumber: item.displayNumber,
+        threadNumber: item.threadNumber,
         turnNumber: item.turnNumber,
         idleGapSeconds:
-          index === 0
+          item.traceIndex === 0 || !item.isFirstThread
             ? null
-            : computeIdleGapSeconds(props.traces[index - 1]!.trace, item.trace),
+            : computeIdleGapSeconds(
+                props.traces[item.traceIndex - 1]!.trace,
+                item.trace,
+              ),
         transcriptRows: matchingRows,
         threadCount: threadVisibility?.visibleThreads.length,
         hiddenThreadCount: threadVisibility?.hiddenThreadCount,
@@ -154,7 +182,7 @@ export function SessionConversationalView(
         <SessionConversationSidebar
           {...props}
           traces={sidebarTraces}
-          activeTraceId={props.controller.activeTraceId ?? undefined}
+          activeTraceId={props.controller.activeItemId ?? undefined}
         />
       )}
       <div
@@ -163,7 +191,7 @@ export function SessionConversationalView(
       >
         <style>{`::highlight(${highlightName}) { background-color: ${searchQuery ? "hsl(var(--find-match-background))" : "transparent"}; color: ${searchQuery ? "hsl(var(--foreground))" : "inherit"}; }`}</style>
         <SessionConversationTimeline
-          traces={props.traces}
+          traces={timelineItems}
           controller={props.controller}
           filterMeasurementKey="transcript"
           onLoadMoreObservations={props.onLoadMoreObservations}

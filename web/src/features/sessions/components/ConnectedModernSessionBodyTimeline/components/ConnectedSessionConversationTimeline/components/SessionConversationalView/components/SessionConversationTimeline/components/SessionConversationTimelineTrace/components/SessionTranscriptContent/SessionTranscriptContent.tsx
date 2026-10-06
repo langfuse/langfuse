@@ -16,7 +16,9 @@ export function SessionTranscriptContent({
   result,
   onOpenObservation,
   scrollTarget,
+  threadIndex: selectedThreadIndex,
 }: {
+  threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
@@ -25,30 +27,39 @@ export function SessionTranscriptContent({
     requestId: number;
   } | null;
 }) {
-  const rows = getSessionTranscriptRows(result.transcript);
+  const rows = getSessionTranscriptRows(result.transcript).filter(
+    ({ threadIndex }) =>
+      selectedThreadIndex === undefined || threadIndex === selectedThreadIndex,
+  );
   const { visibleThreads } = getSessionTranscriptThreads(result.transcript);
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
         <p className="text-muted-foreground text-sm">No transcript messages.</p>
       )}
-      {visibleThreads.map(({ threadIndex }) => (
-        <div
-          key={threadIndex}
-          className="space-y-4 [&>[data-session-system-row]:has(+[data-session-system-row])]:mb-1 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
-        >
-          {visibleThreads.length > 1 && (
-            <h3 className="text-muted-foreground text-xs font-bold">
-              Thread {threadIndex + 1}
-            </h3>
-          )}
-          <SessionTranscriptThread
-            rows={rows.filter((row) => row.threadIndex === threadIndex)}
-            onOpenObservation={onOpenObservation}
-            scrollTarget={scrollTarget}
-          />
-        </div>
-      ))}
+      {visibleThreads
+        .filter(
+          ({ threadIndex }) =>
+            selectedThreadIndex === undefined ||
+            threadIndex === selectedThreadIndex,
+        )
+        .map(({ threadIndex }) => (
+          <div
+            key={threadIndex}
+            className="space-y-4 [&>[data-session-system-row]:has(+[data-session-system-row])]:mb-1 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
+          >
+            {selectedThreadIndex === undefined && visibleThreads.length > 1 && (
+              <h3 className="text-muted-foreground text-xs font-bold">
+                Thread {threadIndex + 1}
+              </h3>
+            )}
+            <SessionTranscriptThread
+              rows={rows.filter((row) => row.threadIndex === threadIndex)}
+              onOpenObservation={onOpenObservation}
+              scrollTarget={scrollTarget}
+            />
+          </div>
+        ))}
     </div>
   );
 }

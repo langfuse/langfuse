@@ -7,7 +7,6 @@ import {
   type SessionConversationTimelineScrollTarget,
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
-import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 
 export type ConnectedSessionConversationTimelineItem = {
@@ -58,7 +57,8 @@ export function ConnectedSessionConversationTimeline(
           if (!result || result.state === "loading")
             return { type: "loading" as const };
           if (
-            getSessionTranscriptRows(result.transcript).length === 0 &&
+            getSessionTranscriptThreads(result.transcript).visibleThreads
+              .length === 0 &&
             getSessionTranscriptThreads(result.transcript).hiddenThreadCount ===
               0
           )

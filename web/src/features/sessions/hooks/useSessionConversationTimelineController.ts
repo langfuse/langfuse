@@ -7,6 +7,7 @@ import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 
 const SESSION_TIMELINE_OVERSCAN = 5;
 export type SessionConversationTimelineScrollTarget = {
+  itemId?: string;
   traceId: string;
   observationId: string;
   rowId?: string;
@@ -14,16 +15,31 @@ export type SessionConversationTimelineScrollTarget = {
 };
 
 export function useSessionConversationTimelineController(
-  traces: readonly { trace: EventSessionTrace }[],
+  traces: readonly { trace: EventSessionTrace; itemId?: string }[],
+  onVisibleTraceIdsChange?: (traceIds: string[]) => void,
 ) {
-  const items = traces.map(({ trace }) => trace);
+  const items = traces.map(({ trace, itemId }) => ({
+    ...trace,
+    id: itemId ?? trace.id,
+  }));
   const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => feedRef.current,
     estimateSize: () => 520,
     overscan: SESSION_TIMELINE_OVERSCAN,
-    getItemKey: (index) => traces[index]?.trace.id ?? index,
+    getItemKey: (index) =>
+      traces[index]?.itemId ?? traces[index]?.trace.id ?? index,
+    onChange: (instance) => {
+      onVisibleTraceIdsChange?.([
+        ...new Set(
+          instance.getVirtualItems().flatMap((item) => {
+            const traceId = traces[item.index]?.trace.id;
+            return traceId ? [traceId] : [];
+          }),
+        ),
+      ]);
+    },
   });
   const {
     activeItemId,
@@ -48,6 +64,7 @@ export function useSessionConversationTimelineController(
 
     const feed = feedRef.current;
     const traceId = traces[index]?.trace.id;
+    const itemId = traces[index]?.itemId;
     if (!feed || !traceId) return;
 
     const scrollToObservation = () => {
@@ -59,7 +76,10 @@ export function useSessionConversationTimelineController(
             ? element.dataset.sessionTranscriptRowId === rowId
             : element.dataset.sessionObservationId === observationId) &&
           element.closest<HTMLElement>("[data-session-trace-id]")?.dataset
-            .sessionTraceId === traceId,
+            .sessionTraceId === traceId &&
+          (!itemId ||
+            element.closest<HTMLElement>("[data-session-item-id]")?.dataset
+              .sessionItemId === itemId),
       );
       if (!observation) return false;
 
@@ -97,7 +117,7 @@ export function useSessionConversationTimelineController(
   };
 
   return {
-    activeTraceId: activeItemId ?? null,
+    activeItemId: activeItemId ?? null,
     feedRef,
     onSelect,
     virtualItems,

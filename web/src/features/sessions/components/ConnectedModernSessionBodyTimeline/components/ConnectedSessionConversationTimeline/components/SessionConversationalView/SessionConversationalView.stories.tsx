@@ -10,6 +10,7 @@ import {
   type SessionConversationTimelineScrollTarget,
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 
@@ -2245,7 +2246,21 @@ function SessionConversationalViewStory({
       }))
     : (transcriptTraces ?? traces);
   const displayedTraces = groupedTools ? toolTraces : workflowTraceProps;
-  const controller = useSessionConversationTimelineController(displayedTraces);
+  const entries = getSessionConversationEntries(
+    displayedTraces.map((item) => ({
+      trace: item.trace,
+      transcript:
+        item.state.type === "transcript"
+          ? item.state.result.transcript
+          : undefined,
+    })),
+  );
+  const controller = useSessionConversationTimelineController(
+    entries.map((entry) => ({
+      trace: displayedTraces[entry.traceIndex]!.trace,
+      itemId: entry.itemId,
+    })),
+  );
   if (isLoading) {
     return (
       <div className="@container/session-workspace flex h-screen min-w-[320px]">
@@ -2274,9 +2289,9 @@ function SessionConversationalViewStory({
         onSearchChange={setSearch}
         expandedTraceIds={
           new Set(
-            displayedTraces
-              .filter((item) => !collapsedTraceIds.has(item.trace.id))
-              .map((item) => item.trace.id),
+            entries
+              .filter((item) => !collapsedTraceIds.has(item.itemId))
+              .map((item) => item.itemId),
           )
         }
         onToggleTraceExpanded={(traceId) =>
@@ -2288,9 +2303,13 @@ function SessionConversationalViewStory({
           })
         }
         onSelect={(index, observationId, rowId) => {
-          const traceId = displayedTraces[index]?.trace.id;
+          const entry = entries[index];
+          const traceId = entry
+            ? displayedTraces[entry.traceIndex]?.trace.id
+            : undefined;
           if (traceId && observationId) {
             setScrollTarget({
+              itemId: entry?.itemId,
               traceId,
               observationId,
               rowId,
@@ -2360,6 +2379,12 @@ export const NestedThreadsHidden = meta.story({
           },
         },
       },
+      { ...traces[1]!, turnNumber: 2, state: traces[0]!.state },
+      {
+        ...traces[1]!,
+        trace: { ...traces[1]!.trace, id: "trace-3", name: "Loading turn" },
+        turnNumber: 3,
+      },
     ],
   },
   play: async ({ canvasElement }) => {
@@ -2374,16 +2399,27 @@ export const NestedThreadsHidden = meta.story({
     await expect(
       sidebar.queryByText("2 nested threads hidden"),
     ).not.toBeInTheDocument();
-    const warning = await timeline.findByRole("button", {
+    const warnings = await timeline.findAllByRole("button", {
       name: "2 nested threads hidden",
     });
+    await expect(warnings).toHaveLength(2);
+    const warning = warnings[0]!;
+    for (const surface of [sidebar, timeline]) {
+      await expect(await surface.findByText("1.1")).toBeInTheDocument();
+      await expect(await surface.findByText("1.2")).toBeInTheDocument();
+      await expect(await surface.findByText("2.1")).toBeInTheDocument();
+      await expect(
+        await surface.findByText(/\(Thread 2\)/),
+      ).toBeInTheDocument();
+      await expect(surface.queryByText(/\(Thread 4\)/)).not.toBeInTheDocument();
+    }
     const document = within(canvasElement.ownerDocument.body);
     await userEvent.hover(warning);
     await expect(
       await document.findByRole("tooltip", { name: "2 nested threads hidden" }),
     ).toBeVisible();
     await userEvent.unhover(warning);
-    for (const surface of [sidebar, timeline]) {
+    for (const surface of [timeline]) {
       for (const text of [
         "Main agent checks the order.",
         "Main agent confirms delivery.",
@@ -2397,6 +2433,34 @@ export const NestedThreadsHidden = meta.story({
         await expect(surface.queryByText(text)).not.toBeInTheDocument();
       }
     }
+    const cards = sidebar.getAllByRole("button", { name: "Collapse turn" });
+    await userEvent.click(cards[0]!);
+    await expect(
+      sidebar.getAllByRole("button", { name: "Assistant message" }),
+    ).toHaveLength(2);
+    await userEvent.click(sidebar.getByRole("button", { name: "Expand turn" }));
+    const search = sidebar.getByRole("textbox", {
+      name: "Search messages and tools",
+    });
+    await userEvent.type(search, "confirms delivery");
+    await expect(
+      await sidebar.findByRole("button", { name: "Assistant message" }),
+    ).toHaveTextContent("Main agent confirms delivery.");
+    await expect(sidebar.queryByText("1.1")).not.toBeInTheDocument();
+    await userEvent.click(
+      sidebar.getByRole("button", { name: "Assistant message" }),
+    );
+    await waitFor(() =>
+      expect(
+        sidebar.getByRole("button", { name: /1\.2.*Thread 2/ }),
+      ).toHaveAttribute("aria-current", "true"),
+    );
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-item-id="trace-1:3"] [data-session-transcript-row-id="3:0"]',
+      ),
+    ).toHaveAttribute("data-scroll-request-id");
+    await userEvent.clear(search);
   },
 });
 export const Loading = meta.story({
