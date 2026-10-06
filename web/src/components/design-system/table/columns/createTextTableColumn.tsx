@@ -33,7 +33,7 @@ type TextTableColumnTrailingAction<TData extends RowData, TValue> =
       type: "custom";
       icon: LucideIcon;
       label: string;
-      onClick: (context: CellContext<TData, TValue>) => void;
+      onClick: (context: CellContext<TData, TValue | null | undefined>) => void;
     };
 
 export function createTextTableColumn<TData extends RowData, TValue = string>({
@@ -133,7 +133,7 @@ function TextWithTrailingAction<TData extends RowData, TValue>({
     TextTableColumnTrailingAction<TData, TValue>,
     { type: "custom" }
   >;
-  context: CellContext<TData, TValue>;
+  context: CellContext<TData, TValue | null | undefined>;
   value?: string;
 }) {
   return (
