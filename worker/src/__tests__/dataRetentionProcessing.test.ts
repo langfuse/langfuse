@@ -511,6 +511,7 @@ describe("DataRetentionProcessingJob", () => {
         traceId,
         mediaId,
         field: "test",
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
       },
     });
 
@@ -534,6 +535,83 @@ describe("DataRetentionProcessingJob", () => {
     expect(traceMedia).toBeNull();
 
     // Cleanup
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
+  });
+
+  it("keeps old media reused by a recent trace", async () => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
+    const fileName = `${s3Prefix}${randomUUID()}.txt`;
+    await storageService.uploadFile({
+      fileName,
+      fileType: "text/plain",
+      data: "reused media",
+    });
+
+    const mediaId = randomUUID();
+    const oldTraceId = randomUUID();
+    const recentTraceId = randomUUID();
+    const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        createdAt: oldDate,
+        bucketPath: fileName,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: "text/plain",
+        contentLength: 0,
+      },
+    });
+    await prisma.traceMedia.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          projectId,
+          traceId: oldTraceId,
+          mediaId,
+          field: "input",
+          createdAt: oldDate,
+        },
+        {
+          id: randomUUID(),
+          projectId,
+          traceId: recentTraceId,
+          mediaId,
+          field: "input",
+        },
+      ],
+    });
+
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } },
+    } as Job);
+
+    const files = await storageService.listFiles(s3Prefix);
+    expect(files.map((file) => file.file)).toContain(fileName);
+    await expect(
+      prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: mediaId } },
+      }),
+    ).resolves.not.toBeNull();
+    await expect(
+      prisma.traceMedia.findMany({
+        select: { traceId: true },
+        where: { projectId, mediaId },
+      }),
+    ).resolves.toEqual([{ traceId: recentTraceId }]);
+
+    await prisma.traceMedia.deleteMany({ where: { projectId, mediaId } });
+    await prisma.media.delete({
+      where: { projectId_id: { projectId, id: mediaId } },
+    });
     await prisma.project.update({
       where: { id: projectId },
       data: { retentionDays: null },
