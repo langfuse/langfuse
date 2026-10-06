@@ -56,6 +56,12 @@ const EVALUATOR_MEDIA_TYPES = new Set([
   "video/3gpp",
 ]);
 
+const EVALUATOR_MEDIA_URL_UNSUPPORTED_ADAPTERS = new Set<LLMAdapter>([
+  // Bedrock Converse accepts inline bytes and S3 locations, but not HTTP(S) URLs.
+  // https://github.com/aws-samples/amazon-bedrock-samples/issues/684
+  LLMAdapter.Bedrock,
+]);
+
 export function normalizeEvaluatorMediaType(mediaType: string) {
   const normalized = mediaType.trim().toLowerCase();
   return MEDIA_TYPE_ALIASES[normalized] ?? normalized;
@@ -230,6 +236,15 @@ export async function compileLangfuseMediaMessages(params: {
       const traceContent = buildTraceContent(message.content);
       const matches = getSupportedReferences(message.content);
       if (matches.length === 0) {
+        return {
+          providerMessage: message,
+          traceMessage: { ...message, content: traceContent },
+        };
+      }
+      if (
+        transport === "url" &&
+        EVALUATOR_MEDIA_URL_UNSUPPORTED_ADAPTERS.has(params.adapter)
+      ) {
         return {
           providerMessage: message,
           traceMessage: { ...message, content: traceContent },
