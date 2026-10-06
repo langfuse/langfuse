@@ -99,19 +99,6 @@ describe("getLLMErrorInfo", () => {
     });
   });
 
-  it("retries unresolved media validation errors", () => {
-    const error = new LLMValidationError({
-      code: "media-not-found",
-      message: "Media asset image-1 was not found in this project",
-    });
-
-    expect(getLLMErrorInfo(error)).toMatchObject({
-      kind: "validation",
-      message: "Media asset image-1 was not found in this project",
-      isRetryable: true,
-    });
-  });
-
   it("recognizes native timeout errors as terminal operational failures", () => {
     const error = new DOMException("The operation timed out", "TimeoutError");
 
