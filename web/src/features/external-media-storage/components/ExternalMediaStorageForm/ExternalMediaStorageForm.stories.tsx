@@ -1,7 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 
 import { ExternalMediaStorageForm } from "./ExternalMediaStorageForm";
@@ -34,12 +34,11 @@ const meta = preview.meta({
         {...args}
         renderActions={({ isDirty }) => (
           <Button
+            text="Save"
             form="external-media-storage-story-form"
             type="submit"
             disabled={!isDirty}
-          >
-            Save
-          </Button>
+          />
         )}
       />
     </div>

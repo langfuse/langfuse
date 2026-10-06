@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-import { ActionButton } from "@/src/components/ActionButton";
 import ContainerPage from "@/src/components/layouts/container-page";
 import Header from "@/src/components/layouts/header";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -120,9 +120,11 @@ export default function ExternalMediaStoragePage() {
           )}
         >
           {({ openDialog }) => (
-            <Button variant="secondary" onClick={openDialog}>
-              Test
-            </Button>
+            <DesignSystemButton
+              text="Test"
+              variant="secondary"
+              onClick={openDialog}
+            />
           )}
         </DialogController>
       );
@@ -133,9 +135,7 @@ export default function ExternalMediaStoragePage() {
         <Tooltip label="Save the integration before running the validation.">
           {({ getTriggerProps }) => (
             <span {...getTriggerProps()}>
-              <Button variant="secondary" disabled>
-                Test
-              </Button>
+              <DesignSystemButton text="Test" variant="secondary" disabled />
             </span>
           )}
         </Tooltip>
@@ -208,6 +208,7 @@ export default function ExternalMediaStoragePage() {
                 }
                 renderActions={({ isDirty }) => (
                   <>
+                    {renderTestAction()}
                     {config ? (
                       <ConfirmationDialogController
                         title="Delete external media storage?"
@@ -220,25 +221,35 @@ export default function ExternalMediaStoragePage() {
                         }
                       >
                         {({ openDialog }) => (
-                          <ActionButton
-                            variant="destructive-secondary"
-                            hasAccess={hasAccess}
+                          <DesignSystemButton
+                            text="Delete"
+                            variant="destructive"
                             onClick={openDialog}
-                          >
-                            Delete
-                          </ActionButton>
+                          />
                         )}
                       </ConfirmationDialogController>
                     ) : null}
-                    {renderTestAction()}
-                    <Button
-                      form={EXTERNAL_MEDIA_STORAGE_FORM_ID}
-                      type="submit"
-                      loading={updateMutation.isPending}
-                      disabled={!isDirty}
-                    >
-                      Save
-                    </Button>
+                    {!isDirty ? (
+                      <Tooltip label="Make a change before saving.">
+                        {({ getTriggerProps }) => (
+                          <span {...getTriggerProps()}>
+                            <DesignSystemButton
+                              text="Save"
+                              form={EXTERNAL_MEDIA_STORAGE_FORM_ID}
+                              type="submit"
+                              disabled
+                            />
+                          </span>
+                        )}
+                      </Tooltip>
+                    ) : (
+                      <DesignSystemButton
+                        text="Save"
+                        form={EXTERNAL_MEDIA_STORAGE_FORM_ID}
+                        type="submit"
+                        loading={updateMutation.isPending}
+                      />
+                    )}
                   </>
                 )}
               />
