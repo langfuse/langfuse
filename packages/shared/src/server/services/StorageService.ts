@@ -128,7 +128,10 @@ function createS3RequestHandler(
   const maxSockets = env.LANGFUSE_S3_CONCURRENT_WRITES;
 
   if (!connectionValidation) {
+    // Both agents need the limit: plain-HTTP endpoints (e.g. MinIO) go through
+    // httpAgent, which otherwise stays at the SDK default of 50 sockets.
     return new NodeHttpHandler({
+      httpAgent: { maxSockets },
       httpsAgent: { maxSockets },
     });
   }
