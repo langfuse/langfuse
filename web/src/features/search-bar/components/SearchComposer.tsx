@@ -61,7 +61,8 @@ import {
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
 import {
-  COMPOSER_SURFACE_CLASSES,
+  composerSurfaceClasses,
+  type ComposerSize,
   COMPOSER_TEXT_CLASSES,
 } from "@/src/features/search-bar/components/composer-chrome";
 
@@ -327,8 +328,11 @@ export function SearchComposer({
   fieldReason,
   freeTextReason,
   registry = EVENTS_FIELD_REGISTRY,
+  size = "default",
 }: {
   projectId?: string;
+  /** `large` only where searching is the page's main action. */
+  size?: ComposerSize;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
   /** Columns whose lazy fetch terminally errored — settle the value-stage
@@ -1414,7 +1418,7 @@ export function SearchComposer({
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
           // Box + text metrics are shared with the preview surface
           // (composer-chrome.ts) so the overlay renders pixel-identical.
-          COMPOSER_SURFACE_CLASSES,
+          composerSurfaceClasses(size),
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
@@ -1530,7 +1534,8 @@ export function SearchComposer({
               onActivateAi();
             }}
             className={cn(
-              "absolute top-0.75 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              "absolute right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              size === "large" ? "top-1.25" : "top-0.75",
               "bg-background text-muted-foreground font-sans text-xs",
               "hover:text-foreground transition-colors",
               // Match the app's focus ring (ring-ring) instead of the browser's

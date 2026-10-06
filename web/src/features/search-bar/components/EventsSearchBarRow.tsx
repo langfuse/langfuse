@@ -29,6 +29,7 @@ import {
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
+import { type ComposerSize } from "@/src/features/search-bar/components/composer-chrome";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
@@ -78,6 +79,7 @@ function EventsSearchBarRowContent({
   aiScoreNames,
   className,
   registry = EVENTS_FIELD_REGISTRY,
+  size = "default",
 }: {
   aiFeaturesEnabled: boolean;
   projectId?: string;
@@ -122,6 +124,8 @@ function EventsSearchBarRowContent({
    *  bar with the desktop toolbar row; the mobile Filters sheet passes flush
    *  padding so the bar lines up with the sheet's other sections. */
   className?: string;
+  /** `large` only where searching is the page's main action. */
+  size?: ComposerSize;
   /** The view-specific grammar and filter contract. */
   registry?: FieldRegistry;
 }) {
@@ -164,6 +168,7 @@ function EventsSearchBarRowContent({
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
           registryId={aiRegistryId}
+          size={size}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
@@ -180,6 +185,7 @@ function EventsSearchBarRowContent({
             presetSections={presetSections}
             onQueryPresetPick={onQueryPresetPick}
             registry={registry}
+            size={size}
           />
         </SearchBarStoreProvider>
       )}
