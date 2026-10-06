@@ -9,6 +9,8 @@ export const userFeaturePreviewFlags = [
   "sessionTimeline",
 ] as const;
 
+export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
+
 export const featurePreviewFlags = [
   ...organizationOnlyFeaturePreviewFlags,
   ...userFeaturePreviewFlags,
