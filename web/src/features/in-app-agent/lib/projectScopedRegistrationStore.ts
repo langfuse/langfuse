@@ -10,7 +10,9 @@ export function createProjectScopedRegistrationStore<T>() {
 
   const emitChange = (projectId: string) => {
     valueSnapshots.delete(projectId);
-    listeners.get(projectId)?.forEach((listener) => listener());
+    listeners.get(projectId)?.forEach((listener) => {
+      listener();
+    });
   };
 
   return {
@@ -51,9 +53,11 @@ export function createProjectScopedRegistrationStore<T>() {
         return cachedSnapshot;
       }
 
-      const snapshot = Array.from(
-        registrations.get(projectId)?.values() ?? [],
-        ({ value }) => value,
+      const snapshot = Object.freeze(
+        Array.from(
+          registrations.get(projectId)?.values() ?? [],
+          ({ value }) => value,
+        ),
       );
       valueSnapshots.set(projectId, snapshot);
       return snapshot;

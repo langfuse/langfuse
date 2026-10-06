@@ -8,7 +8,10 @@ export function registerInAppAgentPageContext(
   key: string,
   context: AgUiContext,
 ) {
-  return pageContexts.register(projectId, key, context);
+  const unregister = pageContexts.register(projectId, key, context);
+  return () => {
+    unregister();
+  };
 }
 
 export function getInAppAgentPageContext(projectId: string): AgUiContext {
