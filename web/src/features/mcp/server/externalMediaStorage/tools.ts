@@ -12,7 +12,7 @@ const ExternalMediaStorageBaseSchema = z.object({
   bucketName: z.string(),
   endpoint: z.string().optional(),
   region: z.string(),
-  accessKeyId: z.string().optional(),
+  accessKeyId: z.string(),
   secretAccessKey: z.string().optional(),
   prefix: z.string().optional(),
   enabled: z.boolean(),

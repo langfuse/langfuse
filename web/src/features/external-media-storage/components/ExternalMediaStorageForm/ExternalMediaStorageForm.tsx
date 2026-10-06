@@ -22,13 +22,11 @@ import {
 export function ExternalMediaStorageForm({
   formId,
   initialValues,
-  allowHostCredentials,
   secretAccessKeyDisplay,
   onSubmit,
 }: {
   formId: string;
   initialValues: ExternalMediaStorageFormValues;
-  allowHostCredentials: boolean;
   secretAccessKeyDisplay: string | null | undefined;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
 }) {
@@ -37,7 +35,6 @@ export function ExternalMediaStorageForm({
     defaultValues: initialValues,
   });
   const type = useWatch({ control: form.control, name: "type" }) ?? "S3";
-  const canUseHostCredentials = allowHostCredentials && type === "S3";
 
   return (
     <Form {...form}>
@@ -72,7 +69,13 @@ export function ExternalMediaStorageForm({
               <FormControl>
                 <SelectInput
                   value={field.value}
-                  onValueChange={field.onChange}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    if (value === "S3") {
+                      form.setValue("endpoint", null);
+                      form.setValue("forcePathStyle", false);
+                    }
+                  }}
                   placeholder="Select a storage provider"
                   options={[
                     {
@@ -168,19 +171,12 @@ export function ExternalMediaStorageForm({
           name="accessKeyId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                Access Key ID
-                {canUseHostCredentials ? (
-                  <span className="text-muted-foreground"> (optional)</span>
-                ) : null}
-              </FormLabel>
+              <FormLabel>Access Key ID</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                {canUseHostCredentials
-                  ? "Leave empty to use host credentials."
-                  : "Access key used to read media objects."}
+                Access key used to read media objects.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -192,12 +188,7 @@ export function ExternalMediaStorageForm({
           name="secretAccessKey"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                Secret Access Key
-                {canUseHostCredentials ? (
-                  <span className="text-muted-foreground"> (optional)</span>
-                ) : null}
-              </FormLabel>
+              <FormLabel>Secret Access Key</FormLabel>
               <FormControl>
                 <PasswordInput
                   {...field}

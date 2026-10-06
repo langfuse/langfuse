@@ -23,7 +23,6 @@ const onSubmit = fn();
 const meta = preview.meta({
   component: ExternalMediaStorageForm,
   args: {
-    allowHostCredentials: false,
     formId: "external-media-storage-story-form",
     initialValues: defaultValues,
     onSubmit,
@@ -42,12 +41,6 @@ const meta = preview.meta({
 });
 
 export const NewAmazonS3 = meta.story({});
-
-export const SelfHosted = meta.story({
-  args: {
-    allowHostCredentials: true,
-  },
-});
 
 export const S3Compatible = meta.story({
   args: {

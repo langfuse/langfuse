@@ -9,6 +9,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 
 function asBadRequest(error: unknown): never {
@@ -47,7 +48,7 @@ export const externalMediaStorageRouter = createTRPCRouter({
       };
     }),
 
-  update: protectedProjectProcedure
+  update: protectedProjectProcedureWithoutTracing
     .input(
       externalMediaStorageFormSchema.extend({
         projectId: z.string(),

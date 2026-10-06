@@ -14,7 +14,6 @@ import { ExternalMediaStorageForm } from "@/src/features/external-media-storage/
 import { TestMediaObjectDialog } from "@/src/features/external-media-storage/components/TestMediaObjectDialog/TestMediaObjectDialog";
 import { testSignedMediaUrlCors } from "@/src/features/external-media-storage/fns/testSignedMediaUrlCors";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
@@ -36,7 +35,6 @@ const defaultValues: ExternalMediaStorageFormValues = {
 export default function ExternalMediaStoragePage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -201,7 +199,6 @@ export default function ExternalMediaStoragePage() {
               ) : (
                 <ExternalMediaStorageForm
                   key={config?.updatedAt?.toString() ?? "new"}
-                  allowHostCredentials={!isLangfuseCloud}
                   formId={EXTERNAL_MEDIA_STORAGE_FORM_ID}
                   initialValues={initialValues}
                   secretAccessKeyDisplay={config?.secretAccessKeyDisplay}

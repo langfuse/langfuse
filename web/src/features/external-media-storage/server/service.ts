@@ -11,11 +11,10 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   StorageServiceFactory,
-  blobStorageEndpointConnectionValidationOptions,
-  validateBlobStorageEndpoint,
+  externalMediaStorageEndpointConnectionValidationOptions,
+  validateExternalMediaStorageEndpoint,
 } from "@langfuse/shared/src/server";
 
-import { env } from "@/src/env.mjs";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
@@ -77,7 +76,8 @@ function createStorageService(integration: ExternalMediaStorageRecord) {
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     externalEndpoint: undefined,
-    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
+    connectionValidation:
+      externalMediaStorageEndpointConnectionValidationOptions(),
   });
 }
 
@@ -120,8 +120,20 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       values: ExternalMediaStorageFormValues;
     }) {
       await assertFeatureEnabled(projectId);
-      if (values.endpoint) {
-        await validateBlobStorageEndpoint(values.endpoint);
+      const endpoint =
+        values.type === BlobStorageIntegrationType.S3_COMPATIBLE
+          ? values.endpoint?.trim() || null
+          : null;
+      if (
+        values.type === BlobStorageIntegrationType.S3_COMPATIBLE &&
+        !endpoint
+      ) {
+        throw new InvalidRequestError(
+          "Endpoint URL is required for S3-compatible storage",
+        );
+      }
+      if (endpoint) {
+        await validateExternalMediaStorageEndpoint(endpoint);
       }
 
       let region: string;
@@ -137,14 +149,8 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       const encryptedSecretAccessKey = secretAccessKey
         ? encrypt(secretAccessKey)
         : existing?.secretAccessKey;
-      const canUseHostCredentials =
-        !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-        values.type === BlobStorageIntegrationType.S3;
 
-      if (
-        !canUseHostCredentials &&
-        (!accessKeyId || !encryptedSecretAccessKey)
-      ) {
+      if (!accessKeyId || !encryptedSecretAccessKey) {
         throw new InvalidRequestError(
           "Access Key ID and Secret Access Key are required",
         );
@@ -159,8 +165,11 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
           accessKeyId,
           secretAccessKey: encryptedSecretAccessKey ?? null,
           region,
-          endpoint: values.endpoint?.trim() || null,
-          forcePathStyle: values.forcePathStyle,
+          endpoint,
+          forcePathStyle:
+            values.type === BlobStorageIntegrationType.S3_COMPATIBLE
+              ? values.forcePathStyle
+              : false,
           enabled: values.enabled,
         },
       });
@@ -204,7 +213,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateBlobStorageEndpoint(integration.endpoint);
+        await validateExternalMediaStorageEndpoint(integration.endpoint);
       }
 
       const url = await createStorageService(integration).getSignedUrl(
@@ -244,7 +253,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateBlobStorageEndpoint(integration.endpoint);
+        await validateExternalMediaStorageEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);

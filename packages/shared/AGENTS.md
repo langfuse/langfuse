@@ -73,6 +73,9 @@
   `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
   trace-download route and client-side download/copy paths; the server barrel
   re-exports them for compatibility.
+  The `src/utils/s3Uri.ts` helpers are intentionally exported here because
+  both browser renderers and server-side media resolution parse `s3://`
+  references.
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,

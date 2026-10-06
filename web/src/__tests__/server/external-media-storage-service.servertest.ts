@@ -96,6 +96,41 @@ describe("external media storage service", () => {
     );
   });
 
+  it("clears S3-compatible endpoint settings when switching to Amazon S3", async () => {
+    const project = await prepareIntegration({ prefix: null });
+    await prisma.externalMediaStorageIntegration.update({
+      where: { projectId: project.id },
+      data: {
+        type: "S3_COMPATIBLE",
+        endpoint: "https://storage.example.com",
+        forcePathStyle: true,
+      },
+    });
+
+    await createExternalMediaStorageService(prisma).saveConfiguration({
+      actor: { apiKeyId: "test-api-key", orgId: project.orgId },
+      projectId: project.id,
+      values: {
+        type: "S3",
+        bucketName: "media-bucket",
+        endpoint: "https://stale.example.com",
+        region: "us-east-1",
+        accessKeyId: "access-key",
+        secretAccessKey: "",
+        prefix: "",
+        enabled: true,
+        forcePathStyle: true,
+      },
+    });
+
+    await expect(
+      prisma.externalMediaStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+        select: { endpoint: true, forcePathStyle: true },
+      }),
+    ).resolves.toEqual({ endpoint: null, forcePathStyle: false });
+  });
+
   it("signs an object within the configured bucket and prefix", async () => {
     const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
     (StorageServiceFactory.getInstance as Mock).mockReturnValue({
