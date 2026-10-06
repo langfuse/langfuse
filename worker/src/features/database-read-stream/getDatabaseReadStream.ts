@@ -341,7 +341,7 @@ export const getDatabaseReadStreamPaginated = async ({
           const sessionComments = await fetchCommentsForExport(
             projectId,
             "SESSION",
-            sessions.map((s) => s.session_id),
+            storableTraceSessionIds(sessions.map((s) => s.session_id)),
           );
 
           // Add comments to each session
