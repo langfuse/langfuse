@@ -50,7 +50,9 @@ export function TraceHeader() {
       )}
     >
       <div className="flex flex-wrap items-center gap-4">
-        <LatencyBadge latencySeconds={trace.latency ?? null} />
+        {trace.latency != null && (
+          <LatencyBadge latencySeconds={trace.latency} />
+        )}
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
             <CostBadge
