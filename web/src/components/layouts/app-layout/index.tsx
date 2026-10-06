@@ -14,6 +14,7 @@ import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { clearV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
+import { useRecordRecentProject } from "@/src/features/organizations";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { ErrorPage } from "@/src/components/error-page";
 
@@ -42,6 +43,7 @@ export function AppLayout(props: PropsWithChildren) {
   const router = useRouter();
   const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
+  useRecordRecentProject();
 
   // `session.update()` reports `loading` with the previous session still in
   // hand. Rendering the loading layout for that replaces `children` and throws

@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  EllipsisVertical,
   LockIcon,
   MessageSquareText,
   Settings,
@@ -15,14 +16,18 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Separator } from "@/src/components/ui/separator";
-import Header from "@/src/components/layouts/header";
+import {
+  DropdownMenuController,
+  DropdownMenuItem,
+} from "@/src/components/ui/dropdown-menu";
+import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -40,24 +45,37 @@ import {
 } from "@/src/features/v4-migration/V4MigrationBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
-import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
+import {
+  PinnedProjectsSection,
+  selectPinnedProjects,
+} from "@/src/features/organizations/components/PinnedProjectsSection";
+import {
+  formatLastTrace,
+  type LastTraceAt,
+} from "@/src/features/organizations/components/projectActivity";
+import { useProjectStars } from "@/src/features/organizations/useProjectStars";
+import { ProjectStarButton } from "@/src/features/organizations/components/ProjectStarButton";
+import { useRecentProjects } from "@/src/features/organizations/useRecentProjects";
 
 const OrganizationProjectTiles = ({
   org,
   search,
+  isStarred,
+  onToggleStar,
 }: {
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
+  isStarred: (projectId: string) => boolean;
+  onToggleStar: (projectId: string) => void;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
-    { orgId: org.id },
-    { enabled: v4UpgradeUiEnabled },
-  );
+  const lastTraceQuery = api.organizations.lastTraceByProject.useQuery({
+    orgId: org.id,
+  });
   const migrationStatusByProjectId = useAccountV4MigrationData({
     organizations: [
       {
@@ -81,8 +99,11 @@ const OrganizationProjectTiles = ({
           const migrationReadiness = migrationStatus
             ? getProjectMigrationReadiness(migrationStatus)
             : "checking";
+          const lastTraceAt = lastTraceQuery.data?.find(
+            (t) => t.projectId === project.id,
+          )?.lastTraceAt;
 
-          return v4UpgradeUiEnabled ? (
+          return (
             <Card
               key={project.id}
               className="group hover:bg-muted/50 relative transition-colors"
@@ -94,15 +115,13 @@ const OrganizationProjectTiles = ({
                   aria-label={`Go to project ${project.name}`}
                 />
               )}
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle
-                    className="truncate text-base"
-                    title={project.name}
-                  >
-                    {project.name}
-                  </CardTitle>
+              <CardHeader className="flex-row items-start justify-between gap-2 space-y-0 pb-2">
+                <CardTitle className="truncate text-lg" title={project.name}>
+                  {project.name}
+                </CardTitle>
+                <div className="flex shrink-0 items-center gap-1">
                   {!project.deletedAt &&
+                    v4UpgradeUiEnabled &&
                     (migrationReadiness === "action-needed" ||
                       migrationReadiness === "partner-managed") && (
                       <V4MigrationProjectChip
@@ -110,53 +129,26 @@ const OrganizationProjectTiles = ({
                         readiness={migrationReadiness}
                       />
                     )}
+                  {!project.deletedAt && (
+                    <ProjectStarButton
+                      projectId={project.id}
+                      isStarred={isStarred(project.id)}
+                      onToggle={onToggleStar}
+                    />
+                  )}
                 </div>
               </CardHeader>
-              {!project.deletedAt && (
-                <CardContent className="min-h-7 pb-3">
+              <CardContent className="min-h-7 pb-4">
+                {project.deletedAt ? (
+                  <CardDescription>Project is being deleted</CardDescription>
+                ) : (
                   <p className="text-muted-foreground text-xs">
                     {lastTraceQuery.isSuccess
-                      ? (() => {
-                          const lastTraceAt = lastTraceQuery.data?.find(
-                            (t) => t.projectId === project.id,
-                          )?.lastTraceAt;
-                          return lastTraceAt
-                            ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
-                            : "No traces in the last 30d";
-                        })()
+                      ? formatLastTrace(lastTraceAt)
                       : null}
                   </p>
-                </CardContent>
-              )}
-              {project.deletedAt && (
-                <CardContent>
-                  <CardDescription>Project is being deleted</CardDescription>
-                </CardContent>
-              )}
-            </Card>
-          ) : (
-            <Card key={project.id}>
-              <CardHeader>
-                <CardTitle className="truncate text-base" title={project.name}>
-                  {project.name}
-                </CardTitle>
-              </CardHeader>
-              {!project.deletedAt ? (
-                <CardFooter className="gap-2">
-                  <Button asChild variant="secondary">
-                    <Link href={`/project/${project.id}`}>Go to project</Link>
-                  </Button>
-                  <Button asChild variant="ghost">
-                    <Link href={`/project/${project.id}/settings`}>
-                      <Settings size={16} />
-                    </Link>
-                  </Button>
-                </CardFooter>
-              ) : (
-                <CardContent>
-                  <CardDescription>Project is being deleted</CardDescription>
-                </CardContent>
-              )}
+                )}
+              </CardContent>
             </Card>
           );
         })}
@@ -197,9 +189,12 @@ const DemoOrganizationTile = () => {
 const OrganizationActionButtons = ({
   orgId,
   primaryButtonVariant = "default",
+  layout = "icons",
 }: {
   orgId: string;
   primaryButtonVariant?: "default" | "secondary";
+  /** `icons`: settings and members as ghost icon buttons. `menu`: both behind one ⋯ menu. */
+  layout?: "icons" | "menu";
 }) => {
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
@@ -212,17 +207,55 @@ const OrganizationActionButtons = ({
 
   return (
     <>
-      <Button asChild variant="ghost">
-        <Link href={`/organization/${orgId}/settings`}>
-          <Settings size={14} />
-        </Link>
-      </Button>
-      {membersViewAccess && (
-        <Button asChild variant="ghost">
-          <Link href={`/organization/${orgId}/settings/members`}>
-            <Users size={14} />
-          </Link>
-        </Button>
+      {layout === "menu" ? (
+        <DropdownMenuController
+          align="end"
+          renderMenu={() => (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href={`/organization/${orgId}/settings`}>
+                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Organization settings
+                </Link>
+              </DropdownMenuItem>
+              {membersViewAccess && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/organization/${orgId}/settings/members`}>
+                    <Users className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Members
+                  </Link>
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
+        >
+          {({ Trigger }) => (
+            <Trigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Organization actions"
+              >
+                <EllipsisVertical className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Trigger>
+          )}
+        </DropdownMenuController>
+      ) : (
+        <>
+          <Button asChild variant="ghost">
+            <Link href={`/organization/${orgId}/settings`}>
+              <Settings size={14} />
+            </Link>
+          </Button>
+          {membersViewAccess && (
+            <Button asChild variant="ghost">
+              <Link href={`/organization/${orgId}/settings/members`}>
+                <Users size={14} />
+              </Link>
+            </Button>
+          )}
+        </>
       )}
       {createProjectAccess ? (
         <Button asChild variant={primaryButtonVariant}>
@@ -248,6 +281,7 @@ const SingleOrganizationPage = ({
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
+  const { isStarred, toggle: onToggleStar } = useProjectStars();
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
@@ -271,7 +305,12 @@ const SingleOrganizationPage = ({
         actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
       }}
     >
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjectTiles
+        org={org}
+        search={search}
+        isStarred={isStarred}
+        onToggleStar={onToggleStar}
+      />
     </ContainerPage>
   );
 };
@@ -279,14 +318,17 @@ const SingleOrganizationPage = ({
 const SingleOrganizationProjectOverviewTile = ({
   org,
   search,
+  isStarred,
+  onToggleStar,
 }: {
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
+  isStarred: (projectId: string) => boolean;
+  onToggleStar: (projectId: string) => void;
 }) => {
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
-
   if (isDemoOrg) {
     return (
       <div key={org.id}>
@@ -297,8 +339,9 @@ const SingleOrganizationProjectOverviewTile = ({
 
   return (
     <div key={org.id}>
-      <Header
+      <SubHeaderLabel
         title={org.name}
+        titleClassName="text-muted-foreground font-bold"
         className="truncate"
         labelBadge={
           org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
@@ -315,10 +358,16 @@ const SingleOrganizationProjectOverviewTile = ({
           <OrganizationActionButtons
             orgId={org.id}
             primaryButtonVariant="secondary"
+            layout="menu"
           />
         }
       />
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjectTiles
+        org={org}
+        search={search}
+        isStarred={isStarred}
+        onToggleStar={onToggleStar}
+      />
     </div>
   );
 };
@@ -332,6 +381,34 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const { starredIds, isStarred, toggle: toggleStar } = useProjectStars();
+  const recentIds = useRecentProjects();
+  const lastTraceQueries = api.useQueries((t) =>
+    (organizations ?? []).map((org) =>
+      t.organizations.lastTraceByProject({ orgId: org.id }),
+    ),
+  );
+  const lastTraceByProjectId = useMemo(() => {
+    const map = new Map<string, LastTraceAt>();
+    for (const q of lastTraceQueries) {
+      for (const row of q.data ?? []) map.set(row.projectId, row.lastTraceAt);
+    }
+    return map;
+  }, [lastTraceQueries]);
+
+  const pinnedProjects = useMemo(
+    () =>
+      selectPinnedProjects({
+        organizations: (organizations ?? []).filter(
+          (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+        ),
+        starredIds,
+        recentIds,
+        lastTraceByProjectId,
+        search: search ?? undefined,
+      }),
+    [organizations, starredIds, recentIds, lastTraceByProjectId, search],
+  );
 
   if (organizations === undefined) {
     return "loading...";
@@ -403,6 +480,15 @@ export const OrganizationProjectOverview = () => {
         <AgentToolsBanner />
       )}
       {showOnboarding && <Onboarding />}
+      {!showOnboarding && pinnedProjects.length > 0 && (
+        <div className="mb-10">
+          <PinnedProjectsSection
+            projects={pinnedProjects}
+            isStarred={isStarred}
+            onToggleStar={toggleStar}
+          />
+        </div>
+      )}
       {organizations
         .map((org) => {
           const isDemo = env.NEXT_PUBLIC_DEMO_ORG_ID === org.id;
@@ -421,6 +507,8 @@ export const OrganizationProjectOverview = () => {
                 <SingleOrganizationProjectOverviewTile
                   org={org}
                   search={search ?? undefined}
+                  isStarred={isStarred}
+                  onToggleStar={toggleStar}
                 />
               </div>
             </Fragment>

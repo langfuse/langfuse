@@ -29,3 +29,4 @@ export {
   useLangfuseV4WriteMode,
   useQueryOrganization,
 } from "@/src/features/organizations/hooks";
+export { useRecordRecentProject } from "@/src/features/organizations/useRecentProjects";
