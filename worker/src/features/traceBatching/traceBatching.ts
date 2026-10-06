@@ -37,6 +37,63 @@ export type PendingTrace = {
   trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
 };
 
+/**
+ * Upper bounds on the summed ingestion estimates of one dispatched batch.
+ * Traces without estimates weigh nothing, and a single trace always forms a
+ * batch even when it alone exceeds a budget.
+ */
+export type TraceBatchWeightLimits = {
+  maxEventUpdates: number;
+  maxSerializedEventBytes: number;
+};
+
+const UNBOUNDED_WEIGHT_LIMITS: TraceBatchWeightLimits = {
+  maxEventUpdates: Number.POSITIVE_INFINITY,
+  maxSerializedEventBytes: Number.POSITIVE_INFINITY,
+};
+
+const toLimit = (value: number) =>
+  value > 0 ? value : Number.POSITIVE_INFINITY;
+
+const getEventUpdates = ({ estimates }: PendingTrace) =>
+  estimates?.eventUpdateCount ?? 0;
+
+const getSerializedEventBytes = ({ estimates }: PendingTrace) =>
+  estimates?.serializedEventBytes ?? 0;
+
+const fitsWeightLimits = (
+  eventUpdates: number,
+  serializedEventBytes: number,
+  limits: TraceBatchWeightLimits,
+) =>
+  eventUpdates <= limits.maxEventUpdates &&
+  serializedEventBytes <= limits.maxSerializedEventBytes;
+
+const isWithinWeightLimits = (
+  batch: readonly PendingTrace[],
+  limits: TraceBatchWeightLimits,
+) =>
+  batch.length <= 1 ||
+  fitsWeightLimits(
+    batch.reduce((total, entry) => total + getEventUpdates(entry), 0),
+    batch.reduce((total, entry) => total + getSerializedEventBytes(entry), 0),
+    limits,
+  );
+
+type TraceExclusionReason = "event_updates" | "serialized_bytes";
+
+const getTraceExclusionReason = (
+  { estimates }: PendingTrace,
+  limits: TraceBatchWeightLimits,
+): TraceExclusionReason | undefined => {
+  if (!estimates) return undefined;
+  if (estimates.eventUpdateCount > limits.maxEventUpdates)
+    return "event_updates";
+  if (estimates.serializedEventBytes > limits.maxSerializedEventBytes)
+    return "serialized_bytes";
+  return undefined;
+};
+
 const compareNumbers = (left: number, right: number) => left - right;
 
 const compareStrings = (left: string, right: string) => {
@@ -122,8 +179,10 @@ const getBatchBounds = (batch: readonly PendingTrace[]) => ({
 const isFeasibleLocalityBatch = (
   batch: readonly PendingTrace[],
   maxBatchSize: number,
+  weightLimits: TraceBatchWeightLimits,
 ) => {
   if (batch.length === 0 || batch.length > maxBatchSize) return false;
+  if (!isWithinWeightLimits(batch, weightLimits)) return false;
   const canonical = canonicalizeLocalityBatch(batch);
   const { minStart, maxStart } = getBatchBounds(canonical);
   return maxStart - minStart <= allowedEnvelopeMs(canonical[0]);
@@ -156,6 +215,7 @@ const ZERO_BATCH_SELECTION_COST: BatchSelectionCost = {
 const selectLocalityBatches = (
   candidates: readonly PendingTrace[],
   maxBatchSize: number,
+  weightLimits: TraceBatchWeightLimits,
 ): PendingTrace[][] => {
   const sorted = candidates
     .map(toLocalityCandidate)
@@ -189,10 +249,20 @@ const selectLocalityBatches = (
     let maxMinute = Number.NEGATIVE_INFINITY;
     let minStart = Number.POSITIVE_INFINITY;
     let maxStart = Number.NEGATIVE_INFINITY;
+    let eventUpdates = 0;
+    let serializedEventBytes = 0;
     const seedEnvelopeMs = allowedEnvelopeMs(sorted[start].entry);
     const maxLength = Math.min(maxBatchSize, candidateCount - start);
     for (let length = 1; length <= maxLength; length++) {
       const candidate = sorted[start + length - 1];
+      eventUpdates += getEventUpdates(candidate.entry);
+      serializedEventBytes += getSerializedEventBytes(candidate.entry);
+      // Weights are nonnegative, so every longer slice is also over budget.
+      if (
+        length > 1 &&
+        !fitsWeightLimits(eventUpdates, serializedEventBytes, weightLimits)
+      )
+        break;
       minMinute = Math.min(minMinute, candidate.minMinute);
       maxMinute = Math.max(maxMinute, candidate.maxMinute);
       minStart = Math.min(minStart, candidate.entry.trace.minStart);
@@ -298,6 +368,8 @@ const selectLocalityBatches = (
  * that envelope cap forbids a cheaper fill. Among feasible partitions with
  * that minimum job count, dynamic programming first avoids crossing projects,
  * then minimizes minute × trace-hash cells, then splits the largest hash gaps.
+ * Both strategies also close a multi-trace batch before its estimated event
+ * updates or serialized bytes would exceed `weightLimits`.
  *
  * Selection uses O(n × k × maxBatchSize) time and
  * O(n × min(n, maxBatchSize) + n × k) memory, where k is the fewest feasible
@@ -310,17 +382,40 @@ export function selectTraceBatches(
   candidates: readonly PendingTrace[],
   maxBatchSize: number,
   strategy: TraceBatchStrategy,
+  weightLimits: TraceBatchWeightLimits = UNBOUNDED_WEIGHT_LIMITS,
 ): PendingTrace[][] {
   if (candidates.length === 0) return [];
   if (strategy === "project") {
     const batches: PendingTrace[][] = [];
-    for (let offset = 0; offset < candidates.length; offset += maxBatchSize) {
-      batches.push(candidates.slice(offset, offset + maxBatchSize));
+    let batch: PendingTrace[] = [];
+    let eventUpdates = 0;
+    let serializedEventBytes = 0;
+    for (const candidate of candidates) {
+      const candidateEventUpdates = getEventUpdates(candidate);
+      const candidateBytes = getSerializedEventBytes(candidate);
+      if (
+        batch.length > 0 &&
+        (batch.length === maxBatchSize ||
+          !fitsWeightLimits(
+            eventUpdates + candidateEventUpdates,
+            serializedEventBytes + candidateBytes,
+            weightLimits,
+          ))
+      ) {
+        batches.push(batch);
+        batch = [];
+        eventUpdates = 0;
+        serializedEventBytes = 0;
+      }
+      batch.push(candidate);
+      eventUpdates += candidateEventUpdates;
+      serializedEventBytes += candidateBytes;
     }
+    batches.push(batch);
     return batches;
   }
 
-  return selectLocalityBatches(candidates, maxBatchSize);
+  return selectLocalityBatches(candidates, maxBatchSize, weightLimits);
 }
 
 const compareBatchesByOldestDue = (
@@ -336,6 +431,7 @@ const canCoalesceLocalityPartials = (
   left: readonly PendingTrace[],
   right: readonly PendingTrace[],
   maxBatchSize: number,
+  weightLimits: TraceBatchWeightLimits,
 ) => {
   if (left.length + right.length > maxBatchSize) return false;
   const projectId = left[0]?.trace.projectId;
@@ -355,7 +451,7 @@ const canCoalesceLocalityPartials = (
       leftBounds.maxStart + QUERY_BUFFER_MS;
   return (
     bufferedIntervalsOverlap &&
-    isFeasibleLocalityBatch([...left, ...right], maxBatchSize)
+    isFeasibleLocalityBatch([...left, ...right], maxBatchSize, weightLimits)
   );
 };
 
@@ -367,6 +463,7 @@ const canCoalesceLocalityPartials = (
 export function prepareLocalityPartials(
   partials: readonly (readonly PendingTrace[])[],
   maxBatchSize: number,
+  weightLimits: TraceBatchWeightLimits = UNBOUNDED_WEIGHT_LIMITS,
 ): { dispatch: PendingTrace[][]; carry: PendingTrace[][] } {
   const batches = partials
     .filter((batch) => batch.length > 0)
@@ -390,7 +487,10 @@ export function prepareLocalityPartials(
       ) {
         const left = batches[leftIndex];
         const right = batches[rightIndex];
-        if (!canCoalesceLocalityPartials(left, right, maxBatchSize)) continue;
+        if (
+          !canCoalesceLocalityPartials(left, right, maxBatchSize, weightLimits)
+        )
+          continue;
         const leftBounds = getBatchBounds(left);
         const rightBounds = getBatchBounds(right);
         const merged = canonicalizeLocalityBatch([...left, ...right]);
@@ -789,6 +889,66 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       return 0;
     });
     recordDistribution("langfuse.trace_batch.snapshot_size", members.length);
+    const batchWeightLimits: TraceBatchWeightLimits = {
+      maxEventUpdates: toLimit(
+        env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES,
+      ),
+      maxSerializedEventBytes: toLimit(
+        env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES,
+      ),
+    };
+    const traceWeightLimits: TraceBatchWeightLimits = {
+      maxEventUpdates: toLimit(
+        env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES,
+      ),
+      maxSerializedEventBytes: toLimit(
+        env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES,
+      ),
+    };
+
+    const acknowledge = async (batch: readonly PendingTrace[]) => {
+      const removed = Number(
+        await redis!.eval(
+          ACKNOWLEDGE_SCRIPT,
+          2,
+          DUE_KEY,
+          STATE_KEY,
+          ...batch.flatMap(({ member, trace }) => [member, trace.revision]),
+        ),
+      );
+      recordIncrement(
+        "langfuse.trace_batch.reactivated_traces",
+        batch.length - removed,
+      );
+    };
+
+    // Excluded traces leave Redis like dispatched ones; activity after this
+    // run's snapshot starts a fresh pending window that is evaluated again.
+    const exclude = async (
+      excluded: readonly {
+        entry: PendingTrace;
+        reason: TraceExclusionReason;
+      }[],
+    ) => {
+      if (excluded.length === 0) return;
+      await this.extendLockOnProgress(true);
+      if (this.stopping) return;
+      await acknowledge(excluded.map(({ entry }) => entry));
+      for (const { entry, reason } of excluded) {
+        recordIncrement("langfuse.trace_batch.excluded_traces", 1, {
+          reason,
+          strategy,
+        });
+        logger.warn("Trace batch excluded oversized trace", {
+          projectId: entry.trace.projectId,
+          traceId: entry.trace.traceId,
+          reason,
+          estimatedEventUpdateCount: entry.estimates?.eventUpdateCount,
+          estimatedSerializedEventBytes: entry.estimates?.serializedEventBytes,
+          eventTimeEnvelopeMs: entry.trace.maxStart - entry.trace.minStart,
+        });
+      }
+    };
 
     const enqueue = async (batch: PendingTrace[]) => {
       await this.extendLockOnProgress(true);
@@ -880,19 +1040,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           strategy,
         });
       }
-      const removed = Number(
-        await redis!.eval(
-          ACKNOWLEDGE_SCRIPT,
-          2,
-          DUE_KEY,
-          STATE_KEY,
-          ...batch.flatMap(({ member, trace }) => [member, trace.revision]),
-        ),
-      );
-      recordIncrement(
-        "langfuse.trace_batch.reactivated_traces",
-        batch.length - removed,
-      );
+      await acknowledge(batch);
     };
 
     let projectBatchTail: PendingTrace[] = [];
@@ -918,12 +1066,16 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         candidates.length - hydrated.length / 3,
       );
       const hydratedCandidates: PendingTrace[] = [];
+      const excluded: {
+        entry: PendingTrace;
+        reason: TraceExclusionReason;
+      }[] = [];
       for (let i = 0; i < hydrated.length; i += 3) {
         if (this.stopping) return;
         const member = hydrated[i];
         const [projectId, traceId] = JSON.parse(member) as [string, string];
         const state = JSON.parse(hydrated[i + 1]);
-        hydratedCandidates.push({
+        const entry: PendingTrace = {
           member,
           due: Number(hydrated[i + 2]),
           estimates:
@@ -941,8 +1093,13 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
             projectId,
             traceId,
           }),
-        });
+        };
+        const reason = getTraceExclusionReason(entry, traceWeightLimits);
+        if (reason) excluded.push({ entry, reason });
+        else hydratedCandidates.push(entry);
       }
+      await exclude(excluded);
+      if (this.stopping) return;
 
       const carriedTraceCount =
         strategy === "project"
@@ -962,6 +1119,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         selectorInput,
         env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
         strategy,
+        batchWeightLimits,
       );
       recordDistribution(
         "langfuse.trace_batch.selector_duration_ms",
@@ -996,6 +1154,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       const prepared = prepareLocalityPartials(
         partialBatches,
         env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+        batchWeightLimits,
       );
       localityPartials = prepared.carry;
       for (const batch of prepared.dispatch) {

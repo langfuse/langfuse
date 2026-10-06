@@ -410,6 +410,78 @@ describe("trace batch selection", () => {
     expect(all.every((batch) => batch.length <= 5)).toBe(true);
     expect(new Set(all.flat().map(({ member }) => member)).size).toBe(10);
   });
+
+  describe("weight limits", () => {
+    const weighted = (
+      traceId: string,
+      eventUpdateCount: number,
+      serializedEventBytes = eventUpdateCount * 1_000,
+    ): PendingTrace => ({
+      ...pendingTrace("project", traceId, 1, 0, minute),
+      estimates: { eventUpdateCount, serializedEventBytes },
+    });
+    const limits = { maxEventUpdates: 10, maxSerializedEventBytes: 50_000 };
+    const weightOf = (batch: PendingTrace[]) =>
+      batch.reduce(
+        (total, { estimates }) => ({
+          events: total.events + (estimates?.eventUpdateCount ?? 0),
+          bytes: total.bytes + (estimates?.serializedEventBytes ?? 0),
+        }),
+        { events: 0, bytes: 0 },
+      );
+
+    it.each(["project", "locality"] as const)(
+      "closes %s batches before the event or byte budget and isolates overweight traces",
+      (strategy) => {
+        const candidates = [
+          weighted("a", 4),
+          weighted("b", 4),
+          weighted("c", 4),
+          weighted("heavy", 25),
+          weighted("bytes-1", 1, 30_000),
+          weighted("bytes-2", 1, 30_000),
+          { ...pendingTrace("project", "unknown", 1, 0, minute) },
+        ];
+
+        const batches = selectTraceBatches(candidates, 60, strategy, limits);
+
+        expect(batches.flat()).toHaveLength(candidates.length);
+        for (const batch of batches) {
+          if (batch.length === 1) continue;
+          const { events, bytes } = weightOf(batch);
+          expect(events).toBeLessThanOrEqual(limits.maxEventUpdates);
+          expect(bytes).toBeLessThanOrEqual(limits.maxSerializedEventBytes);
+        }
+        expect(
+          batches.find((batch) =>
+            batch.some(({ trace }) => trace.traceId === "heavy"),
+          ),
+        ).toHaveLength(1);
+        expect(
+          batches.some(
+            (batch) =>
+              batch.some(({ trace }) => trace.traceId === "bytes-1") &&
+              batch.some(({ trace }) => trace.traceId === "bytes-2"),
+          ),
+        ).toBe(false);
+        // Without budgets the same candidates fit one batch.
+        expect(selectTraceBatches(candidates, 60, strategy)).toHaveLength(1);
+      },
+    );
+
+    it("does not coalesce locality partials past the weight budget", () => {
+      const result = prepareLocalityPartials(
+        [[weighted("a", 6)], [weighted("b", 6)], [weighted("c", 4)]],
+        60,
+        limits,
+      );
+      const all = [...result.dispatch, ...result.carry];
+
+      expect(all.flat()).toHaveLength(3);
+      expect(all.every((batch) => weightOf(batch).events <= 10)).toBe(true);
+      expect(all).toHaveLength(2);
+    });
+  });
 });
 
 describe("trace micro-batch scheduling with Redis", () => {
@@ -426,6 +498,10 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  const originalMaxTraceEventUpdates =
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES;
+  const originalMaxTraceBytes =
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -493,6 +569,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES =
+      originalMaxTraceEventUpdates;
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = originalMaxTraceBytes;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
@@ -660,6 +739,43 @@ describe("trace micro-batch scheduling with Redis", () => {
             tags?.strategy === "locality",
         ),
     ).toBe(true);
+  });
+
+  it("excludes oversized traces from dispatch, removes their state, and reports their IDs", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 3;
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 1_000;
+    const warn = vi.spyOn(shared.logger, "warn");
+    await trackTraceBatchActivity("project", [
+      ...Array.from({ length: 4 }, (_, index) =>
+        event("many-updates", 1_000_000 + index),
+      ),
+      event("large-input", 1_000_000, 5_000),
+      event("small", 1_000_000),
+    ]);
+    await makeDue("project", "many-updates", "large-input", "small");
+
+    await runner().processBatch();
+
+    const jobs = await queue.getJobs(["wait"]);
+    expect(
+      jobs.map((job) => job.data.payload.traces.map(({ traceId }) => traceId)),
+    ).toEqual([["small"]]);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+    for (const [traceId, reason] of [
+      ["many-updates", "event_updates"],
+      ["large-input", "serialized_bytes"],
+    ] as const) {
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_batch.excluded_traces",
+        1,
+        { reason, strategy: "project" },
+      );
+      expect(warn).toHaveBeenCalledWith(
+        "Trace batch excluded oversized trace",
+        expect.objectContaining({ projectId: "project", traceId, reason }),
+      );
+    }
   });
 
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
