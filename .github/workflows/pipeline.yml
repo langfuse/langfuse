@@ -861,14 +861,14 @@ jobs:
         # ingestion tests post to the API and then poll ClickHouse for the row
         # the worker writes, giving it only a few seconds to be consuming.
         run: |
-          timeout 180 bash -c 'until curl -fs http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+          timeout 180 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
             || { echo "Worker was not healthy within 180s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Check server health
         # The tests address a hardcoded localhost:3000 and run on 12 workers, so
         # without this gate the ones scheduled during the server's cold start
         # all fail on ECONNREFUSED while the rest pass once it finishes booting.
         run: |
-          timeout 180 bash -c 'until curl -fs http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+          timeout 180 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
             || { echo "Langfuse was not healthy within 180s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: run tests
         working-directory: web
