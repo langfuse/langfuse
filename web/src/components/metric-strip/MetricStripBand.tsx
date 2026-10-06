@@ -86,12 +86,7 @@ export const MetricStripBand = forwardRef<
         // sits closer to its chart than to the band's edge.
         <div className="relative px-2 pt-2.5 pb-1">
           {status === "loading" ? (
-            <div
-              className={cn(
-                "bg-muted animate-pulse rounded",
-                contentHeightClass,
-              )}
-            />
+            <div className={contentHeightClass} />
           ) : status === "empty" ? (
             <div className={contentHeightClass}>
               <MetricStripMessage message={emptyMessage} />

@@ -361,7 +361,7 @@ export function EventsOutlierStrip({
         : "ready";
 
   const header = (
-    <div className="px-2 pt-1.5">
+    <div className="px-2 pt-0.5">
       <MetricStripHeaderRow>
         <ModeDropdownController
           options={MODE_OPTIONS}
