@@ -198,14 +198,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
     });
 
-    it("processes two integrations in one project by integration id", async () => {
+    it("processes only the integration selected by project and integration id", async () => {
       (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-      const { projectId } = await createOrgProjectAndApiKey();
+      const [{ projectId: firstProjectId }, { projectId: secondProjectId }] =
+        await Promise.all([
+          createOrgProjectAndApiKey(),
+          createOrgProjectAndApiKey(),
+        ]);
       const integrationData = {
-        projectId,
         type: BlobStorageIntegrationType.S3,
         bucketName,
-        prefix: projectId,
         accessKeyId,
         secretAccessKey: encrypt(secretAccessKey),
         region: region ? region : "auto",
@@ -218,14 +220,29 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
       };
       const [first, second] = await Promise.all([
-        prisma.blobStorageIntegration.create({ data: integrationData }),
-        prisma.blobStorageIntegration.create({ data: integrationData }),
+        prisma.blobStorageIntegration.create({
+          data: {
+            ...integrationData,
+            projectId: firstProjectId,
+            prefix: firstProjectId,
+          },
+        }),
+        prisma.blobStorageIntegration.create({
+          data: {
+            ...integrationData,
+            projectId: secondProjectId,
+            prefix: secondProjectId,
+          },
+        }),
       ]);
 
       await expect(
         handleBlobStorageIntegrationProjectJob({
           data: {
-            payload: { projectId, integrationId: first.id },
+            payload: {
+              projectId: firstProjectId,
+              integrationId: first.id,
+            },
           },
         } as Job),
       ).rejects.toThrow(/enriched/i);
@@ -246,7 +263,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       await expect(
         handleBlobStorageIntegrationProjectJob({
           data: {
-            payload: { projectId, integrationId: second.id },
+            payload: {
+              projectId: secondProjectId,
+              integrationId: second.id,
+            },
           },
         } as Job),
       ).rejects.toThrow(/enriched/i);
@@ -259,7 +279,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       ).toMatchObject({ lastError: expect.stringMatching(/enriched/i) });
     });
 
-    it("does not process a replacement integration for a legacy job after the migrated row is deleted", async () => {
+    it("finishes a legacy job when the migrated integration was deleted", async () => {
       (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { projectId } = await createOrgProjectAndApiKey();
       const integrationData = {
@@ -282,9 +302,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       await prisma.blobStorageIntegration.create({
         data: { ...integrationData, id: projectId },
       });
-      const replacement = await prisma.blobStorageIntegration.create({
-        data: integrationData,
-      });
       await prisma.blobStorageIntegration.delete({
         where: { id: projectId },
       });
@@ -295,12 +312,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job),
       ).resolves.toBeUndefined();
 
-      expect(
-        await prisma.blobStorageIntegration.findUniqueOrThrow({
-          where: { id: replacement.id },
-          select: { lastError: true },
-        }),
-      ).toEqual({ lastError: null });
+      await expect(
+        prisma.blobStorageIntegration.count({ where: { projectId } }),
+      ).resolves.toBe(0);
     });
   });
 

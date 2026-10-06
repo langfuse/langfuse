@@ -280,6 +280,42 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("legacy integration identity", () => {
+    it("keeps legacy project-id upserts working during a rolling deployment", async () => {
+      const { project } = await prepare();
+
+      await prisma.$executeRaw`
+        INSERT INTO "blob_storage_integrations" (
+          "project_id",
+          "type",
+          "bucket_name",
+          "prefix",
+          "region",
+          "force_path_style",
+          "enabled",
+          "export_frequency"
+        )
+        VALUES (
+          ${project.id},
+          'S3'::"BlobStorageIntegrationType",
+          'legacy-bucket',
+          'legacy/',
+          'us-east-1',
+          false,
+          true,
+          'daily'
+        )
+        ON CONFLICT ("project_id") DO UPDATE
+        SET "bucket_name" = EXCLUDED."bucket_name"
+      `;
+
+      await expect(
+        prisma.blobStorageIntegration.findUnique({
+          where: { id: project.id },
+          select: { id: true, projectId: true },
+        }),
+      ).resolves.toEqual({ id: project.id, projectId: project.id });
+    });
+
     it("updates the migrated row for the existing settings contract", async () => {
       const { caller, project } = await prepare();
       const encryptedSecret = encrypt("persisted-secret");

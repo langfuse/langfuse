@@ -1333,8 +1333,8 @@ model MixpanelIntegration {
 }
 
 model BlobStorageIntegration {
-  id        String  @id @default(cuid())
-  projectId String  @map("project_id")
+  id        String  @unique @default(cuid())
+  projectId String  @id @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Blob Storage Config
@@ -1379,7 +1379,6 @@ model BlobStorageIntegration {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  @@index([projectId])
   @@map("blob_storage_integrations")
 }
 
