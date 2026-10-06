@@ -1530,7 +1530,7 @@ export function SearchComposer({
               onActivateAi();
             }}
             className={cn(
-              "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              "absolute top-0.75 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
               "bg-background text-muted-foreground font-sans text-xs",
               "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
               // Match the app's focus ring (ring-ring) instead of the browser's
