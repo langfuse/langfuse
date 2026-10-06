@@ -620,6 +620,15 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .optional(),
+  // Per-result cap applied when deriving replay messages: any single tool
+  // result longer than this many characters is reduced to a head+tail
+  // excerpt before entering the replayed context. Persisted events are never
+  // modified. Unset disables the cap.
+  LANGFUSE_IN_APP_AGENT_REPLAY_TOOL_RESULT_MAX_CHARS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
   LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
     .enum(["url", "inline", "disabled"])
     .optional(),

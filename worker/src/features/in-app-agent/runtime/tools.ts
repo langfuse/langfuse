@@ -35,6 +35,7 @@ import {
   InAppAgentSandboxEditArgsSchema,
   InAppAgentSandboxReadArgsSchema,
   InAppAgentSandboxWriteArgsSchema,
+  IN_APP_AGENT_READ_TOOL_OUTPUT_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
@@ -463,6 +464,70 @@ export function createRedirectActionTool({
         isV4Enabled,
       });
     },
+  });
+}
+
+export type ReadToolOutputFn = (params: {
+  toolCallId: string;
+  offset?: number;
+  limit?: number;
+}) => Promise<{
+  toolCallId: string;
+  totalChars: number;
+  offset: number;
+  returnedChars: number;
+  hasMore: boolean;
+  content: string;
+} | null>;
+
+/**
+ * Local read-only tool that pages through a persisted tool result, so the
+ * model can recover an output that replay compaction omitted or truncated
+ * without re-running the tool. The fetch function is injected and scoped to
+ * the agent's own conversation.
+ */
+export async function buildReadToolOutputResult(
+  fetchOutput: ReadToolOutputFn,
+  args: { toolCallId: string; offset?: number; limit?: number },
+): Promise<string> {
+  const result = await fetchOutput(args);
+  return JSON.stringify(
+    result ?? {
+      toolCallId: args.toolCallId,
+      error:
+        "No persisted tool result found for this toolCallId in this conversation.",
+    },
+  );
+}
+
+export function createReadToolOutputTool(fetchOutput: ReadToolOutputFn) {
+  return createTool({
+    id: IN_APP_AGENT_READ_TOOL_OUTPUT_TOOL_NAME,
+    description:
+      "Page through the full persisted output of an earlier tool call in this conversation by its toolCallId. Use this to recover outputs that were truncated or omitted from the conversation to bound context size, instead of re-running the original tool. Returns JSON: {toolCallId, totalChars, offset, returnedChars, hasMore, content}. Use offset/limit (max 16000 chars per page) to page through large outputs.",
+    inputSchema: z.object({
+      toolCallId: z
+        .string()
+        .min(1)
+        .describe(
+          "The toolCallId of the earlier tool call whose output to read.",
+        ),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Character offset to start reading from. Defaults to 0."),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(16_000)
+        .optional()
+        .describe("Characters to return per page. Defaults to 8000."),
+    }),
+    execute: async ({ toolCallId, offset, limit }) =>
+      buildReadToolOutputResult(fetchOutput, { toolCallId, offset, limit }),
   });
 }
 

@@ -31,6 +31,7 @@ import {
 import {
   createSandboxTools,
   createRedirectActionTool,
+  createReadToolOutputTool,
   getToolCallId,
   hasCallableExecute,
   withOptionalSilentMcpOutput,
@@ -54,6 +55,7 @@ import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_READ_TOOL_OUTPUT_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
@@ -315,6 +317,12 @@ type CreateAgUiStreamOptions = {
   sandbox?: InAppAgentSandbox;
   /** Adds a run instruction telling the model its earlier workspace files are gone. */
   sandboxWorkspaceWasReset?: boolean;
+  /**
+   * Registered only when replay compaction (token budget or per-result cap)
+   * is active: a local read-only tool that pages through persisted tool
+   * results, so omitted outputs stay recoverable without a re-run.
+   */
+  replayToolOutputTool?: ReturnType<typeof createReadToolOutputTool>;
 };
 
 export async function createAgUiStream(params: {
@@ -1235,6 +1243,12 @@ async function createMastraAdapter(params: {
             projectId: params.options.redirectAction.projectId,
             isV4Enabled: params.options.redirectAction.isV4Enabled,
           }),
+          ...(params.options.replayToolOutputTool
+            ? {
+                [IN_APP_AGENT_READ_TOOL_OUTPUT_TOOL_NAME]:
+                  params.options.replayToolOutputTool,
+              }
+            : {}),
           ...(params.options.sandbox
             ? createSandboxTools(params.options.sandbox)
             : {}),

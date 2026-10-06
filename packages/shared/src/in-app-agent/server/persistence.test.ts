@@ -9,7 +9,9 @@ import {
   compactToolResultsToReplayBudget,
   createSandboxToolCallFileAccumulator,
   getConversationMessages,
+  getInAppAgentToolCallOutput,
   partitionPendingRunEvents,
+  truncateToolResultsForReplay,
 } from "./persistence";
 
 describe("getConversationMessages", () => {
@@ -190,7 +192,8 @@ describe("compactToolResultsToReplayBudget", () => {
     });
     expect(oldestToolResultContent).toContain("call-oldest");
     expect(oldestToolResultContent).toContain("omitted from replay");
-    expect(oldestToolResultContent.length).toBeLessThan(200);
+    expect(oldestToolResultContent).toContain("readToolOutput");
+    expect(oldestToolResultContent.length).toBeLessThan(300);
     expect(result[1]).toBe(messages[1]);
     expect(result[2]).toBe(messages[2]);
   });
@@ -243,5 +246,101 @@ describe("compactToolResultsToReplayBudget", () => {
     const messages = [bigTool("a"), bigTool("b")]; // suffix: [2000, 1000]
 
     expect(compactToolResultsToReplayBudget(messages, 2000)).toBe(messages);
+  });
+});
+
+describe("truncateToolResultsForReplay", () => {
+  const toolMessage = (id: string, content: string): AgUiMessage => ({
+    id: `message-${id}`,
+    role: "tool",
+    toolCallId: `call-${id}`,
+    content,
+  });
+
+  it("returns messages unchanged without a cap or within the cap", () => {
+    const messages = [toolMessage("a", "x".repeat(100))];
+
+    expect(truncateToolResultsForReplay(messages, undefined)).toBe(messages);
+    expect(truncateToolResultsForReplay(messages, 100)).toBe(messages);
+    expect(truncateToolResultsForReplay(messages, 200)).toBe(messages);
+  });
+
+  it("reduces oversized results to a head+tail excerpt pointing at readToolOutput", () => {
+    const content = `${"h".repeat(700)}${"t".repeat(300)}`;
+    const result = truncateToolResultsForReplay([toolMessage("big", content)], 200);
+
+    const truncatedMessage = result[0];
+    expect(truncatedMessage?.role).toBe("tool");
+    if (truncatedMessage?.role !== "tool") {
+      throw new Error("expected a tool message");
+    }
+    const truncated = truncatedMessage.content;
+    expect(truncated.length).toBeLessThan(content.length);
+    expect(truncated.startsWith("h".repeat(140))).toBe(true);
+    expect(truncated.endsWith("t".repeat(60))).toBe(true);
+    expect(truncated).toContain("call-big");
+    expect(truncated).toContain("readToolOutput");
+    expect(truncated).toContain("truncated");
+  });
+
+  it("never modifies non-tool messages or silent-output pointers", () => {
+    const userMessage: AgUiMessage = {
+      id: "u",
+      role: "user",
+      content: "y".repeat(10_000),
+    };
+    const pointer = toolMessage(
+      "pointer",
+      "Output saved to /workspace/tool_calls/langfuse_getHealth_call-pointer.json",
+    );
+
+    const result = truncateToolResultsForReplay([userMessage, pointer], 100);
+
+    expect(result[0]).toBe(userMessage);
+    expect(result[1]).toBe(pointer);
+  });
+});
+
+describe("getInAppAgentToolCallOutput", () => {
+  it("returns a page of the latest persisted result for the toolCallId", async () => {
+    const prisma = {
+      inAppAgentEvent: {
+        findFirst: async ({
+          where,
+        }: {
+          where: { event?: { equals?: string } };
+        }) =>
+          where.event?.equals === "call-1"
+            ? { event: { toolCallId: "call-1", content: "a".repeat(100) } }
+            : null,
+      },
+    } as unknown as PrismaClient;
+
+    await expect(
+      getInAppAgentToolCallOutput({
+        prisma,
+        projectId: "p",
+        conversationId: "c",
+        toolCallId: "call-1",
+        offset: 90,
+        limit: 20,
+      }),
+    ).resolves.toEqual({
+      toolCallId: "call-1",
+      totalChars: 100,
+      offset: 90,
+      returnedChars: 10,
+      hasMore: false,
+      content: "a".repeat(10),
+    });
+
+    await expect(
+      getInAppAgentToolCallOutput({
+        prisma,
+        projectId: "p",
+        conversationId: "c",
+        toolCallId: "missing",
+      }),
+    ).resolves.toBeNull();
   });
 });

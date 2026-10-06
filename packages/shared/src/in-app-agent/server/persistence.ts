@@ -434,6 +434,18 @@ export async function getConversationMessages(params: {
   return getMessagesFromPersistedEvents(await getConversationEvents(params));
 }
 
+/**
+ * Whether any replay shaping (token budget or per-result cap) is configured.
+ * When true the agent also gets the readToolOutput tool so omitted outputs
+ * stay recoverable.
+ */
+export function isInAppAgentReplayCompactionActive(): boolean {
+  return (
+    env.LANGFUSE_IN_APP_AGENT_REPLAY_TOKEN_BUDGET !== undefined ||
+    env.LANGFUSE_IN_APP_AGENT_REPLAY_TOOL_RESULT_MAX_CHARS !== undefined
+  );
+}
+
 export async function getConversationMessagesForReplay(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -443,8 +455,67 @@ export async function getConversationMessagesForReplay(params: {
     await getConversationMessages(params),
     {
       replayTokenBudget: env.LANGFUSE_IN_APP_AGENT_REPLAY_TOKEN_BUDGET,
+      toolResultMaxChars:
+        env.LANGFUSE_IN_APP_AGENT_REPLAY_TOOL_RESULT_MAX_CHARS,
     },
   );
+}
+
+/**
+ * Page back through a persisted tool result. Compaction only shapes what is
+ * replayed into the model — the events table keeps every result verbatim —
+ * so this is the cheap route for the agent to recover an omitted output
+ * without re-running the tool (and without needing a sandbox).
+ */
+export async function getInAppAgentToolCallOutput(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  toolCallId: string;
+  offset?: number;
+  limit?: number;
+}): Promise<{
+  toolCallId: string;
+  totalChars: number;
+  offset: number;
+  returnedChars: number;
+  hasMore: boolean;
+  content: string;
+} | null> {
+  const offset = Math.max(0, Math.floor(params.offset ?? 0));
+  const limit = Math.min(
+    16_000,
+    Math.max(1, Math.floor(params.limit ?? 8_000)),
+  );
+
+  const event = await params.prisma.inAppAgentEvent.findFirst({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      type: "TOOL_CALL_RESULT",
+      event: { path: ["toolCallId"], equals: params.toolCallId },
+    },
+    orderBy: { sequenceNumber: "desc" },
+    select: { event: true },
+  });
+
+  const content =
+    event && typeof event.event === "object" && event.event !== null
+      ? String((event.event as { content?: unknown }).content ?? "")
+      : "";
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    toolCallId: params.toolCallId,
+    totalChars: content.length,
+    offset,
+    returnedChars: content.slice(offset, offset + limit).length,
+    hasMore: offset + limit < content.length,
+    content: content.slice(offset, offset + limit),
+  };
 }
 
 export async function maybeInferAndPersistConversationTitle(params: {
@@ -611,7 +682,10 @@ function getMessagesFromPersistedEvents(
 
 function sanitizeConversationMessagesForReplay(
   messages: readonly AgUiMessage[],
-  options?: { replayTokenBudget?: number },
+  options?: {
+    replayTokenBudget?: number;
+    toolResultMaxChars?: number;
+  },
 ): readonly AgUiMessage[] {
   const messagesWithoutReasoning = messages.filter(
     (message) => message.role !== "reasoning",
@@ -622,12 +696,58 @@ function sanitizeConversationMessagesForReplay(
   const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
     messagesWithoutRedirectActions,
   );
+  // Cap single results before budget accounting so a fresh oversized tool
+  // output is bounded from its very first replay, and the budget estimates
+  // see the capped sizes.
   return compactToolResultsToReplayBudget(
-    stripAssistantRunIds(
-      dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
+    truncateToolResultsForReplay(
+      stripAssistantRunIds(
+        dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
+      ),
+      options?.toolResultMaxChars,
     ),
     options?.replayTokenBudget,
   );
+}
+
+/**
+ * Caps each tool result at `maxChars` with a head+tail excerpt. The excerpt
+ * keeps the beginning (schemas, first rows) and end (totals, errors) of the
+ * output, which is what models most often need, and points at the
+ * readToolOutput tool for full recovery. Results at or below the cap pass
+ * through untouched — including silent-MCP pointers. Persisted events are
+ * never modified. An undefined or non-positive cap disables truncation.
+ */
+export function truncateToolResultsForReplay(
+  messages: readonly AgUiMessage[],
+  maxChars?: number,
+): readonly AgUiMessage[] {
+  if (maxChars === undefined || maxChars <= 0) {
+    return messages;
+  }
+
+  let changed = false;
+  const truncatedMessages = messages.map((message): AgUiMessage => {
+    if (
+      message.role !== "tool" ||
+      message.content.length <= maxChars
+    ) {
+      return message;
+    }
+
+    const headChars = Math.ceil(maxChars * 0.7);
+    const tailChars = Math.floor(maxChars * 0.3);
+    changed = true;
+    return {
+      ...message,
+      content:
+        message.content.slice(0, headChars) +
+        `\n[...${message.content.length - headChars - tailChars} of ${message.content.length} chars truncated. Use the readToolOutput tool with toolCallId ${message.toolCallId} to page through the full persisted output.]\n` +
+        message.content.slice(message.content.length - tailChars),
+    };
+  });
+
+  return changed ? truncatedMessages : messages;
 }
 
 function estimateReplayTokens(message: AgUiMessage): number {
@@ -659,7 +779,7 @@ function buildReplayBudgetPlaceholder(message: {
   toolCallId: string;
   content: string;
 }): string {
-  return `[Tool output omitted from replay to stay within the context budget (toolCallId: ${message.toolCallId}, original size ~${message.content.length} chars). Re-run the tool if the data is still needed.]`;
+  return `[Tool output omitted from replay to stay within the context budget (toolCallId: ${message.toolCallId}, original size ~${message.content.length} chars). Use the readToolOutput tool with this toolCallId to page through the full persisted output, or re-run the tool if freshness matters.]`;
 }
 
 /**
