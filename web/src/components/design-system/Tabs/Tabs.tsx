@@ -12,7 +12,7 @@ const tabsListVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-control-track/60 rounded-md",
+        default: "bg-control-track/60 dark:bg-muted rounded-md",
         underline: "rounded-none border-b bg-transparent",
         outline: "bg-background rounded-md border",
       },
@@ -62,7 +62,7 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default:
-          "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-sm",
+          "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-sm dark:data-[state=active]:bg-control-track dark:data-[state=active]:text-primary dark:data-[state=active]:shadow-none",
         underline:
           "rounded-none border-b-2 border-transparent bg-transparent text-muted-foreground shadow-none data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none",
       },
@@ -237,7 +237,9 @@ function TabsList({
             aria-hidden="true"
             className={cn(
               "pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
-              variant === "outline" ? "bg-muted" : "bg-background shadow-sm",
+              variant === "outline"
+                ? "bg-muted"
+                : "bg-background dark:bg-control-track shadow-sm dark:shadow-none",
             )}
           />
         ) : null}
