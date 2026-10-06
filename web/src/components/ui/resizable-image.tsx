@@ -124,7 +124,7 @@ export const ResizableImage = ({
           className={cn(
             "group relative overflow-hidden",
             fitContent && "w-full",
-            !fitContent && isZoomedIn && "w-fit",
+            !fitContent && isZoomedIn && "w-fit max-w-full min-w-10",
             !fitContent && !isZoomedIn && "h-full w-full",
           )}
         >
@@ -141,7 +141,9 @@ export const ResizableImage = ({
                 className={cn(
                   "rounded border",
                   fitContent && "h-auto w-full",
-                  !fitContent && isZoomedIn && "h-auto max-h-52 w-auto",
+                  !fitContent &&
+                    isZoomedIn &&
+                    "h-auto max-h-52 w-auto max-w-full",
                   !fitContent && !isZoomedIn && "h-full w-full object-contain",
                 )}
                 onError={() => {
