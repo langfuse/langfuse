@@ -87,6 +87,60 @@ export default function ExternalMediaStoragePage() {
       }
     : defaultValues;
 
+  const renderTestAction = () => {
+    if (config?.enabled) {
+      return (
+        <DialogController
+          renderDialog={() => (
+            <TestMediaObjectDialog
+              isPending={testMutation.isPending}
+              onTest={async (uri) => {
+                try {
+                  const result = await testMutation.mutateAsync({
+                    projectId,
+                    uri,
+                  });
+                  await testSignedMediaUrlCors(result.signedUrl);
+                  return result.signedUrl;
+                } catch (error) {
+                  showErrorToast(
+                    "External media test failed",
+                    error instanceof Error
+                      ? error.message
+                      : "The media object could not be loaded.",
+                  );
+                  return null;
+                }
+              }}
+            />
+          )}
+        >
+          {({ openDialog }) => (
+            <Button variant="secondary" onClick={openDialog}>
+              Test
+            </Button>
+          )}
+        </DialogController>
+      );
+    }
+
+    if (!config) {
+      return (
+        <Tooltip label="Save the integration before running the validation.">
+          {({ getTriggerProps }) => (
+            <span {...getTriggerProps()}>
+              <Button variant="secondary" disabled>
+                Test
+              </Button>
+            </span>
+          )}
+        </Tooltip>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <ContainerPage
       headerProps={{
@@ -100,102 +154,72 @@ export default function ExternalMediaStoragePage() {
         Resolve media referenced by s3:// URIs from your own Amazon S3 or
         S3-compatible bucket.
       </p>
-      {!isFeatureEnabled ? (
-        <p className="text-sm">This feature is not enabled for this project.</p>
-      ) : !hasAccess ? (
-        <p className="text-sm">
-          Your current role does not grant you access to these settings, please
-          reach out to your project admin or owner.
-        </p>
-      ) : (
-        <>
-          <div className="flex items-center justify-between gap-4">
-            <Header title="Configuration" />
-            {config?.enabled ? (
-              <DialogController
-                renderDialog={() => (
-                  <TestMediaObjectDialog
-                    isPending={testMutation.isPending}
-                    onTest={async (uri) => {
-                      try {
-                        const result = await testMutation.mutateAsync({
-                          projectId,
-                          uri,
-                        });
-                        await testSignedMediaUrlCors(result.signedUrl);
-                        return result.signedUrl;
-                      } catch (error) {
-                        showErrorToast(
-                          "External media test failed",
-                          error instanceof Error
-                            ? error.message
-                            : "The media object could not be loaded.",
-                        );
-                        return null;
-                      }
-                    }}
-                  />
-                )}
-              >
-                {({ openDialog }) => (
-                  <Button variant="secondary" onClick={openDialog}>
-                    Test
-                  </Button>
-                )}
-              </DialogController>
-            ) : !config ? (
-              <Tooltip label="Save the integration before running the validation.">
-                {({ getTriggerProps }) => (
-                  <span {...getTriggerProps()}>
-                    <Button variant="secondary" disabled>
-                      Test
-                    </Button>
-                  </span>
-                )}
-              </Tooltip>
-            ) : null}
-          </div>
-          <Card className="p-3">
-            {configuration.isLoading || !configuration.data ? (
-              <IntegrationSettingsSkeleton />
-            ) : (
-              <ExternalMediaStorageForm
-                key={config?.updatedAt?.toString() ?? "new"}
-                initialValues={initialValues}
-                isSaving={updateMutation.isPending}
-                secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
-                onSubmit={(values) =>
-                  updateMutation.mutate({ projectId, ...values })
-                }
-                actions={
-                  config ? (
-                    <ConfirmationDialogController
-                      title="Delete external media storage?"
-                      text="Media stored in this bucket will no longer be resolved in Langfuse."
-                      confirmLabel="Delete"
-                      variant="destructive"
-                      loading={deleteMutation.isPending}
-                      onConfirm={() =>
-                        deleteMutation.mutateAsync({ projectId })
-                      }
-                    >
-                      {({ openDialog }) => (
-                        <ActionButton
-                          variant="destructive-secondary"
-                          hasAccess={hasAccess}
-                          onClick={openDialog}
-                        >
-                          Delete
-                        </ActionButton>
-                      )}
-                    </ConfirmationDialogController>
-                  ) : null
-                }
-              />
-            )}
-          </Card>
-        </>
-      )}
+      {(() => {
+        if (!isFeatureEnabled) {
+          return (
+            <p className="text-sm">
+              This feature is not enabled for this project.
+            </p>
+          );
+        }
+
+        if (!hasAccess) {
+          return (
+            <p className="text-sm">
+              Your current role does not grant you access to these settings,
+              please reach out to your project admin or owner.
+            </p>
+          );
+        }
+
+        return (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <Header title="Configuration" />
+              {renderTestAction()}
+            </div>
+            <Card className="p-3">
+              {configuration.isLoading || !configuration.data ? (
+                <IntegrationSettingsSkeleton />
+              ) : (
+                <ExternalMediaStorageForm
+                  key={config?.updatedAt?.toString() ?? "new"}
+                  initialValues={initialValues}
+                  isSaving={updateMutation.isPending}
+                  secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
+                  onSubmit={(values) =>
+                    updateMutation.mutate({ projectId, ...values })
+                  }
+                  actions={
+                    config ? (
+                      <ConfirmationDialogController
+                        title="Delete external media storage?"
+                        text="Media stored in this bucket will no longer be resolved in Langfuse."
+                        confirmLabel="Delete"
+                        variant="destructive"
+                        loading={deleteMutation.isPending}
+                        onConfirm={() =>
+                          deleteMutation.mutateAsync({ projectId })
+                        }
+                      >
+                        {({ openDialog }) => (
+                          <ActionButton
+                            variant="destructive-secondary"
+                            hasAccess={hasAccess}
+                            onClick={openDialog}
+                          >
+                            Delete
+                          </ActionButton>
+                        )}
+                      </ConfirmationDialogController>
+                    ) : null
+                  }
+                />
+              )}
+            </Card>
+          </>
+        );
+      })()}
     </ContainerPage>
   );
 }

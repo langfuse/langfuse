@@ -105,7 +105,7 @@ function S3MediaTag({
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) {
-          if (armed && isSignedUrlExpired) void resolved.refetch();
+          if (armed && isSignedUrlExpired) resolved.refetch();
           setArmed(true);
         }
       }}
