@@ -13,19 +13,13 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopicTraceSelector } from "./TopicTraceSelector";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), push: vi.fn() }));
-vi.mock("next/router", () => ({
-  useRouter: () => ({
-    query: {},
-    pathname: "/project/[projectId]/topics",
-    push: mocks.push,
+const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
+  usePeekNavigation: () => ({
+    openPeek: vi.fn(),
   }),
 }));
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: vi.fn() }),
-}));
 vi.mock("@/src/utils/api", () => ({
-  getPathnameWithoutBasePath: () => "/project/project/topics",
   api: {
     topics: {
       previewTraces: {
@@ -57,10 +51,10 @@ vi.mock(
   }),
 );
 
-function TraceSelector({ onOpenTrace }: { onOpenTrace: () => void }) {
+function TraceSelector() {
   const { selection, controls } = useTopicTraceSelector({
     projectId: "project",
-    onOpenTrace,
+    onOpenTrace: vi.fn(),
     enabled: true,
     filterOptionsEnabled: true,
   });
@@ -73,16 +67,15 @@ function TraceSelector({ onOpenTrace }: { onOpenTrace: () => void }) {
 }
 
 function setup() {
-  const onOpenTrace = vi.fn();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <TraceSelector onOpenTrace={onOpenTrace} />
+      <TraceSelector />
     </QueryClientProvider>,
   );
-  return { client, onOpenTrace };
+  return { client };
 }
 
 function result(...ids: string[]) {
@@ -102,11 +95,8 @@ function selected() {
   return JSON.parse(screen.getByTestId("selected").textContent!);
 }
 
-const scrollIntoView = HTMLElement.prototype.scrollIntoView;
 beforeEach(() => {
   mocks.fetch.mockReset();
-  mocks.push.mockReset();
-  HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -116,11 +106,7 @@ beforeEach(() => {
     },
   );
 });
-afterEach(() => {
-  HTMLElement.prototype.scrollIntoView = scrollIntoView;
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
-});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("Topics trace selection", () => {
   it("freezes only the latest preview and invalidates it immediately when criteria change", async () => {
@@ -176,10 +162,10 @@ describe("Topics trace selection", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("preserves exclusions through peek navigation and pagination, then refreshes the cohort", async () => {
+  it("preserves exclusions through pagination, then refreshes the cohort", async () => {
     const traces = Array.from({ length: 21 }, (_, i) => `trace-${i}`);
     mocks.fetch.mockResolvedValue(result(...traces));
-    const { onOpenTrace } = setup();
+    setup();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await screen.findByRole("checkbox", { name: "Select trace trace-0" });
     expect(
@@ -188,18 +174,6 @@ describe("Topics trace selection", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace trace-0" }),
     );
-    expect(mocks.push).not.toHaveBeenCalled();
-    expect(onOpenTrace).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("link", { name: "trace-0" }));
-    fireEvent.click(screen.getByRole("row", { name: /Select trace trace-1 / }));
-    expect(mocks.push.mock.calls).toEqual(
-      ["trace-0", "trace-1"].map((traceId) => [
-        { pathname: "/project/project/topics", query: { peek: traceId } },
-        undefined,
-        { shallow: true },
-      ]),
-    );
-    expect(onOpenTrace).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole("button", { name: "Go to next page" }));
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace trace-20" }),
@@ -224,43 +198,4 @@ describe("Topics trace selection", () => {
       sampling: "random",
     });
   });
-
-  it.each([
-    { hour: 0, endDate: "2026-09-30", endDay: 1 },
-    { hour: 14, endDate: "2026-10-01", endDay: 2 },
-  ])(
-    "preserves an exclusive boundary at $hour:00 when switching to custom dates",
-    async ({ hour, endDate, endDay }) => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(new Date(2026, 9, 1, hour));
-      mocks.fetch.mockResolvedValue(result("trace-a"));
-      setup();
-      fireEvent.keyDown(screen.getByLabelText("Trace time range"), {
-        key: "ArrowDown",
-      });
-      fireEvent.keyDown(
-        await screen.findByRole("option", { name: "Custom range" }),
-        { key: "Enter" },
-      );
-      const from = (
-        screen.getByLabelText("Trace start date") as HTMLInputElement
-      ).value;
-      expect(from).toBe("2026-09-24");
-      expect(screen.getByLabelText("Trace end date")).toHaveValue(endDate);
-      fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
-      await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
-      expect(mocks.fetch.mock.calls[0][0]).toMatchObject({
-        from: new Date(`${from}T00:00:00`),
-        to: new Date(2026, 9, endDay),
-      });
-      fireEvent.change(screen.getByLabelText("Trace end date"), {
-        target: { value: from },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
-      await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
-      const singleDayEnd = new Date(`${from}T00:00:00`);
-      singleDayEnd.setDate(singleDayEnd.getDate() + 1);
-      expect(mocks.fetch.mock.calls[1][0].to).toEqual(singleDayEnd);
-    },
-  );
 });

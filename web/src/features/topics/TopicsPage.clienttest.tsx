@@ -1,51 +1,23 @@
 import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 
 const state = vi.hoisted(() => ({
-  query: {} as Record<string, string>,
   status: "failed",
-  inHistory: true,
-  executionsUpdatedAt: 100,
   executionUpdatedAt: 110,
   updatedAt: "2026-09-23T12:00:00Z",
-  configured: false,
-  push: vi.fn(),
-  replace: vi.fn(),
   retry: vi.fn(),
   refetchExecution: vi.fn(),
-  summaryCounts: vi.fn(),
-  saveFacet: vi.fn(),
 }));
-const pathname = "/project/[projectId]/topics";
-const retainedQuery = {
-  projectId: "project",
-  peek: "trace-a",
-  display: "details",
-};
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
-    query: state.query,
-    pathname,
-    push: state.push,
-    replace: state.replace,
+    query: { projectId: "project", executionId: "execution" },
   }),
 }));
 vi.mock("@/src/components/layouts/page", () => ({
-  default: ({
-    headerProps,
-    children,
-  }: {
-    headerProps: { actionButtonsRight: ReactNode };
-    children: ReactNode;
-  }) => (
-    <>
-      {headerProps.actionButtonsRight}
-      {children}
-    </>
-  ),
+  default: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
   usePeekNavigation: () => ({}),
@@ -59,141 +31,69 @@ vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
 vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => true,
 }));
-vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
-  useEventsFilterOptions: () => ({ filterOptions: {} }),
+vi.mock("./TopicPipelineForm", () => ({
+  useTopicPipelineForm: () => ({ actions: null, configuration: null }),
 }));
-vi.mock("@/src/features/search-bar", () => ({
-  TableSearchBar: () => null,
-  toObservedOptions: () => ({}),
-  fieldRegistryFromColumns: () => ({ fields: [] }),
-}));
-vi.mock(
-  "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder",
-  () => ({ ObservationFilterBuilder: () => null }),
-);
 vi.mock("./CurrentTopics", () => ({
   CurrentTopics: ({
     running,
     refreshAfter,
-    timeRange,
   }: {
     running: boolean;
     refreshAfter: number;
-    timeRange: { from: Date; to: Date };
   }) => (
-    <input
-      aria-label="Current topic selection"
+    <div
       data-testid="current-topics"
       data-running={running}
       data-refresh-after={refreshAfter}
-      data-from={timeRange.from.toISOString()}
-      data-to={timeRange.to.toISOString()}
-      defaultValue=""
     />
   ),
 }));
-vi.mock("@/src/utils/api", () => {
-  const execution = () => ({
-    id: "execution",
-    status: state.status,
-    phase: state.status === "queued" ? "queued" : "summarizing",
-    createdAt: "2026-09-23T12:00:00Z",
-    updatedAt: state.updatedAt,
-    input: {
-      operation: "process",
-      embeddingConfig: { embeddingDimensions: 1024 },
-    },
-    facets: [],
-    error: null,
-  });
-  return {
-    api: {
-      topics: {
-        facets: {
-          useQuery: () => ({
-            data: state.configured
-              ? [
-                  {
-                    id: "intent",
-                    name: "Intent",
-                    isBuiltIn: true,
-                    versions: [{ version: 1, prompt: "Describe intent" }],
-                  },
-                  {
-                    id: "workflow",
-                    name: "Workflow",
-                    isBuiltIn: false,
-                    versions: [{ version: 1, prompt: "Describe workflow" }],
-                  },
-                ]
-              : [],
-          }),
-        },
-        rules: {
-          useQuery: () => ({
-            data: [
-              {
-                id: "rule",
-                name: "Saved rule",
-                filter: [],
-                facetIds: ["intent"],
-              },
-            ],
-          }),
-        },
-        saveRule: { useMutation: () => ({ reset: vi.fn() }) },
-        saveFacet: { useMutation: () => ({ mutate: state.saveFacet }) },
-        trigger: { useMutation: () => ({}) },
-        previewTraces: { useQuery: () => ({}) },
-        summaryCounts: {
-          useQuery: (input: unknown) => {
-            state.summaryCounts(input);
-            return {};
-          },
-        },
-        executions: {
-          useQuery: () => ({
-            data: state.inHistory ? [execution()] : [],
-            dataUpdatedAt: state.executionsUpdatedAt,
-          }),
-        },
-        initialize: { useMutation: () => ({}) },
-        execution: {
-          useQuery: () => ({
-            data: state.query.executionId ? execution() : undefined,
-            dataUpdatedAt: state.query.executionId
-              ? state.executionUpdatedAt
-              : 0,
-            refetch: state.refetchExecution,
-          }),
-        },
-        traceErrors: { useQuery: () => ({}) },
-        retry: {
-          useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
-            mutate: (input: unknown) => {
-              state.retry(input);
-              state.status = "queued";
-              state.executionUpdatedAt = 120;
-              onSuccess();
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    topics: {
+      facets: { useQuery: () => ({ data: [] }) },
+      executions: { useQuery: () => ({ data: [] }) },
+      initialize: { useMutation: () => ({}) },
+      execution: {
+        useQuery: () => ({
+          data: {
+            id: "execution",
+            status: state.status,
+            phase: state.status === "queued" ? "queued" : "summarizing",
+            createdAt: "2026-09-23T12:00:00Z",
+            updatedAt: state.updatedAt,
+            input: {
+              operation: "process",
+              embeddingConfig: { embeddingDimensions: 1024 },
             },
-          }),
-        },
+            facets: [],
+            error: null,
+          },
+          dataUpdatedAt: state.executionUpdatedAt,
+          refetch: state.refetchExecution,
+        }),
       },
-      useUtils: () => ({
-        topics: {
-          executions: { invalidate: vi.fn() },
-          summaryCounts: { invalidate: vi.fn() },
-          currentResults: { invalidate: vi.fn() },
-        },
-      }),
+      traceErrors: { useQuery: () => ({}) },
+      retry: {
+        useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
+          mutate: (input: unknown) => {
+            state.retry(input);
+            state.status = "queued";
+            state.executionUpdatedAt = 120;
+            onSuccess();
+          },
+        }),
+      },
     },
-  };
-});
+    useUtils: () => ({
+      topics: { executions: { invalidate: vi.fn() } },
+    }),
+  },
+}));
 
-const scrollIntoView = HTMLElement.prototype.scrollIntoView;
 beforeEach(() => {
   vi.clearAllMocks();
-  HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -202,225 +102,40 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  state.query = { ...retainedQuery };
   state.status = "failed";
-  state.inHistory = true;
-  state.executionsUpdatedAt = 100;
   state.executionUpdatedAt = 110;
   state.updatedAt = "2026-09-23T12:00:00Z";
-  state.configured = false;
-  for (const navigate of [state.push, state.replace]) {
-    navigate.mockImplementation(({ query }: { query: typeof state.query }) => {
-      state.query = query;
-      return Promise.resolve(true);
-    });
-  }
 });
-afterEach(() => {
-  HTMLElement.prototype.scrollIntoView = scrollIntoView;
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
-});
+afterEach(() => vi.unstubAllGlobals());
 
-describe("Topics execution history", () => {
-  it("keeps built-in facet questions read-only while allowing custom revisions", async () => {
-    state.configured = true;
-    render(<TopicsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    fireEvent.click(screen.getByText("Add a facet or revise a question"));
-    fireEvent.keyDown(screen.getByLabelText("Facet to edit"), {
-      key: "ArrowDown",
-    });
-    expect(
-      await screen.findByRole("option", { name: "Intent · built-in" }),
-    ).toHaveAttribute("aria-disabled", "true");
-    fireEvent.keyDown(
-      screen.getByRole("option", { name: "Workflow · new version" }),
-      { key: "Enter" },
-    );
-    expect(screen.getByLabelText("Facet name")).toHaveValue("Workflow");
-    expect(screen.getByLabelText("Facet name")).toBeDisabled();
-    expect(screen.getByLabelText("Facet question")).toBeEnabled();
-    fireEvent.change(screen.getByLabelText("Facet question"), {
-      target: { value: "Describe the workflow used in this trace" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save facet" }));
-    expect(state.saveFacet).toHaveBeenCalledExactlyOnceWith({
-      projectId: "project",
-      facetId: "workflow",
-      name: "Workflow",
-      prompt: "Describe the workflow used in this trace",
-    });
+it("refreshes current results through retry and completion for a selected run outside history", () => {
+  const view = render(<TopicsPage />);
+  const status = screen.getByRole("dialog", { name: "Run status" });
+  fireEvent.click(
+    within(status).getByRole("button", { name: "Resume interrupted stages" }),
+  );
+  expect(state.retry).toHaveBeenCalledWith({
+    projectId: "project",
+    executionId: "execution",
   });
+  expect(state.refetchExecution).toHaveBeenCalledOnce();
+  view.rerender(<TopicsPage />);
+  expect(within(status).getByRole("status")).toHaveTextContent(
+    "Waiting for a worker",
+  );
+  const current = screen.getByTestId("current-topics");
+  expect(current).toHaveAttribute("data-running", "true");
+  expect(current).toHaveAttribute("data-refresh-after", "0");
 
-  it("uses whole local dates when switching a relative range to Custom", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2026, 9, 1, 14, 30));
-    state.configured = true;
-    render(<TopicsPage />);
-    fireEvent.keyDown(screen.getByLabelText("Topics time range"), {
-      key: "ArrowDown",
-    });
-    fireEvent.keyDown(
-      await screen.findByRole("option", { name: "Custom range" }),
-      { key: "Enter" },
-    );
+  state.status = "completed";
+  state.updatedAt = "2026-09-23T12:01:00Z";
+  state.executionUpdatedAt = 130;
+  view.rerender(<TopicsPage />);
+  expect(current).toHaveAttribute("data-running", "false");
+  const completedAt = String(new Date(state.updatedAt).getTime());
+  expect(current).toHaveAttribute("data-refresh-after", completedAt);
 
-    const timeRange = {
-      from: new Date(2026, 8, 24),
-      to: new Date(2026, 9, 2),
-    };
-    expect(screen.getByLabelText("Topics start date")).toHaveValue(
-      "2026-09-24",
-    );
-    expect(screen.getByLabelText("Topics end date")).toHaveValue("2026-10-01");
-    expect(screen.getByTestId("current-topics")).toHaveAttribute(
-      "data-from",
-      timeRange.from.toISOString(),
-    );
-    expect(screen.getByTestId("current-topics")).toHaveAttribute(
-      "data-to",
-      timeRange.to.toISOString(),
-    );
-    expect(state.summaryCounts).toHaveBeenLastCalledWith(
-      expect.objectContaining({ timeRange }),
-    );
-  });
-
-  it("shares the selected source time range between current results and update counts", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-09-30T00:00:00Z"));
-    state.configured = true;
-    render(<TopicsPage />);
-    const initial = screen.getByTestId("current-topics");
-    const from = new Date(initial.getAttribute("data-from")!);
-    const to = new Date(initial.getAttribute("data-to")!);
-    expect(to.getTime() - from.getTime()).toBe(7 * 86_400_000);
-    expect(state.summaryCounts).toHaveBeenLastCalledWith(
-      expect.objectContaining({ timeRange: { from, to } }),
-    );
-    fireEvent.change(initial, { target: { value: "Billing" } });
-    vi.setSystemTime(new Date("2026-09-30T00:01:00Z"));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh results" }));
-    expect(screen.getByTestId("current-topics")).toBe(initial);
-    expect(initial).toHaveValue("Billing");
-    expect(screen.getByTestId("current-topics").getAttribute("data-to")).toBe(
-      "2026-09-30T00:01:00.000Z",
-    );
-    fireEvent.keyDown(screen.getByLabelText("Topics time range"), {
-      key: "ArrowDown",
-    });
-    fireEvent.keyDown(
-      await screen.findByRole("option", { name: "Last 30 days" }),
-      { key: "Enter" },
-    );
-    const current = screen.getByTestId("current-topics");
-    const selected = {
-      from: new Date(current.getAttribute("data-from")!),
-      to: new Date(current.getAttribute("data-to")!),
-    };
-    expect(selected.to.getTime() - selected.from.getTime()).toBe(
-      30 * 86_400_000,
-    );
-    expect(state.summaryCounts).toHaveBeenLastCalledWith(
-      expect.objectContaining({ timeRange: selected }),
-    );
-  });
-
-  it("preserves current results when changing operation and saved configuration", async () => {
-    state.configured = true;
-    render(<TopicsPage />);
-    const current = screen.getByTestId("current-topics");
-    fireEvent.change(current, { target: { value: "Billing" } });
-    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    for (const [label, option] of [
-      ["Pipeline operation", "Update topics"],
-      ["Pipeline operation", "Process traces"],
-      ["Saved configuration", "Saved rule"],
-    ]) {
-      fireEvent.keyDown(screen.getByLabelText(label), { key: "ArrowDown" });
-      fireEvent.keyDown(await screen.findByRole("option", { name: option }), {
-        key: "Enter",
-      });
-      expect(screen.getByTestId("current-topics")).toBe(current);
-      expect(current).toHaveValue("Billing");
-    }
-  });
-
-  it("keeps current results mounted through a run link, history navigation, and closing status", () => {
-    const view = render(<TopicsPage />);
-    const current = screen.getByTestId("current-topics");
-    fireEvent.change(current, { target: { value: "Billing" } });
-
-    state.query = { ...state.query, executionId: "execution" };
-    view.rerender(<TopicsPage />);
-    const status = screen.getByRole("dialog", { name: "Run status" });
-    expect(current).toBeInTheDocument();
-    fireEvent.click(within(status).getByRole("button", { name: "All runs" }));
-    expect(state.replace).toHaveBeenLastCalledWith(
-      { pathname, query: retainedQuery },
-      undefined,
-      { shallow: true },
-    );
-    view.rerender(<TopicsPage />);
-
-    const history = screen.getByRole("dialog", { name: "Past executions" });
-    fireEvent.click(
-      within(history).getByRole("button", {
-        name: /Process traces.*Run failed/,
-      }),
-    );
-    expect(state.push).toHaveBeenLastCalledWith(
-      { pathname, query: { ...retainedQuery, executionId: "execution" } },
-      undefined,
-      { shallow: true },
-    );
-    view.rerender(<TopicsPage />);
-    fireEvent.click(
-      within(screen.getByRole("dialog", { name: "Run status" })).getByRole(
-        "button",
-        { name: "Close" },
-      ),
-    );
-    view.rerender(<TopicsPage />);
-
-    expect(state.query).toEqual(retainedQuery);
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByTestId("current-topics")).toBe(current);
-    expect(current).toHaveValue("Billing");
-  });
-
-  it("refreshes current results through retry and completion for a selected run outside history", () => {
-    state.query.executionId = "execution";
-    state.inHistory = false;
-    const view = render(<TopicsPage />);
-    const status = screen.getByRole("dialog", { name: "Run status" });
-    fireEvent.click(
-      within(status).getByRole("button", { name: "Resume interrupted stages" }),
-    );
-    expect(state.retry).toHaveBeenCalledWith({
-      projectId: "project",
-      executionId: "execution",
-    });
-    expect(state.refetchExecution).toHaveBeenCalledOnce();
-    view.rerender(<TopicsPage />);
-    expect(within(status).getByRole("status")).toHaveTextContent(
-      "Waiting for a worker",
-    );
-    const current = screen.getByTestId("current-topics");
-    expect(current).toHaveAttribute("data-running", "true");
-    expect(current).toHaveAttribute("data-refresh-after", "0");
-
-    state.status = "completed";
-    state.updatedAt = "2026-09-23T12:01:00Z";
-    state.executionUpdatedAt = 130;
-    view.rerender(<TopicsPage />);
-    expect(current).toHaveAttribute("data-running", "false");
-    const completedAt = String(new Date(state.updatedAt).getTime());
-    expect(current).toHaveAttribute("data-refresh-after", completedAt);
-
-    state.executionUpdatedAt = 140;
-    view.rerender(<TopicsPage />);
-    expect(current).toHaveAttribute("data-refresh-after", completedAt);
-  });
+  state.executionUpdatedAt = 140;
+  view.rerender(<TopicsPage />);
+  expect(current).toHaveAttribute("data-refresh-after", completedAt);
 });

@@ -14,6 +14,7 @@ project permissions. Processing additionally requires the project allowlist.
   history. Once idle, a status response selects a fresh results query so an older
   in-flight poll cannot satisfy completion. The query retains the tRPC prefix
   for mutation and manual invalidation.
+  The polling/completion race is covered directly by a frontend hook test.
   Configure topics opens a centered dialog; Process traces or Update topics
   submits the retained configuration. Overlay owners stay outside the responsive
   header menu. Facet versions contain only prompts; processing settings and
@@ -65,7 +66,10 @@ project permissions. Processing additionally requires the project allowlist.
   open. It uses the same deterministic transcript loader as the worker, does
   not run inference, and explains when the source is unavailable or may differ
   from the original input. Transcript content is marked `ph-no-capture`.
-- `TopicEmbeddingMap.tsx` loads the published map by run ID and renders its saved 2D UMAP
+- `TopicEmbeddingMap.tsx` loads the published map by run ID and supplies trace
+  navigation to the isolated `EmbeddingMapView.tsx`, whose states are shown
+  in Storybook. A pure geometry unit test protects distance ratios.
+  The view renders its saved 2D UMAP
   coordinates. Clicking a point pins its summary until another selection; only
   split view synchronizes selection and pagination with the trace list. Trace IDs
   in the map summary open the shared trace peek. The summary area collapses when

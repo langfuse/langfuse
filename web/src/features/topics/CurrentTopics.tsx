@@ -18,7 +18,8 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Toggle } from "@/src/components/design-system/Toggle/Toggle";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import { TopicEmbeddingMap, topicColor } from "./TopicEmbeddingMap";
+import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
+import { topicColor } from "./topic-map-colors";
 import { SummaryInspector } from "./SummaryInspector";
 
 type Facet = RouterOutputs["topics"]["currentResults"][number];
@@ -35,21 +36,11 @@ export function CurrentTopics({
   timeRange: TopicTimeRange;
 }) {
   const [selectedFacetId, setSelectedFacetId] = useState<string>();
-  const { client } = api.useUtils();
-  const result = useQuery({
-    queryKey: [
-      ...getQueryKey(
-        api.topics.currentResults,
-        { projectId, timeRange },
-        "query",
-      ),
-      // A completed status needs a new request, even if an older poll is in flight.
-      running ? 0 : refreshAfter,
-    ],
-    queryFn: ({ signal }) =>
-      client.topics.currentResults.query({ projectId, timeRange }, { signal }),
-    placeholderData: keepPreviousData,
-    refetchInterval: running ? 3000 : false,
+  const result = useCurrentTopics({
+    projectId,
+    running,
+    refreshAfter,
+    timeRange,
   });
   const selectedFacet = result.data?.some(
     (facet) => facet.facetId === selectedFacetId,
@@ -454,3 +445,34 @@ function CurrentTraceTable({
     </DialogController>
   );
 }
+
+function useCurrentTopics({
+  projectId,
+  running,
+  refreshAfter,
+  timeRange,
+}: {
+  projectId: string;
+  running: boolean;
+  refreshAfter: number;
+  timeRange: TopicTimeRange;
+}) {
+  const { client } = api.useUtils();
+  return useQuery({
+    queryKey: [
+      ...getQueryKey(
+        api.topics.currentResults,
+        { projectId, timeRange },
+        "query",
+      ),
+      // A completed status needs a new request, even if an older poll is in flight.
+      running ? 0 : refreshAfter,
+    ],
+    queryFn: ({ signal }) =>
+      client.topics.currentResults.query({ projectId, timeRange }, { signal }),
+    placeholderData: keepPreviousData,
+    refetchInterval: running ? 3000 : false,
+  });
+}
+
+export const __test = { useCurrentTopics };
