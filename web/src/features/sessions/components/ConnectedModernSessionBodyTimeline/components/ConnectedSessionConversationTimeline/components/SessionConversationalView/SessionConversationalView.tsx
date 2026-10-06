@@ -43,10 +43,7 @@ export function SessionConversationalView(
     }
     const updateHighlights = () => {
       const ranges: Range[] = [];
-      const query = new RegExp(
-        searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        "gi",
-      );
+      const query = searchQuery.toLowerCase();
       const walker = document.createTreeWalker(
         container,
         NodeFilter.SHOW_TEXT,
@@ -60,11 +57,32 @@ export function SessionConversationalView(
       );
       while (walker.nextNode()) {
         const node = walker.currentNode;
-        for (const match of (node.textContent ?? "").matchAll(query)) {
+        const text = node.textContent ?? "";
+        const normalizedText = text.toLowerCase();
+        // Case folding can expand characters; ranges use original UTF-16 offsets.
+        const offsets: number[] = [];
+        if (normalizedText.length !== text.length) {
+          let offset = 0;
+          for (const character of text) {
+            for (const normalizedCharacter of character.toLowerCase()) {
+              offsets.push(offset);
+              if (normalizedCharacter.length === 2) offsets.push(offset + 1);
+            }
+            offset += character.length;
+          }
+        }
+        let index = normalizedText.indexOf(query);
+        while (index !== -1) {
           const range = document.createRange();
-          range.setStart(node, match.index);
-          range.setEnd(node, match.index + match[0].length);
+          range.setStart(node, offsets[index] ?? index);
+          range.setEnd(
+            node,
+            offsets.length
+              ? offsets[index + query.length - 1]! + 1
+              : index + query.length,
+          );
           ranges.push(range);
+          index = normalizedText.indexOf(query, index + query.length);
         }
       }
       CSS.highlights.set(highlightName, new Highlight(...ranges));
