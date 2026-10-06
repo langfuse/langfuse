@@ -808,6 +808,7 @@ impl<'a> Extractor<'a> {
         let field = |name: &str| fields.iter().rev().find(|field| field.key == name);
         let string = |name: &str| -> Result<Option<String>, EarlyMediaError> {
             field(name)
+                .filter(|field| self.input.get(field.value_start) == Some(&b'"'))
                 .map(|field| self.string_value(field.value_start).map(Cow::into_owned))
                 .transpose()
         };
