@@ -15,6 +15,8 @@
 
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
+- Automation action dispatch: `src/queues/automationExecutionQueue.ts` and
+  `src/features/automations/executeAutomationAction.ts`
 - Feature processors: `src/features/*`
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this

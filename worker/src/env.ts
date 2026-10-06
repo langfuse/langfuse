@@ -415,6 +415,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_AUTOMATION_EXECUTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -735,6 +738,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_AUTOMATION_EXECUTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_MONITOR_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()

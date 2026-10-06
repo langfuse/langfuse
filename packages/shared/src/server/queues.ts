@@ -318,6 +318,31 @@ export const WebhookInputSchema = z.object({
 });
 
 export type WebhookInput = z.infer<typeof WebhookInputSchema>;
+const ScoreAutomationExecutionInputSchema = z.object({
+  type: z.literal("score"),
+  action: EventActionSchema.extract(["created", "updated"]),
+  score: z.object({
+    id: z.string(),
+    name: z.string(),
+    dataType: z.string(),
+    value: z.number(),
+    stringValue: z.string().nullable(),
+    longStringValue: z.string().nullable(),
+    observationId: z.string(),
+  }),
+});
+export const AutomationExecutionQueueEventSchema = z.object({
+  projectId: z.string(),
+  automationId: z.string(),
+  triggerId: z.string(),
+  actionId: z.string(),
+  sourceId: z.string(),
+  input: ScoreAutomationExecutionInputSchema,
+});
+export type AutomationExecutionQueueEventType = z.infer<
+  typeof AutomationExecutionQueueEventSchema
+>;
+
 export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   z.object({
     entityType: z.literal("prompt-version"),
@@ -439,6 +464,7 @@ export enum QueueName {
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
+  AutomationExecutionQueue = "automation-execution-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
   MonitorQueue = "monitor-queue",
@@ -479,6 +505,7 @@ export enum QueueJobs {
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
+  AutomationExecutionJob = "automation-execution-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
   MonitorJob = "monitor-job",
@@ -672,6 +699,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
+  };
+  [QueueName.AutomationExecutionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: AutomationExecutionQueueEventType;
+    name: QueueJobs.AutomationExecutionJob;
   };
   [QueueName.CloudSpendAlertQueue]: {
     timestamp: Date;

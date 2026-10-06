@@ -85,6 +85,7 @@ import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
+import { automationExecutionQueueProcessor } from "./queues/automationExecutionQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessorBuilder } from "./queues/otelIngestionQueue";
@@ -698,6 +699,17 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
     entityChangeQueueProcessor,
     {
       concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_AUTOMATION_EXECUTION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.AutomationExecutionQueue,
+    automationExecutionQueueProcessor,
+    {
+      concurrency:
+        env.LANGFUSE_AUTOMATION_EXECUTION_QUEUE_PROCESSING_CONCURRENCY,
     },
   );
 }

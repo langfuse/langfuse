@@ -1,25 +1,22 @@
+import { JobConfigState, TriggerEventSource } from "@langfuse/shared";
 import {
-  ActionExecutionStatus,
-  JobConfigState,
-  TriggerEventSource,
-} from "@langfuse/shared";
-import {
-  getActionById,
+  AutomationExecutionQueue,
   getTriggerConfigurations,
   logger,
   matchesTriggerFilter,
+  QueueJobs,
+  QueueName,
   type EntityChangeEventType,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
-import { v5 } from "uuid";
-import { processAddObservationsToQueue } from "../batchAction/processAddToQueue";
+import { v4, v5 } from "uuid";
 
 type ScoreChangeEvent = Extract<EntityChangeEventType, { entityType: "score" }>;
 
 export const scoreProcessor = async (
   event: ScoreChangeEvent,
 ): Promise<void> => {
-  if (!event.score.observationId) {
+  const observationId = event.score.observationId;
+  if (!observationId) {
     return;
   }
 
@@ -59,92 +56,44 @@ export const scoreProcessor = async (
       continue;
     }
 
-    const executionId = v5(`${automation.id}:${event.eventId}`, v5.URL);
+    const jobId = v5(`${automation.id}:${event.eventId}`, v5.URL);
 
     try {
-      const existingExecution = await prisma.automationExecution.findUnique({
-        where: { id: executionId },
-        select: { status: true },
-      });
-      if (existingExecution?.status === ActionExecutionStatus.COMPLETED) {
-        continue;
+      const queue = AutomationExecutionQueue.getInstance();
+      if (!queue) {
+        throw new Error("Automation execution queue is not available");
       }
 
-      const action = await getActionById({
-        projectId: event.projectId,
-        actionId,
-      });
-      if (!action || action.config.type !== "ANNOTATION_QUEUE") {
-        throw new Error(
-          `Score automation ${automation.id} does not have an annotation queue action`,
-        );
-      }
-
-      await prisma.automationExecution.upsert({
-        where: { id: executionId },
-        create: {
-          id: executionId,
-          projectId: event.projectId,
-          automationId: automation.id,
-          triggerId: trigger.id,
-          actionId,
-          status: ActionExecutionStatus.PENDING,
-          sourceId: event.eventId,
-          input: {
-            type: "score",
-            action: event.action,
-            score: {
-              ...event.score,
-              stringValue: event.score.stringValue ?? null,
-              longStringValue: event.score.longStringValue ?? null,
-              observationId: event.score.observationId,
+      await queue.add(
+        QueueName.AutomationExecutionQueue,
+        {
+          timestamp: new Date(),
+          id: v4(),
+          name: QueueJobs.AutomationExecutionJob,
+          payload: {
+            projectId: event.projectId,
+            automationId: automation.id,
+            triggerId: trigger.id,
+            actionId,
+            sourceId: event.eventId,
+            input: {
+              type: "score",
+              action: event.action,
+              score: {
+                ...event.score,
+                stringValue: event.score.stringValue ?? null,
+                longStringValue: event.score.longStringValue ?? null,
+                observationId,
+              },
             },
           },
-          startedAt: new Date(),
         },
-        update: {
-          status: ActionExecutionStatus.PENDING,
-          error: null,
-          finishedAt: null,
-          startedAt: new Date(),
-        },
-      });
-
-      await Promise.all(
-        action.config.queueIds.map((queueId) =>
-          processAddObservationsToQueue(
-            event.projectId,
-            [event.score.observationId!],
-            queueId,
-          ),
-        ),
+        { jobId },
       );
-
-      await prisma.automationExecution.update({
-        where: { id: executionId },
-        data: {
-          status: ActionExecutionStatus.COMPLETED,
-          output: {
-            queueIds: action.config.queueIds,
-            observationId: event.score.observationId,
-          },
-          finishedAt: new Date(),
-        },
-      });
     } catch (error) {
       failures.push(error);
-      await prisma.automationExecution
-        .update({
-          where: { id: executionId },
-          data: {
-            status: ActionExecutionStatus.ERROR,
-            error: error instanceof Error ? error.message : String(error),
-            finishedAt: new Date(),
-          },
-        })
-        .catch(() => undefined);
       logger.error(
-        `Failed to process score trigger ${trigger.id} for score ${event.score.id}`,
+        `Failed to queue score trigger ${trigger.id} for score ${event.score.id}`,
         error,
       );
     }

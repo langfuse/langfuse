@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { v4 } from "uuid";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { v4, v5 } from "uuid";
 import {
-  ActionExecutionStatus,
   JobConfigState,
   TriggerEventSource,
   type FilterState,
 } from "@langfuse/shared";
 import {
+  AutomationExecutionQueue,
   createOrgProjectAndApiKey,
+  QueueName,
   type EntityChangeEventType,
 } from "@langfuse/shared/src/server";
 import { ActionType, prisma } from "@langfuse/shared/src/db";
@@ -15,13 +16,22 @@ import { scoreProcessor } from "../features/entityChange/scoreProcessor";
 
 describe("scoreProcessor", () => {
   let projectId: string;
+  const add = vi.fn();
 
   beforeEach(async () => {
+    vi.spyOn(AutomationExecutionQueue, "getInstance").mockReturnValue({
+      add,
+    } as never);
     const result = await createOrgProjectAndApiKey();
     projectId = result.projectId;
   });
 
-  it("adds a matching observation to every queue exactly once", async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    add.mockReset();
+  });
+
+  it("queues matching score automations without executing them inline", async () => {
     const queues = await Promise.all(
       ["Review", "Escalation"].map((name) =>
         prisma.annotationQueue.create({ data: { projectId, name } }),
@@ -92,12 +102,26 @@ describe("scoreProcessor", () => {
         where: { projectId, automationId: automation.id },
       }),
     ]);
-    expect(items).toHaveLength(2);
-    expect(new Set(items.map((item) => item.queueId))).toEqual(
-      new Set(queues.map((queue) => queue.id)),
+    expect(items).toHaveLength(0);
+    expect(executions).toHaveLength(0);
+
+    const jobId = v5(`${automation.id}:${event.eventId}`, v5.URL);
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(add).toHaveBeenNthCalledWith(
+      1,
+      QueueName.AutomationExecutionQueue,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          projectId,
+          automationId: automation.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          sourceId: event.eventId,
+        }),
+      }),
+      { jobId },
     );
-    expect(executions).toHaveLength(1);
-    expect(executions[0].status).toBe(ActionExecutionStatus.COMPLETED);
+    expect(add.mock.calls[1][2]).toEqual({ jobId });
   });
 
   it("ignores non-matching and non-observation scores", async () => {
