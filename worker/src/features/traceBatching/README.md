@@ -96,7 +96,9 @@ Both strategies close a job before its summed estimates would exceed
 `LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES`, in addition to the trace cap.
 Locality treats an over-budget slice like one past its time envelope, and
 partials coalesce only within the budget. A single trace always forms a job, so
-a trace heavier than the budget runs alone. Unknown estimates weigh nothing.
+a trace heavier than the budget runs alone. Locality packs traces above half of
+either budget in a separate lane, so one heavy trace does not split the light
+traces around it into extra jobs. Unknown estimates weigh nothing.
 Budget-limited jobs report `fill:partial`; the `scope:batch` estimate
 distributions show how close jobs run to the budget.
 

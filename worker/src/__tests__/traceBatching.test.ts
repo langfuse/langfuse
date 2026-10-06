@@ -469,6 +469,39 @@ describe("trace batch selection", () => {
       },
     );
 
+    it("packs light locality neighbors of a heavy trace into full batches", () => {
+      const at = (
+        traceId: string,
+        start: number,
+        eventUpdateCount: number,
+      ): PendingTrace => ({
+        ...pendingTrace("project", traceId, 1, start, start),
+        estimates: {
+          eventUpdateCount,
+          serializedEventBytes: eventUpdateCount * 1_000,
+        },
+      });
+      // Locality order: two light traces, the heavy trace, six light traces.
+      const candidates = [
+        at("light-0", 0, 1),
+        at("light-1", 0, 1),
+        at("heavy", minute, 9),
+        ...Array.from({ length: 6 }, (_, index) =>
+          at(`light-${index + 2}`, 2 * minute, 1),
+        ),
+      ];
+
+      const batches = selectTraceBatches(candidates, 4, "locality", limits);
+
+      expect(batches.flat()).toHaveLength(candidates.length);
+      expect(batches).toHaveLength(3);
+      expect(
+        batches.find((batch) =>
+          batch.some(({ trace }) => trace.traceId === "heavy"),
+        ),
+      ).toHaveLength(1);
+    });
+
     it("does not coalesce locality partials past the weight budget", () => {
       const result = prepareLocalityPartials(
         [[weighted("a", 6)], [weighted("b", 6)], [weighted("c", 4)]],
@@ -822,7 +855,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       "Trace batch excluded oversized trace",
       expect.anything(),
     );
-    expect(recordIncrement).toHaveBeenCalledWith(
+    expect(recordIncrement).not.toHaveBeenCalledWith(
       "langfuse.trace_batch.reactivated_traces",
       1,
     );

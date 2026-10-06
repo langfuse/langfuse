@@ -80,6 +80,11 @@ const isWithinWeightLimits = (
     limits,
   );
 
+// A heavy trace uses more than half of a batch budget.
+const isHeavyTrace = (entry: PendingTrace, limits: TraceBatchWeightLimits) =>
+  getEventUpdates(entry) * 2 > limits.maxEventUpdates ||
+  getSerializedEventBytes(entry) * 2 > limits.maxSerializedEventBytes;
+
 type TraceExclusionReason = "event_updates" | "serialized_bytes";
 
 const getTraceExclusionReason = (
@@ -369,7 +374,8 @@ const selectLocalityBatches = (
  * that minimum job count, dynamic programming first avoids crossing projects,
  * then minimizes minute × trace-hash cells, then splits the largest hash gaps.
  * Both strategies also close a multi-trace batch before its estimated event
- * updates or serialized bytes would exceed `weightLimits`.
+ * updates or serialized bytes would exceed `weightLimits`. Locality packs
+ * traces above half of either budget in a separate lane.
  *
  * Selection uses O(n × k × maxBatchSize) time and
  * O(n × min(n, maxBatchSize) + n × k) memory, where k is the fewest feasible
@@ -415,7 +421,19 @@ export function selectTraceBatches(
     return batches;
   }
 
-  return selectLocalityBatches(candidates, maxBatchSize, weightLimits);
+  // Two heavy traces cannot share a batch on the dimension that makes them
+  // heavy, so packing them separately keeps them from fragmenting the light
+  // traces around them in locality order.
+  const light: PendingTrace[] = [];
+  const heavy: PendingTrace[] = [];
+  for (const candidate of candidates) {
+    if (isHeavyTrace(candidate, weightLimits)) heavy.push(candidate);
+    else light.push(candidate);
+  }
+  return [
+    ...selectLocalityBatches(light, maxBatchSize, weightLimits),
+    ...selectLocalityBatches(heavy, maxBatchSize, weightLimits),
+  ];
 }
 
 const compareBatchesByOldestDue = (
@@ -912,8 +930,8 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
 
     const acknowledge = async (
       batch: readonly PendingTrace[],
-    ): Promise<boolean[]> => {
-      const removed = (
+    ): Promise<boolean[]> =>
+      (
         (await redis!.eval(
           ACKNOWLEDGE_SCRIPT,
           2,
@@ -922,12 +940,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           ...batch.flatMap(({ member, trace }) => [member, trace.revision]),
         )) as number[]
       ).map((flag) => Number(flag) === 1);
-      recordIncrement(
-        "langfuse.trace_batch.reactivated_traces",
-        removed.filter((wasRemoved) => !wasRemoved).length,
-      );
-      return removed;
-    };
 
     // Excluded traces leave Redis like dispatched ones; activity after this
     // run's snapshot starts a fresh pending window that is evaluated again.
@@ -1050,7 +1062,11 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           strategy,
         });
       }
-      await acknowledge(batch);
+      const removed = await acknowledge(batch);
+      recordIncrement(
+        "langfuse.trace_batch.reactivated_traces",
+        removed.filter((wasRemoved) => !wasRemoved).length,
+      );
     };
 
     let projectBatchTail: PendingTrace[] = [];
