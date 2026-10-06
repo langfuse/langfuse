@@ -141,10 +141,12 @@ export function SessionConversationSidebar(
   }
 
   const searchQuery = props.search.trim();
-  let emptyLabel = "No turns";
-  if (props.isLoadingTranscripts) emptyLabel = "Loading transcripts...";
-  else if (props.transcriptLoadError) emptyLabel = "Failed to load transcripts";
-  else if (props.search) emptyLabel = "No matching turns";
+  const emptyLabel = (() => {
+    if (props.isLoadingTranscripts) return "Loading transcripts...";
+    if (props.transcriptLoadError) return "Failed to load transcripts";
+    if (props.search) return "No matching turns";
+    return "No turns";
+  })();
 
   return (
     <div

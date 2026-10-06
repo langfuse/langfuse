@@ -74,26 +74,22 @@ export function ConnectedModernSessionBodyTimeline({
   );
   const activeChunkIndices = new Set<number>();
   {
-    let highestChunkIndex = searchQuery
-      ? Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1
-      : Math.min(
-          loadedThroughChunkIndex,
-          Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
-        );
-    for (const traceId of visibleTraceIds) {
-      const traceIndex = traceIndexById.get(traceId);
-      if (traceIndex === undefined) continue;
-      highestChunkIndex = Math.max(
-        highestChunkIndex,
-        Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE),
-      );
-    }
-    for (const item of timelineController.virtualItems) {
-      highestChunkIndex = Math.max(
-        highestChunkIndex,
+    const highestChunkIndex = Math.max(
+      searchQuery
+        ? Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1
+        : Math.min(
+            loadedThroughChunkIndex,
+            Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
+          ),
+      ...visibleTraceIds.flatMap((traceId) => {
+        const traceIndex = traceIndexById.get(traceId);
+        if (traceIndex === undefined) return [];
+        return [Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE)];
+      }),
+      ...timelineController.virtualItems.map((item) =>
         Math.floor(item.index / SIDEBAR_TRACE_CHUNK_SIZE),
-      );
-    }
+      ),
+    );
     for (let chunkIndex = 0; chunkIndex <= highestChunkIndex; chunkIndex++) {
       activeChunkIndices.add(chunkIndex);
     }

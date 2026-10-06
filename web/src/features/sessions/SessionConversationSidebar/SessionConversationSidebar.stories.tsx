@@ -125,8 +125,12 @@ export const DarkMode = meta.story({
   globals: { theme: "dark" },
 });
 export const Loading = meta.story({
+  name: "(Test) Loading",
   args: { state: "loading" },
   play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("complementary"),
+    ).toHaveAttribute("aria-busy", "true");
     await expect(
       within(canvasElement).getByRole("textbox", {
         name: "Search messages and tools",
@@ -136,9 +140,15 @@ export const Loading = meta.story({
 });
 export const Empty = meta.story({ args: { ...loadedArgs, traces: [] } });
 export const Error = meta.story({
+  name: "(Test) Transcript Error",
   args: {
     ...loadedArgs,
     traces: [{ ...loadedArgs.traces[0]!, transcriptRows: null }],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Failed to load transcript"),
+    ).toBeInTheDocument();
   },
 });
 export const SelectMessagesAndTools = meta.story({
@@ -148,6 +158,9 @@ export const SelectMessagesAndTools = meta.story({
     if (args.state !== "loaded")
       throw new globalThis.Error("Expected loaded sidebar");
     const canvas = within(canvasElement);
+    await expect(canvas.queryByText("user")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("assistant")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("tool")).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("heading", { name: "Thread 1" }),
     ).not.toBeInTheDocument();
@@ -164,6 +177,46 @@ export const SelectMessagesAndTools = meta.story({
       })[1]!,
     );
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:4");
+  },
+});
+export const SearchAndCollapse = meta.story({
+  name: "(Test) Searches and Collapses Turns",
+  args: loadedArgs,
+  play: async ({ canvasElement, args }) => {
+    if (args.state !== "loaded")
+      throw new globalThis.Error("Expected loaded sidebar");
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("textbox", {
+      name: "Search messages and tools",
+    });
+    await userEvent.type(input, "Initialize");
+    await expect(args.onSearchChange).toHaveBeenLastCalledWith("Initialize");
+    await expect(
+      canvas.getByRole("button", { name: "Assistant message" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse turn" }),
+    );
+    await expect(args.onToggleTraceExpanded).toHaveBeenCalledWith("turn-1");
+    await expect(
+      canvas.queryByRole("button", { name: "Assistant message" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Expand turn" }));
+    await expect(
+      canvas.getByRole("button", { name: "Assistant message" }),
+    ).toBeInTheDocument();
+    await userEvent.clear(input);
+    await userEvent.type(input, "missing");
+    await expect(canvas.getByText("No matching turns")).toBeInTheDocument();
+  },
+});
+export const LoadingTranscripts = meta.story({
+  name: "(Test) Loading Transcripts",
+  args: { ...loadedArgs, traces: [], isLoadingTranscripts: true },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Loading transcripts..."),
+    ).toBeInTheDocument();
   },
 });
 export const MultipleThreads = meta.story({

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Session } from "next-auth";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -18,7 +19,7 @@ vi.mock("@/src/features/events/server/loadTraceTranscript", () => ({
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  ...(await importOriginal<typeof SharedServer>()),
   getTraceByIdFromEventsTable: vi.fn(async () => ({
     id: "trace-id",
     projectId: "project-id",

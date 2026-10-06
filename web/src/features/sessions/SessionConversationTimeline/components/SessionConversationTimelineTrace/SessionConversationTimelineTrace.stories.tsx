@@ -160,6 +160,7 @@ const weatherState = transcriptState({
   observations: [sourceObservation],
 });
 export const MultipleThreads = meta.story({
+  name: "(Test) Multiple Threads Without History",
   args: {
     ...commonArgs,
     state: {
@@ -168,8 +169,31 @@ export const MultipleThreads = meta.story({
       observations: [sourceObservation],
     },
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByText("I am visiting Berlin."),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByText("Help the user plan their trip."),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByText("Looking up outdoor activities…"),
+    ).toBeInTheDocument();
+    const text = canvasElement.textContent!;
+    await expect(text.indexOf("Let me check.")).toBeGreaterThanOrEqual(0);
+    await expect(text.indexOf("Let me check.")).toBeLessThan(
+      text.indexOf("Looking up outdoor activities…"),
+    );
+    await expect(
+      Array.from(
+        canvasElement.querySelectorAll("[data-session-transcript-row-id]"),
+      ).map((row) => row.getAttribute("data-session-transcript-row-id")),
+    ).toEqual(["0:0", "0:1", "0:2", "0:3", "1:0"]);
+  },
 });
 export const Cutoff = meta.story({
+  name: "(Test) Cutoff Warning Tooltip",
   args: {
     ...commonArgs,
     state: {
@@ -177,6 +201,24 @@ export const Cutoff = meta.story({
       result: { ...result, cutoff: true },
       observations: [sourceObservation],
     },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const warning = canvas.getByRole("button", {
+      name: "Transcript may be incomplete",
+    });
+    await expect(warning.parentElement).toBe(
+      canvas.getByRole("button", { name: /trace · trace-1/ }).parentElement,
+    );
+    const document = within(canvasElement.ownerDocument.body);
+    await expect(document.queryByRole("tooltip")).not.toBeInTheDocument();
+    await userEvent.hover(warning);
+    await expect(
+      await document.findByRole("tooltip", {}, { timeout: 2000 }),
+    ).toHaveTextContent(
+      "This transcript may be incomplete because the observation limit was reached.",
+    );
+    await userEvent.unhover(warning);
   },
 });
 export const Loading = meta.story({
@@ -222,9 +264,14 @@ export const OpenObservation = meta.story({
 
 export const ExpandTool = meta.story({
   name: "(Test) Expands Transcript Tool",
-  args: { ...commonArgs, state: weatherState },
-  play: async ({ canvasElement }) => {
+  args: { ...commonArgs, state: weatherState, onOpenObservation: fn() },
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "weather" }));
+    await expect(canvas.getByText("Input")).toBeInTheDocument();
+    await expect(args.onOpenObservation).not.toHaveBeenCalled();
+    await userEvent.click(canvas.getByRole("button", { name: "weather" }));
+    await expect(canvas.queryByText("Input")).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand weather" }),
     );
@@ -233,6 +280,13 @@ export const ExpandTool = meta.story({
     const toolRow = canvas
       .getByRole("button", { name: "Collapse weather" })
       .closest("section")!;
+    await expect(within(toolRow).getByText("1.00s")).toBeInTheDocument();
+    await expect(toolRow.querySelector("time")?.dateTime).toBe(
+      provenance.startTime.toISOString(),
+    );
+    await expect(
+      canvas.getByText(/"temperature": 12/).closest(".ph-no-capture"),
+    ).not.toBeNull();
     await expect(
       within(toolRow).getByRole("button", { name: "Open observation" }),
     ).toBeVisible();
@@ -537,8 +591,11 @@ export const CodingAgentSubagentTurn = meta.story({
 });
 
 export const SystemPromptHistory = meta.story({
+  name: "(Test) System Prompt Navigation and Hover Metadata",
   args: {
     ...commonArgs,
+    onOpenTrace: fn(),
+    onOpenObservation: fn(),
     state: transcriptState({
       history: [
         {
@@ -561,6 +618,12 @@ export const SystemPromptHistory = meta.story({
       messages: [
         {
           ...provenance,
+          role: "system",
+          source: "input",
+          parts: [{ type: "text", text: "Current system instructions" }],
+        },
+        {
+          ...provenance,
           role: "assistant",
           source: "output",
           parts: [
@@ -569,6 +632,42 @@ export const SystemPromptHistory = meta.story({
         },
       ],
     }),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByText("Inspect representative failures."),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: /trace · trace-1/ }),
+    );
+    await expect(args.onOpenTrace).toHaveBeenCalledTimes(1);
+    const header = canvas.getByRole("button", {
+      name: "System prompt",
+    }).parentElement!;
+    const timestamp = header.querySelector("time")!;
+    const openObservation = within(header).getByRole("button", {
+      name: "Open observation",
+    });
+    await expect(timestamp.dateTime).toBe(provenance.startTime.toISOString());
+    await expect(timestamp).not.toBeVisible();
+    await expect(openObservation).not.toBeVisible();
+    await userEvent.hover(header);
+    await expect(timestamp).toBeVisible();
+    await expect(openObservation).toBeVisible();
+    await userEvent.unhover(header);
+    await expect(openObservation).not.toBeVisible();
+    await userEvent.hover(header);
+    await userEvent.click(openObservation);
+    await expect(args.onOpenObservation).toHaveBeenCalledTimes(1);
+    await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
+    await userEvent.unhover(header);
+    await expect(
+      canvas.queryByRole("button", { name: /^Actions/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Transcript may be incomplete" }),
+    ).not.toBeInTheDocument();
   },
 });
 
@@ -597,6 +696,7 @@ export const ToolFailure = meta.story({
           ...provenance,
           role: "tool",
           source: "output",
+          endTime: null,
           parts: [
             {
               type: "tool-result",
@@ -617,5 +717,17 @@ export const ToolFailure = meta.story({
       canvas.getByRole("button", { name: "Expand get_order" }),
     );
     await expect(canvas.getByText(/TOOL_TIMEOUT/)).toBeInTheDocument();
+    const toolRow = canvas
+      .getByRole("button", { name: "Collapse get_order" })
+      .closest("section")!;
+    await expect(toolRow.querySelector("time")?.dateTime).toBe(
+      provenance.startTime.toISOString(),
+    );
+    await expect(within(toolRow).getByText("1.00s")).toBeInTheDocument();
+    await expect(
+      toolRow.querySelector(
+        `time[datetime="${provenance.endTime.toISOString()}"]`,
+      ),
+    ).toBeNull();
   },
 });
