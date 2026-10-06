@@ -186,12 +186,16 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      const { shouldRunMissingTest, ...estimateInput } = input;
+      let missingCostMode: "probe" | "wait" | "skip" = "skip";
+      if (canRunMissingCostTest) {
+        missingCostMode = shouldRunMissingTest ? "probe" : "wait";
+      }
       return getActivationCostEstimates({
-        ...input,
+        ...estimateInput,
         projectId: ctx.session.projectId,
         orgId: ctx.session.orgId,
-        shouldRunMissingTest:
-          input.shouldRunMissingTest && canRunMissingCostTest,
+        missingCostMode,
         shouldReadFromObservationsTable:
           ctx.session.user.v4BetaEnabled !== true,
       });

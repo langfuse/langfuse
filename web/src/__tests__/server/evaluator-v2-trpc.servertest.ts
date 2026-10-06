@@ -145,12 +145,12 @@ describe("evalsV2 tRPC", () => {
 
     await viewerCaller.evalsV2.activationCostEstimates(input);
     expect(mocks.getActivationCostEstimates).toHaveBeenLastCalledWith(
-      expect.objectContaining({ shouldRunMissingTest: false }),
+      expect.objectContaining({ missingCostMode: "skip" }),
     );
 
     await memberCaller.evalsV2.activationCostEstimates(input);
     expect(mocks.getActivationCostEstimates).toHaveBeenLastCalledWith(
-      expect.objectContaining({ shouldRunMissingTest: true }),
+      expect.objectContaining({ missingCostMode: "probe" }),
     );
   });
 
