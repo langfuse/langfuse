@@ -52,6 +52,73 @@ const transcript = {
 >;
 
 describe("getSessionTranscriptRows", () => {
+  it("hides protected Microsoft reasoning while preserving unprotected content", () => {
+    const thread = transcript.threads[0]!;
+    const protectedTranscript: NonNullable<
+      RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
+    > = {
+      threads: [
+        {
+          ...thread,
+          currentTurn: {
+            ...thread.currentTurn,
+            messages: [
+              {
+                ...thread.currentTurn.messages[0]!,
+                parts: [
+                  { type: "text", text: "Visible answer" },
+                  {
+                    type: "custom",
+                    kind: "Microsoft.Extensions.AI.TextReasoningContent",
+                    value: {
+                      content: {
+                        text: "",
+                        protectedData: "opaque-microsoft-payload",
+                      },
+                    },
+                  },
+                  {
+                    type: "custom",
+                    kind: "Microsoft.Extensions.AI.TextReasoningContent",
+                    value: { content: { text: "Readable reasoning" } },
+                  },
+                  {
+                    type: "custom",
+                    kind: "metadata",
+                    value: { content: { protectedData: "unrelated-field" } },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const rows = getSessionTranscriptRows(protectedTranscript);
+    expect(rows[0]?.row.message.parts).toEqual([
+      { type: "text", text: "Visible answer" },
+      {
+        type: "custom",
+        kind: "Microsoft.Extensions.AI.TextReasoningContent",
+        value: { content: { text: "Readable reasoning" } },
+      },
+      {
+        type: "custom",
+        kind: "metadata",
+        value: { content: { protectedData: "unrelated-field" } },
+      },
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("opaque-microsoft-payload");
+    protectedTranscript.threads[0]!.currentTurn.messages[0]!.parts = [
+      {
+        type: "custom",
+        kind: "Microsoft.Extensions.AI.TextReasoningContent",
+        value: { content: { protectedData: "opaque-microsoft-payload" } },
+      },
+    ];
+    expect(getSessionTranscriptRows(protectedTranscript)).toEqual([]);
+  });
+
   it("hides encrypted custom parts without changing remaining row IDs", () => {
     const thread = transcript.threads[0]!;
     const message = thread.currentTurn.messages[0]!;
