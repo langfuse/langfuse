@@ -7,10 +7,9 @@ use sha2::{Digest, Sha256};
 use super::payload::{MediaDecodeError, MediaEncoding};
 use super::rules::BASE64_MARKER;
 
-// Node's Buffer.from(value, "base64") accepts canonical padding, omitted
-// padding, and non-zero trailing bits. The TypeScript detector validates the
-// character grammar separately, so use the same forgiving decode behavior
-// after that grammar check has passed.
+// Match the existing Buffer/base64 decoder after the caller has validated the
+// character grammar: padding may be omitted or repeated, and trailing bits are
+// accepted.
 pub(super) const BASE64: GeneralPurpose = GeneralPurpose::new(
     &base64::alphabet::STANDARD,
     GeneralPurposeConfig::new()
@@ -67,9 +66,8 @@ pub(super) fn is_valid_content_type(value: &str) -> bool {
 
 /// Validate the optional parameters between a Data URI media type and `;base64`.
 ///
-/// The TypeScript detector accepts RFC-style token names and non-empty parameter
-/// values, while rejecting delimiters that would make the header ambiguous. Malformed
-/// headers remain ordinary inline text in both implementations.
+/// Parameter names use token syntax and values must be non-empty and free of
+/// delimiters or whitespace. Malformed headers remain inline text.
 pub(super) fn is_valid_data_uri_parameters(value: &str) -> bool {
     if value.is_empty() {
         return true;
@@ -107,8 +105,8 @@ pub(super) fn is_valid_data_uri_parameters(value: &str) -> bool {
             || bytes[value_start..cursor]
                 .iter()
                 .any(|byte| b",\t\n\r \"'<>[]{}".contains(byte))
-            // Match the TS detector's ECMAScript \s, including non-ASCII
-            // whitespace (Rust's char::is_whitespace has a different set).
+            // Use ECMAScript whitespace semantics for compatibility with the
+            // existing detector; Rust's `char::is_whitespace` differs here.
             || value[value_start..cursor].chars().any(|character| {
                 matches!(character,
                     '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' |
@@ -150,9 +148,8 @@ fn visit_python_bytes_literal(
     while cursor + 1 < value.len() {
         let byte = value[cursor];
         if byte != b'\\' {
-            // Python's bytes repr escapes non-ASCII/control bytes and an unescaped
-            // delimiter cannot occur inside the literal. Match the TypeScript decoder
-            // instead of accepting a broader Rust-only grammar.
+            // Python's bytes representation escapes non-ASCII/control bytes, and
+            // an unescaped delimiter cannot occur inside the literal.
             if !(0x20..=0x7e).contains(&byte) || byte == quote {
                 return Err(MediaDecodeError::InvalidPythonBytes);
             }
@@ -195,9 +192,8 @@ fn visit_python_bytes_literal(
     Ok(())
 }
 
-/// Hash decoded media without materializing the full decoded body. Uploading
-/// still decodes on demand, but discovery only needs the stable content ID and
-/// should not briefly retain both a base64 source and a second large body buffer.
+/// Hash decoded media in bounded chunks. Discovery needs only the content ID;
+/// full decoding remains deferred to upload.
 pub(super) fn hash_encoded_data(
     encoded_data: &[u8],
     encoding: MediaEncoding,
@@ -217,9 +213,9 @@ pub(super) fn hash_encoded_data(
     Ok(hasher.finalize().into())
 }
 
-/// After character/padding validation, match Buffer.from(..., "base64"):
-/// padding can be redundant, and a lone final sextet cannot produce a byte.
-/// Borrow the decodable prefix so hashing and upload decoding use identical bytes.
+/// Match `Buffer.from(..., "base64")` after syntax validation: remove redundant
+/// padding and ignore a lone final sextet that cannot produce a byte. The
+/// returned prefix is shared by hashing and upload decoding.
 fn node_base64_payload(mut value: &[u8]) -> Result<&[u8], MediaDecodeError> {
     while value.last() == Some(&b'=') {
         value = &value[..value.len() - 1];
@@ -227,7 +223,7 @@ fn node_base64_payload(mut value: &[u8]) -> Result<&[u8], MediaDecodeError> {
     if value.len() % 4 == 1 {
         value = &value[..value.len() - 1];
     }
-    // The TS media processor leaves zero-byte decoded payloads inline.
+    // Empty decoded payloads are not media candidates.
     if value.is_empty() {
         return Err(MediaDecodeError::InvalidDataUri);
     }
@@ -236,9 +232,8 @@ fn node_base64_payload(mut value: &[u8]) -> Result<&[u8], MediaDecodeError> {
 
 fn hash_base64(hasher: &mut Sha256, value: &[u8]) -> Result<(), MediaDecodeError> {
     let value = node_base64_payload(value)?;
-    // Decode bounded chunks to hash large media without allocating the complete body.
-    // A multiple of four preserves Base64 groups; the final chunk accepts omitted padding
-    // and non-zero trailing bits, matching Node's decoding behavior.
+    // Keep chunks aligned to Base64 groups. The final chunk handles omitted
+    // padding and non-zero trailing bits.
     let mut decoded = [0_u8; BASE64_HASH_DECODED_CHUNK_SIZE];
     for chunk in value.chunks(BASE64_HASH_CHUNK_SIZE) {
         let decoded_length = BASE64
@@ -250,7 +245,7 @@ fn hash_base64(hasher: &mut Sha256, value: &[u8]) -> Result<(), MediaDecodeError
 }
 
 fn hash_python_bytes_literal(hasher: &mut Sha256, value: &[u8]) -> Result<(), MediaDecodeError> {
-    // The TS media service leaves a valid but empty b'' or b"" inline.
+    // Empty Python bytes are not media candidates.
     if value.len() == 3 {
         return Err(MediaDecodeError::InvalidPythonBytes);
     }
@@ -339,8 +334,7 @@ mod tests {
 
     #[test]
     fn hashes_large_base64_across_chunk_boundaries_with_or_without_padding() {
-        // 12,289 decoded bytes produce a padded tail after one complete 16 KiB
-        // encoded chunk. Exercise both the padded and Node-compatible unpadded form.
+        // Cross an encoded chunk boundary and exercise padded and unpadded input.
         let decoded = (0usize..12_289)
             .map(|index| index.wrapping_mul(31) as u8)
             .collect::<Vec<_>>();

@@ -1,16 +1,14 @@
 //! Early validation and media extraction for OTEL JSON payloads.
 //!
-//! Syntax validation and media discovery are separate passes over owned bytes.
-//! Neither constructs a complete `serde_json::Value` tree. Discovery records
-//! source ranges; compaction replaces those ranges before normalization parses
-//! the smaller document.
+//! Validation and discovery are separate passes over owned bytes. Neither builds
+//! a complete `serde_json::Value` tree: discovery records source ranges, and
+//! compaction replaces those ranges before the smaller document is normalized.
 //!
-//! Temporary references identify occurrences, so moving a value during normalization
-//! preserves its exact restoration target. Content hashes deduplicate uploads instead.
-//! Discovery intentionally supersets the legacy detector; the consumer resolves
-//! eligibility after normalization and restores ineligible occurrences before side effects.
-//! Direct and nested candidates retain ranges into one source allocation when
-//! escaping leaves their text unchanged; escaped candidate text needs an owned copy.
+//! Temporary references identify occurrences, while content hashes deduplicate
+//! uploads. Discovery may find candidates that the consumer later rejects after
+//! normalization; those occurrences are restored before side effects. Unchanged
+//! source text stays as a range into the input allocation; escaped text gets one
+//! owned copy.
 
 mod encoding;
 mod json;

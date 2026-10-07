@@ -89,11 +89,8 @@ pub struct ExtractedMedia {
     occurrence_id: u128,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
-    /// Exact source text for the candidate. When the candidate was ASCII-safe
-    /// in the original document this is a range into the one source allocation
-    /// retained by the registry. A decoded nested JSON value can use the same
-    /// range when its encoded media text survived JSON escaping unchanged;
-    /// otherwise it falls back to one owned candidate allocation.
+    /// Encoded media text: a shared source range when JSON escaping left it unchanged,
+    /// otherwise an owned copy with JSON escapes decoded.
     storage: MediaStorage,
 }
 
@@ -115,16 +112,13 @@ impl ExtractedMedia {
         String::from_utf8(bytes).expect("media reference is UTF-8")
     }
 
-    /// Decode an extracted candidate only when the storage adapter is ready to
-    /// upload it. The encoded text remains owned by the registry for retry and
-    /// restoration until that work is complete.
+    /// Decode a body without consuming its encoded text, allowing retry or inline restoration.
     pub fn decode(&self) -> Result<Vec<u8>, MediaDecodeError> {
         super::encoding::decode_encoded_data(self.encoded_data(), self.encoding)
     }
 
-    /// Return the decoded media text for restoring one failed occurrence after
-    /// normalization. JSON-escaped candidates use their decoded spelling;
-    /// source-backed candidates retain the same bytes in the source document.
+    /// Return the original media text for inline restoration, with JSON escapes decoded.
+    /// Base64 and Python bytes encodings are preserved.
     pub fn original_value(&self) -> Result<String, MediaDecodeError> {
         String::from_utf8(self.encoded_data().to_vec())
             .map_err(|_| MediaDecodeError::InvalidSourceText)
@@ -212,9 +206,7 @@ impl ValidatedPayload {
         let ValidatedPayload { source, .. } = self;
         let manifest = super::scanner::discover(source.as_slice())?;
         if manifest.entries.is_empty() {
-            // Discovery found no value to rewrite. Transfer
-            // the one owned Vec instead of parsing and copying a large no-media
-            // document into an identical compact buffer.
+            // Reuse the source allocation when there are no replacements.
             return Ok(EarlyMediaResult {
                 compact_json: source,
                 media: Vec::new(),
@@ -223,10 +215,7 @@ impl ValidatedPayload {
         apply_edit_plan(Arc::new(source), manifest)
     }
 
-    /// Consume the validation handle and transfer its original allocation to a
-    /// caller that intentionally keeps the document un-compacted. This is the
-    /// extraction-disabled path; discovery has not run, so transfer the source
-    /// allocation directly.
+    /// Return the validated source allocation without running media discovery.
     pub fn into_source(self) -> Vec<u8> {
         self.source
     }
@@ -279,9 +268,7 @@ pub(super) enum ManifestMediaStorage {
     Owned(Vec<u8>),
 }
 
-/// Validation failures are intentionally structural. The masking adapter can
-/// use them to preserve the existing fail-open/fail-closed policy without
-/// depending on a `serde_json::Value` error shape.
+/// JSON syntax errors and failures to construct or apply a media edit plan.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EarlyMediaError {
     InvalidJson {
@@ -318,7 +305,7 @@ impl fmt::Display for EarlyMediaError {
 impl std::error::Error for EarlyMediaError {}
 
 impl EarlyMediaError {
-    /// Syntax failures never request a different processing implementation.
+    /// Stable error codes exposed through N-API.
     pub fn code(&self) -> &'static str {
         match self {
             Self::InvalidEditPlan { .. } | Self::RandomnessUnavailable => "ERR_OTEL_INTERNAL",

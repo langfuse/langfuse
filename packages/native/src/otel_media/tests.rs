@@ -110,7 +110,7 @@ fn validates_and_extracts_beyond_the_former_parser_depth_limit() {
         for input in [array, object] {
             let (validated, _, index_bytes, _, _) =
                 validate_measured(input.as_bytes().to_vec()).expect("deep JSON remains native");
-            // Array frames must not reserve object-only maps and provider state.
+            // Arrays do not need object-only maps or provider state.
             assert!(
                 index_bytes <= 24 * input.len(),
                 "{index_bytes} bytes for {} input bytes",
@@ -178,8 +178,8 @@ fn limits_embedded_documents_without_losing_uri_text_or_siblings() {
                 b"sibling".to_vec(),
             ]
         } else {
-            // Further quoting leaves a backslash after base64: the text scanner's
-            // URI grammar does not accept it as a terminator.
+            // Further quoting leaves a backslash after the payload, which is not
+            // a valid URI terminator for text-only scanning.
             vec![b"at-limit".to_vec(), b"sibling".to_vec()]
         };
         assert_eq!(bodies, expected_bodies, "embedded layers: {layers}");
@@ -265,20 +265,19 @@ fn classifies_each_root_array_object_before_discovery() {
 
 #[test]
 fn media_prefilter_is_conservative_for_structured_and_escaped_candidates() {
-    // Buffer-like OTLP fields contain `type` and `data`, but are not media
-    // candidates and should take the validation-only path.
+    // Buffer-like fields are not media candidates and should stay on the
+    // validation-only path.
     assert!(!may_contain_media_candidate(
         r#"{"traceId":{"type":"Buffer","data":[1,2,3]}}"#
     ));
     assert!(may_contain_media_candidate(
         r#"{"type":"media","mime_type":"image/png","data":"aGk="}"#
     ));
-    // Provider objects embedded in OTLP string attributes contain escaped
-    // quotes; the literal MIME marker keeps them on the full detector path.
+    // Escaped provider JSON still contains a literal MIME marker.
     assert!(may_contain_media_candidate(
         r#"{"text":"{\"type\":\"base64\",\"media_type\":\"image/png\",\"data\":\"aGk=\"}"}"#
     ));
-    // A marker written with JSON Unicode escapes must not be optimized away.
+    // Unicode-escaped markers must not be optimized away.
     assert!(may_contain_media_candidate(
         r#"{"text":"\u0064ata:image/png;base64,aGk="}"#
     ));
@@ -322,15 +321,13 @@ fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
     );
     let (validated, scanned, index_bytes, _, _) =
         validate_measured(input.as_bytes().to_vec()).expect("valid nested input stays native");
-    // One structural pass plus small scalar inspection. This catches repeated
-    // subtree validation deterministically, without a wall-clock threshold.
+    // Bound source revisits instead of relying on a wall-clock threshold.
     assert!(
         scanned <= 3 * input.len(),
         "scanned {scanned} for {} source bytes",
         input.len()
     );
-    // Temporary discovery state must scale with source structure, independently
-    // of how many times that structure occurs beside other values.
+    // Discovery state should scale with structure, not repeated siblings.
     assert!(index_bytes <= 16 * input.len());
     let result = validated.compact().unwrap();
     assert_eq!(result.media.len(), 32);
@@ -459,8 +456,8 @@ fn unique_and_escaped_candidates_have_input_proportional_retention() {
             validate_measured(input.as_bytes().to_vec()).unwrap();
         assert_eq!(unique, uris.len());
         assert!(scanned <= 3 * input.len());
-        // Unique tiny bodies pay one descriptor each. Escaped bodies may own
-        // decoded text, but must not retain a whole decoded document per entry.
+        // Escaped bodies may own decoded text, but must not retain a whole
+        // decoded document per entry.
         assert!(retained_bytes <= 8 * input.len());
         let result = validated.compact().unwrap();
         for (index, media) in result.media.iter().enumerate() {
@@ -701,8 +698,8 @@ fn embedded_json_keeps_surrogate_strings_and_extracts_sibling_fields() {
 
 #[test]
 fn undecodable_keys_leave_their_values_inline_including_shadowed_values() {
-    // Keys that cannot be decoded cannot be compared for JSON's last-key-wins
-    // behavior. Preserve their values while still extracting ordinary siblings.
+    // Undecodable keys cannot participate in last-key-wins resolution. Preserve
+    // their values while still extracting ordinary siblings.
     let object = r#"{"\ud800":"data:image/png;base64,YQ==","\uD800":"data:image/png;base64,Yg==","ok":"data:image/png;base64,Yw=="}"#;
     for input in [object.to_owned(), serde_json::to_string(object).unwrap()] {
         let result = extract_media(input.as_bytes()).unwrap();
@@ -864,11 +861,11 @@ proptest! {
         if embedded { input = serde_json::to_string(&input).unwrap(); }
         let (validated, scanned, index_bytes, unique, _) =
             validate_measured(input.as_bytes().to_vec()).unwrap();
-        // Embedded documents are separately validated after decoding, but every
-        // structural pass stays linear in that document's source size.
+        // Embedded documents are validated separately, but each structural pass
+        // remains linear in that document's source size.
         prop_assert!(scanned <= 6 * input.len(), "{} syntax bytes for {} input bytes", scanned, input.len());
-        // The walk retains open frames and candidates, not every closed container.
-        // Allow fixed initial Vec capacities as well as depth and result growth.
+        // The walk retains open frames and candidates, not closed containers.
+        // Allow fixed initial capacities as well as depth and result growth.
         prop_assert!(index_bytes <= 4096 + 512 * (depth + 3 + width), "{} index bytes", index_bytes);
         prop_assert_eq!(unique, 1);
         let result = validated.compact().unwrap();

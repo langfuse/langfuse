@@ -17,10 +17,6 @@ pub(crate) struct NativeMemory {
 
 impl NativeMemory {
     pub(crate) fn new(env: &Env, bytes: usize) -> Result<Self> {
-        // Keep one weak callback and threadsafe function per N-API environment.
-        // Instance data gives each environment its own handle without caching an
-        // Env pointer globally; every adjustment still runs on that environment's
-        // JS thread.
         let adjust = memory_adjuster(env)?;
         let bytes = bytes as i64;
         let total = env.adjust_external_memory(bytes)?;
@@ -50,8 +46,7 @@ impl NativeMemory {
             return;
         }
         metrics::gauge!("langfuse.native.otel_media.retained_bytes").increment(delta as f64);
-        // The queue is unbounded and receives only stage transitions and final
-        // release, never an entry per media item. Closing means Node is exiting.
+        // Closing is expected once the environment stops accepting callbacks.
         let status = self
             .adjust
             .call(delta, ThreadsafeFunctionCallMode::NonBlocking);
@@ -69,13 +64,13 @@ impl Drop for NativeMemory {
 }
 
 fn memory_adjuster(env: &Env) -> Result<Arc<MemoryAdjuster>> {
+    // Share one adjuster per environment; worker threads must not retain or call Env directly.
     if let Some(adjust) = env.get_instance_data::<Arc<MemoryAdjuster>>()? {
         return Ok(Arc::clone(adjust));
     }
 
-    // A weak callback does not keep Node alive. N-API owns its environment and
-    // marshals adjustments onto the JS thread, even when the last Rust owner is
-    // released by a worker or a task that failed before it was scheduled.
+    // A weak callback does not keep Node alive. It marshals adjustments onto the
+    // JS thread even when the last Rust owner is dropped on a worker thread.
     let callback = env.create_function_from_closure::<(), (), _>("nativeMemory", |_| Ok(()))?;
     let adjust = Arc::new(
         callback

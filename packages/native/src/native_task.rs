@@ -28,8 +28,6 @@ impl<T: Send + ToNapiValue + TypeName + 'static> Task for OwnedTask<T> {
     type JsValue = T;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        // Per-body reads can run thousands of times per batch. The pipeline
-        // stages own timing/count metrics; TS owns media upload outcomes.
         let started = matches!(self.operation, "validate" | "extract").then(Instant::now);
         let _span = tracing::debug_span!("otel_media", operation = self.operation).entered();
         let work = self
@@ -55,8 +53,7 @@ impl<T: Send + ToNapiValue + TypeName + 'static> Task for OwnedTask<T> {
     }
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> Result<T> {
-        // Custom error codes are constructed on the JS thread and survive the
-        // rejection unchanged, so callers never classify failures by prose.
+        // Construct the JS error here so Promise rejection preserves its custom code.
         output.map_err(|error| Error::from(napi::JsError::from(error).into_unknown(env)))
     }
 }

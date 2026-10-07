@@ -45,9 +45,10 @@ impl ValidatedOtelJson {
         })
     }
 
-    /// Compact the accepted document; media ranges retain its source until both write paths finish.
+    /// Consume the validated input, optionally extracting media into a new batch.
     #[napi(ts_return_type = "Promise<EarlyOtelBatch>")]
     pub fn extract(&mut self, enabled: bool) -> AsyncTask<OwnedTask<EarlyOtelBatch>> {
+        // Claim ownership before scheduling, so a later dispose cannot invalidate this task.
         let payload = self.payload.take();
         OwnedTask::run("extract", move || {
             let (validated, memory) = payload.ok_or_else(|| {
@@ -141,7 +142,7 @@ pub struct ExtractedOtelMedia {
 
 #[napi]
 impl EarlyOtelBatch {
-    /// Release this path's source ownership after all legacy/direct consumers have finished.
+    /// Release this handle; pending reads retain ownership until they complete.
     #[napi(ts_return_type = "Promise<void>")]
     pub fn dispose(&mut self) -> AsyncTask<OwnedTask<()>> {
         let inner = self.inner.take();
@@ -151,7 +152,7 @@ impl EarlyOtelBatch {
         })
     }
 
-    /// Only the compact document crosses into JS for legacy or TS direct processing.
+    /// Copy the compact document into a JS string without consuming it.
     #[napi(ts_return_type = "string")]
     pub fn json<'env>(&self, env: &'env Env) -> Result<JsString<'env>> {
         let data = self.data().map_err(|error| to_js_error(*env, error))?;
@@ -168,7 +169,7 @@ impl EarlyOtelBatch {
         env.create_string(json)
     }
 
-    /// Transfer the compact document to JS and release its Rust copy immediately.
+    /// Copy the compact document into a JS string and release its Rust allocation.
     /// Media metadata and source ranges remain owned by this batch for later reads.
     #[napi(js_name = "takeJson", ts_return_type = "string")]
     pub fn take_json<'env>(&self, env: &'env Env) -> Result<JsString<'env>> {
@@ -200,7 +201,7 @@ impl EarlyOtelBatch {
             .collect())
     }
 
-    /// Decode one upload at a time without keeping every decoded body alive.
+    /// Decode one media body. Callers control concurrency and the returned Buffer's lifetime.
     #[napi(ts_return_type = "Promise<Buffer>")]
     pub fn media_body(&self, index: u32) -> AsyncTask<OwnedTask<Buffer>> {
         let inner = self.data();
@@ -217,7 +218,7 @@ impl EarlyOtelBatch {
         })
     }
 
-    /// Failed uploads restore only the selected occurrence; successful ones use the service ID.
+    /// Read the original encoded text for restoring the selected media occurrence.
     #[napi(ts_return_type = "Promise<string>")]
     pub fn original_media(&self, index: u32) -> AsyncTask<OwnedTask<String>> {
         let inner = self.data();

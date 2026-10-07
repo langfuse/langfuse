@@ -25,7 +25,8 @@ use super::rules::{
 };
 
 // Count JSON documents parsed from strings, excluding the outer input, not object/array depth.
-// At the limit, string text is still scanned for Data URIs without further JSON interpretation.
+// After two embedded documents, stop interpreting further strings as structured documents;
+// still extract directly recognizable Data URIs from their text.
 const MAX_EMBEDDED_JSON_DEPTH: usize = 2;
 
 #[derive(Default)]
@@ -37,8 +38,8 @@ struct ScanState {
 struct WalkStats {
     #[cfg(test)]
     bytes_walked: usize,
-    // Stack and candidate-index backing storage; owned keys, decoded strings,
-    // and retained media are measured separately by retention tests/benchmarks.
+    // Capacities for the walk and candidate index. Owned strings and media are
+    // measured separately because they have different retention behavior.
     #[cfg(test)]
     peak_index_bytes: usize,
 }
@@ -62,9 +63,7 @@ impl WalkStats {
     }
 }
 
-/// Discover media only when extraction is requested. Validation happens in
-/// `ValidatedPayload` with library syntax validators; this pass
-/// walks that already-valid source once with an explicit stack.
+/// Discover media in an already-validated source using an explicit stack.
 pub(super) fn discover(input: &[u8]) -> Result<MediaManifest, EarlyMediaError> {
     discover_inner(
         input,
@@ -95,8 +94,8 @@ fn discover_inner(
     state: &mut ScanState,
     stats: &mut WalkStats,
 ) -> Result<MediaManifest, EarlyMediaError> {
-    // Most payloads have no media-specific markers. This packed-literal
-    // prefilter avoids allocating a structural stack for those documents.
+    // Most payloads have no media markers. Avoid allocating the structural walk
+    // for those documents.
     if std::str::from_utf8(input).is_ok_and(|text| !may_contain_media_candidate(text)) {
         stats.add_bytes(input.len());
         return Ok(MediaManifest {
@@ -275,8 +274,8 @@ struct ValueSummary {
 
 #[derive(Clone)]
 struct PendingCandidate {
-    /// Bit zero is the generic payload path; bit one is the possible OTLP
-    /// envelope path. A root object or root-array object chooses one at close.
+    /// Bit zero tracks generic-payload eligibility; bit one tracks envelope
+    /// eligibility. The root shape selects the active path when it closes.
     mask: u8,
     kind: PendingKind,
 }
@@ -718,9 +717,8 @@ fn next_frame_value<'a>(
         for (index, mode) in frame.modes.iter().enumerate() {
             child_modes[index] = match key.as_deref() {
                 Some(key) => media_scan_mode_for_field(*mode, key),
-                // An undecodable key cannot participate in duplicate-key
-                // resolution; leave its value inline rather than extract
-                // a potentially shadowed occurrence.
+                // Without a decoded key, duplicate-key masking is unsafe. Leave
+                // this value inline rather than extract a shadowed occurrence.
                 None => MediaScanMode::Disabled,
             };
         }
@@ -962,13 +960,12 @@ impl MediaDiscovery<'_, '_, '_> {
         let input = self.input;
         let mut decoder = Jiter::new(&input[token_range.clone()]);
         let Ok(value) = decoder.next_str() else {
-            // One escaped lone surrogate makes only this string unavailable to
-            // the detector. Structural scanning has already continued through
-            // sibling fields, so unrelated candidates remain discoverable.
+            // An undecodable string cannot be safely rewritten. The structural
+            // walk has already continued, so sibling values remain discoverable.
             return Ok(());
         };
-        // Keep escaped payloads borrowed from the decoder until discovery ends;
-        // copying this string would duplicate an entire media-heavy document.
+        // Do not clone the decoded token. Candidate storage copies only the
+        // representation it needs, while source-backed candidates keep ranges.
         self.discover_string(value, token_range)
     }
 

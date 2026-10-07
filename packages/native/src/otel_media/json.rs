@@ -8,20 +8,19 @@ use serde_json::value::RawValue;
 use super::encoding::hex_digit;
 use super::payload::EarlyMediaError;
 
-/// Validate one complete JSON value without decoding strings or numbers.
+/// Validate one complete JSON value without building a JSON tree.
 ///
-/// Jiter's skip path uses a fixed-size structural stack and does not decode
-/// strings. RawValue handles valid JSON outside its depth/Unicode/number
-/// limits with a heap stack. Even those inputs need at most two validation
-/// walks; neither path builds a JSON tree or calls back into JavaScript.
+/// The fast path skips strings and numbers. Inputs outside its limits use the
+/// `RawValue` fallback, which still borrows the value instead of materializing
+/// a tree; neither path calls back into JavaScript.
 pub(super) fn validate_json(text: &str) -> Result<(), EarlyMediaError> {
     let mut cursor = Jiter::new(text.as_bytes());
     if cursor.next_skip().is_ok() && cursor.finish().is_ok() {
         return Ok(());
     }
 
-    // The input boundary has checked UTF-8 already. StrRead also lets RawValue
-    // borrow its result without validating the entire byte range a second time.
+    // The input boundary has checked UTF-8. `RawValue` borrows from the string,
+    // so the fallback need not check UTF-8 or copy the whole input again.
     let input = text.as_bytes();
     let mut deserializer = serde_json::Deserializer::from_str(text);
     let raw = <&RawValue>::deserialize(&mut deserializer).map_err(|error| {
@@ -109,8 +108,7 @@ pub(super) fn parse_unicode_escape(
         .ok_or(UnicodeEscapeError::Invalid("invalid unicode scalar"))
 }
 
-/// Return the end of a JSON string token. Syntax has already been validated,
-/// so this is only a lexical skip and never decodes escape sequences.
+/// Return the end of a validated JSON string token without decoding escapes.
 pub(super) fn string_end(input: &[u8], start: usize) -> usize {
     let mut cursor = start + 1;
     while cursor < input.len() {
