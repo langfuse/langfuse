@@ -11,6 +11,7 @@ import { SessionTimelineSystemMessage } from "@/src/features/sessions/components
 import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
+import { cn } from "@/src/utils/tailwind";
 
 export function SessionTranscriptContent({
   result,
@@ -44,12 +45,9 @@ export function SessionTranscriptContent({
             threadIndex === selectedThreadIndex,
         )
         .map(({ threadIndex }) => (
-          <div
-            key={threadIndex}
-            className="space-y-4 [&>[data-session-system-row]:has(+[data-session-system-row])]:mb-1 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
-          >
+          <div key={threadIndex}>
             {selectedThreadIndex === undefined && visibleThreads.length > 1 && (
-              <h3 className="text-muted-foreground text-xs font-bold">
+              <h3 className="text-muted-foreground mb-4 text-xs font-bold">
                 Thread {threadIndex + 1}
               </h3>
             )}
@@ -92,28 +90,43 @@ function SessionTranscriptThread({
         : undefined,
     summaryBudget: 72,
   });
-  return groups.map((group) => {
-    if (group.type === "tools") {
-      return (
+  const displayGroups = groups.map((group) => {
+    if (group.type === "tools") return { group, isCompact: true };
+    const { row } = group.row;
+    if (row.type === "tool" || row.message.role === "system") {
+      return { group, isCompact: true };
+    }
+    return {
+      group,
+      isCompact: row.message.parts.every((part) => part.type === "reasoning"),
+    };
+  });
+  return displayGroups.map(({ group, isCompact }, index) => (
+    <div
+      key={group.type === "tools" ? group.rows[0]!.id : group.row.id}
+      data-session-compact-row={isCompact ? "" : undefined}
+      className={cn(
+        index > 0 &&
+          (isCompact && displayGroups[index - 1]!.isCompact ? "mt-1" : "mt-4"),
+      )}
+    >
+      {group.type === "tools" ? (
         <SessionTranscriptToolGroup
-          key={group.rows[0]!.id}
           summary={group.summary}
           title={group.title}
           rows={group.rows}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
         />
-      );
-    }
-    return (
-      <SessionTranscriptRow
-        key={group.row.id}
-        item={group.row}
-        onOpenObservation={onOpenObservation}
-        scrollTarget={scrollTarget}
-      />
-    );
-  });
+      ) : (
+        <SessionTranscriptRow
+          item={group.row}
+          onOpenObservation={onOpenObservation}
+          scrollTarget={scrollTarget}
+        />
+      )}
+    </div>
+  ));
 }
 
 function SessionTranscriptRow({
