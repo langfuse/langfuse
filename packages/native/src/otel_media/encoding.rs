@@ -201,16 +201,20 @@ pub(super) fn hash_encoded_data(
     let mut hasher = Sha256::new();
     match encoding {
         MediaEncoding::Base64DataUri => {
-            let marker = encoded_data
-                .windows(BASE64_MARKER.len())
-                .position(|window| window == BASE64_MARKER.as_bytes())
-                .ok_or(MediaDecodeError::InvalidDataUri)?;
-            hash_base64(&mut hasher, &encoded_data[marker + BASE64_MARKER.len()..])?;
+            hash_base64(&mut hasher, data_uri_payload(encoded_data)?)?;
         }
         MediaEncoding::Base64 => hash_base64(&mut hasher, encoded_data)?,
         MediaEncoding::PythonBytesLiteral => hash_python_bytes_literal(&mut hasher, encoded_data)?,
     }
     Ok(hasher.finalize().into())
+}
+
+fn data_uri_payload(value: &[u8]) -> Result<&[u8], MediaDecodeError> {
+    let marker = value
+        .windows(BASE64_MARKER.len())
+        .position(|window| window == BASE64_MARKER.as_bytes())
+        .ok_or(MediaDecodeError::InvalidDataUri)?;
+    Ok(&value[marker + BASE64_MARKER.len()..])
 }
 
 /// Match `Buffer.from(..., "base64")` after syntax validation: remove redundant
@@ -302,23 +306,14 @@ pub(super) fn decode_encoded_data(
     encoded_data: &[u8],
     encoding: MediaEncoding,
 ) -> Result<Vec<u8>, MediaDecodeError> {
-    match encoding {
-        MediaEncoding::Base64DataUri => {
-            let marker = encoded_data
-                .windows(BASE64_MARKER.len())
-                .position(|window| window == BASE64_MARKER.as_bytes())
-                .ok_or(MediaDecodeError::InvalidDataUri)?;
-            BASE64
-                .decode(node_base64_payload(
-                    &encoded_data[marker + BASE64_MARKER.len()..],
-                )?)
-                .map_err(MediaDecodeError::Base64)
-        }
-        MediaEncoding::Base64 => BASE64
-            .decode(node_base64_payload(encoded_data)?)
-            .map_err(MediaDecodeError::Base64),
-        MediaEncoding::PythonBytesLiteral => decode_python_bytes_literal(encoded_data),
-    }
+    let value = match encoding {
+        MediaEncoding::Base64DataUri => data_uri_payload(encoded_data)?,
+        MediaEncoding::Base64 => encoded_data,
+        MediaEncoding::PythonBytesLiteral => return decode_python_bytes_literal(encoded_data),
+    };
+    BASE64
+        .decode(node_base64_payload(value)?)
+        .map_err(MediaDecodeError::Base64)
 }
 
 #[cfg(test)]

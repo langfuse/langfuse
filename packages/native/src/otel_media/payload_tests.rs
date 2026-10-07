@@ -1,26 +1,12 @@
-use base64::Engine;
 use proptest::prelude::*;
 use serde_json::Value;
 
-use super::super::encoding::BASE64;
 use super::super::scanner::MIN_EARLY_MEDIA_BYTES;
-use super::super::tests::{data_uri, json_string_strategy, json_value_strategy};
+use super::super::tests::{
+    data_uri, json_string_strategy, json_value_strategy, large_base64, large_data_uri,
+};
 use super::super::validate;
 use super::MediaStorage;
-
-fn large_data_uri(label: &[u8]) -> (String, Vec<u8>) {
-    let mut body = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
-    let copy_len = label.len().min(body.len());
-    body[..copy_len].copy_from_slice(&label[..copy_len]);
-    (data_uri(&body), body)
-}
-
-fn large_base64(label: &[u8]) -> (String, Vec<u8>) {
-    let mut body = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
-    let copy_len = label.len().min(body.len());
-    body[..copy_len].copy_from_slice(&label[..copy_len]);
-    (BASE64.encode(&body), body)
-}
 
 #[test]
 fn validation_keeps_the_source_until_the_accepted_payload_is_compacted() {

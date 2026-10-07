@@ -236,19 +236,6 @@ impl EarlyOtelBatch {
         env.create_string(json)
     }
 
-    /// Copy the compact document into a JS string and release its Rust allocation.
-    /// Media metadata and source ranges remain owned by this batch for later reads.
-    #[napi(js_name = "takeJson", ts_return_type = "string")]
-    pub fn take_json<'env>(&self, env: &'env Env) -> Result<JsString<'env>> {
-        let data = self.data().map_err(|error| to_js_error(*env, error))?;
-        let json = data.take_json().map_err(|error| to_js_error(*env, error))?;
-        let retained = json.capacity();
-        let result = env.create_string(&json);
-        drop(json);
-        data._memory.release(retained);
-        result
-    }
-
     /// Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
     /// The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
     /// here because Node now owns the allocation through that finalizer. Media metadata and

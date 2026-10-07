@@ -6,11 +6,6 @@ export declare class EarlyOtelBatch {
   /** Copy the compact document into a JS string without consuming it. */
   json(): string
   /**
-   * Copy the compact document into a JS string and release its Rust allocation.
-   * Media metadata and source ranges remain owned by this batch for later reads.
-   */
-  takeJson(): string
-  /**
    * Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
    * The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
    * here because Node now owns the allocation through that finalizer. Media metadata and

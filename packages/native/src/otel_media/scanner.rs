@@ -246,17 +246,9 @@ fn to_inline_value(value: &ShapeValue) -> ShapeValue {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 struct ProviderFields {
     values: [Option<ShapeValue>; ShapeKey::ALL.len()],
-}
-
-impl Default for ProviderFields {
-    fn default() -> Self {
-        Self {
-            values: std::array::from_fn(|_| None),
-        }
-    }
 }
 
 impl ProviderFields {
