@@ -44,6 +44,20 @@ describe("classifyJobFailure", () => {
       "network",
     ],
     [
+      "multi-address connect failure",
+      wrapStorage(
+        new AggregateError([
+          Object.assign(new Error("connect ECONNREFUSED ::1:9000"), {
+            code: "ECONNREFUSED",
+          }),
+          Object.assign(new Error("connect ETIMEDOUT 127.0.0.1:9000"), {
+            code: "ETIMEDOUT",
+          }),
+        ]),
+      ),
+      "network",
+    ],
+    [
       "storage DNS failure",
       Object.assign(
         new Error(

@@ -26,17 +26,19 @@ export function classifyJobFailure(err: unknown): JobFailureReason {
   return "other";
 }
 
+/** Breadth-first over `cause` and `AggregateError.errors`. */
 function causeChain(err: unknown): object[] {
   const chain: object[] = [];
-  let current: unknown = err;
-  while (
-    chain.length < MAX_CAUSE_DEPTH &&
-    current &&
-    typeof current === "object" &&
-    !chain.includes(current)
-  ) {
+  const pending: unknown[] = [err];
+  while (pending.length > 0 && chain.length < MAX_CAUSE_DEPTH) {
+    const current = pending.shift();
+    if (!current || typeof current !== "object" || chain.includes(current)) {
+      continue;
+    }
     chain.push(current);
-    current = (current as { cause?: unknown }).cause;
+    pending.push((current as { cause?: unknown }).cause);
+    const nested = (current as { errors?: unknown }).errors;
+    if (Array.isArray(nested)) pending.push(...nested);
   }
   return chain;
 }
