@@ -231,6 +231,46 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("POST /api/public/scores", () => {
+    it("should ingest multiple scores posted as a list", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreIds = [v4(), v4()];
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        scoreIds.map((id, index) => ({
+          id,
+          traceId,
+          name: `batch-score-${index}`,
+          value: index + 1,
+        })),
+        auth,
+      );
+
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual({ message: "Accepted" });
+
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, scoreIds);
+        expect(scores).toHaveLength(2);
+        expect(scores).toEqual(
+          expect.arrayContaining(
+            scoreIds.map((id, index) =>
+              expect.objectContaining({
+                id,
+                name: `batch-score-${index}`,
+                value: index + 1,
+              }),
+            ),
+          ),
+        );
+      });
+    });
+
     it("should create score for a trace", async () => {
       const traceId = v4();
 

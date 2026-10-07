@@ -30,6 +30,29 @@ export default withMiddlewares({
         );
       }
 
+      const scoresApiService = new ScoresApiService("v1");
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+
+      if (Array.isArray(body)) {
+        const { result } = await scoresApiService.createScores({
+          bodies: body,
+          auth,
+          attribution,
+        });
+        if (result.errors.length > 0) {
+          const error = result.errors[0];
+          res.status(error.status);
+          return {
+            message: error.error ?? error.message ?? "Failed to create score",
+          };
+        }
+        res.status(202);
+        return { message: "Accepted" };
+      }
+
       const conformedBody = {
         ...body,
         // We previously used `if(!body.id)` to decide if a new ID should be generated,
@@ -38,21 +61,17 @@ export default withMiddlewares({
         id: body.id || randomUUID(),
       };
 
-      const scoresApiService = new ScoresApiService("v1");
       const { id, result } = await scoresApiService.createScore({
         body: conformedBody,
         auth,
-        attribution: createIngestionAttribution({
-          headers: req.headers,
-          authCheck: auth,
-        }),
+        attribution,
       });
       if (result.errors.length > 0) {
         const error = result.errors[0];
-        res
-          .status(error.status)
-          .json({ message: error.error ?? error.message });
-        return { id: "" }; // dummy return
+        res.status(error.status);
+        return {
+          message: error.error ?? error.message ?? "Failed to create score",
+        };
       }
       if (result.successes.length !== 1) {
         logger.error("Failed to create score", { result });
