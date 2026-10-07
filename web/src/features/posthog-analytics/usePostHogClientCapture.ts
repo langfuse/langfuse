@@ -379,7 +379,8 @@ const events = {
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
   // User-visible error-frustration denominator. Metadata only: `path` is the
-  // static tRPC procedure name; never send toast text or the raw Error ID.
+  // static tRPC procedure name and `errorId` is the opaque ID shown in the
+  // toast; never send toast text or error payloads.
   toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
