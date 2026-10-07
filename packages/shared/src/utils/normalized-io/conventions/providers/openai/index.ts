@@ -343,6 +343,8 @@ const OPENAI_PART_HANDLERS = {
   custom_tool_call_output: normalizeOpenAiToolResult,
   computer_call_output: normalizeOpenAiToolResult,
   local_shell_call_output: normalizeOpenAiToolResult,
+  shell_call_output: normalizeOpenAiToolResult,
+  apply_patch_call_output: normalizeOpenAiToolResult,
 } satisfies Readonly<Record<string, PartHandler>>;
 
 /**
