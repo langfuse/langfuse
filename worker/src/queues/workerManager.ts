@@ -183,6 +183,14 @@ export class WorkerManager {
         type: "failed",
         ...shardTag,
       });
+      // BullMQ sets finishedOn only when it moves the job to the failed set
+      // instead of scheduling a retry.
+      if (job?.finishedOn) {
+        recordIncrement(baseMetric + ".rate", 1, {
+          type: "failed_terminal",
+          ...shardTag,
+        });
+      }
     });
     worker.on("error", (failedReason: Error) => {
       logger.error(
