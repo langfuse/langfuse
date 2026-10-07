@@ -13,6 +13,7 @@ import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-d
 import { useState } from "react";
 import {
   DialogContent,
+  DialogTitle,
   DialogTrigger,
   Dialog,
 } from "@/src/components/ui/dialog";
@@ -212,6 +213,9 @@ export function DefaultEvalModelSetup({
             </Button>
           </DialogTrigger>
           <DialogContent className="px-3 py-10">
+            <DialogTitle className="sr-only">
+              Default evaluation model
+            </DialogTitle>
             <div className="flex flex-col gap-2">
               <DefaultEvalModelFields setup={setup} />
               <div className="mt-2 flex justify-end gap-2">
