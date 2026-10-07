@@ -150,7 +150,6 @@ function InAppAgentQuickActionPicker({
           <Tabs.List
             aria-label="Quick action category"
             variant="underline"
-            size="auto"
             layout="full"
           >
             {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
@@ -158,8 +157,6 @@ function InAppAgentQuickActionPicker({
                 <Tabs.Trigger
                   value={context}
                   disabled={isDisabled}
-                  variant="underline"
-                  size="lg"
                   label={IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
                 />
               </span>
