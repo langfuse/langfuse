@@ -312,7 +312,7 @@ describe(
     ] as const)(
       "validates %s without media discovery",
       async (_name, input) => {
-        const validated = await validateOtelJson(Buffer.from(input), false);
+        const validated = await validateOtelJson(Buffer.from(input));
         const batch = await validated.extract(false);
         try {
           expect(batch.media).toHaveLength(0);
@@ -368,7 +368,10 @@ it(
         code: "ERR_OTEL_CLOSED",
       });
       const [media] = batch.media;
-      expect(JSON.parse(batch.json())).toEqual({ input: media.reference });
+      expect(JSON.parse(batch.takeJson())).toEqual({ input: media.reference });
+      expect(() => batch.json()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
+      );
       expect(media.sha256Hash).toBe(
         createHash("sha256").update("hi").digest("base64"),
       );
@@ -379,7 +382,15 @@ it(
       await batch.dispose();
       await expect(body).resolves.toEqual(Buffer.from("hi"));
       await expect(original).resolves.toBe(uri);
-      expect(() => batch.json()).toThrow("already disposed");
+      expect(() => batch.json()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
+      expect(() => batch.takeJson()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
+      expect(() => batch.media).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
       await expect(batch.mediaBody(0)).rejects.toMatchObject({
         code: "ERR_OTEL_CLOSED",
       });

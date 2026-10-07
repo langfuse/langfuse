@@ -12,7 +12,7 @@ fn discovery_keeps_the_source_until_the_accepted_payload_is_compacted() {
     let uri = data_uri(b"discovery");
     let input = format!(r#"{{"input":"{uri}","keep":"ordinary"}}"#).into_bytes();
     let validated = validate_and_discover(input.clone()).expect("valid JSON");
-    assert_eq!(validated.manifest.entries.len(), 1);
+    assert_eq!(validated.manifest.as_ref().unwrap().entries.len(), 1);
     assert_eq!(validated.source.as_slice(), input.as_slice());
     let source_ptr = validated.source.as_ptr();
 
@@ -56,7 +56,7 @@ fn provider_media_retains_source_backed_storage_during_compaction() {
     let input =
         format!(r#"{{"type":"media","mime_type":"image/png","data":"{encoded}"}}"#).into_bytes();
     let validated = validate_and_discover(input).expect("valid JSON");
-    assert_eq!(validated.manifest.entries.len(), 1);
+    assert_eq!(validated.manifest.as_ref().unwrap().entries.len(), 1);
     let compacted = validated.compact().expect("manifest matches source");
     assert!(matches!(
         &compacted.media[0].storage,
@@ -74,7 +74,7 @@ fn nested_json_manifest_is_reused_for_the_accepted_payload() {
     let encoded_nested = serde_json::to_string(&nested).expect("serialize nested JSON");
     let input = format!("{{\n  \"input\" : {encoded_nested},\n  \"number\" : 7.000e0\n}}");
     let validated = validate_and_discover(input.as_bytes().to_vec()).expect("valid JSON");
-    assert_eq!(validated.manifest.entries.len(), 1);
+    assert_eq!(validated.manifest.as_ref().unwrap().entries.len(), 1);
     let source_ptr = validated.source.as_ptr();
     let compacted = validated.compact().expect("manifest matches source");
     assert_eq!(compacted.media.len(), 1);
@@ -187,7 +187,7 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
     let validated = validate_and_discover(source.as_bytes().to_vec())
         .expect("generated nested JSON is valid");
     prop_assert_eq!(
-        validated.manifest.entries.len(),
+        validated.manifest.as_ref().unwrap().entries.len(),
         uris.len(),
         "source: {:?}; URIs: {:?}",
         source,
