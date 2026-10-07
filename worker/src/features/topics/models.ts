@@ -216,6 +216,62 @@ export async function summarizeTopicTrace(
   );
 }
 
+/**
+ * Summarizes all given facets of one trace in a single call. The system prompt
+ * is identical across traces; each facet is listed under its key and answered
+ * independently, with short evidence notes before each summary.
+ */
+export async function summarizeTopicTraceFacets(
+  facets: { key: string; facet: TopicFacetVersion }[],
+  text: string,
+  config: TopicProcessingConfig,
+) {
+  const models = requireTopicsModelConfig();
+  const model = config.summaryModel;
+  if (!model || model !== models.summaryModel)
+    throw new TopicsProviderUnavailable(
+      "Configure the matching LANGFUSE_TOPICS_SUMMARY_MODEL on web and worker before running Topics.",
+      "authentication",
+    );
+  const entry = z.object({
+    notes: z
+      .string()
+      .describe(
+        "At most 25 words: the transcript evidence this facet rests on. Not shown to anyone.",
+      ),
+    ...summarySchema.shape,
+  });
+  const schema = z.object(
+    Object.fromEntries(facets.map(({ key }) => [key, entry])),
+  );
+  // Without these rules, a whole-run facet such as Intent narrows to the end of the run.
+  const system = `${SUMMARY_SYSTEM_PROMPT}
+
+This request covers ${facets.length} facets of the same run. Treat each facet as a separate task:
+- For each facet, read the whole transcript again for what that facet asks about. Facets are independent: what you write for one facet must not narrow or shape another.
+- A facet about the run as a whole covers all of it, from the first request to the last turn, even when other facets concentrate on how the run ended.
+- Follow each facet's own format and apply the status rules to each facet separately.
+For each facet, first write brief notes on the evidence it rests on, then its summary and status. Return one entry per facet key.
+
+${facets.map(({ key, facet }) => `<facet key="${key}">\n${facet.prompt}\n</facet>`).join("\n\n")}`;
+  const input = `<transcript>\n${text}\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.`;
+  const countedInputTokens =
+    countTopicRequestTokens(system, input, schema) + 256;
+  if (countedInputTokens > config.maxInputTokens)
+    throw new Error(
+      `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${config.maxInputTokens}-token input limit. No model call was made; the transcript is never shortened per facet.`,
+    );
+  return structuredCall(
+    system,
+    input,
+    schema,
+    config.maxInputTokens,
+    config.maxOutputTokens * facets.length,
+    "summary",
+    model,
+  );
+}
+
 export async function nameTopicGroup(group: {
   members: { id: string; summary: string }[];
   contrasts: { id: string; summary: string }[];
