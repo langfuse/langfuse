@@ -40,42 +40,37 @@ export const TablePeekViewObservationDetail = (
     timestamp,
   });
 
-  const actionProps = trace.data
-    ? {
-        trace: trace.data,
-        traceContext: "peek" as const,
-        shareUrl: buildTracePath({
-          projectId: trace.data.projectId,
-          traceId: trace.data.id,
+  // Rendered while loading too (disabled), so the header keeps its layout.
+  const actionProps = {
+    trace: trace.data,
+    traceContext: "peek" as const,
+    shareUrl: traceId
+      ? buildTracePath({
+          projectId,
+          traceId,
           observationId:
             typeof router.query.traceId === "string"
               ? peekObservationId
               : undefined,
           timestamp:
             typeof router.query.traceId === "string" ? undefined : timestamp,
-        }),
-        timestamp,
-        onAfterDelete: (deletedTraceId: string) => {
-          if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
-            props.closePeek();
-          }
-        },
+        })
+      : undefined,
+    timestamp,
+    onAfterDelete: (deletedTraceId: string) => {
+      if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
+        props.closePeek();
       }
-    : null;
+    },
+  };
 
   return (
     <TablePeekView
       {...props}
       title={traceId}
       hideExpandToggle
-      actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
-      }
-      actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
-        ) : undefined
-      }
+      actions={<TraceDetailActions {...actionProps} />}
+      actionsMenu={<TraceDetailActions {...actionProps} layout="menu" />}
     >
       <TraceDetailBody
         trace={trace.data}
