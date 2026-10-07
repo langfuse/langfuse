@@ -21,6 +21,14 @@ import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return {
+    ...actual,
+    env: { ...actual.env, API_AUTH_MIGRATION: "enforce" },
+  };
+});
+
 describe("organization API keys trpc", () => {
   const organizationId = "seed-org-id";
 

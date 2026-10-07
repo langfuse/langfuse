@@ -11,6 +11,14 @@ import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return {
+    ...actual,
+    env: { ...actual.env, API_AUTH_MIGRATION: "enforce" },
+  };
+});
+
 describe("project API keys trpc", () => {
   // The session user is persisted as the API key creator, so it must exist
   // in the database (CI does not run the seeder that creates user-1).
