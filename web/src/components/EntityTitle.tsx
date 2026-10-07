@@ -1,4 +1,3 @@
-import { type ReactNode } from "react";
 import { type ObservationLevelType } from "@langfuse/shared";
 
 import {
@@ -17,8 +16,6 @@ type EntityTitleProps = {
   type?: LangfuseItemType;
   /** Plain title; also the native tooltip. */
   title: string;
-  /** Renders in place of the title text, e.g. an inline editor. */
-  titleContent?: ReactNode;
   /** Explains the title on hover, e.g. why it cannot be renamed. */
   tooltip?: string;
   /** Doc popup right after the title text. */
@@ -34,7 +31,6 @@ type EntityTitleProps = {
 export function EntityTitle({
   type,
   title,
-  titleContent,
   tooltip,
   help,
   level,
@@ -51,22 +47,21 @@ export function EntityTitle({
           "text-primary min-w-0 truncate pt-px pb-0.75 text-lg leading-6 font-bold",
           isFocusable && "focus:outline-hidden",
         )}
-        title={titleContent || tooltip ? undefined : title}
+        title={tooltip ? undefined : title}
         tabIndex={isFocusable ? 0 : undefined}
         data-testid={testId}
       >
-        {titleContent ??
-          (tooltip ? (
-            <Tooltip label={tooltip} placement="bottom">
-              {({ getTriggerProps }) => (
-                <span className="cursor-help" {...getTriggerProps()}>
-                  {title}
-                </span>
-              )}
-            </Tooltip>
-          ) : (
-            title
-          ))}
+        {tooltip ? (
+          <Tooltip label={tooltip} placement="bottom">
+            {({ getTriggerProps }) => (
+              <span className="cursor-help" {...getTriggerProps()}>
+                {title}
+              </span>
+            )}
+          </Tooltip>
+        ) : (
+          title
+        )}
         {help && (
           <span className="whitespace-nowrap">
             &nbsp;

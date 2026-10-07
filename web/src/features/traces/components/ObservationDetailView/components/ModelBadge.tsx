@@ -3,7 +3,8 @@
  * Handles linked models (with external link) and unlinked models (with create form)
  */
 
-import { Badge, LinkBadge } from "@/src/components/design-system/Badge/Badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 import { UpsertModelFormDialogController } from "@/src/features/models";
 
 export function ModelBadge({

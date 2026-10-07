@@ -1,4 +1,4 @@
-import { LinkBadge } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 
 export const PromptBadge = (props: {
   promptName: string;

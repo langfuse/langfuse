@@ -4,7 +4,8 @@
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
  */
 
-import { Badge, LinkBadge } from "@/src/components/design-system/Badge/Badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 
 export function SessionBadge({
   sessionId,

@@ -26,9 +26,6 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
-  /** Rich title rendering (e.g. inline-editable); replaces the plain title
-   * span inside the heading. `title` stays the canonical string. */
-  titleContent?: ReactNode;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
@@ -65,7 +62,6 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
-  titleContent,
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
@@ -170,7 +166,6 @@ const PageHeader = ({
                     as="h2"
                     type={itemType}
                     title={title}
-                    titleContent={titleContent}
                     tooltip={titleTooltip}
                     help={help}
                     data-testid="page-header-title"

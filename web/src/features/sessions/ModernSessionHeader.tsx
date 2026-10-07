@@ -4,11 +4,8 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
-import {
-  Badge,
-  BadgeShell,
-  LinkBadge,
-} from "@/src/components/design-system/Badge/Badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {

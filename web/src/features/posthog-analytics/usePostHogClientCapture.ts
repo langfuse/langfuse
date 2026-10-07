@@ -296,7 +296,6 @@ const events = {
     "add_widget_dialog_open",
     "add_widget_tab_switch",
     "widget_added",
-    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
