@@ -2332,10 +2332,12 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   start,
   end,
   projectId,
+  projectIds,
 }: {
   start: Date;
   end: Date;
   projectId?: string;
+  projectIds?: string[];
 }) => {
   const query = `
     SELECT
@@ -2345,6 +2347,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
+    ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
     AND data_type IN ({dataTypes: Array(String)})
     GROUP BY project_id
   `;
@@ -2356,6 +2359,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(projectId ? { projectId } : {}),
+      ...(projectIds ? { projectIds } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout
