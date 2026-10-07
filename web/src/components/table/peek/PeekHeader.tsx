@@ -175,7 +175,7 @@ export function PeekHeader({
     <TooltipProvider>
       <div
         ref={headerRef}
-        className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-2 pr-2 pb-2.5 pl-4"
+        className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-2.5 pl-4"
       >
         <EntityTitle as="span" type={itemType} title={title} isFocusable />
         <div

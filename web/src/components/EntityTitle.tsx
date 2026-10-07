@@ -48,7 +48,7 @@ export function EntityTitle({
       <Heading
         className={cn(
           // Explicit colour: titles are the emphasis tier and never inherit a container tint.
-          "text-primary min-w-0 truncate text-lg leading-7 font-bold",
+          "text-primary min-w-0 truncate pt-px pb-0.75 text-lg leading-6 font-bold",
           isFocusable && "focus:outline-hidden",
         )}
         title={titleContent || tooltip ? undefined : title}
