@@ -30,11 +30,17 @@ const badgeVariants = cva(
         true: "underline-dotted",
         false: "",
       },
+      /** Metric values (latency, cost, timestamps) read in mono. */
+      font: {
+        sans: "",
+        mono: "font-mono",
+      },
     },
     defaultVariants: {
       color: "primary",
       size: "default",
       interactive: false,
+      font: "sans",
     },
   },
 );
@@ -55,13 +61,14 @@ export function BadgeShell({
   color,
   size,
   interactive,
+  font,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
 
   return (
     <Component
-      className={cn(badgeVariants({ color, size, interactive }))}
+      className={cn(badgeVariants({ color, size, interactive, font }))}
       {...props}
     />
   );

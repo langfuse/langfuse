@@ -84,25 +84,13 @@ export function TargetTraceBadge({
 }
 
 export function EnvironmentBadge({ environment }: { environment: string }) {
-  return (
-    <span className="contents font-mono">
-      <Badge color="ghost" label="env" text={environment} />
-    </span>
-  );
+  return <Badge font="mono" color="ghost" label="env" text={environment} />;
 }
 
 export function ReleaseBadge({ release }: { release: string }) {
-  return (
-    <span className="contents font-mono">
-      <Badge color="ghost" label="release" text={release} />
-    </span>
-  );
+  return <Badge font="mono" color="ghost" label="release" text={release} />;
 }
 
 export function VersionBadge({ version }: { version: string }) {
-  return (
-    <span className="contents font-mono">
-      <Badge color="ghost" label="version" text={version} />
-    </span>
-  );
+  return <Badge font="mono" color="ghost" label="version" text={version} />;
 }

@@ -24,23 +24,22 @@ export function CostBadge({
   costSource?: CostSource;
 }) {
   if (!hasBreakdown(costDetails)) {
-    return (
-      <span className="contents font-mono">
-        <Badge color="ghost" text={usdFormatter(totalCost)} />
-      </span>
-    );
+    return <Badge font="mono" color="ghost" text={usdFormatter(totalCost)} />;
   }
   return (
-    <span className="contents font-mono">
-      <BreakdownTooltip
-        details={costDetails}
-        isCost={true}
-        priceSource={priceSource}
-        costSource={costSource}
-      >
-        <Badge color="ghost" interactive text={usdFormatter(totalCost)} />
-      </BreakdownTooltip>
-    </span>
+    <BreakdownTooltip
+      details={costDetails}
+      isCost={true}
+      priceSource={priceSource}
+      costSource={costSource}
+    >
+      <Badge
+        font="mono"
+        color="ghost"
+        interactive
+        text={usdFormatter(totalCost)}
+      />
+    </BreakdownTooltip>
   );
 }
 
@@ -58,18 +57,12 @@ export function UsageBadge({
   const tokenText = `${numberFormatter(totalUsage, 0)} tokens`;
 
   if (!hasBreakdown(usageDetails)) {
-    return (
-      <span className="contents font-mono">
-        <Badge color="ghost" text={tokenText} />
-      </span>
-    );
+    return <Badge font="mono" color="ghost" text={tokenText} />;
   }
 
   return (
-    <span className="contents font-mono">
-      <BreakdownTooltip details={usageDetails} isCost={false}>
-        <Badge color="ghost" interactive text={tokenText} />
-      </BreakdownTooltip>
-    </span>
+    <BreakdownTooltip details={usageDetails} isCost={false}>
+      <Badge font="mono" color="ghost" interactive text={tokenText} />
+    </BreakdownTooltip>
   );
 }

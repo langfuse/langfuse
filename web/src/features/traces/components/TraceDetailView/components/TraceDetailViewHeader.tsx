@@ -94,13 +94,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   });
 
   const timestampBadge = preparedDate && (
-    <span className="contents font-mono">
-      <Badge
-        color="ghost"
-        text={preparedDate.display}
-        title={preparedDate.title}
-      />
-    </span>
+    <Badge
+      font="mono"
+      color="ghost"
+      text={preparedDate.display}
+      title={preparedDate.title}
+    />
   );
 
   return (
