@@ -19,7 +19,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-import { logRetryableJobFailure } from "./jobFailureLog";
+import {
+  exceedsNonSlowDownAttemptBudget,
+  logRetryableJobFailure,
+} from "./jobFailureLog";
 
 function slowDown(): Error {
   const cause = Object.assign(new Error("Please reduce your request rate."), {
@@ -96,5 +99,25 @@ describe("logRetryableJobFailure", () => {
     expect(mocks.error).toHaveBeenCalledOnce();
     expect(mocks.traceException).toHaveBeenCalledOnce();
     expect(mocks.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("exceedsNonSlowDownAttemptBudget", () => {
+  const job = (attemptsMade: number) => ({
+    attemptsMade,
+    opts: { attempts: 8 },
+  });
+
+  it("allows non-throttle failures to retry until the budget's last attempt", () => {
+    expect(
+      exceedsNonSlowDownAttemptBudget(job(3), new Error("NoSuchKey"), 5),
+    ).toBe(false);
+    expect(
+      exceedsNonSlowDownAttemptBudget(job(4), new Error("NoSuchKey"), 5),
+    ).toBe(true);
+  });
+
+  it("never caps SlowDown, which keeps the full queue budget", () => {
+    expect(exceedsNonSlowDownAttemptBudget(job(6), slowDown(), 5)).toBe(false);
   });
 });
