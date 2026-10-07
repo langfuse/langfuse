@@ -102,8 +102,11 @@ function handleStorageError(err: unknown, operation: string): never {
     err.code === "EAI_AGAIN"
   ) {
     logger.error(`DNS lookup failure during ${operation}`, err);
-    throw new ServiceUnavailableError(
-      "Storage service temporarily unavailable due to network issues",
+    throw Object.assign(
+      new ServiceUnavailableError(
+        "Storage service temporarily unavailable due to network issues",
+      ),
+      { cause: err },
     );
   }
   // For other errors, throw with the original cause preserved

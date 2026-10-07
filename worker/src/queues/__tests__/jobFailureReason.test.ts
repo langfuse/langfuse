@@ -44,6 +44,18 @@ describe("classifyJobFailure", () => {
       "network",
     ],
     [
+      "storage DNS failure",
+      Object.assign(
+        new Error(
+          "Storage service temporarily unavailable due to network issues",
+        ),
+        {
+          cause: Object.assign(new Error("getaddrinfo"), { code: "EAI_AGAIN" }),
+        },
+      ),
+      "network",
+    ],
+    [
       "Postgres NUL byte",
       new Error(
         'Invalid `prisma.$executeRaw()` invocation:\n\nRaw query failed. Code: `22021`. Message: `ERROR: invalid byte sequence for encoding "UTF8": 0x00`',
