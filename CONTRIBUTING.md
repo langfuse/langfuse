@@ -563,6 +563,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --surface                        | Sticky table chrome fill; follows --surface-context                | Table headers, footers           |
 | --observation-<type>-line        | Observation type colour for stroked icons and borders              | ItemTypeIcon, graph nodes        |
 | --observation-<type>-fill        | Observation type colour for fills under white icons                | ItemTypeTile, timeline bars      |
+| --primary-accent-fill            | Accent fill under white icons; darker than --primary-accent in dark | ItemTypeTile                     |
 
 ### Adding New Colors
 
