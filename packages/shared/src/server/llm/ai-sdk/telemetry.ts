@@ -152,9 +152,9 @@ export function createAiSdkTelemetryCapture(params: {
     : undefined;
 
   const experimentContext = traceSinkParams.eventsWriter?.experimentContext;
-  // An evaluator execution is one model call. Its generation data is written
-  // onto this root span. Prompt experiments can describe more than the model
-  // call, so they keep a child span.
+  // Customers pay per observation and only use an evaluator trace to inspect
+  // input, output, and cost, so the model call is written on this root span
+  // instead of adding another one. Prompt experiments still need the child span.
   const writeGenerationOnRoot =
     evaluationAttributes !== undefined && experimentContext === undefined;
   const childSpanMetadata = traceSinkParams.metadata
