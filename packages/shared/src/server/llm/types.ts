@@ -258,8 +258,12 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
   LLMAdapter.TypeSafe,
 ];
 
-/** The only OpenAI model the Decisions API accepts. */
-export const OPENAI_DECISION_MODEL_ID = "gpt-6-luna";
+/** OpenAI models the Decisions API accepts. */
+export const OPENAI_DECISION_MODEL_IDS: readonly string[] = ["gpt-6-luna"];
+
+export function isOpenAIDecisionModel(model: string): boolean {
+  return OPENAI_DECISION_MODEL_IDS.includes(model);
+}
 
 export function isDecisionModelAdapter(adapter: string): boolean {
   return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
@@ -275,7 +279,7 @@ export function isAllowedDecisionModel(
   model: string,
 ): boolean {
   if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
-  if (adapter === LLMAdapter.OpenAI) return model === OPENAI_DECISION_MODEL_ID;
+  if (adapter === LLMAdapter.OpenAI) return isOpenAIDecisionModel(model);
   return false;
 }
 

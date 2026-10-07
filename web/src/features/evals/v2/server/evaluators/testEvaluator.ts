@@ -18,7 +18,7 @@ import {
   generateLLMText,
   isAllowedDecisionModel,
   LLMAdapter,
-  OPENAI_DECISION_MODEL_ID,
+  OPENAI_DECISION_MODEL_IDS,
   LangfuseInternalTraceEnvironment,
   mapLegacyLLMCompletionParams,
   matchPricingTier,
@@ -146,7 +146,7 @@ async function testDecisionModelEvaluator(params: {
       success: false as const,
       error:
         modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI
-          ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_ID}.`
+          ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`
           : `Connection "${params.definition.provider}" is not a decision-model connection.`,
     };
   }

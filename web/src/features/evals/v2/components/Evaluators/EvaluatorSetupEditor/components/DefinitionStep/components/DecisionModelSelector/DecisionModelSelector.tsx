@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   isAllowedDecisionModel,
-  OPENAI_DECISION_MODEL_ID,
+  isOpenAIDecisionModel,
+  OPENAI_DECISION_MODEL_IDS,
   supportedModels,
   supportsDecisionModels,
 } from "@langfuse/shared";
@@ -57,7 +58,7 @@ export function DecisionModelSelector({
     (connection) => connection.provider === selectedModel?.provider,
   );
   // A saved TypeSafe version can outlive the connection's current list. An
-  // OpenAI model other than Luna must not be offered again.
+  // OpenAI model outside the decision-model list must not be offered again.
   const selectedIsAllowed =
     selectedModel != null &&
     (selectedConnection == null ||
@@ -74,17 +75,14 @@ export function DecisionModelSelector({
 
   const providerGroups = Array.from(modelsByProvider.entries()).sort(
     (left, right) =>
-      Number(right[1].includes(OPENAI_DECISION_MODEL_ID)) -
-      Number(left[1].includes(OPENAI_DECISION_MODEL_ID)),
+      Number(right[1].some(isOpenAIDecisionModel)) -
+      Number(left[1].some(isOpenAIDecisionModel)),
   );
   const unsupported = selectedModel != null && !selectedIsAllowed;
-  const preferred = providerGroups
-    .flatMap(([provider, models]) =>
-      models
-        .filter((model) => model === OPENAI_DECISION_MODEL_ID)
-        .map((model) => ({ provider, model })),
-    )
-    .at(0);
+  const preferred = OPENAI_DECISION_MODEL_IDS.flatMap((model) => {
+    const group = providerGroups.find(([, models]) => models.includes(model));
+    return group ? [{ provider: group[0], model }] : [];
+  }).at(0);
   const preferredProvider = preferred?.provider;
   const preferredModel = preferred?.model;
 
@@ -123,7 +121,7 @@ export function DecisionModelSelector({
       {unsupported ? (
         <p className="text-destructive text-xs">
           {selectedModel.model} is not supported for decision models. Choose{" "}
-          {OPENAI_DECISION_MODEL_ID}.
+          {OPENAI_DECISION_MODEL_IDS.join(", ")}.
         </p>
       ) : null}
     </div>

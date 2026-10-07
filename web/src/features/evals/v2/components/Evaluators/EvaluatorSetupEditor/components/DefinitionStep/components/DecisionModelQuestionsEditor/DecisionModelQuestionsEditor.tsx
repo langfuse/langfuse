@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { OPENAI_DECISION_MODEL_ID } from "@langfuse/shared";
+import { isOpenAIDecisionModel } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
@@ -30,7 +30,8 @@ export function DecisionModelQuestionsEditor({
     })),
   );
   const openaiDecision =
-    state.selectedModel?.model === OPENAI_DECISION_MODEL_ID;
+    state.selectedModel != null &&
+    isOpenAIDecisionModel(state.selectedModel.model);
   const errorsById = useMemo(() => {
     const errors = getQuestionDraftErrors(state.questions, {
       requireLevelLabels: openaiDecision,

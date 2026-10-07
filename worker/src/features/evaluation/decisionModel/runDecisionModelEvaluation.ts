@@ -20,7 +20,7 @@ import {
   instrumentAsync,
   isAllowedDecisionModel,
   LLMAdapter,
-  OPENAI_DECISION_MODEL_ID,
+  OPENAI_DECISION_MODEL_IDS,
   logger,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
@@ -123,7 +123,7 @@ export async function runDecisionModelEvaluation({
       ) {
         modelConfigError =
           modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI
-            ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_ID}.`
+            ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`
             : `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
       }
       if (!modelConfig.valid || modelConfigError !== null) {

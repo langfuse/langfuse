@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { OPENAI_DECISION_MODEL_ID } from "@langfuse/shared";
+import { isOpenAIDecisionModel } from "@langfuse/shared";
 
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
@@ -39,7 +39,8 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
     if (params.type === "DECISION_MODEL") {
       return buildDecisionModelStateFields({
         stateKeys:
-          params.selectedModel?.model === OPENAI_DECISION_MODEL_ID
+          params.selectedModel != null &&
+          isOpenAIDecisionModel(params.selectedModel.model)
             ? ["input"]
             : params.stateKeys,
         variableFields: params.variableFields,
@@ -51,7 +52,8 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   if (params.type === "DECISION_MODEL") {
     const questions = draftsToQuestions(params.questions, {
       requireLevelLabels:
-        params.selectedModel?.model === OPENAI_DECISION_MODEL_ID,
+        params.selectedModel != null &&
+        isOpenAIDecisionModel(params.selectedModel.model),
     });
     // Every state key has to resolve to data, or the state the model sees
     // would silently miss a field the questions refer to.

@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef } from "react";
-import { OPENAI_DECISION_MODEL_ID } from "@langfuse/shared";
+import { isOpenAIDecisionModel } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
@@ -59,7 +59,8 @@ export function VariableMappingEditorContainer({
 
   if (
     state.type === "DECISION_MODEL" &&
-    state.selectedModel?.model === OPENAI_DECISION_MODEL_ID
+    state.selectedModel != null &&
+    isOpenAIDecisionModel(state.selectedModel.model)
   ) {
     const inputField = mappings.find((mapping) => mapping.variable === "input");
     return (

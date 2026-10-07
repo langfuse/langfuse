@@ -11,7 +11,7 @@ import {
   isAllowedDecisionModel,
   isDecisionModelAdapter,
   LLMAdapter,
-  OPENAI_DECISION_MODEL_ID,
+  OPENAI_DECISION_MODEL_IDS,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
@@ -224,7 +224,7 @@ export async function getDecisionModelConfigurationError(params: {
     params.definition.model,
   );
   if (!modelConfig.valid) {
-    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add an OpenAI connection using ${OPENAI_DECISION_MODEL_ID}, or a TypeSafe connection, under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection, under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
   }
   if (
     !isAllowedDecisionModel(
@@ -233,9 +233,9 @@ export async function getDecisionModelConfigurationError(params: {
     )
   ) {
     if (modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI) {
-      return `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_ID}.`;
+      return `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`;
     }
-    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need an OpenAI connection using ${OPENAI_DECISION_MODEL_ID}, or a TypeSafe connection.`;
+    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection.`;
   }
   const missingLabel = params.definition.questions.some(
     (question) =>

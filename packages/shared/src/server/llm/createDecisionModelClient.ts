@@ -2,7 +2,11 @@ import {
   DecisionModelEvaluatorError,
   type DecisionModelClient,
 } from "../evals/decisionModelEvaluatorExecution";
-import { isAllowedDecisionModel, LLMAdapter } from "./types";
+import {
+  isAllowedDecisionModel,
+  LLMAdapter,
+  OPENAI_DECISION_MODEL_IDS,
+} from "./types";
 import { createOpenAIDecisionModelClient } from "./openai/openAIDecisionModelClient";
 import { createTypeSafeDecisionModelClient } from "./typesafe/typeSafeDecisionModelClient";
 
@@ -17,7 +21,7 @@ export function createDecisionModelClient(params: {
   if (!isAllowedDecisionModel(params.adapter, params.model)) {
     throw new DecisionModelEvaluatorError(
       params.adapter === LLMAdapter.OpenAI
-        ? `Model "${params.model}" is not supported for decision models. Use gpt-6-luna.`
+        ? `Model "${params.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`
         : `Decision-model adapter is not supported: ${params.adapter}`,
     );
   }
