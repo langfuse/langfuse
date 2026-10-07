@@ -3094,6 +3094,15 @@ export const CollapsedLargeMessage = meta.story({
     await expect(content).toBeVisible();
     await userEvent.click(timeline.getByText("Collapse content"));
     await expect(content).not.toBeVisible();
+    const sidebar = within(within(canvasElement).getByRole("complementary"));
+    await userEvent.type(
+      sidebar.getByRole("textbox"),
+      "Deeply nested diagnostic output",
+    );
+    await userEvent.click(
+      await sidebar.findByRole("button", { name: "Assistant message" }),
+    );
+    await waitFor(() => expect(content).toBeVisible());
   },
 });
 export const ManySimpleTurns = meta.story({

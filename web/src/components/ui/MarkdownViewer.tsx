@@ -442,7 +442,7 @@ function MarkdownRenderer({
           Displaying as plain text.
         </div>
         {fallbackDisplay === "collapsed" ? (
-          <details className="group">
+          <details className="group" data-markdown-fallback>
             <Button
               asChild
               variant="ghost"
