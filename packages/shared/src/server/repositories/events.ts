@@ -1046,9 +1046,11 @@ function builderFieldSelects(fields: readonly string[]) {
   return fields.map((field) => sql.raw(field));
 }
 
-const TRACE_AGGREGATION_SELECTS = builderFieldSelects(
-  Object.values(EVENTS_AGGREGATION_FIELDS),
-);
+// Lazy: events.ts sits in an import cycle with the builder module, so the
+// field map can still be undefined while this module initializes.
+function traceAggregationSelects() {
+  return builderFieldSelects(Object.values(EVENTS_AGGREGATION_FIELDS));
+}
 
 function observationIoSelects(
   fetchWithInputOutput: boolean,
@@ -1271,7 +1273,7 @@ function compileTraceByIdFromEventsTable(opts: {
       ? qb.selectFrom("events_core as e")
       : qb.selectFrom("events_full as e");
     return from
-      .select([...TRACE_AGGREGATION_SELECTS] as never)
+      .select(traceAggregationSelects() as never)
       .where("trace_id", "in", [traceId])
       .$if(startTimeFrom != null, (inner) =>
         inner.where(
