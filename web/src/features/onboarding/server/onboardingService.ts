@@ -16,6 +16,11 @@ import {
 } from "@/src/features/rbac";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { createProjectRoute } from "@/src/features/setup";
+import {
+  getShownPositions,
+  OTHER_BUILD_INTENT,
+  type BuildIntentId,
+} from "@/src/features/onboarding/lib/buildIntent";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 const STARTER_ORGANIZATION_METADATA = {
@@ -277,6 +282,8 @@ export const completeCloudSignupOnboarding = async ({
   canCreateOrganizations,
   referralSource,
   aiFeaturesEnabled,
+  buildIntents,
+  buildIntentOther,
 }: {
   prisma: PrismaClient;
   userId: string;
@@ -284,6 +291,8 @@ export const completeCloudSignupOnboarding = async ({
   canCreateOrganizations: boolean;
   referralSource?: string;
   aiFeaturesEnabled?: boolean;
+  buildIntents?: BuildIntentId[];
+  buildIntentOther?: string;
 }) =>
   prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
@@ -311,6 +320,12 @@ export const completeCloudSignupOnboarding = async ({
 
     if (!existingSurvey) {
       const normalizedReferralSource = referralSource?.trim();
+      // Temporary build-intent answer, see features/onboarding/lib/buildIntent.ts
+      const normalizedBuildIntentOther = buildIntents?.includes(
+        OTHER_BUILD_INTENT,
+      )
+        ? buildIntentOther
+        : undefined;
 
       if (
         redirectTarget.canConfigureAiFeatures &&
@@ -326,11 +341,20 @@ export const completeCloudSignupOnboarding = async ({
       await tx.survey.create({
         data: {
           surveyName: SurveyName.USER_ONBOARDING,
-          response: normalizedReferralSource
-            ? {
-                referralSource: normalizedReferralSource,
-              }
-            : {},
+          response: {
+            ...(normalizedReferralSource
+              ? { referralSource: normalizedReferralSource }
+              : {}),
+            ...(buildIntents && buildIntents.length > 0
+              ? {
+                  buildIntents,
+                  buildIntentPositions: getShownPositions(userId, buildIntents),
+                  ...(normalizedBuildIntentOther
+                    ? { buildIntentOther: normalizedBuildIntentOther }
+                    : {}),
+                }
+              : {}),
+          },
           userId,
           userEmail: userEmail ?? undefined,
           orgId: redirectTarget.orgId,
@@ -340,6 +364,7 @@ export const completeCloudSignupOnboarding = async ({
 
     return {
       redirectTo: redirectTarget.redirectTo,
+      surveyCreated: !existingSurvey,
     };
   });
 

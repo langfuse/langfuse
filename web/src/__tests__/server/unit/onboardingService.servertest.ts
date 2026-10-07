@@ -14,6 +14,7 @@ import {
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
 } from "@/src/features/onboarding/server";
+import { getShownPositions } from "@/src/features/onboarding/lib/buildIntent";
 
 type CompletionPrisma = Parameters<
   typeof completeCloudSignupOnboarding
@@ -215,6 +216,7 @@ describe("completeCloudSignupOnboarding", () => {
       }),
     ).resolves.toEqual({
       redirectTo: "/project/project-1/traces",
+      surveyCreated: true,
     });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -248,7 +250,7 @@ describe("completeCloudSignupOnboarding", () => {
 
     tx.survey.findFirst.mockResolvedValue({ id: "survey-1" });
 
-    await completeCloudSignupOnboarding({
+    const repeatResult = await completeCloudSignupOnboarding({
       prisma,
       userId: "user-1",
       userEmail: "user@example.com",
@@ -257,8 +259,90 @@ describe("completeCloudSignupOnboarding", () => {
       aiFeaturesEnabled: false,
     });
 
+    expect(repeatResult.surveyCreated).toBe(false);
+
     expect(tx.survey.create).toHaveBeenCalledTimes(1);
     expect(tx.organization.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores build intents with server-computed shown positions", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeCloudSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      referralSource: "Reddit",
+      buildIntents: ["rag", "other"],
+      buildIntentOther: "eval pipeline",
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: {
+            referralSource: "Reddit",
+            buildIntents: ["rag", "other"],
+            buildIntentPositions: getShownPositions("user-1", ["rag", "other"]),
+            buildIntentOther: "eval pipeline",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("drops other text unless other is picked", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeCloudSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+      buildIntents: ["coding_agents"],
+      buildIntentOther: "left over",
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: {
+            buildIntents: ["coding_agents"],
+            buildIntentPositions: getShownPositions("user-1", [
+              "coding_agents",
+            ]),
+          },
+        }),
+      }),
+    );
+  });
+
+  it("stores an empty response when the survey is skipped", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeCloudSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ response: {} }),
+      }),
+    );
   });
 
   it("does not update AI features for an existing organization", async () => {

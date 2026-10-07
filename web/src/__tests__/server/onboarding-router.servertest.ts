@@ -7,6 +7,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/server";
 import { createProjectRoute } from "@/src/features/setup";
+import { getShownPositions } from "@/src/features/onboarding/lib/buildIntent";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({
@@ -139,6 +140,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${starterProjectId}/traces`,
+      surveyCreated: true,
     });
     expect(organizationMembership.role).toBe(Role.OWNER);
     expect(organizationMembership.organization.projects).toHaveLength(1);
@@ -171,6 +173,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: "/setup",
+      surveyCreated: true,
     });
   });
 
@@ -224,6 +227,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${project.id}`,
+      surveyCreated: true,
     });
 
     const projectCount = await prisma.project.count({
@@ -311,6 +315,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${project.id}`,
+      surveyCreated: true,
     });
 
     const organizationMemberships =
@@ -435,6 +440,7 @@ describe("onboarding router", () => {
     );
     expect(result).toEqual({
       redirectTo: `/project/${starterOrganizationMembership?.organization.projects[0]?.id}/traces`,
+      surveyCreated: true,
     });
   });
 
@@ -478,6 +484,69 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: createProjectRoute(organization.id),
+      surveyCreated: true,
+    });
+  });
+  describe("build intent answers", () => {
+    const createCallerForNewUser = async () => {
+      const userId = randomUUID();
+      const email = `build-intent-${userId}@example.com`;
+      createdUserIds.push(userId);
+      await prisma.user.create({ data: { id: userId, email } });
+
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: makeSession({ userId, email }),
+          headers: {},
+        }),
+        prisma,
+      });
+
+      return { caller, userId };
+    };
+
+    it("stores trimmed answers with server-computed positions", async () => {
+      const { caller, userId } = await createCallerForNewUser();
+
+      await caller.onboarding.complete({
+        buildIntents: ["rag", "other"],
+        buildIntentOther: "  voice agent  ",
+      });
+
+      const survey = await prisma.survey.findFirstOrThrow({
+        where: { userId },
+      });
+      expect(survey.response).toEqual({
+        buildIntents: ["rag", "other"],
+        buildIntentOther: "voice agent",
+        buildIntentPositions: getShownPositions(userId, ["rag", "other"]),
+      });
+    });
+
+    it.each([
+      ["duplicate picks", { buildIntents: ["rag", "rag"] }],
+      [
+        "just exploring with another pick",
+        { buildIntents: ["just_exploring", "rag"] },
+      ],
+      [
+        "more than three picks",
+        { buildIntents: ["rag", "chat_agent", "coding_agents", "other"] },
+      ],
+      ["an unknown id", { buildIntents: ["unknown"] }],
+      [
+        "other text over 500 characters",
+        { buildIntents: ["other"], buildIntentOther: "x".repeat(501) },
+      ],
+    ])("rejects %s", async (_case, input) => {
+      const { caller, userId } = await createCallerForNewUser();
+
+      await expect(
+        caller.onboarding.complete(
+          input as Parameters<typeof caller.onboarding.complete>[0],
+        ),
+      ).rejects.toThrow();
+      expect(await prisma.survey.count({ where: { userId } })).toBe(0);
     });
   });
 });

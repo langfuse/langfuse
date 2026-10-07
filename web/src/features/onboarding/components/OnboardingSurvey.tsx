@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
@@ -13,13 +14,19 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import {
+  BUILD_INTENT_OTHER_MAX_LENGTH,
+  type BuildIntentOption,
+} from "../lib/buildIntent";
 import type { SurveyFormData } from "../lib/surveyTypes";
+import { BuildIntentFieldset } from "./BuildIntentFieldset";
 
 type OnboardingSurveyProps =
   | { state: "completing" }
   | { state: "error" }
   | {
       state: "form";
+      buildIntentOptions: BuildIntentOption[];
       canConfigureAiFeatures: boolean;
       onSubmit: (data: SurveyFormData) => Promise<void>;
     };
@@ -29,6 +36,8 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
     defaultValues: {
       referralSource: undefined,
       aiFeaturesEnabled: true,
+      buildIntents: [],
+      buildIntentOther: undefined,
     },
   });
 
@@ -91,6 +100,26 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
             <div className="flex-1">
               <FormField
                 control={form.control}
+                name="buildIntents"
+                render={({ field }) => (
+                  <div className="mb-6 border-b pb-6">
+                    <BuildIntentFieldset
+                      options={props.buildIntentOptions}
+                      value={field.value}
+                      onChange={field.onChange}
+                    >
+                      <DesignSystemInput
+                        {...form.register("buildIntentOther")}
+                        aria-label="What else will you use Langfuse for?"
+                        maxLength={BUILD_INTENT_OTHER_MAX_LENGTH}
+                        placeholder="Tell us briefly"
+                      />
+                    </BuildIntentFieldset>
+                  </div>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="referralSource"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
@@ -99,7 +128,6 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                     </FormLabel>
                     <FormControl>
                       <Input
-                        autoFocus
                         maxLength={500}
                         placeholder="Colleague, Word of Mouth, X, Reddit, Event"
                         {...field}
