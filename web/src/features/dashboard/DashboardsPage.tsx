@@ -17,6 +17,7 @@ export default function DashboardsPage() {
   return (
     <Page
       headerProps={{
+        className: "border-b-0",
         title: "Dashboards",
         help: {
           description: "Manage and create dashboards for your project.",
