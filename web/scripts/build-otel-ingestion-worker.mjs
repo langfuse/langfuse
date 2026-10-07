@@ -23,6 +23,7 @@ await build({
   platform: "node",
   target: "node24",
   tsconfig: "tsconfig.json",
+  external: ["@prisma/*"],
   footer: { js: "module.exports = module.exports.default;" },
   sourcemap: false,
 });
@@ -43,15 +44,28 @@ try {
     );
   }
 
-  const startedAt = performance.now();
-  const shadow = await pool.run({ type: "shadow", durationMs: 20 });
-  if (shadow?.kind !== "shadow") {
-    throw new Error(
-      `Unexpected OTel worker shadow result: ${JSON.stringify(shadow)}`,
-    );
+  const body = Buffer.allocUnsafeSlow(2);
+  body.write("{}", "utf8");
+  const result = await pool.run(
+    {
+      body,
+      contentType: "application/json",
+      encodedBodyBytes: body.byteLength,
+      config: {
+        projectId: "worker-smoke-test",
+        publicKey: "worker-smoke-test",
+        sdkName: "worker-smoke-test",
+        sdkVersion: "1",
+      },
+    },
+    { transferList: [body.buffer] },
+  );
+
+  if (result?.kind !== "ok") {
+    throw new Error(`Unexpected OTel worker result: ${JSON.stringify(result)}`);
   }
-  if (performance.now() - startedAt < 15) {
-    throw new Error("OTel worker shadow task returned without sleeping");
+  if (body.buffer.byteLength !== 0) {
+    throw new Error("OTel worker smoke body was cloned instead of transferred");
   }
 } finally {
   await pool.destroy();
