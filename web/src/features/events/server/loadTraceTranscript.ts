@@ -55,6 +55,19 @@ export async function loadTraceTranscript(trace: {
   // TODO: Evaluate moving general pairing into shared transcript assembly once
   // it preserves resolved call identity for text-only tool responses.
   if (trace.pairTextToolResponses && transcript) {
+    const observationsByTraceAndId = new Map<
+      string,
+      Map<string, (typeof observations)[number]>
+    >();
+    for (const observation of observations) {
+      let byId = observationsByTraceAndId.get(observation.traceId);
+      if (!byId) {
+        byId = new Map();
+        observationsByTraceAndId.set(observation.traceId, byId);
+      }
+      // Preserve the first match, as the previous array lookup did.
+      if (!byId.has(observation.id)) byId.set(observation.id, observation);
+    }
     transcript = {
       ...transcript,
       threads: transcript.threads.map((thread) => {
@@ -89,10 +102,9 @@ export async function loadTraceTranscript(trace: {
             !message.parts.every((part) => part.type === "text")
           )
             continue;
-          const observation = observations.find(
-            (o) =>
-              o.id === message.observationId && o.traceId === message.traceId,
-          );
+          const observation = observationsByTraceAndId
+            .get(message.traceId)
+            ?.get(message.observationId);
           // Provenance must identify a TOOL; positional guessing cannot override it.
           if (observation?.type !== "TOOL" || !observation.name || !anchor)
             continue;
