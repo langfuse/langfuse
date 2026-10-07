@@ -150,6 +150,9 @@ export class SecondaryIngestionQueue {
             backoff: {
               type: "exponential",
               delay: 5000,
+              // Spreads retries of jobs that failed together (e.g. one S3
+              // throttling episode) so they don't hit the prefix in lockstep.
+              jitter: 0.5,
             },
           },
         })
