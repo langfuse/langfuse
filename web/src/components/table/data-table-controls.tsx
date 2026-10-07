@@ -963,7 +963,7 @@ export function DataTableControls({
         )}
       >
         <div className="bg-surface flex h-10 shrink-0 items-center justify-between px-3">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {/* Three contexts for the header's close affordance:
                 - inline (events MobileFiltersSheet): the sheet owns its own X +
                   "Filters" title, so render neither here — a second X would
@@ -1183,9 +1183,9 @@ export function DataTableControls({
           // The space below the field lives HERE rather than in the list,
           // because anything inside the list scrolls away: a facet header
           // pinning to the top of the scroll area would otherwise sit tight
-          // against the field. pb-0.5 + the header's own 6px = the 8px above
+          // against the field. pb-1.5 + the header's own 6px = 12px below
           // the field, at rest and scrolled alike.
-          <div className="bg-surface shrink-0 px-3 pt-2 pb-0.5">
+          <div className="bg-surface shrink-0 px-3 pt-2 pb-1.5">
             <div className="relative">
               <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
               <Input
