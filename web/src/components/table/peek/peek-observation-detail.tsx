@@ -40,7 +40,6 @@ export const TablePeekViewObservationDetail = (
     timestamp,
   });
 
-  // Rendered while loading too (disabled), so the header keeps its layout.
   const actionProps = {
     trace: trace.data,
     traceContext: "peek" as const,

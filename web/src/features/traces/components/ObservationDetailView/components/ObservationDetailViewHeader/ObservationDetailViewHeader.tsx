@@ -350,7 +350,6 @@ export const ObservationDetailViewHeader = memo(
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-              {/* Disabled until the IO loads, so the row keeps its layout. */}
               {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}

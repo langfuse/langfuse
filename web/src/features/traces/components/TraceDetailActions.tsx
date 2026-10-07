@@ -56,7 +56,6 @@ export function TraceDetailActions({
   return <LoadedTraceDetailActions trace={trace} layout={layout} {...props} />;
 }
 
-/** Same buttons and widths as the loaded toolbar, so the header never shifts. */
 function DisabledTraceDetailActions({
   layout,
 }: {
