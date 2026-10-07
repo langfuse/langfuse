@@ -16,7 +16,7 @@ import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
-import { isCloudPlan } from "@langfuse/shared";
+import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
@@ -109,6 +109,7 @@ export const getOrganizationSettingsPages = ({
     id: string;
     name: string;
     metadata: Record<string, unknown>;
+    cloudConfig?: CloudConfigSchema | null;
     projects: Array<{
       id: string;
       name: string;
@@ -142,6 +143,10 @@ export const getOrganizationSettingsPages = ({
               ...organization.metadata,
               ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
                 cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+              }),
+              ...(organization.cloudConfig?.clickhouse?.organizationId && {
+                clickhouseOrganizationId:
+                  organization.cloudConfig.clickhouse.organizationId,
               }),
             }}
           />
