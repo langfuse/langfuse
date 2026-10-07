@@ -334,7 +334,7 @@
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
-    --surface-sunken: 0 0% 98%; /* zinc-50 */
+    --surface-sunken: 0 0% 99%; /* between white and zinc-50 */
     --surface-output: 240 4.8% 95.9%; /* zinc-100 */
 
     --popover: 0 0% 100%;
