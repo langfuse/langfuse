@@ -173,6 +173,7 @@ export const DetailPageNav = (props: {
           {({ getTriggerProps }) => (
             <Button
               {...getTriggerProps()}
+              aria-label="Navigate up"
               variant="outline"
               type="button"
               size={size}
@@ -193,6 +194,7 @@ export const DetailPageNav = (props: {
           {({ getTriggerProps }) => (
             <Button
               {...getTriggerProps()}
+              aria-label="Navigate down"
               variant="outline"
               type="button"
               size={size}
