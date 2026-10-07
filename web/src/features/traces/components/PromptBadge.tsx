@@ -6,14 +6,19 @@ export const PromptBadge = (props: {
   promptVersion: number;
   projectId: string;
 }) => {
-  const text = `Prompt: ${props.promptName} - v${props.promptVersion}`;
+  const text = `${props.promptName} - v${props.promptVersion}`;
 
   return (
     <Link
       href={`/project/${props.projectId}/prompts/${encodeURIComponent(props.promptName)}?version=${props.promptVersion}`}
       className="inline-flex"
     >
-      <Badge text={text} trailingIcon={ExternalLinkIcon} />
+      <Badge
+        color="ghost"
+        label="prompt"
+        text={text}
+        trailingIcon={ExternalLinkIcon}
+      />
     </Link>
   );
 };
