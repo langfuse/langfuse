@@ -1045,6 +1045,19 @@ export const SessionEventsPage: React.FC<{
       />
     );
 
+  if (session.error && !session.data && !session.isFetching) {
+    return (
+      <ErrorPage
+        title="Failed to load session"
+        message="The session could not be loaded. Please try again."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void session.refetch(),
+        }}
+      />
+    );
+  }
+
   if (!session.data) {
     return (
       <div className="bg-background fixed inset-0 z-50 flex">
