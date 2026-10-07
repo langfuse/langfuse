@@ -1,6 +1,8 @@
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
+  createS3ThrottledIngestionError,
   getCurrentSpan,
+  isS3SlowDownError,
   logger,
   markProjectIngestFailure,
   OtelIngestionProcessor,
@@ -264,6 +266,13 @@ export async function processOtelIngestion(
       source: "public_otel_api",
       reason: "publish_failed",
     });
+    if (isS3SlowDownError(error)) {
+      logger.warn("S3 SlowDown error during OTel upload", {
+        projectId: config.projectId,
+        error,
+      });
+      throw createS3ThrottledIngestionError("otel");
+    }
     throw error;
   }
 }
