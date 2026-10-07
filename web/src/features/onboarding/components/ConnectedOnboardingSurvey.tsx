@@ -2,16 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { showErrorToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
 import { getDemoCallbackRedirectPath } from "../lib/demoCallbackRedirect";
-import { orderBuildIntentOptions } from "../lib/buildIntent";
+import {
+  getSurveySubmittedEvent,
+  orderBuildIntentOptions,
+} from "../lib/buildIntent";
 import type { SurveyFormData } from "../lib/surveyTypes";
 import { OnboardingSurvey } from "./OnboardingSurvey";
 
 export function ConnectedOnboardingSurvey() {
   const router = useRouter();
   const { data: session, update: updateSession } = useSession();
+  const capture = usePostHogClientCapture();
   const userId = session?.user?.id;
   const utils = api.useUtils();
   const onboardingStatus = api.onboarding.status.useQuery();
@@ -22,6 +27,8 @@ export function ConnectedOnboardingSurvey() {
     : undefined;
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
+  // Survey duration is measured from page open.
+  const [onboardingOpenedAt] = useState(() => Date.now());
 
   const [finishOnboarding, isFinishingOnboarding] = useWatchedPromiseCallback(
     async (data: SurveyFormData) => {
@@ -42,6 +49,19 @@ export function ConnectedOnboardingSurvey() {
           ...(buildIntents.length > 0 ? { buildIntents } : {}),
           ...(buildIntentOther ? { buildIntentOther } : {}),
         });
+        const surveySubmittedEvent = getSurveySubmittedEvent({
+          surveyCreated: onboardingResult.surveyCreated,
+          buildIntents,
+          hasReferralSource: Boolean(referralSource),
+          surveyDurationMs: Date.now() - onboardingOpenedAt,
+        });
+        if (surveySubmittedEvent) {
+          capture(
+            "onboarding:signup_survey_submitted",
+            surveySubmittedEvent.properties,
+            surveySubmittedEvent.options,
+          );
+        }
         const redirectTo = queryRedirectPath ?? onboardingResult.redirectTo;
         utils.onboarding.status.setData(undefined, {
           completed: true,
@@ -58,6 +78,8 @@ export function ConnectedOnboardingSurvey() {
       }
     },
     [
+      capture,
+      onboardingOpenedAt,
       completeOnboardingMutation,
       onboardingStatus.data,
       queryRedirectPath,

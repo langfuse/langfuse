@@ -1,6 +1,8 @@
 import {
   BUILD_INTENT_IDS,
+  type BuildIntentId,
   getShownPositions,
+  getSurveySubmittedEvent,
   orderBuildIntentOptions,
   toggleBuildIntent,
 } from "./buildIntent";
@@ -70,5 +72,47 @@ describe("toggleBuildIntent", () => {
       toggleBuildIntent(["rag", "chat_agent"], "just_exploring", true),
     ).toEqual(["just_exploring"]);
     expect(toggleBuildIntent(["just_exploring"], "rag", true)).toEqual(["rag"]);
+  });
+});
+
+describe("getSurveySubmittedEvent", () => {
+  const submit = {
+    surveyCreated: true,
+    buildIntents: ["rag"] as BuildIntentId[],
+    hasReferralSource: true,
+    surveyDurationMs: 4200,
+  };
+
+  it("sends metadata and sets the picks once on the person", () => {
+    expect(
+      getSurveySubmittedEvent({ ...submit, buildIntents: ["rag", "other"] }),
+    ).toEqual({
+      properties: {
+        buildIntents: ["rag", "other"],
+        buildIntentCount: 2,
+        hasReferralSource: true,
+        surveyDurationMs: 4200,
+      },
+      options: { $set_once: { onboardingBuildIntents: ["rag", "other"] } },
+    });
+  });
+
+  it("records a skip without setting the person property", () => {
+    expect(
+      getSurveySubmittedEvent({ ...submit, buildIntents: [] }),
+    ).toMatchObject({
+      properties: { buildIntents: [], buildIntentCount: 0 },
+      options: undefined,
+    });
+  });
+
+  it("sends nothing when an earlier submit already stored the survey", () => {
+    expect(
+      getSurveySubmittedEvent({
+        ...submit,
+        buildIntents: ["rag"],
+        surveyCreated: false,
+      }),
+    ).toBeNull();
   });
 });

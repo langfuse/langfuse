@@ -8,7 +8,9 @@
  * last.
  *
  * Removal: delete this file, `BuildIntentFieldset.tsx`, the `buildIntent*`
- * fields in the onboarding router, service and form.
+ * fields in the onboarding router, service and form, and the build-intent
+ * props and `onboardingBuildIntents` person property on the
+ * `onboarding:signup_survey_submitted` event.
  */
 
 const USE_CASE_OPTIONS = [
@@ -128,6 +130,43 @@ export const toggleBuildIntent = (
   if (withoutExclusive.length >= BUILD_INTENT_MAX_SELECTIONS) return current;
 
   return [...withoutExclusive, id];
+};
+
+/**
+ * The `onboarding:signup_survey_submitted` payload for a submit that stored the
+ * survey, or null when an earlier submit (e.g. another tab) already did. Takes
+ * metadata only, so the "Other" text cannot reach PostHog.
+ *
+ * @example
+ * const event = getSurveySubmittedEvent({ surveyCreated: true, buildIntents: ["rag"], hasReferralSource: false, surveyDurationMs: 4200 });
+ * event?.options; // { $set_once: { onboardingBuildIntents: ["rag"] } }
+ */
+export const getSurveySubmittedEvent = ({
+  surveyCreated,
+  buildIntents,
+  hasReferralSource,
+  surveyDurationMs,
+}: {
+  surveyCreated: boolean;
+  buildIntents: BuildIntentId[];
+  hasReferralSource: boolean;
+  surveyDurationMs: number;
+}) => {
+  if (!surveyCreated) return null;
+
+  return {
+    properties: {
+      buildIntents,
+      buildIntentCount: buildIntents.length,
+      hasReferralSource,
+      surveyDurationMs,
+    },
+    // First answer wins, matching the one survey row stored per user.
+    options:
+      buildIntents.length > 0
+        ? { $set_once: { onboardingBuildIntents: buildIntents } }
+        : undefined,
+  };
 };
 
 /** Park–Miller generator seeded by a string hash; same sequence for the same seed on client and server. */
