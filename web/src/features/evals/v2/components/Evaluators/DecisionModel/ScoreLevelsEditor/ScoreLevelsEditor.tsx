@@ -45,14 +45,16 @@ export function ScoreLevelsEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-1.5">
+      <Label className="flex items-baseline gap-1.5">
         Levels, low to high
-        <InfoTooltip label="About levels">
-          {labels
-            ? "Name each level and, if you want, describe it. The score is the probability-weighted average of the level positions, so it can fall between them."
-            : "Each level is one point on the scale. The model judges every level on its own against the state and returns a position between them, so describe situations (“broken, but a workaround exists”), not degrees (“moderately severe”). Two to ten levels; drag to reorder."}
-        </InfoTooltip>
-        <span className="text-muted-foreground text-xs font-normal">
+        <span className="inline-flex self-center">
+          <InfoTooltip label="About levels">
+            {labels
+              ? "Name each level and, if you want, describe it. The score is the probability-weighted average of the level positions, so it can fall between them."
+              : "Each level is one point on the scale. The model judges every level on its own against the state and returns a position between them, so describe situations (“broken, but a workaround exists”), not degrees (“moderately severe”). Two to ten levels; drag to reorder."}
+          </InfoTooltip>
+        </span>
+        <span className="text-muted-foreground text-xs leading-none font-normal">
           {levels.length} of {DECISION_MODEL_LIMITS.maxScoreLevels}
         </span>
       </Label>

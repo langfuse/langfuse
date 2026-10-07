@@ -36,14 +36,16 @@ export function ChoiceOptionsEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-1.5">
+      <Label className="flex items-baseline gap-1.5">
         Options
-        <InfoTooltip label="About options">
-          One label per option. A short description sharpens the boundary
-          between options; add an “other” option when the list may not cover
-          every input.
-        </InfoTooltip>
-        <span className="text-muted-foreground text-xs font-normal">
+        <span className="inline-flex self-center">
+          <InfoTooltip label="About options">
+            One label per option. A short description sharpens the boundary
+            between options; add an “other” option when the list may not cover
+            every input.
+          </InfoTooltip>
+        </span>
+        <span className="text-muted-foreground text-xs leading-none font-normal">
           {options.length} of {DECISION_MODEL_LIMITS.maxChoiceOptions}
         </span>
       </Label>

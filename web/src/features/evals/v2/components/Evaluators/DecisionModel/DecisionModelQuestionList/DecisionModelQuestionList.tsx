@@ -123,14 +123,16 @@ export function DecisionModelQuestionList({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Label className="flex items-center gap-1.5">
+      <Label className="flex items-baseline gap-1.5">
         Questions
-        <InfoTooltip label="About questions">
-          Each question is one snap judgment about the state and writes one
-          score. All questions are answered in a single model call, so a second
-          or tenth question costs only its own tokens.
-        </InfoTooltip>
-        <span className="text-muted-foreground text-xs font-normal">
+        <span className="inline-flex self-center">
+          <InfoTooltip label="About questions">
+            Each question is one snap judgment about the state and writes one
+            score. All questions are answered in a single model call, so a
+            second or tenth question costs only its own tokens.
+          </InfoTooltip>
+        </span>
+        <span className="text-muted-foreground text-xs leading-none font-normal">
           {questions.length} of {DECISION_MODEL_LIMITS.maxQuestions}
         </span>
       </Label>
