@@ -3,7 +3,7 @@ import { createSocket } from "node:dgram";
 import { once } from "node:events";
 import { createRequire } from "node:module";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hello, initTelemetry } from "@langfuse/native";
+import { hello, initTelemetry, validateOtelJson } from "@langfuse/native";
 
 // The addon sends DogStatsD datagrams itself, so capture them on a throwaway
 // UDP socket instead of mocking anything on the Node side.
@@ -88,6 +88,56 @@ describe("@langfuse/native telemetry", () => {
         ]),
       );
     }
+  });
+
+  it("records media stage outcomes and timing without per-body metrics", async () => {
+    const validated = await validateOtelJson(
+      Buffer.from('"data:image/png;base64,aGk="'),
+    );
+    const batch = await validated.extract(true);
+    try {
+      await batch.mediaBody(0);
+      await batch.originalMedia(0);
+      await expect(validated.extract(true)).rejects.toMatchObject({
+        code: "ERR_OTEL_CLOSED",
+      });
+      await expect(validateOtelJson(Buffer.from("{"))).rejects.toMatchObject({
+        code: "ERR_OTEL_INVALID_JSON",
+      });
+    } finally {
+      await batch.dispose();
+      await validated.dispose();
+    }
+
+    const mediaMetrics = () =>
+      received
+        .filter((line) => line.startsWith("langfuse.native.otel_media."))
+        .map(parseDogStatsD);
+    const outcomes = () =>
+      mediaMetrics()
+        .filter(({ name }) => name.endsWith(".operations"))
+        .map(({ value, tags }) => [
+          tags.find((tag) => tag.startsWith("operation:")),
+          tags.find((tag) => tag.startsWith("outcome:")),
+          value,
+        ])
+        .sort();
+    const durations = () =>
+      mediaMetrics().filter(({ name }) => name.endsWith(".duration_ms"));
+    await waitUntil(() => outcomes().length >= 4 && durations().length >= 2);
+    expect(outcomes()).toEqual([
+      ["operation:extract", "outcome:ERR_OTEL_CLOSED", 1],
+      ["operation:extract", "outcome:success", 1],
+      ["operation:validate", "outcome:ERR_OTEL_INVALID_JSON", 1],
+      ["operation:validate", "outcome:success", 1],
+    ]);
+    expect(
+      new Set(
+        durations().flatMap(({ tags }) =>
+          tags.filter((tag) => tag.startsWith("operation:")),
+        ),
+      ),
+    ).toEqual(new Set(["operation:extract", "operation:validate"]));
   });
 
   it("logs to stdout as JSON in the worker logger's shape", () => {
