@@ -207,16 +207,6 @@ interface DataTableControlsProps {
 // useLocalStorage's cross-tab listener on every render.
 const EMPTY_RECENCY: Record<string, number> = {};
 
-const UNFILTERED_FACET_SUMMARY: Record<UIFilter["type"], string> = {
-  categorical: "Any",
-  string: "Any",
-  numeric: "Any",
-  keyValue: "None",
-  numericKeyValue: "None",
-  booleanKeyValue: "None",
-  stringKeyValue: "None",
-};
-
 export function DataTableControls({
   queryFilter,
   filterWithAI,
@@ -518,28 +508,6 @@ export function DataTableControls({
   const showPromotedSeparator =
     promotedFacetCount > 0 && firstCatalogColumn !== undefined;
 
-  // Collapsed line of an unfiltered facet: what it matches. A kept subset
-  // (managed environments) still describes itself.
-  const facetSummary = (filter: UIFilter): string | null => {
-    if (filter.isActive) return getFacetSummary(filter);
-    // An implicit `none of` default (managed environments) can hide values
-    // the option list doesn't show, so every visible option looks kept.
-    const excluded =
-      filter.type === "categorical" ? (filter.excludedValues ?? []) : [];
-    if (excluded.length > 0) {
-      return excluded.length === 1
-        ? `not ${excluded[0]}`
-        : `${excluded.length} excluded`;
-    }
-    const keptSubset =
-      filter.type === "categorical" &&
-      filter.value.length > 0 &&
-      filter.value.length < filter.options.length;
-    return keptSubset
-      ? getFacetSummary(filter)
-      : UNFILTERED_FACET_SUMMARY[filter.type];
-  };
-
   const renderFacet = (filter: UIFilter) => {
     // A column the current surface can't honour blocks the facet whether or
     // not it holds a value: the chart view can't filter on it (#15187 /
@@ -560,7 +528,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={facetSummary(filter)}
+          summary={getFacetSummary(filter)}
           summaryIcon={
             summaryValue !== null
               ? filter.renderIcon?.(summaryValue)
@@ -599,7 +567,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={facetSummary(filter)}
+          summary={getFacetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           min={filter.min}
@@ -625,7 +593,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={facetSummary(filter)}
+          summary={getFacetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           value={filter.value}
@@ -646,7 +614,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={facetSummary(filter)}
+          summary={getFacetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -671,7 +639,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={facetSummary(filter)}
+          summary={getFacetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -695,7 +663,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={facetSummary(filter)}
+          summary={getFacetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -719,7 +687,7 @@ export function DataTableControls({
           label={filter.label}
           tooltip={filter.tooltip}
           help={filter.help}
-          summary={facetSummary(filter)}
+          summary={getFacetSummary(filter)}
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
@@ -1534,7 +1502,7 @@ function FilterAccordionItem({
                 "group-data-[state=open]/facet:hidden",
                 isActive
                   ? "bg-background text-foreground rounded px-1 font-bold"
-                  : "text-muted-foreground font-normal",
+                  : "text-muted-foreground/60 font-normal",
               )}
               title={summary}
             >

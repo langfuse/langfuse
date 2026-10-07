@@ -1038,7 +1038,7 @@ describe("DataTableControls facet ordering", () => {
       </TooltipProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Alpha Any" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alpha All" }));
     const toggled = captureSpy.mock.calls.filter(
       ([event]) => event === "filters:facet_toggled",
     );
@@ -1129,29 +1129,8 @@ describe("DataTableControls facet ordering", () => {
     );
 
     expect(screen.getByText("2 selected")).toBeInTheDocument();
-    // Unfiltered facet reads "Any" on its collapsed line.
-    expect(screen.getByText("Any")).toBeInTheDocument();
-  });
-
-  it("names an implicit exclusion instead of Any when every visible option is kept", () => {
-    render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter([
-            {
-              ...categoricalFilter("environment", "Environment", false),
-              value: ["default", "production"],
-              options: ["default", "production"],
-              operator: "none of",
-              excludedValues: ["langfuse-evaluation"],
-            },
-          ])}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(screen.getByText("not langfuse-evaluation")).toBeInTheDocument();
-    expect(screen.queryByText("Any")).not.toBeInTheDocument();
+    // Inactive checkbox facet reads "All" — all-checked means no filter.
+    expect(screen.getByText("All")).toBeInTheDocument();
   });
 });
 
