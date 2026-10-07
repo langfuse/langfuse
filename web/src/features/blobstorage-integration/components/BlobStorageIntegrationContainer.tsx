@@ -140,8 +140,12 @@ export const BlobStorageIntegrationContainer = ({
           <Button
             variant="secondary"
             loading={mutRunNow.isPending}
-            disabled={!config?.enabled}
-            title="Trigger an immediate export of all data since the last sync"
+            disabled={!config?.enabled || isDirty}
+            title={
+              isDirty
+                ? "Please save latest changes before running an export"
+                : "Trigger an immediate export of all data since the last sync"
+            }
             onClick={() => {
               if (
                 confirm(
