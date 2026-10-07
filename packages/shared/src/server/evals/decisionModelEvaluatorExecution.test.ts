@@ -37,6 +37,7 @@ const questions: DecisionModelQuestions = DecisionModelQuestionsSchema.parse([
     scoreName: "refund_requested",
     type: "noul",
     instructions: "Does `question` request a refund?",
+    criteria: { true: "Asks for money back", false: "Does not" },
   },
 ]);
 
@@ -91,19 +92,27 @@ describe("executeDecisionModelEvaluator", () => {
         readiness: {
           type: "choice",
           instructions: "Is `reply` ready to send as an answer to `question`?",
-          criteria: {
-            ready: "Answers and states the next step",
-            needs_revision: null,
-          },
+          choices: [
+            {
+              value: "ready",
+              description: "Answers and states the next step",
+            },
+            { value: "needs_revision" },
+          ],
         },
         frustration: {
           type: "score",
           instructions: "How frustrated is the customer in `question`?",
-          criteria: ["Calm", "Frustrated but civil", "Very angry"],
+          levels: [
+            { description: "Calm" },
+            { description: "Frustrated but civil" },
+            { description: "Very angry" },
+          ],
         },
         refund: {
-          type: "boolean",
-          instructions: "Does `question` request a refund?",
+          type: "predicate",
+          instructions:
+            "Does `question` request a refund?\n\nCriteria for true:\nAsks for money back\n\nCriteria for false:\nDoes not",
         },
       },
     });

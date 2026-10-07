@@ -18,26 +18,27 @@ import {
 import type { CodeEvalScoreWithName } from "./codeEvalDispatcherTypes";
 import type { ExtractedVariable } from "./extractObservationVariables";
 
+/** OpenAI Decisions question shape. TypeSafe inference projects this down. */
 export type DecisionModelRequestQuestion =
   | {
       type: "choice";
       instructions: DecisionModelEntry;
-      criteria: Record<string, DecisionModelEntry | null>;
+      choices: Array<{
+        value: string;
+        description?: DecisionModelEntry | null;
+      }>;
     }
   | {
       type: "score";
       instructions: DecisionModelEntry;
-      criteria: Array<DecisionModelEntry | null>;
-      /** Set when the question stores a name per level. TypeSafe does not use it. */
-      labels?: Array<string | null>;
+      levels: Array<{
+        label?: string | null;
+        description?: DecisionModelEntry | null;
+      }>;
     }
   | {
-      type: "boolean";
+      type: "predicate";
       instructions: DecisionModelEntry;
-      criteria?: {
-        true?: DecisionModelEntry | null;
-        false?: DecisionModelEntry | null;
-      };
     };
 
 export type DecisionModelRequest = {
@@ -91,6 +92,25 @@ export function buildDecisionModelState(
   return state;
 }
 
+function entryText(entry: DecisionModelEntry | null | undefined) {
+  if (entry == null) return undefined;
+  return typeof entry === "string" ? entry : JSON.stringify(entry);
+}
+
+function predicateInstructions(
+  question: Extract<
+    DecisionModelQuestion,
+    { type: typeof DecisionModelQuestionType.NOUL }
+  >,
+) {
+  const parts = [entryText(question.instructions) ?? ""];
+  const whenTrue = entryText(question.criteria?.true);
+  const whenFalse = entryText(question.criteria?.false);
+  if (whenTrue) parts.push(`Criteria for true:\n${whenTrue}`);
+  if (whenFalse) parts.push(`Criteria for false:\n${whenFalse}`);
+  return parts.join("\n\n");
+}
+
 export function toDecisionModelRequestQuestion(
   question: DecisionModelQuestion,
 ): DecisionModelRequestQuestion {
@@ -99,34 +119,28 @@ export function toDecisionModelRequestQuestion(
       return {
         type: "choice",
         instructions: question.instructions,
-        criteria: Object.fromEntries(
-          question.options.map((option) => [
-            option.value,
-            option.description ?? null,
-          ]),
-        ),
+        choices: question.options.map((option) => ({
+          value: option.value,
+          ...(option.description != null
+            ? { description: option.description }
+            : {}),
+        })),
       };
-    case DecisionModelQuestionType.SCORE: {
-      const labels = question.levels.map((level) => level.label ?? null);
+    case DecisionModelQuestionType.SCORE:
       return {
         type: "score",
         instructions: question.instructions,
-        criteria: question.levels.map((level) => level.description ?? null),
-        ...(labels.some((label) => label != null) ? { labels } : {}),
+        levels: question.levels.map((level) => ({
+          ...(level.label != null ? { label: level.label } : {}),
+          ...(level.description != null
+            ? { description: level.description }
+            : {}),
+        })),
       };
-    }
     case DecisionModelQuestionType.NOUL:
       return {
-        type: "boolean",
-        instructions: question.instructions,
-        ...(question.criteria
-          ? {
-              criteria: {
-                true: question.criteria.true ?? null,
-                false: question.criteria.false ?? null,
-              },
-            }
-          : {}),
+        type: "predicate",
+        instructions: predicateInstructions(question),
       };
   }
 }

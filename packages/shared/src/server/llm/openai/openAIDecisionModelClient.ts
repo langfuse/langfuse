@@ -56,68 +56,42 @@ function entryText(entry: DecisionModelEntry | null | undefined) {
   return typeof entry === "string" ? entry : JSON.stringify(entry);
 }
 
-function predicateInstructions(
-  instructions: DecisionModelEntry,
-  criteria:
-    | { true?: DecisionModelEntry | null; false?: DecisionModelEntry | null }
-    | undefined,
-) {
-  const parts = [entryText(instructions) ?? ""];
-  const whenTrue = entryText(criteria?.true);
-  const whenFalse = entryText(criteria?.false);
-  if (whenTrue) parts.push(`Criteria for true:\n${whenTrue}`);
-  if (whenFalse) parts.push(`Criteria for false:\n${whenFalse}`);
-  return parts.join("\n\n");
-}
-
 function toOpenAIQuestions(questions: DecisionModelRequest["questions"]) {
   return Object.entries(questions).map(([name, question]) => {
     const instructions = entryText(question.instructions) ?? "";
     switch (question.type) {
-      case "boolean":
-        return {
-          type: "predicate" as const,
-          name,
-          instructions: predicateInstructions(
-            question.instructions,
-            question.criteria,
-          ),
-        };
+      case "predicate":
+        return { type: "predicate" as const, name, instructions };
       case "choice":
         return {
           type: "choice" as const,
           name,
           instructions,
-          choices: Object.entries(question.criteria).map(
-            ([value, description]) => ({
-              value,
-              ...(entryText(description) == null
-                ? {}
-                : { description: entryText(description) }),
-            }),
-          ),
+          choices: question.choices.map((choice) => ({
+            value: choice.value,
+            ...(entryText(choice.description) == null
+              ? {}
+              : { description: entryText(choice.description) }),
+          })),
         };
-      case "score": {
-        const labels = question.labels ?? [];
+      case "score":
         return {
           type: "score" as const,
           name,
           instructions,
-          levels: question.criteria.map((description, index) => {
-            const label = labels[index];
-            if (!label) {
+          levels: question.levels.map((level, index) => {
+            if (!level.label) {
               throw new DecisionModelEvaluatorError(
                 `OpenAI score question "${name}" is missing a label for level ${index}.`,
               );
             }
-            const text = entryText(description);
+            const text = entryText(level.description);
             return {
-              label,
+              label: level.label,
               ...(text == null ? {} : { description: text }),
             };
           }),
         };
-      }
     }
   });
 }

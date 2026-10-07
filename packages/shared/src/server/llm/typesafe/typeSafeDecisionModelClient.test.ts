@@ -25,15 +25,19 @@ const request: DecisionModelRequest = {
     readiness: {
       type: "choice",
       instructions: "Is `reply` ready to send?",
-      criteria: { ready: null, needs_revision: null },
+      choices: [{ value: "ready" }, { value: "needs_revision" }],
     },
     frustration: {
       type: "score",
       instructions: "How frustrated is the customer?",
-      criteria: ["Calm", "Frustrated", "Angry"],
+      levels: [
+        { label: "Calm" },
+        { description: "Frustrated" },
+        { description: "Angry" },
+      ],
     },
     refund: {
-      type: "boolean",
+      type: "predicate",
       instructions: "Does `question` request a refund?",
     },
   },
@@ -77,14 +81,26 @@ describe("createTypeSafeDecisionModelClient", () => {
     expect(new Headers(init.headers).get("authorization")).toBe(
       "Bearer sk-test",
     );
-    // The SDK sends TypeSafe's native `noul` type for boolean questions.
+    // Score levels become a description list. A label fills in when the
+    // level has no description. Predicates go out as TypeSafe's noul type.
     expect(JSON.parse(init.body as string)).toEqual({
       model: "jev-latest",
       state: request.state,
       questions: {
-        readiness: request.questions.readiness,
-        frustration: request.questions.frustration,
-        refund: { ...request.questions.refund, type: "noul" },
+        readiness: {
+          type: "choice",
+          instructions: "Is `reply` ready to send?",
+          criteria: { ready: null, needs_revision: null },
+        },
+        frustration: {
+          type: "score",
+          instructions: "How frustrated is the customer?",
+          criteria: ["Calm", "Frustrated", "Angry"],
+        },
+        refund: {
+          type: "noul",
+          instructions: "Does `question` request a refund?",
+        },
       },
     });
 

@@ -16,18 +16,23 @@ const request: DecisionModelRequest = {
     department: {
       type: "choice",
       instructions: "Which team should handle `input`?",
-      criteria: { billing: "Payments and refunds", other: null },
+      choices: [
+        { value: "billing", description: "Payments and refunds" },
+        { value: "other" },
+      ],
     },
     severity: {
       type: "score",
       instructions: "How severe is the issue?",
-      criteria: ["Appearance only", null],
-      labels: ["Cosmetic", "Blocked"],
+      levels: [
+        { label: "Cosmetic", description: "Appearance only" },
+        { label: "Blocked" },
+      ],
     },
     refund: {
-      type: "boolean",
-      instructions: "Does `input` request a refund?",
-      criteria: { true: "Asks for money back", false: null },
+      type: "predicate",
+      instructions:
+        "Does `input` request a refund?\n\nCriteria for true:\nAsks for money back",
     },
   },
 };

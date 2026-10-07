@@ -396,7 +396,7 @@ export function createMockEvalExecutionDeps(
         Object.entries(request.questions).map(([id, question]) => {
           switch (question.type) {
             case "choice": {
-              const [choice = "mock"] = Object.keys(question.criteria);
+              const choice = question.choices[0]?.value ?? "mock";
               return [
                 id,
                 {
@@ -412,7 +412,7 @@ export function createMockEvalExecutionDeps(
                 id,
                 { type: "score", score: 0, probabilities: {}, confidence: 1 },
               ];
-            case "boolean":
+            case "predicate":
               return [id, { type: "boolean", probability: 1 }];
           }
         }),

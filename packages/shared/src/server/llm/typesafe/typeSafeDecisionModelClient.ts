@@ -8,8 +8,39 @@ import type {
   DecisionModelAnswer,
   DecisionModelClient,
   DecisionModelEvaluation,
+  DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
 import { createSecureLlmFetch } from "../secureLlmFetch";
+
+/** TypeSafe reads descriptions. A level label fills in only when the description is missing. */
+function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
+  switch (question.type) {
+    case "choice":
+      return {
+        type: "choice" as const,
+        instructions: question.instructions,
+        criteria: Object.fromEntries(
+          question.choices.map((choice) => [
+            choice.value,
+            choice.description ?? null,
+          ]),
+        ),
+      };
+    case "score":
+      return {
+        type: "score" as const,
+        instructions: question.instructions,
+        criteria: question.levels.map(
+          (level) => level.description ?? level.label ?? null,
+        ),
+      };
+    case "predicate":
+      return {
+        type: "boolean" as const,
+        instructions: question.instructions,
+      };
+  }
+}
 
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
@@ -37,13 +68,10 @@ export function createTypeSafeDecisionModelClient(params: {
         model,
         state: request.state as Record<string, JSONValue>,
         questions: Object.fromEntries(
-          Object.entries(request.questions).map(([id, question]) => {
-            if (question.type !== "score" || question.labels == null) {
-              return [id, question];
-            }
-            const { labels: _labels, ...rest } = question;
-            return [id, rest];
-          }),
+          Object.entries(request.questions).map(([id, question]) => [
+            id,
+            toTypeSafeQuestion(question),
+          ]),
         ) as Record<string, EvaluationQuestion>,
         maxRetries: 1,
       });
