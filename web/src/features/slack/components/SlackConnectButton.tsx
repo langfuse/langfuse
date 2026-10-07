@@ -182,7 +182,7 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
       size={size}
       className="flex items-center gap-2"
     >
-      <SiSlack className="h-4 w-4" />
+      <SiSlack className="icon-base" />
       {showText && <span>{isConnecting ? "Connecting..." : buttonText}</span>}
     </Button>
   );

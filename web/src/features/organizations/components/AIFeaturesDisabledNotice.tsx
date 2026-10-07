@@ -45,7 +45,7 @@ export function AIFeaturesDisabledNotice({
           className="w-fit"
         >
           Enable in Organization Settings
-          <ExternalLink className="ml-2 h-4 w-4" />
+          <ExternalLink className="icon-base text-icon-foreground ml-2" />
         </Button>
       ) : null}
     </div>

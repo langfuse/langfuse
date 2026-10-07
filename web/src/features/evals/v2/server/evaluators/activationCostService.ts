@@ -29,7 +29,7 @@ export async function getActivationCostEstimates(params: {
   filter: FilterState;
   sampling: number;
   knownTestRunCostUsd?: number;
-  shouldRunMissingTest?: boolean;
+  missingCostMode?: "probe" | "wait" | "skip";
   shouldReadFromObservationsTable: boolean;
   timeRange?: {
     from: Date;
@@ -114,7 +114,7 @@ export async function getActivationCostEstimates(params: {
     (evaluator) => costsByEvaluatorId.get(evaluator.id) === null,
   );
   if (
-    params.shouldRunMissingTest === false &&
+    params.missingCostMode === "wait" &&
     matchingObservations > 0 &&
     evaluatorsWithoutCost.length > 0
   ) {
@@ -127,7 +127,11 @@ export async function getActivationCostEstimates(params: {
     availableCosts.forEach(({ evaluatorId, cost }) =>
       costsByEvaluatorId.set(evaluatorId, cost),
     );
-  } else if (matchingObservations > 0 && evaluatorsWithoutCost.length > 0) {
+  } else if (
+    params.missingCostMode !== "skip" &&
+    matchingObservations > 0 &&
+    evaluatorsWithoutCost.length > 0
+  ) {
     const sample = (
       await getObservationsWithModelDataFromEventsTable({
         projectId: params.projectId,

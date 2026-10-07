@@ -219,7 +219,7 @@ const ObservationsPreview = memo(
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             {showSdkUpgradeMessage ? (
               <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
-                <AlertTriangle className="text-dark-yellow h-8 w-8" />
+                <AlertTriangle className="text-dark-yellow icon-xl" />
                 <div className="flex flex-col gap-1">
                   <span className="text-foreground font-bold">
                     Please verify your SDK version
@@ -301,7 +301,7 @@ function CodeEvalSourceLink({
         rel="noopener noreferrer"
       >
         Edit source code
-        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+        <ExternalLink className="icon-base text-icon-foreground ml-1" />
       </Link>
     </Button>
   ) : (
@@ -311,7 +311,7 @@ function CodeEvalSourceLink({
       title="Only user-managed templates can be edited"
     >
       Edit source code
-      <ExternalLink className="ml-1 h-3.5 w-3.5" />
+      <ExternalLink className="icon-base text-icon-foreground ml-1" />
     </Button>
   );
 
@@ -876,7 +876,7 @@ export const InnerEvaluatorForm = (props: {
                       {props.mode === "edit" && (
                         <Tooltip>
                           <TooltipTrigger>
-                            <InfoIcon className="text-muted-foreground size-3" />
+                            <InfoIcon className="text-muted-foreground icon-sm" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[200px] p-2">
                             <span className="leading-4">
@@ -1077,7 +1077,7 @@ export const InnerEvaluatorForm = (props: {
                                 (props.mode === "edit" ? (
                                   <Tooltip>
                                     <TooltipTrigger>
-                                      <InfoIcon className="text-muted-foreground size-3" />
+                                      <InfoIcon className="text-muted-foreground icon-sm" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-[300px] p-2">
                                       <span className="leading-4">
@@ -1262,7 +1262,7 @@ export const InnerEvaluatorForm = (props: {
                         </FormControl>
                         {!props.disabled && !hasFilters && (
                           <div className="flex max-w-[500px] gap-1">
-                            <AlertTriangle className="text-dark-yellow h-4 w-4" />
+                            <AlertTriangle className="text-dark-yellow icon-base" />
                             <div className="text-dark-yellow text-sm [&_p]:leading-relaxed">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.

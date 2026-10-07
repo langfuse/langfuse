@@ -554,6 +554,7 @@ describe("AI gateway control plane", () => {
     expect(openAiPrimary.routingPriority).toBe(0);
     expect(result.connection).toEqual({
       id: openAiPrimary.id,
+      name: "OpenAI first",
       provider: "openai",
       api_format: apiFormat,
       base_url: "https://api.openai.com/v1",

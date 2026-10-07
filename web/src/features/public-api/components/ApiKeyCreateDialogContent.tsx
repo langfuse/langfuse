@@ -196,7 +196,7 @@ function ApiKeyCreateForm({
               >
                 <SelectTrigger className="h-auto" disableValueLineClamp>
                   <div className="flex items-start gap-2 text-left">
-                    <SelectedRoleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <SelectedRoleIcon className="icon-base mt-0.5 shrink-0" />
                     <div className="flex flex-col">
                       <span className="font-bold">{selectedRoleDef.name}</span>
                       <span className="text-muted-foreground text-xs">
@@ -226,7 +226,7 @@ function ApiKeyCreateForm({
                 View{" "}
                 <span className="inline-flex items-center gap-0.5 underline">
                   {rolePermissionCountLabel(role)}
-                  <ArrowUpRight className="h-3 w-3" />
+                  <ArrowUpRight className="icon-sm" />
                 </span>
               </button>
             </div>

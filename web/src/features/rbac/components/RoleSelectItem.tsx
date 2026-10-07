@@ -26,7 +26,7 @@ export const RoleSelectItem = ({
       className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
     >
       <div className="flex w-full items-start gap-2 text-left">
-        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+        <Icon className="icon-base mt-0.5 shrink-0" />
         <div className="flex flex-col">
           <span className="font-bold">
             {def.name}
@@ -51,7 +51,7 @@ export const RoleSelectItem = ({
               aria-label={`View ${def.name} permissions`}
               className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
             >
-              <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+              <SquareArrowOutUpRight className="icon-base" />
             </button>
           )}
         </Tooltip>

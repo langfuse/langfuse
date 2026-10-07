@@ -118,6 +118,10 @@ export const ObservationDetailViewHeader = memo(
           scores: serverScores.filter((score) => !score.observationId),
         }
       : undefined;
+    const prompt = api.prompts.byId.useQuery(
+      { id: observation.promptId ?? "", projectId },
+      { enabled: Boolean(observation.promptId) },
+    );
 
     // Format cost and usage values
     const totalCost = observation.totalCost;
@@ -178,6 +182,14 @@ export const ObservationDetailViewHeader = memo(
         text={preparedDate.display}
         title={preparedDate.title}
       />
+    );
+
+    const renderAddToButton = (triggerProps: Record<string, unknown> = {}) => (
+      <Button variant="secondary" size="sm" className="gap-1" {...triggerProps}>
+        <PlusIcon className="icon-base" />
+        <span>Add to</span>
+        <DropdownIndicator size="sm" nudge />
+      </Button>
     );
 
     return (
@@ -323,7 +335,7 @@ export const ObservationDetailViewHeader = memo(
                                   ref: mobileActionsTriggerRef,
                                 })}
                               >
-                                <MoreHorizontal className="h-4 w-4" />
+                                <MoreHorizontal className="icon-base text-icon-foreground" />
                               </Button>
                             )}
                           </DropdownMenu>
@@ -338,7 +350,7 @@ export const ObservationDetailViewHeader = memo(
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-              {observationWithIO && (
+              {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   projectId={projectId}
@@ -355,19 +367,12 @@ export const ObservationDetailViewHeader = memo(
                       : undefined
                   }
                 >
-                  {({ getTriggerProps }) => (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="gap-1"
-                      {...getTriggerProps()}
-                    >
-                      <PlusIcon className="h-3.5 w-3.5" />
-                      <span>Add to</span>
-                      <DropdownIndicator size="sm" nudge />
-                    </Button>
-                  )}
+                  {({ getTriggerProps }) =>
+                    renderAddToButton(getTriggerProps())
+                  }
                 </ConnectedTraceObservationAddToDropdownMenuController>
+              ) : (
+                renderAddToButton({ disabled: true })
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
@@ -392,9 +397,9 @@ export const ObservationDetailViewHeader = memo(
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="mr-1.5 h-3 w-3" />
+                        <LockIcon className="icon-base mr-1.5" />
                       ) : (
-                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                        <SquarePen className="icon-base mr-1.5" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -410,10 +415,10 @@ export const ObservationDetailViewHeader = memo(
                 className="gap-1"
               >
                 {commentDrawerControl.disabled ? (
-                  <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                  <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare className="h-3.5 w-3.5" />
+                    <MessageSquare className="icon-base" />
                     <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
@@ -453,7 +458,7 @@ export const ObservationDetailViewHeader = memo(
                     variant="secondary"
                     {...getTriggerProps()}
                   >
-                    <EllipsisVertical className="h-4 w-4" />
+                    <EllipsisVertical className="icon-base" />
                   </Button>
                 )}
               </ConnectedDetailHeaderActionsMenuController>
@@ -469,10 +474,14 @@ export const ObservationDetailViewHeader = memo(
         ) : (
           <CollapsibleBadgeRow>
             {timestampBadge}
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
+            {latencySeconds != null && (
+              <LatencyBadge latencySeconds={latencySeconds} />
+            )}
+            {observation.timeToFirstToken != null && (
+              <TimeToFirstTokenBadge
+                timeToFirstToken={observation.timeToFirstToken}
+              />
+            )}
             {evaluatorId &&
               (observation.environment ===
                 LangfuseInternalTraceEnvironment.LLMJudge ||
@@ -523,9 +532,10 @@ export const ObservationDetailViewHeader = memo(
             {observation.level !== "DEFAULT" && (
               <ObservationLevelBadge level={observation.level} />
             )}
-            {observation.promptId && (
+            {observation.promptId && !prompt.isLoading && prompt.data && (
               <PromptBadge
-                promptId={observation.promptId}
+                promptName={prompt.data.name}
+                promptVersion={prompt.data.version}
                 projectId={projectId}
               />
             )}

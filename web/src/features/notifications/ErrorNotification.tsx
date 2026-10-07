@@ -4,6 +4,7 @@ import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { AlertTriangle, Check, Copy, X } from "lucide-react";
+import { useRef } from "react";
 
 interface ErrorNotificationProps {
   error: string;
@@ -11,6 +12,7 @@ interface ErrorNotificationProps {
   type: "WARNING" | "ERROR";
   dismissToast: (t?: string | number | undefined) => void;
   toast: string | number;
+  source?: "application" | "trpc";
   path?: string;
   traceId?: string;
 }
@@ -21,6 +23,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   type,
   dismissToast,
   toast,
+  source = "application",
   path,
   traceId,
 }) => {
@@ -28,16 +31,29 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
+  const didCaptureShown = useRef(false);
   const isError = type === "ERROR";
   const textColor = isError
     ? "text-destructive-foreground"
     : "text-dark-yellow";
 
+  const captureShown = (element: HTMLDivElement | null) => {
+    if (!element || didCaptureShown.current) return;
+    didCaptureShown.current = true;
+
+    capture("toast:shown", {
+      toastType: type,
+      source,
+      ...(path ? { path } : {}),
+      hasErrorId: Boolean(traceId),
+    });
+  };
+
   return (
-    <div className="flex justify-between">
+    <div ref={captureShown} className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <AlertTriangle size={20} className={textColor} />
+          <AlertTriangle className={`icon-lg ${textColor}`} />
           <div className={`m-0 text-sm leading-tight font-bold ${textColor}`}>
             {error}
           </div>
@@ -68,7 +84,11 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               aria-label="Copy error ID"
               title="Copy error ID"
             >
-              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+              {isCopied ? (
+                <Check className="icon-base" />
+              ) : (
+                <Copy className="icon-base" />
+              )}
             </button>
           </div>
         )}
@@ -116,7 +136,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         }}
         aria-label="Close"
       >
-        <X size={14} />
+        <X className="icon-base" />
       </button>
     </div>
   );

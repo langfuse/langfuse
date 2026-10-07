@@ -81,7 +81,7 @@ export function WebCalloutSettingsTable({
         id: "add-endpoint",
         label: "Add endpoint",
         variant: "secondary",
-        icon: <Plus className="size-4" aria-hidden="true" />,
+        icon: <Plus className="icon-base" aria-hidden="true" />,
         disabled: Boolean(createAction.disabledReason),
         title: createAction.disabledReason,
         onClick: createAction.onClick,

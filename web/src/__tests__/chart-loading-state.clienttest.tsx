@@ -15,7 +15,7 @@ describe("ChartLoadingState", () => {
   test("keeps legacy pending state spinner-only without loading copy or hint", () => {
     const hintDelayMs = 1375;
     const { container } = render(
-      <ChartLoadingState isLoading={true} hintDelayMs={hintDelayMs} />,
+      <ChartLoadingState hintDelayMs={hintDelayMs} />,
     );
 
     expect(
@@ -37,7 +37,7 @@ describe("ChartLoadingState", () => {
   test("keeps legacy pending state spinner-only when loading toggles off and on again", () => {
     const hintDelayMs = 825;
     const { rerender, container } = render(
-      <ChartLoadingState isLoading={true} hintDelayMs={hintDelayMs} />,
+      <ChartLoadingState hintDelayMs={hintDelayMs} />,
     );
 
     act(() => {
@@ -46,11 +46,11 @@ describe("ChartLoadingState", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
-    rerender(<ChartLoadingState isLoading={false} hintDelayMs={hintDelayMs} />);
+    rerender(<></>);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
-    rerender(<ChartLoadingState isLoading={true} hintDelayMs={hintDelayMs} />);
+    rerender(<ChartLoadingState hintDelayMs={hintDelayMs} />);
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
     act(() => {
@@ -60,13 +60,39 @@ describe("ChartLoadingState", () => {
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
   });
 
+  test("resets progress and hint delays after unmounting", () => {
+    const { rerender } = render(
+      <ChartLoadingState progress={null} hintDelayMs={1500} />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
+
+    rerender(<></>);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    rerender(<ChartLoadingState progress={null} hintDelayMs={1500} />);
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
+  });
+
   test("shows hint immediately without spinner for overload state", () => {
     const { container } = render(
-      <ChartLoadingState
-        isLoading={true}
-        showSpinner={false}
-        showHintImmediately={true}
-      />,
+      <ChartLoadingState showSpinner={false} showHintImmediately={true} />,
     );
 
     expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
@@ -83,7 +109,6 @@ describe("ChartLoadingState", () => {
 
     render(
       <ChartLoadingState
-        isLoading={true}
         showHintImmediately={true}
         showSpinner={false}
         hintText={customHint}
@@ -99,7 +124,6 @@ describe("ChartLoadingState", () => {
 
     render(
       <ChartLoadingState
-        isLoading={true}
         showHintImmediately={true}
         showSpinner={false}
         onRetry={onRetry}
@@ -112,9 +136,7 @@ describe("ChartLoadingState", () => {
   });
 
   test("shows only the spinner for the first second before swapping to the loading bar", () => {
-    const { container } = render(
-      <ChartLoadingState isLoading={true} progress={null} />,
-    );
+    const { container } = render(<ChartLoadingState progress={null} />);
 
     expect(container.querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
@@ -137,7 +159,6 @@ describe("ChartLoadingState", () => {
   test("renders query progress details when progress is provided after the spinner phase", () => {
     const { container } = render(
       <ChartLoadingState
-        isLoading={true}
         progress={{
           read_rows: 1_779_300_000,
           total_rows_to_read: 2_924_500_000,
@@ -161,7 +182,7 @@ describe("ChartLoadingState", () => {
   test("renders an indeterminate progress state while query progress is pending", () => {
     const progress = null;
 
-    render(<ChartLoadingState isLoading={true} progress={progress} />);
+    render(<ChartLoadingState progress={progress} />);
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -179,9 +200,7 @@ describe("ChartLoadingState", () => {
   });
 
   test("renders the delayed warning below the loading bar section", () => {
-    render(
-      <ChartLoadingState isLoading={true} progress={null} hintDelayMs={1500} />,
-    );
+    render(<ChartLoadingState progress={null} hintDelayMs={1500} />);
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -204,12 +223,7 @@ describe("ChartLoadingState", () => {
 
   test("prioritizes the loading bar in tight layouts once the spinner phase ends", () => {
     render(
-      <ChartLoadingState
-        isLoading={true}
-        progress={null}
-        layout="tight"
-        hintDelayMs={1500}
-      />,
+      <ChartLoadingState progress={null} layout="tight" hintDelayMs={1500} />,
     );
 
     act(() => {
@@ -227,9 +241,7 @@ describe("ChartLoadingState", () => {
   });
 
   test("does not render skeleton preview chrome in the default layout", () => {
-    const { container } = render(
-      <ChartLoadingState isLoading={true} progress={null} />,
-    );
+    const { container } = render(<ChartLoadingState progress={null} />);
 
     expect(container.querySelector(".rounded-xl")).not.toBeInTheDocument();
   });

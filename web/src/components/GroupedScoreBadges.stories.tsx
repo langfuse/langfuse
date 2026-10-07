@@ -49,10 +49,6 @@ export const Default = meta.story({
   args: { scores },
 });
 
-export const Compact = meta.story({
-  args: { scores, compact: true },
-});
-
 export const WithOverflow = meta.story({
   name: "(Test) With Overflow",
   args: {
@@ -88,7 +84,7 @@ export const WithOverflow = meta.story({
       ).toHaveLength(3);
     });
 
-    const popover = within(body.getByRole("dialog"));
+    const popover = within(body.getByRole("dialog", { name: "" }));
     const commentButton = popover.getByLabelText(
       "View comment for quality: 0.92",
     );

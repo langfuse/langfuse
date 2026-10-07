@@ -32,7 +32,7 @@ export type NavMainItem = {
 function NavItemContent({ item }: { item: NavMainItem }) {
   return (
     <>
-      {item.icon && <item.icon />}
+      {item.icon && <item.icon className="icon-base" />}
       <span>{item.title}</span>
       {item.label &&
         (typeof item.label === "string" ? (

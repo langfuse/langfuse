@@ -195,6 +195,11 @@ describe("OrganizationFeaturePreviewsSettings", () => {
         name: "Toggle Compact Session View organization default",
       }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle External Media Storage organization default",
+      }),
+    ).toBeEnabled();
     const personalEnablementRequirements = screen.getAllByText(
       /enable this preview in your personal feature preview settings/i,
     );

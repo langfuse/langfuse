@@ -115,51 +115,40 @@ export function VirtualizedTreeNodeWrapper({
         {visualDepth > 0 && (
           <div className="relative w-5 shrink-0">
             <>
-              {/* Vertical bar connecting upwards */}
-              <div
-                className={cn(
-                  "bg-border-contrast absolute top-0 left-3 w-px",
-                  isLastSibling ? "h-3" : "bottom-3",
-                )}
-              />
-              {/* Vertical bar connecting downwards if not last sibling */}
+              {/* Spine continuing to the next sibling */}
               {!isLastSibling && (
-                <div className="bg-border-contrast absolute top-3 bottom-0 left-3 w-px" />
+                <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
               )}
-              {/* Horizontal bar connecting to icon */}
-              <div className="bg-border-contrast absolute top-3 left-3 h-px w-2" />
+              {/* Rounded elbow into the icon */}
+              <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
             </>
           </div>
         )}
 
         {/* 3. Icon + child connector: fixed width container */}
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
-          <div
-            className={cn(
-              "relative z-10 flex h-4 items-center justify-center",
-              isSelected ? "bg-muted" : "bg-background group-hover:bg-accent",
-            )}
-          >
-            <ItemTypeIcon type={nodeType} className="size-3" />
+          <div className="relative z-10 flex h-4 items-center justify-center">
+            <ItemTypeIcon type={nodeType} className="icon-base" />
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
               when children render capped at this same indent — the spine
               would point at nothing) */}
           {hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
           )}
           {/* Root node downward connector */}
           {depth === 0 && hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
           )}
         </div>
 
         {/* 4. Content area (passed as children - completely decoupled) */}
         <div className="flex min-w-0 flex-1">{children}</div>
 
-        {/* 5. Expand/Collapse button */}
-        {hasChildren && (
-          <div className="flex items-center justify-end py-1 pr-1">
+        {/* 5. Expand/Collapse button. Leaf rows keep the slot so right-aligned
+            content lines up across rows. */}
+        <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
+          {hasChildren && (
             <Button
               aria-expanded={!isCollapsed}
               data-expand-button
@@ -169,7 +158,7 @@ export function VirtualizedTreeNodeWrapper({
                 ev.stopPropagation();
                 onToggleCollapse();
               }}
-              className="hover:bg-primary/10 h-6 w-6 shrink-0"
+              className="text-muted-foreground hover:text-foreground hover:bg-primary/10 h-6 w-6 shrink-0"
             >
               <span
                 className={cn(
@@ -177,11 +166,11 @@ export function VirtualizedTreeNodeWrapper({
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="icon-base text-icon-foreground" />
               </span>
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

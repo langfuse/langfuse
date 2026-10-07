@@ -139,12 +139,12 @@ const DatasetRunTableMultiSelectAction = ({
               }}
             >
               <DropdownMenuItem>
-                <Columns3 className="mr-2 h-4 w-4" />
+                <Columns3 className="icon-base text-icon-foreground mr-2" />
                 <span>Compare</span>
               </DropdownMenuItem>
             </Link>
             <DropdownMenuItem key="delete" onClick={openDialog}>
-              <Trash className="mr-2 h-4 w-4" />
+              <Trash className="icon-base text-icon-foreground mr-2" />
               <span>Delete</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -502,7 +502,7 @@ function DatasetRunsTableInternal(
               disabled={!hasDeleteAccess}
               onSelect={() => props.openDeleteDatasetRunDialog(id)}
             >
-              <Trash className="mr-2 h-4 w-4" />
+              <Trash className="icon-base text-icon-foreground mr-2" />
               Delete
             </DropdownMenuItem>
           </>

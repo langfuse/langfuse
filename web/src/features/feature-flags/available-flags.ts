@@ -1,11 +1,44 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const featurePreviewFlags = [
+export const organizationOnlyFeaturePreviewFlags = [
+  "externalMediaStorage",
+] as const;
+
+export const userFeaturePreviewFlags = [
   "modernSession",
   "sessionTimeline",
 ] as const;
 
+export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
+
+export const featurePreviewFlags = [
+  ...organizationOnlyFeaturePreviewFlags,
+  ...userFeaturePreviewFlags,
+] as const;
+
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
+
+export const isOrganizationOnlyFeaturePreviewFlag = (
+  flag: FeaturePreviewFlag,
+): flag is (typeof organizationOnlyFeaturePreviewFlags)[number] =>
+  organizationOnlyFeaturePreviewFlags.some(
+    (organizationFlag) => organizationFlag === flag,
+  );
+
+const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+
+export const personalFeaturePreviewFlags = [
+  ...userFeaturePreviewFlags,
+  ...adminOnlyFeaturePreviewFlags,
+] as const;
+
+export type PersonalFeaturePreviewFlag =
+  (typeof personalFeaturePreviewFlags)[number];
+
+export const isAdminOnlyFeaturePreviewFlag = (
+  flag: string,
+): flag is (typeof adminOnlyFeaturePreviewFlags)[number] =>
+  adminOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
 
 const restrictedFlags = ["aiGateway"] as const;
 
@@ -20,7 +53,9 @@ export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
  */
 export const INTERNAL_FEATURE_FLAG = "internalFeatures" as const;
 
-export type UserFeatureFlag = FeaturePreviewFlag | typeof INTERNAL_FEATURE_FLAG;
+export type UserFeatureFlag =
+  | PersonalFeaturePreviewFlag
+  | typeof INTERNAL_FEATURE_FLAG;
 
 export const isInternalFlag = (
   flag: string,
@@ -36,9 +71,11 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
+  externalMediaStorage: "External Media Storage",
   modernSession: "Compact Session View",
   sessionTimeline: "Session Timeline",
-} satisfies Record<FeaturePreviewFlag, string>;
+  langfuseTopics: "Langfuse Topics",
+} satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
@@ -48,6 +85,9 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
+  if (flag === "externalMediaStorage") {
+    return true;
+  }
   if (flag === "modernSession" || flag === "sessionTimeline") {
     return context.v4BetaEnabled;
   }
@@ -57,6 +97,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
+  ...adminOnlyFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "searchBar",

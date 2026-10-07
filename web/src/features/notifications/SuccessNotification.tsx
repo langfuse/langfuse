@@ -21,7 +21,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
     <div className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <BadgeCheck size={20} className="text-primary-foreground" />
+          <BadgeCheck className="icon-lg text-primary-foreground" />
           <div className="text-primary-foreground m-0 text-sm leading-tight font-bold">
             {title}
           </div>
@@ -44,7 +44,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
         onClick={onDismiss}
         aria-label="Close"
       >
-        <X size={14} />
+        <X className="icon-base" />
       </button>
     </div>
   );

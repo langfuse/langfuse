@@ -94,6 +94,7 @@ export class GatewayApiKeyAuthenticator {
       connection: connection
         ? {
             id: connection.id,
+            name: connection.name,
             provider: connection.provider,
             encryptedCredential: connection.encryptedCredential,
           }

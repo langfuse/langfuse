@@ -45,7 +45,7 @@ export function RolePermissionPopup({
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className="icon-base shrink-0" />
                 <span>{def.name}</span>
                 <Badge
                   variant="tertiary"

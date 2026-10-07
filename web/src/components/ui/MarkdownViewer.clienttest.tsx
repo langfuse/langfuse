@@ -1,12 +1,13 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import {
   MarkdownView,
   prependBasePathToInternalHref,
 } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ query: {} }),
+  useRouter: () => ({ query: { projectId: "project-1" } }),
 }));
 
 vi.mock("next-themes", () => ({
@@ -17,8 +18,70 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+const { resolveExternalMediaQueryMock } = vi.hoisted(() => ({
+  resolveExternalMediaQueryMock: vi.fn(() => ({
+    isError: false,
+    data: undefined,
+    refetch: vi.fn(),
+  })),
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    media: {
+      resolveExternalMedia: {
+        useQuery: resolveExternalMediaQueryMock,
+      },
+    },
+  },
+}));
+
+vi.mock("@/src/features/feature-flags", () => ({
+  useIsFeatureEnabled: () => true,
+}));
+
 const renderMarkdown = (markdown: string) =>
   render(<MarkdownView markdown={markdown} />);
+
+describe("MarkdownView external S3 media", () => {
+  it("renders a standalone S3 media URI as external media", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    renderMarkdown(uri);
+
+    expect(
+      screen.getByRole("button", { name: "PNG media" }),
+    ).toBeInTheDocument();
+    expect(resolveExternalMediaQueryMock).toHaveBeenCalledWith(
+      { projectId: "project-1", uri },
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("renders a Markdown S3 image and preserves its alt text", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    renderMarkdown(`![Product photo](${uri})`);
+
+    expect(
+      screen.getByRole("button", { name: "Product photo media" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders an OpenAI image_url S3 URI as external media", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    render(
+      <MarkdownJsonView
+        content={[{ type: "image_url", image_url: { url: uri } }]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "PNG media" }),
+    ).toBeInTheDocument();
+  });
+});
 
 describe("MarkdownView link rendering", () => {
   it("renders an external link as a native anchor opening in a new tab", () => {

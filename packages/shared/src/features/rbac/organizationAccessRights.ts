@@ -13,6 +13,7 @@ export const organizationScopes = [
   "organizationMembers:CUD",
   "organizationMembers:manageOwnership",
   "langfuseCloudBilling:CRUD",
+  "organizationUsage:read",
   "orgAuditLogs:read",
 ] as const;
 
@@ -32,6 +33,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organizationMembers:manageOwnership",
     "organizationMembers:read",
     "langfuseCloudBilling:CRUD",
+    "organizationUsage:read",
     "orgAuditLogs:read",
     // used for api keys
     "projects:read",
@@ -44,6 +46,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "gateway:invoke",
     "organizationMembers:CUD",
     "organizationMembers:read",
+    "organizationUsage:read",
     "orgAuditLogs:read",
     // used for api keys
     "projects:read",

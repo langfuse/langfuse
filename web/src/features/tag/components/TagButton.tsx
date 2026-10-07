@@ -11,10 +11,10 @@ export const TagButton: React.FC<{
 }> = React.memo(({ tag, loading, viewOnly = false, isTableCell = false }) => {
   const label = (
     <>
-      <TagIcon className="text-foreground-tertiary size-3 shrink-0" />
+      <TagIcon className="text-foreground-tertiary icon-sm shrink-0" />
       <span
         className={cn(
-          "overflow-hidden text-ellipsis whitespace-nowrap",
+          "overflow-hidden py-0.5 text-ellipsis whitespace-nowrap",
           !isTableCell && "text-xs",
         )}
         title={tag}
@@ -26,8 +26,10 @@ export const TagButton: React.FC<{
 
   if (viewOnly) {
     return (
-      <span className="inline-flex max-w-40 min-w-0">
-        <BadgeShell>{label}</BadgeShell>
+      <span className="inline-flex max-w-40 min-w-0 font-mono">
+        <BadgeShell color="filled" size="md">
+          {label}
+        </BadgeShell>
       </span>
     );
   }

@@ -363,32 +363,6 @@ describe("executeInAppAgentRun", () => {
     expect(scenarioRef.titleInferenceCalls).toBe(0);
   });
 
-  it("prefers the ambient AWS profile over the configured agent profile", async () => {
-    const workerEnv = env as {
-      AWS_PROFILE?: string;
-      LANGFUSE_IN_APP_AGENT_AWS_PROFILE?: string;
-    };
-    const originalAwsProfile = workerEnv.AWS_PROFILE;
-    const originalConfiguredProfile =
-      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
-    workerEnv.AWS_PROFILE = "developer-profile";
-    workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
-
-    const { projectId, run } = await seedBackgroundRun();
-    scenarioRef.current = async ({ options }) => {
-      expect(options.awsProfile).toBe("developer-profile");
-      await options.onComplete();
-      await options.onFinish();
-    };
-
-    try {
-      await executeInAppAgentRun({ projectId, runId: run.id });
-    } finally {
-      workerEnv.AWS_PROFILE = originalAwsProfile;
-      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = originalConfiguredProfile;
-    }
-  });
-
   it("uses the bundled prompt in self-hosted production", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;

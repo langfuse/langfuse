@@ -1,5 +1,9 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
+import {
+  DrawerContent,
+  DrawerController,
+  DrawerTitle,
+} from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   type ScoreTarget,
@@ -63,6 +67,9 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
               triggerRef.current.focus({ preventScroll: true });
           }}
         >
+          {/* AnnotationPanelContent's visible "Annotate" header is a plain
+              heading, so the drawer still needs its own Title element. */}
+          <DrawerTitle className="sr-only">Annotate</DrawerTitle>
           <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
             <AnnotationPanelContent
               data={state}
