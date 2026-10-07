@@ -4,51 +4,43 @@ import {
   type ValidatedOtelJson,
 } from "@langfuse/native";
 import {
-  logger,
   recordDistribution,
   recordIncrement,
-  type ResourceSpan,
 } from "@langfuse/shared/src/server";
 import { applyIngestionMasking } from "@langfuse/shared/src/server/ee/ingestionMasking";
 
-type ValidatedInput =
-  | { validated: ValidatedOtelJson; spans?: never }
-  | { validated?: never; spans: ResourceSpan[] };
+type NativeInput = {
+  bytes: Buffer;
+  validated: ValidatedOtelJson;
+};
+
 type PreparedInput =
-  | { batch: EarlyOtelBatch; spans?: never }
-  | { batch?: never; spans: ResourceSpan[] };
+  | { batch: EarlyOtelBatch; error?: never }
+  | { batch?: never; error: string | undefined };
 
-function requiresTypeScriptOtel(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    error.code === "ERR_OTEL_UNSUPPORTED"
-  );
-}
-
-/** Validate original bytes before masking; only the accepted payload is compacted. */
+/**
+ * Validate and optionally compact an OTEL document without constructing the
+ * TypeScript span graph. OTLP receiver sanitization replaces malformed UTF-8
+ * with U+FFFD; masking receives the same bytes accepted by the native validator.
+ */
 export async function prepareOtelBatch(params: {
   bytes: Buffer;
   projectId: string;
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
   extractMedia: boolean;
-}): Promise<PreparedInput | undefined> {
+}): Promise<PreparedInput> {
   const { bytes, extractMedia, ...context } = params;
   const startedAt = performance.now();
-  let outcome: "native" | "typescript_fallback" | "masking_drop" | "error" =
-    "error";
+  let outcome: "native" | "masking_drop" | "error" = "error";
   const validators: ValidatedOtelJson[] = [];
   try {
     const validated = await validate(bytes);
     const masking = await applyIngestionMasking(
-      { ...context, data: { bytes, ...validated } },
+      { ...context, data: validated },
       undefined,
       {
         body: (input) => {
-          // Representation fallback follows the original JS masking contract, including
-          // replacement characters introduced while decoding malformed UTF-8.
-          if (input.spans !== undefined) return JSON.stringify(input.spans);
           if (!(input.bytes.buffer instanceof ArrayBuffer)) {
             throw new Error(
               "masking body must have an ArrayBuffer backing store",
@@ -61,14 +53,13 @@ export async function prepareOtelBatch(params: {
           );
         },
         read: async (response) => {
-          const bytes = Buffer.from(await response.arrayBuffer());
-          return { bytes, ...(await validate(bytes)) };
+          return validate(Buffer.from(await response.arrayBuffer()));
         },
       },
     );
     if (!masking.success) {
       outcome = "masking_drop";
-      return undefined;
+      return { error: masking.error };
     }
     // A successful callback can replace a media-heavy body. Drop the superseded Rust copy
     // before compacting the accepted response, rather than retaining both during extraction.
@@ -77,19 +68,9 @@ export async function prepareOtelBatch(params: {
         .filter((input) => input !== masking.data.validated)
         .map((input) => input.dispose()),
     );
-    if (masking.data.validated) {
-      try {
-        const batch = await masking.data.validated.extract(extractMedia);
-        outcome = "native";
-        return { batch };
-      } catch (error) {
-        if (!requiresTypeScriptOtel(error)) throw error;
-        outcome = "typescript_fallback";
-        return { spans: fallback(masking.data.bytes, error) };
-      }
-    }
-    outcome = "typescript_fallback";
-    return { spans: masking.data.spans };
+    const batch = await masking.data.validated.extract(extractMedia);
+    outcome = "native";
+    return { batch };
   } catch (error) {
     outcome = "error";
     throw error;
@@ -117,28 +98,12 @@ export async function prepareOtelBatch(params: {
       });
   }
 
-  async function validate(input: Buffer): Promise<ValidatedInput> {
-    try {
-      const validated = await validateOtelJson(input, extractMedia);
-      validators.push(validated);
-      return { validated };
-    } catch (error) {
-      // JavaScript can represent lone UTF-16 surrogates and deeper JSON than the bounded
-      // native parser. Preserve those inputs through the established TS implementation.
-      if (!requiresTypeScriptOtel(error)) throw error;
-      return { spans: fallback(input, error) };
-    }
-  }
-
-  function fallback(input: Buffer, error: unknown): ResourceSpan[] {
-    const spans: ResourceSpan[] = JSON.parse(input.toString("utf8"));
-    recordIncrement("langfuse.ingestion.otel.native_fallback", 1, {
-      reason: "representation",
-    });
-    logger.warn("OTEL payload requires the TypeScript processing path", {
-      projectId: context.projectId,
-      error,
-    });
-    return spans;
+  async function validate(input: Buffer): Promise<NativeInput> {
+    const validated = await validateOtelJson(input, extractMedia);
+    validators.push(validated);
+    return {
+      bytes: validated.normalizedBytes() ?? input,
+      validated,
+    };
   }
 }

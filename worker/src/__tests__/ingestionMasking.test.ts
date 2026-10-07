@@ -205,7 +205,7 @@ function createTestEnv(overrides: Partial<SharedEnv> = {}): SharedEnv {
 }
 
 function expectPreparationMetrics(
-  outcome: "native" | "typescript_fallback" | "masking_drop" | "error",
+  outcome: "native" | "masking_drop" | "error",
   extractMedia: boolean,
 ) {
   const tags = { outcome, extract_media: extractMedia.toString() };
@@ -316,7 +316,7 @@ describe("Ingestion Masking", () => {
           .mockResolvedValueOnce(
             new Response(outcome === "success" ? JSON.stringify(masked) : "{"),
           );
-        let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> = undefined;
+        let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
         try {
           prepared = await prepareOtelBatch({
             bytes: Buffer.from(JSON.stringify(original)),
@@ -330,7 +330,7 @@ describe("Ingestion Masking", () => {
             JSON.parse(Buffer.from(body as Uint8Array).toString()),
           ).toEqual(original);
           if (outcome === "fail-closed") {
-            expect(prepared).toBeUndefined();
+            expect(prepared).toEqual({ error: expect.any(String) });
             expectPreparationMetrics("masking_drop", true);
             return;
           }
@@ -352,52 +352,57 @@ describe("Ingestion Masking", () => {
       },
     );
 
-    it("serializes the TypeScript fallback before sending invalid UTF-8 to masking", async () => {
-      const originalBytes = Buffer.concat([
-        Buffer.from('[{"input":"'),
-        Buffer.from([0xff]),
-        Buffer.from('"}]'),
-      ]);
-      const fallbackSpans = [{ input: "�" }];
-      const overrides = createTestEnv({
-        LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
-          "https://masking.example.com/raw",
-        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
-        LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
-      });
-      const configuredMasking = vi.mocked(masking.applyIngestionMasking);
-      const applyMasking = configuredMasking.getMockImplementation()!;
-      configuredMasking.mockImplementation((params, _env, transport) =>
-        applyMasking(params, overrides, transport),
-      );
-      const fetch = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(new Response(JSON.stringify(fallbackSpans)));
-
-      let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> = undefined;
-      try {
-        prepared = await prepareOtelBatch({
-          bytes: originalBytes,
-          projectId: "test-project",
-          extractMedia: false,
+    it.each(["request", "response"] as const)(
+      "sanitizes invalid UTF-8 in the masking %s before media discovery",
+      async (side) => {
+        const malformed = Buffer.concat([
+          Buffer.from('[{"note":"'),
+          Buffer.from([0xff, 0xe2, 0x82]),
+          Buffer.from('","input":"data:image/png;base64,aGk="}]'),
+        ]);
+        const sanitized = Buffer.from(malformed.toString("utf8"));
+        const originalBytes = side === "request" ? malformed : sanitized;
+        const responseBytes = side === "response" ? malformed : sanitized;
+        const overrides = createTestEnv({
+          LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+            "https://masking.example.com/raw",
+          LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
+          LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
         });
-        expect(prepared).toMatchObject({ batch: expect.anything() });
-        const body = fetch.mock.calls[0]?.[1]?.body;
-        const sentBytes =
-          typeof body === "string"
-            ? Buffer.from(body)
-            : Buffer.from(body as Uint8Array);
-        expect(sentBytes).toEqual(Buffer.from(JSON.stringify(fallbackSpans)));
-        expectPreparationMetrics("native", false);
-      } finally {
-        await prepared?.batch?.dispose();
-        fetch.mockRestore();
-        configuredMasking.mockImplementation(applyMasking);
-      }
-    });
+        const configuredMasking = vi.mocked(masking.applyIngestionMasking);
+        const applyMasking = configuredMasking.getMockImplementation()!;
+        configuredMasking.mockImplementation((params, _env, transport) =>
+          applyMasking(params, overrides, transport),
+        );
+        const fetch = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(new Response(new Uint8Array(responseBytes)));
+        let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
+        try {
+          prepared = await prepareOtelBatch({
+            bytes: originalBytes,
+            projectId: "test-project",
+            extractMedia: true,
+          });
+          const body = fetch.mock.calls[0]?.[1]?.body;
+          expect(body).toBeInstanceOf(Uint8Array);
+          expect(Buffer.from(body as Uint8Array)).toEqual(sanitized);
+          expect(fetch).toHaveBeenCalledTimes(1);
+          const batch = prepared.batch!;
+          expect(JSON.parse(batch.json())[0].note).toBe("��");
+          expect(batch.media).toHaveLength(1);
+          expect((await batch.mediaBody(0)).toString()).toBe("hi");
+          expectPreparationMetrics("native", true);
+        } finally {
+          await prepared?.batch?.dispose();
+          fetch.mockRestore();
+          configuredMasking.mockImplementation(applyMasking);
+        }
+      },
+    );
 
     it.each([
-      ["typescript_fallback", Buffer.from('[{"input":"\\ud800"}]')],
+      ["native", Buffer.from('[{"input":"\\ud800"}]')],
       ["error", Buffer.from("{")],
     ] as const)(
       "records the %s preparation outcome",
@@ -411,9 +416,14 @@ describe("Ingestion Masking", () => {
         if (outcome === "error") {
           await expect(preparation).rejects.toThrow();
         } else {
-          await expect(preparation).resolves.toMatchObject({
-            spans: [{ input: "\ud800" }],
-          });
+          const prepared = await preparation;
+          try {
+            expect(JSON.parse(prepared.batch!.json())).toEqual([
+              { input: "\ud800" },
+            ]);
+          } finally {
+            await prepared.batch?.dispose();
+          }
         }
         expectPreparationMetrics(outcome, false);
       },

@@ -503,7 +503,7 @@ export const otelIngestionQueueProcessorBuilder = (
           ));
       const mediaPath = earlyMediaEnabled ? "early" : "reference";
       span?.setAttribute("langfuse.ingestion.otel.media_path", mediaPath);
-      // Count selection once per queue attempt, including jobs that later fail or fall back.
+      // Count selection once per queue attempt, including jobs that later fail.
       recordIncrement("langfuse.ingestion.otel.media_path", 1, {
         path: mediaPath,
       });
@@ -527,17 +527,18 @@ export const otelIngestionQueueProcessorBuilder = (
             env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
             Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         });
-        if (!prepared) {
+        if (!prepared.batch) {
           logger.warn("Dropping OTEL event due to masking failure", {
             projectId,
+            orgId: job.data.payload.authCheck.scope.orgId,
             fileKey,
+            error: prepared.error,
+            propagatedHeaders: job.data.payload.propagatedHeaders,
           });
           return;
         }
         earlyBatch = prepared.batch;
-        parsedSpans = prepared.batch
-          ? JSON.parse(prepared.batch.json())
-          : prepared.spans;
+        parsedSpans = JSON.parse(prepared.batch.json());
       } else {
         // Download file from blob storage
         const resourceSpans = await getS3EventStorageClient(

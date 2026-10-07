@@ -520,7 +520,7 @@ describe(
       }
     });
 
-    it("extracts only media accepted by the raw masking callback", async () => {
+    it("extracts only media accepted by masking", async () => {
       const originalMedia = Buffer.from("original-media");
       const maskedMedia = Buffer.from("masked-media");
       const rawBytes = focusedReplayBytes({
@@ -594,6 +594,7 @@ describe(
         expect(fetch).toHaveBeenCalledTimes(2);
         expect(maskingRequests).toHaveLength(2);
         for (const request of maskingRequests) {
+          expect(request).toEqual(rawBytes);
           expect(JSON.parse(request.toString("utf8"))).toEqual(
             JSON.parse(rawBytes.toString("utf8")),
           );
@@ -650,22 +651,10 @@ describe(
 
     const deepValue = `${"[".repeat(200)}null${"]".repeat(200)}`;
     const shallowDocument = focusedReplayBytes({
-      spanName: "deep-document-fallback",
+      spanName: "deep-document",
     })
       .toString("utf8")
       .replace("[{", `[{"ignored":${deepValue},`);
-    const invalidUtf8Source = focusedReplayBytes({
-      attributes: [
-        stringAttribute("langfuse.observation.input", "before-INVALID-after"),
-      ],
-    });
-    const invalidUtf8Marker = Buffer.from("INVALID");
-    const invalidUtf8Offset = invalidUtf8Source.indexOf(invalidUtf8Marker);
-    const invalidUtf8Bytes = Buffer.concat([
-      invalidUtf8Source.subarray(0, invalidUtf8Offset),
-      Buffer.from([0xff]),
-      invalidUtf8Source.subarray(invalidUtf8Offset + invalidUtf8Marker.length),
-    ]);
     const overflowingNumber = focusedReplayBytes({
       attributes: [
         { key: "gen_ai.request.temperature", value: { doubleValue: 0.25 } },
@@ -691,7 +680,6 @@ describe(
     it.each([
       ["repeated nested objects", repeatedNestedInput],
       ["deep JSON nesting", Buffer.from(shallowDocument)],
-      ["invalid UTF-8", invalidUtf8Bytes],
       [
         "embedded lone surrogate",
         focusedReplayBytes({
@@ -717,21 +705,37 @@ describe(
         }
         const comparison = await runOtelReplayComparison({
           bytes,
-          projectId: `${PROJECT_ID}-fallback-${name}`,
-          fileKey: `${FILE_KEY}.fallback-${name}`,
+          projectId: `${PROJECT_ID}-edge-${name}`,
+          fileKey: `${FILE_KEY}.edge-${name}`,
           mediaUploadEnabled: true,
         });
 
         expectRawOtelReplayParity(comparison);
         expect(comparison.originalTs.storedRows).toHaveLength(1);
         expect(comparison.earlyTs.storedRows).toHaveLength(1);
-        if (name === "invalid UTF-8") {
-          expect(String(comparison.earlyTs.storedRows[0]?.input)).toContain(
-            "\ufffd",
-          );
-        }
       },
     );
+
+    it("persists sanitized UTF-8 consistently across both paths", async () => {
+      const bytes = focusedReplayBytes({
+        attributes: [
+          stringAttribute("langfuse.observation.input", "utf8-probe"),
+        ],
+      });
+      bytes[bytes.indexOf("utf8-probe")] = 0xff;
+
+      const comparison = await runOtelReplayComparison({
+        bytes,
+        projectId: `${PROJECT_ID}-invalid-utf8`,
+        fileKey: `${FILE_KEY}.invalid-utf8`,
+        mediaUploadEnabled: true,
+      });
+      expectRawOtelReplayParity(comparison);
+      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+        expect(result.storedRows).toHaveLength(1);
+        expect(result.storedRows[0].input).toContain("�tf8-probe");
+      }
+    });
 
     it("persists matching legacy rows, media associations, and events_full rows in dual mode", async () => {
       const { projectId, orgId } = await createOrgProjectAndApiKey();

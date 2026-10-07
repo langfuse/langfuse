@@ -25,72 +25,64 @@ vi.mock("@langfuse/shared/src/server/ee/ingestionMasking", () => ({
 
 import { prepareOtelBatch } from "./prepareOtelBatch";
 
-describe(
-  "prepareOtelBatch native representation fallback",
-  { retry: 0 },
-  () => {
-    beforeEach(() => {
-      nativeMocks.validateOtelJson.mockClear();
-      maskingMocks.applyIngestionMasking.mockImplementation(
-        async (params: { data: unknown }) => ({
-          success: true,
-          data: params.data,
-          masked: false,
-        }),
-      );
-    });
+describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
+  beforeEach(() => {
+    nativeMocks.validateOtelJson.mockClear();
+    maskingMocks.applyIngestionMasking.mockImplementation(
+      async (params: { data: unknown }) => ({
+        success: true,
+        data: params.data,
+        masked: false,
+      }),
+    );
+  });
 
-    it("falls back for an embedded provider with a lone surrogate", async () => {
-      const embedded = JSON.stringify({
-        type: "file",
-        mediaType: "image/png",
-        data: "aGk=",
-        note: "\ud800",
-      });
-      const spans = [
-        {
-          resource: { attributes: [] },
-          scopeSpans: [
-            {
-              scope: { name: "scope" },
-              spans: [
-                {
-                  traceId: "trace",
-                  spanId: "span",
-                  attributes: [
-                    { key: "input", value: { stringValue: embedded } },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ];
+  it("sends the validated original bytes to masking", async () => {
+    const original = Buffer.from('{ "value": "🔥" }');
+    const batch = { dispose: vi.fn() };
+    const validated = {
+      normalizedBytes: vi.fn(() => undefined),
+      extract: vi.fn().mockResolvedValue(batch),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    };
+    nativeMocks.validateOtelJson.mockResolvedValue(validated);
+    const bodies: Buffer[] = [];
+    maskingMocks.applyIngestionMasking.mockImplementation(
+      async (
+        params: { data: { bytes: Buffer } },
+        _env: unknown,
+        transport: { body: (data: { bytes: Buffer }) => Uint8Array },
+      ) => {
+        bodies.push(Buffer.from(transport.body(params.data)));
+        return { success: true, data: params.data, masked: false };
+      },
+    );
 
-      await expect(
-        prepareOtelBatch({
-          bytes: Buffer.from(JSON.stringify(spans)),
-          projectId: "project-id",
-          extractMedia: true,
-        }),
-      ).resolves.toEqual({ spans });
-    });
+    await expect(
+      prepareOtelBatch({
+        bytes: original,
+        projectId: "project-id",
+        extractMedia: true,
+      }),
+    ).resolves.toEqual({ batch });
 
-    it("uses the native unsupported code instead of matching error wording", async () => {
-      const spans = [{ resourceSpans: [] }];
-      const error = Object.assign(
-        new Error("native implementation changed its explanation"),
-        { code: "ERR_OTEL_UNSUPPORTED" },
-      );
-      nativeMocks.validateOtelJson.mockRejectedValueOnce(error);
+    expect(bodies).toEqual([original]);
+    expect(validated.extract).toHaveBeenCalledWith(true);
+  });
 
-      await expect(
-        prepareOtelBatch({
-          bytes: Buffer.from(JSON.stringify(spans)),
-          projectId: "project-id",
-          extractMedia: false,
-        }),
-      ).resolves.toEqual({ spans });
-    });
-  },
-);
+  it("does not fall back to a second TypeScript processing path", async () => {
+    const error = Object.assign(
+      new Error("native implementation changed its explanation"),
+      { code: "ERR_OTEL_INVALID_JSON" },
+    );
+    nativeMocks.validateOtelJson.mockRejectedValueOnce(error);
+
+    await expect(
+      prepareOtelBatch({
+        bytes: Buffer.from("{}"),
+        projectId: "project-id",
+        extractMedia: false,
+      }),
+    ).rejects.toBe(error);
+  });
+});
