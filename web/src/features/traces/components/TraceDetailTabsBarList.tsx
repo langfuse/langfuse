@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 
-import { TabsBarList } from "@/src/components/ui/tabs-bar";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useFitsAvailableWidth } from "@/src/hooks/useFitsAvailableWidth";
 import { cn } from "@/src/utils/tailwind";
 
@@ -37,7 +37,7 @@ export function TraceDetailTabsBarList({
   >();
 
   return (
-    <TabsBarList className="shrink-0">
+    <Tabs.List variant="underline">
       {/* A zero flex basis makes this the row space left over by the trailing
           controls, so the triggers are compared against the width they can
           actually occupy without that width depending on them in turn. */}
@@ -68,6 +68,6 @@ export function TraceDetailTabsBarList({
         )}
       </div>
       {trailingControls}
-    </TabsBarList>
+    </Tabs.List>
   );
 }

@@ -64,7 +64,6 @@ export function CurrentTopics({
                   key={facet.facetId}
                   value={facet.facetId}
                   label={facet.name}
-                  variant="underline"
                 />
               ))}
             </Tabs.List>
