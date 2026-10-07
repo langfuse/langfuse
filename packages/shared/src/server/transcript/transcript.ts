@@ -44,6 +44,8 @@ function normalize(observation: OrderedObservation) {
 }
 
 /** Express an observed execution using the same parts as model tool messages. */
+// TODO: Preserve normalized output parts when constructing standalone tool
+// results, and normalize tool input through the canonical observation path.
 function normalizeToolExecution(
   observation: TranscriptObservation,
   output: KeyedMessage[],
