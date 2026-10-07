@@ -14,6 +14,13 @@ describe("stringify", () => {
     expect(JSON.parse(result).text).toBe("\\u0041");
   });
 
+  it("preserves unsafe bigint values exactly", () => {
+    const data = { positive: 9007199254740993n, negative: -9007199254740993n };
+    const result = JSON.parse(stringify(data));
+    expect(result.positive).toBe("9007199254740993");
+    expect(result.negative).toBe("-9007199254740993");
+  });
+
   it("uses pretty-print for comments key", () => {
     const data = { text: "hello" };
     const result = stringify(data, "comments");
@@ -58,6 +65,12 @@ describe("stringifyForCsv", () => {
   it.skip("preserves literal unicode escape sequences in string data; skipped because exports intentionally decode unicode escapes for now", () => {
     const result = stringifyForCsv("\\\\u0041");
     expect(result).toBe("\\u0041");
+  });
+
+  it("preserves unsafe bigint values in CSV fields", () => {
+    expect(stringifyForCsv({ count: 9007199254740993n })).toBe(
+      '{"count":"9007199254740993"}',
+    );
   });
 
   it("falls back to stringify for non-string data", () => {
