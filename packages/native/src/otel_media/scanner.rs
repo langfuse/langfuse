@@ -31,10 +31,11 @@ const MAX_EMBEDDED_JSON_DEPTH: usize = 2;
 // Bound structural discovery inside embedded JSON. Below this depth, scan for Data URIs
 // without deriving provider shapes or allocating one frame per nesting level.
 const MAX_STRUCTURAL_DEPTH: usize = 256;
-// Candidates whose encoded representation (including a Data URI header) is
-// tiny are left for the later media pass. This avoids one descriptor and hash
-// entry per small value in the early manifest.
-pub(super) const MIN_EARLY_MEDIA_BYTES: usize = 4 * 1024;
+// Leave sub-KiB encoded candidates (including a Data URI header) for the later
+// media pass to limit per-occurrence descriptors and hash entries. The 1 KiB
+// cutoff favors measured replay gains for small attachments; escaped embedded
+// media can still retain more memory than leaving it inline.
+pub(super) const MIN_EARLY_MEDIA_BYTES: usize = 1024;
 
 #[derive(Default)]
 struct ScanState {

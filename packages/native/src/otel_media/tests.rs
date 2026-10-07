@@ -91,15 +91,15 @@ fn leaves_small_data_uris_for_the_later_media_pass() {
 
 #[test]
 fn early_extraction_uses_encoded_size_for_uri_and_provider_candidates() {
-    for size in [4095, 4096] {
+    for size in [1023, 1024] {
         let header = "data:image/png;name=a;base64,";
         let uri = format!("{header}{}", "A".repeat(size - header.len()));
         let provider = "A".repeat(size);
         let input =
             format!(r#"["{uri}",{{"type":"file","mediaType":"image/png","data":"{provider}"}}]"#);
         let result = extract_media(input.as_bytes()).unwrap();
-        assert_eq!(result.media.len(), if size < 4096 { 0 } else { 2 });
-        if size < 4096 {
+        assert_eq!(result.media.len(), if size < 1024 { 0 } else { 2 });
+        if size < 1024 {
             assert_eq!(result.compact_json, input.as_bytes());
         }
     }
