@@ -89,6 +89,9 @@ export const trpcErrorToast = (error: unknown) => {
         "Unexpected Response",
         "The request could not be completed. Please try again or contact support if this persists.",
         "WARNING",
+        undefined,
+        undefined,
+        "trpc",
       );
       return;
     }
@@ -111,12 +114,16 @@ export const trpcErrorToast = (error: unknown) => {
       httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
       path,
       traceId,
+      "trpc",
     );
   } else {
     showErrorToast(
       "Unexpected Error",
       "An unexpected error occurred.",
       "ERROR",
+      undefined,
+      undefined,
+      "trpc",
     );
   }
 };

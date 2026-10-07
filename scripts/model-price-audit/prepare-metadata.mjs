@@ -104,7 +104,7 @@ if (
 }
 
 const changedModelRows = output.modelsChecked.filter((item) =>
-  ["added", "updated"].includes(item.change),
+  ["added", "updated", "removed"].includes(item.change),
 );
 const changedRowsByModel = new Map(
   changedModelRows.map((item) => [normalizeReportedModel(item.model), item]),
@@ -113,7 +113,7 @@ for (const change of typeModelChanges) {
   const row = changedRowsByModel.get(normalize(change.modelName));
   if (row && normalize(row.provider) !== normalize(change.provider)) {
     throw new Error(
-      `${change.arrayName} additions require provider ${change.provider}: ${change.modelName}`,
+      `${change.arrayName} changes require provider ${change.provider}: ${change.modelName}`,
     );
   }
 }

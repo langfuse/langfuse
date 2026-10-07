@@ -22,6 +22,7 @@ export const showErrorToast = (
   type: "WARNING" | "ERROR" = "ERROR",
   path?: string,
   traceId?: string,
+  source: "application" | "trpc" = "application",
 ) => {
   toast.custom(
     (t) => (
@@ -29,6 +30,7 @@ export const showErrorToast = (
         error={error}
         description={description}
         type={type}
+        source={source}
         path={path}
         traceId={traceId}
         dismissToast={toast.dismiss}

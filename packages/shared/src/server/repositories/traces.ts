@@ -1296,7 +1296,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
              o.trace_id,
              sum(total_cost) as total_cost,
              count(*) as observation_count,
-             date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
+             if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds
       FROM observations o FINAL
       WHERE o.project_id = {projectId: String}
       AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
@@ -1664,7 +1664,7 @@ async function buildTracesBaseQuery(
       SELECT
         trace_id,
         project_id,
-        ${includeMetricsInCTE ? "sum(total_cost) as total_cost, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds, " : ""}
+        ${includeMetricsInCTE ? "sum(total_cost) as total_cost, if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds, " : ""}
         sumMap(usage_details) as usage_details,
         sumMap(cost_details) as cost_details,
         multiIf(arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR', arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING', arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT', 'DEBUG') AS aggregated_level,

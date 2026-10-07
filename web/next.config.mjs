@@ -164,6 +164,11 @@ const nextConfig = {
     // imports have to stay same-origin. Empty string is a literal prefix, not
     // a fallback: it emits `/_next/...` on the page origin. Unset (undefined)
     // would inherit assetPrefix and break workers on Cloud.
+    //
+    // No worker is started from a bundler URL any more — same-origin is exactly
+    // what pins those chunks to a host that only serves the current build, so
+    // they 404 in a tab that outlives a deploy. This stays as the guard for
+    // anything that reintroduces one.
     turbopackWorkerAssetPrefix: "",
   },
 
@@ -185,6 +190,10 @@ const nextConfig = {
       "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
       "./third-party-licenses/scalar-api-reference.LICENSE.txt",
     ],
+    // elkjs's prebuilt layout worker, served verbatim so the trace graph's
+    // worker URL keeps resolving across a deploy. See
+    // pages/api/workers/elk-worker.ts.
+    "/api/workers/elk-worker": ["./node_modules/elkjs/lib/elk-worker.min.js"],
   },
 
   async redirects() {

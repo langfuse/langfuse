@@ -1,7 +1,8 @@
 import { partition } from "lodash";
 import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
-import type { Transcript } from "./types";
+import type { Transcript, TranscriptOptions } from "./types";
+import { limitTranscript } from "./limit";
 import {
   append,
   createThread,
@@ -42,15 +43,18 @@ function normalize(observation: OrderedObservation) {
  * history, and retain first-seen provenance. The caller supplies the
  * observations in transcript order, see `orderObservations`; they are consumed
  * as given. Optional timings separate normalization (including initial message
- * keys) from remaining assembly work, excluding caller-owned observation ordering.
+ * keys) from remaining assembly work, excluding ordering and optional truncation.
  */
 export function assembleTranscript(
   orderedObservations: OrderedObservation[],
-  onTimings?: (timings: {
-    normalizationMs: number;
-    matchingMs: number;
-  }) => void,
+  { maxCharacters, onTimings }: TranscriptOptions = {},
 ): Transcript | null {
+  if (
+    maxCharacters !== undefined &&
+    (!Number.isSafeInteger(maxCharacters) || maxCharacters < 4)
+  ) {
+    throw new RangeError("maxCharacters must be a safe integer of at least 4");
+  }
   const startedAt = onTimings ? performance.now() : 0;
   let normalizationMs = 0;
   const threads: ThreadState[] = [];
@@ -81,5 +85,7 @@ export function assembleTranscript(
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,
   });
-  return transcript;
+  return transcript && maxCharacters !== undefined
+    ? limitTranscript(transcript, maxCharacters)
+    : transcript;
 }

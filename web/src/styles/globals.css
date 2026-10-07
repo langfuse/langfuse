@@ -334,7 +334,7 @@
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
-    --surface-sunken: 0 0% 98%; /* zinc-50 */
+    --surface-sunken: 0 0% 99%; /* between white and zinc-50 */
     --surface-output: 240 4.8% 95.9%; /* zinc-100 */
 
     --popover: 0 0% 100%;
@@ -488,7 +488,7 @@
     --json-value-nullish: var(--color-gray-500);
 
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 100%;
+    --sidebar-background: var(--surface-sunken);
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
@@ -562,8 +562,8 @@
     --icon-foreground: 0 0% 54%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
-    --surface-sunken: 0 0% 4%;
-    --surface-output: 0 0% 9%;
+    --surface-sunken: 0 0% 8%; /* one step below the modal */
+    --surface-output: var(--popover);
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);
@@ -707,7 +707,7 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 2%;
+    --sidebar-background: 0 0% 4%; /* one step below the page */
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
