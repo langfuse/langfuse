@@ -107,7 +107,8 @@ const ApiKeyDeletionResponseSchema = z.object({
 describe("REST API key creation schemas", () => {
   const originalFlags = {
     API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
-    API_KEY_ROLES_ENABLED: env.API_KEY_ROLES_ENABLED,
+    API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
+    API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
   };
 
   afterEach(() => {
@@ -144,41 +145,55 @@ describe("REST API key creation schemas", () => {
         [],
       ],
     },
-  ])("$scope", ({ schema, legacyRole, roles, invalidRoles }) => {
-    describe.each(["false", "true"])("roles enabled: %s", (rolesEnabled) => {
-      beforeEach(() => {
-        Object.assign(env, {
-          API_AUTH_MIGRATION: "enforce",
-          API_KEY_ROLES_ENABLED: rolesEnabled,
+  ])("$scope", ({ scope, schema, legacyRole, roles, invalidRoles }) => {
+    describe.each([
+      { migration: "legacy", projectEnabled: "true", orgEnabled: "true" },
+      { migration: "shadow", projectEnabled: "true", orgEnabled: "true" },
+      { migration: "enforce", projectEnabled: "false", orgEnabled: "false" },
+      { migration: "enforce", projectEnabled: "true", orgEnabled: "false" },
+      { migration: "enforce", projectEnabled: "false", orgEnabled: "true" },
+      { migration: "enforce", projectEnabled: "true", orgEnabled: "true" },
+    ])(
+      "$migration, project roles $projectEnabled, organization roles $orgEnabled",
+      ({ migration, projectEnabled, orgEnabled }) => {
+        beforeEach(() => {
+          Object.assign(env, {
+            API_AUTH_MIGRATION: migration,
+            API_KEY_PROJECT_ROLES_ENABLE: projectEnabled,
+            API_KEY_ORG_ROLES_ENABLE: orgEnabled,
+          });
         });
-      });
 
-      it.each([
-        { label: "omitted", body: {} },
-        { label: "undefined", body: { role: undefined } },
-        { label: "null", body: { role: null } },
-      ])("defaults $label role to the stored legacy role", ({ body }) => {
-        expect(schema.parse(body).role).toBe(legacyRole);
-      });
+        it.each([
+          { label: "omitted", body: {} },
+          { label: "undefined", body: { role: undefined } },
+          { label: "null", body: { role: null } },
+        ])("defaults $label role to the stored legacy role", ({ body }) => {
+          expect(schema.parse(body).role).toBe(legacyRole);
+        });
 
-      it.each(roles)("gates %s on role exposure", (role) => {
-        const result = schema.safeParse({ role });
+        it.each(roles)("gates %s on role exposure", (role) => {
+          const result = schema.safeParse({ role });
 
-        if (rolesEnabled === "true") {
-          expect(result.success).toBe(true);
-          expect(result.data?.role).toBe(role);
-        } else {
-          expect(result.success).toBe(false);
-        }
-      });
+          const rolesEnabled =
+            migration === "enforce" &&
+            (scope === "project" ? projectEnabled : orgEnabled) === "true";
+          if (rolesEnabled) {
+            expect(result.success).toBe(true);
+            expect(result.data?.role).toBe(role);
+          } else {
+            expect(result.success).toBe(false);
+          }
+        });
 
-      it.each(invalidRoles.map((role) => ({ role })))(
-        "rejects role $role",
-        ({ role }) => {
-          expect(schema.safeParse({ role }).success).toBe(false);
-        },
-      );
-    });
+        it.each(invalidRoles.map((role) => ({ role })))(
+          "rejects role $role",
+          ({ role }) => {
+            expect(schema.safeParse({ role }).success).toBe(false);
+          },
+        );
+      },
+    );
   });
 });
 

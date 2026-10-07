@@ -11,8 +11,14 @@ export function apiKeyCreationRoleSchema(scope: "project" | "organization") {
   return z
     .enum(apiKeyRolesForScope(scope))
     .nullish()
-    .refine((role) => role == null || env.API_KEY_ROLES_ENABLED === "true", {
-      message: "API key role selection is not enabled",
-    })
+    .refine(
+      (role) =>
+        role == null ||
+        (env.API_AUTH_MIGRATION === "enforce" &&
+          (scope === "project"
+            ? env.API_KEY_PROJECT_ROLES_ENABLE
+            : env.API_KEY_ORG_ROLES_ENABLE) === "true"),
+      { message: "API key role selection is not enabled" },
+    )
     .transform((role) => role ?? legacyApiKeyRoleForScope(scope));
 }

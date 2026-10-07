@@ -99,7 +99,9 @@ function ApiKeyCreateForm({
   const roles = apiKeyRolesForScope(scope);
   const { data: session } = useSession();
   const roleSelectionEnabled =
-    session?.environment?.apiKeyRoleSelectionEnabled ?? false;
+    (scope === "project"
+      ? session?.environment?.apiKeyProjectRoleSelectionEnabled
+      : session?.environment?.apiKeyOrgRoleSelectionEnabled) ?? false;
 
   const [name, setName] = useState("");
   const [role, setRole] = useState<SystemRole>(DEFAULT_ROLE);

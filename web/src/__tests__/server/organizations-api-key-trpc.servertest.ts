@@ -28,13 +28,15 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 const originalRoleConfig = {
   API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
-  API_KEY_ROLES_ENABLED: env.API_KEY_ROLES_ENABLED,
+  API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
+  API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
 };
 
 beforeEach(() => {
   Object.assign(env, {
     API_AUTH_MIGRATION: "enforce",
-    API_KEY_ROLES_ENABLED: "false",
+    API_KEY_ORG_ROLES_ENABLE: "false",
+    API_KEY_PROJECT_ROLES_ENABLE: "false",
   });
 });
 
@@ -604,7 +606,7 @@ describe("organization API keys trpc", () => {
     // expands that owner to the project-kind wildcard, so a project-capable role
     // reaches every project of the org rather than a chosen subset.
     it("creates an org key that reaches every project via the project wildcard", async () => {
-      Object.assign(env, { API_KEY_ROLES_ENABLED: "true" });
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
 
@@ -630,7 +632,7 @@ describe("organization API keys trpc", () => {
     ] as const)(
       "creates an organization key with %s when role selection is enabled",
       async (role) => {
-        Object.assign(env, { API_KEY_ROLES_ENABLED: "true" });
+        Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
         const orgId = `org-${randomUUID()}`;
         await prisma.organization.create({
           data: { id: orgId, name: "Scoped" },
@@ -649,7 +651,9 @@ describe("organization API keys trpc", () => {
 
     describe.each([
       { migration: "legacy", enabled: "false" },
+      { migration: "legacy", enabled: "true" },
       { migration: "shadow", enabled: "false" },
+      { migration: "shadow", enabled: "true" },
       { migration: "enforce", enabled: "false" },
       { migration: "enforce", enabled: "true" },
     ])(
@@ -658,7 +662,8 @@ describe("organization API keys trpc", () => {
         beforeEach(() => {
           Object.assign(env, {
             API_AUTH_MIGRATION: migration,
-            API_KEY_ROLES_ENABLED: enabled,
+            API_KEY_ORG_ROLES_ENABLE: enabled,
+            API_KEY_PROJECT_ROLES_ENABLE: "true",
           });
         });
 
@@ -696,7 +701,7 @@ describe("organization API keys trpc", () => {
             "OWNER",
             "invalid",
           ];
-          if (enabled === "false")
+          if (migration !== "enforce" || enabled === "false")
             rejectedRoles.push(
               "ADMIN",
               "VIEWER",

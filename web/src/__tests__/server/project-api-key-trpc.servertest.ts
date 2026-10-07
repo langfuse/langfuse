@@ -18,13 +18,15 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 const originalRoleConfig = {
   API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
-  API_KEY_ROLES_ENABLED: env.API_KEY_ROLES_ENABLED,
+  API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
+  API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
 };
 
 beforeEach(() => {
   Object.assign(env, {
     API_AUTH_MIGRATION: "enforce",
-    API_KEY_ROLES_ENABLED: "false",
+    API_KEY_PROJECT_ROLES_ENABLE: "false",
+    API_KEY_ORG_ROLES_ENABLE: "false",
   });
 });
 
@@ -190,7 +192,7 @@ describe("project API keys trpc", () => {
     // org-only AI Gateway role) would grant nothing on the project it is
     // scoped to, so it is not among the roles the create input accepts.
     it("rejects an organization-only role on a project key", async () => {
-      Object.assign(env, { API_KEY_ROLES_ENABLED: "true" });
+      Object.assign(env, { API_KEY_PROJECT_ROLES_ENABLE: "true" });
       const { caller, projectId } = await createProjectCaller();
 
       await expect(
@@ -211,7 +213,7 @@ describe("project API keys trpc", () => {
     it.each(["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"] as const)(
       "creates a project key with %s when role selection is enabled",
       async (role) => {
-        Object.assign(env, { API_KEY_ROLES_ENABLED: "true" });
+        Object.assign(env, { API_KEY_PROJECT_ROLES_ENABLE: "true" });
         const { caller, projectId } = await createProjectCaller();
         const key = await caller.projectApiKeys.create({ projectId, role });
         const assignment = await prisma.roleAssignment.findFirstOrThrow({
@@ -224,7 +226,9 @@ describe("project API keys trpc", () => {
 
     describe.each([
       { migration: "legacy", enabled: "false" },
+      { migration: "legacy", enabled: "true" },
       { migration: "shadow", enabled: "false" },
+      { migration: "shadow", enabled: "true" },
       { migration: "enforce", enabled: "false" },
       { migration: "enforce", enabled: "true" },
     ])(
@@ -233,7 +237,8 @@ describe("project API keys trpc", () => {
         beforeEach(() => {
           Object.assign(env, {
             API_AUTH_MIGRATION: migration,
-            API_KEY_ROLES_ENABLED: enabled,
+            API_KEY_PROJECT_ROLES_ENABLE: enabled,
+            API_KEY_ORG_ROLES_ENABLE: "true",
           });
         });
 
@@ -267,7 +272,7 @@ describe("project API keys trpc", () => {
             "AI_GATEWAY",
             "invalid",
           ];
-          if (enabled === "false")
+          if (migration !== "enforce" || enabled === "false")
             rejectedRoles.push("ADMIN", "VIEWER", "INGEST", "SCORES_INGEST");
           for (const role of rejectedRoles) {
             await expect(
