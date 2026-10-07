@@ -294,6 +294,7 @@ function recordGenericRendering(
 
 export function recordTraceBatchTranscript(
   observations: Observation[],
+  onTranscript?: (transcript: Transcript | null) => Promise<void>,
 ): Promise<void> {
   // Inherit the batch parent without activating this span while the next trace streams.
   const span = getTracer("trace-batch").startSpan("trace-batch-transcript", {
@@ -320,8 +321,10 @@ export function recordTraceBatchTranscript(
     const startedAt = performance.now();
     let phaseTimings = { normalizationMs: 0, matchingMs: 0 };
     const orderedObservations = orderObservations(observations);
-    const transcript = assembleTranscript(orderedObservations, (timings) => {
-      phaseTimings = timings;
+    const transcript = assembleTranscript(orderedObservations, {
+      onTimings: (timings) => {
+        phaseTimings = timings;
+      },
     });
     const assemblyDurationMs = performance.now() - startedAt;
     recordTranscriptDistribution(
@@ -404,53 +407,67 @@ export function recordTraceBatchTranscript(
     }
 
     // Text estimates run sequentially while the next trace streams.
-    return (async () => {
-      if (transcript !== null) {
-        try {
-          await recordTokenEstimates(transcript, span);
-        } catch {
-          // A missing experiment metric must not retry all reads in the batch.
-          recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
-          span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
+    return (
+      (async () => {
+        if (transcript !== null) {
+          try {
+            await recordTokenEstimates(transcript, span);
+          } catch {
+            // A missing experiment metric must not retry all reads in the batch.
+            recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
+            span.setAttribute(
+              "langfuse.trace_batch.token_estimation",
+              "failed",
+            );
+          }
         }
-      }
-      const comparisonTokenizationStart = performance.now();
-      try {
-        await recordTranscriptJsonTokens(transcriptJson, span);
-      } catch {
-        recordIncrement("langfuse.trace_batch.transcript_json_failed", 1);
-        span.setAttribute("langfuse.trace_batch.transcript_json", "failed");
-      }
-      if (genericText !== undefined) {
+        const comparisonTokenizationStart = performance.now();
         try {
-          await recordGenericTranscriptTokens(genericText, span);
+          await recordTranscriptJsonTokens(transcriptJson, span);
         } catch {
-          recordIncrement("langfuse.trace_batch.generic_transcript_failed", 1);
-          span.setAttribute(
-            "langfuse.trace_batch.generic_transcript",
-            "failed",
-          );
+          recordIncrement("langfuse.trace_batch.transcript_json_failed", 1);
+          span.setAttribute("langfuse.trace_batch.transcript_json", "failed");
         }
-      }
-      if (topicsText !== undefined) {
-        try {
-          await recordTopicsTokens(topicsText, span);
-        } catch {
-          recordIncrement("langfuse.trace_batch.topics_transcript_failed", 1);
-          span.setAttribute("langfuse.trace_batch.topics_transcript", "failed");
+        if (genericText !== undefined) {
+          try {
+            await recordGenericTranscriptTokens(genericText, span);
+          } catch {
+            recordIncrement(
+              "langfuse.trace_batch.generic_transcript_failed",
+              1,
+            );
+            span.setAttribute(
+              "langfuse.trace_batch.generic_transcript",
+              "failed",
+            );
+          }
         }
-      }
-      const comparisonTokenizationDurationMs =
-        performance.now() - comparisonTokenizationStart;
-      recordTranscriptDistribution(
-        "transcript_comparison_tokenization_duration_ms",
-        comparisonTokenizationDurationMs,
-      );
-      span.setAttribute(
-        "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
-        comparisonTokenizationDurationMs,
-      );
-    })().finally(() => span.end());
+        if (topicsText !== undefined) {
+          try {
+            await recordTopicsTokens(topicsText, span);
+          } catch {
+            recordIncrement("langfuse.trace_batch.topics_transcript_failed", 1);
+            span.setAttribute(
+              "langfuse.trace_batch.topics_transcript",
+              "failed",
+            );
+          }
+        }
+        const comparisonTokenizationDurationMs =
+          performance.now() - comparisonTokenizationStart;
+        recordTranscriptDistribution(
+          "transcript_comparison_tokenization_duration_ms",
+          comparisonTokenizationDurationMs,
+        );
+        span.setAttribute(
+          "langfuse.trace_batch.transcript_comparison_tokenization_duration_ms",
+          comparisonTokenizationDurationMs,
+        );
+      })()
+        .finally(() => span.end())
+        // Topics summarizes from the same assembled transcript.
+        .then(() => onTranscript?.(transcript))
+    );
   } catch (error) {
     span.setStatus({
       code: SpanStatusCode.ERROR,

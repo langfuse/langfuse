@@ -8,11 +8,11 @@ import { type LucideIcon } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
 const tabsListVariants = cva(
-  "text-muted-foreground items-center justify-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
+  "text-foreground-tertiary items-center justify-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
   {
     variants: {
       variant: {
-        default: "bg-muted rounded-md",
+        default: "bg-control-track/60 dark:bg-muted rounded-md",
         underline: "rounded-none border-b bg-transparent",
         outline: "bg-background rounded-md border",
       },
@@ -34,14 +34,14 @@ const tabsListVariants = cva(
       },
     },
     compoundVariants: [
-      { variant: "default", size: "default", class: "h-8 p-1" },
-      { variant: "default", size: "md", class: "h-7 p-1" },
+      { variant: "default", size: "default", class: "h-8 p-0.5" },
+      { variant: "default", size: "md", class: "h-7 p-0.5" },
       { variant: "default", size: "sm", class: "h-6 p-0.5" },
-      { variant: "default", size: "auto", class: "h-auto p-1" },
-      { variant: "outline", size: "default", class: "h-8 p-1" },
-      { variant: "outline", size: "md", class: "h-7 p-1" },
+      { variant: "default", size: "auto", class: "h-auto p-0.5" },
+      { variant: "outline", size: "default", class: "h-8 p-0.5" },
+      { variant: "outline", size: "md", class: "h-7 p-0.5" },
       { variant: "outline", size: "sm", class: "h-6 p-0.5" },
-      { variant: "outline", size: "auto", class: "h-auto p-1" },
+      { variant: "outline", size: "auto", class: "h-auto p-0.5" },
       { variant: "underline", size: "default", class: "h-auto p-0" },
       { variant: "underline", size: "md", class: "h-auto p-0" },
       { variant: "underline", size: "sm", class: "h-auto p-0" },
@@ -62,14 +62,14 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default:
-          "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-xs",
+          "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-sm dark:data-[state=active]:bg-control-track dark:data-[state=active]:text-primary dark:data-[state=active]:shadow-none",
         underline:
           "rounded-none border-b-2 border-transparent bg-transparent text-muted-foreground shadow-none data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none",
       },
       size: {
-        default: "h-6 px-2 py-0.5 text-sm",
+        default: "h-6 px-4 py-0.5 text-sm",
         lg: "h-7 px-1 text-xs",
-        sm: "h-5 px-1 text-xs",
+        sm: "h-5 px-2 text-xs",
       },
     },
     compoundVariants: [
@@ -236,8 +236,10 @@ function TabsList({
             data-tabs-indicator=""
             aria-hidden="true"
             className={cn(
-              "pointer-events-none absolute inset-y-1 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
-              variant === "outline" ? "bg-muted" : "bg-background shadow-xs",
+              "pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
+              variant === "outline"
+                ? "bg-muted"
+                : "bg-background dark:bg-control-track shadow-sm dark:shadow-none",
             )}
           />
         ) : null}
@@ -287,10 +289,10 @@ function TabsTrigger({
       className={cn(
         tabsTriggerVariants({ size, variant }),
         slidingIndicator &&
-          "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+          "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent",
       )}
     >
-      {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0" /> : null}
+      {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
       {label !== undefined ? (
         <span className="min-w-0 truncate" title={label}>
           {label}

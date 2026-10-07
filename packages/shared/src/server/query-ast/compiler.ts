@@ -20,6 +20,7 @@ import type { QueryId } from "kysely";
 import {
   ArrayJoinNode,
   ArrayIndexNode,
+  FinalTableNode,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
@@ -100,6 +101,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       if (ArrayIndexNode.is(node)) {
         self.nodeStack.push(node);
         this.visitArrayIndex(node);
+        self.nodeStack.pop();
+        return;
+      }
+      if (FinalTableNode.is(node)) {
+        self.nodeStack.push(node);
+        this.visitFinalTable(node);
         self.nodeStack.pop();
         return;
       }
@@ -345,6 +352,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.visitNode(node.count);
     this.append(" by ");
     this.compileList(node.columns);
+  }
+
+  private visitFinalTable(node: FinalTableNode): void {
+    this.visitNode(node.table);
+    this.append(" final");
   }
 
   private bindValue(value: unknown, type?: string): string {

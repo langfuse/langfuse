@@ -90,7 +90,7 @@ export const PagedSettingsContainer = ({
                     <SelectItem key={page.title} value={page.slug}>
                       {page.title}
                       {"href" in page && (
-                        <ArrowUpRight size={14} className="ml-1 inline" />
+                        <ArrowUpRight className="icon-base ml-1 inline" />
                       )}
                     </SelectItem>
                   ))}
@@ -120,7 +120,7 @@ export const PagedSettingsContainer = ({
                   className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
                 >
                   {page.title}
-                  <ArrowUpRight size={14} className="inline" />
+                  <ArrowUpRight className="icon-base inline" />
                 </Link>
               ) : (
                 <span

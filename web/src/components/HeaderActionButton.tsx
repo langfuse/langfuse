@@ -1,13 +1,8 @@
 import * as React from "react";
 
 import { type KeyboardKey } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 type HeaderActionButtonProps = Omit<
@@ -28,10 +23,13 @@ export const HeaderActionButton = React.forwardRef<
   ref,
 ) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
+    <Tooltip
+      label={label}
+      shortcut={shortcut ? { keys: [shortcut] } : undefined}
+    >
+      {({ getTriggerProps }) => (
         <Button
-          ref={ref}
+          {...getTriggerProps({ ref })}
           variant="ghost"
           size="icon"
           aria-label={label}
@@ -43,13 +41,7 @@ export const HeaderActionButton = React.forwardRef<
         >
           {icon}
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <span>{label}</span>
-        {shortcut && (
-          <InputCommandShortcut className="ml-2" keys={[shortcut]} />
-        )}
-      </TooltipContent>
+      )}
     </Tooltip>
   );
 });

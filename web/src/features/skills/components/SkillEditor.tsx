@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
@@ -53,6 +54,7 @@ import {
   SkillTagsSelect,
 } from "@/src/features/skills/components/SkillMetadataSelect";
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
+import { SkillFilePreview } from "@/src/features/skills/components/SkillFilePreview";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
 import {
   parseSkillFrontmatterMetadata,
@@ -358,9 +360,9 @@ export function SkillEditor({
           aria-label={`Download version ${baseVersion}`}
         >
           {isDownloading ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
           ) : (
-            <Download className="mr-1.5 h-4 w-4" />
+            <Download className="icon-base text-icon-foreground mr-1.5" />
           )}
           Download
         </Button>
@@ -374,7 +376,7 @@ export function SkillEditor({
               className="text-dark-yellow flex shrink-0 items-center"
               {...getTriggerProps()}
             >
-              <TriangleAlert className="h-4 w-4" />
+              <TriangleAlert className="icon-base" />
             </button>
           )}
         </Tooltip>
@@ -401,7 +403,7 @@ export function SkillEditor({
             setIsDraft(true);
           }}
         >
-          <Plus className="mr-1.5 h-4 w-4" />
+          <Plus className="icon-base mr-1.5" />
           New version
         </Button>
       ) : (
@@ -420,7 +422,7 @@ export function SkillEditor({
           }
           title={createButtonTitle}
         >
-          <Save className="mr-1.5 h-4 w-4" />
+          <Save className="icon-base mr-1.5" />
           Save
         </Button>
       )}
@@ -578,6 +580,7 @@ export function SkillEditor({
                       <SkillFileEditor
                         projectId={projectId}
                         store={store}
+                        isDraft={isDraft}
                         editable={canEditFiles}
                       />
                     </ResizablePanel>
@@ -642,10 +645,12 @@ function SkillMetadataFields({
 function SkillFileEditor({
   projectId,
   store,
+  isDraft,
   editable,
 }: {
   projectId: string;
   store: SkillEditorStore;
+  isDraft: boolean;
   editable: boolean;
 }) {
   const activePath = useStore(store, (state) => state.activePath);
@@ -678,9 +683,12 @@ function SkillFileEditor({
     if (content === undefined) {
       return (
         <div role="status" className="flex items-center gap-2 text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading file…
+          <Loader2 className="icon-base animate-spin" /> Loading file…
         </div>
       );
+    }
+    if (!isDraft) {
+      return <SkillFilePreview path={activePath} content={content} />;
     }
     return (
       <CodeMirrorEditor
@@ -701,6 +709,7 @@ function SkillFileEditor({
     fileContents.error,
     refetch,
     activePath,
+    isDraft,
     editable,
     updateActiveFile,
   ]);
@@ -711,6 +720,10 @@ function SkillFileEditor({
         <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
           {activePath}
         </span>
+        <Badge
+          text={isDraft ? "Editing draft" : "Viewing"}
+          color={isDraft ? "blue" : "primary"}
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">{editorContent}</div>
     </section>

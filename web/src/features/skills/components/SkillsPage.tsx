@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import Link from "next/link";
-import { FileCode2, Plus, Trash } from "lucide-react";
+import { Download, FileCode2, Plus, Trash } from "lucide-react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -38,6 +39,7 @@ import {
   SKILLS_FIELD_REGISTRY,
   skillsFilterConfig,
 } from "../constants/skillsFilterConfig";
+import { ImportSkillsDialog } from "./ImportSkillsDialog";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
@@ -58,11 +60,24 @@ export function SkillsPage() {
           href: "https://langfuse.com/docs",
         },
         actionButtonsRight: (
-          <NewSkillButton
-            canCreate={canCreate}
-            href={newSkillHref}
-            onOpen={() => capture("skills:new_form_open")}
-          />
+          <div className="flex items-center gap-2">
+            <ImportSkillsDialog key={projectId} projectId={projectId}>
+              {(openDialog) => (
+                <DesignSystemButton
+                  text="Import"
+                  icon={Download}
+                  variant="secondary"
+                  disabled={!canCreate}
+                  onClick={openDialog}
+                />
+              )}
+            </ImportSkillsDialog>
+            <NewSkillButton
+              canCreate={canCreate}
+              href={newSkillHref}
+              onOpen={() => capture("skills:new_form_open")}
+            />
+          </div>
         ),
       }}
     >
@@ -325,14 +340,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Link>
     </Button>
   );
@@ -349,7 +364,7 @@ function EmptySkills({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-24 text-center">
-      <FileCode2 className="text-muted-foreground h-9 w-9" />
+      <FileCode2 className="text-muted-foreground icon-xl" />
       <div>
         <h2 className="font-bold">Create your first skill</h2>
         <p className="text-muted-foreground mt-1 text-sm">

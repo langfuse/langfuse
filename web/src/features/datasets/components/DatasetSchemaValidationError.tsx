@@ -75,7 +75,7 @@ export const DatasetSchemaValidationError: React.FC<
                           className="flex items-center gap-1 text-sm font-bold hover:underline"
                         >
                           Item: {error.datasetItemId}
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="icon-sm" />
                         </Link>
                       </div>
                       <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">

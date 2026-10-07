@@ -194,7 +194,7 @@ function TreeRow({
           {expandable ? (
             <ChevronDown
               className={cn(
-                "text-muted-foreground h-3.5 w-3.5 shrink-0 self-center transition-transform",
+                "text-muted-foreground icon-base shrink-0 self-center transition-transform",
                 !isOpen && "-rotate-90",
               )}
             />

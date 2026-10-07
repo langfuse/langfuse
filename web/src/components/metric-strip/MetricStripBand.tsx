@@ -29,7 +29,7 @@ export type MetricStripStatus = "loading" | "empty" | "ready";
  */
 export function MetricStripMessage({ message }: { message: string }) {
   return (
-    <div className="text-muted-foreground flex h-full items-center justify-center text-[11px]">
+    <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
       {message}
     </div>
   );
@@ -86,12 +86,7 @@ export const MetricStripBand = forwardRef<
         // sits closer to its chart than to the band's edge.
         <div className="relative px-2 pt-2.5 pb-1">
           {status === "loading" ? (
-            <div
-              className={cn(
-                "bg-muted animate-pulse rounded",
-                contentHeightClass,
-              )}
-            />
+            <div className={contentHeightClass} />
           ) : status === "empty" ? (
             <div className={contentHeightClass}>
               <MetricStripMessage message={emptyMessage} />

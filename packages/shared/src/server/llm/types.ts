@@ -258,8 +258,29 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
   LLMAdapter.TypeSafe,
 ];
 
+/** OpenAI models the Decisions API accepts. */
+export const OPENAI_DECISION_MODEL_IDS: readonly string[] = ["gpt-6-luna"];
+
+export function isOpenAIDecisionModel(model: string): boolean {
+  return OPENAI_DECISION_MODEL_IDS.includes(model);
+}
+
 export function isDecisionModelAdapter(adapter: string): boolean {
   return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
+}
+
+/** Adapters that can answer a decision-model evaluator. OpenAI stays a text adapter too. */
+export function supportsDecisionModels(adapter: string): boolean {
+  return adapter === LLMAdapter.TypeSafe || adapter === LLMAdapter.OpenAI;
+}
+
+export function isAllowedDecisionModel(
+  adapter: string,
+  model: string,
+): boolean {
+  if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
+  if (adapter === LLMAdapter.OpenAI) return isOpenAIDecisionModel(model);
+  return false;
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -425,30 +446,21 @@ export const anthropicModels = [
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
+// Only models Vertex AI still serves. Gemini 3.x is served from the "global"
+// location only (the default for Vertex connections). Retired 1.0/1.5/2.0
+// models, superseded previews and the Live API audio model are not listed.
 export const vertexAIModels = [
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
-  "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
   "gemini-3-flash-preview",
-  "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-live-2.5-flash-native-audio",
-  "gemini-2.0-flash",
-  "gemini-2.0-pro-exp-02-05",
-  "gemini-2.0-flash-001",
-  "gemini-2.0-flash-exp",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "gemini-1.0-pro",
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.

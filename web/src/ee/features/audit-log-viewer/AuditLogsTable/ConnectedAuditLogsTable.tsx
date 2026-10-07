@@ -69,7 +69,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
           {
             id: "export",
             label: "Export",
-            icon: <Download className="size-4" />,
+            icon: <Download className="icon-base" />,
             variant: "outline" as const,
             loading: createExport.isPending,
             dropdown: {

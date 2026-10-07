@@ -47,7 +47,7 @@ export function ExperimentInputCell({
           className="text-muted-foreground hover:text-primary absolute top-1 right-1 rounded-sm p-0.5 focus-visible:ring-2 focus-visible:outline-none"
           onClick={(event) => event.stopPropagation()}
         >
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+          <ArrowUpRight className="icon-base" aria-hidden />
         </Link>
       ) : null}
       {isLoading ? (
