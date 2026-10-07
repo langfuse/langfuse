@@ -56,7 +56,7 @@ export async function loadTraceTranscript(trace: {
   // it preserves resolved call identity for text-only tool responses.
   if (trace.pairTextToolResponses && transcript) {
     const observationsByTraceAndId = new Map<
-      string,
+      (typeof observations)[number]["traceId"],
       Map<string, (typeof observations)[number]>
     >();
     for (const observation of observations) {

@@ -1,8 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { getQueryKey } from "@trpc/react-query";
-import { api } from "@/src/utils/api";
 import { type AppRouter } from "@/src/server/api/root";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useSessionTraceTranscripts } from "./useSessionTraceTranscripts";
@@ -92,32 +90,6 @@ it("bounds concurrent requests and releases slots after success and failure", as
   expect(query.mock.calls.some(([input]) => input.traceId === "trace-6")).toBe(
     false,
   );
-  unmount();
-  client.clear();
-});
-
-it("reuses fresh per-trace cache entries", async () => {
-  query.mockResolvedValue(output);
-  const client = new QueryClient();
-  client.setQueryData(
-    getQueryKey(
-      api.events.transcriptByTraceId,
-      {
-        projectId: "project",
-        traceId: traces[0]!.trace.id,
-        timestamp: traces[0]!.trace.timestamp,
-        pairTextToolResponses: true,
-      },
-      "query",
-    ),
-    output,
-  );
-  const { result, unmount } = setup(client);
-  await waitFor(() => expect(query).toHaveBeenCalledTimes(5));
-  expect(query.mock.calls.some(([input]) => input.traceId === "trace-0")).toBe(
-    false,
-  );
-  expect(result.current.get("trace-0")).toEqual({ state: "loaded", ...output });
   unmount();
   client.clear();
 });

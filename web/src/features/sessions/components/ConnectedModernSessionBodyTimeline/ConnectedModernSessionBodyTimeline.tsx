@@ -10,6 +10,7 @@ import {
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { api } from "@/src/utils/api";
 import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { getSessionConversationEntries } from "./components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 
@@ -39,9 +40,15 @@ export function ConnectedModernSessionBodyTimeline({
     string[]
   >([]);
   const [search, setSearch] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSetSearchQuery = useDebounce(setSearchQuery, 500, false);
-  const isSearchPending = search.trim() !== searchQuery;
+  const [debouncedSearchQuery, setSearchQuery] = useState("");
+  const debouncedSetSearchQuery = useDebounce(
+    (nextSearchQuery: string) => {
+      if (nextSearchQuery === search.trim()) setSearchQuery(nextSearchQuery);
+    },
+    500,
+    false,
+  );
+  const utils = api.useUtils();
   const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
     new Set(),
   );
@@ -64,7 +71,7 @@ export function ConnectedModernSessionBodyTimeline({
   const activeChunkIndices = new Set<number>();
   {
     const highestChunkIndex = Math.max(
-      searchQuery
+      debouncedSearchQuery
         ? Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1
         : Math.min(
             loadedThroughChunkIndex,
@@ -93,6 +100,21 @@ export function ConnectedModernSessionBodyTimeline({
     traces: traces.map((trace, index) => ({ trace, turnNumber: index + 1 })),
     activeTraceIds: activeTranscriptTraceIds,
   });
+  const allTranscriptsLoaded =
+    tracesState.type === "loaded" &&
+    traces.every(
+      (trace) =>
+        utils.events.transcriptByTraceId.getData({
+          projectId,
+          traceId: trace.id,
+          timestamp: trace.timestamp,
+          pairTextToolResponses: true,
+        }) !== undefined,
+    );
+  const searchQuery = allTranscriptsLoaded
+    ? search.trim()
+    : debouncedSearchQuery;
+  const isSearchPending = search.trim() !== searchQuery;
   const entries = getSessionConversationEntries(
     traces.map((trace) => {
       const result = resultsByTraceId.get(trace.id);
@@ -158,6 +180,10 @@ export function ConnectedModernSessionBodyTimeline({
 
   const handleSearchChange = (nextSearch: string) => {
     setSearch(nextSearch);
+    if (allTranscriptsLoaded) {
+      setSearchQuery(nextSearch.trim());
+      return;
+    }
     debouncedSetSearchQuery(nextSearch.trim());
   };
 
