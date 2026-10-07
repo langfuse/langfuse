@@ -1,8 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { type ComponentProps, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModernSession } from "@/src/features/sessions/ModernSession";
+
+const { capture } = vi.hoisted(() => ({ capture: vi.fn() }));
+
+vi.mock("@/src/features/posthog-analytics", () => ({
+  usePostHogClientCapture: () => capture,
+}));
 
 vi.mock("@/src/features/sessions/ConnectedModernSessionBodyLegacy", () => ({
   ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
@@ -98,6 +104,11 @@ const defaultProps = {
 } satisfies ComponentProps<typeof ModernSession>;
 
 describe("ModernSession", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    capture.mockClear();
+  });
+
   it("renders the shared header and legacy connected body by default", () => {
     render(<ModernSession {...defaultProps} />);
 
@@ -105,6 +116,10 @@ describe("ModernSession", () => {
     expect(screen.getByText("Legacy body")).toBeInTheDocument();
     expect(screen.getByTestId("legacy-filter-controls")).toBeInTheDocument();
     expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "What's new" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the timeline whenever enabled, including public access", () => {
@@ -116,5 +131,96 @@ describe("ModernSession", () => {
       screen.queryByTestId("legacy-filter-controls"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy body")).not.toBeInTheDocument();
+  });
+
+  it("introduces the timeline once and allows reopening after dismissal", () => {
+    const { unmount } = render(
+      <ModernSession {...defaultProps} isTimelineEnabled />,
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(
+      screen.getByText(/one continuous conversation transcript/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/new conversation sidebar/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Provide feedback" }),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/langfuse/langfuse/discussions",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Got it!" }));
+    expect(
+      localStorage.getItem("session-transcripts-introduction-v1-dismissed"),
+    ).toBe("true");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    unmount();
+    render(
+      <ModernSession
+        {...defaultProps}
+        sessionId="another-session"
+        isTimelineEnabled
+      />,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "What's new" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("persists dismissal with the close button", () => {
+    render(<ModernSession {...defaultProps} isTimelineEnabled />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
+    expect(
+      localStorage.getItem("session-transcripts-introduction-v1-dismissed"),
+    ).toBe("true");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("tracks showing, dismissing, and each button click", () => {
+    render(<ModernSession {...defaultProps} isTimelineEnabled />);
+    expect(capture).toHaveBeenCalledWith("session_introduction:shown", {
+      source: "first_visit",
+    });
+    fireEvent.click(screen.getByRole("link", { name: "Provide feedback" }));
+    expect(capture).toHaveBeenCalledWith(
+      "session_introduction:button_clicked",
+      {
+        button: "provide_feedback",
+      },
+    );
+    expect(capture).not.toHaveBeenCalledWith(
+      "session_introduction:dismissed",
+      expect.anything(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Got it!" }));
+    expect(capture).toHaveBeenCalledWith(
+      "session_introduction:button_clicked",
+      {
+        button: "got_it",
+      },
+    );
+    expect(capture).toHaveBeenCalledWith("session_introduction:dismissed", {
+      source: "first_visit",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "What's new" }));
+    expect(capture).toHaveBeenCalledWith(
+      "session_introduction:button_clicked",
+      {
+        button: "reopen",
+      },
+    );
+    expect(capture).toHaveBeenCalledWith("session_introduction:shown", {
+      source: "reopen",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(capture).toHaveBeenCalledWith("session_introduction:dismissed", {
+      source: "reopen",
+    });
+    expect(
+      capture.mock.calls.filter(
+        ([event]) => event === "session_introduction:shown",
+      ),
+    ).toHaveLength(2);
   });
 });
