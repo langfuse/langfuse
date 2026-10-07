@@ -405,7 +405,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             min(created_at) AS created_at,
             max(updated_at) AS updated_at,
             sum(total_cost) AS total_cost,
-            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
             groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
             length(
                 groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
@@ -505,7 +509,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             min(created_at) AS created_at,
             max(updated_at) AS updated_at,
             sum(total_cost) AS total_cost,
-            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
             groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
             length(
                 groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
@@ -607,7 +615,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             min(created_at) AS created_at,
             max(updated_at) AS updated_at,
             sum(total_cost) AS total_cost,
-            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
             groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
             length(
                 groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
@@ -708,7 +720,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             min(created_at) AS created_at,
             max(updated_at) AS updated_at,
             sum(total_cost) AS total_cost,
-            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
             groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
             length(
                 groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))

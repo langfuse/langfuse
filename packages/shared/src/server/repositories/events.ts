@@ -1096,7 +1096,7 @@ const TRACE_AGGREGATION_SELECTS = [
   sql`min(created_at)`.as("created_at"),
   sql`max(updated_at)`.as("updated_at"),
   sql`sum(total_cost)`.as("total_cost"),
-  sql`date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))`.as(
+  sql`if(max(end_time) IS NULL, NULL, date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))))`.as(
     "latency_milliseconds",
   ),
   sql`groupUniqArrayIf(span_id, span_id <> '')`.as("observation_ids"),
