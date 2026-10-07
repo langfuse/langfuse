@@ -30,24 +30,20 @@ type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
 // Retain descriptor metadata and completed upload results for the batch's lifetime.
 // Decoded bodies and restored source strings stay local to each processing call.
-const batches = new WeakMap<
+// Upload-only consumers do not need to materialize the descriptor registry in JS.
+const mediaRegistries = new WeakMap<EarlyOtelBatch, MediaRegistry>();
+const mediaUploadCache = new WeakMap<
   EarlyOtelBatch,
-  {
-    media: MediaRegistry;
-    uploads: Map<string, Promise<CachedMediaUpload>>;
-  }
+  Map<string, Promise<CachedMediaUpload>>
 >();
 
-function batchMedia(batch: EarlyOtelBatch) {
-  let state = batches.get(batch);
-  if (!state) {
-    state = {
-      media: new Map(batch.media.map((entry) => [entry.reference, entry])),
-      uploads: new Map(),
-    };
-    batches.set(batch, state);
+function batchMedia(batch: EarlyOtelBatch): MediaRegistry {
+  let media = mediaRegistries.get(batch);
+  if (!media) {
+    media = new Map(batch.media.map((entry) => [entry.reference, entry]));
+    mediaRegistries.set(batch, media);
   }
-  return state;
+  return media;
 }
 
 /**
@@ -55,7 +51,7 @@ function batchMedia(batch: EarlyOtelBatch) {
  * storage result. Legacy and direct writers can call this with their own lazy
  * body reader and destination link; cache hits never retain or decode the body.
  */
-async function uploadExtractedMediaOnce(params: {
+export async function uploadExtractedMediaOnce(params: {
   batch: EarlyOtelBatch;
   projectId: string;
   traceId: string;
@@ -86,7 +82,10 @@ async function uploadExtractedMediaOnce(params: {
     sha256Hash,
     contentType,
   ].join("\u0000");
-  const cache = batchMedia(batch).uploads;
+  const cache =
+    mediaUploadCache.get(batch) ??
+    new Map<string, Promise<CachedMediaUpload>>();
+  mediaUploadCache.set(batch, cache);
 
   const cached = cache.get(key);
   if (cached) {
@@ -137,7 +136,7 @@ export async function restoreInlineMedia(
   records: Record<string, unknown>[],
   { includePayloads = false }: { includePayloads?: boolean } = {},
 ): Promise<void> {
-  const { media } = batchMedia(batch);
+  const media = batchMedia(batch);
   if (media.size === 0) return;
   const { restore } = createMediaRestorer(batch, media);
   for (const record of records) {
@@ -246,7 +245,7 @@ export async function resolveExtractedMedia(params: {
     bytesProcessed: 0,
     bytesRemoved: 0,
   };
-  const { media } = batchMedia(batch);
+  const media = batchMedia(batch);
   if (media.size === 0) return stats;
   const {
     originalFor,
