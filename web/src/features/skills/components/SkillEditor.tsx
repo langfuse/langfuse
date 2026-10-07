@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
@@ -53,6 +54,7 @@ import {
   SkillTagsSelect,
 } from "@/src/features/skills/components/SkillMetadataSelect";
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
+import { SkillFilePreview } from "@/src/features/skills/components/SkillFilePreview";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
 import {
   parseSkillFrontmatterMetadata,
@@ -578,6 +580,7 @@ export function SkillEditor({
                       <SkillFileEditor
                         projectId={projectId}
                         store={store}
+                        isDraft={isDraft}
                         editable={canEditFiles}
                       />
                     </ResizablePanel>
@@ -642,10 +645,12 @@ function SkillMetadataFields({
 function SkillFileEditor({
   projectId,
   store,
+  isDraft,
   editable,
 }: {
   projectId: string;
   store: SkillEditorStore;
+  isDraft: boolean;
   editable: boolean;
 }) {
   const activePath = useStore(store, (state) => state.activePath);
@@ -682,6 +687,9 @@ function SkillFileEditor({
         </div>
       );
     }
+    if (!isDraft) {
+      return <SkillFilePreview path={activePath} content={content} />;
+    }
     return (
       <CodeMirrorEditor
         key={activePath}
@@ -701,6 +709,7 @@ function SkillFileEditor({
     fileContents.error,
     refetch,
     activePath,
+    isDraft,
     editable,
     updateActiveFile,
   ]);
@@ -711,6 +720,10 @@ function SkillFileEditor({
         <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
           {activePath}
         </span>
+        <Badge
+          text={isDraft ? "Editing draft" : "Viewing"}
+          color={isDraft ? "blue" : "primary"}
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">{editorContent}</div>
     </section>
