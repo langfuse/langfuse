@@ -47,7 +47,7 @@ export const PageTabs = ({
       >
         {tabs.map((tab) => {
           const tabClassName = cn(
-            "focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-2 border-transparent px-4 py-0.5 text-base whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+            "focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-2 border-transparent px-3 py-0.5 text-base whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
             tab.value === activeTab
               ? "border-foreground-secondary text-foreground bg-transparent shadow-none"
               : "",
