@@ -46,6 +46,8 @@ const BUCKET_FAULT_CODES = new Set<string>([
   // Azure — container & path
   "ContainerNotFound",
   "InvalidResourceName",
+  // GCS — bucket not allowed for default credentials (Langfuse guard)
+  "GcsBucketNotAllowedError",
 ]);
 
 // Langfuse outbound-URL / SSRF validation rejections (OutboundUrlValidationError
@@ -58,12 +60,6 @@ const BUCKET_FAULT_CODES = new Set<string>([
 const SSRF_BLOCKED_OUTBOUND_URL_CODES = new Set<string>([
   "blocked-hostname",
   "blocked-ip",
-]);
-
-// GOOGLE_CLOUD_STORAGE bucket allowlist rejections: a config property, not transient.
-const GCS_BUCKET_OUTBOUND_URL_CODES = new Set<string>([
-  "gcs-bucket-not-allowed",
-  "gcs-not-allowed",
 ]);
 
 const INVALID_URL_OUTBOUND_URL_CODES = new Set<string>([
@@ -144,7 +140,6 @@ function classifyOutboundUrlFault(
   if (typeof code !== "string") return undefined;
   if (SSRF_BLOCKED_OUTBOUND_URL_CODES.has(code)) return "ssrf_blocked_endpoint";
   if (INVALID_URL_OUTBOUND_URL_CODES.has(code)) return "invalid_endpoint_url";
-  if (GCS_BUCKET_OUTBOUND_URL_CODES.has(code)) return "bucket_or_container";
   return undefined;
 }
 

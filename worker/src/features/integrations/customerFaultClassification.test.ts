@@ -107,13 +107,12 @@ describe("isCustomerFaultError", () => {
       );
     });
 
-    it.each(["gcs-bucket-not-allowed", "gcs-not-allowed"] as const)(
-      "classifies GCS allowlist rejection %s as bucket_or_container",
-      (code) => {
-        const err = new OutboundUrlValidationError(code, "not allowed");
-        expect(classifyCustomerFault(err)).toBe("bucket_or_container");
-      },
-    );
+    it("classifies a GCS default-credentials bucket rejection as bucket_or_container", () => {
+      const err = Object.assign(new Error("not allowed"), {
+        name: "GcsBucketNotAllowedError",
+      });
+      expect(classifyCustomerFault(err)).toBe("bucket_or_container");
+    });
   });
 
   it("classifies a non-JSON GCS key as credentials", () => {

@@ -342,11 +342,6 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
   });
 });
 
-/**
- * Source-stream errors on GCS uploads must reject the awaited upload instead
- * of escaping as an uncaught 'error' event. `.pipe().on("error")` only
- * listens on the destination; `pipeline()` forwards source errors too.
- */
 describe("StorageServiceFactory GCS credentials", () => {
   const original = env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
   afterEach(() => {
@@ -397,6 +392,11 @@ describe("StorageServiceFactory GCS credentials", () => {
   });
 });
 
+/**
+ * Source-stream errors on GCS uploads must reject the awaited upload instead
+ * of escaping as an uncaught 'error' event. `.pipe().on("error")` only
+ * listens on the destination; `pipeline()` forwards source errors too.
+ */
 describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
   it("rejects when the source stream fails without leaking process events", async () => {
     const service = StorageServiceFactory.getInstance({

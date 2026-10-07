@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useController, useWatch } from "react-hook-form";
+import { type UseFormSetValue, useWatch } from "react-hook-form";
 import {
   FormControl,
   FormDescription,
@@ -17,15 +17,20 @@ import {
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
+import {
+  type BlobStorageFormControl,
+  type BlobStorageFormValues,
+} from "@/src/features/blobstorage-integration/components/formValues";
 
 // Provider selection plus the connection fields whose labels and visibility
 // depend on it: bucket/container, endpoint, region, path style, credentials,
 // and prefix.
 export const StorageProviderFields = ({
   control,
+  setValue,
 }: {
   control: BlobStorageFormControl;
+  setValue: UseFormSetValue<BlobStorageFormValues>;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   // Check if this is a self-hosted instance (no cloud region set)
@@ -36,10 +41,6 @@ export const StorageProviderFields = ({
   const secretAccessKey = useWatch({ control, name: "secretAccessKey" });
   const isGcsDefaultCredentials =
     isGcs && secretAccessKey === GCS_USE_DEFAULT_CREDENTIALS;
-  const { field: secretAccessKeyField } = useController({
-    control,
-    name: "secretAccessKey",
-  });
 
   return (
     <>
@@ -56,7 +57,7 @@ export const StorageProviderFields = ({
                   // A GCS key (or the ADC sentinel) is not an S3/Azure secret,
                   // and vice versa.
                   if ((value === "GOOGLE_CLOUD_STORAGE") !== isGcs) {
-                    secretAccessKeyField.onChange("");
+                    setValue("secretAccessKey", "", { shouldDirty: true });
                   }
                   field.onChange(value);
                 }}

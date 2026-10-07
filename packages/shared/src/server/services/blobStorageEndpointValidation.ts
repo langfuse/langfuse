@@ -89,6 +89,18 @@ export async function validateBlobStorageEndpoint(
   }
 }
 
+// Rejection of a keyless GCS export. The worker classifies it by name as a
+// bucket fault, so the integration is disabled instead of retried.
+class GcsBucketNotAllowedError extends Error {
+  constructor(
+    readonly code: "gcs-bucket-not-allowed" | "gcs-not-allowed",
+    message: string,
+  ) {
+    super(message);
+    this.name = "GcsBucketNotAllowedError";
+  }
+}
+
 /**
  * Keyless GOOGLE_CLOUD_STORAGE blob exports (no service account key stored)
  * authenticate as the deployment's own GCP identity (ADC), so the bucket is the
@@ -99,14 +111,14 @@ export async function validateBlobStorageEndpoint(
  */
 export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    throw new OutboundUrlValidationError(
+    throw new GcsBucketNotAllowedError(
       "gcs-not-allowed",
       "Google Cloud Storage exports with default credentials are only available on self-hosted deployments. Provide a service account key instead.",
     );
   }
   const allowed = env.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS ?? [];
   if (!allowed.includes(bucketName.toLowerCase().trim())) {
-    throw new OutboundUrlValidationError(
+    throw new GcsBucketNotAllowedError(
       "gcs-bucket-not-allowed",
       allowed.length === 0
         ? "Google Cloud Storage exports with default credentials are disabled. Set LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS to enable them, or provide a service account key."

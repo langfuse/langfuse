@@ -77,7 +77,7 @@ describe("assertGcsBlobStorageBucketAllowed", () => {
     try {
       fn();
     } catch (error) {
-      return (error as OutboundUrlValidationError).code;
+      return (error as { code?: string }).code;
     }
     return undefined;
   };

@@ -85,7 +85,10 @@ export const BlobStorageIntegrationForm = ({
         className="space-y-3"
         onSubmit={blobStorageForm.handleSubmit(onSubmit)}
       >
-        <StorageProviderFields control={control} />
+        <StorageProviderFields
+          control={control}
+          setValue={blobStorageForm.setValue}
+        />
         <ExportScheduleFields control={control} />
         <ExportSourceField
           control={control}
