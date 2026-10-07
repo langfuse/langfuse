@@ -53,7 +53,13 @@ export async function prepareOtelBatch(params: {
           );
         },
         read: async (response) => {
-          return validate(Buffer.from(await response.arrayBuffer()));
+          const bytes = Buffer.from(await response.arrayBuffer());
+          // Response.json() strips one leading UTF-8 BOM before parsing.
+          const json =
+            bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
+              ? bytes.subarray(3)
+              : bytes;
+          return validate(json);
         },
       },
     );

@@ -293,11 +293,12 @@ describe("Ingestion Masking", () => {
   });
 
   describe("applyIngestionMasking", () => {
-    it.each(["success", "fail-open", "fail-closed"] as const)(
+    it.each(["success", "bom-success", "fail-open", "fail-closed"] as const)(
       "compacts only the accepted raw masking input (%s)",
       async (outcome) => {
         const original = { input: "data:image/png;base64,b3JpZ2luYWw=" };
         const masked = { input: "data:image/png;base64,bWFza2Vk" };
+        const accepted = outcome === "success" || outcome === "bom-success";
         const overrides = createTestEnv({
           LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
             "https://masking.example.com/raw",
@@ -314,7 +315,12 @@ describe("Ingestion Masking", () => {
         const fetch = vi
           .spyOn(globalThis, "fetch")
           .mockResolvedValueOnce(
-            new Response(outcome === "success" ? JSON.stringify(masked) : "{"),
+            new Response(
+              accepted
+                ? (outcome === "bom-success" ? "\uFEFF" : "") +
+                    JSON.stringify(masked)
+                : "{",
+            ),
           );
         let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
         try {
@@ -338,7 +344,7 @@ describe("Ingestion Masking", () => {
           expect(batch).toBeDefined();
           expect(batch!.media).toHaveLength(1);
           expect((await batch!.mediaBody(0)).toString()).toBe(
-            outcome === "success" ? "masked" : "original",
+            accepted ? "masked" : "original",
           );
           expect(JSON.parse(batch!.json()).input).toBe(
             batch!.media[0].reference,

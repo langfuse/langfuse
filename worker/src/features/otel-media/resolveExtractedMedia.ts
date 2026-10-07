@@ -18,7 +18,9 @@ import {
 } from "@langfuse/shared/src/server";
 
 const MAX_LEGACY_MEDIA_DEPTH = 10;
+const MAX_SERIALIZED_REFERENCE_LAYERS = 2;
 const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
+const MEDIA_PAGE_SIZE = 4_096;
 // Keep this list aligned with OtelIngestionProcessor.extractTags.
 const OTEL_TAG_ATTRIBUTE_KEYS = new Set([
   "langfuse.trace.tags",
@@ -37,64 +39,117 @@ type CachedMediaUpload = {
 
 type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
+type KnownMediaReferenceMatch = {
+  reference: string;
+  entry: ExtractedOtelMedia;
+  index: number;
+};
+
+type ResolutionContext = {
+  source: string;
+  matches: KnownMediaReferenceMatch[];
+  decisions: Array<string | null | undefined>;
+  occurrenceQueues: Map<string, number[]>;
+  occurrenceCursors: Map<string, number>;
+  jsonString: boolean;
+  jsonLayers?: Map<number, number>;
+};
+
 // Retain descriptor metadata and completed upload results for the batch's lifetime.
 // Decoded bodies and restored source strings stay local to each processing call.
 // Upload-only consumers do not need to materialize the descriptor registry in JS;
 // media bodies remain native-owned and are read lazily when needed.
-const mediaRegistries = new WeakMap<EarlyOtelBatch, MediaRegistry>();
+const mediaRegistries = new WeakMap<EarlyOtelBatch, Promise<MediaRegistry>>();
 const mediaUploadCache = new WeakMap<
   EarlyOtelBatch,
   Map<string, Promise<CachedMediaUpload>>
 >();
 
-function jsonStringEscapeLayers(value: string, referenceIndex: number): number {
-  // A provider reference replaces an entire JSON string value. Each outer JSON
-  // stringification turns the opening quote's escape run into 0, 1, 3, 7, ...
-  // backslashes, so restore the provider value through every layer.
-  if (value[referenceIndex - 1] !== '"') return 1;
+async function batchMedia(batch: EarlyOtelBatch): Promise<MediaRegistry> {
+  const cached = mediaRegistries.get(batch);
+  if (cached) return cached;
 
-  let escapedQuoteBackslashes = 0;
-  for (
-    let index = referenceIndex - 2;
-    index >= 0 && value[index] === "\\";
-    index--
-  ) {
-    escapedQuoteBackslashes++;
+  const load = (async () => {
+    const count = batch.mediaCount();
+    const media = new Map<string, ExtractedOtelMedia>();
+    for (let offset = 0; offset < count; ) {
+      const page = batch.mediaPage(offset, MEDIA_PAGE_SIZE);
+      for (const entry of page) media.set(entry.reference, entry);
+      const nextOffset = offset + page.length;
+      if (nextOffset <= offset)
+        throw new Error("native media page returned no progress");
+      offset = nextOffset;
+      if (offset < count)
+        await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    return media;
+  })();
+  mediaRegistries.set(batch, load);
+  try {
+    return await load;
+  } catch (error) {
+    if (mediaRegistries.get(batch) === load) mediaRegistries.delete(batch);
+    throw error;
   }
-
-  let outerLayers = 0;
-  while (escapedQuoteBackslashes > 0) {
-    if ((escapedQuoteBackslashes - 1) % 2 !== 0) return 1;
-    escapedQuoteBackslashes = (escapedQuoteBackslashes - 1) / 2;
-    outerLayers++;
-  }
-  return outerLayers + 1;
 }
 
-function escapeJsonString(value: string): string {
-  return JSON.stringify(value).slice(1, -1);
-}
-
-function escapeJsonStringAtReference(
-  original: string,
+/** Find only references owned by this batch; malformed markers cannot consume a later one. */
+function* knownMediaReferenceMatches(
   value: string,
-  referenceIndex: number,
-): string {
-  let escaped = original;
-  const layers = jsonStringEscapeLayers(value, referenceIndex);
-  for (let layer = 0; layer < layers; layer++) {
-    escaped = escapeJsonString(escaped);
+  media: MediaRegistry,
+): Generator<KnownMediaReferenceMatch> {
+  let searchFrom = 0;
+  while (searchFrom < value.length) {
+    const index = value.indexOf(MEDIA_REFERENCE_PREFIX, searchFrom);
+    if (index === -1) return;
+    const end = value.indexOf("@@@", index + MEDIA_REFERENCE_PREFIX.length);
+    if (end === -1) return;
+    const reference = value.slice(index, end + 3);
+    const entry = media.get(reference);
+    if (entry) {
+      yield { reference, entry, index };
+      searchFrom = end + 3;
+    } else {
+      // An unterminated marker can see the opening delimiter of a later known
+      // marker as its closing delimiter. Search inside it before giving up.
+      searchFrom = index + MEDIA_REFERENCE_PREFIX.length;
+    }
   }
-  return escaped;
 }
 
-function batchMedia(batch: EarlyOtelBatch): MediaRegistry {
-  let media = mediaRegistries.get(batch);
-  if (!media) {
-    media = new Map(batch.media.map((entry) => [entry.reference, entry]));
-    mediaRegistries.set(batch, media);
+function containsOnlyDataUriReferences(
+  value: unknown,
+  media: MediaRegistry,
+): boolean {
+  if (typeof value !== "string") return false;
+  let found = false;
+  for (const match of knownMediaReferenceMatches(value, media)) {
+    found = true;
+    if (match.entry.kind !== "data_uri") return false;
   }
-  return media;
+  return found;
+}
+
+function containsDataUriReference(
+  value: unknown,
+  media: MediaRegistry,
+): boolean {
+  if (typeof value !== "string") return false;
+  for (const match of knownMediaReferenceMatches(value, media)) {
+    if (match.entry.kind === "data_uri") return true;
+  }
+  return false;
+}
+
+function isSerializedJsonContainer(value: string): boolean {
+  const trimmed = value.trimStart();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return false;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) || isObject(parsed);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -187,7 +242,7 @@ export async function restoreInlineMedia(
   records: Record<string, unknown>[],
   { includePayloads = false }: { includePayloads?: boolean } = {},
 ): Promise<void> {
-  const media = batchMedia(batch);
+  const media = await batchMedia(batch);
   if (media.size === 0) return;
   const { restore } = createMediaRestorer(batch, media);
   for (const record of records) {
@@ -209,7 +264,7 @@ export async function restoreOtelTagAttributes(
   batch: EarlyOtelBatch,
   resourceSpans: unknown[],
 ): Promise<void> {
-  const media = batchMedia(batch);
+  const media = await batchMedia(batch);
   if (media.size === 0) return;
   const { restore } = createMediaRestorer(batch, media);
   for (const resourceSpan of resourceSpans) {
@@ -237,65 +292,176 @@ export async function restoreOtelTagAttributes(
   }
 }
 
-// Restoration keeps decoded source strings scoped to one processing call; the
-// batch and its upload cache may still be shared by another write path.
-function createMediaRestorer(batch: EarlyOtelBatch, media: MediaRegistry) {
+/**
+ * Find the stringified-document depth for each reference in one source string.
+ *
+ * This is deliberately used only on a restoration path. Successful data-URI
+ * replacement remains a source-text pass and does not parse the surrounding
+ * document. Parsing here is for depth inspection only; the original source is
+ * still rebuilt by replacing the known reference ranges in the current text.
+ */
+function serializedReferenceLayers(
+  value: string,
+  media: MediaRegistry,
+): Map<number, number> {
+  const matches = [...knownMediaReferenceMatches(value, media)];
+  const layers = new Map<number, number>();
+  if (matches.length === 0) return layers;
+
+  // The native scanner only interprets two embedded JSON documents. At the
+  // ordinary one-layer boundary every reference in this current string has
+  // the same source depth; avoid building an AST just to rediscover that fact.
+  if (matches.every(({ entry }) => entry.originalJsonDepth <= 1)) {
+    for (const match of matches) layers.set(match.index, 1);
+    return layers;
+  }
+
+  const pendingByReference = new Map<string, number[]>();
+  const pendingCursor = new Map<string, number>();
+  for (const [matchIndex, match] of matches.entries()) {
+    const pending = pendingByReference.get(match.reference) ?? [];
+    pending.push(matchIndex);
+    pendingByReference.set(match.reference, pending);
+  }
+
+  const assign = (text: string, depth: number): void => {
+    for (const match of knownMediaReferenceMatches(text, media)) {
+      const pending = pendingByReference.get(match.reference);
+      const cursor = pendingCursor.get(match.reference) ?? 0;
+      const matchIndex = pending?.[cursor];
+      if (matchIndex === undefined) continue;
+      pendingCursor.set(match.reference, cursor + 1);
+      layers.set(matches[matchIndex]!.index, depth);
+    }
+  };
+
+  const parseContainer = (text: string): unknown => {
+    const trimmed = text.trimStart();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
+    try {
+      const parsed: unknown = JSON.parse(text);
+      return Array.isArray(parsed) || isObject(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const root = parseContainer(value);
+  if (root === undefined) {
+    assign(value, 1);
+    return layers;
+  }
+
+  const stack: Array<{ value: unknown; depth: number }> = [
+    { value: root, depth: 1 },
+  ];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (typeof current.value === "string") {
+      if (!hasKnownMediaReferenceInRegistry(current.value, media)) continue;
+      if (current.depth >= MAX_SERIALIZED_REFERENCE_LAYERS) {
+        assign(current.value, current.depth);
+        continue;
+      }
+      // A nested JSON string owns the references represented inside it. Do not
+      // assign the same textual markers once at the outer string layer and
+      // again after decoding the nested document.
+      const nested = parseContainer(current.value);
+      if (nested !== undefined) {
+        stack.push({ value: nested, depth: current.depth + 1 });
+      } else {
+        assign(current.value, current.depth);
+      }
+      continue;
+    }
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index--)
+        stack.push({ value: current.value[index], depth: current.depth });
+      continue;
+    }
+    if (isObject(current.value)) {
+      const entries = Object.entries(current.value);
+      for (let index = entries.length - 1; index >= 0; index--)
+        stack.push({ value: entries[index]![1], depth: current.depth });
+    }
+  }
+
+  // Duplicate JSON keys can be discarded by JSON.parse. Preserve the depth
+  // recorded by native for a source occurrence that the inspection walk cannot
+  // associate with a surviving parsed value.
+  for (const match of matches) {
+    if (!layers.has(match.index)) {
+      layers.set(match.index, Math.max(1, match.entry.originalJsonDepth));
+    }
+  }
+  return layers;
+}
+
+function hasKnownMediaReferenceInRegistry(
+  value: string,
+  media: MediaRegistry,
+): boolean {
+  return knownMediaReferenceMatches(value, media).next().done === false;
+}
+
+// Restoration text stays scoped to one processing call; the batch and its
+// upload cache may still be shared by another write path.
+function createMediaRestorer(
+  batch: EarlyOtelBatch,
+  media: MediaRegistry,
+  recordReference?: (reference: string) => void,
+) {
   const originals = new Map<string, Promise<string>>();
-  function originalFor(entry: ExtractedOtelMedia): Promise<string> {
-    let original = originals.get(entry.reference);
+  function originalFor(
+    entry: ExtractedOtelMedia,
+    jsonLayers = 0,
+  ): Promise<string> {
+    const cacheKey = `${entry.reference}\u0000${jsonLayers}`;
+    let original = originals.get(cacheKey);
     if (!original) {
-      original = batch.originalMedia(entry.index);
-      originals.set(entry.reference, original);
+      original = batch.originalMedia(entry.index, jsonLayers);
+      originals.set(cacheKey, original);
     }
     return original;
   }
 
   function hasKnownMediaReference(value: string): boolean {
-    if (!value.includes(MEDIA_REFERENCE_PREFIX)) return false;
-    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
-      if (media.has(match[0])) return true;
-    }
-    return false;
+    return knownMediaReferenceMatches(value, media).next().done === false;
+  }
+
+  async function restoreReference(
+    entry: ExtractedOtelMedia,
+    jsonLayers?: number,
+    record = true,
+  ): Promise<string> {
+    if (record) recordReference?.(entry.reference);
+    return originalFor(entry, jsonLayers ?? 0);
   }
 
   async function restoreReferences(
     value: string,
     jsonString = false,
   ): Promise<string> {
+    const layers = jsonString
+      ? serializedReferenceLayers(value, media)
+      : undefined;
     let output = "";
     let end = 0;
-    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
-      const entry = media.get(match[0]);
-      if (!entry) continue;
-      const original = await originalFor(entry);
-      let replacement = original;
-      if (jsonString) {
-        replacement =
-          entry.kind === "data_uri"
-            ? escapeJsonString(original)
-            : escapeJsonStringAtReference(original, value, match.index);
-      }
+    for (const match of knownMediaReferenceMatches(value, media)) {
+      const replacement = await restoreReference(
+        match.entry,
+        layers?.get(match.index) ?? 0,
+      );
       output += value.slice(end, match.index) + replacement;
-      end = match.index + match[0].length;
+      end = match.index + match.reference.length;
     }
     return end === 0 ? value : output + value.slice(end);
   }
 
   async function restore(value: unknown): Promise<unknown> {
     if (typeof value === "string") {
-      // Do not parse unrelated strings: JSON round-tripping would normalize
-      // their representation even when no extracted reference is replaced.
       if (!hasKnownMediaReference(value)) return value;
-      if (/^\s*[[{]/.test(value)) {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(value);
-        } catch {
-          // A reference-containing string may still be plain text.
-        }
-        if (parsed !== undefined) return JSON.stringify(await restore(parsed));
-      }
-      return restoreReferences(value);
+      return restoreReferences(value, isSerializedJsonContainer(value));
     }
     if (Array.isArray(value)) {
       for (let index = 0; index < value.length; index++)
@@ -311,9 +477,7 @@ function createMediaRestorer(batch: EarlyOtelBatch, media: MediaRegistry) {
     originalFor,
     hasKnownMediaReference,
     restore,
-    // On upload failure, restore known references in the original JSON text.
-    restoreStringifiedReferences: (value: string) =>
-      restoreReferences(value, true),
+    restoreReference,
   };
 }
 
@@ -336,14 +500,39 @@ export async function resolveExtractedMedia(params: {
     bytesProcessed: 0,
     bytesRemoved: 0,
   };
-  const media = batchMedia(batch);
+  const media = await batchMedia(batch);
   if (media.size === 0) return stats;
+  const resolutionContexts: ResolutionContext[] = [];
+  const nextContextMatch = (
+    context: ResolutionContext,
+    reference: string,
+    consume: boolean,
+  ): number | undefined => {
+    const occurrences = context.occurrenceQueues.get(reference);
+    const cursor = context.occurrenceCursors.get(reference) ?? 0;
+    const matchIndex = occurrences?.[cursor];
+    if (matchIndex !== undefined && consume)
+      context.occurrenceCursors.set(reference, cursor + 1);
+    return matchIndex;
+  };
+  const skipReference = (reference: string): void => {
+    for (const context of resolutionContexts)
+      nextContextMatch(context, reference, true);
+  };
+  const recordReference = (reference: string, replacement?: string): void => {
+    for (const context of resolutionContexts) {
+      const matchIndex = nextContextMatch(context, reference, true);
+      if (matchIndex !== undefined) context.decisions[matchIndex] = replacement;
+    }
+  };
   const {
     originalFor,
     hasKnownMediaReference,
+    restoreReference,
     restore: restoreAll,
-    restoreStringifiedReferences,
-  } = createMediaRestorer(batch, media);
+  } = createMediaRestorer(batch, media, (reference) =>
+    recordReference(reference),
+  );
 
   async function uploadExtractedMedia(
     entry: ExtractedOtelMedia,
@@ -397,7 +586,11 @@ export async function resolveExtractedMedia(params: {
     rootString = false,
   ): Promise<unknown> {
     if (value == null) return value;
-    if (mode === "restore" || depth > MAX_LEGACY_MEDIA_DEPTH) {
+    if (
+      mode === "restore" ||
+      (depth > MAX_LEGACY_MEDIA_DEPTH &&
+        !containsDataUriReference(value, media))
+    ) {
       return restoreAll(value);
     }
     if (typeof value === "string") {
@@ -419,6 +612,8 @@ export async function resolveExtractedMedia(params: {
 
     if (mode === "all") {
       for (const key of Object.keys(value)) {
+        for (const match of knownMediaReferenceMatches(key, media))
+          skipReference(match.reference);
         const current = value[key];
         const next = await resolveMediaValue(
           current,
@@ -434,6 +629,8 @@ export async function resolveExtractedMedia(params: {
 
     const structuredTarget = matchStructuredMedia(value);
     for (const key of Object.keys(value)) {
+      for (const match of knownMediaReferenceMatches(key, media))
+        skipReference(match.reference);
       const current = value[key];
       let next: unknown;
       if (structuredTarget?.property === key && !structuredTarget.container) {
@@ -445,6 +642,8 @@ export async function resolveExtractedMedia(params: {
       } else if (structuredTarget?.container === key) {
         if (isObject(current)) {
           for (const nestedKey of Object.keys(current)) {
+            for (const match of knownMediaReferenceMatches(nestedKey, media))
+              skipReference(match.reference);
             const nestedCurrent = current[nestedKey];
             const nestedNext =
               structuredTarget.property === nestedKey &&
@@ -486,6 +685,22 @@ export async function resolveExtractedMedia(params: {
     mode: Exclude<ResolutionMode, "restore">,
     rootString: boolean,
   ): Promise<string> {
+    // A data URI reference is already a complete extraction decision. Replace
+    // it in the source text before considering provider-shaped JSON. This keeps
+    // deeply nested text bounded and avoids parsing a data-only document.
+    if (containsDataUriReference(value, media)) {
+      const dataOnly = containsOnlyDataUriReferences(value, media);
+      const dataResolved = await resolveDirectReferences(
+        value,
+        target,
+        field,
+        mode,
+        true,
+      );
+      if (dataOnly || depth > MAX_LEGACY_MEDIA_DEPTH)
+        return restoreProviderReferences(dataResolved);
+      value = dataResolved;
+    }
     const trimmed = value.trimStart();
     const startsWithJson = trimmed.startsWith("{") || trimmed.startsWith("[");
     // Decode a root provider-shaped string so its media fields follow the same
@@ -499,17 +714,14 @@ export async function resolveExtractedMedia(params: {
       try {
         const parsed: unknown = JSON.parse(value);
         if (Array.isArray(parsed) || isObject(parsed)) {
-          const successfulBefore = stats.uploaded + stats.reused;
-          const resolved = await resolveMediaValue(
-            parsed,
-            target,
-            field,
-            depth,
-            mode,
-          );
-          if (stats.uploaded + stats.reused === successfulBefore)
-            return restoreStringifiedReferences(value);
-          return JSON.stringify(resolved);
+          const context = resolutionContext(value, true);
+          resolutionContexts.push(context);
+          try {
+            await resolveMediaValue(parsed, target, field, depth, mode);
+            return replaceResolvedReferences(value, true, context);
+          } finally {
+            resolutionContexts.pop();
+          }
         }
       } catch {
         // A reference-containing string may still be plain text.
@@ -533,17 +745,14 @@ export async function resolveExtractedMedia(params: {
       try {
         const parsed: unknown = JSON.parse(firstPass);
         if (Array.isArray(parsed) || isObject(parsed)) {
-          const successfulBefore = stats.uploaded + stats.reused;
-          const resolved = await resolveMediaValue(
-            parsed,
-            target,
-            field,
-            depth,
-            "all",
-          );
-          if (stats.uploaded + stats.reused === successfulBefore)
-            return restoreStringifiedReferences(value);
-          return JSON.stringify(resolved);
+          const context = resolutionContext(firstPass, true);
+          resolutionContexts.push(context);
+          try {
+            await resolveMediaValue(parsed, target, field, depth, "all");
+            return replaceResolvedReferences(firstPass, true, context);
+          } finally {
+            resolutionContexts.pop();
+          }
         }
       } catch {
         // A reference-containing string may still be plain text.
@@ -563,20 +772,54 @@ export async function resolveExtractedMedia(params: {
     target: OtelMediaTarget,
     field: MediaField,
     mode: Exclude<ResolutionMode, "restore">,
+    dataUriOnly = false,
   ): Promise<string> {
+    let serializedLayers: Map<number, number> | undefined;
+    let serialized: boolean | undefined;
+    const layerFor = (match: KnownMediaReferenceMatch): number => {
+      const active = activeJsonLayers(match.entry);
+      if (active > 0) return active;
+      if (serialized === undefined)
+        serialized = isSerializedJsonContainer(value);
+      if (!serialized) return 0;
+      if (serializedLayers === undefined)
+        serializedLayers = serializedReferenceLayers(value, media);
+      return serializedLayers.get(match.index) ?? 1;
+    };
     let output = "";
     let end = 0;
     let changed = false;
-    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
-      const entry = media.get(match[0]);
-      if (!entry) continue;
+    for (const match of knownMediaReferenceMatches(value, media)) {
       output += value.slice(end, match.index);
-      const replacement = await resolveReference(entry, target, field, mode);
+      if (dataUriOnly && match.entry.kind !== "data_uri") {
+        output += match.reference;
+        end = match.index + match.reference.length;
+        continue;
+      }
+      const replacement = await resolveReference(
+        match.entry,
+        target,
+        field,
+        mode,
+        () => layerFor(match),
+      );
       output += replacement;
-      changed = changed || replacement !== entry.reference;
-      end = match.index + match[0].length;
+      changed = changed || replacement !== match.reference;
+      end = match.index + match.reference.length;
     }
     return changed ? output + value.slice(end) : value;
+  }
+
+  function activeJsonLayers(entry: ExtractedOtelMedia): number {
+    const context = resolutionContexts.at(-1);
+    if (!context?.jsonString) return 0;
+    const matchIndex = nextContextMatch(context, entry.reference, false);
+    if (matchIndex === undefined) return 0;
+    const match = context.matches[matchIndex];
+    if (!match) return 0;
+    if (context.jsonLayers === undefined)
+      context.jsonLayers = serializedReferenceLayers(context.source, media);
+    return context.jsonLayers.get(match.index) ?? 1;
   }
 
   async function resolveReference(
@@ -584,9 +827,17 @@ export async function resolveExtractedMedia(params: {
     target: OtelMediaTarget,
     field: MediaField,
     mode: Exclude<ResolutionMode, "restore">,
+    jsonLayers?: number | (() => number),
   ): Promise<string> {
+    const getJsonLayers = (): number => {
+      if (jsonLayers === undefined) return activeJsonLayers(entry);
+      if (typeof jsonLayers === "function") return jsonLayers();
+      return jsonLayers;
+    };
     if (mode === "generic" && entry.kind !== "data_uri") {
-      return originalFor(entry);
+      const original = await originalFor(entry, getJsonLayers());
+      recordReference(entry.reference);
+      return original;
     }
     try {
       if (!isMediaContentType(entry.contentType))
@@ -598,6 +849,7 @@ export async function resolveExtractedMedia(params: {
         /\|id=[^|@]+/,
         `|id=${result.mediaId}`,
       );
+      recordReference(entry.reference, replacement);
       stats[result.outcome]++;
       const bytesRemoved = Math.max(
         0,
@@ -625,23 +877,88 @@ export async function resolveExtractedMedia(params: {
           field,
         },
       );
-      return originalFor(entry);
+      const original = await originalFor(entry, getJsonLayers());
+      recordReference(entry.reference);
+      return original;
     }
   }
 
   async function restoreProviderReferences(value: string): Promise<string> {
+    const matches = [...knownMediaReferenceMatches(value, media)];
+    const providerMatches = matches.filter(
+      (match) => match.entry.kind !== "data_uri",
+    );
+    if (providerMatches.length === 0) return value;
+    const jsonString = isSerializedJsonContainer(value);
+    const layers = jsonString
+      ? serializedReferenceLayers(value, media)
+      : undefined;
     let output = "";
     let cursor = 0;
-    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
-      const entry = media.get(match[0]);
-      if (!entry || entry.kind === "data_uri") continue;
-      const original = await originalFor(entry);
+    for (const match of providerMatches) {
       output +=
         value.slice(cursor, match.index) +
-        escapeJsonStringAtReference(original, value, match.index);
-      cursor = match.index + match[0].length;
+        (await restoreReference(match.entry, layers?.get(match.index) ?? 0));
+      cursor = match.index + match.reference.length;
     }
     return cursor === 0 ? value : output + value.slice(cursor);
+  }
+
+  async function replaceResolvedReferences(
+    value: string,
+    jsonString: boolean,
+    context: ResolutionContext,
+  ): Promise<string> {
+    let layers: Map<number, number> | undefined;
+    const layerFor = (match: KnownMediaReferenceMatch): number => {
+      if (!jsonString) return 0;
+      if (layers === undefined) {
+        layers = context.jsonLayers ?? serializedReferenceLayers(value, media);
+        context.jsonLayers = layers;
+      }
+      return layers.get(match.index) ?? 1;
+    };
+    let output = "";
+    let end = 0;
+    let changed = false;
+    for (let index = 0; index < context.matches.length; index++) {
+      const match = context.matches[index]!;
+      const decision = context.decisions[index];
+      let replacement: string;
+      if (decision === null) replacement = match.reference;
+      else if (decision === undefined)
+        replacement = await restoreReference(
+          match.entry,
+          layerFor(match),
+          false,
+        );
+      else replacement = decision;
+      output += value.slice(end, match.index) + replacement;
+      changed = changed || replacement !== match.reference;
+      end = match.index + match.reference.length;
+    }
+    return changed ? output + value.slice(end) : value;
+  }
+
+  function resolutionContext(
+    value: string,
+    jsonString = false,
+  ): ResolutionContext {
+    const matches = [...knownMediaReferenceMatches(value, media)];
+    const occurrenceQueues = new Map<string, number[]>();
+    for (const [matchIndex, match] of matches.entries()) {
+      const occurrences = occurrenceQueues.get(match.reference) ?? [];
+      occurrences.push(matchIndex);
+      occurrenceQueues.set(match.reference, occurrences);
+    }
+    return {
+      source: value,
+      matches,
+      decisions: new Array(matches.length).fill(null),
+      occurrenceQueues,
+      occurrenceCursors: new Map(),
+      jsonString,
+    };
   }
 }
 
