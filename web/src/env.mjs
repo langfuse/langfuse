@@ -401,10 +401,9 @@ export const env = createEnv({
       .number()
       .default(60),
 
-    // auth migration; default enforces the new pipeline
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
-      .default("enforce"),
+      .default("legacy"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
