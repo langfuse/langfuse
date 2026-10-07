@@ -184,9 +184,15 @@ jobs:
             fi
           fi
 
-          # Install dependencies and format
+          # Install dependencies, reserve a request slot in methods without
+          # query params or a body so later query params never shift
+          # requestOptions, and format. SDK branches without the script
+          # (the v5.x line) keep Fern's signatures unchanged.
           corepack enable
           pnpm install
+          if [ -f scripts/patch-generated-request-placeholders.mjs ]; then
+            node scripts/patch-generated-request-placeholders.mjs
+          fi
           pnpm format
 
           # Check for changes and show diff for debugging
