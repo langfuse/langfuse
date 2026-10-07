@@ -4,7 +4,7 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";
@@ -377,17 +377,21 @@ function ToolDefinitionRow({
         <div className="border-border bg-muted/30 relative border-t px-4 py-3">
           <div className="absolute top-1 right-4">
             <div className="h-fit py-0.5">
-              <Tabs
+              <ToggleGroup
                 value={currentView}
                 onValueChange={(value) =>
                   setCurrentView(value as "formatted" | "json")
                 }
               >
-                <Tabs.List size="sm">
-                  <Tabs.Trigger value="formatted" size="sm" label="Formatted" />
-                  <Tabs.Trigger value="json" size="sm" label="Raw" />
-                </Tabs.List>
-              </Tabs>
+                <ToggleGroup.List size="sm">
+                  <ToggleGroup.Trigger
+                    value="formatted"
+                    size="sm"
+                    label="Formatted"
+                  />
+                  <ToggleGroup.Trigger value="json" size="sm" label="Raw" />
+                </ToggleGroup.List>
+              </ToggleGroup>
             </div>
           </div>
 

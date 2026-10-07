@@ -23,7 +23,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import {
   ChevronDown,
   FoldVertical,
@@ -368,16 +368,16 @@ function ViewModeSwitch({
   onSelect: (view: TraceViewMode) => void;
 }) {
   return (
-    <Tabs
+    <ToggleGroup
       value={activeView}
       onValueChange={(value) => onSelect(value as TraceViewMode)}
     >
-      <Tabs.List size="md" aria-label="Trace view">
-        <Tabs.Trigger value="tree" label="Tree" />
+      <ToggleGroup.List size="md" aria-label="Trace view">
+        <ToggleGroup.Trigger value="tree" label="Tree" />
         {/* One Timeline. What it IS depends on the Compact Timeline feature
             preview — see TracePanelNavigation — rather than on a third segment
             the user has to understand. */}
-        <Tabs.Trigger value="timeline" label="Timeline" />
+        <ToggleGroup.Trigger value="timeline" label="Timeline" />
         {graphDisabledReason ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -385,15 +385,15 @@ function ViewModeSwitch({
                 tabIndex={0}
                 className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
               >
-                <Tabs.Trigger value="graph" disabled label="Graph" />
+                <ToggleGroup.Trigger value="graph" disabled label="Graph" />
               </span>
             </TooltipTrigger>
             <TooltipContent>{graphDisabledReason}</TooltipContent>
           </Tooltip>
         ) : (
-          <Tabs.Trigger value="graph" label="Graph" />
+          <ToggleGroup.Trigger value="graph" label="Graph" />
         )}
-      </Tabs.List>
-    </Tabs>
+      </ToggleGroup.List>
+    </ToggleGroup>
   );
 }

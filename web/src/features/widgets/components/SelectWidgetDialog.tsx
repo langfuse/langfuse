@@ -12,7 +12,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
@@ -212,7 +212,7 @@ export function SelectWidgetDialog({
                 </div>
               </button>
 
-              <Tabs
+              <ToggleGroup
                 // Open on the project tab when it has something to say — a
                 // hidden-widget note included, so it is not missed.
                 defaultValue={
@@ -224,20 +224,20 @@ export function SelectWidgetDialog({
                   capture("dashboard:add_widget_tab_switch", { tab })
                 }
               >
-                <Tabs.List>
-                  <Tabs.Trigger
+                <ToggleGroup.List>
+                  <ToggleGroup.Trigger
                     value="project"
                     label={`Your widgets (${projectWidgets.length})`}
                   />
                   {onSelectPreset && (
-                    <Tabs.Trigger
+                    <ToggleGroup.Trigger
                       value="home-cards"
                       label={`Home cards (${suggestedPresetIds.length})`}
                     />
                   )}
-                </Tabs.List>
+                </ToggleGroup.List>
                 <div className="mt-2">
-                  <Tabs.Content value="project">
+                  <ToggleGroup.Content value="project">
                     <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
                       {projectWidgets.map((widget) => (
                         <WidgetRow
@@ -257,11 +257,11 @@ export function SelectWidgetDialog({
                         </div>
                       ) : null}
                     </div>
-                  </Tabs.Content>
+                  </ToggleGroup.Content>
                 </div>
                 {onSelectPreset && (
                   <div className="mt-2">
-                    <Tabs.Content value="home-cards">
+                    <ToggleGroup.Content value="home-cards">
                       <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
                         {suggestedPresetIds.map((presetId) => {
                           const meta = HOME_PRESET_METADATA[presetId];
@@ -302,10 +302,10 @@ export function SelectWidgetDialog({
                           );
                         })}
                       </div>
-                    </Tabs.Content>
+                    </ToggleGroup.Content>
                   </div>
                 )}
-              </Tabs>
+              </ToggleGroup>
             </div>
           )}
         </DialogBody>

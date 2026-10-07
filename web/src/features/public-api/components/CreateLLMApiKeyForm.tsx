@@ -39,7 +39,7 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization";
@@ -906,25 +906,29 @@ export function CreateLLMApiKeyForm({
                         </FormDescription>
                         <FormControl>
                           <div className="w-full">
-                            <Tabs
+                            <ToggleGroup
                               value={field.value}
                               onValueChange={(value) =>
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <Tabs.List layout="full" gap="sm" size="auto">
-                                <Tabs.Trigger
+                              <ToggleGroup.List
+                                layout="full"
+                                gap="sm"
+                                size="auto"
+                              >
+                                <ToggleGroup.Trigger
                                   value={AuthMethod.AccessKeys}
                                   size="sm"
                                   label="AWS access keys"
                                 />
-                                <Tabs.Trigger
+                                <ToggleGroup.Trigger
                                   value={AuthMethod.ApiKey}
                                   size="sm"
                                   label="API key"
                                 />
-                              </Tabs.List>
-                            </Tabs>
+                              </ToggleGroup.List>
+                            </ToggleGroup>
                           </div>
                         </FormControl>
                         <FormMessage />

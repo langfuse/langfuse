@@ -1,7 +1,7 @@
 import React from "react";
 import { Combine, Route, type LucideIcon } from "lucide-react";
 
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { type GraphViewMode } from "../types";
 
 /**
@@ -36,21 +36,21 @@ export function GraphViewModeSwitch({
 }) {
   return (
     <div className="bg-background/80 rounded-md backdrop-blur">
-      <Tabs
+      <ToggleGroup
         value={value}
         onValueChange={(mode) => onChange(mode as GraphViewMode)}
       >
-        <Tabs.List size="md" aria-label="Graph mode">
+        <ToggleGroup.List size="md" aria-label="Graph mode">
           {MODES.map(({ mode, icon: Icon, label, title }) => (
-            <Tabs.Trigger key={mode} value={mode} title={title}>
+            <ToggleGroup.Trigger key={mode} value={mode} title={title}>
               <Icon aria-hidden="true" className="icon-base shrink-0" />
               {/* Icons only on narrow canvases so the switch never collides
                   with the zoom stack. */}
               <span className="@max-[340px]/graphcanvas:sr-only">{label}</span>
-            </Tabs.Trigger>
+            </ToggleGroup.Trigger>
           ))}
-        </Tabs.List>
-      </Tabs>
+        </ToggleGroup.List>
+      </ToggleGroup>
     </div>
   );
 }

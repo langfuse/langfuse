@@ -15,7 +15,7 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
@@ -701,25 +701,25 @@ export const PromptDetail = ({
               <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
                 {promptGraph.data?.graph && (
                   <div className="flex items-center justify-end py-2">
-                    <Tabs
+                    <ToggleGroup
                       value={resolutionMode}
                       onValueChange={(value) => {
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <Tabs.List gap="sm" size="auto">
-                        <Tabs.Trigger
+                      <ToggleGroup.List gap="sm" size="auto">
+                        <ToggleGroup.Trigger
                           value="resolved"
                           size="sm"
                           label="Resolved prompt"
                         />
-                        <Tabs.Trigger
+                        <ToggleGroup.Trigger
                           value="tagged"
                           size="sm"
                           label="Tagged prompt"
                         />
-                      </Tabs.List>
-                    </Tabs>
+                      </ToggleGroup.List>
+                    </ToggleGroup>
                   </div>
                 )}
                 <PromptReferenceProvider projectId={projectId}>

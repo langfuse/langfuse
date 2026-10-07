@@ -22,7 +22,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { useCallback, useMemo, useState } from "react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import {
   TabsBar,
   TabsBarContent,
@@ -429,7 +429,7 @@ export function ConnectedObservationDetailView({
                     (selectedTab === "preview" && isPrettyViewAvailable)) && (
                     <>
                       <div className="ml-auto h-fit shrink-0 py-0.5 pr-4 pl-2">
-                        <Tabs
+                        <ToggleGroup
                           value={
                             selectedTab === "log" && isLogViewVirtualized
                               ? "pretty"
@@ -446,8 +446,8 @@ export function ConnectedObservationDetailView({
                             handleViewTabChange(value);
                           }}
                         >
-                          <Tabs.List size="sm">
-                            <Tabs.Trigger
+                          <ToggleGroup.List size="sm">
+                            <ToggleGroup.Trigger
                               value="pretty"
                               size="sm"
                               label="Formatted"
@@ -475,7 +475,7 @@ export function ConnectedObservationDetailView({
                               >
                                 {({ getTriggerProps }) => (
                                   <span tabIndex={0} {...getTriggerProps()}>
-                                    <Tabs.Trigger
+                                    <ToggleGroup.Trigger
                                       value="json"
                                       size="sm"
                                       disabled
@@ -485,14 +485,14 @@ export function ConnectedObservationDetailView({
                                 )}
                               </HoverCard>
                             ) : (
-                              <Tabs.Trigger
+                              <ToggleGroup.Trigger
                                 value="json"
                                 size="sm"
                                 label="Raw"
                               />
                             )}
-                          </Tabs.List>
-                        </Tabs>
+                          </ToggleGroup.List>
+                        </ToggleGroup>
                       </div>
                       {selectedViewTab === "json" &&
                         selectedTab !== "attributes" &&

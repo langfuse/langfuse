@@ -8,7 +8,7 @@ import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { type DatasetItemRenderMode } from "@/src/features/datasets/components/DatasetItemField";
 import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
@@ -136,17 +136,21 @@ function DatasetItemContent({
           {/* Version panel toggle button */}
           <div className="bg-background sticky top-0 z-10 flex items-center justify-end gap-2 border-b p-2">
             {!isViewingOldVersion && (
-              <Tabs
+              <ToggleGroup
                 value={renderMode}
                 onValueChange={(value) =>
                   setRenderMode(value === "json" ? "json" : "pretty")
                 }
               >
-                <Tabs.List size="sm">
-                  <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
-                  <Tabs.Trigger value="json" size="sm" label="Raw" />
-                </Tabs.List>
-              </Tabs>
+                <ToggleGroup.List size="sm">
+                  <ToggleGroup.Trigger
+                    value="pretty"
+                    size="sm"
+                    label="Formatted"
+                  />
+                  <ToggleGroup.Trigger value="json" size="sm" label="Raw" />
+                </ToggleGroup.List>
+              </ToggleGroup>
             )}
             <Button
               variant="ghost"

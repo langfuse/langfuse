@@ -82,7 +82,7 @@ import {
   type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -139,7 +139,7 @@ function InAppAgentQuickActionPicker({
         What do you want to do?
       </p>
       <div className="mt-4 w-full max-w-sm">
-        <Tabs
+        <ToggleGroup
           value={selectedContext}
           onValueChange={(value) => {
             if (isInAppAgentQuickActionContext(value)) {
@@ -147,7 +147,7 @@ function InAppAgentQuickActionPicker({
             }
           }}
         >
-          <Tabs.List
+          <ToggleGroup.List
             aria-label="Quick action category"
             variant="underline"
             size="auto"
@@ -155,7 +155,7 @@ function InAppAgentQuickActionPicker({
           >
             {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
               <span key={context} className="min-w-0 flex-1">
-                <Tabs.Trigger
+                <ToggleGroup.Trigger
                   value={context}
                   disabled={isDisabled}
                   variant="underline"
@@ -164,8 +164,8 @@ function InAppAgentQuickActionPicker({
                 />
               </span>
             ))}
-          </Tabs.List>
-        </Tabs>
+          </ToggleGroup.List>
+        </ToggleGroup>
       </div>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
         {selectedActions.map((action, position) => {

@@ -13,7 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -289,16 +289,16 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               characters or underscores. You can also link other text prompts
               using the plus button.
             </FormDescription>
-            <Tabs
+            <ToggleGroup
               value={form.watch("type")}
               onValueChange={(e) => {
                 form.setValue("type", e as PromptType);
               }}
             >
               {!initialPrompt ? (
-                <Tabs.List layout="full">
+                <ToggleGroup.List layout="full">
                   <span className="flex-1">
-                    <Tabs.Trigger
+                    <ToggleGroup.Trigger
                       disabled={
                         Boolean(initialPromptVariant) &&
                         initialPromptVariant?.type !== PromptType.Text
@@ -308,7 +308,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     />
                   </span>
                   <span className="flex-1">
-                    <Tabs.Trigger
+                    <ToggleGroup.Trigger
                       disabled={
                         Boolean(initialPromptVariant) &&
                         initialPromptVariant?.type !== PromptType.Chat
@@ -317,7 +317,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       label={capitalize(PromptType.Chat)}
                     />
                   </span>
-                </Tabs.List>
+                </ToggleGroup.List>
               ) : null}
               {hadDraft && (
                 <p
@@ -342,7 +342,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 </p>
               )}
               <div className="mt-2">
-                <Tabs.Content value={PromptType.Text}>
+                <ToggleGroup.Content value={PromptType.Text}>
                   <FormField
                     control={form.control}
                     name="textPrompt"
@@ -360,10 +360,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       </>
                     )}
                   />
-                </Tabs.Content>
+                </ToggleGroup.Content>
               </div>
               <div className="mt-2">
-                <Tabs.Content value={PromptType.Chat}>
+                <ToggleGroup.Content value={PromptType.Chat}>
                   <FormField
                     control={form.control}
                     name="chatPrompt"
@@ -378,9 +378,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       </>
                     )}
                   />
-                </Tabs.Content>
+                </ToggleGroup.Content>
               </div>
-            </Tabs>
+            </ToggleGroup>
           </FormItem>
           {currentExtractedVariables.length > 0 && (
             <PromptVariableListPreview variables={currentExtractedVariables} />

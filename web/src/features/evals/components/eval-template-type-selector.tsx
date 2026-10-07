@@ -13,7 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { type templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
 import {
   type CodeEvalSourceCodeLanguage,
@@ -96,7 +96,7 @@ export function EvalTemplateTypeSelector({
         <FormItem>
           <FormLabel>Type</FormLabel>
           <FormControl>
-            <Tabs
+            <ToggleGroup
               value={selectedValue}
               onValueChange={(value) =>
                 handleTemplateTypeSelection(
@@ -106,17 +106,17 @@ export function EvalTemplateTypeSelector({
                 )
               }
             >
-              <Tabs.List layout="packed" gap="lg">
+              <ToggleGroup.List layout="packed" gap="lg">
                 {mode === "all" ? (
                   <span className="min-w-[100px]">
-                    <Tabs.Trigger
+                    <ToggleGroup.Trigger
                       value={EvalTemplateType.LLM_AS_JUDGE}
                       label="LLM-as-judge"
                     />
                   </span>
                 ) : null}
                 <span className="min-w-[100px]">
-                  <Tabs.Trigger
+                  <ToggleGroup.Trigger
                     value={EvalTemplateSourceCodeLanguage.TYPESCRIPT}
                     label="TypeScript"
                   />
@@ -125,14 +125,14 @@ export function EvalTemplateTypeSelector({
                   EvalTemplateSourceCodeLanguage.PYTHON,
                 ) ? (
                   <span className="min-w-[100px]">
-                    <Tabs.Trigger
+                    <ToggleGroup.Trigger
                       value={EvalTemplateSourceCodeLanguage.PYTHON}
                       label="Python"
                     />
                   </span>
                 ) : null}
-              </Tabs.List>
-            </Tabs>
+              </ToggleGroup.List>
+            </ToggleGroup>
           </FormControl>
           <FormMessage />
         </FormItem>

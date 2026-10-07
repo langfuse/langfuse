@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
@@ -888,7 +888,7 @@ export const InnerEvaluatorForm = (props: {
                       )}
                     </FormLabel>
                     <FormControl>
-                      <Tabs
+                      <ToggleGroup
                         value={userFacingTarget}
                         onValueChange={(value) => {
                           const actualTarget = handleAndResolveTarget(value);
@@ -897,9 +897,9 @@ export const InnerEvaluatorForm = (props: {
                           }
                         }}
                       >
-                        <Tabs.List layout="packed" gap="lg">
+                        <ToggleGroup.List layout="packed" gap="lg">
                           <span className="min-w-[100px]">
-                            <Tabs.Trigger
+                            <ToggleGroup.Trigger
                               value="event"
                               disabled={props.disabled || props.mode === "edit"}
                               icon={CircleDot}
@@ -908,7 +908,7 @@ export const InnerEvaluatorForm = (props: {
                           </span>
                           {showLegacyTargetOptions && (
                             <span className="min-w-[100px]">
-                              <Tabs.Trigger
+                              <ToggleGroup.Trigger
                                 value="trace"
                                 disabled={
                                   props.disabled || props.mode === "edit"
@@ -922,19 +922,19 @@ export const InnerEvaluatorForm = (props: {
                                 >
                                   Legacy
                                 </Badge>
-                              </Tabs.Trigger>
+                              </ToggleGroup.Trigger>
                             </span>
                           )}
                           <span className="min-w-[100px]">
-                            <Tabs.Trigger
+                            <ToggleGroup.Trigger
                               value="offline-experiment"
                               disabled={props.disabled || props.mode === "edit"}
                               icon={FlaskConical}
                               label="Experiments"
                             />
                           </span>
-                        </Tabs.List>
-                      </Tabs>
+                        </ToggleGroup.List>
+                      </ToggleGroup>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -948,7 +948,7 @@ export const InnerEvaluatorForm = (props: {
               showLegacyTargetOptions && (
                 <div className="flex flex-col gap-2">
                   <FormLabel className="text-sm">Experiment Method</FormLabel>
-                  <Tabs
+                  <ToggleGroup
                     value={useOtelDataForExperiment ? "otel" : "non-otel"}
                     onValueChange={(value) => {
                       // Don't allow changes in edit mode or disabled mode
@@ -980,9 +980,9 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <Tabs.List layout="packed" gap="lg">
+                    <ToggleGroup.List layout="packed" gap="lg">
                       <span className="min-w-[100px]">
-                        <Tabs.Trigger
+                        <ToggleGroup.Trigger
                           value="otel"
                           disabled={props.mode === "edit" || props.disabled}
                           icon={FlaskConical}
@@ -990,7 +990,7 @@ export const InnerEvaluatorForm = (props: {
                         />
                       </span>
                       <span className="min-w-[100px]">
-                        <Tabs.Trigger
+                        <ToggleGroup.Trigger
                           value="non-otel"
                           disabled={props.mode === "edit" || props.disabled}
                           icon={BetweenHorizonalStart}
@@ -1002,10 +1002,10 @@ export const InnerEvaluatorForm = (props: {
                           >
                             Legacy
                           </Badge>
-                        </Tabs.Trigger>
+                        </ToggleGroup.Trigger>
                       </span>
-                    </Tabs.List>
-                  </Tabs>
+                    </ToggleGroup.List>
+                  </ToggleGroup>
                 </div>
               )}
 

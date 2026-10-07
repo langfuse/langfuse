@@ -1,7 +1,7 @@
 import { Code2, Scale, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import {
   Select,
   SelectContent,
@@ -76,13 +76,13 @@ export function EvaluationTypeToggle({
         </Select>
       </div>
       <div className="hidden md:block">
-        <Tabs
+        <ToggleGroup
           value={value}
           onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
         >
-          <Tabs.List variant="outline">
+          <ToggleGroup.List variant="outline">
             {visibleTypes.map(({ value: typeValue, label, icon }) => (
-              <Tabs.Trigger
+              <ToggleGroup.Trigger
                 key={typeValue}
                 value={typeValue}
                 disabled={disabled}
@@ -90,8 +90,8 @@ export function EvaluationTypeToggle({
                 label={label}
               />
             ))}
-          </Tabs.List>
-        </Tabs>
+          </ToggleGroup.List>
+        </ToggleGroup>
       </div>
     </>
   );

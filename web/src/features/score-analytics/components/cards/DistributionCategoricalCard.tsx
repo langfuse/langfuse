@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionCategoricalChart } from "../charts/ScoreDistributionCategoricalChart";
 import { getScoreCategoryColors } from "../../lib/color-scales";
@@ -283,25 +283,29 @@ export function DistributionCategoricalCard() {
             </div>
           </div>
           {showTabs && (
-            <Tabs
+            <ToggleGroup
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
-              <Tabs.List size="md">
-                <Tabs.Trigger
+              <ToggleGroup.List size="md">
+                <ToggleGroup.Trigger
                   value="score1"
                   size="sm"
                   label={score1FullLabel}
                 />
-                <Tabs.Trigger
+                <ToggleGroup.Trigger
                   value="score2"
                   size="sm"
                   label={score2FullLabel}
                 />
-                <Tabs.Trigger value="all" size="sm" label="all" />
-                <Tabs.Trigger value="matched" size="sm" label="matched" />
-              </Tabs.List>
-            </Tabs>
+                <ToggleGroup.Trigger value="all" size="sm" label="all" />
+                <ToggleGroup.Trigger
+                  value="matched"
+                  size="sm"
+                  label="matched"
+                />
+              </ToggleGroup.List>
+            </ToggleGroup>
           )}
         </div>
       </CardHeader>

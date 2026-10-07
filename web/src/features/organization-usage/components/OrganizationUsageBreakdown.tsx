@@ -4,7 +4,7 @@ import { DownloadIcon } from "lucide-react";
 
 import { Card } from "@/src/components/ui/card";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -169,15 +169,15 @@ export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Tabs
+          <ToggleGroup
             value={groupBy}
             onValueChange={(value) => setGroupBy(value as GroupBy)}
           >
-            <Tabs.List aria-label="Group usage by">
-              <Tabs.Trigger value="project" label="By project" />
-              <Tabs.Trigger value="type" label="By type" />
-            </Tabs.List>
-          </Tabs>
+            <ToggleGroup.List aria-label="Group usage by">
+              <ToggleGroup.Trigger value="project" label="By project" />
+              <ToggleGroup.Trigger value="type" label="By type" />
+            </ToggleGroup.List>
+          </ToggleGroup>
           <TimeRangePicker
             timeRange={timeRange}
             onTimeRangeChange={setTimeRange}

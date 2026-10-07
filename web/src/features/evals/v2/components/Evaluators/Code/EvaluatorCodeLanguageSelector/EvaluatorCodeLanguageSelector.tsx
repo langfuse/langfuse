@@ -4,7 +4,7 @@ import {
   type EvalTemplateSourceCodeLanguage,
 } from "@langfuse/shared";
 
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 
 /** Selects the runtime language for a code evaluator. */
@@ -18,21 +18,21 @@ export function EvaluatorCodeLanguageSelector({
   disabled?: boolean;
 }) {
   return (
-    <Tabs
+    <ToggleGroup
       value={value}
       onValueChange={(language) =>
         onValueChange(language as EvalTemplateSourceCodeLanguage)
       }
     >
-      <Tabs.List variant="outline">
-        <Tabs.Trigger
+      <ToggleGroup.List variant="outline">
+        <ToggleGroup.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
           disabled={disabled}
         >
           <SiPython className="icon-base shrink-0" />
           {sourceCodeLanguageLabel(EvalTemplateSourceCodeLanguageEnum.PYTHON)}
-        </Tabs.Trigger>
-        <Tabs.Trigger
+        </ToggleGroup.Trigger>
+        <ToggleGroup.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
           disabled={disabled}
         >
@@ -40,8 +40,8 @@ export function EvaluatorCodeLanguageSelector({
           {sourceCodeLanguageLabel(
             EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT,
           )}
-        </Tabs.Trigger>
-      </Tabs.List>
-    </Tabs>
+        </ToggleGroup.Trigger>
+      </ToggleGroup.List>
+    </ToggleGroup>
   );
 }

@@ -3,15 +3,17 @@ import { KeyRound, User } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Tabs } from "./Tabs";
+import { ToggleGroup } from "./ToggleGroup";
 
 type ListVariant = NonNullable<
-  React.ComponentProps<typeof Tabs.List>["variant"]
+  React.ComponentProps<typeof ToggleGroup.List>["variant"]
 >;
-type ListSize = NonNullable<React.ComponentProps<typeof Tabs.List>["size"]>;
+type ListSize = NonNullable<
+  React.ComponentProps<typeof ToggleGroup.List>["size"]
+>;
 
 const meta = preview.meta({
-  component: Tabs,
+  component: ToggleGroup,
 });
 
 const listVariants = Object.keys({
@@ -29,27 +31,33 @@ const listSizes = Object.keys({
 
 const defaultChildren = (
   <>
-    <Tabs.List>
-      <Tabs.Trigger value="account" label="Account" />
-      <Tabs.Trigger value="password" label="Password" />
-    </Tabs.List>
-    <Tabs.Content value="account">Account settings</Tabs.Content>
-    <Tabs.Content value="password">Password settings</Tabs.Content>
+    <ToggleGroup.List>
+      <ToggleGroup.Trigger value="account" label="Account" />
+      <ToggleGroup.Trigger value="password" label="Password" />
+    </ToggleGroup.List>
+    <ToggleGroup.Content value="account">Account settings</ToggleGroup.Content>
+    <ToggleGroup.Content value="password">
+      Password settings
+    </ToggleGroup.Content>
   </>
 );
 
 const fullWidthChildren = (
   <>
-    <Tabs.List layout="full">
+    <ToggleGroup.List layout="full">
       <span className="flex-1">
-        <Tabs.Trigger value="first" label="First" />
+        <ToggleGroup.Trigger value="first" label="First" />
       </span>
       <span className="flex-1">
-        <Tabs.Trigger value="second" label="Second" />
+        <ToggleGroup.Trigger value="second" label="Second" />
       </span>
-    </Tabs.List>
-    <Tabs.Content value="first">First tab fills its wrapper.</Tabs.Content>
-    <Tabs.Content value="second">Second tab fills its wrapper.</Tabs.Content>
+    </ToggleGroup.List>
+    <ToggleGroup.Content value="first">
+      First tab fills its wrapper.
+    </ToggleGroup.Content>
+    <ToggleGroup.Content value="second">
+      Second tab fills its wrapper.
+    </ToggleGroup.Content>
   </>
 );
 
@@ -61,14 +69,14 @@ function ResizableSlidingTabs() {
       <button type="button" onClick={() => setExpanded(true)}>
         Expand active tab
       </button>
-      <Tabs defaultValue="first">
-        <Tabs.List variant="outline">
+      <ToggleGroup defaultValue="first">
+        <ToggleGroup.List variant="outline">
           <span className={expanded ? "w-40" : "w-20"}>
-            <Tabs.Trigger value="first" label="First" />
+            <ToggleGroup.Trigger value="first" label="First" />
           </span>
-          <Tabs.Trigger value="second" label="Second" />
-        </Tabs.List>
-      </Tabs>
+          <ToggleGroup.Trigger value="second" label="Second" />
+        </ToggleGroup.List>
+      </ToggleGroup>
     </div>
   );
 }
@@ -85,12 +93,16 @@ export const Disabled = meta.story({
     defaultValue: "account",
     children: (
       <>
-        <Tabs.List>
-          <Tabs.Trigger value="account" label="Account" />
-          <Tabs.Trigger value="password" disabled label="Password" />
-        </Tabs.List>
-        <Tabs.Content value="account">Account settings</Tabs.Content>
-        <Tabs.Content value="password">Password settings</Tabs.Content>
+        <ToggleGroup.List>
+          <ToggleGroup.Trigger value="account" label="Account" />
+          <ToggleGroup.Trigger value="password" disabled label="Password" />
+        </ToggleGroup.List>
+        <ToggleGroup.Content value="account">
+          Account settings
+        </ToggleGroup.Content>
+        <ToggleGroup.Content value="password">
+          Password settings
+        </ToggleGroup.Content>
       </>
     ),
   },
@@ -108,12 +120,20 @@ export const WithIcons = meta.story({
     defaultValue: "account",
     children: (
       <>
-        <Tabs.List>
-          <Tabs.Trigger value="account" icon={User} label="Account" />
-          <Tabs.Trigger value="password" icon={KeyRound} label="Password" />
-        </Tabs.List>
-        <Tabs.Content value="account">Account settings</Tabs.Content>
-        <Tabs.Content value="password">Password settings</Tabs.Content>
+        <ToggleGroup.List>
+          <ToggleGroup.Trigger value="account" icon={User} label="Account" />
+          <ToggleGroup.Trigger
+            value="password"
+            icon={KeyRound}
+            label="Password"
+          />
+        </ToggleGroup.List>
+        <ToggleGroup.Content value="account">
+          Account settings
+        </ToggleGroup.Content>
+        <ToggleGroup.Content value="password">
+          Password settings
+        </ToggleGroup.Content>
       </>
     ),
   },
@@ -133,22 +153,22 @@ export const VariantMatrix = meta.story({
             <div className="text-muted-foreground mb-2 text-sm">
               {variant} / {size}
             </div>
-            <Tabs defaultValue="one">
-              <Tabs.List variant={variant} size={size}>
-                <Tabs.Trigger
+            <ToggleGroup defaultValue="one">
+              <ToggleGroup.List variant={variant} size={size}>
+                <ToggleGroup.Trigger
                   value="one"
                   variant={variant === "underline" ? "underline" : "default"}
                   size={size === "sm" ? "sm" : "default"}
                   label="One"
                 />
-                <Tabs.Trigger
+                <ToggleGroup.Trigger
                   value="two"
                   variant={variant === "underline" ? "underline" : "default"}
                   size={size === "sm" ? "sm" : "default"}
                   label="Two"
                 />
-              </Tabs.List>
-            </Tabs>
+              </ToggleGroup.List>
+            </ToggleGroup>
           </div>
         )),
       )}
@@ -222,10 +242,10 @@ export const KeepsUnwrappedTriggersContentWidth = meta.story({
   args: {
     defaultValue: "short",
     children: (
-      <Tabs.List variant="outline">
-        <Tabs.Trigger value="short" label="Python" />
-        <Tabs.Trigger value="long" label="TypeScript" />
-      </Tabs.List>
+      <ToggleGroup.List variant="outline">
+        <ToggleGroup.Trigger value="short" label="Python" />
+        <ToggleGroup.Trigger value="long" label="TypeScript" />
+      </ToggleGroup.List>
     ),
   },
   play: async ({ canvasElement }) => {
@@ -244,14 +264,14 @@ export const TruncatesLabel = meta.story({
   args: {
     defaultValue: "long",
     children: (
-      <Tabs.List>
+      <ToggleGroup.List>
         <span className="w-20">
-          <Tabs.Trigger
+          <ToggleGroup.Trigger
             value="long"
             label="A label that is too long for its trigger"
           />
         </span>
-      </Tabs.List>
+      </ToggleGroup.List>
     ),
   },
   play: async ({ canvasElement }) => {
@@ -276,15 +296,15 @@ export const AlignsSlidingIndicatorInScaledContainer = meta.story({
   args: {
     defaultValue: "short",
     children: (
-      <Tabs.List variant="outline">
-        <Tabs.Trigger value="short" label="Python" />
-        <Tabs.Trigger value="long" label="TypeScript" />
-      </Tabs.List>
+      <ToggleGroup.List variant="outline">
+        <ToggleGroup.Trigger value="short" label="Python" />
+        <ToggleGroup.Trigger value="long" label="TypeScript" />
+      </ToggleGroup.List>
     ),
   },
   render: (args) => (
     <div className="origin-top-left scale-75">
-      <Tabs {...args} />
+      <ToggleGroup {...args} />
     </div>
   ),
   play: async ({ canvasElement }) => {
@@ -307,10 +327,14 @@ export const KeepsUnderlineStyle = meta.story({
   args: {
     defaultValue: "first",
     children: (
-      <Tabs.List variant="underline">
-        <Tabs.Trigger value="first" variant="underline" label="First" />
-        <Tabs.Trigger value="second" variant="underline" label="Second" />
-      </Tabs.List>
+      <ToggleGroup.List variant="underline">
+        <ToggleGroup.Trigger value="first" variant="underline" label="First" />
+        <ToggleGroup.Trigger
+          value="second"
+          variant="underline"
+          label="Second"
+        />
+      </ToggleGroup.List>
     ),
   },
   play: async ({ canvasElement }) => {

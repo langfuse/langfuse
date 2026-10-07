@@ -10,7 +10,7 @@ import {
   useCallback,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import {
   Select,
   SelectContent,
@@ -1636,7 +1636,7 @@ export function CategoricalFacet({
   // the column's text filters, addTextFilter drops its checkbox filters).
   // Clearing on the tab click itself deleted a shared link's filters one
   // exploratory click after opening it, with no undo. Captured here at the
-  // user-intent seam (Tabs only fires on actual change); the render-time
+  // user-intent seam (ToggleGroup only fires on actual change); the render-time
   // text-mode adoption above deliberately bypasses this and emits nothing.
   const handleModeChange = (newMode: "select" | "text") => {
     setFilterMode(newMode);
@@ -1869,15 +1869,15 @@ function CategoricalSelectContent({
       */}
       {onOperatorChange && (
         <div className="mb-2 px-2">
-          <Tabs
+          <ToggleGroup
             value={operator ?? "any of"}
             onValueChange={(newOperator) =>
               onOperatorChange(newOperator as "any of" | "all of" | "none of")
             }
           >
-            <Tabs.List layout="full" size="sm">
-              <Tabs.Trigger value="any of" size="sm" label="Any of" />
-              <Tabs.Trigger value="all of" size="sm" label="All of" />
+            <ToggleGroup.List layout="full" size="sm">
+              <ToggleGroup.Trigger value="any of" size="sm" label="Any of" />
+              <ToggleGroup.Trigger value="all of" size="sm" label="All of" />
               {/* Without a persisted selection, switching to "none of" is a
                   deliberate no-op in the state model (an empty exclusion
                   would persist a vacuous filter — LFE-10717), which used to
@@ -1887,7 +1887,7 @@ function CategoricalSelectContent({
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
                   <span className="w-full min-w-0">
-                    <Tabs.Trigger
+                    <ToggleGroup.Trigger
                       value="none of"
                       disabled={operator === undefined}
                       size="sm"
@@ -1902,8 +1902,8 @@ function CategoricalSelectContent({
                   </TooltipContent>
                 )}
               </Tooltip>
-            </Tabs.List>
-          </Tabs>
+            </ToggleGroup.List>
+          </ToggleGroup>
         </div>
       )}
 
@@ -2544,15 +2544,15 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
     // mt-1 evens the rhythm: content opens with pt-1, so the tabs sit 8px
     // from the header band and 8px (mb-2) from the list below.
     <div className="mt-1 mb-2 px-4">
-      <Tabs
+      <ToggleGroup
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
-        <Tabs.List layout="full" size="sm">
-          <Tabs.Trigger value="select" size="sm" label="Select" />
-          <Tabs.Trigger value="text" size="sm" label="Text" />
-        </Tabs.List>
-      </Tabs>
+        <ToggleGroup.List layout="full" size="sm">
+          <ToggleGroup.Trigger value="select" size="sm" label="Select" />
+          <ToggleGroup.Trigger value="text" size="sm" label="Text" />
+        </ToggleGroup.List>
+      </ToggleGroup>
     </div>
   );
 }

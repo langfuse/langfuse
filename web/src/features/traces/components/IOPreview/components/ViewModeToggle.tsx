@@ -1,4 +1,4 @@
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useJsonBetaToggle } from "@/src/features/traces/hooks/useJsonBetaToggle";
 import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
@@ -26,16 +26,16 @@ export function ViewModeToggle({
   return (
     <div className="flex w-full flex-row items-center justify-start gap-1.5">
       <div className="h-fit py-0.5">
-        <Tabs
+        <ToggleGroup
           ref={compensateScrollRef}
           value={selectedViewTab}
           onValueChange={handleViewTabChange}
         >
-          <Tabs.List size="sm">
-            <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
-            <Tabs.Trigger value="json" size="sm" label="Raw" />
-          </Tabs.List>
-        </Tabs>
+          <ToggleGroup.List size="sm">
+            <ToggleGroup.Trigger value="pretty" size="sm" label="Formatted" />
+            <ToggleGroup.Trigger value="json" size="sm" label="Raw" />
+          </ToggleGroup.List>
+        </ToggleGroup>
       </div>
       {selectedViewTab === "json" && (
         <div className="flex items-center gap-1.5">

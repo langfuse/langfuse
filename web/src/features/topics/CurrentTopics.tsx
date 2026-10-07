@@ -13,7 +13,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { topicColor } from "./topic-map-colors";
@@ -56,29 +56,29 @@ export function CurrentTopics({
       )}
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
       {selectedFacet && (
-        <Tabs value={selectedFacet} onValueChange={setSelectedFacetId}>
+        <ToggleGroup value={selectedFacet} onValueChange={setSelectedFacetId}>
           <div className="mb-4 shrink-0 overflow-x-auto">
-            <Tabs.List aria-label="Facets" variant="underline">
+            <ToggleGroup.List aria-label="Facets" variant="underline">
               {result.data?.map((facet) => (
-                <Tabs.Trigger
+                <ToggleGroup.Trigger
                   key={facet.facetId}
                   value={facet.facetId}
                   label={facet.name}
                   variant="underline"
                 />
               ))}
-            </Tabs.List>
+            </ToggleGroup.List>
           </div>
           {result.data?.map((facet) => (
-            <Tabs.Content key={facet.facetId} value={facet.facetId}>
+            <ToggleGroup.Content key={facet.facetId} value={facet.facetId}>
               <CurrentFacet
                 projectId={projectId}
                 facet={facet}
                 timeRange={timeRange}
               />
-            </Tabs.Content>
+            </ToggleGroup.Content>
           ))}
-        </Tabs>
+        </ToggleGroup>
       )}
     </section>
   );

@@ -10,7 +10,7 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
@@ -280,7 +280,7 @@ export function TraceDetailView({
             }}
           />
 
-          {/* Tabs section */}
+          {/* ToggleGroup section */}
           <TabsBar
             value={selectedTab}
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -332,7 +332,7 @@ export function TraceDetailView({
                       (selectedTab === "preview" && isPrettyViewAvailable)) && (
                       <>
                         <div className="ml-auto h-fit shrink-0 py-0.5 pr-4 pl-2">
-                          <Tabs
+                          <ToggleGroup
                             value={
                               selectedTab === "log" && isLogViewVirtualized
                                 ? "pretty"
@@ -350,8 +350,8 @@ export function TraceDetailView({
                               handleViewTabChange(value);
                             }}
                           >
-                            <Tabs.List size="sm">
-                              <Tabs.Trigger
+                            <ToggleGroup.List size="sm">
+                              <ToggleGroup.Trigger
                                 value="pretty"
                                 size="sm"
                                 label="Formatted"
@@ -379,7 +379,7 @@ export function TraceDetailView({
                                 >
                                   {({ getTriggerProps }) => (
                                     <span tabIndex={0} {...getTriggerProps()}>
-                                      <Tabs.Trigger
+                                      <ToggleGroup.Trigger
                                         value="json"
                                         size="sm"
                                         disabled
@@ -389,14 +389,14 @@ export function TraceDetailView({
                                   )}
                                 </HoverCard>
                               ) : (
-                                <Tabs.Trigger
+                                <ToggleGroup.Trigger
                                   value="json"
                                   size="sm"
                                   label="Raw"
                                 />
                               )}
-                            </Tabs.List>
-                          </Tabs>
+                            </ToggleGroup.List>
+                          </ToggleGroup>
                         </div>
                         {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
                         {selectedViewTab === "json" &&

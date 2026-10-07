@@ -16,7 +16,7 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Table } from "@/src/components/design-system/table/Table";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -191,18 +191,18 @@ export function useTopicTraceSelector({
 
   const controls = (
     <div className="ph-no-capture flex min-w-0 flex-col gap-4">
-      <Tabs
+      <ToggleGroup
         value={mode}
         onValueChange={(value) => {
           setMode(value);
           setRequest(null);
         }}
       >
-        <Tabs.List aria-label="Trace selection method">
-          <Tabs.Trigger value="filters" label="Filters" />
-          <Tabs.Trigger value="paste" label="Paste IDs" />
-        </Tabs.List>
-      </Tabs>
+        <ToggleGroup.List aria-label="Trace selection method">
+          <ToggleGroup.Trigger value="filters" label="Filters" />
+          <ToggleGroup.Trigger value="paste" label="Paste IDs" />
+        </ToggleGroup.List>
+      </ToggleGroup>
       {mode === "filters" ? (
         <>
           <div className="flex flex-wrap items-end gap-3">

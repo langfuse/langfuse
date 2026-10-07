@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ToggleGroup } from "@/src/components/design-system/ToggleGroup/ToggleGroup";
 import { Plus, Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";
@@ -147,15 +147,15 @@ export function CustomMappingEditor({
       <div>
         <Label className="text-sm font-bold">Target</Label>
         <div className="mt-2">
-          <Tabs
+          <ToggleGroup
             value={config.type}
             onValueChange={(v) => handleTypeChange(v as MappingTarget)}
           >
-            <Tabs.List layout="full">
-              <Tabs.Trigger value="root" label="Root" />
-              <Tabs.Trigger value="keyValueMap" label="Key-value map" />
-            </Tabs.List>
-          </Tabs>
+            <ToggleGroup.List layout="full">
+              <ToggleGroup.Trigger value="root" label="Root" />
+              <ToggleGroup.Trigger value="keyValueMap" label="Key-value map" />
+            </ToggleGroup.List>
+          </ToggleGroup>
         </div>
       </div>
 

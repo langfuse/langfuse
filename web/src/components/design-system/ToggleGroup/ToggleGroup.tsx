@@ -7,7 +7,7 @@ import { type LucideIcon } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 
-const tabsListVariants = cva(
+const toggleGroupListVariants = cva(
   "text-foreground-tertiary items-center justify-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
   {
     variants: {
@@ -56,7 +56,7 @@ const tabsListVariants = cva(
   },
 );
 
-const tabsTriggerVariants = cva(
+const toggleGroupTriggerVariants = cva(
   "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex min-w-0 items-center justify-center gap-1.5 font-bold leading-none whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
@@ -86,14 +86,14 @@ const tabsTriggerVariants = cva(
   },
 );
 
-type TabsListProps = {
+type ToggleGroupListProps = {
   "aria-label"?: string;
   children: React.ReactNode;
 } & Pick<
-  VariantProps<typeof tabsListVariants>,
+  VariantProps<typeof toggleGroupListVariants>,
   "gap" | "layout" | "size" | "variant"
 >;
-type TabsRootProps = {
+type ToggleGroupRootProps = {
   children: React.ReactNode;
   onValueChange?: (value: string) => void;
   ref?: React.Ref<HTMLDivElement>;
@@ -102,13 +102,13 @@ type TabsRootProps = {
   | { defaultValue?: never; value: string }
 );
 
-function TabsRoot({
+function ToggleGroupRoot({
   children,
   defaultValue,
   onValueChange,
   ref,
   value,
-}: TabsRootProps) {
+}: ToggleGroupRootProps) {
   return (
     <TabsPrimitive.Root
       defaultValue={defaultValue}
@@ -121,16 +121,16 @@ function TabsRoot({
   );
 }
 
-const TabsIndicatorContext = React.createContext(false);
+const ToggleGroupIndicatorContext = React.createContext(false);
 
-function TabsList({
+function ToggleGroupList({
   "aria-label": ariaLabel,
   children,
   gap,
   layout,
   size,
   variant,
-}: TabsListProps) {
+}: ToggleGroupListProps) {
   const listRef = React.useRef<HTMLDivElement>(null);
   const indicatorRef = React.useRef<HTMLSpanElement>(null);
   const hasSlidingIndicator = variant !== "underline";
@@ -221,12 +221,12 @@ function TabsList({
   }, [hasSlidingIndicator]);
 
   return (
-    <TabsIndicatorContext value={hasSlidingIndicator}>
+    <ToggleGroupIndicatorContext value={hasSlidingIndicator}>
       <TabsPrimitive.List
         ref={listRef}
         aria-label={ariaLabel}
         className={cn(
-          tabsListVariants({ gap, layout, size, variant }),
+          toggleGroupListVariants({ gap, layout, size, variant }),
           hasSlidingIndicator && "relative isolate",
         )}
       >
@@ -245,15 +245,15 @@ function TabsList({
         ) : null}
         {children}
       </TabsPrimitive.List>
-    </TabsIndicatorContext>
+    </ToggleGroupIndicatorContext>
   );
 }
 
-type TabsTriggerProps = {
+type ToggleGroupTriggerProps = {
   disabled?: boolean;
   icon?: LucideIcon;
   value: string;
-} & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant"> &
+} & Pick<VariantProps<typeof toggleGroupTriggerVariants>, "size" | "variant"> &
   (
     | {
         /** Preferred for plain-text trigger content. */
@@ -269,7 +269,7 @@ type TabsTriggerProps = {
       }
   );
 
-function TabsTrigger({
+function ToggleGroupTrigger({
   children,
   disabled,
   icon: Icon,
@@ -278,8 +278,8 @@ function TabsTrigger({
   title,
   value,
   variant,
-}: TabsTriggerProps) {
-  const slidingIndicator = React.use(TabsIndicatorContext);
+}: ToggleGroupTriggerProps) {
+  const slidingIndicator = React.use(ToggleGroupIndicatorContext);
 
   return (
     <TabsPrimitive.Trigger
@@ -287,7 +287,7 @@ function TabsTrigger({
       disabled={disabled}
       title={label ?? title}
       className={cn(
-        tabsTriggerVariants({ size, variant }),
+        toggleGroupTriggerVariants({ size, variant }),
         slidingIndicator &&
           "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent",
       )}
@@ -304,12 +304,12 @@ function TabsTrigger({
   );
 }
 
-type TabsContentProps = {
+type ToggleGroupContentProps = {
   children: React.ReactNode;
   value: string;
 };
 
-function TabsContent({ children, value }: TabsContentProps) {
+function ToggleGroupContent({ children, value }: ToggleGroupContentProps) {
   return (
     <TabsPrimitive.Content
       value={value}
@@ -320,10 +320,10 @@ function TabsContent({ children, value }: TabsContentProps) {
   );
 }
 
-const Tabs = Object.assign(TabsRoot, {
-  List: TabsList,
-  Trigger: TabsTrigger,
-  Content: TabsContent,
+const ToggleGroup = Object.assign(ToggleGroupRoot, {
+  List: ToggleGroupList,
+  Trigger: ToggleGroupTrigger,
+  Content: ToggleGroupContent,
 });
 
-export { Tabs };
+export { ToggleGroup };
