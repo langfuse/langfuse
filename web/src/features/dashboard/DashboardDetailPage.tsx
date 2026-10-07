@@ -748,6 +748,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         }, 150);
 
         showSuccessToast({
+          operation: "dashboard.import",
           title: "Dashboard imported",
           description: `Added ${newPlacements.length} widget${
             newPlacements.length === 1 ? "" : "s"

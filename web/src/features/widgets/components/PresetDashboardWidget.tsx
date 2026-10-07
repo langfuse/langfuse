@@ -208,6 +208,7 @@ export function PresetDashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "dashboard_card.copy",
         title: "Card copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });

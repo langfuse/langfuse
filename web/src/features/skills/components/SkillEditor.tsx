@@ -217,6 +217,7 @@ export function SkillEditor({
         isFirstVersion: createNew,
       });
       showSuccessToast({
+        operation: "skill_version.create",
         title: "Skill version created",
         description: `Version ${created.version} is now available.`,
       });
@@ -261,6 +262,7 @@ export function SkillEditor({
           ]),
       });
       showSuccessToast({
+        operation: "skill_labels.update",
         title: "Skill labels updated",
         description: `Version ${version} now uses the selected labels.`,
       });
@@ -293,6 +295,7 @@ export function SkillEditor({
           ]),
       });
       showSuccessToast({
+        operation: "skill_tags.update",
         title: "Skill tags updated",
         description: "All versions now use the selected tags.",
       });

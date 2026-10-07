@@ -1,4 +1,8 @@
 import { Button } from "@/src/components/ui/button";
+import {
+  type ToastErrorAnalytics,
+  type ToastErrorEventProperties,
+} from "@/src/features/notifications/toastAnalytics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
@@ -15,6 +19,7 @@ interface ErrorNotificationProps {
   source?: "application" | "trpc";
   path?: string;
   traceId?: string;
+  analytics?: ToastErrorAnalytics;
 }
 
 export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
@@ -26,6 +31,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   source = "application",
   path,
   traceId,
+  analytics,
 }) => {
   const { setOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
@@ -36,18 +42,29 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   const textColor = isError
     ? "text-destructive-foreground"
     : "text-dark-yellow";
+  const interactionProperties = {
+    toastType: type,
+    source,
+    ...(path ? { path } : {}),
+    errorOrigin: analytics?.errorOrigin ?? "unknown",
+    errorCategory: analytics?.errorCategory ?? "unknown",
+    ...(analytics?.operation ? { operation: analytics.operation } : {}),
+    ...(analytics?.trpcCode ? { trpcCode: analytics.trpcCode } : {}),
+    ...(analytics?.httpStatus !== undefined
+      ? { httpStatus: analytics.httpStatus }
+      : {}),
+  };
+  const eventProperties: ToastErrorEventProperties = {
+    ...interactionProperties,
+    hasErrorId: Boolean(traceId),
+    ...(traceId ? { errorId: traceId } : {}),
+  };
 
   const captureShown = (element: HTMLDivElement | null) => {
     if (!element || didCaptureShown.current) return;
     didCaptureShown.current = true;
 
-    capture("toast:shown", {
-      toastType: type,
-      source,
-      ...(path ? { path } : {}),
-      hasErrorId: Boolean(traceId),
-      ...(traceId ? { errorId: traceId } : {}),
-    });
+    capture("toast:shown", eventProperties);
   };
 
   return (
@@ -100,8 +117,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
             size="sm"
             onClick={() => {
               capture("toast:report_issue", {
-                toast_type: type,
-                path,
+                ...interactionProperties,
               });
               setMigrationPanelOpen(false);
               setOpen(true, {
@@ -122,8 +138,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         className={`flex h-6 w-6 cursor-pointer items-start justify-end border-none bg-transparent p-0 ${textColor} transition-colors duration-200`}
         onClick={() => {
           capture("toast:dismiss", {
-            toast_type: type,
-            path,
+            ...interactionProperties,
           });
           dismissToast(toast);
         }}

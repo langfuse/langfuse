@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
+import { showSuccessToast } from "@/src/features/notifications";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
 
@@ -30,7 +31,11 @@ export const StripeKeepPlanButton = ({
 
   const clearSchedule = api.cloudBilling.clearPlanSwitchSchedule.useMutation({
     onSuccess: () => {
-      toast.success("Kept current plan");
+      showSuccessToast({
+        operation: "billing_plan.keep",
+        title: "Kept current plan",
+        description: "",
+      });
       onProcessing(null);
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);

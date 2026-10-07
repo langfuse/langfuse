@@ -3,17 +3,17 @@ import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type {
+  ToastInteractionEventProperties,
+  ToastShownEventProperties,
+} from "@/src/features/notifications/toastAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
 type ToastEventMap = {
-  "toast:shown": {
-    toastType: "WARNING" | "ERROR";
-    source: "trpc" | "application";
-    path?: string;
-    hasErrorId: boolean;
-    errorId?: string;
-  };
+  "toast:shown": ToastShownEventProperties;
+  "toast:report_issue": ToastInteractionEventProperties;
+  "toast:dismiss": ToastInteractionEventProperties;
 };
 
 // resource:action, only use snake_case
@@ -377,9 +377,9 @@ const events = {
   // props carry user content.
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
-  // User-visible error-frustration denominator. Metadata only: `path` is the
-  // static tRPC procedure name and `errorId` is the opaque ID shown in the
-  // toast; never send toast text or error payloads.
+  // User-visible toast denominator. Metadata only: `path` is a static tRPC
+  // procedure, `operation` is a static action id, and `errorId` is the opaque
+  // ID shown in the toast. Never send toast text or error payloads.
   toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
