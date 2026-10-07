@@ -12,6 +12,7 @@ type ToastEventMap = {
     source: "trpc" | "application";
     path?: string;
     hasErrorId: boolean;
+    errorId?: string;
   };
 };
 
