@@ -3,9 +3,7 @@
  * Handles linked models (with external link) and unlinked models (with create form)
  */
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { ExternalLinkIcon } from "lucide-react";
-import Link from "next/link";
+import { Badge, LinkBadge } from "@/src/components/design-system/Badge/Badge";
 import { UpsertModelFormDialogController } from "@/src/features/models";
 
 export function ModelBadge({
@@ -22,13 +20,11 @@ export function ModelBadge({
   // Linked model - show link to model settings
   if (internalModelId) {
     return (
-      <Link
+      <LinkBadge
         href={`/project/${projectId}/settings/models/${internalModelId}`}
-        className="inline-flex font-mono"
+        text={model}
         title="View model details"
-      >
-        <Badge color="ghost" text={model} trailingIcon={ExternalLinkIcon} />
-      </Link>
+      />
     );
   }
 

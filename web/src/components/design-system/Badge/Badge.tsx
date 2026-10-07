@@ -1,6 +1,7 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { ArrowUpRight, type LucideIcon } from "lucide-react";
+import Link, { type LinkProps } from "next/link";
 import { type ComponentPropsWithoutRef } from "react";
 
 import { cn } from "@/src/utils/tailwind";
@@ -68,7 +69,10 @@ export function BadgeShell({
 
   return (
     <Component
-      className={cn(badgeVariants({ color, size, interactive, font }))}
+      className={cn(
+        "group/badge",
+        badgeVariants({ color, size, interactive, font }),
+      )}
       {...props}
     />
   );
@@ -79,7 +83,7 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
   trailingIcon?: LucideIcon;
-  /** Link badges tint the arrow so the affordance reads before the hover. */
+  /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
 };
 
@@ -102,6 +106,8 @@ export function Badge({
           interactive
             ? "underline-dotted overflow-clip"
             : "overflow-x-clip overflow-y-visible",
+          trailingIconTone === "link" &&
+            "underline-offset-2 group-hover/badge:underline",
         )}
         title={title ?? (interactive ? undefined : text)}
       >
@@ -119,5 +125,51 @@ export function Badge({
         />
       )}
     </BadgeShell>
+  );
+}
+
+type LinkBadgeProps = {
+  href: LinkProps["href"];
+  text: string;
+  /** Key shown muted before the value, e.g. `user` before the id. */
+  label?: string;
+  title?: string;
+  /** Opens in a new tab. */
+  newTab?: boolean;
+  /** Keeps the value out of session recordings (ids, user names). */
+  noCapture?: boolean;
+} & { [key: `data-${string}`]: string };
+
+/** A metric that links somewhere: ghost, mono, arrow, underline on hover. */
+export function LinkBadge({
+  href,
+  text,
+  label,
+  title,
+  newTab,
+  noCapture,
+  ...dataProps
+}: LinkBadgeProps) {
+  return (
+    <Link
+      href={href}
+      target={newTab ? "_blank" : undefined}
+      rel={newTab ? "noopener noreferrer" : undefined}
+      className={cn(
+        "inline-flex max-w-full min-w-0",
+        noCapture && "ph-no-capture",
+      )}
+    >
+      <Badge
+        color="ghost"
+        font="mono"
+        label={label}
+        text={text}
+        title={title}
+        trailingIcon={ArrowUpRight}
+        trailingIconTone="link"
+        {...dataProps}
+      />
+    </Link>
   );
 }

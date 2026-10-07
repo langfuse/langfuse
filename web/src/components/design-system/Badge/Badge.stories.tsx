@@ -3,7 +3,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Badge } from "./Badge";
+import { Badge, LinkBadge } from "./Badge";
 
 type ComponentProps = React.ComponentProps<typeof Badge>;
 type Color = NonNullable<ComponentProps["color"]>;
@@ -46,6 +46,25 @@ export const WithDescenders = meta.story({
         text="Prompt: langfuse-docs-assistant-chat - v27"
         trailingIcon={ExternalLinkIcon}
       />
+    </div>
+  ),
+});
+
+export const Links = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-4">
+      <LinkBadge href="#" text="gpt-5" />
+      <LinkBadge
+        href="#"
+        label="prompt"
+        text="langfuse-docs-assistant-chat - v27"
+      />
+      <LinkBadge href="#" label="user" text="maya.chen@acme-robotics.io" />
     </div>
   ),
 });

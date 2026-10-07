@@ -1,12 +1,14 @@
 /* eslint-disable no-nested-ternary */
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Plus, Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
-import Link from "next/link";
-
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import {
+  Badge,
+  BadgeShell,
+  LinkBadge,
+} from "@/src/components/design-system/Badge/Badge";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
@@ -84,19 +86,15 @@ const scoreChipValue = (
 };
 
 const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
-  <Link
-    href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-    className="ph-no-capture inline-flex max-w-[280px] min-w-0"
-  >
-    <Badge
-      color="ghost"
+  <span className="inline-flex max-w-[280px] min-w-0">
+    <LinkBadge
+      href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
+      noCapture
       data-session-header-pill="true"
       label="user"
       text={user}
-      trailingIcon={ArrowUpRight}
-      trailingIconTone="link"
     />
-  </Link>
+  </span>
 );
 
 const resolveAgainstSource = (

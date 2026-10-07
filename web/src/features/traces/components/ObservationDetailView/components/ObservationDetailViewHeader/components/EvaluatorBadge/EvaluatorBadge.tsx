@@ -1,7 +1,4 @@
-import { ExternalLinkIcon } from "lucide-react";
-import Link from "next/link";
-
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/Badge/Badge";
 
 export function EvaluatorBadge({
   evaluatorId,
@@ -13,16 +10,12 @@ export function EvaluatorBadge({
   projectId: string;
 }) {
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/evals/v2/${encodeURIComponent(evaluatorId)}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        text={evaluatorName ? `Evaluator: ${evaluatorName}` : "Evaluator"}
-        trailingIcon={ExternalLinkIcon}
-      />
-    </Link>
+      newTab
+      noCapture
+      label="evaluator"
+      text={evaluatorName ?? evaluatorId}
+    />
   );
 }

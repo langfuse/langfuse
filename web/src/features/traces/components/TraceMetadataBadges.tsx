@@ -4,9 +4,7 @@
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
  */
 
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Badge, LinkBadge } from "@/src/components/design-system/Badge/Badge";
 
 export function SessionBadge({
   sessionId,
@@ -16,18 +14,12 @@ export function SessionBadge({
   projectId: string;
 }) {
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        text="session"
-        title={sessionId}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      text="session"
+      title={sessionId}
+    />
   );
 }
 
@@ -42,18 +34,12 @@ export function UserIdBadge({
   const text = userId;
 
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="ph-no-capture inline-flex font-mono"
-    >
-      <Badge
-        color="ghost"
-        label={label}
-        text={text}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      label={label}
+      text={text}
+    />
   );
 }
 
@@ -68,18 +54,12 @@ export function TargetTraceBadge({
   const text = targetTraceId;
 
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        label={label}
-        text={text}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      label={label}
+      text={text}
+    />
   );
 }
 
