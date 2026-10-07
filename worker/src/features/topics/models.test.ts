@@ -97,8 +97,10 @@ describe("Topics naming boundary", () => {
         region: "eu-west-1",
         profile: "ai-test",
       });
-      expect(request.messages[0].content).toContain(facet.prompt);
-      expect(request.messages[1].content).toBe(
+      expect(request.system).toEqual([
+        { text: expect.stringContaining(facet.prompt), cache: true },
+      ]);
+      expect(request.input).toBe(
         "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summary now, in the facet's format.",
       );
     },
@@ -162,6 +164,35 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
+  it("prices cache reads at the cache rate", async () => {
+    state.summaryModel.mockReturnValue("us.openai.gpt-6-luna");
+    state.call.mockResolvedValue({
+      output: { summary: "A billing request.", status: "applicable" },
+      usage: {
+        inputTokens: 4000,
+        outputTokens: 300,
+        totalTokens: 4300,
+        cacheReadTokens: 2840,
+      },
+    });
+    const result = await summarizeTopicTrace(
+      facet,
+      "RAW_TRANSCRIPT_SENTINEL",
+      topicProcessingConfigSchema.parse({
+        summaryModel: "us.openai.gpt-6-luna",
+      }),
+    );
+    expect(result.usageDetails).toMatchObject({
+      summary_input: 4000,
+      summary_input_cache_read: 2840,
+    });
+    // 1,160 uncached tokens at $0.11 plus 2,840 cached at $0.011 per million.
+    expect(result.costDetails.summary_input).toBeCloseTo(
+      (1160 * 0.11 + 2840 * 0.011) / 1_000_000,
+      12,
+    );
+  });
+
   it("summarizes all facets of a trace in one request and checks its size first", async () => {
     state.call.mockResolvedValue({
       output: {
@@ -183,18 +214,27 @@ describe("Topics naming boundary", () => {
       prompt: "Describe the main problem.",
     };
     const facets = [
-      { key: "intent_1", facet },
-      { key: "issues_2", facet: issues },
+      { key: "intent_1", facet, builtIn: true },
+      { key: "issues_2", facet: issues, builtIn: false },
     ];
     await summarizeTopicTraceFacets(facets, "RAW_TRANSCRIPT_SENTINEL", config);
     expect(state.call).toHaveBeenCalledOnce();
     const request = state.call.mock.calls[0][0];
-    expect(request.messages[0].content).toContain(
-      `<facet key="intent_1">\n${facet.prompt}\n</facet>`,
-    );
-    expect(request.messages[0].content).toContain(
-      `<facet key="issues_2">\n${issues.prompt}\n</facet>`,
-    );
+    // Built-in facets end the first cached prefix, custom facets the second; the transcript is uncached.
+    expect(request.system).toEqual([
+      {
+        text: expect.stringContaining(
+          `<facet key="intent_1">\n${facet.prompt}\n</facet>`,
+        ),
+        cache: true,
+      },
+      {
+        text: `<facet key="issues_2">\n${issues.prompt}\n</facet>`,
+        cache: true,
+      },
+    ]);
+    expect(request.system[0].text).not.toContain("issues_2");
+    expect(request.input).toContain("RAW_TRANSCRIPT_SENTINEL");
     expect(request.maxOutputTokens).toBe(config.maxOutputTokens * 2);
     // Every facet key is required in the structured output.
     expect(
@@ -242,9 +282,7 @@ describe("Topics naming boundary", () => {
     expect(state.call).toHaveBeenCalledOnce();
     expect(state.call.mock.calls[0][0].model).toBe("us.openai.gpt-5.6-terra");
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
-    const submitted = JSON.parse(
-      state.call.mock.calls[0][0].messages[1].content,
-    );
+    const submitted = JSON.parse(state.call.mock.calls[0][0].input);
     expect(submitted.members).toEqual(members);
   });
 
