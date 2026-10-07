@@ -63,8 +63,8 @@ describe("previewOpenAIDecisionQuestions", () => {
           type: DecisionModelQuestionType.SCORE,
           instructions: "How severe?",
           levels: [
-            { label: "Cosmetic", description: "Appearance only" },
-            { label: "Blocked", description: "" },
+            { description: "Appearance only" },
+            { description: "Blocked" },
           ],
         }),
         draft({

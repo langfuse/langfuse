@@ -48,16 +48,14 @@ export function DecisionModelQuestionsEditor({
     adapter,
   });
   const errorsById = useMemo(() => {
-    const errors = getQuestionDraftErrors(state.questions, {
-      requireLevelLabels: openaiDecision,
-    });
+    const errors = getQuestionDraftErrors(state.questions);
     for (const question of state.questions) {
       if (!question.instructions && !question.scoreName) {
         delete errors[question.id];
       }
     }
     return errors;
-  }, [openaiDecision, state.questions]);
+  }, [state.questions]);
 
   const examples = openaiDecision
     ? OPENAI_QUESTION_EXAMPLES
@@ -81,7 +79,6 @@ export function DecisionModelQuestionsEditor({
       }
       onRemove={state.actions.removeQuestion}
       onReorder={state.actions.reorderQuestion}
-      scoreLevelLabels={openaiDecision}
       plainInstructions={openaiDecision}
     />
   );

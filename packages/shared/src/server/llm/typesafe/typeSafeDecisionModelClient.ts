@@ -12,7 +12,7 @@ import type {
 } from "../../evals/decisionModelEvaluatorExecution";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
-/** TypeSafe reads descriptions. A level label fills in only when the description is missing. */
+/** TypeSafe reads a description per level, in order. */
 function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
   switch (question.type) {
     case "choice":
@@ -30,9 +30,7 @@ function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
       return {
         type: "score" as const,
         instructions: question.instructions,
-        criteria: question.levels.map(
-          (level) => level.description ?? level.label ?? null,
-        ),
+        criteria: question.levels.map((level) => level.description),
       };
     case "predicate":
       return {

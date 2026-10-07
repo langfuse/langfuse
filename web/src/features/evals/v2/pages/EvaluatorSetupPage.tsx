@@ -5,7 +5,6 @@ import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
 import {
-  isOpenAIDecisionModel,
   observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
@@ -453,18 +452,11 @@ export function EvaluatorSetupPage(
         return { type: state.type, promptMessages: state.promptMessages };
       case "CODE":
         return { type: state.type, sourceCode: state.sourceCode };
-      case "DECISION_MODEL": {
-        const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
+      case "DECISION_MODEL":
         return {
           type: state.type,
-          questions:
-            draftsToQuestions(state.questions, {
-              requireLevelLabels:
-                draft.selectedModel != null &&
-                isOpenAIDecisionModel(draft.selectedModel.model),
-            }) ?? [],
+          questions: draftsToQuestions(state.questions) ?? [],
         };
-      }
     }
   };
 

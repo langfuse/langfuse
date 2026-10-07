@@ -50,11 +50,7 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   })();
 
   if (params.type === "DECISION_MODEL") {
-    const questions = draftsToQuestions(params.questions, {
-      requireLevelLabels:
-        params.selectedModel != null &&
-        isOpenAIDecisionModel(params.selectedModel.model),
-    });
+    const questions = draftsToQuestions(params.questions);
     // Every state key has to resolve to data, or the state the model sees
     // would silently miss a field the questions refer to.
     const variableMapping = mappings.flatMap(({ variable, fieldState }) =>

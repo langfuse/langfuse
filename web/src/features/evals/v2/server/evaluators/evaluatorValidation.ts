@@ -237,24 +237,6 @@ export async function getDecisionModelConfigurationError(params: {
     }
     return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection.`;
   }
-  const missingLabel = params.definition.questions.some(
-    (question) =>
-      question.type === "score" &&
-      modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI &&
-      question.levels.some((level) => !level.label),
-  );
-  if (missingLabel) {
-    return "Each OpenAI score level needs a label.";
-  }
-  const missingDescription = params.definition.questions.some(
-    (question) =>
-      question.type === "score" &&
-      modelConfig.config.apiKey.adapter !== LLMAdapter.OpenAI &&
-      question.levels.some((level) => level.description == null),
-  );
-  if (missingDescription) {
-    return "Each score level needs a description.";
-  }
   return null;
 }
 

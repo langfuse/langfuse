@@ -23,10 +23,7 @@ const request: DecisionModelRequest = {
     severity: {
       type: "score",
       instructions: "How severe is the issue?",
-      levels: [
-        { label: "Cosmetic", description: "Appearance only" },
-        { label: "Blocked" },
-      ],
+      levels: [{ description: "Appearance only" }, { description: "Blocked" }],
     },
     refund: {
       type: "predicate",

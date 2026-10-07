@@ -33,7 +33,6 @@ export type DecisionModelQuestionCardProps = {
   onChange: (question: DecisionModelQuestionDraft) => void;
   onRemove: (() => void) | null;
   errors?: DecisionModelQuestionDraftErrors;
-  scoreLevelLabels?: boolean;
   /** OpenAI questions are plain text. Jev questions name state fields in backticks. */
   plainInstructions?: boolean;
 };
@@ -53,12 +52,10 @@ function CriteriaEditor({
   question,
   errors,
   onChange,
-  scoreLevelLabels,
 }: {
   question: DecisionModelQuestionDraft;
   errors: DecisionModelQuestionDraftErrors;
   onChange: (question: DecisionModelQuestionDraft) => void;
-  scoreLevelLabels: boolean;
 }) {
   switch (question.type) {
     case DecisionModelQuestionType.CHOICE:
@@ -75,7 +72,6 @@ function CriteriaEditor({
           levels={question.levels}
           onChange={(levels) => onChange({ ...question, levels })}
           error={errors.levels}
-          labels={scoreLevelLabels}
         />
       );
     case DecisionModelQuestionType.NOUL:
@@ -102,7 +98,6 @@ export function DecisionModelQuestionCard({
   onChange,
   onRemove,
   errors = {},
-  scoreLevelLabels = false,
   plainInstructions = false,
 }: DecisionModelQuestionCardProps) {
   const id = useId();
@@ -222,7 +217,6 @@ export function DecisionModelQuestionCard({
           question={question}
           errors={errors}
           onChange={onChange}
-          scoreLevelLabels={scoreLevelLabels}
         />
 
         <div className="flex flex-col gap-1.5">

@@ -31,7 +31,7 @@ const request: DecisionModelRequest = {
       type: "score",
       instructions: "How frustrated is the customer?",
       levels: [
-        { label: "Calm" },
+        { description: "Calm" },
         { description: "Frustrated" },
         { description: "Angry" },
       ],
@@ -81,8 +81,7 @@ describe("createTypeSafeDecisionModelClient", () => {
     expect(new Headers(init.headers).get("authorization")).toBe(
       "Bearer sk-test",
     );
-    // Score levels become a description list. A label fills in when the
-    // level has no description. Predicates go out as TypeSafe's noul type.
+    // Score levels become a description list. Predicates go out as TypeSafe's noul type.
     expect(JSON.parse(init.body as string)).toEqual({
       model: "jev-latest",
       state: request.state,

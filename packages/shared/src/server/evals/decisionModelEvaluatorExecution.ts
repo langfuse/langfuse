@@ -33,10 +33,7 @@ export type DecisionModelRequestQuestion =
   | {
       type: "score";
       instructions: DecisionModelEntry;
-      levels: Array<{
-        label?: string | null;
-        description?: DecisionModelEntry | null;
-      }>;
+      levels: Array<{ description: DecisionModelEntry }>;
     }
   | {
       type: "predicate";
@@ -118,12 +115,7 @@ export function toDecisionModelRequestQuestion(
       return {
         type: "score",
         instructions: question.instructions,
-        levels: question.levels.map((level) => ({
-          ...(level.label != null ? { label: level.label } : {}),
-          ...(level.description != null
-            ? { description: level.description }
-            : {}),
-        })),
+        levels: question.levels,
       };
     case DecisionModelQuestionType.NOUL:
       return {
@@ -208,8 +200,7 @@ export function formatDecisionModelComment(params: {
         ? question.levels[nearestLevel]
         : undefined;
     const levelName =
-      level?.label ??
-      (typeof level?.description === "string" ? level.description : undefined);
+      typeof level?.description === "string" ? level.description : undefined;
     parts.push(
       levelName != null
         ? `${formatNumber(answer.score)} ≈ level ${nearestLevel} "${levelName}"`
@@ -258,10 +249,9 @@ function toScoreMetadata(params: {
               ? Object.fromEntries(
                   question.levels.map((level, index) => [
                     String(index),
-                    level.label ??
-                      (typeof level.description === "string"
-                        ? level.description
-                        : (level.description ?? "")),
+                    typeof level.description === "string"
+                      ? level.description
+                      : JSON.stringify(level.description),
                   ]),
                 )
               : undefined,

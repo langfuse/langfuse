@@ -20,8 +20,8 @@ const QUESTIONS = [
       { value: "", description: "" },
     ],
     levels: [
-      { label: "Cosmetic", description: "Appearance only" },
-      { label: "Blocked", description: "Cannot continue" },
+      { description: "Appearance only" },
+      { description: "Cannot continue" },
     ],
     criteria: { true: "", false: "" },
   },

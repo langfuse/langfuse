@@ -61,7 +61,6 @@ export function questionsToDrafts(
         break;
       case DecisionModelQuestionType.SCORE:
         draft.levels = question.levels.map((level) => ({
-          label: level.label ?? "",
           description: entryToText(level.description),
         }));
         break;
@@ -82,7 +81,6 @@ export function questionsToDrafts(
  */
 export function getQuestionDraftErrors(
   drafts: DecisionModelQuestionDraft[],
-  options?: { requireLevelLabels?: boolean },
 ): Record<string, DecisionModelQuestionDraftErrors> {
   const scoreNameCounts = new Map<string, number>();
   for (const draft of drafts) {
@@ -113,24 +111,13 @@ export function getQuestionDraftErrors(
       }
     }
     if (draft.type === DecisionModelQuestionType.SCORE) {
-      if (options?.requireLevelLabels) {
-        const labels = draft.levels.map((level) => (level.label ?? "").trim());
-        if (labels.length < DECISION_MODEL_LIMITS.minScoreLevels) {
-          own.levels = `Add at least ${DECISION_MODEL_LIMITS.minScoreLevels} levels.`;
-        } else if (labels.some((label) => !label)) {
-          own.levels = "Every level needs a label.";
-        } else if (new Set(labels).size !== labels.length) {
-          own.levels = "Level labels must be unique.";
-        }
-      } else {
-        const descriptions = draft.levels.map((level) =>
-          level.description.trim(),
-        );
-        if (descriptions.length < DECISION_MODEL_LIMITS.minScoreLevels) {
-          own.levels = `Add at least ${DECISION_MODEL_LIMITS.minScoreLevels} levels.`;
-        } else if (descriptions.some((description) => !description)) {
-          own.levels = "Every level needs a description.";
-        }
+      const descriptions = draft.levels.map((level) =>
+        level.description.trim(),
+      );
+      if (descriptions.length < DECISION_MODEL_LIMITS.minScoreLevels) {
+        own.levels = `Add at least ${DECISION_MODEL_LIMITS.minScoreLevels} levels.`;
+      } else if (descriptions.some((description) => !description)) {
+        own.levels = "Every level needs a description.";
       }
     }
     if (Object.keys(own).length > 0) errors[draft.id] = own;
@@ -150,11 +137,10 @@ export function usesPlainDecisionInstructions(params: {
 /** Persistable questions, or null while any draft is incomplete. */
 export function draftsToQuestions(
   drafts: DecisionModelQuestionDraft[],
-  options?: { requireLevelLabels?: boolean },
 ): DecisionModelQuestions | null {
   if (
     drafts.length === 0 ||
-    Object.keys(getQuestionDraftErrors(drafts, options)).length > 0
+    Object.keys(getQuestionDraftErrors(drafts)).length > 0
   ) {
     return null;
   }
@@ -178,14 +164,9 @@ export function draftsToQuestions(
         return {
           ...base,
           type: draft.type,
-          levels: draft.levels.map((level) => {
-            const label = level.label?.trim();
-            const description = level.description.trim();
-            return {
-              ...(label ? { label } : {}),
-              ...(description ? { description } : {}),
-            };
-          }),
+          levels: draft.levels.map((level) => ({
+            description: level.description.trim(),
+          })),
         };
       case DecisionModelQuestionType.NOUL: {
         const criteria = {
@@ -249,15 +230,10 @@ export function previewOpenAIDecisionQuestions(
           type: "score",
           name,
           instructions,
-          levels: draft.levels.map((level, index) => {
-            const label = level.label?.trim();
+          levels: draft.levels.flatMap((level, index) => {
             const description = level.description.trim();
-            // The Decisions API names levels by index. The model reads the
-            // description, or the entered label when the description is empty.
-            const sent = description || label;
-            return sent
-              ? { label: String(index), description: sent }
-              : { label: String(index) };
+            if (!description) return [];
+            return [{ label: String(index), description }];
           }),
         };
       case DecisionModelQuestionType.NOUL:

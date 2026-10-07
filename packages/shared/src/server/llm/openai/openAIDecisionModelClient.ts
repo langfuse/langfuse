@@ -22,7 +22,6 @@ function toDecisionText(entry: DecisionModelEntry): string {
 
 /** The SDK's score question has descriptions only. It sends index labels. */
 function toSdkQuestion(
-  id: string,
   question: DecisionModelRequestQuestion,
 ): Experimental_DecisionQuestion {
   switch (question.type) {
@@ -43,14 +42,9 @@ function toSdkQuestion(
       return {
         type: "score",
         instructions: toDecisionText(question.instructions),
-        criteria: question.levels.map((level, index) => {
-          if (!level.label) {
-            throw new DecisionModelEvaluatorError(
-              `OpenAI score question "${id}" is missing a label for level ${index}.`,
-            );
-          }
-          return toDecisionText(level.description ?? level.label);
-        }),
+        criteria: question.levels.map((level) =>
+          toDecisionText(level.description),
+        ),
       };
     case "predicate": {
       const criteria = {
@@ -113,7 +107,7 @@ export function createOpenAIDecisionModelClient(params: {
         Object.fromEntries(
           Object.entries(request.questions).map(([id, question]) => [
             id,
-            toSdkQuestion(id, question),
+            toSdkQuestion(question),
           ]),
         );
       let result;
