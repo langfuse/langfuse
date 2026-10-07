@@ -12217,6 +12217,17 @@ components:
         - does not contain
         - starts with
         - ends with
+    EvaluationRuleStringObjectFilterOperator:
+      title: EvaluationRuleStringObjectFilterOperator
+      type: string
+      enum:
+        - '='
+        - contains
+        - does not contain
+        - starts with
+        - ends with
+        - is set
+        - is not set
     EvaluationRuleNumberFilterOperator:
       title: EvaluationRuleNumberFilterOperator
       type: string
@@ -12349,9 +12360,13 @@ components:
           type: string
           description: Top-level key inside the object-valued column to filter on.
         operator:
-          $ref: '#/components/schemas/EvaluationRuleStringFilterOperator'
+          $ref: '#/components/schemas/EvaluationRuleStringObjectFilterOperator'
+          description: Use `is set` / `is not set` to filter on key presence.
         value:
           type: string
+          description: >-
+            Value to compare against. Ignored for `is set` / `is not set`; send
+            `""`.
       required:
         - column
         - key
