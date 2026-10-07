@@ -392,53 +392,6 @@ it(
         code: "ERR_OTEL_CLOSED",
       });
       const [media] = batch.media;
-      expect(JSON.parse(batch.takeJson())).toEqual({ input: media.reference });
-      expect(() => batch.json()).toThrowError(
-        expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
-      );
-      expect(media.sha256Hash).toBe(
-        createHash("sha256").update(MEDIA_BODY).digest("base64"),
-      );
-      await expect(batch.mediaBody(1)).rejects.toThrow("unknown media index");
-
-      const body = batch.mediaBody(media.index);
-      const original = batch.originalMedia(media.index);
-      await batch.dispose();
-      await expect(body).resolves.toEqual(MEDIA_BODY);
-      await expect(original).resolves.toBe(uri);
-      expect(() => batch.json()).toThrowError(
-        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
-      );
-      expect(() => batch.takeJson()).toThrowError(
-        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
-      );
-      expect(() => batch.media).toThrowError(
-        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
-      );
-      await expect(batch.mediaBody(0)).rejects.toMatchObject({
-        code: "ERR_OTEL_CLOSED",
-      });
-      await expect(batch.originalMedia(0)).rejects.toMatchObject({
-        code: "ERR_OTEL_CLOSED",
-      });
-    } finally {
-      await batch.dispose();
-      await validated.dispose();
-    }
-  },
-);
-
-it(
-  "transfers compact JSON to a Buffer while retaining media reads after disposal",
-  { retry: 0 },
-  async () => {
-    const uri = MEDIA_URI;
-    const validated = await validateOtelJson(
-      Buffer.from(JSON.stringify({ input: uri })),
-    );
-    const batch = await validated.extract(true);
-    try {
-      const [media] = batch.media;
       const compact = batch.takeJsonBuffer();
       expect(Buffer.isBuffer(compact)).toBe(true);
       expect(JSON.parse(compact.toString("utf8"))).toEqual({
@@ -450,11 +403,32 @@ it(
       expect(() => batch.takeJsonBuffer()).toThrowError(
         expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
       );
+      expect(media.sha256Hash).toBe(
+        createHash("sha256").update(MEDIA_BODY).digest("base64"),
+      );
+      await expect(batch.mediaBody(1)).rejects.toThrow("unknown media index");
 
       const body = batch.mediaBody(media.index);
+      const original = batch.originalMedia(media.index);
       await batch.dispose();
       expect(compact.toString("utf8")).toContain(media.reference);
       await expect(body).resolves.toEqual(MEDIA_BODY);
+      await expect(original).resolves.toBe(uri);
+      expect(() => batch.json()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
+      expect(() => batch.takeJsonBuffer()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
+      expect(() => batch.media).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
+      await expect(batch.mediaBody(0)).rejects.toMatchObject({
+        code: "ERR_OTEL_CLOSED",
+      });
+      await expect(batch.originalMedia(0)).rejects.toMatchObject({
+        code: "ERR_OTEL_CLOSED",
+      });
     } finally {
       await batch.dispose();
       await validated.dispose();

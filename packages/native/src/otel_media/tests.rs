@@ -60,14 +60,14 @@ pub(super) fn data_uri(payload: &[u8]) -> String {
     format!("data:image/png;base64,{}", BASE64.encode(payload))
 }
 
-fn large_data_uri(label: &[u8]) -> (String, Vec<u8>) {
+pub(super) fn large_data_uri(label: &[u8]) -> (String, Vec<u8>) {
     let mut payload = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
     let copy_len = label.len().min(payload.len());
     payload[..copy_len].copy_from_slice(&label[..copy_len]);
     (data_uri(&payload), payload)
 }
 
-fn large_base64(label: &[u8]) -> (String, Vec<u8>) {
+pub(super) fn large_base64(label: &[u8]) -> (String, Vec<u8>) {
     let mut payload = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
     let copy_len = label.len().min(payload.len());
     payload[..copy_len].copy_from_slice(&label[..copy_len]);
