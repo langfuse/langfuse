@@ -48,6 +48,9 @@
         ".storybook/docs/**/*.tsx",
         // Runtime worker entry loaded by filename through Piscina.
         "src/server/otel/otelIngestionWorker.ts",
+        // Web Worker entry bundled into a string module by
+        // scripts/build-json-parser-worker.mjs, never imported by the app.
+        "src/workers/json-parser.worker.ts",
       ],
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.

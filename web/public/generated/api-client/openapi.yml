@@ -5,14 +5,22 @@ info:
 paths:
   /api/public/scores:
     post:
-      description: Add a score to the database, upserts on id
+      description: >-
+        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if
+        accepted, or 207 with accepted/rejected counts and error messages. Do
+        not automatically retry a 207 batch. The generated reference shows only
+        200; batches return 202 or 207.
       operationId: score_create
       tags:
         - Score
       parameters: []
       responses:
-        '204':
+        '200':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateScoresResponse'
         '400':
           description: ''
           content:
@@ -44,9 +52,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateScoreRequest'
+              $ref: '#/components/schemas/CreateScoresRequest'
 components:
   schemas:
+    CreateScoresRequest:
+      title: CreateScoresRequest
+      oneOf:
+        - $ref: '#/components/schemas/CreateScoreRequest'
+        - $ref: '#/components/schemas/CreateScoreBatchRequest'
+    CreateScoreBatchRequest:
+      title: CreateScoreBatchRequest
+      type: array
+      items:
+        $ref: '#/components/schemas/CreateScoreRequest'
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -137,6 +155,56 @@ components:
         The value of the score. Must be passed as string for categorical scores,
         and numeric for boolean and numeric scores. For corrections pass value
         as string and set data type to CORRECTION
+    CreateScoresResponse:
+      title: CreateScoresResponse
+      oneOf:
+        - $ref: '#/components/schemas/CreateScoreResponse'
+        - $ref: '#/components/schemas/CreateScoreBatchResponse'
+        - $ref: '#/components/schemas/CreateScoreBatchResults'
+    CreateScoreBatchResponse:
+      title: CreateScoreBatchResponse
+      type: object
+      description: Batch accepted (HTTP 202).
+      properties:
+        message:
+          type: string
+          const: Accepted
+      required:
+        - message
+    CreateScoreResponse:
+      title: CreateScoreResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the created object in Langfuse
+      required:
+        - id
+    CreateScoreBatchResults:
+      title: CreateScoreBatchResults
+      type: object
+      description: Acceptance counts and errors (HTTP 207).
+      properties:
+        accepted:
+          type: integer
+        rejected:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateScoreBatchError'
+      required:
+        - accepted
+        - rejected
+        - errors
+    CreateScoreBatchError:
+      title: CreateScoreBatchError
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
   securitySchemes:
     BearerAuth:
       type: http

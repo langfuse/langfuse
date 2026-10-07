@@ -47,6 +47,7 @@ import {
   QueueJobs,
   createOrgProjectAndApiKey,
   getScoreById,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
@@ -113,6 +114,25 @@ describe("scores trpc", () => {
   });
 
   describe("scores.all", () => {
+    // allFromEvents reads scores FINAL with
+    // do_not_merge_across_partitions_select_final = 1, which is only correct
+    // while every version of a sorting key lands in one partition.
+    it("keeps each scores sorting key within one partition", async () => {
+      const [table] = await queryClickhouse<{
+        partition_key: string;
+        sorting_key: string;
+      }>({
+        query: `
+          SELECT partition_key, sorting_key
+          FROM system.tables
+          WHERE database = currentDatabase() AND name = 'scores'
+        `,
+      });
+
+      expect(table.partition_key).toBe("toYYYYMM(timestamp)");
+      expect(table.sorting_key).toBe("project_id, toDate(timestamp), name, id");
+    });
+
     it("preserves evaluator-test filters for score rows and counts on both read paths", async () => {
       const scores = [
         createTraceScore({

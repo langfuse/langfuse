@@ -33,6 +33,7 @@ export function ControlledFeaturePreviewModal({
           isEnabled: variables.enabled,
         });
         showSuccessToast({
+          operation: "user_feature_preview.update",
           title: "Feature preview updated",
           description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
@@ -50,6 +51,15 @@ export function ControlledFeaturePreviewModal({
     authSession.data?.environment.enableExperimentalFeatures === true;
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    ...(authSession.data?.user?.admin === true
+      ? {
+          langfuseTopics: {
+            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
     modernSession: {
       enabled: isModernSessionEnabled,
       disabled:

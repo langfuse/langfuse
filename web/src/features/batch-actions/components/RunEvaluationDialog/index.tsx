@@ -300,6 +300,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     });
 
     showSuccessToast({
+      operation: "evaluation.queue",
       title: "Evaluation queued",
       description: isExperimentsSource
         ? `Scheduled evaluation for items from ${displayCount} selected experiment${displayCount === 1 ? "" : "s"} with ${evaluatorIds.length} ${evaluatorIds.length === 1 ? "evaluator" : "evaluators"}.`
@@ -416,7 +417,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 onClick={() => setStep("select-evaluator")}
                 disabled={runEvaluationMutation.isPending}
               >
-                <ChevronLeft className="mr-1 h-4 w-4" />
+                <ChevronLeft className="icon-base text-icon-foreground mr-1" />
                 Back
               </Button>
             ) : (
@@ -485,9 +486,9 @@ function CreateEvaluatorButton({
         rel="noreferrer"
         aria-label="Create new Evaluator (opens in a new tab)"
       >
-        <Plus className="size-4 shrink-0" aria-hidden="true" />
+        <Plus className="icon-base shrink-0" aria-hidden="true" />
         Create new Evaluator
-        <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+        <ExternalLink className="icon-base shrink-0" aria-hidden="true" />
       </Link>
     </Button>
   );

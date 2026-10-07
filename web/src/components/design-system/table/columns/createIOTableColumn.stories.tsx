@@ -305,11 +305,9 @@ export const TestLoadedCellBackgrounds = meta.story({
 
     const [inputCell, outputCell] = Array.from(row.cells);
     await expect(inputCell).toHaveClass("bg-muted/50");
-    await expect(outputCell).toHaveClass("bg-accent-light-green");
+    await expect(outputCell).toHaveClass("bg-surface-output");
     await expect(inputCell?.querySelector('[class~="bg-muted/50"]')).toBeNull();
-    await expect(
-      outputCell?.querySelector(".bg-accent-light-green"),
-    ).toBeNull();
+    await expect(outputCell?.querySelector(".bg-surface-output")).toBeNull();
   },
 });
 
@@ -327,12 +325,12 @@ export const TestLoadingCellBackgrounds = meta.story({
 
     const [inputCell, outputCell] = Array.from(row.cells);
     await expect(inputCell).toHaveClass("bg-muted/50");
-    await expect(outputCell).toHaveClass("bg-accent-light-green");
+    await expect(outputCell).toHaveClass("bg-surface-output");
     await expect(inputCell).toHaveClass(
       "[&_[data-slot=skeleton]]:bg-muted-foreground/20",
     );
     await expect(outputCell).toHaveClass(
-      "[&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+      "[&_[data-slot=skeleton]]:bg-muted-foreground/20",
     );
   },
 });

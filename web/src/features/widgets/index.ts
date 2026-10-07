@@ -7,6 +7,8 @@
 // would close runtime cycles between widgets and those features.
 export { Chart } from "@/src/features/widgets/chart-library/Chart";
 export { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+export { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+export { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 export type {
   DataPoint,
   LegendSummaryMode,

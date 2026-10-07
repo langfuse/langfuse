@@ -35,10 +35,8 @@ import { attachDeprecation } from "@/src/features/public-api/server/deprecations
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import {
-  type AuthorizationContext,
-  type ProjectAction,
-} from "@/src/features/auth/policy/types";
+import { type ProjectAction } from "@langfuse/shared/rbac";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -93,7 +91,7 @@ export type AuthedProjectAPIRouteConfig<
    * Admin API key authentication requires:
    * - Authorization: Bearer <ADMIN_API_KEY>
    * - x-langfuse-admin-api-key: <ADMIN_API_KEY> (must match exactly for redundancy)
-   * - x-langfuse-project-id: <project-id> (target project)
+   * - x-langfuse-project-id or langfuse-project-id: <project-id> (target project)
    *
    * This authentication method is ONLY available when NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set (self-hosted).
    *

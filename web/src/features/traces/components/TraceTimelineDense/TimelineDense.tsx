@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
@@ -161,8 +160,8 @@ const RAIL_SQUARE_MAX = 5;
 const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
 /** Indent per level once the gutter is open, matching the production gutter. */
 const GUTTER_INDENT = 14;
-/** The ItemBadge box at `isSmall`, which is square. */
-const GUTTER_ICON = 16;
+/** Type icon size in the gutter, same as the tree rows. */
+const GUTTER_ICON = 12;
 /** A name needs at least this much to be worth indenting away from. */
 const GUTTER_NAME_MIN = 48;
 /**
@@ -1390,7 +1389,7 @@ export function TimelineDense({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus className="h-3 w-3" />
+          <Minus className="icon-sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1400,11 +1399,11 @@ export function TimelineDense({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="icon-sm" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical className="icon-sm" />
             <span className="pr-0.5" style={{ fontSize: "10px" }}>
               Show labels
             </span>
@@ -1422,7 +1421,7 @@ export function TimelineDense({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan className="h-3 w-3" />
+            <Scan className="icon-sm" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"
@@ -1593,14 +1592,17 @@ export function TimelineDense({
                 onClick={(event) => selectRowOnClick(event, node.id)}
                 onDoubleClick={() => focusRow(node.index)}
               >
-                <GutterContent
-                  node={node}
-                  width={railWidth}
-                  rowHeight={rowHeight}
-                  barHeight={barHeight}
-                  showName={namesVisible}
-                  dimmed={isDimmed}
-                />
+                {/* Bird's-eye density has no rail; avoid invisible DOM per row. */}
+                {railWidth > 0 && (
+                  <GutterContent
+                    node={node}
+                    width={railWidth}
+                    rowHeight={rowHeight}
+                    barHeight={barHeight}
+                    showName={namesVisible}
+                    dimmed={isDimmed}
+                  />
+                )}
 
                 {/* Dimming sits on the lane, so the bar, the caret and the
                     label all fade together — a full-strength duration beside a
@@ -1873,10 +1875,6 @@ function GutterContent({
    */
   dimmed?: boolean;
 }) {
-  // Nothing to show, so nothing to build: at bird's-eye density the rail has no
-  // width, and a box of invisible squares is one DOM node per row of the trace.
-  if (width <= 0) return null;
-
   // RAIL_MAX_DEPTH exists to keep a tiny square inside a 15px rail, and applying
   // it to the OPEN gutter flattened the tree: every node past depth 4 drew at the
   // same indent and the same connector column in a gutter up to 168px wide. The
@@ -1929,18 +1927,18 @@ function GutterContent({
         : null}
       {showName && depth > 0 ? (
         <>
+          {node.isLastSibling ? null : (
+            <div
+              className="bg-border-contrast absolute inset-y-0 w-px"
+              style={{ left: `${parentRailX}px` }}
+            />
+          )}
           <div
-            className={cn(
-              "bg-border-contrast absolute top-0 w-px",
-              node.isLastSibling ? "h-1/2" : "bottom-0",
-            )}
-            style={{ left: `${parentRailX}px` }}
-          />
-          <div
-            className="bg-border-contrast absolute top-1/2 h-px"
+            className="border-border-contrast absolute top-0 rounded-bl-md border-b border-l mask-r-from-40%"
             style={{
               left: `${parentRailX}px`,
-              width: `${Math.max(indent - parentRailX, 0)}px`,
+              height: "calc(50% + 0.5px)",
+              width: `${Math.max(indent - parentRailX - 1, 0)}px`,
             }}
           />
         </>
@@ -1948,10 +1946,10 @@ function GutterContent({
       {/* This row's own spine, descending from below its icon to its children. */}
       {showName && node.hasChildren && !node.isCollapsed ? (
         <div
-          className="bg-border-contrast absolute bottom-0 w-px"
+          className="bg-border-contrast absolute bottom-0 w-px mask-t-from-[calc(100%-var(--spacing)*2)]"
           style={{
             left: `${railX}px`,
-            top: `calc(50% + ${GUTTER_ICON / 2}px)`,
+            top: `calc(50% + ${GUTTER_ICON / 2 + 1}px)`,
           }}
         />
       ) : null}
@@ -1975,7 +1973,7 @@ function GutterContent({
           <span className="shrink-0">
             <ItemTypeIcon
               type={node.type as LangfuseItemType}
-              className="size-4"
+              className="icon-sm"
             />
           </span>
           <span

@@ -14,6 +14,7 @@ import type {
   MappingTarget,
 } from "../types";
 import { isJsonPath } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
 
 type CustomMappingEditorProps = {
   config: CustomMappingConfig;
@@ -150,7 +151,7 @@ export function CustomMappingEditor({
             value={config.type}
             onValueChange={(v) => handleTypeChange(v as MappingTarget)}
           >
-            <Tabs.List layout="full">
+            <Tabs.List variant="inset" size="md" layout="full">
               <Tabs.Trigger value="root" label="Root" />
               <Tabs.Trigger value="keyValueMap" label="Key-value map" />
             </Tabs.List>
@@ -230,7 +231,7 @@ export function CustomMappingEditor({
             onClick={handleAddEntry}
             className="w-full"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-base text-icon-foreground mr-2" />
             Add field
           </Button>
         </div>
@@ -301,11 +302,12 @@ function KeyValueEntryRow({
             }
           >
             <Trash2
-              className={`h-4 w-4 ${
-                !canRemove
-                  ? "text-muted-foreground/30"
-                  : "text-muted-foreground"
-              }`}
+              className={cn(
+                "icon-base",
+                canRemove
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground/30",
+              )}
             />
           </Button>
         </div>

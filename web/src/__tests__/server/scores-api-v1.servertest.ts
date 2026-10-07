@@ -231,6 +231,87 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("POST /api/public/scores", () => {
+    it("should ingest multiple scores posted as a list", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreIds = [v4(), v4()];
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        scoreIds.map((id, index) => ({
+          id,
+          traceId,
+          name: `batch-score-${index}`,
+          value: index + 1,
+        })),
+        auth,
+      );
+
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual({ message: "Accepted" });
+
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, scoreIds);
+        expect(scores).toHaveLength(2);
+        expect(scores).toEqual(
+          expect.arrayContaining(
+            scoreIds.map((id, index) =>
+              expect.objectContaining({
+                id,
+                name: `batch-score-${index}`,
+                value: index + 1,
+              }),
+            ),
+          ),
+        );
+      });
+    });
+
+    it("should summarize accepted and rejected scores in a partially failed batch", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+      const response = await makeAPICall<{
+        accepted: number;
+        rejected: number;
+        errors: { message: string }[];
+      }>(
+        "POST",
+        "/api/public/scores",
+        [
+          { name: "accepted-score", value: 1, traceId: v4() },
+          { id: "bad\r", name: "rejected-score", value: 1, traceId: v4() },
+          { value: 1, traceId: v4() },
+          {
+            name: "wrong-type",
+            dataType: "NUMERIC",
+            value: "great",
+            traceId: v4(),
+          },
+          null,
+        ],
+        auth,
+      );
+
+      expect(response.status).toBe(207);
+      expect(response.body).toEqual({
+        accepted: 1,
+        rejected: 4,
+        errors: expect.arrayContaining([
+          { message: expect.stringContaining("name") },
+          { message: expect.stringContaining("value") },
+          { message: expect.stringContaining("null") },
+          {
+            message: expect.stringContaining(
+              "ID cannot contain carriage return characters",
+            ),
+          },
+        ]),
+      });
+    });
+
     it("should create score for a trace", async () => {
       const traceId = v4();
 

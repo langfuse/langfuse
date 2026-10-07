@@ -392,7 +392,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                View traces <ExternalLink className="icon-base ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -439,7 +439,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <MoreVertical className="icon-sm text-icon-foreground" />
                   </Button>
                 )}
               </DropdownMenu>

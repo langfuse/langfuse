@@ -10,6 +10,7 @@ import {
 import {
   isSeekEligibleFilter,
   scoreOnlyFiltersAreSeekEligible,
+  scoreOnlyFiltersHaveIndexedLookup,
 } from "./score-seek-eligibility";
 
 const projectIdFilter = () =>
@@ -227,6 +228,34 @@ describe("scoreOnlyFiltersAreSeekEligible", () => {
   it("is ineligible for the bare project filter (no user predicate)", () => {
     expect(
       scoreOnlyFiltersAreSeekEligible(new FilterList([projectIdFilter()])),
+    ).toBe(false);
+  });
+});
+
+describe("scoreOnlyFiltersHaveIndexedLookup", () => {
+  it("is true for a skip-index lookup, also next to a name filter", () => {
+    expect(
+      scoreOnlyFiltersHaveIndexedLookup(
+        new FilterList([projectIdFilter(), traceIdEq()]),
+      ),
+    ).toBe(true);
+    expect(
+      scoreOnlyFiltersHaveIndexedLookup(
+        new FilterList([projectIdFilter(), nameEq(), sessionIdEq()]),
+      ),
+    ).toBe(true);
+  });
+
+  it("is false for name-only and non-indexed filters", () => {
+    expect(
+      scoreOnlyFiltersHaveIndexedLookup(
+        new FilterList([projectIdFilter(), nameIn(["accuracy"])]),
+      ),
+    ).toBe(false);
+    expect(
+      scoreOnlyFiltersHaveIndexedLookup(
+        new FilterList([projectIdFilter(), valueRange()]),
+      ),
     ).toBe(false);
   });
 });

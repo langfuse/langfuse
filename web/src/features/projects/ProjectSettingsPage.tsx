@@ -407,6 +407,10 @@ const Integrations = (props: { projectId: string }) => {
     projectId: props.projectId,
     scope: "integrations:CRUD",
   });
+  const showExternalMediaStorage =
+    api.externalMediaStorage.isFeatureEnabled.useQuery({
+      projectId: props.projectId,
+    }).data === true;
 
   const allowBlobStorageIntegration = useHasEntitlement(
     "scheduled-blob-exports",
@@ -494,9 +498,36 @@ const Integrations = (props: { projectId: string }) => {
           </div>
         </Card>
 
+        {showExternalMediaStorage ? (
+          <Card className="p-3">
+            <span className="font-bold">External Media Storage</span>
+            <p className="text-primary mb-4 text-sm">
+              Resolve media referenced by s3:// URIs from your own Amazon S3 or
+              S3-compatible bucket.
+            </p>
+            <div className="flex items-center gap-2">
+              <ActionButton
+                variant="secondary"
+                hasAccess={hasAccess}
+                href={`/project/${props.projectId}/settings/integrations/external-media-storage`}
+              >
+                Configure
+              </ActionButton>
+              <Button asChild variant="ghost">
+                <Link
+                  href="https://langfuse.com/docs/observability/features/multi-modality#external-s3-media"
+                  target="_blank"
+                >
+                  Integration Docs ↗
+                </Link>
+              </Button>
+            </div>
+          </Card>
+        ) : null}
+
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
-            <SiSlack className="text-foreground h-5 w-5" />
+            <SiSlack className="text-foreground icon-lg" />
             <span className="font-bold">Slack</span>
           </div>
           <p className="text-primary mb-4 text-sm">
