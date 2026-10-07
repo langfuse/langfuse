@@ -37,8 +37,13 @@ export default withMiddlewares({
       });
 
       if (Array.isArray(body)) {
+        // Generate IDs for scores with missing or empty IDs.
+        const conformedBodies = body.map((score) => ({
+          ...score,
+          id: score.id || randomUUID(),
+        }));
         const { result } = await scoresApiService.createScores({
-          bodies: body,
+          bodies: conformedBodies,
           auth,
           attribution,
         });
@@ -68,10 +73,10 @@ export default withMiddlewares({
       });
       if (result.errors.length > 0) {
         const error = result.errors[0];
-        res.status(error.status);
-        return {
-          message: error.error ?? error.message ?? "Failed to create score",
-        };
+        res
+          .status(error.status)
+          .json({ message: error.error ?? error.message });
+        return { id: "" }; // dummy return
       }
       if (result.successes.length !== 1) {
         logger.error("Failed to create score", { result });
