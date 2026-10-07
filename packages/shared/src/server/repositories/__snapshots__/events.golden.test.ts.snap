@@ -922,7 +922,7 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
             e.cost_details AS cost_details,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = 'GENERATION') AND (e.prompt_id IN ({param2:Array(String)})) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time <= {param4:DateTime64(6)})
+        WHERE (e.project_id = {param1:String}) AND (e.type = 'GENERATION') AND (e.prompt_id IN ({param2:Array(String)})) AND (e.start_time >= {param3:DateTime64(3)}) AND (e.start_time <= {param4:DateTime64(3)})
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -1026,7 +1026,7 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     uniq(span_id) AS count,
     prompt_name
 FROM events_core
-WHERE (project_id = {param1:String}) AND (prompt_name IN ({param2:Array(String)})) AND (prompt_name != '') AND (is_deleted = 0) AND (start_time >= {param3:DateTime64(6)}) AND (start_time <= {param4:DateTime64(6)})
+WHERE (project_id = {param1:String}) AND (prompt_name IN ({param2:Array(String)})) AND (prompt_name != '') AND (is_deleted = 0) AND (start_time >= {param3:DateTime64(3)}) AND (start_time <= {param4:DateTime64(3)})
 GROUP BY prompt_name",
   },
 ]
@@ -1099,7 +1099,7 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents s
 FROM events_core AS e
 WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (session_id != '')
 GROUP BY session_id
-LIMIT {param3:Int32}",
+LIMIT {param3:Int64}",
   },
 ]
 `;
@@ -1148,7 +1148,7 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents s
 FROM events_core AS e
 WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (start_time >= ({param3:DateTime64(3)} - toIntervalDay(2))) AND (session_id != '')
 GROUP BY session_id
-LIMIT {param4:Int32}",
+LIMIT {param4:Int64}",
   },
 ]
 `;

@@ -113,6 +113,8 @@ const EVENTS_COLUMNS = {
   total_cost: "Float",
   experiment_id: "String",
   prompt_id: "String",
+  prompt_name: "String",
+  ingestion_sdk_name: "String",
   is_deleted: "UInt8",
   metadata_names: "Array(String)",
   metadata_values: "Array(String)",
