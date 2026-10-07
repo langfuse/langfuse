@@ -2,7 +2,9 @@ import { embedLLMText } from "../llm/llmText";
 import { topicEmbeddingConfigSchema } from "../../topics";
 import type { TopicsModel } from "./model-config";
 
-// Bedrock Titan and Nova accept fewer output sizes than Cohere.
+// Bedrock validates these options against fixed sizes per model family; other
+// sizes are omitted, and a vector of the wrong length is rejected afterwards.
+const COHERE_DIMENSIONS = new Set([256, 512, 1024, 1536]);
 const TITAN_DIMENSIONS = new Set([256, 512, 1024]);
 const NOVA_DIMENSIONS = new Set([256, 1024]);
 
@@ -25,8 +27,10 @@ export async function generateTopicEmbedding(params: {
       openai: { dimensions: embeddingDimensions },
       amazonBedrock: {
         inputType: "clustering",
-        outputDimension: embeddingDimensions,
         truncate: "NONE",
+        ...(COHERE_DIMENSIONS.has(embeddingDimensions)
+          ? { outputDimension: embeddingDimensions }
+          : {}),
         embeddingPurpose: "CLUSTERING",
         ...(TITAN_DIMENSIONS.has(embeddingDimensions)
           ? { dimensions: embeddingDimensions }

@@ -105,4 +105,36 @@ describe("generateTopicEmbedding", () => {
     });
     expect(result.embedding).toEqual(vector);
   });
+
+  it("asks OpenAI for any configured size", async () => {
+    const vector = Array.from({ length: 768 }, () => 0.5);
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        data: [{ embedding: vector, index: 0 }],
+        usage: { prompt_tokens: 3 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbedding({
+      model: {
+        slot: "embedding",
+        provider: "openai-topics",
+        adapter: LLMAdapter.OpenAI,
+        model: "text-embedding-3-small",
+        connection: { secretKey: encrypt("sk-test") },
+      },
+      summary: "Account access",
+      dimensions: 768,
+    });
+
+    const request = new Request(...fetch.mock.calls[0]);
+    expect(request.url).toBe("https://api.openai.com/v1/embeddings");
+    expect(await request.json()).toMatchObject({
+      model: "text-embedding-3-small",
+      input: ["Account access"],
+      dimensions: 768,
+    });
+    expect(result.embedding).toHaveLength(768);
+  });
 });

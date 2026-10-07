@@ -313,7 +313,7 @@ export async function embedTopicSummary(
       .success
   )
     throw new TopicsProviderUnavailable(
-      "Topics embeddings require non-empty text and 256, 512, 1024, or 1536 dimensions.",
+      "Topics embeddings require non-empty text and 64 to 4,096 dimensions.",
       "invalid_input",
     );
   const result = await generateTopicEmbedding({

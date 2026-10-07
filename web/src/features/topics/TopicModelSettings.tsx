@@ -12,6 +12,7 @@ import {
   TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_MODEL_SLOTS,
   TOPICS_SUPPORTED_ADAPTERS,
+  topicsModelSettingsSchema,
   type TopicsModelSettings,
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
@@ -155,12 +156,14 @@ function TopicModelSettingsForm({
     slot.llmApiKeyId && slot.model.trim()
       ? { llmApiKeyId: slot.llmApiKeyId, model: slot.model.trim() }
       : null;
+  const parsedDimensions =
+    topicsModelSettingsSchema.shape.embeddingDimensions.safeParse(
+      Number(dimensions),
+    );
   const settings: TopicsModelSettings = {
     summary: slotValue(slots.summary),
     embedding: slotValue(slots.embedding),
-    embeddingDimensions: Number(
-      dimensions,
-    ) as TopicsModelSettings["embeddingDimensions"],
+    embeddingDimensions: parsedDimensions.data ?? 0,
     naming: slotValue(slots.naming),
     enabled,
   };
@@ -179,7 +182,7 @@ function TopicModelSettingsForm({
       className="ph-no-capture flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault();
-        save.mutate({ projectId, ...settings });
+        if (parsedDimensions.success) save.mutate({ projectId, ...settings });
       }}
     >
       <p className="text-muted-foreground text-sm">
@@ -226,20 +229,32 @@ function TopicModelSettingsForm({
             </div>
             {name === "embedding" && (
               <div className="w-28">
-                <SelectInput
+                <Input
                   aria-label="Embedding dimensions"
-                  placeholder="Dimensions"
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="1024"
                   value={dimensions}
+                  error={!parsedDimensions.success}
                   disabled={!canWrite}
-                  onValueChange={setDimensions}
-                  options={[256, 512, 1024, 1536].map((value) => ({
-                    value: String(value),
-                    label: String(value),
-                  }))}
+                  onChange={(event) => setDimensions(event.target.value)}
                 />
               </div>
             )}
           </div>
+          {name === "embedding" && (
+            <p
+              className={
+                parsedDimensions.success
+                  ? "text-muted-foreground text-xs"
+                  : "text-destructive text-xs"
+              }
+            >
+              {parsedDimensions.success
+                ? "Dimensions must be a size this model returns, for example 1536 for text-embedding-3-small or 1024 for Cohere Embed v4."
+                : parsedDimensions.error.issues[0]?.message}
+            </p>
+          )}
         </fieldset>
       ))}
       <SwitchInput

@@ -19,9 +19,9 @@ export const topicEmbeddingConfigSchema = z.object({
   embeddingModel: z.string().trim().min(1).optional(),
   embeddingDimensions: z
     .number()
-    .refine((value) => [256, 512, 1024, 1536].includes(value), {
-      message: "Choose 256, 512, 1024, or 1536 embedding dimensions.",
-    })
+    .int("Embedding dimensions must be a whole number.")
+    .min(64, "Use at least 64 embedding dimensions.")
+    .max(4096, "Use at most 4,096 embedding dimensions.")
     .default(1024),
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;

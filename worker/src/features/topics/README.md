@@ -106,7 +106,8 @@ On Bedrock, Cohere Embed v4 uses `eu.cohere.embed-v4:0` for EU routing or
 residency matters. Every provider is asked for clustering vectors of the
 configured size (Cohere `clustering` input type with truncation disabled, Google
 `CLUSTERING` task type, OpenAI `dimensions`). Default: 1,024
-dimensions; supported choices: 256, 512, 1,024, 1,536. Calls embed one summary at a
+dimensions; any whole number from 64 to 4,096 is accepted, and a provider that
+returns a vector of another length fails the call. Calls embed one summary at a
 time, retaining per-summary Redis checkpointing.
 Embedding settings are independent of immutable facet versions; changing them
 with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does
