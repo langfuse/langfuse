@@ -622,9 +622,9 @@ export function DataTable<TData extends object, TValue>({
                                 header.getResizeHandler(),
                               )}
                               className={cn(
-                                "border-border absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none border-r opacity-0 select-none group-hover:opacity-100",
+                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
-                                  "border-primary-accent opacity-100",
+                                  "bg-primary-accent opacity-100",
                               )}
                             />
                           </div>
