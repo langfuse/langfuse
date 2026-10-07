@@ -39,7 +39,8 @@ type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
 // Retain descriptor metadata and completed upload results for the batch's lifetime.
 // Decoded bodies and restored source strings stay local to each processing call.
-// Upload-only consumers do not need to materialize the descriptor registry in JS.
+// Upload-only consumers do not need to materialize the descriptor registry in JS;
+// media bodies remain native-owned and are read lazily when needed.
 const mediaRegistries = new WeakMap<EarlyOtelBatch, MediaRegistry>();
 const mediaUploadCache = new WeakMap<
   EarlyOtelBatch,
@@ -47,9 +48,9 @@ const mediaUploadCache = new WeakMap<
 >();
 
 function jsonStringEscapeLayers(value: string, referenceIndex: number): number {
-  // Native provider references replace an entire JSON string value. Each outer
-  // JSON stringification turns the opening quote's escape run into 0, 1, 3, 7,
-  // ... backslashes, so restore the provider value through every layer.
+  // A provider reference replaces an entire JSON string value. Each outer JSON
+  // stringification turns the opening quote's escape run into 0, 1, 3, 7, ...
+  // backslashes, so restore the provider value through every layer.
   if (value[referenceIndex - 1] !== '"') return 1;
 
   let escapedQuoteBackslashes = 0;
@@ -180,7 +181,7 @@ export async function uploadExtractedMediaOnce(params: {
   }
 }
 
-/** Restore inline values in fields that do not pass through media extraction. */
+/** Restore extracted references in fields that do not pass through media resolution. */
 export async function restoreInlineMedia(
   batch: EarlyOtelBatch,
   records: Record<string, unknown>[],
@@ -236,8 +237,8 @@ export async function restoreOtelTagAttributes(
   }
 }
 
-// Each processing call owns its restoration cache so large source strings are
-// released when that call completes, even if another path still owns the batch.
+// Restoration keeps decoded source strings scoped to one processing call; the
+// batch and its upload cache may still be shared by another write path.
 function createMediaRestorer(batch: EarlyOtelBatch, media: MediaRegistry) {
   const originals = new Map<string, Promise<string>>();
   function originalFor(entry: ExtractedOtelMedia): Promise<string> {
@@ -282,15 +283,15 @@ function createMediaRestorer(batch: EarlyOtelBatch, media: MediaRegistry) {
 
   async function restore(value: unknown): Promise<unknown> {
     if (typeof value === "string") {
-      // Existing public references are opaque. Parsing an unrelated string could
-      // change whitespace, escapes or large numeric literals without replacing media.
+      // Do not parse unrelated strings: JSON round-tripping would normalize
+      // their representation even when no extracted reference is replaced.
       if (!hasKnownMediaReference(value)) return value;
       if (/^\s*[[{]/.test(value)) {
         let parsed: unknown;
         try {
           parsed = JSON.parse(value);
         } catch {
-          // Plain text containing references need not itself be JSON.
+          // A reference-containing string may still be plain text.
         }
         if (parsed !== undefined) return JSON.stringify(await restore(parsed));
       }
@@ -310,14 +311,13 @@ function createMediaRestorer(batch: EarlyOtelBatch, media: MediaRegistry) {
     originalFor,
     hasKnownMediaReference,
     restore,
-    // Preserve surrounding JSON text when all uploads fail; escape only the
-    // original media spelling inserted back inside its JSON string quotes.
+    // On upload failure, restore known references in the original JSON text.
     restoreStringifiedReferences: (value: string) =>
       restoreReferences(value, true),
   };
 }
 
-/** Resolve references that survived normalization, retaining the registry for both write paths. */
+/** Resolve native references that survived normalization for legacy and direct writes. */
 export async function resolveExtractedMedia(params: {
   batch: EarlyOtelBatch;
   targets: OtelMediaTarget[];
@@ -382,10 +382,9 @@ export async function resolveExtractedMedia(params: {
   return stats;
 
   /**
-   * Resolve extracted references in one recursive walk. Generic values upload
-   * data-URI entries and restore other entries; recognized provider media
-   * fields upload every extracted entry. Non-media provider fields are
-   * restored so their original inline values remain available to ingestion.
+   * Apply legacy provider eligibility to native references. Generic data URIs
+   * are uploaded; other references are restored inline unless the legacy
+   * provider rules accept them.
    */
   type ResolutionMode = "generic" | "provider" | "all" | "restore";
 
@@ -464,9 +463,8 @@ export async function resolveExtractedMedia(params: {
         }
         next = await restoreAll(current);
       } else {
-        // A recognized provider object is a leaf for the legacy detector. Its
-        // non-media fields must not retain references discovered by the broad
-        // early scanner.
+        // Provider objects are leaves for the legacy detector; restore
+        // references in fields it does not upload.
         next = await resolveMediaValue(
           current,
           target,
@@ -490,8 +488,8 @@ export async function resolveExtractedMedia(params: {
   ): Promise<string> {
     const trimmed = value.trimStart();
     const startsWithJson = trimmed.startsWith("{") || trimmed.startsWith("[");
-    // Root provider-shaped strings are decoded here so their media fields can
-    // be resolved in the same traversal as object values.
+    // Decode a root provider-shaped string so its media fields follow the same
+    // rules as object values.
     if (
       rootString &&
       startsWithJson &&
@@ -514,13 +512,12 @@ export async function resolveExtractedMedia(params: {
           return JSON.stringify(resolved);
         }
       } catch {
-        // Plain text containing references need not itself be JSON.
+        // A reference-containing string may still be plain text.
       }
     }
 
-    // A generic stringified JSON value restores non-data references before it
-    // is decoded, so only data-URI references enter the decoded traversal.
-    // Plain strings can resolve each extracted reference in one scan.
+    // Restore provider references before decoding generic JSON so only data-URI
+    // references enter the broad traversal.
     if (!startsWithJson || !hasKnownMediaReference(value)) {
       return resolveDirectReferences(value, target, field, mode);
     }
@@ -549,7 +546,7 @@ export async function resolveExtractedMedia(params: {
           return JSON.stringify(resolved);
         }
       } catch {
-        // Text containing references need not itself be JSON.
+        // A reference-containing string may still be plain text.
       }
     }
 
@@ -669,7 +666,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Preserve media outcome metrics when detection/decoding is performed by Rust. */
+/** Record outcomes for media discovered by the native extractor. */
 function recordExtractedMediaUpload(
   outcome: "uploaded" | "reused" | "failed",
   kind: string,

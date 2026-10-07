@@ -57,7 +57,8 @@ export async function processOtelEvents({
   // (userId, sessionId, tags, release) that processToEvent provides.
   const eventInputs = processor.processToEvent(resourceSpans);
   if (earlyBatch) {
-    // Evaluation-only traffic does not run direct-path media extraction.
+    // Evaluation-only records skip direct media resolution, so restore their
+    // extracted references before evaluation scheduling reads their payloads.
     await restoreInlineMedia(earlyBatch, eventInputs, {
       includePayloads: !shouldWriteToEventsTable,
     });

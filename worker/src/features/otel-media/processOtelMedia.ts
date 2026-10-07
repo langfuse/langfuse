@@ -20,21 +20,10 @@ import { MediaAssociationOrigin } from "@langfuse/shared";
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
- * Worker integration point for media in normalized OTEL payloads selected for
- * persistence by the ingestion queue.
- *
- * Responsibilities are split across three layers:
- * - This adapter filters event shapes and owns storage configuration,
- *   instrumentation, and fail-open behavior.
- * - `processOtelMedia` iterates input/output/metadata, supplies OTEL upload
- *   context, and aggregates processing results.
- * - `transformMediaPayload`, called by `processOtelMedia`, contains the generic
- *   Data URI/provider-shape detection and replacement algorithm. It has no
- *   knowledge of OTEL, storage, projects, or tracing.
- *
- * Successful replacements mutate each target payload in place. Missing storage
- * configuration or unexpected processing errors are logged and swallowed so
- * media extraction cannot reject the enclosing OTEL ingestion job.
+ * Process media in normalized OTEL payloads selected by the ingestion queue.
+ * This adapter owns OTEL/storage context, instrumentation, and fail-open
+ * behavior; the shared processor handles legacy detection and the native
+ * resolver handles references discovered before normalization.
  */
 export async function processOtelEventMedia(params: {
   earlyBatch?: EarlyOtelBatch;
