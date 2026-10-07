@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   write: vi.fn(),
   summarize: vi.fn(),
   embed: vi.fn(),
+  setAttribute: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -26,10 +27,16 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v2",
 }));
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+vi.mock("@langfuse/shared/src/server", () => ({
   recordDistribution: vi.fn(),
   recordIncrement: vi.fn(),
+  instrumentAsync: async (
+    _options: unknown,
+    action: (span: {
+      setAttributes: () => void;
+      setAttribute: typeof state.setAttribute;
+    }) => Promise<unknown>,
+  ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
 }));
 vi.mock("./models", () => ({
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
@@ -98,6 +105,7 @@ beforeEach(() => {
   state.write.mockReset();
   state.summarize.mockReset();
   state.embed.mockReset();
+  state.setAttribute.mockClear();
   state.facets.mockResolvedValue([facet]);
   state.stored.mockResolvedValue([]);
   state.write.mockResolvedValue(undefined);
@@ -209,7 +217,8 @@ describe("summarizeAssembledTrace", () => {
   });
 
   it("propagates a provider failure for the trace outcome", async () => {
-    state.summarize.mockRejectedValue(new Error("provider unavailable"));
+    const error = new Error("provider unavailable");
+    state.summarize.mockRejectedValue(error);
     await expect(
       summarizeAssembledTrace({
         projectId: "project-a",
@@ -219,7 +228,11 @@ describe("summarizeAssembledTrace", () => {
         traceName: "agent-turn",
         transcript,
       }),
-    ).rejects.toThrow("provider unavailable");
+    ).rejects.toBe(error);
+    expect(state.setAttribute).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcome",
+      "failed",
+    );
     expect(state.write).not.toHaveBeenCalled();
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.topics.stage_duration_ms",
@@ -234,5 +247,44 @@ describe("summarizeAssembledTrace", () => {
     ).toEqual([
       ["langfuse.topics.errors", 1, { stage: "summary", reason: "unknown" }],
     ]);
+  });
+
+  it("attributes invalid summary output to the failed summary stage", async () => {
+    state.summarize.mockResolvedValue({
+      output: { summary: "  ", status: "applicable" },
+      ...usage,
+    });
+    await expect(
+      summarizeAssembledTrace({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+      }),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(state.write).not.toHaveBeenCalled();
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "summary", outcome: "failed", unit: "milliseconds" },
+    );
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
+    ).toEqual([
+      [
+        "langfuse.topics.errors",
+        1,
+        { stage: "summary", reason: "invalid_output" },
+      ],
+    ]);
+    expect(state.setAttribute).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcome",
+      "failed",
+    );
   });
 });

@@ -88,8 +88,6 @@ function recordTopicsOutcomes(outcomes: TraceOutcome[]): void {
 }
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
-// Matches the default batch byte budget, so a budgeted batch never waits.
-const MAX_PENDING_SUMMARY_BYTES = 64 * 1024 * 1024;
 let activeReads = 0;
 
 export function recordTraceBatchActiveReads(): void {
@@ -159,6 +157,7 @@ export const traceBatchQueueProcessor: Processor<
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
       maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
+      requestTimeoutMs: env.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS,
       experimentId: env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
       queryId: randomUUID(),
     };
@@ -211,14 +210,14 @@ export const traceBatchQueueProcessor: Processor<
     // transcript or Topics work unless queued payloads exceed the cap.
     // Traces are still summarized one at a time per batch to keep at most
     // one pending request in the tokenizer pool shared with ingestion.
-    let pendingSummaries = Promise.resolve();
+    const pendingSummaries: Promise<void>[] = [];
     let pendingSummaryBytes = 0;
     let summaryFailed = false;
     let summaryError: unknown;
     const enqueueSummary = (observations: Observation[], bytes: number) => {
       pendingSummaryBytes += bytes;
       const enqueuedAt = performance.now();
-      pendingSummaries = pendingSummaries
+      const summary = (pendingSummaries.at(-1) ?? Promise.resolve())
         .then(async () => {
           // Let socket reads run between traces' synchronous assembly.
           await new Promise((resolve) => setImmediate(resolve));
@@ -235,7 +234,9 @@ export const traceBatchQueueProcessor: Processor<
         })
         .finally(() => {
           pendingSummaryBytes -= bytes;
+          pendingSummaries.shift();
         });
+      pendingSummaries.push(summary);
     };
     activeReads++;
     try {
@@ -267,10 +268,19 @@ export const traceBatchQueueProcessor: Processor<
           enqueueSummary(traceObservations, traceBytes);
           traceObservations = [];
           traceBytes = 0;
-          if (pendingSummaryBytes > MAX_PENDING_SUMMARY_BYTES) {
+          if (
+            pendingSummaryBytes >
+            env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES
+          ) {
             recordIncrement("langfuse.trace_batch.summary_backpressure", 1);
-            await pendingSummaries;
+            // Resume as soon as completed work brings the queue below the cap.
+            while (
+              pendingSummaryBytes >
+              env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES
+            )
+              await pendingSummaries[0];
           }
+          if (summaryFailed) break;
         }
         traceBytes += eventBytes;
         traceObservations.push(
@@ -304,7 +314,7 @@ export const traceBatchQueueProcessor: Processor<
     } finally {
       try {
         // Drain accepted summaries even when the stream fails.
-        await pendingSummaries;
+        await pendingSummaries.at(-1);
       } finally {
         activeReads--;
         recordTraceBatchActiveReads();

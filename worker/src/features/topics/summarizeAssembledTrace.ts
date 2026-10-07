@@ -48,11 +48,16 @@ export async function summarizeAssembledTrace(
         "langfuse.trace.id": input.traceId,
       });
       const metrics = new TopicMetrics();
-      const outcome = await metrics.measure("trace", () =>
-        summarizeEnabledTrace(input, metrics),
-      );
-      span.setAttribute("langfuse.topics.trace_outcome", outcome);
-      return outcome;
+      try {
+        const outcome = await metrics.measure("trace", () =>
+          summarizeEnabledTrace(input, metrics),
+        );
+        span.setAttribute("langfuse.topics.trace_outcome", outcome);
+        return outcome;
+      } catch (error) {
+        span.setAttribute("langfuse.topics.trace_outcome", "failed");
+        throw error;
+      }
     },
   );
 }
@@ -158,13 +163,18 @@ async function summarizeFacet(input: {
     metadata: { input: "assembled-transcript" },
   };
   if (!input.hasContent) return base;
-  const result = await input.metrics.measure("summary", () =>
-    summarizeTopicTrace(input.facet, input.text, input.config),
-  );
+  const result = await input.metrics.measure("summary", async () => {
+    const result = await summarizeTopicTrace(
+      input.facet,
+      input.text,
+      input.config,
+    );
+    const error = topicSummaryOutputError(result.output);
+    if (error) throw new TopicsProviderUnavailable(error, "invalid_output");
+    return result;
+  });
   const applicable = result.output.status === "applicable";
   const summary = result.output.summary.trim();
-  const error = topicSummaryOutputError(result.output);
-  if (error) throw new TopicsProviderUnavailable(error, "invalid_output");
   if (!applicable) {
     return {
       ...base,

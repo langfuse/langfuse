@@ -570,6 +570,96 @@ describe("trace batch queue", () => {
       }
     },
   );
+  it("resumes streaming below the payload cap while a later Topics summary is pending", async () => {
+    const originalCap = env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES;
+    env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = 1_000;
+    const payload = "x".repeat(600);
+    let reachedEnd = false;
+    let resolveFirst!: () => void;
+    let resolveSecond!: () => void;
+    const first = new Promise<void>((resolve) => (resolveFirst = resolve));
+    const second = new Promise<void>((resolve) => (resolveSecond = resolve));
+    vi.mocked(summarizeAssembledTrace)
+      .mockImplementationOnce(async () => {
+        await first;
+        return "summarized";
+      })
+      .mockImplementationOnce(async () => {
+        await second;
+        return "summarized";
+      });
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const traceId of ["a", "b", "c"]) {
+        yield {
+          project_id: "project",
+          trace_id: traceId,
+          environment: "default",
+          span_id: traceId,
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: "hello" }]),
+          output: "",
+          metadata: traceId === "c" ? {} : { payload },
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+      }
+      reachedEnd = true;
+    });
+    const job = {
+      data: {
+        id: "summary-backpressure",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["a", "b", "c"].map((traceId) => ({
+            projectId: "project",
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    let settled = false;
+    const processing = Promise.resolve(
+      traceBatchQueueProcessor(job, undefined),
+    );
+    void processing.then(() => (settled = true));
+    try {
+      await vi.waitFor(() =>
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.trace_batch.summary_backpressure",
+          1,
+        ),
+      );
+      expect(reachedEnd).toBe(false);
+      await vi.waitFor(() =>
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1),
+      );
+      resolveFirst();
+      await vi.waitFor(() => expect(reachedEnd).toBe(true));
+      await vi.waitFor(() =>
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(2),
+      );
+      expect(settled).toBe(false);
+      resolveSecond();
+      await expect(processing).resolves.toEqual(
+        expect.objectContaining({ traceCount: 3 }),
+      );
+    } finally {
+      resolveFirst();
+      resolveSecond();
+      await processing;
+      env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = originalCap;
+      vi.mocked(summarizeAssembledTrace).mockResolvedValue("disabled");
+    }
+  });
   it("finishes the batch past a failed trace, reports outcomes and does not re-enqueue the failure", async () => {
     const traces = ["a", "b", "c"];
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
@@ -828,6 +918,7 @@ describe("trace batch queue", () => {
     Object.assign(env, {
       LANGFUSE_TRACE_BATCH_MAX_THREADS: 1,
       LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: 512,
+      LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: 45_000,
       LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: "arm-b",
       BUILD_ID: "test-build",
     });
@@ -899,6 +990,7 @@ describe("trace batch queue", () => {
       expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload, {
         maxThreads: 1,
         maxBlockSize: 512,
+        requestTimeoutMs: 45_000,
         experimentId: "arm-b",
         queryId: expect.any(String),
       });
@@ -972,6 +1064,8 @@ describe("trace batch queue", () => {
         originalEnv.LANGFUSE_TRACE_BATCH_MAX_THREADS;
       env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE =
         originalEnv.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE;
+      env.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS =
+        originalEnv.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS;
       env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID =
         originalEnv.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
       env.BUILD_ID = originalEnv.BUILD_ID;
