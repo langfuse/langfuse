@@ -12,6 +12,7 @@ use crate::native_task::{NativeResult, OwnedTask};
 use crate::otel_media::{self, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
 
 const TIMED_MEDIA_OPERATIONS: [&str; 2] = ["validate", "extract"];
+const MAX_MEDIA_PAGE: usize = 4_096;
 
 pub struct OtelMediaTask<T> {
     operation: &'static str,
@@ -183,6 +184,18 @@ fn to_js_error(env: Env, error: Error<&'static str>) -> Error {
     Error::from(JsError::from(error).into_unknown(env))
 }
 
+fn media_descriptor(index: usize, media: &ExtractedMedia) -> ExtractedOtelMedia {
+    ExtractedOtelMedia {
+        index: index as u32,
+        reference: media.reference(),
+        content_type: media.metadata.content_type.clone(),
+        sha256_hash: media.metadata.sha256_hash.clone(),
+        kind: media.kind.as_str().to_owned(),
+        original_byte_length: media.original_byte_length() as f64,
+        original_json_depth: media.original_json_depth(),
+    }
+}
+
 #[napi(object)]
 pub struct ExtractedOtelMedia {
     pub index: u32,
@@ -191,6 +204,7 @@ pub struct ExtractedOtelMedia {
     pub sha256_hash: String,
     pub kind: String,
     pub original_byte_length: f64,
+    pub original_json_depth: u8,
 }
 
 #[napi]
@@ -235,6 +249,20 @@ impl EarlyOtelBatch {
         result
     }
 
+    /// Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
+    /// The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
+    /// here because Node now owns the allocation through that finalizer. Media metadata and
+    /// source ranges remain owned by this batch for later reads.
+    #[napi(js_name = "takeJsonBuffer", ts_return_type = "Buffer")]
+    pub fn take_json_buffer(&self, env: Env) -> Result<Buffer> {
+        let data = self.data().map_err(|error| to_js_error(env, error))?;
+        let json = data.take_json().map_err(|error| to_js_error(env, error))?;
+        let retained = json.capacity();
+        let result = Buffer::from(json.into_bytes());
+        data._memory.release(retained);
+        Ok(result)
+    }
+
     #[napi(getter)]
     pub fn media(&self, env: Env) -> Result<Vec<ExtractedOtelMedia>> {
         Ok(self
@@ -243,14 +271,45 @@ impl EarlyOtelBatch {
             .media
             .iter()
             .enumerate()
-            .map(|(index, media)| ExtractedOtelMedia {
-                index: index as u32,
-                reference: media.reference(),
-                content_type: media.metadata.content_type.clone(),
-                sha256_hash: media.metadata.sha256_hash.clone(),
-                kind: media.kind.as_str().to_owned(),
-                original_byte_length: media.original_byte_length() as f64,
-            })
+            .map(|(index, media)| media_descriptor(index, media))
+            .collect())
+    }
+
+    /// Return the number of extracted media descriptors without materializing them in JavaScript.
+    #[napi]
+    pub fn media_count(&self, env: Env) -> Result<u32> {
+        let count = self
+            .data()
+            .map_err(|error| to_js_error(env, error))?
+            .media
+            .len();
+        u32::try_from(count)
+            .map_err(|_| Error::from_reason("media descriptor count exceeds UInt32"))
+    }
+
+    /// Materialize a bounded page of descriptors for callers processing very large batches.
+    #[napi]
+    pub fn media_page(&self, env: Env, offset: u32, limit: u32) -> Result<Vec<ExtractedOtelMedia>> {
+        let data = self.data().map_err(|error| to_js_error(env, error))?;
+        let offset = offset as usize;
+        let limit = limit as usize;
+        if limit == 0 || limit > MAX_MEDIA_PAGE {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!("media page limit must be between 1 and {MAX_MEDIA_PAGE}"),
+            ));
+        }
+        if offset > data.media.len() {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "media page offset is beyond the descriptor count",
+            ));
+        }
+        let end = offset.saturating_add(limit).min(data.media.len());
+        Ok(data.media[offset..end]
+            .iter()
+            .enumerate()
+            .map(|(index, media)| media_descriptor(offset + index, media))
             .collect())
     }
 
@@ -271,9 +330,14 @@ impl EarlyOtelBatch {
         })
     }
 
-    /// Read the original encoded text for restoring the selected media occurrence.
+    /// Read media text for the selected number of remaining JSON string layers.
+    /// Omitting the count returns the exact spelling after parsing the outer document.
     #[napi(ts_return_type = "Promise<string>")]
-    pub fn original_media(&self, index: u32) -> AsyncTask<OtelMediaTask<String>> {
+    pub fn original_media(
+        &self,
+        index: u32,
+        json_layers: Option<u32>,
+    ) -> AsyncTask<OtelMediaTask<String>> {
         let inner = self.data();
         OtelMediaTask::run("restore", move || {
             let inner = inner.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
@@ -281,7 +345,7 @@ impl EarlyOtelBatch {
                 .media
                 .get(index as usize)
                 .ok_or_else(|| Error::new("ERR_OTEL_MEDIA_INDEX", "unknown media index"))?
-                .original_value()
+                .original_value_for_layers(json_layers)
                 .map_err(|error| Error::new("ERR_OTEL_MEDIA_DECODE", error.to_string()))
         })
     }

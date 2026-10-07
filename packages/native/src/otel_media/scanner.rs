@@ -28,6 +28,9 @@ use super::rules::{
 // After two embedded documents, stop interpreting further strings as structured documents;
 // still extract directly recognizable Data URIs from their text.
 const MAX_EMBEDDED_JSON_DEPTH: usize = 2;
+// Bound structural discovery inside embedded JSON. Below this depth, scan for Data URIs
+// without deriving provider shapes or allocating one frame per nesting level.
+const MAX_STRUCTURAL_DEPTH: usize = 256;
 
 #[derive(Default)]
 struct ScanState {
@@ -132,7 +135,10 @@ fn discover_inner(
         }
         match candidate.kind {
             PendingKind::String(token_range) => {
-                discovery.discover_string_token(token_range)?;
+                discovery.discover_string_token(token_range, true)?;
+            }
+            PendingKind::Text(token_range) => {
+                discovery.discover_string_token(token_range, false)?;
             }
             PendingKind::Structured {
                 token_range,
@@ -283,6 +289,7 @@ struct PendingCandidate {
 #[derive(Clone)]
 enum PendingKind {
     String(Range<usize>),
+    Text(Range<usize>),
     Structured {
         token_range: Range<usize>,
         content_type: String,
@@ -434,6 +441,17 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
             if let Some((start, modes, is_envelope_decider, is_root_array)) = next_value.take() {
                 match input.get(start).copied() {
                     Some(b'{') | Some(b'[') => {
+                        // Keep the outer OTLP walk fully structural so duplicate-key and
+                        // provider-field semantics remain unchanged. Embedded documents have
+                        // no envelope semantics and can use the bounded lexical walk instead.
+                        if !self.allow_envelope && stack.len() >= MAX_STRUCTURAL_DEPTH {
+                            let end = self.scan_deep_container(start, modes)?;
+                            completed = Some(ValueSummary {
+                                end,
+                                shape: ValueShape::Other(start..end),
+                            });
+                            continue;
+                        }
                         let frame = WalkFrame::new(
                             input,
                             start,
@@ -554,6 +572,81 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                 }
             }
         }
+    }
+
+    /// Scan a deeply nested container without retaining one frame per child.
+    /// This intentionally records only ordinary string candidates. Provider
+    /// object semantics require structural context and are left inline here.
+    fn scan_deep_container(
+        &mut self,
+        start: usize,
+        modes: [MediaScanMode; 2],
+    ) -> Result<usize, EarlyMediaError> {
+        let input = self.input;
+        let mut cursor = start;
+        let mut depth = 0usize;
+        let mask = payload_mask(modes);
+        while cursor < input.len() {
+            match input[cursor] {
+                b'{' | b'[' => {
+                    depth += 1;
+                    cursor += 1;
+                    self.stats.add_bytes(1);
+                }
+                b'}' | b']' => {
+                    if depth == 0 {
+                        return Err(EarlyMediaError::InvalidJson {
+                            offset: cursor,
+                            message: "unexpected container close",
+                        });
+                    }
+                    depth -= 1;
+                    cursor += 1;
+                    self.stats.add_bytes(1);
+                    if depth == 0 {
+                        return Ok(cursor);
+                    }
+                }
+                b'"' => {
+                    let end = string_end(input, cursor);
+                    if end > input.len() {
+                        return Err(EarlyMediaError::InvalidJson {
+                            offset: cursor,
+                            message: "unterminated string",
+                        });
+                    }
+                    self.stats.add_bytes(end - cursor);
+                    let raw = input
+                        .get(cursor + 1..end.saturating_sub(1))
+                        .unwrap_or_default();
+                    self.stats.add_bytes(raw.len());
+                    // The normal walk only considers values. A lexical scan
+                    // must skip object keys explicitly to preserve that rule.
+                    let after = skip_whitespace(input, end);
+                    if input.get(after) == Some(&b':') {
+                        cursor = end;
+                        continue;
+                    }
+                    if mask != 0 && std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate)
+                    {
+                        self.candidates.push(PendingCandidate {
+                            mask,
+                            kind: PendingKind::Text(cursor..end),
+                        });
+                        self.update_peak_from_capacities(0);
+                    }
+                    cursor = end;
+                }
+                _ => {
+                    cursor += 1;
+                    self.stats.add_bytes(1);
+                }
+            }
+        }
+        Err(EarlyMediaError::InvalidJson {
+            offset: start,
+            message: "unterminated container",
+        })
     }
 
     fn close_frame(
@@ -956,7 +1049,11 @@ struct MediaDiscovery<'a, 'state, 'stats> {
 }
 
 impl MediaDiscovery<'_, '_, '_> {
-    fn discover_string_token(&mut self, token_range: Range<usize>) -> Result<(), EarlyMediaError> {
+    fn discover_string_token(
+        &mut self,
+        token_range: Range<usize>,
+        allow_embedded_json: bool,
+    ) -> Result<(), EarlyMediaError> {
         let input = self.input;
         let mut decoder = Jiter::new(&input[token_range.clone()]);
         let Ok(value) = decoder.next_str() else {
@@ -966,19 +1063,21 @@ impl MediaDiscovery<'_, '_, '_> {
         };
         // Do not clone the decoded token. Candidate storage copies only the
         // representation it needs, while source-backed candidates keep ranges.
-        self.discover_string(value, token_range)
+        self.discover_string(value, token_range, allow_embedded_json)
     }
 
     fn discover_string(
         &mut self,
         value: &str,
         token_range: Range<usize>,
+        allow_embedded_json: bool,
     ) -> Result<(), EarlyMediaError> {
         if is_media_reference(value) {
             return Ok(());
         }
 
-        if may_be_serialized_json(value)
+        if allow_embedded_json
+            && may_be_serialized_json(value)
             && self.embedded_depth < MAX_EMBEDDED_JSON_DEPTH
             && (value.contains(DATA_URI_PREFIX)
                 || value.contains("\\u")
@@ -1025,24 +1124,35 @@ impl MediaDiscovery<'_, '_, '_> {
         content_type: &str,
         kind: MediaPayloadKind,
     ) -> Result<(), EarlyMediaError> {
-        if !is_supported_content_type(content_type) {
-            return Ok(());
-        }
         let input = self.input;
         let mut decoder = Jiter::new(&input[token_range.clone()]);
         let Ok(content) = decoder.next_str() else {
             return Ok(());
         };
-        let (encoding, valid) = if content.starts_with(DATA_URI_PREFIX) {
-            (
+        if content.starts_with(DATA_URI_PREFIX) {
+            let Some(candidate) = parse_data_uri(content, 0) else {
+                return Ok(());
+            };
+            let Some(uri_content_type) = candidate
+                .valid
+                .filter(|_| candidate.start == 0 && candidate.end == content.len())
+            else {
+                return Ok(());
+            };
+            let raw_range = self.map_string_boundaries(&token_range, &[0, content.len()])?;
+            return self.register_candidate(
+                content.as_bytes(),
+                uri_content_type,
+                MediaPayloadKind::DataUri,
+                MediaSource::Base64DataUri,
                 MediaEncoding::Base64DataUri,
-                parse_data_uri(content, 0).and_then(|candidate| {
-                    (candidate.start == 0 && candidate.end == content.len())
-                        .then_some(())
-                        .and_then(|_| candidate.valid.map(|_| ()))
-                }),
-            )
-        } else if is_python_bytes_literal(content) {
+                raw_range[0]..raw_range[1],
+            );
+        }
+        if !is_supported_content_type(content_type) {
+            return Ok(());
+        }
+        let (encoding, valid) = if is_python_bytes_literal(content) {
             (MediaEncoding::PythonBytesLiteral, Some(()))
         } else {
             (
@@ -1144,6 +1254,7 @@ impl MediaDiscovery<'_, '_, '_> {
         };
         self.entries.push(MediaManifestEntry {
             metadata,
+            original_json_depth: self.embedded_depth as u8,
             kind,
             encoding,
             edit_range: source_range,

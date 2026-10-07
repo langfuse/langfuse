@@ -124,6 +124,34 @@ fn validates_and_extracts_beyond_the_former_parser_depth_limit() {
 }
 
 #[test]
+fn deep_structural_scan_keeps_provider_objects_inline_but_finds_uri_text() {
+    let uri = data_uri(b"deep-uri");
+    let mut embedded = format!(
+        r#"{{"provider":{{"type":"base64","media_type":"image/png","data":"aGk="}},"uri":"{uri}"}}"#
+    );
+    for _ in 0..300 {
+        embedded = format!(r#"{{"nested":{embedded}}}"#);
+    }
+    let input = format!(
+        r#"{{"text":{}}}"#,
+        serde_json::to_string(&embedded).unwrap()
+    );
+    let (_, _, index_bytes, _, _) = validate_measured(input.as_bytes().to_vec()).unwrap();
+    assert!(
+        index_bytes <= 256 * 1024,
+        "embedded walk retained {index_bytes} bytes"
+    );
+
+    let result = extract_media(input.as_bytes()).expect("deep JSON remains valid");
+    assert_eq!(result.media.len(), 1);
+    assert_eq!(result.media[0].decode().unwrap(), b"deep-uri");
+    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    let compact_embedded = compact["text"].as_str().unwrap();
+    assert!(compact_embedded.contains(r#""type":"base64""#));
+    assert!(compact_embedded.contains(r#""data":"aGk=""#));
+}
+
+#[test]
 fn preserves_json_escaping_and_scans_nested_stringified_json() {
     let nested = format!(
         r#"{{"type":"base64","media_type":"image/png","data":"{}"}}"#,
@@ -214,6 +242,106 @@ fn recognizes_provider_shapes_and_python_bytes() {
     assert_eq!(result.media[0].kind, MediaPayloadKind::Vertex);
     assert_eq!(result.media[1].kind, MediaPayloadKind::AiSdkV6);
     assert_eq!(result.media[1].decode().unwrap(), b"abcd");
+}
+
+#[test]
+fn data_uri_provider_fields_use_the_uri_metadata() {
+    for input in [
+        r#"{"type":"file","mediaType":"image/jpeg","data":"data:image/png;base64,aGk="}"#,
+        r#"{"type":"base64","media_type":"image/jpeg","data":"data:image/png;base64,aGk="}"#,
+    ] {
+        let result = extract_media(input.as_bytes()).expect("valid provider Data URI");
+
+        assert_eq!(result.media.len(), 1);
+        let media = &result.media[0];
+        assert_eq!(media.kind, MediaPayloadKind::DataUri);
+        assert_eq!(media.metadata.content_type, "image/png");
+        assert_eq!(media.metadata.source, MediaSource::Base64DataUri);
+        assert_eq!(media.decode().unwrap(), b"hi");
+    }
+}
+
+#[test]
+fn nested_provider_original_value_preserves_inner_json_escapes() {
+    let cases = [
+        (
+            r#"{"type":"file","mediaType":"image/png","data":"data:image/png;base64,\u0061Gk="}"#,
+            r#"data:image/png;base64,\u0061Gk="#,
+            "data:image/png;base64,aGk=",
+            b"hi".as_slice(),
+        ),
+        (
+            r#"{"type":"file","mediaType":"image/png","data":"data:image/png;base64,\/\/\/\/"}"#,
+            r#"data:image/png;base64,\/\/\/\/"#,
+            "data:image/png;base64,////",
+            &[0xff, 0xff, 0xff][..],
+        ),
+        (
+            r#"{"type":"file","mediaType":"text/plain","data":"b'\u0022'"}"#,
+            r#"b'\u0022'"#,
+            "b'\"'",
+            b"\"".as_slice(),
+        ),
+    ];
+
+    for (nested, expected_original, expected_decoded, expected_body) in cases {
+        let encoded_nested = serde_json::to_string(nested).expect("serialize nested JSON");
+        let input = format!(r#"{{"text":{encoded_nested}}}"#);
+        let result = extract_media(input.as_bytes()).expect("valid nested provider JSON");
+
+        assert_eq!(result.media.len(), 1, "nested source: {nested}");
+        assert_eq!(result.media[0].original_json_depth(), 1);
+        assert_eq!(
+            result.media[0].original_value().unwrap(),
+            expected_original,
+            "nested source: {nested}"
+        );
+        assert_eq!(
+            result.media[0].original_value_for_layers(Some(0)).unwrap(),
+            expected_decoded
+        );
+        assert_eq!(result.media[0].decode().unwrap(), expected_body);
+    }
+}
+
+#[test]
+fn nested_provider_source_spelling_survives_two_stringified_layers() {
+    let provider = r#"{"type":"file","mediaType":"text/plain","data":"b'\u0022'"}"#;
+    let encoded_provider = serde_json::to_string(provider)
+        .expect("serialize provider")
+        .replace("\\\"", "\\u0022");
+    let first_layer = format!(r#"{{"child":{}}}"#, encoded_provider);
+    let input = format!(
+        r#"{{"text":{}}}"#,
+        serde_json::to_string(&first_layer).expect("serialize first layer")
+    );
+    let result = extract_media(input.as_bytes()).expect("valid nested provider JSON");
+    assert_eq!(result.media.len(), 1);
+
+    let media = &result.media[0];
+    assert_eq!(media.original_json_depth(), 2);
+    assert_eq!(media.original_value().unwrap(), r#"b'\\u0022'"#);
+    assert_eq!(
+        media.original_value_for_layers(Some(2)).unwrap(),
+        r#"b'\\u0022'"#
+    );
+    assert_eq!(
+        media.original_value_for_layers(Some(1)).unwrap(),
+        r#"b'\u0022'"#
+    );
+    assert_eq!(media.original_value_for_layers(Some(0)).unwrap(), "b'\"'");
+    assert!(matches!(
+        media.original_value_for_layers(Some(17)),
+        Err(super::payload::MediaDecodeError::JsonLayerLimit)
+    ));
+
+    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    let compact_first_layer = compact["text"].as_str().unwrap();
+    let reference = media.reference();
+    assert_eq!(
+        compact_first_layer.replace(&reference, &media.original_value().unwrap()),
+        first_layer
+    );
 }
 
 #[test]
