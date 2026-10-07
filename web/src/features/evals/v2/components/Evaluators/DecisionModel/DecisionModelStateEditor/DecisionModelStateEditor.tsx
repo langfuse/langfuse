@@ -80,12 +80,16 @@ export function DecisionModelStateEditor({
         sourceUnavailableMessage={sourceUnavailableMessage}
       />
 
-      <div>
-        <Button type="button" variant="outline" size="sm" onClick={onAddField}>
-          <Plus className="icon-base text-icon-foreground mr-1" />
-          Add field
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="text-foreground hover:text-foreground h-6 justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+        onClick={onAddField}
+      >
+        <Plus className="icon-base text-icon-foreground shrink-0" />
+        Add field
+      </Button>
 
       <DecisionModelStatePreview fields={fields} sourceObject={sourceObject} />
     </div>

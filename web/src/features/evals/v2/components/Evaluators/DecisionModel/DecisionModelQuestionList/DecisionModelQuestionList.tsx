@@ -191,15 +191,21 @@ export function DecisionModelQuestionList({
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={onAdd}>
-          <Plus className="icon-base text-icon-foreground mr-1" />
+      <div className="flex items-center gap-1.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-foreground hover:text-foreground h-6 justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+          onClick={onAdd}
+        >
+          <Plus className="icon-base text-icon-foreground shrink-0" />
           Add question
         </Button>
-        <span className="text-muted-foreground text-xs">
+        <InfoTooltip label="About extra questions">
           Answered together in one call; extra questions add only their own
           tokens.
-        </span>
+        </InfoTooltip>
       </div>
     </div>
   );

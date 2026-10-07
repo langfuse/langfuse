@@ -119,11 +119,12 @@ export function ScoreLevelsEditor({
           </div>
         )}
       />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5">
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className="text-foreground hover:text-foreground h-6 justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
           disabled={levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels}
           onClick={() =>
             onChange([
@@ -132,13 +133,13 @@ export function ScoreLevelsEditor({
             ])
           }
         >
-          <Plus className="icon-base text-icon-foreground mr-1" />
+          <Plus className="icon-base text-icon-foreground shrink-0" />
           Add level
         </Button>
-        <span className="text-muted-foreground text-xs">
+        <InfoTooltip label="About the score">
           The score is the probability-weighted average of the level numbers, so
           it can be a decimal from 0 to {Math.max(levels.length - 1, 0)}.
-        </span>
+        </InfoTooltip>
       </div>
       {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </div>

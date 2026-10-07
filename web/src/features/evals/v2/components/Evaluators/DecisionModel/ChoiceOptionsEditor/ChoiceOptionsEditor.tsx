@@ -89,18 +89,17 @@ export function ChoiceOptionsEditor({
           </div>
         )}
       />
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
-          onClick={() => onChange([...options, { value: "", description: "" }])}
-        >
-          <Plus className="icon-base text-icon-foreground mr-1" />
-          Add option
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="text-foreground hover:text-foreground h-6 justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+        disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
+        onClick={() => onChange([...options, { value: "", description: "" }])}
+      >
+        <Plus className="icon-base text-icon-foreground shrink-0" />
+        Add option
+      </Button>
       {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </div>
   );
