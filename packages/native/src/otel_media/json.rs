@@ -1,231 +1,64 @@
-//! JSON validation and byte-range parsing helpers.
+//! JSON lexical validation and byte-range helpers.
 
-use jiter::{Jiter, JiterError, JiterErrorType, JsonErrorType, Peek};
+use jiter::Jiter;
+use memchr::memchr2;
 use serde::Deserialize;
 use serde_json::value::RawValue;
 
 use super::encoding::hex_digit;
 use super::payload::EarlyMediaError;
 
-// OTLP envelopes commonly contain more than ten structural levels before their
-// attribute values. Keep full JSON validation permissive enough for those
-// documents; the smaller limit applies only to recursively parsed embedded JSON.
-pub(super) const MAX_JSON_DEPTH: usize = 128;
-const LARGE_SCALAR_BYTES: usize = 1024;
-
-/// A preorder tape of container boundaries and large scalar ranges. Containers
-/// are indexed regardless of size: skipping only large values makes discovery
-/// revisit small nested subtrees once per ancestor. Keys and values stay in the
-/// source buffer; this index never owns decoded strings.
-#[derive(Default)]
-pub(super) struct Boundaries {
-    entries: Vec<(usize, usize)>,
-}
-
-impl Boundaries {
-    pub(super) fn get(&self, start: usize) -> Option<usize> {
-        self.entries
-            .binary_search_by_key(&start, |entry| entry.0)
-            .ok()
-            .map(|index| self.entries[index].1)
+/// Validate one complete JSON value without decoding strings or numbers.
+///
+/// Jiter's skip path uses a fixed-size structural stack and does not decode
+/// strings. RawValue handles valid JSON outside its depth/Unicode/number
+/// limits with a heap stack. Even those inputs need at most two validation
+/// walks; neither path builds a JSON tree or calls back into JavaScript.
+pub(super) fn validate_json(text: &str) -> Result<(), EarlyMediaError> {
+    let mut cursor = Jiter::new(text.as_bytes());
+    if cursor.next_skip().is_ok() && cursor.finish().is_ok() {
+        return Ok(());
     }
 
-    #[cfg(test)]
-    pub(super) fn allocated_bytes(&self) -> usize {
-        self.entries.capacity() * std::mem::size_of::<(usize, usize)>()
-    }
-}
+    // The input boundary has checked UTF-8 already. StrRead also lets RawValue
+    // borrow its result without validating the entire byte range a second time.
+    let input = text.as_bytes();
+    let mut deserializer = serde_json::Deserializer::from_str(text);
+    let raw = <&RawValue>::deserialize(&mut deserializer).map_err(|error| {
+        EarlyMediaError::InvalidJson {
+            offset: serde_error_offset(input, &error),
+            message: "invalid JSON",
+        }
+    })?;
 
-pub(super) fn validate_utf8(input: &[u8]) -> Result<&str, EarlyMediaError> {
-    std::str::from_utf8(input).map_err(|error| EarlyMediaError::InvalidJson {
-        offset: error.valid_up_to(),
-        message: "invalid UTF-8",
-    })
-}
-
-pub(super) fn scan_jiter_value<'j>(
-    input: &'j [u8],
-    scan_cache: &mut Option<Boundaries>,
-    cursor: &mut Jiter<'j>,
-    base: &mut usize,
-    depth: usize,
-    known_peek: Option<Peek>,
-) -> Result<usize, EarlyMediaError> {
-    let value_start = skip_whitespace(input, (*base).saturating_add(cursor.current_index()));
-    if depth > MAX_JSON_DEPTH {
-        return Err(EarlyMediaError::NestingLimit {
-            offset: value_start,
+    let value_start = skip_whitespace(input, 0);
+    let value_end = value_start + raw.get().len();
+    if skip_whitespace(input, value_end) != input.len() {
+        return Err(EarlyMediaError::TrailingBytes {
+            offset: skip_whitespace(input, value_end),
         });
     }
-    let peek = match known_peek {
-        Some(peek) => peek,
-        None => cursor
-            .peek()
-            .map_err(|error| map_jiter_error(input, *base, error))?,
-    };
-    let value_start = skip_whitespace(input, (*base).saturating_add(cursor.current_index()));
-
-    // Reserve the parent before visiting children so the tape is already
-    // sorted by source position; discovery can binary-search without sorting.
-    let slot = scan_cache.as_mut().map(|cache| {
-        let slot = cache.entries.len();
-        cache.entries.push((value_start, 0));
-        slot
-    });
-
-    match peek {
-        Peek::Null => cursor
-            .known_null()
-            .map_err(|error| map_jiter_error(input, *base, error))?,
-        Peek::True | Peek::False => cursor
-            .known_bool(peek)
-            .map(drop)
-            .map_err(|error| map_jiter_error(input, *base, error))?,
-        Peek::String => cursor
-            .known_bytes()
-            .map(drop)
-            .map_err(|error| map_jiter_error(input, *base, error))?,
-        Peek::Array => {
-            if let Some(first) = cursor
-                .known_array()
-                .map_err(|error| map_jiter_error(input, *base, error))?
-            {
-                scan_jiter_value(input, scan_cache, cursor, base, depth + 1, Some(first))?;
-                while let Some(next) = cursor
-                    .array_step()
-                    .map_err(|error| map_jiter_error(input, *base, error))?
-                {
-                    scan_jiter_value(input, scan_cache, cursor, base, depth + 1, Some(next))?;
-                }
-            }
-        }
-        Peek::Object => {
-            if cursor
-                .next_object_bytes()
-                .map_err(|error| map_jiter_error(input, *base, error))?
-                .is_some()
-            {
-                scan_jiter_value(input, scan_cache, cursor, base, depth + 1, None)?;
-                while cursor
-                    .next_key_bytes()
-                    .map_err(|error| map_jiter_error(input, *base, error))?
-                    .is_some()
-                {
-                    scan_jiter_value(input, scan_cache, cursor, base, depth + 1, None)?;
-                }
-            }
-        }
-        number if number.is_num() => {
-            if let Err(error) = cursor.known_number_bytes(peek) {
-                if matches!(
-                    error.error_type,
-                    JiterErrorType::JsonError(JsonErrorType::NumberOutOfRange)
-                ) {
-                    let end = raw_number_end(input, value_start)?;
-                    *base = end;
-                    *cursor = Jiter::new(&input[end..]);
-                } else {
-                    return Err(map_jiter_error(input, *base, error));
-                }
-            }
-        }
-        _ => {
-            return Err(EarlyMediaError::InvalidJson {
-                offset: value_start,
-                message: "invalid JSON",
-            });
-        }
-    }
-
-    let end = (*base).saturating_add(cursor.current_index());
-    if let (Some(cache), Some(slot)) = (scan_cache.as_mut(), slot) {
-        if matches!(peek, Peek::Object | Peek::Array)
-            || end.saturating_sub(value_start) >= LARGE_SCALAR_BYTES
-        {
-            cache.entries[slot].1 = end;
-        } else {
-            // Small scalars have no children. Re-reading them has constant
-            // work per token, so they need no persistent index entry.
-            cache.entries.pop();
-        }
-    }
-    Ok(end)
+    deserializer
+        .end()
+        .map_err(|error| EarlyMediaError::TrailingBytes {
+            offset: serde_error_offset(input, &error),
+        })
 }
 
-/// Jiter's lexical number-range decoder caps very long integers. RawValue uses
-/// serde_json's lexical skip path and borrows the token, preserving the input's
-/// accepted number grammar without allocating a number representation.
-pub(super) fn raw_number_end(input: &[u8], start: usize) -> Result<usize, EarlyMediaError> {
-    let suffix = input.get(start..).ok_or(EarlyMediaError::InvalidJson {
-        offset: start,
-        message: "invalid JSON number",
-    })?;
-    let mut deserializer = serde_json::Deserializer::from_slice(suffix);
-    let raw =
-        <&RawValue>::deserialize(&mut deserializer).map_err(|_| EarlyMediaError::InvalidJson {
-            offset: start,
-            message: "invalid JSON number",
-        })?;
-    Ok(start + raw.get().len())
-}
-
-pub(super) fn map_jiter_error(input: &[u8], base: usize, error: JiterError) -> EarlyMediaError {
-    let offset = base.saturating_add(error.index);
-    match error.error_type {
-        JiterErrorType::JsonError(JsonErrorType::LoneLeadingSurrogateInHexEscape) => {
-            EarlyMediaError::UnsupportedUnicodeSurrogate { offset }
-        }
-        JiterErrorType::JsonError(
-            JsonErrorType::UnexpectedEndOfHexEscape | JsonErrorType::EofWhileParsingString,
-        ) if has_unpaired_high_surrogate(input, offset) => {
-            EarlyMediaError::UnsupportedUnicodeSurrogate { offset }
-        }
-        JiterErrorType::JsonError(JsonErrorType::ControlCharacterWhileParsingString) => {
-            EarlyMediaError::InvalidJson {
-                offset,
-                message: "control byte in string",
-            }
-        }
-        _ => EarlyMediaError::InvalidJson {
-            offset,
-            message: "invalid JSON",
-        },
-    }
-}
-
-pub(super) fn has_unpaired_high_surrogate(input: &[u8], offset: usize) -> bool {
-    let start = offset.saturating_sub(8);
-    for slash in start..=offset.min(input.len()) {
-        if input.get(slash..slash + 2) != Some(b"\\u") {
-            continue;
-        }
-        // A literal \u following an escaped backslash is not a Unicode escape.
-        let preceding_slashes = input[..slash]
-            .iter()
-            .rev()
-            .take_while(|&&byte| byte == b'\\')
-            .count();
-        if preceding_slashes % 2 != 0 {
-            continue;
-        }
-        let Some(digits) = input.get(slash + 2..slash + 6) else {
-            continue;
+fn serde_error_offset(input: &[u8], error: &serde_json::Error) -> usize {
+    let target_line = error.line().saturating_sub(1);
+    let mut line = 0;
+    let mut offset = 0;
+    while line < target_line {
+        let Some(relative) = input[offset..].iter().position(|&byte| byte == b'\n') else {
+            return input.len();
         };
-        let Some(value) = digits.iter().try_fold(0u16, |value, digit| {
-            hex_digit(*digit).map(|digit| value * 16 + u16::from(digit))
-        }) else {
-            continue;
-        };
-        let pair_start = slash + 6;
-        if (0xD800..=0xDBFF).contains(&value)
-            && offset >= pair_start
-            && offset <= pair_start + 2
-            && input.get(pair_start..pair_start + 2) != Some(b"\\u")
-        {
-            return true;
-        }
+        offset += relative + 1;
+        line += 1;
     }
-    false
+    offset
+        .saturating_add(error.column().saturating_sub(1))
+        .min(input.len())
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -274,6 +107,24 @@ pub(super) fn parse_unicode_escape(
     char::from_u32(high)
         .map(|character| (slash + 6, character))
         .ok_or(UnicodeEscapeError::Invalid("invalid unicode scalar"))
+}
+
+/// Return the end of a JSON string token. Syntax has already been validated,
+/// so this is only a lexical skip and never decodes escape sequences.
+pub(super) fn string_end(input: &[u8], start: usize) -> usize {
+    let mut cursor = start + 1;
+    while cursor < input.len() {
+        let Some(relative) = memchr2(b'"', b'\\', &input[cursor..]) else {
+            return input.len();
+        };
+        cursor += relative;
+        match input[cursor] {
+            b'\\' => cursor = cursor.saturating_add(2),
+            b'"' => return cursor + 1,
+            _ => unreachable!("memchr2 only returns a quote or backslash"),
+        }
+    }
+    input.len()
 }
 
 pub(super) fn skip_whitespace(input: &[u8], mut cursor: usize) -> usize {

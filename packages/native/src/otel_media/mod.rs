@@ -1,16 +1,14 @@
 //! Early validation and media extraction for OTEL JSON payloads.
 //!
-//! This module deliberately does not deserialize the complete document into
-//! `serde_json::Value`. It validates JSON while walking its byte ranges and
-//! emits a compact document plus an owned registry for media values removed
-//! from that document. The normalizer can therefore parse the compact result
-//! without keeping the original document and all large inline values alive.
+//! Syntax validation and media discovery are separate passes over owned bytes.
+//! Neither constructs a complete `serde_json::Value` tree. Discovery records
+//! source ranges; compaction replaces those ranges before normalization parses
+//! the smaller document.
 //!
-//! The registry uses the existing public media-reference syntax and derives
-//! its ID from the decoded content using the same truncated URL-safe SHA-256
-//! convention as the existing media service. Direct and nested candidates keep
-//! ranges into the one owned source allocation when escaping leaves their text
-//! unchanged; only escaped candidate text needs one owned fallback copy.
+//! Temporary references identify occurrences, so moving a value during normalization
+//! preserves its exact restoration target. Content hashes deduplicate uploads instead.
+//! Direct and nested candidates retain ranges into one source allocation when
+//! escaping leaves their text unchanged; escaped candidate text needs an owned copy.
 
 mod encoding;
 mod json;
@@ -18,10 +16,13 @@ mod payload;
 mod rules;
 mod scanner;
 
-pub use payload::{EarlyMediaResult, ExtractedMedia, ValidatedPayload};
-pub use scanner::validate;
+pub use payload::{validate, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
 #[cfg(test)]
-pub use scanner::validate_and_discover;
+pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, payload::EarlyMediaError> {
+    let mut validated = validate(input, true)?;
+    validated.discover()?;
+    Ok(validated)
+}
 
 #[cfg(test)]
 pub fn extract_media(input: &[u8]) -> Result<EarlyMediaResult, payload::EarlyMediaError> {

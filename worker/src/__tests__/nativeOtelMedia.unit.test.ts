@@ -25,6 +25,43 @@ function sortedBodies(bodies: MediaBody[]): MediaBody[] {
   );
 }
 
+/**
+ * Native extraction keeps an occurrence-specific pending id until the upload
+ * adapter runs. Compare the resulting document with the TypeScript detector's
+ * public id without teaching this boundary test about the pending-id format.
+ */
+function canonicalizeNativeReferences(
+  value: unknown,
+  media: ReadonlyArray<{ reference: string; sha256Hash: string }>,
+): unknown {
+  if (typeof value === "string") {
+    return media.reduce(
+      (result, entry) =>
+        result
+          .split(entry.reference)
+          .join(
+            entry.reference.replace(
+              /\|id=[^|@]+/,
+              `|id=${getMediaId(entry.sha256Hash)}`,
+            ),
+          ),
+      value,
+    );
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalizeNativeReferences(item, media));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        canonicalizeNativeReferences(item, media),
+      ]),
+    );
+  }
+  return value;
+}
+
 async function expectMediaParity(json: string): Promise<void> {
   const payload = { input: JSON.parse(json) as unknown };
   const expectedBodies: MediaBody[] = [];
@@ -54,7 +91,9 @@ async function expectMediaParity(json: string): Promise<void> {
       // Assert at the NAPI boundary. Running the late TS detector here could
       // repair a missed extraction and let a broken native implementation pass.
       const compact = batch.json();
-      expect(JSON.parse(compact)).toEqual(payload.input);
+      expect(
+        canonicalizeNativeReferences(JSON.parse(compact), batch.media),
+      ).toEqual(payload.input);
       if (batch.media.length === 0) expect(compact).toBe(json);
       const actualBodies: MediaBody[] = [];
       for (const media of batch.media) {
@@ -158,7 +197,7 @@ describe(
         const count = shape === "deep objects" ? 32 : 16_385;
         let value = JSON.stringify(uri);
         if (shape === "deep objects") {
-          for (let depth = 0; depth < 120; depth++) value = `{"x":${value}}`;
+          for (let depth = 0; depth < 200; depth++) value = `{"x":${value}}`;
         }
         const source = `[${Array.from({ length: count }, () => value).join(",")}]`;
         const validated = await validateOtelJson(Buffer.from(source));
@@ -179,18 +218,53 @@ describe(
       },
     );
 
-    it("reports embedded unsupported surrogates to the TS fallback", async () => {
+    it("rejects malformed UTF-8 with a structured error", async () => {
+      const bytes = Buffer.from(
+        '{"input":"data:image/png;base64,aGk=","note":"x"}',
+      );
+      bytes[bytes.indexOf('"x"') + 1] = 0xff;
+      await expect(validateOtelJson(bytes)).rejects.toMatchObject({
+        code: "ERR_OTEL_INVALID_JSON",
+        message: expect.stringContaining("invalid UTF-8"),
+      });
+    });
+
+    it("leaves a surrogate-containing string inline while scanning siblings", async () => {
       const embedded = JSON.stringify({
         type: "file",
         mediaType: "image/png",
         data: "aGk=",
         note: "\ud800",
       });
-      const input = JSON.stringify({ input: embedded });
-
-      await expect(validateOtelJson(Buffer.from(input))).rejects.toMatchObject({
-        code: "ERR_OTEL_UNSUPPORTED",
+      const input = JSON.stringify({
+        input: embedded,
+        sibling: "data:image/png;base64,aGk=",
       });
+
+      const validated = await validateOtelJson(Buffer.from(input));
+      const batch = await validated.extract(true);
+      try {
+        expect(batch.media).toHaveLength(2);
+        const compact = JSON.parse(batch.json()) as {
+          input: string;
+          sibling: string;
+        };
+        expect(JSON.parse(compact.input)).toEqual({
+          type: "file",
+          mediaType: "image/png",
+          data: batch.media[0]?.reference,
+          note: "\ud800",
+        });
+        expect(compact.sibling).toBe(batch.media[1]?.reference);
+        for (const media of batch.media) {
+          await expect(batch.mediaBody(media.index)).resolves.toEqual(
+            Buffer.from("hi"),
+          );
+        }
+      } finally {
+        await batch.dispose();
+        await validated.dispose();
+      }
     });
 
     it.each([
@@ -204,7 +278,7 @@ describe(
         }),
       ],
       [
-        "embedded unsupported surrogate",
+        "embedded surrogate",
         JSON.stringify({
           input: JSON.stringify({
             type: "file",
