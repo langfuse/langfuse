@@ -1052,7 +1052,9 @@ export const SessionEventsPage: React.FC<{
         message="The session could not be loaded. Please try again."
         additionalButton={{
           label: "Retry",
-          onClick: () => void session.refetch(),
+          onClick: () => {
+            session.refetch();
+          },
         }}
       />
     );

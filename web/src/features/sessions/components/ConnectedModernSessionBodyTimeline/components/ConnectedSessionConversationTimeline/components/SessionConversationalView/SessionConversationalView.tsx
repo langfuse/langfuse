@@ -256,7 +256,14 @@ export function SessionConversationalView(
                 className="border-input text-muted-foreground flex h-7 w-full items-center gap-2 rounded-sm border px-2 text-left font-mono text-xs"
               >
                 <Search className="icon-base shrink-0" />
-                <span className="truncate">
+                <span
+                  className="truncate"
+                  title={
+                    props.state === "loaded" && props.search
+                      ? props.search
+                      : "Search session"
+                  }
+                >
                   {props.state === "loaded" && props.search
                     ? props.search
                     : "Search session"}

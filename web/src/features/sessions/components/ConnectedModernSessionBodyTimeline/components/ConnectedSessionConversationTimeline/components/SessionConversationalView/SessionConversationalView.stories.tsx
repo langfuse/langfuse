@@ -3006,6 +3006,7 @@ export const LangfuseAssistantWorkflow = meta.story({
   args: { workflowTraces: langfuseAssistantWorkflow },
 });
 export const CollapsedLargeMessage = meta.story({
+  name: "(Test) Collapsed Large Message",
   args: {
     transcriptTraces: [
       {

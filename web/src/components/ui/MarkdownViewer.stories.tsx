@@ -17,6 +17,7 @@ export const Default = meta.story({
 });
 
 export const CollapsedPlainTextFallback = meta.story({
+  name: "(Test) Collapsed Plain Text Fallback",
   args: {
     markdown: `${"> ".repeat(101)}Deeply nested content`,
     fallbackDisplay: "collapsed",
