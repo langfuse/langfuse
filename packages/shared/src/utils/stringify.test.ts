@@ -67,6 +67,12 @@ describe("stringifyForCsv", () => {
     expect(result).toBe("\\u0041");
   });
 
+  it("writes scalar bigint CSV fields without JSON quotes", () => {
+    expect(stringifyForCsv(9007199254740993n)).toBe("9007199254740993");
+    expect(stringifyForCsv(-9007199254740993n)).toBe("-9007199254740993");
+    expect(stringifyForCsv(42n)).toBe("42");
+  });
+
   it("preserves unsafe bigint values in CSV fields", () => {
     expect(stringifyForCsv({ count: 9007199254740993n })).toBe(
       '{"count":"9007199254740993"}',
