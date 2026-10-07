@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useFormState, useWatch, type UseFormReturn } from "react-hook-form";
 import { useStore } from "zustand";
 import { Check } from "lucide-react";
@@ -24,10 +25,12 @@ export function AnnotationSaveStatus({
       state.confirmedFields.get(annotationFieldKey(field))?.field,
     ),
   );
-  let status: "idle" | "saving" | "saved" | "error" = "idle";
-  if (state.pending) status = "saving";
-  else if (state.failed) status = "error";
-  else if (state.saved && !dirty && !errors.scoreData) status = "saved";
+  const status = useMemo(() => {
+    if (state.pending) return "saving";
+    if (state.failed) return "error";
+    if (state.saved && !dirty && !errors.scoreData) return "saved";
+    return "idle";
+  }, [state.pending, state.failed, state.saved, dirty, errors.scoreData]);
 
   return (
     <div className="grid items-center justify-items-end">
@@ -50,7 +53,7 @@ export function AnnotationSaveStatus({
               {itemStatus === "saving" && active ? (
                 <Spinner size="xxs" />
               ) : null}
-              {itemStatus === "saved" ? <Check className="size-3" /> : null}
+              {itemStatus === "saved" ? <Check className="icon-sm" /> : null}
             </span>
             <span className="text-muted-foreground">
               {

@@ -1,3 +1,4 @@
+import { type PeekOpenOptions } from "./peek/hooks/usePeekNavigation";
 /* eslint-disable @repo/no-null-render */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
@@ -52,7 +53,7 @@ export type DataTablePeekViewProps = {
 
   // Event handlers
   /** Called to open the peek view. If undefined, row clicks won't trigger peek view opening */
-  openPeek?: (id?: string, row?: any) => void;
+  openPeek?: (id?: string, row?: any, options?: PeekOpenOptions) => void;
   /** Called to close the peek view*/
   closePeek: () => void;
   /** Called when the peek view is expanded to full view */
@@ -320,6 +321,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               but give portaled child dialogs the same non-modal host as desktop. */}
           <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
             <DrawerContent
+              portalLayer="modal"
               size="full"
               className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
               onPointerDownOutside={preventDismissOnKeptOpen}

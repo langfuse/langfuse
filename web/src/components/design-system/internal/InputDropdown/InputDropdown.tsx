@@ -1,6 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
 import { Check, Search as SearchIcon } from "lucide-react";
-import { type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
@@ -39,7 +39,7 @@ function Root({ ...props }: SlottedProps) {
 function Search({ ...props }: SlottedProps) {
   return (
     <div className="flex items-center border-b px-2">
-      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <SearchIcon className="icon-base shrink-0 opacity-50" />
       <Slot
         className="placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent px-2 py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
         {...props}
@@ -122,29 +122,39 @@ function OptionContent({
   type: "checkbox" | "checkmark" | "radio";
   checked: boolean;
 }) {
-  let indicator = (
-    <Check
-      aria-hidden="true"
-      className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
-    />
-  );
-  if (type === "checkbox") {
-    indicator = (
-      <Checkbox checked={checked} size="sm" tabIndex={-1} aria-hidden="true" />
-    );
-  } else if (type === "radio") {
-    indicator = (
-      <span
+  const indicator = useMemo(() => {
+    if (type === "checkbox") {
+      return (
+        <Checkbox
+          checked={checked}
+          size="sm"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      );
+    }
+    if (type === "radio") {
+      return (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "border-control-border flex size-3.5 items-center justify-center rounded-full border shadow-sm",
+            checked && "border-control-fill",
+          )}
+        >
+          {checked && (
+            <span className="bg-control-fill size-1.5 rounded-full" />
+          )}
+        </span>
+      );
+    }
+    return (
+      <Check
         aria-hidden="true"
-        className={cn(
-          "border-control-border flex size-3.5 items-center justify-center rounded-full border shadow-sm",
-          checked && "border-control-fill",
-        )}
-      >
-        {checked && <span className="bg-control-fill size-1.5 rounded-full" />}
-      </span>
+        className={cn("icon-base", checked ? "opacity-100" : "opacity-0")}
+      />
     );
-  }
+  }, [type, checked]);
 
   return (
     <>

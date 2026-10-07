@@ -6,6 +6,15 @@ import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalO
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
+type ToastEventMap = {
+  "toast:shown": {
+    toastType: "WARNING" | "ERROR";
+    source: "trpc" | "application";
+    path?: string;
+    hasErrorId: boolean;
+  };
+};
+
 // resource:action, only use snake_case
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
@@ -156,7 +165,14 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
-  skills: ["new_form_open", "version_create", "version_download", "delete"],
+  skills: [
+    "new_form_open",
+    "version_create",
+    "version_download",
+    "delete",
+    "import_open",
+    "import",
+  ],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
@@ -342,18 +358,15 @@ const events = {
   // distinguishes picker vs table-selection vs url (deep link / redirect) vs
   // auto — so the auto-selected comparison stays out of "users who compare".
   //
-  // Two events from the original plan went away with the surfaces they
-  // measured: `analytics_tab_opened` (the Analytics route is
-  // deleted) and `charts_section_toggled` (the charts accordion is replaced by
-  // an always-on metric strip). `chart_metric_changed` now belongs to that
-  // strip and `item_regression_filter_applied` to the score-comparison filter:
-  // same question, same name, so the event history stays continuous.
   experiment: [
     "comparison_changed",
     "comparison_picker_opened",
     "baseline_changed",
     "auto_comparison_preference_changed",
     "chart_metric_changed",
+    "chart_added",
+    "chart_removed",
+    "chart_type_changed",
     "layout_changed",
     "diff_mode_changed",
     "score_column_scope_toggled",
@@ -364,7 +377,9 @@ const events = {
   // props carry user content.
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
-  toast: ["report_issue", "dismiss"],
+  // User-visible error-frustration denominator. Metadata only: `path` is the
+  // static tRPC procedure name; never send toast text or the raw Error ID.
+  toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
@@ -490,7 +505,9 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
-type TypedEventMap = AnnotationEventMap & EvalOnboardingEventMap;
+type TypedEventMap = AnnotationEventMap &
+  EvalOnboardingEventMap &
+  ToastEventMap;
 
 type EventProperties = TypedEventMap & {
   [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;

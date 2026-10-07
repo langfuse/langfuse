@@ -49,7 +49,7 @@ function ResultStat({
       className="text-muted-foreground flex -translate-y-px items-center gap-1 font-mono text-xs leading-none tabular-nums"
       title={title}
     >
-      <Icon className="h-3 w-3" />
+      <Icon className="icon-sm" />
       <span className="translate-y-0.5">{children}</span>
     </span>
   );

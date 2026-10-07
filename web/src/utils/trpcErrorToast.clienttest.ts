@@ -110,6 +110,23 @@ describe("trpcErrorToast", () => {
     showErrorToastMock.mockClear();
   });
 
+  it("classifies a pathless response parse failure as tRPC", () => {
+    trpcErrorToast(
+      new TRPCClientError("Unexpected token", {
+        cause: new SyntaxError("Unexpected token"),
+      }),
+    );
+
+    expect(showErrorToastMock).toHaveBeenCalledWith(
+      "Unexpected Response",
+      "The request could not be completed. Please try again or contact support if this persists.",
+      "WARNING",
+      undefined,
+      undefined,
+      "trpc",
+    );
+  });
+
   it("shows a readable Invalid input toast instead of the Zod JSON dump", () => {
     trpcErrorToast(
       trpcError({
@@ -126,6 +143,7 @@ describe("trpcErrorToast", () => {
       "WARNING",
       "prompts.create",
       undefined,
+      "trpc",
     );
   });
 
@@ -145,6 +163,7 @@ describe("trpcErrorToast", () => {
       "WARNING",
       "prompts.create",
       undefined,
+      "trpc",
     );
   });
 
@@ -165,6 +184,7 @@ describe("trpcErrorToast", () => {
       "ERROR",
       "prompts.create",
       "abc123def456",
+      "trpc",
     );
   });
 });

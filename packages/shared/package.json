@@ -31,6 +31,18 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/transcript/ordering": {
+      "import": "./dist/src/server/transcript/ordering.js",
+      "require": "./dist/src/server/transcript/ordering.js"
+    },
+    "./src/server/transcript/transcript": {
+      "import": "./dist/src/server/transcript/transcript.js",
+      "require": "./dist/src/server/transcript/transcript.js"
+    },
+    "./src/server/transcript/types": {
+      "import": "./dist/src/server/transcript/types.js",
+      "require": "./dist/src/server/transcript/types.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"
@@ -55,6 +67,10 @@
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
     },
+    "./src/utils/json": {
+      "import": "./dist/src/utils/json.js",
+      "require": "./dist/src/utils/json.js"
+    },
     "./src/utils/normalized-io": {
       "import": "./dist/src/utils/normalized-io/index.js",
       "require": "./dist/src/utils/normalized-io/index.js"
@@ -66,6 +82,14 @@
     "./src/server/ee/ingestionMasking": {
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
+    },
+    "./src/server/ee/fips": {
+      "import": "./dist/src/server/ee/fips/index.js",
+      "require": "./dist/src/server/ee/fips/index.js"
+    },
+    "./src/server/ee/licenseCheck": {
+      "import": "./dist/src/server/ee/licenseCheck/index.js",
+      "require": "./dist/src/server/ee/licenseCheck/index.js"
     },
     "./query": {
       "import": "./dist/src/features/query/index.js",
@@ -126,6 +150,14 @@
     "./in-app-agent/server/openaiCompatibility": {
       "import": "./dist/src/in-app-agent/server/openaiCompatibility.js",
       "require": "./dist/src/in-app-agent/server/openaiCompatibility.js"
+    },
+    "./topics": {
+      "import": "./dist/src/topics/index.js",
+      "require": "./dist/src/topics/index.js"
+    },
+    "./topics/server": {
+      "import": "./dist/src/server/topics/index.js",
+      "require": "./dist/src/server/topics/index.js"
     }
   },
   "scripts": {
@@ -138,8 +170,8 @@
     "test": "dotenv -e ../../.env -- vitest run",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
-    "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
-    "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate reset --force; fi",
+    "db:reset": "dotenv -e ../../.env -- pnpm exec prisma migrate reset",
+    "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- pnpm exec prisma migrate reset --force; fi",
     "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate --no-hints",
@@ -149,9 +181,9 @@
     "ch:migrations:clean": "node clickhouse/scripts/prepare-migrations.mjs clean clickhouse/migrations",
     "ch:up": "sh clickhouse/scripts/up.sh",
     "ch:down": "sh clickhouse/scripts/down.sh",
-    "ch:drop": "bash clickhouse/scripts/drop.sh",
+    "ch:drop": "sh clickhouse/scripts/drop.sh",
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
-    "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
+    "ch:reset": "pnpm run ch:drop && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
     "ch:seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-clickhouse.ts",
     "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts",
     "seed:scenario": "dotenv -e ../../.env -- tsx scripts/seeder/cli.ts"

@@ -77,6 +77,7 @@ import { SpanKind } from "@opentelemetry/api";
 import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
@@ -1325,6 +1326,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
         nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
         lastError: null,
         lastErrorAt: null,
+        ...(isExportCaughtUp({
+          lastSyncAt: blobStorageIntegration.lastSyncAt,
+          runStartTime,
+        })
+          ? { backfill: false }
+          : {}),
       },
     });
     return;
@@ -1552,6 +1559,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
           lastError: null,
           lastErrorAt: null,
           runStartedAt: null,
+          ...(isExportCaughtUp({ lastSyncAt: maxTimestamp, runStartTime })
+            ? { backfill: false }
+            : {}),
         },
       },
     );

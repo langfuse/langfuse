@@ -7,6 +7,7 @@ import { queryClickhouseStream, TupleParam } from "./clickhouse";
 type TraceBatchEventRow = {
   project_id: string;
   trace_id: string;
+  environment: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -19,6 +20,8 @@ type TraceBatchEventRow = {
   tool_definitions: Record<string, string>;
   tool_calls: string[];
   tool_call_names: string[];
+  level: string;
+  status_message: string | null;
 };
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
@@ -136,12 +139,16 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     .selectRaw(
       "e.project_id",
       "e.trace_id",
+      "e.environment",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
       "e.event_ts",
       "e.type",
       "e.name",
+      // The Topics renderer turns ERROR/WARNING levels into transcript error signals.
+      "e.level",
+      "e.status_message",
     )
     // Load full input/output (false = no truncation) and every metadata key.
     .selectIO(false)

@@ -13,6 +13,7 @@ import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-d
 import { useState } from "react";
 import {
   DialogContent,
+  DialogTitle,
   DialogTrigger,
   Dialog,
 } from "@/src/components/ui/dialog";
@@ -207,11 +208,14 @@ export function DefaultEvalModelSetup({
                 setIsEditing(true);
               }}
             >
-              <Pencil className="mr-2 h-4 w-4" />
+              <Pencil className="icon-base mr-2" />
               {setup.selectedModel ? "Edit" : "Set up"}
             </Button>
           </DialogTrigger>
           <DialogContent className="px-3 py-10">
+            <DialogTitle className="sr-only">
+              Default evaluation model
+            </DialogTitle>
             <div className="flex flex-col gap-2">
               <DefaultEvalModelFields setup={setup} />
               <div className="mt-2 flex justify-end gap-2">

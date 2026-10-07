@@ -51,7 +51,7 @@ export function buildBlobStorageFormValues(
     prefix: state?.prefix || "",
     exportFrequency: (state?.exportFrequency ||
       "daily") as BlobStorageFormValues["exportFrequency"],
-    enabled: state?.enabled || false,
+    enabled: state?.enabled ?? true,
     forcePathStyle: state?.forcePathStyle || false,
     fileType: state?.fileType || BlobStorageIntegrationFileType.PARQUET,
     exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,

@@ -1,7 +1,7 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  getLangfuseAIAwsProfile,
   getLangfuseAITraceSinkParams,
   logger,
   recordIncrement,
@@ -108,7 +108,7 @@ export async function executeInAppAgentRun(params: {
   runId: string;
 }): Promise<void> {
   const { projectId, runId } = params;
-  const awsProfile = env.AWS_PROFILE ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+  const awsProfile = getLangfuseAIAwsProfile();
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
   // while queued. Reconcile then ack — Postgres owns correctness.
@@ -176,14 +176,16 @@ export async function executeInAppAgentRun(params: {
   const cleanupMcpApiKey = (): Promise<void> => {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
-    mcpApiKeyCleanup ??= (async () => {
-      await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
-      // Pointer is nulled after delete succeeds or the key is already gone.
-      await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
-    })().catch((error: unknown) => {
-      mcpApiKeyCleanup = undefined;
-      throw error;
-    });
+    if (mcpApiKeyCleanup === undefined) {
+      mcpApiKeyCleanup = (async () => {
+        await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
+        // Pointer is nulled after delete succeeds or the key is already gone.
+        await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
+      })().catch((error: unknown) => {
+        mcpApiKeyCleanup = undefined;
+        throw error;
+      });
+    }
     return mcpApiKeyCleanup;
   };
 

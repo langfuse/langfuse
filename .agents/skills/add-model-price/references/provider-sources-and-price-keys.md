@@ -14,6 +14,23 @@ Always fetch pricing from the provider's official docs before editing.
 | Azure OpenAI              | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
 | TypeSafe (Jev)            | `https://docs.typesafe.ai/models`                                                |
 
+## Official Model Lifecycle Sources
+
+Use these to decide whether a selectable model is still served. See "Selectable
+Model Availability" in `automated-audit.md` for the removal criteria.
+
+- Anthropic Claude: `https://platform.claude.com/docs/en/about-claude/model-deprecations`
+- OpenAI: `https://developers.openai.com/api/docs/deprecations`
+- Google Gemini (AI Studio): `https://ai.google.dev/gemini-api/docs/models`
+  (shut-down models are labeled "Shut down") and
+  `https://ai.google.dev/gemini-api/docs/deprecations`
+- Google Gemini (Vertex AI):
+  `https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions`.
+  It redirects to
+  `docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions`;
+  if the fetch is blocked on that redirect, report it as unresolved and do not
+  remove Vertex AI entries without other official evidence.
+
 ### Known source quirks (as of 2026-06)
 
 - **OpenAI** — `openai.com/api/pricing/` often returns HTTP 403 to automated fetchers.
@@ -57,14 +74,12 @@ Always fetch pricing from the provider's official docs before editing.
   `https://ai.google.dev/pricing` (confirmed again this run; `gemini-3.1-flash-lite`,
   without "Preview", does have a current row and is unaffected). This resolves the
   long-standing "still not listed" ambiguity in prior audits' unresolved findings —
-  both are now confirmed retired, not merely undocumented previews. Per the
-  automated-audit scope (adding/pricing changes only, no removal category is
-  authorized), the pricing entries were left in place unchanged since historical
-  traces that already used these model IDs still need cost lookups, and the
-  selectable-model-list entries in `types.ts` were also left in place and reported
-  as an unresolved finding rather than removed — a future task that explicitly asks
-  to prune shut-down selectable models should remove them from `vertexAIModels` /
-  `googleAIStudioModels` while keeping the pricing JSON entries intact.
+  both are now confirmed retired, not merely undocumented previews. The pricing
+  entries stay in place because historical traces that already used these model IDs
+  still need cost lookups. Their selectable-model entries meet the removal criteria
+  in `automated-audit.md`: a manual October 2026 cleanup removed them from
+  `vertexAIModels`, and they should be removed from `googleAIStudioModels` once the
+  shutdown status is re-confirmed on the official models page.
 - **Gemini cache-read ratio** — Google Gemini models consistently price cached input at
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
   cached). Priority tables can round this differently (3.5 Flash-Lite: $0.05 cache
@@ -573,10 +588,9 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   information: (1) `ai.google.dev/gemini-api/docs/models` now explicitly labels
   `gemini-2.0-flash` "(Shut down)" under previous models — this resolves the
   long-standing "not re-verified, retained for backward compatibility" note on this
-  entry into a confirmed-retired status, but per the automated-audit scope (no
-  removal category authorized) the pricing entry and `types.ts` selectable-model
-  entries were left in place unchanged, same treatment as the `gemini-3-pro-preview`
-  precedent above; (2) the models page now additionally lists
+  entry into a confirmed-retired status. The pricing entry stays for historical
+  cost lookups, and the selectable-model entries are removal candidates, same
+  treatment as the `gemini-3-pro-preview` precedent above; (2) the models page now additionally lists
   `gemini-3.1-flash-image` ("Nano Banana 2"), `gemini-3.1-flash-lite-image` ("Nano
   Banana 2 Lite"), `gemini-3-pro-image` ("Nano Banana Pro"), `gemini-embedding-2-preview`,
   `gemini-embedding-001`, `gemini-2.5-flash-native-audio-preview-12-2025`,

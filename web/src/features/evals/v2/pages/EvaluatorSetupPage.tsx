@@ -77,7 +77,7 @@ type InitialEvaluator = {
   id: string;
   name: string;
   description: string | null;
-  type: EvalTemplateType;
+  type: Exclude<EvalTemplateType, "FACET">;
   definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
@@ -103,6 +103,9 @@ export function applyEvaluatorSuggestion(
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
+  if (version.type === "FACET") {
+    throw new Error("Facets cannot be edited as evaluators");
+  }
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -167,7 +170,7 @@ export function EvaluatorSetupPage(
         mode: "create";
         projectId: string;
         initialDraft: EvaluatorSetupDraft | null;
-        initialType: EvalTemplateType;
+        initialType: Exclude<EvalTemplateType, "FACET">;
         creationSource: EvaluatorCreationSource;
       }
     | {
@@ -857,7 +860,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="mr-2 h-4 w-4" />
+              <History className="icon-base text-icon-foreground mr-2" />
               Version history
             </Button>
             <Button
@@ -866,7 +869,7 @@ export function EvaluatorSetupPage(
               title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="text-destructive h-4 w-4" />
+              <Trash2 className="icon-base text-destructive" />
             </Button>
           </div>
         ) : undefined,

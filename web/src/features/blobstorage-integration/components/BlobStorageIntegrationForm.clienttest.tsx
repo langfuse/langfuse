@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
@@ -36,7 +42,7 @@ const savedConfig: Partial<BlobStorageIntegration> = {
 const ui = (
   key: string,
   initialValues: BlobStorageFormValues,
-  onSubmit: (values: unknown) => void = () => {},
+  onSubmit: (values: unknown, onSaved: () => void) => void = () => {},
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
@@ -46,9 +52,15 @@ const ui = (
       persistedExportSource={null}
       isSaving={false}
       onSubmit={onSubmit}
-    />
+    >
+      {({ isDirty }) => (
+        <span data-testid="dirty-state">{isDirty ? "dirty" : "clean"}</span>
+      )}
+    </BlobStorageIntegrationForm>
   </TooltipProvider>
 );
+
+const dirtyState = () => screen.getByTestId("dirty-state").textContent;
 
 const bucketInput = () =>
   screen.getByLabelText("Bucket Name") as HTMLInputElement;
@@ -187,9 +199,42 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
         region: "auto",
         exportFrequency: "daily",
         fileType: BlobStorageIntegrationFileType.PARQUET,
-        enabled: false,
+        enabled: true,
       }),
-      expect.anything(),
+      expect.any(Function),
     );
+  });
+
+  it("dirty state: cleared only by a successful save", async () => {
+    // Same-entity saves do not remount (key stays "configured"), so the
+    // form itself must rebase dirty tracking once the save is confirmed.
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+    expect(dirtyState()).toBe("clean");
+
+    fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
+    await waitFor(() => expect(dirtyState()).toBe("dirty"));
+
+    // Failed save: the container never calls onSaved.
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(dirtyState()).toBe("dirty");
+
+    // Successful save: the submitted values become the clean baseline.
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    act(() => onSubmit.mock.calls[1][1]());
+    await waitFor(() => expect(dirtyState()).toBe("clean"));
+    expect(bucketInput()).toHaveValue("edited-bucket");
+
+    // Later edits are dirty again against the new baseline.
+    fireEvent.change(bucketInput(), { target: { value: "edited-again" } });
+    await waitFor(() => expect(dirtyState()).toBe("dirty"));
   });
 });

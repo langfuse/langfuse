@@ -18,6 +18,7 @@ export type InAppAgentTrpcInvalidationTarget =
   | "datasets"
   | "evals"
   | "experiments"
+  | "externalMediaStorage"
   | "models"
   | "prompts"
   | "scoreAnalytics"
@@ -88,6 +89,10 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getHealth: [],
   langfuse_getV4MigrationData: [],
   langfuse_getMedia: [],
+  langfuse_getExternalMediaStorage: [],
+  langfuse_configureExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_deleteExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_testExternalMediaStorage: [],
   langfuse_queryMetrics: [],
   langfuse_getMetricsSchema: [],
   langfuse_listModels: [],
@@ -186,6 +191,9 @@ function performTargetInvalidation(
   }
   if (target === "experiments") {
     return utils.experiments.invalidate();
+  }
+  if (target === "externalMediaStorage") {
+    return utils.externalMediaStorage.invalidate();
   }
   if (target === "models") {
     return utils.models.invalidate();

@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, getFips } from "crypto";
 import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
+import { logger } from "../logger";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
 
@@ -574,27 +575,31 @@ describe("S3StorageService DeleteObjects checksum", () => {
     expect(findHeader(request, "content-md5")).toBeUndefined();
   });
 
-  it("sends Content-MD5 on DeleteObjects when the algorithm is set to MD5", async () => {
-    setChecksumAlgorithm("MD5");
-    const { service, captured } = makeServiceWithCapture(
-      EMPTY_DELETE_RESULT_XML,
-    );
+  // MD5 checksums are unavailable when OpenSSL runs in FIPS mode.
+  it.skipIf(getFips() === 1)(
+    "sends Content-MD5 on DeleteObjects when the algorithm is set to MD5",
+    async () => {
+      setChecksumAlgorithm("MD5");
+      const { service, captured } = makeServiceWithCapture(
+        EMPTY_DELETE_RESULT_XML,
+      );
 
-    await service.deleteFiles([
-      "events/project-1/file-1.json",
-      "media/project-1/file-2.png",
-    ]);
+      await service.deleteFiles([
+        "events/project-1/file-1.json",
+        "media/project-1/file-2.png",
+      ]);
 
-    expect(captured).toHaveLength(1);
-    const request = captured[0];
-    expect(typeof request.body).toBe("string");
+      expect(captured).toHaveLength(1);
+      const request = captured[0];
+      expect(typeof request.body).toBe("string");
 
-    const expectedMd5 = createHash("md5")
-      .update(request.body as string)
-      .digest("base64");
-    expect(findHeader(request, "content-md5")).toBe(expectedMd5);
-    expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
-  });
+      const expectedMd5 = createHash("md5")
+        .update(request.body as string)
+        .digest("base64");
+      expect(findHeader(request, "content-md5")).toBe(expectedMd5);
+      expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
+    },
+  );
 });
 
 describe("S3StorageService non-buffered upload part size", () => {
@@ -653,5 +658,80 @@ describe("S3StorageService non-buffered upload part size", () => {
     // Caller's concurrency is honored instead of lib-storage's default of 4,
     // which would otherwise buffer partSize x 4 per concurrent upload.
     expect(s3UploadCtorOptions[0].queueSize).toBe(2);
+  });
+});
+
+describe("S3StorageService SlowDown logging", () => {
+  const slowDown = Object.assign(
+    new Error("Please reduce your request rate."),
+    { name: "SlowDown" },
+  );
+
+  function makeService(logSlowDownAsWarning = false) {
+    return StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      logSlowDownAsWarning,
+    });
+  }
+
+  async function rejectUpload(
+    service: ReturnType<typeof makeService>,
+    err: unknown,
+  ) {
+    vi.spyOn(
+      (service as unknown as { client: { send: () => Promise<unknown> } })
+        .client,
+      "send",
+    ).mockRejectedValue(err);
+    await expect(service.uploadJson("events/key.json", [])).rejects.toThrow(
+      /Failed to upload JSON/,
+    );
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs SlowDown as an error unless the caller owns retries", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(makeService(), slowDown);
+
+    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("logs SlowDown as a warning when the caller owns retries", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(makeService(true), slowDown);
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("still logs other failures as errors when SlowDown is a warning", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(
+      makeService(true),
+      Object.assign(new Error("missing"), { name: "NoSuchKey" }),
+    );
+
+    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

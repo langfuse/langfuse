@@ -245,7 +245,7 @@ export function RulesTable({
         accessorKey: "name",
         id: "name",
         header: "Name",
-        size: 260,
+        size: 220,
         isFixedPosition: true,
         enableSorting: true,
         cell: ({ row }) => {
@@ -298,8 +298,8 @@ export function RulesTable({
       createNumberTableColumn<RuleTableRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
+        header: "Cost (7d)",
+        size: 110,
         enableHiding: true,
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
@@ -392,7 +392,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                View traces <ExternalLink className="icon-base ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -439,7 +439,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <MoreVertical className="icon-sm text-icon-foreground" />
                   </Button>
                 )}
               </DropdownMenu>

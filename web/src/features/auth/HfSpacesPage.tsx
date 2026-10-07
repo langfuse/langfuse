@@ -24,7 +24,7 @@ export default function HfSpacesPage({ deploymentDomain }: PageProps) {
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex items-center justify-center gap-2">
             <LangfuseIcon />
-            <PlusIcon size={12} className="ml-1" />
+            <PlusIcon className="icon-sm ml-1" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/huggingface-logo.svg"
@@ -38,7 +38,7 @@ export default function HfSpacesPage({ deploymentDomain }: PageProps) {
           </h2>
         </div>
 
-        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
           <div className="space-y-8">
             <CodeView content={deploymentDomain} title="HF Space Host" />
 

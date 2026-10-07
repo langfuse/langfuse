@@ -207,21 +207,28 @@ export const PromptDetail = ({
     },
   );
 
-  let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;
-  try {
-    chatMessages = ChatMlArraySchema.parse(
-      resolutionMode === "resolved"
-        ? promptGraph.data?.resolvedPrompt
-        : prompt?.prompt,
-    );
-  } catch (error) {
-    if (PromptType.Chat === prompt?.type) {
-      console.warn(
-        "Could not parse returned chat prompt to pretty ChatML",
-        error,
+  const chatMessages = useMemo<z.infer<typeof ChatMlArraySchema> | null>(() => {
+    try {
+      return ChatMlArraySchema.parse(
+        resolutionMode === "resolved"
+          ? promptGraph.data?.resolvedPrompt
+          : prompt?.prompt,
       );
+    } catch (error) {
+      if (PromptType.Chat === prompt?.type) {
+        console.warn(
+          "Could not parse returned chat prompt to pretty ChatML",
+          error,
+        );
+      }
     }
-  }
+    return null;
+  }, [
+    resolutionMode,
+    promptGraph.data?.resolvedPrompt,
+    prompt?.prompt,
+    prompt?.type,
+  ]);
 
   const utils = api.useUtils();
 
@@ -336,7 +343,7 @@ export const PromptDetail = ({
             className="grid w-full grid-flow-col place-items-center"
             href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
           >
-            <Plus className={cn("h-4 w-4", mobile ? "mr-2" : "lg:mr-2")} />
+            <Plus className={cn("icon-base", mobile ? "mr-2" : "lg:mr-2")} />
             <span className={cn(mobile ? "inline" : "hidden lg:inline")}>
               New version
             </span>
@@ -467,7 +474,7 @@ export const PromptDetail = ({
                   variant="outline"
                   className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
                 >
-                  <History className="h-4 w-4 shrink-0" />
+                  <History className="icon-base text-icon-foreground shrink-0" />
                   <span className="shrink-0">Version #{prompt.version}</span>
                   <span
                     className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
@@ -546,7 +553,7 @@ export const PromptDetail = ({
                             : "cursor-pointer",
                         )}
                       >
-                        <Terminal className="h-4 w-4" />
+                        <Terminal className="icon-base text-icon-foreground" />
                         <span className="hidden md:inline">Playground</span>
                         <DropdownIndicator size="sm" nudge />
                       </Button>
@@ -564,7 +571,7 @@ export const PromptDetail = ({
                         disabled={!hasExperimentWriteAccess}
                         onClick={() => capture("dataset_run:new_form_open")}
                       >
-                        <FlaskConical className="h-4 w-4" />
+                        <FlaskConical className="icon-base text-icon-foreground" />
                         <span className="hidden md:ml-2 md:inline">
                           Run experiment
                         </span>
@@ -612,10 +619,10 @@ export const PromptDetail = ({
                       className="gap-1"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        <MessageSquareOff className="icon-base text-muted-foreground" />
                       ) : (
                         <>
-                          <MessageSquare className="h-4 w-4" />
+                          <MessageSquare className="icon-base text-icon-foreground" />
                           <span>Add comment</span>
                           {getNumberFromMap(commentCounts, prompt.id) ? (
                             <ActionButtonCountBadge
@@ -632,7 +639,7 @@ export const PromptDetail = ({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical className="icon-base text-icon-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
