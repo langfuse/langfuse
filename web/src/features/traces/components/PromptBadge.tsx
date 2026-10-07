@@ -15,6 +15,7 @@ export const PromptBadge = (props: {
     >
       <Badge
         color="ghost"
+        font="mono"
         label="prompt"
         text={text}
         trailingIcon={ExternalLinkIcon}
