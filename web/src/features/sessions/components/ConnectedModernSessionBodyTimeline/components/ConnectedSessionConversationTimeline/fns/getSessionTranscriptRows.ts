@@ -11,11 +11,23 @@ export function getSessionTranscriptRows(
         ...message,
         timing: { startTime: message.startTime, endTime: message.endTime },
       }));
-      return groupTranscriptMessages(messages).map((row, rowIndex) => ({
-        id: `${threadIndex}:${rowIndex}`,
-        threadIndex,
-        row,
-      }));
+      return groupTranscriptMessages(messages).flatMap((row, rowIndex) => {
+        // TODO: Consider excluding encrypted_content during transcript generation instead.
+        const parts = row.message.parts.filter((part) => {
+          if (part.type === "custom" && part.kind === "encrypted_content") {
+            return false;
+          }
+          return true;
+        });
+        if (row.type === "message" && parts.length === 0) return [];
+        return [
+          {
+            id: `${threadIndex}:${rowIndex}`,
+            threadIndex,
+            row: { ...row, message: { ...row.message, parts } },
+          },
+        ];
+      });
     },
   );
 }
