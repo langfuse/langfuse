@@ -83,6 +83,10 @@
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
     },
+    "./src/server/ee/fips": {
+      "import": "./dist/src/server/ee/fips/index.js",
+      "require": "./dist/src/server/ee/fips/index.js"
+    },
     "./src/server/ee/licenseCheck": {
       "import": "./dist/src/server/ee/licenseCheck/index.js",
       "require": "./dist/src/server/ee/licenseCheck/index.js"
