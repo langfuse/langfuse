@@ -48,10 +48,13 @@ export default withMiddlewares({
           attribution,
         });
         if (result.errors.length > 0) {
-          const error = result.errors[0];
-          res.status(error.status);
+          res.status(207);
           return {
-            message: error.error ?? error.message ?? "Failed to create score",
+            accepted: result.successes.length,
+            rejected: result.errors.length,
+            errors: result.errors.map((error) => ({
+              message: error.error ?? error.message ?? "Failed to create score",
+            })),
           };
         }
         res.status(202);

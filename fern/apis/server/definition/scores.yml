@@ -8,9 +8,9 @@ service:
   endpoints:
     create:
       docs: >
-        Create one score or a list of scores.
-        Scores are processed asynchronously. Single-score requests return HTTP 200 with the score ID.
-        List requests return HTTP 202 with {"message":"Accepted"} once the batch has been accepted for processing.
+        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if accepted,
+        or 207 with accepted/rejected counts and error messages. Do not automatically retry a 207 batch.
+        The generated reference shows only 200; batches return 202 or 207.
       method: POST
       path: /scores
       request: CreateScoresRequest
@@ -222,9 +222,10 @@ types:
     union:
       - CreateScoreResponse
       - CreateScoreBatchResponse
+      - CreateScoreBatchResults
 
   CreateScoreBatchResponse:
-    docs: The batch has been accepted for asynchronous processing. Returned with HTTP 202.
+    docs: Batch accepted (HTTP 202).
     properties:
       message: literal<"Accepted">
 
@@ -288,3 +289,14 @@ types:
       data: list<GetScoresResponseData>
       meta: pagination.MetaResponse
       _deprecation: optional<commons.Deprecation>
+
+  CreateScoreBatchResults:
+    docs: Acceptance counts and errors (HTTP 207).
+    properties:
+      accepted: integer
+      rejected: integer
+      errors: list<CreateScoreBatchError>
+
+  CreateScoreBatchError:
+    properties:
+      message: string

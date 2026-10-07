@@ -125,6 +125,11 @@ export const PostScoresBody = z.union([PostScoreBody, z.array(PostScoreBody)]);
 export const PostScoresResponse = z.union([
   z.object({ id: z.string() }),
   z.object({ message: z.string() }),
+  z.object({
+    accepted: z.number().int().nonnegative(),
+    rejected: z.number().int().nonnegative(),
+    errors: z.array(z.object({ message: z.string() })),
+  }),
 ]);
 
 // DELETE /scores/{scoreId}

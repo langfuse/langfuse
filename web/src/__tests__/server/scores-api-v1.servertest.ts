@@ -271,6 +271,36 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
+    it("should summarize accepted and rejected scores in a partially failed batch", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+      const response = await makeAPICall<{
+        accepted: number;
+        rejected: number;
+        errors: { message: string }[];
+      }>(
+        "POST",
+        "/api/public/scores",
+        [
+          { name: "accepted-score", value: 1, traceId: v4() },
+          { id: "bad\r", name: "rejected-score", value: 1, traceId: v4() },
+        ],
+        auth,
+      );
+
+      expect(response.status).toBe(207);
+      expect(response.body).toEqual({
+        accepted: 1,
+        rejected: 1,
+        errors: [
+          {
+            message: expect.stringContaining(
+              "ID cannot contain carriage return characters",
+            ),
+          },
+        ],
+      });
+    });
+
     it("should create score for a trace", async () => {
       const traceId = v4();
 
