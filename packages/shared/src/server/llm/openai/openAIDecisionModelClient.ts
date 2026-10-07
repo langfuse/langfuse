@@ -3,7 +3,6 @@ import {
   experimental_decide as decide,
   Experimental_DecisionRefusalError,
   type Experimental_DecisionQuestion,
-  type JSONValue,
 } from "ai";
 import {
   DecisionModelEvaluatorError,
@@ -13,41 +12,61 @@ import {
   type DecisionModelRequest,
   type DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
+import type { DecisionModelEntry } from "../../../features/evals/decisionModel";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
+/** Same text conversion the OpenAI SDK applies before POST /v1/decisions. */
+function toDecisionText(entry: DecisionModelEntry): string {
+  return typeof entry === "string" ? entry : JSON.stringify(entry);
+}
+
 /** The SDK's score question has descriptions only. It sends index labels. */
-function toSdkQuestion(id: string, question: DecisionModelRequestQuestion) {
+function toSdkQuestion(
+  id: string,
+  question: DecisionModelRequestQuestion,
+): Experimental_DecisionQuestion {
   switch (question.type) {
     case "choice":
       return {
-        type: "choice" as const,
-        instructions: question.instructions,
+        type: "choice",
+        instructions: toDecisionText(question.instructions),
         criteria: Object.fromEntries(
           question.choices.map((choice) => [
             choice.value,
-            choice.description ?? null,
+            choice.description == null
+              ? null
+              : toDecisionText(choice.description),
           ]),
         ),
       };
     case "score":
       return {
-        type: "score" as const,
-        instructions: question.instructions,
+        type: "score",
+        instructions: toDecisionText(question.instructions),
         criteria: question.levels.map((level, index) => {
           if (!level.label) {
             throw new DecisionModelEvaluatorError(
               `OpenAI score question "${id}" is missing a label for level ${index}.`,
             );
           }
-          return level.description ?? level.label;
+          return toDecisionText(level.description ?? level.label);
         }),
       };
-    case "predicate":
-      return {
-        type: "boolean" as const,
-        instructions: question.instructions,
-        ...(question.criteria ? { criteria: question.criteria } : {}),
+    case "predicate": {
+      const criteria = {
+        ...(question.criteria?.true != null
+          ? { true: toDecisionText(question.criteria.true) }
+          : {}),
+        ...(question.criteria?.false != null
+          ? { false: toDecisionText(question.criteria.false) }
+          : {}),
       };
+      return {
+        type: "boolean",
+        instructions: toDecisionText(question.instructions),
+        ...(Object.keys(criteria).length > 0 ? { criteria } : {}),
+      };
+    }
   }
 }
 
@@ -90,18 +109,19 @@ export function createOpenAIDecisionModelClient(params: {
 
   return {
     evaluate: async (request: DecisionModelRequest) => {
-      const questions = Object.fromEntries(
-        Object.entries(request.questions).map(([id, question]) => [
-          id,
-          toSdkQuestion(id, question),
-        ]),
-      );
+      const questions: Record<string, Experimental_DecisionQuestion> =
+        Object.fromEntries(
+          Object.entries(request.questions).map(([id, question]) => [
+            id,
+            toSdkQuestion(id, question),
+          ]),
+        );
       let result;
       try {
         result = await decide({
           model: provider.decisionModel(params.model),
-          state: request.state as Record<string, JSONValue>,
-          questions: questions as Record<string, Experimental_DecisionQuestion>,
+          state: JSON.stringify(request.state),
+          questions,
           maxRetries: 0,
         });
       } catch (error) {
