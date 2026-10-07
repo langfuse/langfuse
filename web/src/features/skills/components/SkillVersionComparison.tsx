@@ -73,6 +73,13 @@ function SkillVersionComparison({
       label: `Version ${version}`,
     }));
 
+  function handleBeforeChange(value: string) {
+    setBefore(Number(value));
+  }
+  function handleAfterChange(value: string) {
+    setAfter(Number(value));
+  }
+
   return (
     <Dialog title="Compare skill versions" size="xxl">
       <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -87,7 +94,7 @@ function SkillVersionComparison({
               value={String(before)}
               options={options}
               placeholder="Select version"
-              onValueChange={(value) => setBefore(Number(value))}
+              onValueChange={handleBeforeChange}
             />
           </div>
           <div className="flex min-w-0 flex-col gap-1">
@@ -97,7 +104,7 @@ function SkillVersionComparison({
               value={String(after)}
               options={options}
               placeholder="Select version"
-              onValueChange={(value) => setAfter(Number(value))}
+              onValueChange={handleAfterChange}
             />
           </div>
         </div>
@@ -146,6 +153,7 @@ function SkillVersionFiles({
   before: number;
   after: number;
 }) {
+  const [selectedPath, setSelectedPath] = useState<string>();
   const oldVersion = api.skills.byName.useQuery(
     { projectId, name, version: before },
     { refetchOnWindowFocus: false, meta: { silentAllErrors: true } },
@@ -155,15 +163,12 @@ function SkillVersionFiles({
     { refetchOnWindowFocus: false, meta: { silentAllErrors: true } },
   );
 
+  function retryVersions() {
+    oldVersion.refetch();
+    newVersion.refetch();
+  }
   if (oldVersion.isError || newVersion.isError) {
-    return (
-      <SkillComparisonError
-        retry={() => {
-          oldVersion.refetch();
-          newVersion.refetch();
-        }}
-      />
-    );
+    return <SkillComparisonError retry={retryVersions} />;
   }
   if (!oldVersion.data || !newVersion.data) {
     return (
@@ -173,27 +178,32 @@ function SkillVersionFiles({
     );
   }
   const files = compareSkillFiles(oldVersion.data.files, newVersion.data.files);
+  const selectedFile =
+    files.find((file) => file.path === selectedPath) ?? files[0];
   return (
     <SkillFileChanges
       files={files}
       emptyMessage="No file changes between these versions."
-      renderDiff={(file) => (
+      selectedFile={selectedFile}
+      onSelectFile={setSelectedPath}
+    >
+      {selectedFile ? (
         <SkillFileDiff
           projectId={projectId}
           oldFile={
-            file.oldFile?.sha256Hash
-              ? { sha256Hash: file.oldFile.sha256Hash }
+            selectedFile.oldFile?.sha256Hash
+              ? { sha256Hash: selectedFile.oldFile.sha256Hash }
               : null
           }
           newFile={
-            file.newFile?.sha256Hash
-              ? { sha256Hash: file.newFile.sha256Hash }
+            selectedFile.newFile?.sha256Hash
+              ? { sha256Hash: selectedFile.newFile.sha256Hash }
               : null
           }
           oldLabel={`Version ${before}`}
           newLabel={`Version ${after}`}
         />
-      )}
-    />
+      ) : null}
+    </SkillFileChanges>
   );
 }

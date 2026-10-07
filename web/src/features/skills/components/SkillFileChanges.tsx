@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type MouseEvent, type ReactNode } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type compareSkillFiles } from "@/src/features/skills/utils/compareSkillFiles";
 import { cn } from "@/src/utils/tailwind";
@@ -13,18 +13,22 @@ const statusColors = {
 export function SkillFileChanges({
   files,
   emptyMessage,
-  renderDiff,
+  selectedFile,
+  onSelectFile,
+  children,
 }: {
   files: ReturnType<typeof compareSkillFiles>;
   emptyMessage: string;
-  renderDiff: (file: ReturnType<typeof compareSkillFiles>[number]) => ReactNode;
+  selectedFile: ReturnType<typeof compareSkillFiles>[number] | undefined;
+  onSelectFile: (path: string) => void;
+  children: ReactNode;
 }) {
-  const [selectedPath, setSelectedPath] = useState<string>();
   const changedCount = files.filter(
     (file) => file.status !== "Unchanged",
   ).length;
-  const selectedFile =
-    files.find((file) => file.path === selectedPath) ?? files[0];
+  function handleSelectFile(event: MouseEvent<HTMLButtonElement>) {
+    onSelectFile(event.currentTarget.value);
+  }
   if (!changedCount) {
     return (
       <p role="status" className="text-muted-foreground text-sm">
@@ -50,7 +54,8 @@ export function SkillFileChanges({
               aria-current={
                 selectedFile?.path === file.path ? "true" : undefined
               }
-              onClick={() => setSelectedPath(file.path)}
+              value={file.path}
+              onClick={handleSelectFile}
               className={cn(
                 "hover:bg-accent flex w-full flex-col gap-1 border-b p-3 text-left text-sm last:border-b-0",
                 selectedFile?.path === file.path && "bg-accent",
@@ -88,7 +93,7 @@ export function SkillFileChanges({
                   This file is unchanged.
                 </p>
               ) : (
-                <div key={selectedFile.path}>{renderDiff(selectedFile)}</div>
+                <div key={selectedFile.path}>{children}</div>
               )}
             </section>
           ) : null}

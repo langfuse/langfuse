@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type MouseEvent, useState } from "react";
 import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Badge } from "@/src/components/ui/badge";
@@ -197,21 +197,26 @@ export function SkillVersionHistory(
                             {...props}
                             versions={sortedVersions}
                           >
-                            {({ openComparison }) => (
-                              <div className="shrink-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:hover)]:opacity-0">
-                                <IconButton
-                                  icon={FileDiffIcon}
-                                  label={`Compare version ${version} with selected version ${props.selectedVersion}`}
-                                  title="Compare with selected version"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    openComparison(version);
-                                  }}
-                                />
-                              </div>
-                            )}
+                            {({ openComparison }) => {
+                              function handleCompareClick(
+                                event: MouseEvent<HTMLButtonElement>,
+                              ) {
+                                event.stopPropagation();
+                                openComparison(version);
+                              }
+                              return (
+                                <div className="shrink-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:hover)]:opacity-0">
+                                  <IconButton
+                                    icon={FileDiffIcon}
+                                    label={`Compare version ${version} with selected version ${props.selectedVersion}`}
+                                    title="Compare with selected version"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCompareClick}
+                                  />
+                                </div>
+                              );
+                            }}
                           </SkillVersionComparisonController>
                         ) : null}
                       </div>
