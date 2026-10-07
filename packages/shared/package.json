@@ -31,6 +31,18 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/transcript/ordering": {
+      "import": "./dist/src/server/transcript/ordering.js",
+      "require": "./dist/src/server/transcript/ordering.js"
+    },
+    "./src/server/transcript/transcript": {
+      "import": "./dist/src/server/transcript/transcript.js",
+      "require": "./dist/src/server/transcript/transcript.js"
+    },
+    "./src/server/transcript/types": {
+      "import": "./dist/src/server/transcript/types.js",
+      "require": "./dist/src/server/transcript/types.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"
