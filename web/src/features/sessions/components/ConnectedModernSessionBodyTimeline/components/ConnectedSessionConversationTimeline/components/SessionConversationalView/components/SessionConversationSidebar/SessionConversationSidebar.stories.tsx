@@ -159,7 +159,7 @@ export const SearchAndCollapse = meta.story({
       throw new globalThis.Error("Expected loaded sidebar");
     const canvas = within(canvasElement);
     const input = canvas.getByRole("textbox", {
-      name: "Search messages and tools",
+      name: "Search session",
     });
     await userEvent.type(input, "Initialize");
     await expect(args.onSearchChange).toHaveBeenLastCalledWith("Initialize");

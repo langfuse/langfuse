@@ -43,9 +43,10 @@ export type SessionConversationSidebarTrace = {
 
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
 const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
+const SIDEBAR_SCROLL_PADDING = 16;
 
 export function SessionConversationSidebar(
-  props:
+  props: (
     | { state: "loading" }
     | {
         state: "loaded";
@@ -63,7 +64,8 @@ export function SessionConversationSidebar(
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
-      },
+      }
+  ) & { searchVisibility?: "hidden" },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
@@ -140,6 +142,10 @@ export function SessionConversationSidebar(
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: 5,
+    paddingStart: SIDEBAR_SCROLL_PADDING,
+    paddingEnd: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingStart: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingEnd: SIDEBAR_SCROLL_PADDING,
     getItemKey: (index) =>
       traces[index]?.itemId ?? traces[index]?.trace.id ?? index,
     onChange: (instance) => {
@@ -159,6 +165,10 @@ export function SessionConversationSidebar(
         ({ trace, itemId }) => (itemId ?? trace.id) === activeTraceId,
       )
     : -1;
+  const activeTraceSize = virtualizer
+    .getVirtualItems()
+    .find((item) => item.index === activeTraceIndex)?.size;
+  const sidebarHeight = virtualizer.scrollRect?.height;
   const setListElement = useCallback(
     (element: HTMLDivElement | null) => {
       listRef.current = element;
@@ -169,10 +179,16 @@ export function SessionConversationSidebar(
         Date.now() < autoFollowPausedUntilRef.current
       )
         return;
-      // `auto` preserves the viewport when the active turn is already visible.
-      virtualizer.scrollToIndex(activeTraceIndex, { align: "auto" });
+      const availableHeight =
+        (sidebarHeight ?? element.clientHeight) - SIDEBAR_SCROLL_PADDING * 2;
+      virtualizer.scrollToIndex(activeTraceIndex, {
+        align:
+          activeTraceSize !== undefined && activeTraceSize > availableHeight
+            ? "start"
+            : "auto",
+      });
     },
-    [activeTraceIndex, virtualizer],
+    [activeTraceIndex, activeTraceSize, sidebarHeight, virtualizer],
   );
   useLayoutEffect(() => {
     resumeAutoFollowRef.current = () => {
@@ -205,14 +221,19 @@ export function SessionConversationSidebar(
         aria-busy="true"
         className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
       >
-        <div className="shrink-0 border-b px-2 py-2.5">
+        <div
+          className={cn(
+            "shrink-0 border-b px-2 py-2.5",
+            props.searchVisibility === "hidden" && "hidden",
+          )}
+        >
           <div className="relative min-w-0">
             <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
             <Input
               disabled
               value=""
-              aria-label="Search messages and tools"
-              placeholder="Search messages and tools"
+              aria-label="Search session"
+              placeholder="Search session"
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
@@ -246,7 +267,12 @@ export function SessionConversationSidebar(
       aria-label="Session messages and tools"
       className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
     >
-      <div className="shrink-0 border-b px-2 py-2.5">
+      <div
+        className={cn(
+          "shrink-0 border-b px-2 py-2.5",
+          props.searchVisibility === "hidden" && "hidden",
+        )}
+      >
         <div className="relative min-w-0">
           <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
           <Input
@@ -255,8 +281,8 @@ export function SessionConversationSidebar(
               virtualizer.scrollToOffset(0);
               props.onSearchChange(event.target.value);
             }}
-            aria-label="Search messages and tools"
-            placeholder="Search messages and tools"
+            aria-label="Search session"
+            placeholder="Search session"
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
@@ -265,7 +291,7 @@ export function SessionConversationSidebar(
         ref={setListElement}
         role="region"
         aria-label="Session turns"
-        className="min-h-0 flex-1 overflow-y-auto pt-2.5 pb-4"
+        className="min-h-0 flex-1 overflow-y-auto"
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
@@ -426,6 +452,7 @@ export function SessionConversationSidebar(
                                   </h4>
                                 )}
                                 {groupConsecutiveTools(rows, {
+                                  minGroupSize: 2,
                                   isTool: (row) =>
                                     props.search.trim() === "" &&
                                     row.role === "tool",

@@ -3,6 +3,7 @@
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
+import { Spinner } from "@/src/components/layouts/spinner";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -1044,24 +1045,26 @@ export const SessionEventsPage: React.FC<{
       />
     );
 
+  if (session.error && !session.data && !session.isFetching) {
+    return (
+      <ErrorPage
+        title="Failed to load session"
+        message="The session could not be loaded. Please try again."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => {
+            session.refetch();
+          },
+        }}
+      />
+    );
+  }
+
   if (!session.data) {
     return (
-      <Page
-        headerProps={{
-          title: sessionId,
-          itemType: "SESSION",
-          breadcrumb: [
-            {
-              name: "Sessions",
-              href: `/project/${projectId}/sessions`,
-            },
-          ],
-        }}
-      >
-        <div className="h-full p-4">
-          <JsonSkeleton className="h-full w-full" numRows={8} />
-        </div>
-      </Page>
+      <div className="bg-background fixed inset-0 z-50 flex">
+        <Spinner message="Loading" />
+      </div>
     );
   }
 
