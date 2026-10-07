@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { type ObservationLevelType } from "@langfuse/shared";
 
 import {
   ItemTypeTile,
@@ -8,6 +9,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup, {
   type DocPopupProps,
 } from "@/src/components/layouts/doc-popup";
+import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { cn } from "@/src/utils/tailwind";
 
 type EntityTitleProps = {
@@ -21,8 +23,8 @@ type EntityTitleProps = {
   tooltip?: string;
   /** Doc popup right after the title text. */
   help?: DocPopupProps;
-  /** Sits right after the title text, e.g. a level badge. */
-  trailing?: ReactNode;
+  /** Observation level badge after the title; DEFAULT shows nothing. */
+  level?: ObservationLevelType;
   as: "h2" | "span";
   isFocusable?: boolean;
   "data-testid"?: string;
@@ -35,7 +37,7 @@ export function EntityTitle({
   titleContent,
   tooltip,
   help,
-  trailing,
+  level,
   as: Heading,
   isFocusable,
   "data-testid": testId,
@@ -46,7 +48,7 @@ export function EntityTitle({
       <Heading
         className={cn(
           // Explicit colour: titles are the emphasis tier and never inherit a container tint.
-          "text-primary min-w-0 truncate pb-1 text-lg leading-6 font-bold",
+          "text-primary min-w-0 truncate text-lg leading-7 font-bold",
           isFocusable && "focus:outline-hidden",
         )}
         title={titleContent || tooltip ? undefined : title}
@@ -76,7 +78,7 @@ export function EntityTitle({
           </span>
         )}
       </Heading>
-      {trailing}
+      {level && level !== "DEFAULT" && <ObservationLevelBadge level={level} />}
     </div>
   );
 }
