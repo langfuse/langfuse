@@ -3,8 +3,8 @@ import { randomUUID } from "crypto";
 import { SpanKind, type Span } from "@opentelemetry/api";
 import { z } from "zod";
 
-import { instrumentAsync } from "../instrumentation";
-import { logger } from "../logger";
+import { instrumentAsync } from "../../instrumentation";
+import { logger } from "../../logger";
 
 import {
   ChbAccessTokenProvider,

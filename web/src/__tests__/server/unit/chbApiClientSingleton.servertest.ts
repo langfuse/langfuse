@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Web's per-process CHB client handle. The transport itself is tested in
- * `packages/shared/src/server/clickhouseBilling/chbApiClient.test.ts`; what is
+ * `packages/shared/src/server/ee/clickhouseBilling/chbApiClient.test.ts`; what is
  * web-specific — and what these cases pin — is that one client is shared across
  * billing requests so its token cache does any work at all.
  */

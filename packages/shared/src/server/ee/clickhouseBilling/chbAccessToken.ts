@@ -1,8 +1,8 @@
 import { SpanKind, type Span } from "@opentelemetry/api";
 import { z } from "zod";
 
-import { instrumentAsync } from "../instrumentation";
-import { logger } from "../logger";
+import { instrumentAsync } from "../../instrumentation";
+import { logger } from "../../logger";
 
 /**
  * Auth0 client-credentials (M2M) token source for the ClickHouse Billing (CHB)

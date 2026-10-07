@@ -2,12 +2,12 @@ import { getBillingProvider, parseDbOrg, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
 import { env } from "../../env";
+import { logger } from "@langfuse/shared/src/server";
 import {
   CHB_USAGE_CURRENCY,
   ChbApiError,
   chbBillUsageAmountUSD,
-  logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/src/server/ee/clickhouseBilling";
 import { recordIncrement, traceException } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { backOff } from "exponential-backoff";

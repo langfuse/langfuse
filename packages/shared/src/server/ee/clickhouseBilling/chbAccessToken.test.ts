@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("../logger", () => ({ logger: mocks.logger }));
+vi.mock("../../logger", () => ({ logger: mocks.logger }));
 
 import { ChbAccessTokenProvider, ChbAuthError } from "./chbAccessToken";
 

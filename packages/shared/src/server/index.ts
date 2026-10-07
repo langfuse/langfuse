@@ -140,8 +140,6 @@ export * from "./filterToPrisma";
 export * from "./prismaFilter";
 export * from "./instrumentation";
 export * from "./logger";
-export * from "./clickhouseBilling/chbAccessToken";
-export * from "./clickhouseBilling/chbApiClient";
 export * from "./processErrorHandlers";
 export * from "./headerPropagation";
 export * from "./queries";

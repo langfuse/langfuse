@@ -2,8 +2,9 @@
  * Web's env-bound handle on the ClickHouse Billing (CHB) REST client.
  *
  * The transport, its schemas, its error types and the fail-closed build rule
- * live in `@langfuse/shared/src/server` so the worker can reach CHB as well —
- * the spend-alert job reads the open period's accrued usage from there. Only
+ * live in `@langfuse/shared/src/server/ee/clickhouseBilling` so the worker can
+ * reach CHB as well — the spend-alert job reads the open bill's accrued usage
+ * from there. Only
  * the env reading and the process-wide singleton are per-app, because each app
  * validates its own environment.
  */
@@ -12,14 +13,14 @@ import { env } from "@/src/env.mjs";
 import {
   buildChbApiClient,
   type ChbApiClient,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/src/server/ee/clickhouseBilling";
 
 export {
   ChbApiClient,
   ChbPaymentRequiredError,
   type ChbAttachedPlan,
   type ChbCheckoutSession,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/src/server/ee/clickhouseBilling";
 
 class ChbApiClientSingleton {
   private static instance: ChbApiClient | null;

@@ -62,29 +62,22 @@ vi.mock("@langfuse/shared/src/db", () => ({
 }));
 
 /**
- * The real CHB helpers, not stand-ins: `chbBillUsageAmountUSD` encodes the
- * major-unit/USD-only contract these cases exist to pin, and `ChbApiError` is
- * what the job's status branching uses `instanceof` against. Only the
- * side-effecting exports (logging, metrics, email) are replaced.
+ * Only the side-effecting exports (logging, metrics, email) are replaced. The
+ * CHB helpers stay real: `chbBillUsageAmountUSD` encodes the major-unit/USD-only
+ * contract these cases exist to pin, and `ChbApiError` is what the job's status
+ * branching uses `instanceof` against.
  */
-vi.mock("@langfuse/shared/src/server", async () => {
-  const { CHB_USAGE_CURRENCY, ChbApiError, chbBillUsageAmountUSD } =
-    await import("../../../../../packages/shared/src/server/clickhouseBilling/chbApiClient");
-  return {
-    logger: {
-      info: mockLoggerInfo,
-      warn: mockLoggerWarn,
-      error: mockLoggerError,
-      debug: mockLoggerDebug,
-    },
-    recordIncrement: mockRecordIncrement,
-    traceException: mockTraceException,
-    sendCloudSpendAlertEmail: mockSendCloudSpendAlertEmail,
-    CHB_USAGE_CURRENCY,
-    ChbApiError,
-    chbBillUsageAmountUSD,
-  };
-});
+vi.mock("@langfuse/shared/src/server", () => ({
+  logger: {
+    info: mockLoggerInfo,
+    warn: mockLoggerWarn,
+    error: mockLoggerError,
+    debug: mockLoggerDebug,
+  },
+  recordIncrement: mockRecordIncrement,
+  traceException: mockTraceException,
+  sendCloudSpendAlertEmail: mockSendCloudSpendAlertEmail,
+}));
 
 vi.mock("../chbApiClient", () => ({
   getChbApiClient: mockGetChbApiClient,
@@ -97,7 +90,7 @@ vi.mock("../../../env", () => ({
   },
 }));
 
-import { ChbApiError } from "@langfuse/shared/src/server";
+import { ChbApiError } from "@langfuse/shared/src/server/ee/clickhouseBilling";
 
 import { handleCloudSpendAlertJob } from "../handleCloudSpendAlertJob";
 

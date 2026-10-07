@@ -1,7 +1,7 @@
 import {
   buildChbApiClient,
   type ChbApiClient,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/src/server/ee/clickhouseBilling";
 
 import { env } from "../../env";
 
