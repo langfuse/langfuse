@@ -16,6 +16,14 @@ import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
   const content = part.content;
 
+  if (content.kind === "encrypted") {
+    return (
+      <span className="text-muted-foreground py-1 font-mono text-xs">
+        Encrypted reasoning
+      </span>
+    );
+  }
+
   if (content.kind === "text") {
     return (
       <SessionTimelineCollapsiblePart
@@ -25,6 +33,7 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
       >
         <MarkdownView
           markdown={decodeUnicodeEscapesOnly(content.text, true)}
+          fallbackDisplay="collapsed"
           className="px-0 py-0"
         />
       </SessionTimelineCollapsiblePart>
@@ -43,21 +52,21 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
     );
   }
 
-  return (
-    <SessionTimelineCollapsiblePart
-      label={
-        content.kind === "redacted"
-          ? "Redacted reasoning"
-          : "Encrypted reasoning"
-      }
-      variant="plain"
-      alignment="row"
-    >
-      <pre className="text-muted-foreground overflow-hidden font-mono text-xs break-all whitespace-pre-wrap">
-        {content.data}
-      </pre>
-    </SessionTimelineCollapsiblePart>
-  );
+  if (content.kind === "redacted") {
+    return (
+      <SessionTimelineCollapsiblePart
+        label="Redacted reasoning"
+        variant="plain"
+        alignment="row"
+      >
+        <pre className="text-muted-foreground overflow-hidden font-mono text-xs break-all whitespace-pre-wrap">
+          {content.data}
+        </pre>
+      </SessionTimelineCollapsiblePart>
+    );
+  }
+
+  return assertUnreachable(content);
 }
 
 function SessionTimelineFile({ part }: { part: FilePart }) {
@@ -123,6 +132,7 @@ export function SessionTimelinePart({
         <div data-session-search-content>
           <MarkdownView
             markdown={decodeUnicodeEscapesOnly(part.text, true)}
+            fallbackDisplay="collapsed"
             className="px-0 py-0"
           />
         </div>

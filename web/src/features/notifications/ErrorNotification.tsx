@@ -46,6 +46,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       source,
       ...(path ? { path } : {}),
       hasErrorId: Boolean(traceId),
+      ...(traceId ? { errorId: traceId } : {}),
     });
   };
 

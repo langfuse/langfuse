@@ -2129,6 +2129,7 @@ function SessionConversationalViewStory({
   groupedTools = false,
   searchQueryOverride,
   viewportHeight,
+  viewportWidth,
   pageOffset = 0,
   delayedLoad = false,
 }: {
@@ -2139,6 +2140,7 @@ function SessionConversationalViewStory({
   groupedTools?: boolean;
   searchQueryOverride?: string;
   viewportHeight?: number;
+  viewportWidth?: number;
   pageOffset?: number;
   delayedLoad?: boolean;
 }) {
@@ -2260,6 +2262,7 @@ function SessionConversationalViewStory({
             ? undefined
             : viewportHeight + pageOffset,
         paddingTop: pageOffset,
+        width: viewportWidth,
       }}
     >
       {delayedLoad && !transcriptsLoaded && (
@@ -2614,8 +2617,16 @@ export const ExactMessageNavigation = meta.story({
       .getByLabelText("Session conversation timeline")
       .querySelector<HTMLElement>('[data-session-item-id="scroll-turn-2:0"]')!;
     await expect(
-      within(entry).getByRole("button", { name: "Hide tools: lookup · save" }),
-    ).toHaveAttribute("aria-expanded", "true");
+      within(entry).queryByRole("button", {
+        name: /^(Show|Hide) tools: lookup · save$/,
+      }),
+    ).not.toBeInTheDocument();
+    await expect(
+      within(entry).getByRole("button", { name: "Expand lookup" }),
+    ).toBeVisible();
+    await expect(
+      within(entry).getByRole("button", { name: "Expand save" }),
+    ).toBeVisible();
   },
 });
 
@@ -2843,7 +2854,7 @@ export const NestedThreadsHidden = meta.story({
       }
     }
     const search = sidebar.getByRole("textbox", {
-      name: "Search messages and tools",
+      name: "Search session",
     });
     await userEvent.type(search, "confirms delivery");
     await expect(
@@ -2875,7 +2886,7 @@ export const Loading = meta.story({
     await expect(sidebar).toHaveAttribute("aria-busy", "true");
     await expect(
       within(sidebar).getByRole("textbox", {
-        name: "Search messages and tools",
+        name: "Search session",
       }),
     ).toBeDisabled();
   },
@@ -2899,7 +2910,7 @@ export const SupportAgentWorkflow = meta.story({
       await sidebar.findByRole("button", { name: "tool: Get order" }),
     ).toBeInTheDocument();
     await expect(
-      sidebar.getByRole("textbox", { name: "Search messages and tools" }),
+      sidebar.getByRole("textbox", { name: "Search session" }),
     ).toBeEnabled();
     await expect(
       await within(
@@ -2946,6 +2957,8 @@ export const ConsecutiveToolGroups = meta.story({
       await expect(
         sidebar.getByRole("button", { name: `Tool: ${summary}` }),
       ).toBeInTheDocument();
+    }
+    for (const summary of ["5x tool_1", longNames]) {
       await expect(
         timeline.getByRole("button", { name: `Show tools: ${summary}` }),
       ).toHaveAttribute("aria-expanded", "false");
@@ -2954,16 +2967,25 @@ export const ConsecutiveToolGroups = meta.story({
       sidebar.getByRole("button", { name: "Tool: tool_a · tool_b" }),
     );
     await expect(
-      timeline.getByRole("button", { name: "Hide tools: tool_a · tool_b" }),
-    ).toHaveAttribute("aria-expanded", "true");
+      timeline.queryByRole("button", { name: "Show tools: tool_a · tool_b" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      timeline.getByRole("button", { name: "Expand tool_a" }),
+    ).toHaveAttribute("aria-expanded", "false");
     await expect(
       timeline.getByRole("button", { name: "Expand tool_b" }),
     ).toBeInTheDocument();
     await userEvent.click(
-      timeline.getByRole("button", { name: "Hide tools: tool_a · tool_b" }),
+      timeline.getByRole("button", { name: "Expand tool_a" }),
     );
     await expect(
-      timeline.getByRole("button", { name: "Show tools: tool_a · tool_b" }),
+      timeline.getByRole("button", { name: "Collapse tool_a" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(
+      timeline.getByRole("button", { name: "Collapse tool_a" }),
+    );
+    await expect(
+      timeline.getByRole("button", { name: "Expand tool_a" }),
     ).toHaveAttribute("aria-expanded", "false");
     await userEvent.type(sidebar.getByRole("textbox"), "tool_1");
     await expect(
@@ -2982,6 +3004,107 @@ export const CodingAgentWorkflow = meta.story({
 });
 export const LangfuseAssistantWorkflow = meta.story({
   args: { workflowTraces: langfuseAssistantWorkflow },
+});
+export const CollapsedLargeMessage = meta.story({
+  name: "(Test) Collapsed Large Message",
+  args: {
+    transcriptTraces: [
+      {
+        ...traces[0]!,
+        trace: { ...traces[0]!.trace, name: "Large message fallback" },
+        state: {
+          type: "transcript",
+          result: {
+            state: "loaded",
+            cutoff: false,
+            transcript: {
+              threads: [
+                {
+                  conversationHistory: [],
+                  currentTurn: {
+                    nestingLevel: 0,
+                    observations: [],
+                    messages: [
+                      {
+                        observationId: "large-message",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:00Z"),
+                        endTime: null,
+                        role: "user",
+                        source: "input",
+                        parts: [
+                          {
+                            type: "text",
+                            text: "Show me the diagnostic output.",
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "large-message",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:00Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "text",
+                            text: `${"> ".repeat(101)}Deeply nested diagnostic output\n\n${"Diagnostic line: operation completed successfully.\n".repeat(300)}`,
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "large-message-summary",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:01Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "text",
+                            text: "Summary: all operations completed successfully.",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const timeline = within(
+      within(canvasElement).getByLabelText("Session conversation timeline"),
+    );
+    const content = await timeline.findByText(
+      /Deeply nested diagnostic output/,
+      {
+        selector: "pre",
+      },
+    );
+    await expect(content).not.toBeVisible();
+    await expect(
+      timeline.getByText("Summary: all operations completed successfully."),
+    ).toBeVisible();
+    await userEvent.click(timeline.getByText("Expand content"));
+    await expect(content).toBeVisible();
+    await userEvent.click(timeline.getByText("Collapse content"));
+    await expect(content).not.toBeVisible();
+    const sidebar = within(within(canvasElement).getByRole("complementary"));
+    await userEvent.type(
+      sidebar.getByRole("textbox"),
+      "Deeply nested diagnostic output",
+    );
+    await userEvent.click(
+      await sidebar.findByRole("button", { name: "Assistant message" }),
+    );
+    await waitFor(() => expect(content).toBeVisible());
+  },
 });
 export const ManySimpleTurns = meta.story({
   args: { workflowTraces: manySimpleTurnsWorkflow },
@@ -3064,7 +3187,7 @@ export const ClearPendingSearch = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByRole("textbox", {
-      name: "Search messages and tools",
+      name: "Search session",
     });
     const timeline = canvas.getByLabelText("Session conversation timeline");
     await userEvent.type(input, "ORDER");

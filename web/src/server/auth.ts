@@ -867,6 +867,7 @@ export async function getAuthOptions(signupAttribution?: {
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
               v4WriteMode,
+              apiKeyRoleSelectionEnabled: env.API_AUTH_MIGRATION === "enforce",
             },
             user:
               dbUser !== null

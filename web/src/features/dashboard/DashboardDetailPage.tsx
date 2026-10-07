@@ -45,7 +45,6 @@ import {
 } from "@/src/features/widgets";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
-import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
   DropdownMenu,
@@ -1189,25 +1188,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                       (dashboard.data?.owner === "LANGFUSE"
                         ? " (Langfuse Maintained)"
                         : ""),
-                    titleContent:
-                      hasCUDAccess && dashboard.data ? (
-                        <InlineEditText
-                          value={dashboard.data.name}
-                          required
-                          aria-label="Rename dashboard"
-                          onSave={(name) => {
-                            capture("dashboard:dashboard_renamed_inline", {
-                              dashboard_id: dashboardId,
-                            });
-                            updateDashboardMetadata.mutate({
-                              projectId,
-                              dashboardId,
-                              name,
-                              description: dashboard.data?.description ?? "",
-                            });
-                          }}
-                        />
-                      ) : undefined,
                     breadcrumb: [
                       {
                         name: "Dashboards",

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
@@ -36,7 +35,6 @@ export const MobilePageTitle = ({
 }) => {
   const {
     title,
-    titleContent,
     titleTooltip,
     help,
     itemType,
@@ -95,9 +93,7 @@ export const MobilePageTitle = ({
           title={title}
           className="text-primary min-w-0 truncate text-base leading-tight font-bold"
         >
-          {titleContent ? (
-            titleContent
-          ) : titleTooltip ? (
+          {titleTooltip ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

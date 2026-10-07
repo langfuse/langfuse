@@ -37,7 +37,9 @@ function Criteria({ question }: { question: DecisionModelQuestion }) {
               <span className="text-muted-foreground shrink-0 font-mono">
                 {index}
               </span>
-              <span>{entryText(level.description)}</span>
+              {level.description ? (
+                <span>{entryText(level.description)}</span>
+              ) : null}
             </li>
           ))}
         </ol>

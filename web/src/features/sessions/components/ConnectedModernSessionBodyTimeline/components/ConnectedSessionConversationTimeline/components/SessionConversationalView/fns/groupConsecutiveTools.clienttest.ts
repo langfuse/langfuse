@@ -6,9 +6,46 @@ const options = {
   getBoundary: (row: { boundary: number }) => row.boundary,
   getToolName: (row: { name: string }) => row.name,
   summaryBudget: 36,
+  minGroupSize: 2,
 };
 
 describe("groupConsecutiveTools", () => {
+  it.each([1, 2, 3])(
+    "keeps %i consecutive timeline tools ungrouped",
+    (count) => {
+      const rows = Array.from({ length: count }, (_, index) => ({
+        role: "tool",
+        name: `tool_${index}`,
+        boundary: 0,
+      }));
+      expect(
+        groupConsecutiveTools(rows, { ...options, minGroupSize: 4 }),
+      ).toEqual(rows.map((row) => ({ type: "row", row })));
+    },
+  );
+
+  it("groups four consecutive timeline tools", () => {
+    const rows = Array.from({ length: 4 }, () => ({
+      role: "tool",
+      name: "read",
+      boundary: 0,
+    }));
+    expect(
+      groupConsecutiveTools(rows, { ...options, minGroupSize: 4 }),
+    ).toEqual([{ type: "tools", rows, summary: "4x read", title: "4x read" }]);
+  });
+
+  it("keeps small sidebar groups grouped", () => {
+    const rows = Array.from({ length: 2 }, () => ({
+      role: "tool",
+      name: "read",
+      boundary: 0,
+    }));
+    expect(groupConsecutiveTools(rows, options)).toEqual([
+      { type: "tools", rows, summary: "2x read", title: "2x read" },
+    ]);
+  });
+
   it("fits measured glyph widths, including the conditional sidebar prefix", () => {
     const rows = ["iiii", "WWWW"].map((name) => ({
       role: "tool",

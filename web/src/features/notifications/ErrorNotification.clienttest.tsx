@@ -30,7 +30,7 @@ describe("ErrorNotification", () => {
     vi.clearAllMocks();
   });
 
-  it("captures one metadata-only shown event for a rendered error toast", async () => {
+  it("captures the displayed error ID without toast content", async () => {
     const props = {
       error: "Sensitive error title",
       description: "Sensitive customer-controlled details",
@@ -50,6 +50,7 @@ describe("ErrorNotification", () => {
         source: "trpc",
         path: "traces.byId",
         hasErrorId: true,
+        errorId: props.traceId,
       });
     });
 
@@ -65,9 +66,6 @@ describe("ErrorNotification", () => {
     expect(mocks.capture).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mocks.capture.mock.calls[0]?.[1])).not.toContain(
       "Sensitive",
-    );
-    expect(JSON.stringify(mocks.capture.mock.calls[0]?.[1])).not.toContain(
-      props.traceId,
     );
   });
 
@@ -89,6 +87,7 @@ describe("ErrorNotification", () => {
         hasErrorId: false,
       });
     });
+    expect(mocks.capture.mock.calls[0]?.[1]).not.toHaveProperty("errorId");
   });
 
   it("classifies a pathless tRPC warning by its explicit source", async () => {

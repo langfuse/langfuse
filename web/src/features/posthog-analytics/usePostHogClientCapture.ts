@@ -12,6 +12,7 @@ type ToastEventMap = {
     source: "trpc" | "application";
     path?: string;
     hasErrorId: boolean;
+    errorId?: string;
   };
 };
 
@@ -303,7 +304,6 @@ const events = {
     "add_widget_dialog_open",
     "add_widget_tab_switch",
     "widget_added",
-    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -378,7 +378,8 @@ const events = {
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
   // User-visible error-frustration denominator. Metadata only: `path` is the
-  // static tRPC procedure name; never send toast text or the raw Error ID.
+  // static tRPC procedure name and `errorId` is the opaque ID shown in the
+  // toast; never send toast text or error payloads.
   toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",

@@ -401,7 +401,6 @@ export const env = createEnv({
       .number()
       .default(60),
 
-    // auth migration; self-host and default stay legacy
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
       .default("legacy"),

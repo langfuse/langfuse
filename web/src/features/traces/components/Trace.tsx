@@ -278,7 +278,7 @@ function DesktopTraceReviewWorkspace({
   projectId: string;
 }) {
   const { query } = useRouter();
-  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
   const reviewOpen =
     (query.annotation === "open" && canAnnotate) || query.comments === "open";
   return (

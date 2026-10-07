@@ -1,4 +1,4 @@
-import { type Role } from "@langfuse/shared/src/db";
+import { type Role } from "../../db";
 
 export const organizationScopes = [
   "projects:read",
@@ -11,6 +11,7 @@ export const organizationScopes = [
   "gateway:invoke",
   "organizationMembers:read",
   "organizationMembers:CUD",
+  "organizationMembers:manageOwnership",
   "langfuseCloudBilling:CRUD",
   "organizationUsage:read",
   "orgAuditLogs:read",
@@ -29,10 +30,13 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "gateway:manage",
     "gateway:invoke",
     "organizationMembers:CUD",
+    "organizationMembers:manageOwnership",
     "organizationMembers:read",
     "langfuseCloudBilling:CRUD",
     "organizationUsage:read",
     "orgAuditLogs:read",
+    // used for api keys
+    "projects:read",
   ],
   ADMIN: [
     "projects:create",
@@ -44,6 +48,8 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organizationMembers:read",
     "organizationUsage:read",
     "orgAuditLogs:read",
+    // used for api keys
+    "projects:read",
   ],
   MEMBER: ["gateway:invoke", "organizationMembers:read"],
   VIEWER: [],
