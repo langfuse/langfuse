@@ -1,11 +1,7 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
-} from "@aws-sdk/client-bedrock-runtime";
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import { generateText, Output } from "ai";
-import { z } from "zod";
+import { createBedrockMantle } from "@ai-sdk/amazon-bedrock/mantle";
+import { generateText, Output, type ModelMessage } from "ai";
+import type { z } from "zod";
 import {
   assertValidBedrockRegion,
   createDefaultBedrockProviderAuth,
@@ -14,21 +10,28 @@ import {
 /** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
 export type TopicPromptPart = { text: string; cache?: boolean };
 
-export type TopicTextUsage = {
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-};
-
-const TIMEOUT_MS = 60_000;
+const GEO_PREFIX_REGION = { us: "us-", eu: "eu-", apac: "ap-" } as const;
 
 /**
- * Uses AWS credentials for Topics structured text. Cached prompts on OpenAI
- * models go through InvokeModel, the Bedrock API that accepts explicit cache
- * breakpoints for them; everything else uses Converse via the AI SDK.
+ * GPT-5.6+ models on Bedrock reuse a shared prompt prefix only with explicit
+ * cache breakpoints, which Converse does not accept for them; the regional
+ * Bedrock Mantle endpoint (OpenAI-compatible) does. Returns the in-region model
+ * ID when the configured model's geography matches the configured region, so a
+ * request never leaves that geography; other models keep using Converse.
  */
+function mantleModelId(model: string, region: string): string | undefined {
+  const match = /^(?:(us|eu|apac)\.)?(openai\..+)$/.exec(model);
+  if (!match) return undefined;
+  const [, geo, inRegionModel] = match;
+  if (
+    geo &&
+    !region.startsWith(GEO_PREFIX_REGION[geo as keyof typeof GEO_PREFIX_REGION])
+  )
+    return undefined;
+  return inRegionModel;
+}
+
+/** Uses the shared AI SDK and AWS credentials for Topics structured text. */
 export async function generateTopicText<T>(params: {
   model: string;
   system: TopicPromptPart[];
@@ -37,15 +40,47 @@ export async function generateTopicText<T>(params: {
   maxOutputTokens: number;
   region: string;
   profile?: string;
-}): Promise<{ output: unknown; usage: TopicTextUsage }> {
+}) {
   assertValidBedrockRegion(params.region);
-  if (/(^|\.)openai\./.test(params.model) && params.system.some((p) => p.cache))
-    return invokeWithCache(params);
+  const auth = createDefaultBedrockProviderAuth({ profile: params.profile });
+  const cached = params.system.some((part) => part.cache);
+  const mantleModel = cached
+    ? mantleModelId(params.model, params.region)
+    : undefined;
 
-  const provider = createAmazonBedrock({
-    region: params.region,
-    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
-  });
+  if (mantleModel) {
+    const provider = createBedrockMantle({ region: params.region, ...auth });
+    const breakpoint = {
+      openai: { promptCacheBreakpoint: { mode: "explicit" as const } },
+    };
+    const messages: ModelMessage[] = [
+      ...params.system.map((part) => ({
+        role: "system" as const,
+        content: part.text,
+        ...(part.cache ? { providerOptions: breakpoint } : {}),
+      })),
+      { role: "user", content: params.input },
+    ];
+    const result = await generateText({
+      model: provider.chat(mantleModel),
+      messages,
+      allowSystemInMessages: true,
+      output: Output.object({ schema: params.schema }),
+      providerOptions: {
+        openai: {
+          promptCacheOptions: { mode: "explicit", ttl: "30m" },
+          reasoningEffort: "none",
+          // The SDK does not recognize Bedrock model IDs as reasoning models, so set this explicitly.
+          maxCompletionTokens: params.maxOutputTokens,
+        },
+      },
+      maxRetries: 0,
+      timeout: 60_000,
+    });
+    return toTopicTextResult(result);
+  }
+
+  const provider = createAmazonBedrock({ region: params.region, ...auth });
   const result = await generateText({
     model: provider(params.model),
     messages: [
@@ -64,121 +99,31 @@ export async function generateTopicText<T>(params: {
       },
     },
     maxRetries: 0,
-    timeout: TIMEOUT_MS,
+    timeout: 60_000,
   });
+  return toTopicTextResult(result);
+}
+
+function toTopicTextResult(result: {
+  output: unknown;
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    inputTokenDetails?: {
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
+    };
+  };
+}) {
   return {
     output: result.output,
     usage: {
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
       totalTokens: result.usage.totalTokens,
+      cacheReadTokens: result.usage.inputTokenDetails?.cacheReadTokens,
+      cacheWriteTokens: result.usage.inputTokenDetails?.cacheWriteTokens,
     },
   };
-}
-
-async function invokeWithCache(params: {
-  model: string;
-  system: TopicPromptPart[];
-  input: string;
-  schema: z.ZodType;
-  maxOutputTokens: number;
-  region: string;
-  profile?: string;
-}): Promise<{ output: unknown; usage: TopicTextUsage }> {
-  const client = new BedrockRuntimeClient({
-    region: params.region,
-    credentials: fromNodeProviderChain(
-      params.profile ? { profile: params.profile } : {},
-    ),
-    // Sign with AWS credentials even when a Bedrock bearer token is in the environment.
-    authSchemePreference: ["sigv4"],
-    maxAttempts: 1,
-  });
-  const body = {
-    messages: [
-      {
-        role: "system",
-        content: params.system.map((part) => ({
-          type: "text",
-          text: part.text,
-          ...(part.cache
-            ? { prompt_cache_breakpoint: { mode: "explicit" } }
-            : {}),
-        })),
-      },
-      { role: "user", content: [{ type: "text", text: params.input }] },
-    ],
-    prompt_cache_options: { mode: "explicit", ttl: "30m" },
-    reasoning_effort: "none",
-    max_completion_tokens: params.maxOutputTokens,
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "topics",
-        schema: strictJsonSchema(params.schema),
-        strict: true,
-      },
-    },
-  };
-  const response = await client.send(
-    new InvokeModelCommand({
-      modelId: params.model,
-      contentType: "application/json",
-      accept: "application/json",
-      body: JSON.stringify(body),
-    }),
-    { abortSignal: AbortSignal.timeout(TIMEOUT_MS) },
-  );
-  const json = JSON.parse(new TextDecoder().decode(response.body)) as {
-    choices?: {
-      finish_reason?: string;
-      message?: { content?: string | null; refusal?: string | null };
-    }[];
-    usage?: {
-      prompt_tokens?: number;
-      completion_tokens?: number;
-      total_tokens?: number;
-      prompt_tokens_details?: {
-        cached_tokens?: number;
-        cache_write_tokens?: number;
-      };
-    };
-  };
-  const choice = json.choices?.[0];
-  if (choice?.message?.refusal)
-    throw new Error(`The model refused: ${choice.message.refusal}`);
-  if (choice?.finish_reason === "length" || !choice?.message?.content)
-    throw new Error(
-      `The model returned no complete output (finish reason ${choice?.finish_reason ?? "unknown"}).`,
-    );
-  return {
-    output: JSON.parse(choice.message.content),
-    usage: {
-      inputTokens: json.usage?.prompt_tokens,
-      outputTokens: json.usage?.completion_tokens,
-      totalTokens: json.usage?.total_tokens,
-      cacheReadTokens: json.usage?.prompt_tokens_details?.cached_tokens,
-      cacheWriteTokens: json.usage?.prompt_tokens_details?.cache_write_tokens,
-    },
-  };
-}
-
-// Strict JSON Schema output requires closed objects with every property required.
-function strictJsonSchema(schema: z.ZodType): unknown {
-  const close = (node: unknown): unknown => {
-    if (Array.isArray(node)) return node.map(close);
-    if (!node || typeof node !== "object") return node;
-    const entries = Object.entries(node).filter(([key]) => key !== "$schema");
-    const out = Object.fromEntries(
-      entries.map(([key, value]) => [key, close(value)]),
-    ) as Record<string, unknown>;
-    if (out.type === "object" && out.properties)
-      return {
-        ...out,
-        additionalProperties: false,
-        required: Object.keys(out.properties),
-      };
-    return out;
-  };
-  return close(z.toJSONSchema(schema));
 }

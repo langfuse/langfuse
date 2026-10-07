@@ -31,7 +31,6 @@ tasks:
   "rust:test":
     concurrencyGroup: langfuse-rust
 catalog:
-  "@aws-sdk/client-bedrock-runtime": 3.1074.0
   "@aws-sdk/client-cloudwatch": 3.1074.0
   "@aws-sdk/client-eventbridge": 3.1074.0
   "@aws-sdk/client-lambda": 3.1074.0
