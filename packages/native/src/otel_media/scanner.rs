@@ -24,7 +24,9 @@ use super::rules::{
     MediaScanMode, BASE64_MARKER, DATA_URI_PREFIX,
 };
 
-const MAX_EMBEDDED_JSON_DEPTH: usize = 10;
+// Count JSON documents parsed from strings, excluding the outer input, not object/array depth.
+// At the limit, string text is still scanned for Data URIs without further JSON interpretation.
+const MAX_EMBEDDED_JSON_DEPTH: usize = 2;
 
 #[derive(Default)]
 struct ScanState {

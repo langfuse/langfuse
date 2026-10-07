@@ -144,6 +144,54 @@ fn preserves_json_escaping_and_scans_nested_stringified_json() {
 }
 
 #[test]
+fn limits_embedded_documents_without_losing_uri_text_or_siblings() {
+    let provider_data = BASE64.encode(b"provider");
+    let deep_uri = data_uri(b"at-limit");
+    let quoted_uri = data_uri(b"quoted");
+    let sibling_uri = data_uri(b"sibling");
+    for layers in [2, 3, 10] {
+        let mut document = format!(
+            r#"{{"provider":{{"type":"base64","media_type":"image/png","data":"{provider_data}"}},"text":"{deep_uri} after","quoted":"{quoted_uri}"}}"#
+        );
+        for _ in 0..layers {
+            let encoded = serde_json::to_string(&document).unwrap();
+            document = format!(r#"{{"embedded":{encoded}}}"#);
+        }
+        let input = format!(r#"{{"deep":{document},"sibling":"{sibling_uri}","tail":"after"}}"#);
+        let result = extract_media(input.as_bytes()).expect("valid embedded documents");
+        let bodies = result
+            .media
+            .iter()
+            .map(|media| media.decode().unwrap())
+            .collect::<Vec<_>>();
+        let expected_bodies = if layers == 2 {
+            vec![
+                b"provider".to_vec(),
+                b"at-limit".to_vec(),
+                b"quoted".to_vec(),
+                b"sibling".to_vec(),
+            ]
+        } else if layers == 3 {
+            vec![
+                b"at-limit".to_vec(),
+                b"quoted".to_vec(),
+                b"sibling".to_vec(),
+            ]
+        } else {
+            // Further quoting leaves a backslash after base64: the text scanner's
+            // URI grammar does not accept it as a terminator.
+            vec![b"at-limit".to_vec(), b"sibling".to_vec()]
+        };
+        assert_eq!(bodies, expected_bodies, "embedded layers: {layers}");
+        let mut expected = input;
+        for media in &result.media {
+            expected = expected.replacen(&media.original_value().unwrap(), &media.reference(), 1);
+        }
+        assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
+    }
+}
+
+#[test]
 fn scans_unicode_escaped_provider_keys_in_nested_json() {
     let nested = r#"{"type":"base64","media_\u0074ype":"image/png","data":"aGk="}"#;
     let encoded_nested = serde_json::to_string(nested).expect("serialize nested JSON");
