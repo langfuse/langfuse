@@ -166,7 +166,7 @@ import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
-  chartFilterExclusionReason,
+  chartFacetExclusionReason,
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
@@ -897,12 +897,20 @@ export default function ObservationsEventsTable({
 
   // The chart is actually on screen (not just enabled). Only then do we mark
   // the filters it can't honour as "not applied", so table mode stays untouched.
-  // Both surfaces use the stateless per-column / per-field reason resolvers
-  // (chartFilterExclusionReason / chartSearchFieldReason) — a filter deactivates
-  // in the sidebar and its search-bar pill identically.
+  // Both surfaces read the same resolvers (chartFacetExclusionReason /
+  // chartSearchFieldReason) — a filter deactivates in the sidebar and its
+  // search-bar pill identically.
   const chartActive = chartEnabled && chartViewMode === "chart";
   // Free-text search is never applied to the chart (it has no aggregate form).
   const chartFreeTextIgnored = chartActive && Boolean(searchQuery);
+  // A facet reads blocked when its column is unsupported OR when it holds a
+  // condition the chart drops (a metadata filter outside its keyed shape, a
+  // presence check), so the sidebar can never show a filter as applied that the
+  // chart query left out.
+  const chartBlockedColumnReason = useCallback(
+    (column: string) => chartFacetExclusionReason(filterState, column),
+    [filterState],
+  );
 
   // Use the custom hook for observations data fetching
   const {
@@ -1963,7 +1971,7 @@ export default function ObservationsEventsTable({
                   queryFilter={queryFilter}
                   filterWithAI={sidebarAiFiltersEnabled}
                   blockedColumnReason={
-                    chartActive ? chartFilterExclusionReason : undefined
+                    chartActive ? chartBlockedColumnReason : undefined
                   }
                   // inline: flow at natural height in the sheet's single scroll
                   // (no internal ScrollArea). Desktop sidebar stays default.
@@ -2216,10 +2224,9 @@ export default function ObservationsEventsTable({
               queryFilter={queryFilter}
               filterWithAI={sidebarAiFiltersEnabled}
               // In chart mode, block filters the chart can't apply — active or
-              // not — dimmed + hover reason. Stateless per-column resolver,
-              // matching the search bar.
+              // not — dimmed + hover reason, matching the search bar.
               blockedColumnReason={
-                chartActive ? chartFilterExclusionReason : undefined
+                chartActive ? chartBlockedColumnReason : undefined
               }
             />
           )}
