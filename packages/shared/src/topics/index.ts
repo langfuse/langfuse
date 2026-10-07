@@ -26,7 +26,11 @@ export const topicEmbeddingConfigSchema = z.object({
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
 
-export const TOPICS_MODEL_SLOTS = ["summary", "embedding", "naming"] as const;
+export const TOPICS_MODEL_SLOTS = [
+  "summary",
+  "embedding",
+  "clustering",
+] as const;
 export type TopicsModelSlotName = (typeof TOPICS_MODEL_SLOTS)[number];
 // Every slot must support embeddings or structured output; Anthropic has no embeddings API.
 export const TOPICS_SUPPORTED_ADAPTERS: readonly string[] = [
@@ -50,10 +54,10 @@ export const TOPICS_MODEL_SLOT_DETAILS: Record<
     recommendation:
       "An embedding model such as text-embedding-3-small or Cohere Embed v4. It cannot be changed once summaries are embedded.",
   },
-  naming: {
-    label: "Topic naming",
+  clustering: {
+    label: "Topic clustering",
     recommendation:
-      "A stronger model such as GPT-5.6 Terra or Claude Sonnet. It runs once per topic.",
+      "Names and describes each topic when topics are updated. Use a stronger model such as GPT-5.6 Terra, or Claude Sonnet through Amazon Bedrock.",
   },
 };
 const topicsModelSlotSchema = z.object({
@@ -65,7 +69,7 @@ export const topicsModelSettingsSchema = z.object({
   embedding: topicsModelSlotSchema.nullable(),
   embeddingDimensions:
     topicEmbeddingConfigSchema.shape.embeddingDimensions.unwrap(),
-  naming: topicsModelSlotSchema.nullable(),
+  clustering: topicsModelSlotSchema.nullable(),
   enabled: z.boolean(),
 });
 export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;

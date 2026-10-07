@@ -88,7 +88,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
           ...slot("embedding", "eu.cohere.embed-v4:0"),
           dimensions: 256,
         },
-        naming: slot("naming", "gpt-5.6-terra"),
+        clustering: slot("clustering", "gpt-5.6-terra"),
       };
     },
     TOPICS_TRANSCRIPT_VERSION,

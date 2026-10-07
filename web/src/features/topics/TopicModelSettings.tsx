@@ -21,7 +21,7 @@ const FORM_ID = "topics-model-settings";
 const MODEL_PLACEHOLDERS: Record<TopicsModelSlotName, string> = {
   summary: "e.g. gpt-6-luna or us.openai.gpt-6-luna",
   embedding: "e.g. text-embedding-3-small or eu.cohere.embed-v4:0",
-  naming: "e.g. gpt-5.6-terra or a Claude Sonnet model",
+  clustering: "e.g. gpt-5.6-terra or a Claude Sonnet model on Bedrock",
 };
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
@@ -40,7 +40,9 @@ export function useTopicModelSettings({
   const settings = api.topics.modelSettings.useQuery({ projectId });
   const connections = api.llmApiKey.all.useQuery({ projectId });
   const configured = Boolean(
-    settings.data?.summary && settings.data.embedding && settings.data.naming,
+    settings.data?.summary &&
+    settings.data.embedding &&
+    settings.data.clustering,
   );
 
   const action = (
@@ -69,7 +71,7 @@ export function useTopicModelSettings({
         <Alert.Description>
           <p>
             Topics uses your LLM connections for three jobs: facet summaries,
-            embeddings, and topic naming. Open Models to set all three.
+            embeddings, and topic clustering. Open Models to set all three.
           </p>
         </Alert.Description>
       </Alert>
@@ -127,7 +129,7 @@ function TopicModelSettingsForm({
     () => ({
       summary: stored.summary ?? { llmApiKeyId: "", model: "" },
       embedding: stored.embedding ?? { llmApiKeyId: "", model: "" },
-      naming: stored.naming ?? { llmApiKeyId: "", model: "" },
+      clustering: stored.clustering ?? { llmApiKeyId: "", model: "" },
     }),
   );
   const [dimensions, setDimensions] = useState(
@@ -164,11 +166,11 @@ function TopicModelSettingsForm({
     summary: slotValue(slots.summary),
     embedding: slotValue(slots.embedding),
     embeddingDimensions: parsedDimensions.data ?? 0,
-    naming: slotValue(slots.naming),
+    clustering: slotValue(slots.clustering),
     enabled,
   };
   const complete = Boolean(
-    settings.summary && settings.embedding && settings.naming,
+    settings.summary && settings.embedding && settings.clustering,
   );
   const updateSlot = (name: TopicsModelSlotName, update: Partial<SlotDraft>) =>
     setSlots((current) => ({
@@ -186,9 +188,9 @@ function TopicModelSettingsForm({
       }}
     >
       <p className="text-muted-foreground text-sm">
-        Topics runs on your own LLM connections and needs three models.
-        Embeddings require an OpenAI, Azure OpenAI, Amazon Bedrock, or Google
-        connection.{" "}
+        Topics runs on your own LLM connections and needs three models. Saving
+        makes one test call per model. Embeddings require an OpenAI, Azure
+        OpenAI, Amazon Bedrock, or Google connection.{" "}
         <TextLink
           path={`/project/${projectId}/settings/llm-connections`}
           value="Manage LLM connections"
@@ -268,6 +270,11 @@ function TopicModelSettingsForm({
         disabled={!canWrite || (!complete && !enabled)}
         onCheckedChange={setEnabled}
       />
+      {save.isPending && (
+        <p className="text-muted-foreground text-sm">
+          Testing each model with a real call…
+        </p>
+      )}
       {save.error && (
         <Alert variant="destructive" size="sm">
           <Alert.Description>

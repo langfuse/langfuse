@@ -438,7 +438,7 @@ model LlmApiKeys {
   DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
   topicsSummaryModelConfigs   TopicsModelConfig[] @relation("TopicsSummaryLlmApiKey")
   topicsEmbeddingModelConfigs TopicsModelConfig[] @relation("TopicsEmbeddingLlmApiKey")
-  topicsNamingModelConfigs    TopicsModelConfig[] @relation("TopicsNamingLlmApiKey")
+  topicsClusteringModelConfigs TopicsModelConfig[] @relation("TopicsClusteringLlmApiKey")
 
   @@unique([projectId, provider])
   @@map("llm_api_keys")
@@ -1297,13 +1297,14 @@ model TopicsModelConfig {
   embeddingModel       String?     @map("embedding_model")
   embeddingDimensions  Int         @default(1024) @map("embedding_dimensions")
 
-  namingLlmApiKeyId String?     @map("naming_llm_api_key_id")
-  namingLlmApiKey   LlmApiKeys? @relation("TopicsNamingLlmApiKey", fields: [namingLlmApiKeyId], references: [id], onDelete: SetNull)
-  namingModel       String?     @map("naming_model")
+  // Names and describes each cluster during Update topics.
+  clusteringLlmApiKeyId String?     @map("clustering_llm_api_key_id")
+  clusteringLlmApiKey   LlmApiKeys? @relation("TopicsClusteringLlmApiKey", fields: [clusteringLlmApiKeyId], references: [id], onDelete: SetNull)
+  clusteringModel       String?     @map("clustering_model")
 
   @@index([summaryLlmApiKeyId])
   @@index([embeddingLlmApiKeyId])
-  @@index([namingLlmApiKeyId])
+  @@index([clusteringLlmApiKeyId])
   @@map("topics_model_configs")
 }
 

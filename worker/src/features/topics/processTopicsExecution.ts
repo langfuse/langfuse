@@ -687,7 +687,7 @@ async function clusterFacet(
         metadata: {
           ...candidate.metadata,
           effectiveMemberCount: group.count,
-          namingModel: models.naming.model,
+          namingModel: models.clustering.model,
         },
       });
       metrics.result("naming", "generated");

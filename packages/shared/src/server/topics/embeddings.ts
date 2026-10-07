@@ -1,12 +1,24 @@
 import { embedLLMText } from "../llm/llmText";
+import { LLMAdapter } from "../llm/types";
 import { topicEmbeddingConfigSchema } from "../../topics";
 import type { TopicsModel } from "./model-config";
 
-// Bedrock validates these options against fixed sizes per model family; other
-// sizes are omitted, and a vector of the wrong length is rejected afterwards.
-const COHERE_DIMENSIONS = new Set([256, 512, 1024, 1536]);
-const TITAN_DIMENSIONS = new Set([256, 512, 1024]);
-const NOVA_DIMENSIONS = new Set([256, 1024]);
+// The AI SDK validates the whole Bedrock options object, and each family names
+// its size option differently, so only the family's own fields are sent.
+function bedrockEmbeddingOptions(
+  modelId: string,
+  dimensions: number,
+): Record<string, string | number> {
+  if (modelId.includes("nova"))
+    return { embeddingPurpose: "CLUSTERING", embeddingDimension: dimensions };
+  if (modelId.includes("cohere"))
+    return {
+      inputType: "clustering",
+      truncate: "NONE",
+      outputDimension: dimensions,
+    };
+  return { dimensions };
+}
 
 /** Embeds one summary through the project's LLM connection. */
 export async function generateTopicEmbedding(params: {
@@ -23,31 +35,25 @@ export async function generateTopicEmbedding(params: {
     value: params.summary,
     // Discovery and later centroid assignment must share one vector space, so
     // every provider is asked for clustering vectors of the configured size.
-    providerOptions: {
-      openai: { dimensions: embeddingDimensions },
-      amazonBedrock: {
-        inputType: "clustering",
-        truncate: "NONE",
-        ...(COHERE_DIMENSIONS.has(embeddingDimensions)
-          ? { outputDimension: embeddingDimensions }
-          : {}),
-        embeddingPurpose: "CLUSTERING",
-        ...(TITAN_DIMENSIONS.has(embeddingDimensions)
-          ? { dimensions: embeddingDimensions }
-          : {}),
-        ...(NOVA_DIMENSIONS.has(embeddingDimensions)
-          ? { embeddingDimension: embeddingDimensions }
-          : {}),
-      },
-      google: {
-        taskType: "CLUSTERING",
-        outputDimensionality: embeddingDimensions,
-      },
-      vertex: {
-        taskType: "CLUSTERING",
-        outputDimensionality: embeddingDimensions,
-      },
-    },
+    providerOptions:
+      params.model.adapter === LLMAdapter.Bedrock
+        ? {
+            amazonBedrock: bedrockEmbeddingOptions(
+              params.model.model,
+              embeddingDimensions,
+            ),
+          }
+        : {
+            openai: { dimensions: embeddingDimensions },
+            google: {
+              taskType: "CLUSTERING",
+              outputDimensionality: embeddingDimensions,
+            },
+            vertex: {
+              taskType: "CLUSTERING",
+              outputDimensionality: embeddingDimensions,
+            },
+          },
     maxRetries: 2,
     abortSignal: AbortSignal.timeout(60_000),
   });

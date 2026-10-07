@@ -11,8 +11,12 @@ const mocks = vi.hoisted(() => ({
   current: vi.fn(),
   upsert: vi.fn(),
   hasEmbeddings: vi.fn(),
+  testCall: vi.fn(),
+  embed: vi.fn(),
 }));
 vi.mock("./clickhouse", () => ({ hasTopicEmbeddings: mocks.hasEmbeddings }));
+vi.mock("../llm/testModelCall", () => ({ testModelCall: mocks.testCall }));
+vi.mock("./embeddings", () => ({ generateTopicEmbedding: mocks.embed }));
 vi.mock("../../db", () => ({
   prisma: {
     llmApiKeys: { findMany: mocks.keys },
@@ -38,7 +42,7 @@ const settings = {
   summary: slot("openai", "gpt-6-luna"),
   embedding: slot("openai", "text-embedding-3-small"),
   embeddingDimensions: 1024 as const,
-  naming: slot("openai", "gpt-5.6-terra"),
+  clustering: slot("openai", "gpt-5.6-terra"),
   enabled: true,
 };
 
@@ -50,6 +54,10 @@ beforeEach(() => {
   ]);
   mocks.current.mockResolvedValue(null);
   mocks.hasEmbeddings.mockResolvedValue(false);
+  mocks.testCall.mockResolvedValue(undefined);
+  mocks.embed.mockImplementation(async ({ dimensions }) => ({
+    embedding: Array(dimensions).fill(0.1),
+  }));
 });
 
 describe("saveTopicsModelSettings", () => {
@@ -57,7 +65,7 @@ describe("saveTopicsModelSettings", () => {
     await expect(
       saveTopicsModelSettings("project", {
         ...settings,
-        naming: slot("anthropic", "claude-sonnet"),
+        clustering: slot("anthropic", "claude-sonnet"),
       }),
     ).rejects.toThrow("Anthropic has no embeddings API");
     expect(mocks.upsert).not.toHaveBeenCalled();
@@ -66,14 +74,31 @@ describe("saveTopicsModelSettings", () => {
   it("saves a partial setup but enables Topics only with all three models", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,
-      naming: null,
+      clustering: null,
       enabled: false,
     });
     expect(mocks.upsert).toHaveBeenCalledOnce();
     await expect(
-      saveTopicsModelSettings("project", { ...settings, naming: null }),
+      saveTopicsModelSettings("project", { ...settings, clustering: null }),
     ).rejects.toThrow("before turning Topics on");
     expect(mocks.upsert).toHaveBeenCalledOnce();
+  });
+
+  it("tests every configured slot and names the ones that fail", async () => {
+    mocks.testCall.mockImplementation(async ({ model }) => {
+      if (model === "gpt-5.6-terra")
+        throw new Error("Model not found (HTTP 404)");
+    });
+    mocks.embed.mockResolvedValue({ embedding: Array(1536).fill(0.1) });
+
+    await expect(saveTopicsModelSettings("project", settings)).rejects.toThrow(
+      "Embeddings (text-embedding-3-small): The model returned 1536 dimensions instead of 1024. Choose a size this model supports.; Topic clustering (gpt-5.6-terra): Model not found (HTTP 404)",
+    );
+    expect(mocks.testCall).toHaveBeenCalledTimes(2);
+    expect(mocks.embed).toHaveBeenCalledWith(
+      expect.objectContaining({ dimensions: 1024 }),
+    );
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -111,13 +136,13 @@ describe("getEnabledTopicsModels", () => {
       embeddingLlmApiKey: openai,
       embeddingModel: "text-embedding-3-small",
       embeddingDimensions: 512,
-      namingLlmApiKey: openai,
-      namingModel: "gpt-5.6-terra",
+      clusteringLlmApiKey: openai,
+      clusteringModel: "gpt-5.6-terra",
     };
     mocks.configs.mockResolvedValue([
       row,
       // A deleted connection leaves its slot empty.
-      { ...row, projectId: "missing-slot", namingLlmApiKey: null },
+      { ...row, projectId: "missing-slot", clusteringLlmApiKey: null },
     ]);
 
     const models = await getEnabledTopicsModels(["complete", "missing-slot"]);

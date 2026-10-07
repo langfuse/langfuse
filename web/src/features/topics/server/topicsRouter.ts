@@ -97,7 +97,7 @@ async function requireTopicsModels(projectId: string) {
   const models = await getTopicsModels(projectId);
   if (!models)
     throw new InvalidRequestError(
-      "Choose summary, embedding, and naming models in the Topics model settings first.",
+      "Choose summary, embedding, and clustering models in the Topics model settings first.",
     );
   return models;
 }

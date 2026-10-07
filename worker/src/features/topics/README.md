@@ -58,17 +58,20 @@ pnpm --filter @langfuse/native run build
 Topics runs on the project's own LLM connections (the same connections evals
 and the playground use). Each project stores one `topics_model_configs` row with
 three slots, each a connection plus a model ID: facet summaries, embeddings (plus
-dimensions), and topic naming. Set them on the Topics page under **Models**.
+dimensions), and topic clustering (the model that names and describes topics). Set them on the Topics page under **Models**.
 Processing is unavailable until all three are set. Allowed adapters are OpenAI
 (including OpenAI-compatible base URLs), Azure OpenAI, Amazon Bedrock, Google AI
 Studio and Vertex AI; Anthropic connections are rejected because Anthropic has
-no embeddings API. Summary and naming calls go through `generateLLMText`;
+no embeddings API. Summary and clustering calls go through `generateLLMText`;
 embeddings go through `embedLLMText`. Both retry 429 and 5xx responses twice
 with backoff. On Cloud, Bedrock and Vertex connections need explicit
 credentials; the default credential chain is self-hosted only.
 
+Saving the settings makes one real call per configured slot (structured output
+for summaries and clustering, one embedding whose length must equal the
+configured dimensions) and rejects the save if any call fails.
 The embedding model and dimensions cannot change once the project has embedded
-summaries, so existing vectors stay comparable. Summary and naming changes apply
+summaries, so existing vectors stay comparable. Summary and clustering model changes apply
 to new work only; an execution frozen on another summary or embedding model
 fails and must be started again. Deleting a connection that a slot uses turns
 automatic processing off and records why. Usage is retained for any model, but
@@ -96,7 +99,7 @@ Summary cost estimates include both GPT-6 Luna profiles and the existing
 `us.openai.gpt-5.6-luna` profile. See the
 [GPT-6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html)
 for supported source regions and pricing. The
-recommended Bedrock naming model is `us.openai.gpt-5.6-terra`. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
+recommended Bedrock clustering model is `us.openai.gpt-5.6-terra`. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html)
 currently list `us.` geographic inference profiles in commercial Regions, but
 no `eu.` profiles; these profiles route within the US geography, including when

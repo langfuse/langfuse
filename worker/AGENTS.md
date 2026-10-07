@@ -32,7 +32,7 @@
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
   Model calls use `generateTopicText` and `generateTopicEmbedding` from
   `@langfuse/shared/topics/server` with the project's resolved `TopicsModels`
-  (summary, embedding, naming LLM connections from `topics_model_configs`).
+  (summary, embedding, clustering LLM connections from `topics_model_configs`).
   Pass models explicitly; never put them on execution or batch state, which is
   persisted. Trace-batch jobs load enabled settings for all allowlisted batch
   projects in one query (`getEnabledTopicsModels`) and pause a project on

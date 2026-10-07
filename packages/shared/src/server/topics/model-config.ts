@@ -1,14 +1,21 @@
 import type { LlmApiKeys, Prisma, TopicsModelConfig } from "@prisma/client";
 import { prisma } from "../../db";
 import { InvalidRequestError } from "../../errors";
-import type { LLMConnection } from "../llm/llmText";
-import { LLMAdapter } from "../llm/types";
 import {
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  type LLMConnection,
+} from "../llm/llmText";
+import { testModelCall } from "../llm/testModelCall";
+import { LLMAdapter, type LLMApiKeySchema } from "../llm/types";
+import {
+  TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_SUPPORTED_ADAPTERS,
   type TopicsModelSettings,
   type TopicsModelSlotName,
 } from "../../topics";
 import { hasTopicEmbeddings } from "./clickhouse";
+import { generateTopicEmbedding } from "./embeddings";
+import { z } from "zod";
 
 export type TopicsModel = {
   slot: TopicsModelSlotName;
@@ -24,19 +31,19 @@ export type TopicsModels = {
   enabled: boolean;
   summary: TopicsModel;
   embedding: TopicsModel & { dimensions: number };
-  naming: TopicsModel;
+  clustering: TopicsModel;
 };
 
 const withConnections = {
   summaryLlmApiKey: true,
   embeddingLlmApiKey: true,
-  namingLlmApiKey: true,
+  clusteringLlmApiKey: true,
 } as const;
 
 type ConfigWithConnections = TopicsModelConfig & {
   summaryLlmApiKey: LlmApiKeys | null;
   embeddingLlmApiKey: LlmApiKeys | null;
-  namingLlmApiKey: LlmApiKeys | null;
+  clusteringLlmApiKey: LlmApiKeys | null;
 };
 
 function resolveSlot(
@@ -71,14 +78,18 @@ function resolveModels(row: ConfigWithConnections): TopicsModels | null {
     row.embeddingLlmApiKey,
     row.embeddingModel,
   );
-  const naming = resolveSlot("naming", row.namingLlmApiKey, row.namingModel);
-  if (!summary || !embedding || !naming) return null;
+  const clustering = resolveSlot(
+    "clustering",
+    row.clusteringLlmApiKey,
+    row.clusteringModel,
+  );
+  if (!summary || !embedding || !clustering) return null;
   return {
     projectId: row.projectId,
     enabled: row.enabled,
     summary,
     embedding: { ...embedding, dimensions: row.embeddingDimensions },
-    naming,
+    clustering,
   };
 }
 
@@ -133,7 +144,7 @@ export async function pauseTopicsModelsUsingConnection(
       OR: [
         { summaryLlmApiKeyId: llmApiKeyId },
         { embeddingLlmApiKeyId: llmApiKeyId },
-        { namingLlmApiKeyId: llmApiKeyId },
+        { clusteringLlmApiKeyId: llmApiKeyId },
       ],
     },
     data: {
@@ -157,7 +168,10 @@ export async function readTopicsModelSettings(projectId: string) {
       row?.embeddingModel ?? null,
     ),
     embeddingDimensions: row?.embeddingDimensions ?? 1024,
-    naming: slot(row?.namingLlmApiKeyId ?? null, row?.namingModel ?? null),
+    clustering: slot(
+      row?.clusteringLlmApiKeyId ?? null,
+      row?.clusteringModel ?? null,
+    ),
     enabled: row?.enabled ?? false,
     pausedReason: row?.pausedReason ?? null,
   };
@@ -167,12 +181,13 @@ export async function saveTopicsModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
 ): Promise<void> {
-  const ids = [settings.summary, settings.embedding, settings.naming].flatMap(
-    (slot) => (slot ? [slot.llmApiKeyId] : []),
-  );
+  const ids = [
+    settings.summary,
+    settings.embedding,
+    settings.clustering,
+  ].flatMap((slot) => (slot ? [slot.llmApiKeyId] : []));
   const keys = await prisma.llmApiKeys.findMany({
     where: { projectId, id: { in: ids } },
-    select: { id: true, adapter: true, provider: true },
   });
   for (const id of ids) {
     const key = keys.find((candidate) => candidate.id === id);
@@ -189,10 +204,10 @@ export async function saveTopicsModelSettings(
   }
   if (
     settings.enabled &&
-    (!settings.summary || !settings.embedding || !settings.naming)
+    (!settings.summary || !settings.embedding || !settings.clustering)
   )
     throw new InvalidRequestError(
-      "Choose a summary, embedding, and naming model before turning Topics on.",
+      "Choose a summary, embedding, and clustering model before turning Topics on.",
     );
 
   const current = await prisma.topicsModelConfig.findUnique({
@@ -207,6 +222,8 @@ export async function saveTopicsModelSettings(
       "The embedding model and dimensions cannot change after summaries were embedded; existing vectors could no longer be clustered together.",
     );
 
+  await testTopicsModels(settings, keys);
+
   const data = {
     enabled: settings.enabled,
     // Saving the settings acknowledges the last pause.
@@ -216,12 +233,72 @@ export async function saveTopicsModelSettings(
     embeddingLlmApiKeyId: settings.embedding?.llmApiKeyId ?? null,
     embeddingModel: settings.embedding?.model ?? null,
     embeddingDimensions: settings.embeddingDimensions,
-    namingLlmApiKeyId: settings.naming?.llmApiKeyId ?? null,
-    namingModel: settings.naming?.model ?? null,
+    clusteringLlmApiKeyId: settings.clustering?.llmApiKeyId ?? null,
+    clusteringModel: settings.clustering?.model ?? null,
   };
   await prisma.topicsModelConfig.upsert({
     where: { projectId },
     create: { projectId, ...data },
     update: data,
   });
+}
+
+const TEST_SCHEMAS = {
+  summary: z.object({
+    summary: z.string(),
+    status: z.enum(["applicable", "not_applicable", "insufficient_input"]),
+  }),
+  clustering: z.object({ name: z.string(), description: z.string() }),
+};
+
+/**
+ * Makes one real call per configured slot, like the evaluator model check:
+ * structured output for summaries and clustering, and an embedding whose
+ * length must match the configured dimensions.
+ */
+async function testTopicsModels(
+  settings: TopicsModelSettings,
+  keys: LlmApiKeys[],
+): Promise<void> {
+  const key = (id: string) => keys.find((candidate) => candidate.id === id)!;
+  const checks = (["summary", "embedding", "clustering"] as const).flatMap(
+    (name) => {
+      const slot = settings[name];
+      if (!slot) return [];
+      const llmApiKey = key(slot.llmApiKeyId);
+      const check = async () => {
+        if (name !== "embedding")
+          return testModelCall({
+            provider: llmApiKey.provider,
+            model: slot.model,
+            apiKey: llmApiKey as z.infer<typeof LLMApiKeySchema>,
+            structuredOutputSchema: TEST_SCHEMAS[name],
+            timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
+          });
+        const { embedding } = await generateTopicEmbedding({
+          model: resolveSlot(name, llmApiKey, slot.model)!,
+          summary: "Topics model check",
+          dimensions: settings.embeddingDimensions,
+        });
+        if (embedding.length !== settings.embeddingDimensions)
+          throw new Error(
+            `The model returned ${embedding.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
+          );
+      };
+      return [
+        check().then(
+          () => null,
+          (error: unknown) =>
+            `${TOPICS_MODEL_SLOT_DETAILS[name].label} (${slot.model}): ${
+              error instanceof Error ? error.message.slice(0, 300) : "failed"
+            }`,
+        ),
+      ];
+    },
+  );
+  const failures = (await Promise.all(checks)).filter(Boolean);
+  if (failures.length)
+    throw new InvalidRequestError(
+      `The test call failed for ${failures.join("; ")}`,
+    );
 }

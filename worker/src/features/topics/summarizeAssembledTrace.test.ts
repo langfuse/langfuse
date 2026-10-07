@@ -79,7 +79,7 @@ const facet: TopicFacet = {
   ],
 };
 
-const slot = (name: "summary" | "embedding" | "naming", model: string) => ({
+const slot = (name: "summary" | "embedding" | "clustering", model: string) => ({
   slot: name,
   provider: "bedrock",
   adapter: "bedrock",
@@ -91,7 +91,7 @@ const models = {
   enabled: true,
   summary: slot("summary", "us.openai.gpt-5.6-luna"),
   embedding: { ...slot("embedding", "eu.cohere.embed-v4:0"), dimensions: 1024 },
-  naming: slot("naming", "us.openai.gpt-5.6-terra"),
+  clustering: slot("clustering", "us.openai.gpt-5.6-terra"),
 } as TopicsModels;
 
 const usage = {

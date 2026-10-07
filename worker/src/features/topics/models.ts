@@ -20,22 +20,21 @@ import {
 } from "./provider-error";
 
 // Summary inputs are capped below the 272k-token long-context pricing threshold.
-const TOPICS_SUMMARY_RATES: Record<string, { input: number; output: number }> =
-  {
-    "us.openai.gpt-5.6-luna": { input: 0.2, output: 1.2 },
-    "us.openai.gpt-6-luna": { input: 0.11, output: 0.55 },
-    "global.openai.gpt-6-luna": { input: 0.1, output: 0.5 },
-  };
+const TOPICS_SUMMARY_RATES = new Map([
+  ["us.openai.gpt-5.6-luna", { input: 0.2, output: 1.2 }],
+  ["us.openai.gpt-6-luna", { input: 0.11, output: 0.55 }],
+  ["global.openai.gpt-6-luna", { input: 0.1, output: 0.5 }],
+]);
 // Bedrock rates apply to the entire request above 272k input tokens.
-const TOPICS_NAMING_RATES: Record<
-  string,
-  (inputTokens: number) => { input: number; output: number }
-> = {
-  "us.openai.gpt-5.6-terra": (tokens) => ({
-    input: tokens > 272_000 ? 4 : 2,
-    output: tokens > 272_000 ? 18 : 12,
-  }),
-};
+const TOPICS_NAMING_RATES = new Map([
+  [
+    "us.openai.gpt-5.6-terra",
+    (tokens: number) => ({
+      input: tokens > 272_000 ? 4 : 2,
+      output: tokens > 272_000 ? 18 : 12,
+    }),
+  ],
+]);
 const TOPICS_EMBEDDING_COST_MODELS = new Set([
   "us.cohere.embed-v4:0",
   "eu.cohere.embed-v4:0",
@@ -80,8 +79,8 @@ async function structuredCall<T>(
   // Unknown model IDs record usage without cost.
   const rates = (tokens: number) =>
     stage === "naming"
-      ? TOPICS_NAMING_RATES[model.model]?.(tokens)
-      : TOPICS_SUMMARY_RATES[model.model];
+      ? TOPICS_NAMING_RATES.get(model.model)?.(tokens)
+      : TOPICS_SUMMARY_RATES.get(model.model);
   const result = await generateTopicText({
     model,
     messages,
@@ -298,7 +297,7 @@ export async function nameTopicGroup(
     inputLimit,
     1000,
     "naming",
-    models.naming,
+    models.clustering,
   );
 }
 

@@ -1842,8 +1842,8 @@ describe("llmApiKey.all RPC", () => {
           summaryModel: "gpt-6-luna",
           embeddingLlmApiKeyId: connection.id,
           embeddingModel: "text-embedding-3-small",
-          namingLlmApiKeyId: connection.id,
-          namingModel: "gpt-5.6-terra",
+          clusteringLlmApiKeyId: connection.id,
+          clusteringModel: "gpt-5.6-terra",
         },
       });
 
@@ -1858,7 +1858,7 @@ describe("llmApiKey.all RPC", () => {
         pausedReason: expect.stringContaining(`"${PROVIDER}" was deleted`),
         summaryLlmApiKeyId: null,
         embeddingLlmApiKeyId: null,
-        namingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
       });
     });
   });

@@ -6,6 +6,7 @@ import {
   DeleteLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
 import { auditLog } from "@/src/features/audit-logs/server";
+import { pauseTopicsModelsUsingConnection } from "@langfuse/shared/topics/server";
 import { EvaluatorBlockReason, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   blockEvaluatorsUsingDefaultModel,
@@ -54,6 +55,15 @@ export default withMiddlewares({
           defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
             ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
             : EMPTY_EVALUATOR_BLOCK;
+
+        await pauseTopicsModelsUsingConnection(
+          {
+            projectId,
+            llmApiKeyId: llmApiKey.id,
+            provider: llmApiKey.provider,
+          },
+          tx,
+        );
 
         await tx.llmApiKeys.delete({
           where: { id: llmApiKey.id, projectId },

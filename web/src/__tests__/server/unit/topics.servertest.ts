@@ -725,7 +725,7 @@ describe("Topics local execution access and publication", () => {
   it("requires the project's Topics models before creating work", async () => {
     mocks.getTopicsModels.mockResolvedValue(null);
     await expect(caller().trigger(input)).rejects.toThrow(
-      "Choose summary, embedding, and naming models",
+      "Choose summary, embedding, and clustering models",
     );
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();

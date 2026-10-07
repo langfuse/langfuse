@@ -11,8 +11,8 @@ CREATE TABLE "topics_model_configs" (
     "embedding_llm_api_key_id" TEXT,
     "embedding_model" TEXT,
     "embedding_dimensions" INTEGER NOT NULL DEFAULT 1024,
-    "naming_llm_api_key_id" TEXT,
-    "naming_model" TEXT,
+    "clustering_llm_api_key_id" TEXT,
+    "clustering_model" TEXT,
 
     CONSTRAINT "topics_model_configs_pkey" PRIMARY KEY ("id")
 );
@@ -27,7 +27,7 @@ CREATE INDEX "topics_model_configs_summary_llm_api_key_id_idx" ON "topics_model_
 CREATE INDEX "topics_model_configs_embedding_llm_api_key_id_idx" ON "topics_model_configs"("embedding_llm_api_key_id");
 
 -- CreateIndex
-CREATE INDEX "topics_model_configs_naming_llm_api_key_id_idx" ON "topics_model_configs"("naming_llm_api_key_id");
+CREATE INDEX "topics_model_configs_clustering_llm_api_key_id_idx" ON "topics_model_configs"("clustering_llm_api_key_id");
 
 -- AddForeignKey
 ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -39,4 +39,4 @@ ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_summary_
 ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_embedding_llm_api_key_id_fkey" FOREIGN KEY ("embedding_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_naming_llm_api_key_id_fkey" FOREIGN KEY ("naming_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_clustering_llm_api_key_id_fkey" FOREIGN KEY ("clustering_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;

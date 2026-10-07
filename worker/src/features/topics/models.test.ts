@@ -43,7 +43,7 @@ function topicsModels(summaryModel = "us.openai.gpt-5.6-luna"): TopicsModels {
       ...slot("embedding", "eu.cohere.embed-v4:0"),
       dimensions: 256,
     },
-    naming: slot("naming", "us.openai.gpt-5.6-terra"),
+    clustering: slot("clustering", "us.openai.gpt-5.6-terra"),
   };
 }
 
@@ -263,7 +263,7 @@ describe("Topics naming boundary", () => {
     });
     expect(state.call).toHaveBeenCalledOnce();
     expect(state.call.mock.calls[0][0].model).toMatchObject({
-      slot: "naming",
+      slot: "clustering",
       model: "us.openai.gpt-5.6-terra",
     });
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);

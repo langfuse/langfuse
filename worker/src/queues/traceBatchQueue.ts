@@ -54,6 +54,8 @@ class TopicsBatchProjects {
     if (!facets) {
       facets = ensureDefaultTopicFacets(projectId);
       this.facets.set(projectId, facets);
+      // A failed load fails this trace only; the next trace loads again.
+      facets.catch(() => this.facets.delete(projectId));
     }
     return { models, facets: await facets };
   }
@@ -61,7 +63,15 @@ class TopicsBatchProjects {
   async pause(projectId: string, reason: string) {
     if (this.paused.has(projectId)) return;
     this.paused.add(projectId);
-    await pauseTopicsModels(projectId, reason);
+    // The project is skipped for this batch even if recording the pause fails.
+    try {
+      await pauseTopicsModels(projectId, reason);
+    } catch (error) {
+      logger.error("Failed to pause Topics after a rejected connection", {
+        projectId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 
