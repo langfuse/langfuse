@@ -35,9 +35,11 @@ function Criteria({ question }: { question: DecisionModelQuestion }) {
           {question.levels.map((level, index) => (
             <li key={index} className="flex gap-2">
               <span className="text-muted-foreground shrink-0 font-mono">
-                {index}
+                {level.label ?? index}
               </span>
-              <span>{entryText(level.description)}</span>
+              {level.description ? (
+                <span>{entryText(level.description)}</span>
+              ) : null}
             </li>
           ))}
         </ol>

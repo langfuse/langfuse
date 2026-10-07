@@ -27,7 +27,9 @@ export type DecisionModelRequestQuestion =
   | {
       type: "score";
       instructions: DecisionModelEntry;
-      criteria: DecisionModelEntry[];
+      criteria: Array<DecisionModelEntry | null>;
+      /** Set when the question stores a name per level. TypeSafe does not use it. */
+      labels?: Array<string | null>;
     }
   | {
       type: "boolean";
@@ -104,12 +106,15 @@ export function toDecisionModelRequestQuestion(
           ]),
         ),
       };
-    case DecisionModelQuestionType.SCORE:
+    case DecisionModelQuestionType.SCORE: {
+      const labels = question.levels.map((level) => level.label ?? null);
       return {
         type: "score",
         instructions: question.instructions,
-        criteria: question.levels.map((level) => level.description),
+        criteria: question.levels.map((level) => level.description ?? null),
+        ...(labels.some((label) => label != null) ? { labels } : {}),
       };
+    }
     case DecisionModelQuestionType.NOUL:
       return {
         type: "boolean",
@@ -184,13 +189,16 @@ export function formatDecisionModelComment(params: {
         ? question.levels.length - 1
         : 0,
     );
-    const levelDescription =
+    const level =
       question.type === DecisionModelQuestionType.SCORE
-        ? question.levels[nearestLevel]?.description
+        ? question.levels[nearestLevel]
         : undefined;
+    const levelName =
+      level?.label ??
+      (typeof level?.description === "string" ? level.description : undefined);
     parts.push(
-      typeof levelDescription === "string"
-        ? `${formatNumber(answer.score)} ≈ level ${nearestLevel} "${levelDescription}"`
+      levelName != null
+        ? `${formatNumber(answer.score)} ≈ level ${nearestLevel} "${levelName}"`
         : `${formatNumber(answer.score)} ≈ level ${nearestLevel}`,
     );
     if (answer.confidence !== null) {
@@ -230,7 +238,10 @@ function toScoreMetadata(params: {
               ? Object.fromEntries(
                   question.levels.map((level, index) => [
                     String(index),
-                    level.description,
+                    level.label ??
+                      (typeof level.description === "string"
+                        ? level.description
+                        : (level.description ?? "")),
                   ]),
                 )
               : undefined,

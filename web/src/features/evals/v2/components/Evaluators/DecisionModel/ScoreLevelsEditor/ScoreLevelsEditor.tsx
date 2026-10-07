@@ -8,7 +8,7 @@ import { Label } from "@/src/components/ui/label";
 import { SortableList } from "@/src/features/evals/v2/components/SortableList/SortableList";
 import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 
-export type ScoreLevelDraft = { description: string };
+export type ScoreLevelDraft = { label?: string; description: string };
 
 function levelPlaceholder(index: number, count: number) {
   if (index === 0) return "Lowest level, e.g. Calm, just stating facts";
@@ -19,21 +19,26 @@ function levelPlaceholder(index: number, count: number) {
 }
 
 /**
- * Ordered levels of a Score question, low to high. The level number is its
- * position; the model only sees the descriptions, so each one has to describe
- * a recognisable situation rather than a degree.
+ * Ordered score levels, low to high. Jev shows the position and a description.
+ * OpenAI shows a label and an optional description. The stored score is still
+ * the position on that order.
  */
 export function ScoreLevelsEditor({
   levels,
   onChange,
   error,
+  labels = false,
 }: {
   levels: ScoreLevelDraft[];
   onChange: (levels: ScoreLevelDraft[]) => void;
   error?: string;
+  /** OpenAI names each level. Jev only sees the description, in order. */
+  labels?: boolean;
 }) {
-  const update = (index: number, description: string) =>
-    onChange(levels.map((level, i) => (i === index ? { description } : level)));
+  const update = (index: number, patch: Partial<ScoreLevelDraft>) =>
+    onChange(
+      levels.map((level, i) => (i === index ? { ...level, ...patch } : level)),
+    );
   const remove = (index: number) =>
     onChange(levels.filter((_, i) => i !== index));
   const canRemove = levels.length > DECISION_MODEL_LIMITS.minScoreLevels;
@@ -43,10 +48,9 @@ export function ScoreLevelsEditor({
       <Label className="flex items-center gap-1.5">
         Levels, low to high
         <InfoTooltip label="About levels">
-          Each level is one point on the scale. The model judges every level on
-          its own against the state and returns a position between them, so
-          describe situations (“broken, but a workaround exists”), not degrees
-          (“moderately severe”). Two to ten levels; drag to reorder.
+          {labels
+            ? "Name each level and, if you want, describe it. The score is the probability-weighted average of the level positions, so it can fall between them."
+            : "Each level is one point on the scale. The model judges every level on its own against the state and returns a position between them, so describe situations (“broken, but a workaround exists”), not degrees (“moderately severe”). Two to ten levels; drag to reorder."}
         </InfoTooltip>
         <span className="text-muted-foreground text-xs font-normal">
           {levels.length} of {DECISION_MODEL_LIMITS.maxScoreLevels}
@@ -58,17 +62,41 @@ export function ScoreLevelsEditor({
         getLabel={(_level, index) => `level ${index}`}
         onReorder={(from, to) => onChange(moveItem(levels, from, to))}
         renderItem={(level, index) => (
-          <div className="grid grid-cols-[2rem_1fr_auto] items-center gap-2">
-            <span
-              className="bg-muted text-muted-foreground flex h-8 w-8 items-center justify-center rounded-md font-mono text-xs"
-              aria-hidden="true"
-            >
-              {index}
-            </span>
+          <div
+            className={
+              labels
+                ? "grid grid-cols-[minmax(8rem,1fr)_2fr_auto] items-center gap-2"
+                : "grid grid-cols-[2rem_1fr_auto] items-center gap-2"
+            }
+          >
+            {labels ? (
+              <Input
+                value={level.label ?? ""}
+                onChange={(event) =>
+                  update(index, { label: event.target.value })
+                }
+                placeholder="label"
+                aria-label={`Level ${index + 1} label`}
+                className="font-mono"
+              />
+            ) : (
+              <span
+                className="bg-muted text-muted-foreground flex h-8 w-8 items-center justify-center rounded-md font-mono text-xs"
+                aria-hidden="true"
+              >
+                {index}
+              </span>
+            )}
             <Input
               value={level.description}
-              onChange={(event) => update(index, event.target.value)}
-              placeholder={levelPlaceholder(index, levels.length)}
+              onChange={(event) =>
+                update(index, { description: event.target.value })
+              }
+              placeholder={
+                labels
+                  ? "What this level covers (optional)"
+                  : levelPlaceholder(index, levels.length)
+              }
               aria-label={`Level ${index} description`}
             />
             <Button
@@ -95,7 +123,12 @@ export function ScoreLevelsEditor({
           variant="outline"
           size="sm"
           disabled={levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels}
-          onClick={() => onChange([...levels, { description: "" }])}
+          onClick={() =>
+            onChange([
+              ...levels,
+              labels ? { label: "", description: "" } : { description: "" },
+            ])
+          }
         >
           <Plus className="icon-base text-icon-foreground mr-1" />
           Add level

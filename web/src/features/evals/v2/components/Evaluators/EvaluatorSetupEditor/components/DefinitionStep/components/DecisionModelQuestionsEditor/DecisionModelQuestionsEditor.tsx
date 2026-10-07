@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { OPENAI_DECISION_MODEL_ID } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
@@ -24,18 +25,23 @@ export function DecisionModelQuestionsEditor({
       questions: state.questions,
       expandedQuestionId: state.expandedQuestionId,
       stateKeys: state.stateKeys,
+      selectedModel: state.selectedModel,
       actions: state.actions,
     })),
   );
+  const scoreLevelLabels =
+    state.selectedModel?.model === OPENAI_DECISION_MODEL_ID;
   const errorsById = useMemo(() => {
-    const errors = getQuestionDraftErrors(state.questions);
+    const errors = getQuestionDraftErrors(state.questions, {
+      requireLevelLabels: scoreLevelLabels,
+    });
     for (const question of state.questions) {
       if (!question.instructions && !question.scoreName) {
         delete errors[question.id];
       }
     }
     return errors;
-  }, [state.questions]);
+  }, [scoreLevelLabels, state.questions]);
 
   return (
     <DecisionModelQuestionList
@@ -54,6 +60,7 @@ export function DecisionModelQuestionsEditor({
       }
       onRemove={state.actions.removeQuestion}
       onReorder={state.actions.reorderQuestion}
+      scoreLevelLabels={scoreLevelLabels}
     />
   );
 }

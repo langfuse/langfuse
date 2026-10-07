@@ -32,6 +32,7 @@ export type DecisionModelQuestionCardProps = {
   onChange: (question: DecisionModelQuestionDraft) => void;
   onRemove: (() => void) | null;
   errors?: DecisionModelQuestionDraftErrors;
+  scoreLevelLabels?: boolean;
 };
 
 function writesLine(question: DecisionModelQuestionDraft) {
@@ -49,10 +50,12 @@ function CriteriaEditor({
   question,
   errors,
   onChange,
+  scoreLevelLabels,
 }: {
   question: DecisionModelQuestionDraft;
   errors: DecisionModelQuestionDraftErrors;
   onChange: (question: DecisionModelQuestionDraft) => void;
+  scoreLevelLabels: boolean;
 }) {
   switch (question.type) {
     case DecisionModelQuestionType.CHOICE:
@@ -69,6 +72,7 @@ function CriteriaEditor({
           levels={question.levels}
           onChange={(levels) => onChange({ ...question, levels })}
           error={errors.levels}
+          labels={scoreLevelLabels}
         />
       );
     case DecisionModelQuestionType.NOUL:
@@ -95,6 +99,7 @@ export function DecisionModelQuestionCard({
   onChange,
   onRemove,
   errors = {},
+  scoreLevelLabels = false,
 }: DecisionModelQuestionCardProps) {
   const id = useId();
   const copy = QUESTION_TYPE_COPY[question.type];
@@ -194,6 +199,7 @@ export function DecisionModelQuestionCard({
           question={question}
           errors={errors}
           onChange={onChange}
+          scoreLevelLabels={scoreLevelLabels}
         />
 
         <div className="flex flex-col gap-1.5">

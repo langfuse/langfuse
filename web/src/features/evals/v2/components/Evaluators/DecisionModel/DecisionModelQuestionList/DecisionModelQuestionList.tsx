@@ -46,9 +46,12 @@ export const QUESTION_EXAMPLES: Record<
     instructions: "How frustrated is the customer in `input`?",
     options: [],
     levels: [
-      { description: "Calm, just stating facts" },
-      { description: "Frustrated but civil" },
-      { description: "Very angry, strong language or threatening to leave" },
+      { label: "Calm", description: "Calm, just stating facts" },
+      { label: "Frustrated", description: "Frustrated but civil" },
+      {
+        label: "Angry",
+        description: "Very angry, strong language or threatening to leave",
+      },
     ],
     criteria: { true: "", false: "" },
   },
@@ -78,6 +81,7 @@ export function DecisionModelQuestionList({
   onAddExample,
   onRemove,
   onReorder,
+  scoreLevelLabels = false,
 }: {
   questions: DecisionModelQuestionDraft[];
   expandedId: string | null;
@@ -89,6 +93,7 @@ export function DecisionModelQuestionList({
   onAddExample: (type: DecisionModelQuestionType) => void;
   onRemove: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  scoreLevelLabels?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -152,6 +157,7 @@ export function DecisionModelQuestionList({
                 questions.length > 1 ? () => onRemove(question.id) : null
               }
               errors={errorsById[question.id]}
+              scoreLevelLabels={scoreLevelLabels}
             />
           )}
         />

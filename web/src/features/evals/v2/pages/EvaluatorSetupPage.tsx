@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
 import {
+  OPENAI_DECISION_MODEL_ID,
   observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
@@ -447,7 +448,11 @@ export function EvaluatorSetupPage(
       case "DECISION_MODEL":
         return {
           type: state.type,
-          questions: draftsToQuestions(state.questions) ?? [],
+          questions:
+            draftsToQuestions(state.questions, {
+              requireLevelLabels:
+                state.selectedModel?.model === OPENAI_DECISION_MODEL_ID,
+            }) ?? [],
         };
     }
   };

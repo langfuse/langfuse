@@ -1,4 +1,6 @@
 /* eslint-disable no-nested-ternary */
+import { OPENAI_DECISION_MODEL_ID } from "@langfuse/shared";
+
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
@@ -44,7 +46,10 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   })();
 
   if (params.type === "DECISION_MODEL") {
-    const questions = draftsToQuestions(params.questions);
+    const questions = draftsToQuestions(params.questions, {
+      requireLevelLabels:
+        params.selectedModel?.model === OPENAI_DECISION_MODEL_ID,
+    });
     // Every state key has to resolve to data, or the state the model sees
     // would silently miss a field the questions refer to.
     const variableMapping = mappings.flatMap(({ variable, fieldState }) =>

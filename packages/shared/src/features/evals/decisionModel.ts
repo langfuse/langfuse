@@ -64,11 +64,20 @@ export const DecisionModelChoiceQuestionSchema =
       ),
   });
 
+export const DecisionModelScoreLevelSchema = z
+  .object({
+    label: z.string().trim().min(1).max(100).optional(),
+    description: DecisionModelEntrySchema.optional(),
+  })
+  .refine((level) => level.label != null || level.description != null, {
+    message: "Each level needs a label or a description",
+  });
+
 export const DecisionModelScoreQuestionSchema =
   DecisionModelQuestionBaseSchema.extend({
     type: z.literal(DecisionModelQuestionType.SCORE),
     levels: z
-      .array(z.object({ description: DecisionModelEntrySchema }))
+      .array(DecisionModelScoreLevelSchema)
       .min(DECISION_MODEL_LIMITS.minScoreLevels)
       .max(DECISION_MODEL_LIMITS.maxScoreLevels),
   });

@@ -1,4 +1,10 @@
-import { isDecisionModelAdapter, supportedModels } from "@langfuse/shared";
+import { useEffect } from "react";
+import {
+  isAllowedDecisionModel,
+  OPENAI_DECISION_MODEL_ID,
+  supportedModels,
+  supportsDecisionModels,
+} from "@langfuse/shared";
 import { useStore } from "zustand";
 
 import { Button } from "@/src/components/ui/button";
@@ -34,54 +40,103 @@ export function DecisionModelSelector({
     includeDecisionModels: true,
   });
 
-  const connectionOptions = (connections.data?.data ?? [])
-    .filter((connection) => isDecisionModelAdapter(connection.adapter))
-    .flatMap((connection) => {
-      const models = Array.from(
-        new Set([
-          ...connection.customModels,
-          ...(connection.withDefaultModels
-            ? supportedModels[connection.adapter]
-            : []),
-        ]),
-      );
-      return models.map((model) => toOption(connection.provider, model));
-    });
+  const rows = (connections.data?.data ?? []).filter((connection) =>
+    supportsDecisionModels(connection.adapter),
+  );
+  const connectionOptions = rows.flatMap((connection) => {
+    const models = Array.from(
+      new Set([
+        ...connection.customModels,
+        ...(connection.withDefaultModels
+          ? supportedModels[connection.adapter]
+          : []),
+      ]),
+    ).filter((model) => isAllowedDecisionModel(connection.adapter, model));
+    return models.map((model) => toOption(connection.provider, model));
+  });
+  connectionOptions.sort((left, right) => {
+    const leftLuna = left.value.endsWith(
+      `${SEPARATOR}${OPENAI_DECISION_MODEL_ID}`,
+    );
+    const rightLuna = right.value.endsWith(
+      `${SEPARATOR}${OPENAI_DECISION_MODEL_ID}`,
+    );
+    return Number(rightLuna) - Number(leftLuna);
+  });
+
   const selectedOption = selectedModel
     ? toOption(selectedModel.provider, selectedModel.model)
     : null;
-  // Radix renders a blank trigger for a value without a matching option, e.g.
-  // a model the connection no longer lists.
-  const options =
-    selectedOption &&
-    !connectionOptions.some((option) => option.value === selectedOption.value)
-      ? [...connectionOptions, selectedOption]
-      : connectionOptions;
+  const selectedConnection = rows.find(
+    (connection) => connection.provider === selectedModel?.provider,
+  );
+  // A saved TypeSafe version can outlive the connection's current list. An
+  // OpenAI model other than Luna must not be offered again.
+  const keepSelected =
+    selectedOption != null &&
+    !connectionOptions.some(
+      (option) => option.value === selectedOption.value,
+    ) &&
+    (selectedConnection == null ||
+      isAllowedDecisionModel(
+        selectedConnection.adapter,
+        selectedModel?.model ?? "",
+      ));
+  const options = keepSelected
+    ? [...connectionOptions, selectedOption]
+    : connectionOptions;
+  const unsupported =
+    selectedOption != null &&
+    !options.some((option) => option.value === selectedOption.value);
+  const preferredValue = connectionOptions.find((option) =>
+    option.value.endsWith(`${SEPARATOR}${OPENAI_DECISION_MODEL_ID}`),
+  )?.value;
 
-  if (connections.isSuccess && options.length === 0) {
+  useEffect(() => {
+    if (selectedModel || !preferredValue) return;
+    const separatorIndex = preferredValue.indexOf(SEPARATOR);
+    selectModel({
+      provider: preferredValue.slice(0, separatorIndex),
+      model: preferredValue.slice(separatorIndex + SEPARATOR.length),
+    });
+  }, [preferredValue, selectedModel, selectModel]);
+
+  if (connections.isSuccess && options.length === 0 && !unsupported) {
     return (
       <Button type="button" variant="outline" onClick={onConfigureProviders}>
-        Add a TypeSafe connection
+        Add an OpenAI or TypeSafe connection
       </Button>
     );
   }
 
   return (
-    <div className="max-w-xs min-w-56">
-      <SelectInput
-        aria-label="Decision model"
-        placeholder="Select a decision model"
-        value={selectedOption?.value ?? ""}
-        options={options}
-        onValueChange={(value) => {
-          const separatorIndex = value.indexOf(SEPARATOR);
-          if (separatorIndex === -1) return;
-          selectModel({
-            provider: value.slice(0, separatorIndex),
-            model: value.slice(separatorIndex + SEPARATOR.length),
-          });
-        }}
-      />
+    <div className="flex max-w-xs min-w-56 flex-col gap-1.5">
+      {options.length > 0 ? (
+        <SelectInput
+          aria-label="Decision model"
+          placeholder="Select a decision model"
+          value={unsupported ? "" : (selectedOption?.value ?? "")}
+          options={options}
+          onValueChange={(value) => {
+            const separatorIndex = value.indexOf(SEPARATOR);
+            if (separatorIndex === -1) return;
+            selectModel({
+              provider: value.slice(0, separatorIndex),
+              model: value.slice(separatorIndex + SEPARATOR.length),
+            });
+          }}
+        />
+      ) : (
+        <Button type="button" variant="outline" onClick={onConfigureProviders}>
+          Add an OpenAI or TypeSafe connection
+        </Button>
+      )}
+      {unsupported ? (
+        <p className="text-destructive text-xs">
+          {selectedModel?.model} is not supported for decision models. Choose{" "}
+          {OPENAI_DECISION_MODEL_ID}.
+        </p>
+      ) : null}
     </div>
   );
 }

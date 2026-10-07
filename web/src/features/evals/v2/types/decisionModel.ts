@@ -6,7 +6,7 @@ export type DecisionModelQuestionDraft = {
   scoreName: string;
   instructions: string;
   options: Array<{ value: string; description: string }>;
-  levels: Array<{ description: string }>;
+  levels: Array<{ label?: string; description: string }>;
   criteria: { true: string; false: string };
 };
 

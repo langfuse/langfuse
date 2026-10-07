@@ -36,7 +36,15 @@ export function createTypeSafeDecisionModelClient(params: {
       const result = await evaluate({
         model,
         state: request.state as Record<string, JSONValue>,
-        questions: request.questions as Record<string, EvaluationQuestion>,
+        questions: Object.fromEntries(
+          Object.entries(request.questions).map(([id, question]) => {
+            if (question.type !== "score" || question.labels == null) {
+              return [id, question];
+            }
+            const { labels: _labels, ...rest } = question;
+            return [id, rest];
+          }),
+        ) as Record<string, EvaluationQuestion>,
         maxRetries: 1,
       });
 

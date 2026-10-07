@@ -258,8 +258,25 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
   LLMAdapter.TypeSafe,
 ];
 
+/** The only OpenAI model the Decisions API accepts. */
+export const OPENAI_DECISION_MODEL_ID = "gpt-6-luna";
+
 export function isDecisionModelAdapter(adapter: string): boolean {
   return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
+}
+
+/** Adapters that can answer a decision-model evaluator. OpenAI stays a text adapter too. */
+export function supportsDecisionModels(adapter: string): boolean {
+  return adapter === LLMAdapter.TypeSafe || adapter === LLMAdapter.OpenAI;
+}
+
+export function isAllowedDecisionModel(
+  adapter: string,
+  model: string,
+): boolean {
+  if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
+  if (adapter === LLMAdapter.OpenAI) return model === OPENAI_DECISION_MODEL_ID;
+  return false;
 }
 
 // Some providers require at least one user message. The persisted-message
