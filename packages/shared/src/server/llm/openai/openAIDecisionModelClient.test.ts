@@ -132,6 +132,29 @@ describe("createOpenAIDecisionModelClient", () => {
     });
   });
 
+  it.each([
+    [401, false],
+    [500, true],
+  ])(
+    "surfaces HTTP %s as an AI SDK call error (retryable: %s)",
+    async (status, isRetryable) => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ message: "nope" }, status));
+      const client = createOpenAIDecisionModelClient({
+        apiKey: "sk-bad",
+        model: "gpt-6-luna",
+        fetchImpl,
+      });
+
+      await expect(client.evaluate(request)).rejects.toMatchObject({
+        name: "AI_APICallError",
+        statusCode: status,
+        isRetryable,
+      });
+    },
+  );
+
   it("fails the call when any question is refused", async () => {
     const fetchImpl = vi.fn().mockImplementation(() =>
       jsonResponse({

@@ -1,3 +1,4 @@
+import { APICallError } from "ai";
 import { z } from "zod";
 import type { DecisionModelEntry } from "../../../features/evals/decisionModel";
 import {
@@ -50,6 +51,14 @@ const responseSchema = z.object({
     ]),
   ),
 });
+
+function parseErrorData(responseBody: string): unknown {
+  try {
+    return JSON.parse(responseBody);
+  } catch {
+    return undefined;
+  }
+}
 
 function entryText(entry: DecisionModelEntry | null | undefined) {
   if (entry == null) return undefined;
@@ -116,24 +125,32 @@ export function createOpenAIDecisionModelClient(params: {
 
   return {
     evaluate: async (request) => {
-      const response = await fetchImpl(`${baseURL}/decisions`, {
+      const url = `${baseURL}/decisions`;
+      const body = {
+        model: params.model,
+        input: JSON.stringify(request.state),
+        questions: toOpenAIQuestions(request.questions),
+      };
+      const response = await fetchImpl(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${params.apiKey}`,
           "Content-Type": "application/json",
           ...params.extraHeaders,
         },
-        body: JSON.stringify({
-          model: params.model,
-          input: JSON.stringify(request.state),
-          questions: toOpenAIQuestions(request.questions),
-        }),
+        body: JSON.stringify(body),
       });
       if (!response.ok) {
-        const detail = (await response.text()).slice(0, 500);
-        throw new Error(
-          `OpenAI Decisions request failed (${response.status}): ${detail}`,
-        );
+        const responseBody = (await response.text()).slice(0, 500);
+        // statusCode lets a bad key, exhausted billing, or a missing model pause the evaluator.
+        throw new APICallError({
+          message: `OpenAI Decisions request failed (${response.status}): ${responseBody}`,
+          url,
+          requestBodyValues: body,
+          statusCode: response.status,
+          responseBody,
+          data: parseErrorData(responseBody),
+        });
       }
 
       const parsed = responseSchema.safeParse(await response.json());
