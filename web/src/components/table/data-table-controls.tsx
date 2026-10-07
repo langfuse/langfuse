@@ -1443,8 +1443,7 @@ function FilterAccordionItem({
       <FilterAccordionTrigger
         className={cn(
           // Fill means open: collapsed facets read as a plain line.
-          "text-foreground-secondary hover:bg-accent data-[state=open]:bg-muted min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline data-[state=open]:font-bold",
-          isActive && "font-bold",
+          "text-foreground-secondary hover:bg-accent data-[state=open]:bg-muted min-h-6 rounded-md px-2 py-1 text-xs font-bold transition-colors hover:no-underline",
           isDisabled &&
             "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent data-[state=open]:bg-transparent",
         )}
