@@ -252,12 +252,7 @@ const PageHeader = ({
             </div>
           </div>
 
-          {tabsProps && (
-            <PageTabs
-              {...tabsProps}
-              className={cn("ml-2", tabsProps.className)}
-            />
-          )}
+          {tabsProps && <PageTabs {...tabsProps} />}
         </div>
       </div>
     </div>
