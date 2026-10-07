@@ -23,7 +23,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v2",
 }));
 vi.mock("./models", () => ({
-  summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
+  summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
 }));
 
@@ -91,7 +91,9 @@ beforeEach(() => {
   state.stored.mockResolvedValue([]);
   state.write.mockResolvedValue(undefined);
   state.summarize.mockResolvedValue({
-    output: { summary: "Export monthly sales.", status: "applicable" },
+    output: {
+      intent_1: { summary: "Export monthly sales.", status: "applicable" },
+    },
     ...usage,
   });
   state.embed.mockResolvedValue({
@@ -131,7 +133,9 @@ describe("summarizeAssembledTrace", () => {
     expect(state.facets).toHaveBeenCalledWith("project-a");
     expect(state.summarize).toHaveBeenCalledTimes(1);
     const submitted = state.summarize.mock.calls[0];
-    expect(submitted[0].prompt).toBe(facet.versions[0].prompt);
+    expect(submitted[0]).toEqual([
+      { key: "intent_1", facet: facet.versions[0] },
+    ]);
     expect(submitted[1]).toContain("Export monthly sales");
     expect(submitted[1]).not.toContain("observation");
     const written = state.write.mock.calls[0][0][0];
@@ -190,6 +194,75 @@ describe("summarizeAssembledTrace", () => {
     expect(state.write.mock.calls[0][0][0].unitStartTime).toBe(
       "2026-09-22T11:59:00.000Z",
     );
+  });
+
+  it("summarizes all pending facets in one call and records its usage once", async () => {
+    const issues: TopicFacet = {
+      ...facet,
+      id: "facet-2",
+      name: "Issues",
+      versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
+    };
+    state.facets.mockResolvedValue([facet, issues]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "Export monthly sales.", status: "applicable" },
+        issues_2: { summary: "", status: "not_applicable" },
+      },
+      ...usage,
+    });
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+    });
+    expect(state.summarize).toHaveBeenCalledOnce();
+    const [intent, issue] = state.write.mock.calls[0][0];
+    expect(intent).toMatchObject({ facetId: "facet-1", state: "complete" });
+    expect(intent.usageDetails.summary_input).toBe(20);
+    expect(issue).toMatchObject({
+      facetId: "facet-2",
+      state: "not_applicable",
+      usageDetails: {},
+    });
+  });
+
+  it("keeps the other facets when one facet's output is invalid", async () => {
+    const issues: TopicFacet = {
+      ...facet,
+      id: "facet-2",
+      name: "Issues",
+      versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
+    };
+    state.facets.mockResolvedValue([facet, issues]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "", status: "applicable" },
+        issues_2: { summary: "Retried a failed export.", status: "applicable" },
+      },
+      ...usage,
+    });
+    await expect(
+      summarizeAssembledTrace({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+      }),
+    ).rejects.toThrow(
+      "Applicable facet summary must contain a concise summary.",
+    );
+    const written = state.write.mock.calls[0][0];
+    expect(written).toHaveLength(1);
+    expect(written[0]).toMatchObject({ facetId: "facet-2", state: "complete" });
+    // The shared call's usage moves to the first row that is written.
+    expect(written[0].usageDetails.summary_input).toBe(20);
+    expect(written[0]).not.toHaveProperty("output");
   });
 
   it("propagates a provider failure for the trace outcome", async () => {

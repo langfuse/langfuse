@@ -148,6 +148,32 @@ describe("WorkerManager queue metrics", () => {
     ]);
   });
 
+  it("counts failed_terminal only once BullMQ moved the job to the failed set", () => {
+    WorkerManager.register("project-delete" as never, async () => undefined);
+
+    // BullMQ sets finishedOn only when it stops retrying.
+    mocks.handlers.get("failed")?.(
+      { id: "job-id", name: "job", attemptsMade: 1, opts: { attempts: 5 } },
+      new Error("retrying"),
+    );
+    mocks.handlers.get("failed")?.(
+      {
+        id: "job-id",
+        name: "job",
+        attemptsMade: 5,
+        opts: { attempts: 5 },
+        finishedOn: Date.now(),
+      },
+      new Error("exhausted"),
+    );
+
+    expect(mocks.recordIncrement.mock.calls).toEqual([
+      ["langfuse.queue.project_delete.rate", 1, { type: "failed" }],
+      ["langfuse.queue.project_delete.rate", 1, { type: "failed" }],
+      ["langfuse.queue.project_delete.rate", 1, { type: "failed_terminal" }],
+    ]);
+  });
+
   it("logs retryable S3 SlowDown as a warning until retries are exhausted", () => {
     WorkerManager.register("score-delete" as never, async () => undefined);
     const slowDown = new Error("Failed to download file from S3", {
