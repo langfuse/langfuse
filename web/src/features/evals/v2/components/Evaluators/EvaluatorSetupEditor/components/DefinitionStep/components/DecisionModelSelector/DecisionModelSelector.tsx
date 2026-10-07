@@ -3,8 +3,6 @@ import {
   isAllowedDecisionModel,
   isOpenAIDecisionModel,
   OPENAI_DECISION_MODEL_IDS,
-  supportedModels,
-  supportsDecisionModels,
 } from "@langfuse/shared";
 import { useStore } from "zustand";
 
@@ -14,6 +12,10 @@ import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
+import {
+  decisionModelsByProvider,
+  preferredDecisionModel,
+} from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { api } from "@/src/utils/api";
 
@@ -38,21 +40,8 @@ export function DecisionModelSelector({
     includeDecisionModels: true,
   });
 
-  const rows = (connections.data?.data ?? []).filter((connection) =>
-    supportsDecisionModels(connection.adapter),
-  );
-  const modelsByProvider = new Map<string, string[]>();
-  for (const connection of rows) {
-    const models = Array.from(
-      new Set([
-        ...connection.customModels,
-        ...(connection.withDefaultModels
-          ? supportedModels[connection.adapter]
-          : []),
-      ]),
-    ).filter((model) => isAllowedDecisionModel(connection.adapter, model));
-    if (models.length > 0) modelsByProvider.set(connection.provider, models);
-  }
+  const rows = connections.data?.data ?? [];
+  const modelsByProvider = decisionModelsByProvider(rows);
 
   const selectedConnection = rows.find(
     (connection) => connection.provider === selectedModel?.provider,
@@ -79,17 +68,14 @@ export function DecisionModelSelector({
       Number(left[1].some(isOpenAIDecisionModel)),
   );
   const unsupported = selectedModel != null && !selectedIsAllowed;
-  const preferred = OPENAI_DECISION_MODEL_IDS.flatMap((model) => {
-    const group = providerGroups.find(([, models]) => models.includes(model));
-    return group ? [{ provider: group[0], model }] : [];
-  }).at(0);
-  // The connection list arrives with this render. Write the default before
-  // questions and save read the store.
-  if (selectedModel == null && preferred != null) {
-    selectModel(preferred);
-  }
+  // Shown until the user picks a model. The store stays untouched.
+  const displayedModel = selectedModel ?? preferredDecisionModel(rows);
 
-  if (connections.isSuccess && providerGroups.length === 0 && !selectedModel) {
+  if (
+    connections.isSuccess &&
+    providerGroups.length === 0 &&
+    selectedModel == null
+  ) {
     return (
       <Button type="button" variant="outline" onClick={onConfigureProviders}>
         Add an OpenAI or TypeSafe connection
@@ -104,14 +90,14 @@ export function DecisionModelSelector({
         open={open}
         onOpenChange={setOpen}
         providerGroups={providerGroups}
-        selectedModel={selectedModel}
+        selectedModel={displayedModel}
         onSelect={selectModel}
         onConfigureProviders={onConfigureProviders}
       >
         <PopoverTrigger asChild>
           <JudgeModelPickerTrigger
             mode="custom"
-            selectedModel={selectedModel}
+            selectedModel={displayedModel}
             disabled={false}
           />
         </PopoverTrigger>

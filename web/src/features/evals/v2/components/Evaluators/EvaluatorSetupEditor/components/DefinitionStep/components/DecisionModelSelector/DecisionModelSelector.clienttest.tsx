@@ -78,10 +78,8 @@ describe("DecisionModelSelector", () => {
       { wrapper: LayerProvider },
     );
 
-    expect(store.getState().selectedModel).toEqual({
-      provider: "openai",
-      model: "gpt-6-luna",
-    });
+    expect(screen.getByRole("button")).toHaveTextContent("openai / gpt-6-luna");
+    expect(store.getState().selectedModel).toBeNull();
   });
 
   it.each([

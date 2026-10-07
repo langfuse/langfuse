@@ -9,6 +9,7 @@ import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapp
 import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 const StableVariableMapping = memo(VariableMapping);
@@ -51,6 +52,11 @@ export function VariableMappingEditorContainer({
           }),
     [state.type, state.stateKeys, state.promptMessages, state.variableFields],
   );
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    state.type === "DECISION_MODEL",
+  );
+  const decisionModel = state.selectedModel ?? fallbackDecisionModel;
   const lastCompletedSample = useRef(resolvedSample);
 
   if (!state.selectedObservationId) lastCompletedSample.current = null;
@@ -60,8 +66,8 @@ export function VariableMappingEditorContainer({
 
   if (
     state.type === "DECISION_MODEL" &&
-    state.selectedModel != null &&
-    isOpenAIDecisionModel(state.selectedModel.model)
+    decisionModel != null &&
+    isOpenAIDecisionModel(decisionModel.model)
   ) {
     const inputField = mappings.find((mapping) => mapping.variable === "input");
     return (

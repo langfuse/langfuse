@@ -12,6 +12,7 @@ import {
   getQuestionDraftErrors,
   usesPlainDecisionInstructions,
 } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
+import { preferredDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { api } from "@/src/utils/api";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
@@ -37,11 +38,13 @@ export function DecisionModelQuestionsEditor({
     projectId,
     includeDecisionModels: true,
   });
+  const model =
+    state.selectedModel ?? preferredDecisionModel(connections.data?.data ?? []);
   const adapter = connections.data?.data.find(
-    (connection) => connection.provider === state.selectedModel?.provider,
+    (connection) => connection.provider === model?.provider,
   )?.adapter;
   const openaiDecision = usesPlainDecisionInstructions({
-    model: state.selectedModel?.model,
+    model: model?.model,
     adapter,
   });
   const errorsById = useMemo(() => {

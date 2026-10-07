@@ -30,7 +30,9 @@ import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluat
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
@@ -289,11 +291,17 @@ export function EvaluatorSetupPage(
     sourceCode: codeDraft.sourceCode,
     sourceCodeLanguage: codeDraft.sourceCodeLanguage,
   });
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    modelDraft.type === "DECISION_MODEL",
+  );
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
     JSON.stringify({
       name: state.name.trim(),
       description: state.description.trim() || null,
-      definition: prepareEvaluatorDraft(state).definition,
+      definition: prepareEvaluatorDraft(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      ).definition,
     });
   const initialSnapshot = useRef(getCurrentSnapshot());
   const testPanelOpen = useStore(
@@ -445,16 +453,18 @@ export function EvaluatorSetupPage(
         return { type: state.type, promptMessages: state.promptMessages };
       case "CODE":
         return { type: state.type, sourceCode: state.sourceCode };
-      case "DECISION_MODEL":
+      case "DECISION_MODEL": {
+        const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
         return {
           type: state.type,
           questions:
             draftsToQuestions(state.questions, {
               requireLevelLabels:
-                state.selectedModel != null &&
-                isOpenAIDecisionModel(state.selectedModel.model),
+                draft.selectedModel != null &&
+                isOpenAIDecisionModel(draft.selectedModel.model),
             }) ?? [],
         };
+      }
     }
   };
 
@@ -587,7 +597,9 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition } = prepareEvaluatorDraft(state);
+      const { definition } = prepareEvaluatorDraft(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      );
       if (!definition) return;
       const { name, description } = metadata;
 
@@ -723,7 +735,9 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(state);
+    const { definition } = prepareEvaluatorDraft(
+      applyFallbackDecisionModel(state, fallbackDecisionModel),
+    );
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
     capture("evaluators:test", {
@@ -954,6 +968,7 @@ export function EvaluatorSetupPage(
                   }
                 : null
             }
+            fallbackDecisionModel={fallbackDecisionModel}
             onClose={requestClose}
             onSave={save}
           />
