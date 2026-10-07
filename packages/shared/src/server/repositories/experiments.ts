@@ -5,7 +5,17 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
+import { sql, type Expression, type SqlBool } from "kysely";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  compileClickhouseQuery,
+  type ExecutionContext,
+} from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
+import {
+  EXPERIMENTS_AGGREGATION_FIELDS,
+  EXPERIMENTS_AGGREGATION_FIELD_SETS,
+} from "../queries/clickhouse-sql/event-query-builder";
 import {
   FilterList,
   StringOptionsFilter,
@@ -346,6 +356,26 @@ export const getExperimentsFromEvents = async (props: {
   }));
 };
 
+function compileExperimentMetricsFromEvents(opts: {
+  projectId: string;
+  experimentIds: string[];
+}) {
+  const ctx: ExecutionContext = { projectId: opts.projectId };
+  // Same field map as the experiments table builder, so both stay in sync.
+  const selects = EXPERIMENTS_AGGREGATION_FIELD_SETS.metrics.map((field) =>
+    sql.raw(EXPERIMENTS_AGGREGATION_FIELDS[field]),
+  );
+
+  const query = getClickhouseKysely()
+    .selectFrom("events_core as e")
+    .select(selects as never)
+    .where("e.experiment_id", "in", opts.experimentIds)
+    .where(sql`e.experiment_id != ''` as unknown as Expression<SqlBool>)
+    .groupBy(["e.project_id", "e.experiment_id"]);
+
+  return compileClickhouseQuery(query, ctx);
+}
+
 export const getExperimentMetricsFromEvents = async (props: {
   projectId: string;
   experimentIds: string[];
@@ -354,14 +384,7 @@ export const getExperimentMetricsFromEvents = async (props: {
     return [];
   }
 
-  // Use eventsExperimentsAggregation with "metrics" field set for simplified aggregation
-  const queryBuilder = eventsExperimentsAggregation({
-    projectId: props.projectId,
-    fieldSet: "metrics",
-    experimentIds: props.experimentIds,
-  });
-
-  const { query, params } = queryBuilder.buildWithParams();
+  const { sql: query, params } = compileExperimentMetricsFromEvents(props);
 
   const res = await queryClickhouse<ExperimentMetricsReturnType>({
     query,

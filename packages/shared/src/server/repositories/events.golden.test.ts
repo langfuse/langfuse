@@ -1,4 +1,12 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { env } from "../../env";
 import { LangfuseNotFoundError } from "../../errors";
@@ -21,8 +29,12 @@ vi.mock("./clickhouse", async (importOriginal) => {
 import {
   getAgentGraphDataFromEventsTable,
   getLastTraceTimestampsByProjectsFromEventsTable,
+  getLatestSdkVersionInfoFromEvents,
   getObservationByIdFromEventsTable,
+  getObservationMetricsForPromptsFromEvents,
   getObservationsTraceIdsFromEventsTable,
+  getObservationsWithPromptNameFromEvents,
+  getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
   getTraceMetadataByIdsFromEvents,
   hasAnySessionFromEventsTable,
@@ -38,6 +50,10 @@ const FIXED_START_TIME = new Date("2026-01-01T00:00:00.000Z");
 const FIXED_FROM_TIMESTAMP = new Date("2025-12-01T00:00:00.000Z");
 const FIXED_CH_MIN = "2026-01-01 00:00:00.000";
 const FIXED_CH_MAX = "2026-01-01 01:00:00.000";
+const FIXED_TO_TIMESTAMP = new Date("2026-01-02T00:00:00.000Z");
+const FIXED_PROMPT_NAMES = ["golden-prompt", "golden-prompt-b"];
+const FIXED_PROMPT_IDS = ["golden-prompt-id", "golden-prompt-id-b"];
+const FIXED_SESSION_IDS = ["golden-session", "golden-session-b"];
 
 const describeWithClickhouse = clickhouseFormatAvailable()
   ? describe
@@ -213,6 +229,87 @@ describeWithClickhouse("golden: events point-reads & existence family", () => {
       projectId: FIXED_PROJECT_ID,
       renderingProps: { truncated: true, shouldJsonParse: true },
     });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
+
+describeWithClickhouse("golden: events simple aggregates family", () => {
+  const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+  beforeEach(() => {
+    resetCaptures();
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  afterAll(() => {
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+  });
+
+  it("getObservationsWithPromptNameFromEvents time=unset", async () => {
+    await getObservationsWithPromptNameFromEvents(
+      FIXED_PROJECT_ID,
+      FIXED_PROMPT_NAMES,
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getObservationsWithPromptNameFromEvents time=from+to", async () => {
+    await getObservationsWithPromptNameFromEvents(
+      FIXED_PROJECT_ID,
+      FIXED_PROMPT_NAMES,
+      { fromTimestamp: FIXED_FROM_TIMESTAMP, toTimestamp: FIXED_TO_TIMESTAMP },
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getObservationMetricsForPromptsFromEvents time=unset", async () => {
+    await getObservationMetricsForPromptsFromEvents(
+      FIXED_PROJECT_ID,
+      FIXED_PROMPT_IDS,
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getObservationMetricsForPromptsFromEvents time=from+to", async () => {
+    await getObservationMetricsForPromptsFromEvents(
+      FIXED_PROJECT_ID,
+      FIXED_PROMPT_IDS,
+      { fromTimestamp: FIXED_FROM_TIMESTAMP, toTimestamp: FIXED_TO_TIMESTAMP },
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getSessionMetricsFromEvents sessionIds=empty", async () => {
+    await getSessionMetricsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      sessionIds: [],
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getSessionMetricsFromEvents sessionIds=set", async () => {
+    await getSessionMetricsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      sessionIds: FIXED_SESSION_IDS,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getSessionMetricsFromEvents sessionIds=set+queryFromTimestamp", async () => {
+    await getSessionMetricsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      sessionIds: FIXED_SESSION_IDS,
+      queryFromTimestamp: FIXED_FROM_TIMESTAMP,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getLatestSdkVersionInfoFromEvents", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(FIXED_START_TIME);
+    await getLatestSdkVersionInfoFromEvents({ projectId: FIXED_PROJECT_ID });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 });

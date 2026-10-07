@@ -1,0 +1,72 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-session",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    trace_id AS id,
+    project_id,
+    COALESCE(
+        nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+        nullIf(argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')), '')
+    ) AS name,
+    min(start_time) AS timestamp,
+    argMaxIf(environment, event_ts, environment != '') AS environment,
+    argMaxIf(version, event_ts, version != '') AS version,
+    argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+    argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+    argMaxIf(input, event_ts, parent_span_id = '') AS input,
+    argMaxIf(output, event_ts, parent_span_id = '') AS output,
+    argMaxIf(
+        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+        event_ts,
+        parent_span_id = ''
+    ) AS metadata,
+    min(created_at) AS created_at,
+    max(updated_at) AS updated_at,
+    sum(total_cost) AS total_cost,
+    if(
+        max(end_time) IS NULL,
+        NULL,
+        dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+    ) AS latency_milliseconds,
+    groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+    length(groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))) AS observation_count,
+    argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+    max(public) AS public,
+    argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+    sumMap(usage_details) AS usage_details,
+    sumMap(cost_details) AS cost_details,
+    multiIf(
+        arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+        'ERROR',
+        arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+        'WARNING',
+        arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+        'DEFAULT',
+        'DEBUG'
+    ) AS aggregated_level,
+    countIf(level = 'WARNING') AS warning_count,
+    countIf(level = 'ERROR') AS error_count,
+    countIf(level = 'DEFAULT') AS default_count,
+    countIf(level = 'DEBUG') AS debug_count,
+    argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+    argMaxIf(release, event_ts, release != '') AS release,
+    argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+    argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+    any(experiment_id) AS experiment_id
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (e.is_deleted = 0)
+GROUP BY
+    trace_id,
+    project_id
+ORDER BY timestamp ASC",
+  },
+]
+`;
