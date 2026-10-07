@@ -426,6 +426,7 @@ export function SessionConversationSidebar(
                                   </h4>
                                 )}
                                 {groupConsecutiveTools(rows, {
+                                  minGroupSize: 2,
                                   isTool: (row) =>
                                     props.search.trim() === "" &&
                                     row.role === "tool",

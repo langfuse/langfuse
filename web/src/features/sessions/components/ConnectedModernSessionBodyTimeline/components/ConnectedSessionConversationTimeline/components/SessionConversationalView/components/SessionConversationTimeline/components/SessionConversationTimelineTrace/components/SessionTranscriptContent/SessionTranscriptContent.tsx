@@ -83,6 +83,7 @@ function SessionTranscriptThread({
   } | null;
 }) {
   const groups = groupConsecutiveTools(rows, {
+    minGroupSize: 4,
     isTool: ({ row }) => row.type === "tool",
     getBoundary: ({ threadIndex }) => threadIndex,
     getToolName: ({ row }) =>
