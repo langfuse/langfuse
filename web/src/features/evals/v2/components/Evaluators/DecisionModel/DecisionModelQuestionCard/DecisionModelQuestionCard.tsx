@@ -118,14 +118,14 @@ export function DecisionModelQuestionCard({
       triggerTitle={expanded ? "Collapse question" : "Expand question"}
       header={
         <span className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground shrink-0 font-mono text-xs">
+          <span className="text-muted-foreground shrink-0 font-mono text-xs leading-none">
             {index + 1}
           </span>
           <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
           <Badge
             variant="secondary"
             className={cn(
-              "shrink-0 font-mono",
+              "shrink-0 pb-0 font-mono",
               !question.scoreName.trim() && "text-dark-yellow",
             )}
           >
@@ -133,7 +133,7 @@ export function DecisionModelQuestionCard({
           </Badge>
           <span
             className={cn(
-              "truncate",
+              "truncate leading-none",
               !question.instructions.trim() && "text-muted-foreground italic",
             )}
             title={summary}
