@@ -120,6 +120,24 @@ describe("NextAuth JWT session revocation", () => {
     expect(mockQueryRaw).toHaveBeenCalledTimes(1);
   });
 
+  it("revokes the user's sessions server-side on sign-out", async () => {
+    const signOut = (await getAuthOptions()).events?.signOut;
+    if (!signOut) throw new Error("Expected signOut event");
+    mockQueryRaw.mockResolvedValueOnce([
+      { sessionsExpiredAt: new Date("2026-09-09T12:30:00.000Z") },
+    ]);
+
+    await signOut({ token: { email: "USER@example.com" } } as {
+      session: Session;
+      token: JWT;
+    });
+
+    expect(mockQueryRaw).toHaveBeenCalledTimes(1);
+    const [query, email] = mockQueryRaw.mock.calls[0];
+    expect((query as string[]).join("")).toContain('SET "sessions_expired_at"');
+    expect(email).toBe("user@example.com");
+  });
+
   it.each([
     {
       name: "denies a token issued before the revocation timestamp",
