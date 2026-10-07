@@ -82,6 +82,7 @@ export function DecisionModelQuestionList({
   onRemove,
   onReorder,
   scoreLevelLabels = false,
+  plainInstructions = false,
 }: {
   questions: DecisionModelQuestionDraft[];
   expandedId: string | null;
@@ -94,6 +95,7 @@ export function DecisionModelQuestionList({
   onRemove: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   scoreLevelLabels?: boolean;
+  plainInstructions?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -158,6 +160,7 @@ export function DecisionModelQuestionList({
               }
               errors={errorsById[question.id]}
               scoreLevelLabels={scoreLevelLabels}
+              plainInstructions={plainInstructions}
             />
           )}
         />

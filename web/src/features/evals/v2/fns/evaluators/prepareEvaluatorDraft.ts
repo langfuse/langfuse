@@ -38,7 +38,10 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
     }
     if (params.type === "DECISION_MODEL") {
       return buildDecisionModelStateFields({
-        stateKeys: params.stateKeys,
+        stateKeys:
+          params.selectedModel?.model === OPENAI_DECISION_MODEL_ID
+            ? ["input"]
+            : params.stateKeys,
         variableFields: params.variableFields,
       });
     }

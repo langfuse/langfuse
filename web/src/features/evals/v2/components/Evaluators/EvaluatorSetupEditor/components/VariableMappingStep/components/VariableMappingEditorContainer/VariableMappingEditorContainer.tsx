@@ -1,8 +1,10 @@
 import { memo, useMemo, useRef } from "react";
+import { OPENAI_DECISION_MODEL_ID } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { DecisionModelStateEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelStateEditor/DecisionModelStateEditor";
+import { OpenAIDecisionModelStateEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/OpenAIDecisionModelStateEditor/OpenAIDecisionModelStateEditor";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
 import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
@@ -29,6 +31,7 @@ export function VariableMappingEditorContainer({
       promptMessages: state.promptMessages,
       stateKeys: state.stateKeys,
       variableFields: state.variableFields,
+      selectedModel: state.selectedModel,
       activeMapping: state.activeMapping,
       selectedObservationId: state.selectedObservation?.id ?? null,
       actions: state.actions,
@@ -53,6 +56,32 @@ export function VariableMappingEditorContainer({
   else if (resolvedSample) lastCompletedSample.current = resolvedSample;
 
   const displayedSample = resolvedSample ?? lastCompletedSample.current;
+
+  if (
+    state.type === "DECISION_MODEL" &&
+    state.selectedModel?.model === OPENAI_DECISION_MODEL_ID
+  ) {
+    const inputField = mappings.find((mapping) => mapping.variable === "input");
+    return (
+      <OpenAIDecisionModelStateEditor
+        field={{
+          key: "input",
+          fieldState: inputField?.fieldState ?? {
+            selectedColumnId: "input",
+            jsonSelector: null,
+          },
+        }}
+        activeMapping={state.activeMapping}
+        onActiveMappingChange={state.actions.setActiveMapping}
+        onChangeField={(fieldState) =>
+          state.actions.setVariableField("input", fieldState)
+        }
+        sourceObject={displayedSample}
+        hasMatchingObservations={Boolean(displayedSample)}
+        sourceUnavailableMessage={SOURCE_UNAVAILABLE_MESSAGE}
+      />
+    );
+  }
 
   if (state.type === "DECISION_MODEL") {
     return (

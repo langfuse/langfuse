@@ -10,6 +10,7 @@ import { Label } from "@/src/components/ui/label";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
 import { ChoiceOptionsEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/ChoiceOptionsEditor/ChoiceOptionsEditor";
 import { NoulCriteriaEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/NoulCriteriaEditor/NoulCriteriaEditor";
+import { OpenAIQuestionInstructions } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/OpenAIQuestionInstructions/OpenAIQuestionInstructions";
 import { QuestionInstructionsField } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionInstructionsField/QuestionInstructionsField";
 import {
   QUESTION_TYPE_COPY,
@@ -33,6 +34,8 @@ export type DecisionModelQuestionCardProps = {
   onRemove: (() => void) | null;
   errors?: DecisionModelQuestionDraftErrors;
   scoreLevelLabels?: boolean;
+  /** OpenAI questions are plain text. Jev questions name state fields in backticks. */
+  plainInstructions?: boolean;
 };
 
 function writesLine(question: DecisionModelQuestionDraft) {
@@ -100,6 +103,7 @@ export function DecisionModelQuestionCard({
   onRemove,
   errors = {},
   scoreLevelLabels = false,
+  plainInstructions = false,
 }: DecisionModelQuestionCardProps) {
   const id = useId();
   const copy = QUESTION_TYPE_COPY[question.type];
@@ -177,23 +181,42 @@ export function DecisionModelQuestionCard({
           />
         </div>
 
-        <QuestionInstructionsField
-          value={question.instructions}
-          onChange={(instructions) =>
-            onChange({
-              ...question,
-              instructions,
-              scoreName:
-                question.scoreName === "" ||
-                question.scoreName === suggestScoreName(question.instructions)
-                  ? suggestScoreName(instructions)
-                  : question.scoreName,
-            })
-          }
-          stateKeys={stateKeys}
-          placeholder={copy.example}
-          error={errors.instructions}
-        />
+        {plainInstructions ? (
+          <OpenAIQuestionInstructions
+            value={question.instructions}
+            onChange={(instructions) =>
+              onChange({
+                ...question,
+                instructions,
+                scoreName:
+                  question.scoreName === "" ||
+                  question.scoreName === suggestScoreName(question.instructions)
+                    ? suggestScoreName(instructions)
+                    : question.scoreName,
+              })
+            }
+            placeholder={copy.example}
+            error={errors.instructions}
+          />
+        ) : (
+          <QuestionInstructionsField
+            value={question.instructions}
+            onChange={(instructions) =>
+              onChange({
+                ...question,
+                instructions,
+                scoreName:
+                  question.scoreName === "" ||
+                  question.scoreName === suggestScoreName(question.instructions)
+                    ? suggestScoreName(instructions)
+                    : question.scoreName,
+              })
+            }
+            stateKeys={stateKeys}
+            placeholder={copy.example}
+            error={errors.instructions}
+          />
+        )}
 
         <CriteriaEditor
           question={question}
