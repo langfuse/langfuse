@@ -3,15 +3,16 @@
 # code path that needs an algorithm a FIPS host refuses (md5, ...) fails here
 # with ERR_OSSL_EVP_UNSUPPORTED instead of in a customer deployment.
 #
-# Runs inside the UBI toolchain stage of worker/Dockerfile: Red Hat's Node links
-# the system OpenSSL, and OPENSSL_FORCE_FIPS_MODE=1 switches it into FIPS mode
-# without a FIPS host kernel. The databases, migrations and env files must
-# already be set up on the host, as the tests-fips CI job does.
+# Runs inside the Alpine toolchain stage of worker/Dockerfile: Alpine's Node
+# links the system OpenSSL, and OPENSSL_CONF=/etc/ssl/openssl-fips.cnf loads the
+# image's FIPS provider for it and every other OpenSSL user in the container.
+# The databases, migrations and env files must already be set up on the host,
+# as the tests-fips CI job does.
 #
 # Local run, from the repo root with the dev containers up and migrated:
 #   docker buildx build --load --target toolchain -f worker/Dockerfile -t langfuse-fips-toolchain .
-#   docker run --rm --network host -e OPENSSL_FORCE_FIPS_MODE=1 -v "$PWD:/src:ro" \
-#     langfuse-fips-toolchain bash /src/scripts/ci/fips-tests.sh worker [vitest filters...]
+#   docker run --rm --network host -e OPENSSL_CONF=/etc/ssl/openssl-fips.cnf \
+#     -v "$PWD:/src:ro" langfuse-fips-toolchain bash /src/scripts/ci/fips-tests.sh worker [vitest filters...]
 
 set -euo pipefail
 
@@ -26,12 +27,12 @@ group() { echo "::group::$*"; }
 endgroup() { echo "::endgroup::"; }
 
 if ! node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then
-  echo "The OpenSSL FIPS provider is not active; run with OPENSSL_FORCE_FIPS_MODE=1." >&2
+  echo "The OpenSSL FIPS provider is not active; run with OPENSSL_CONF=/etc/ssl/openssl-fips.cnf." >&2
   exit 1
 fi
 
 # Build on a private copy: the host's node_modules and build outputs were made
-# for the host, not for UBI. Env files written by the host come along.
+# for the host, not for Alpine. Env files written by the host come along.
 group "Copy sources"
 mkdir -p "$WORK_DIR"
 tar -C "$SRC_DIR" --exclude=.git --exclude=node_modules --exclude=.next \
