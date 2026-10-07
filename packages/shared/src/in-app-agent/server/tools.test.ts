@@ -78,6 +78,12 @@ describe("getInAppAgentToolApprovalSource", () => {
       toolCallId: "call-4",
       source: "auto",
     },
+    {
+      name: "auto for ask_user",
+      toolName: "ask_user",
+      toolCallId: "call-5",
+      source: "auto",
+    },
   ] as const)(
     "classifies $name",
     ({ toolName, toolCallId, humanApprovedToolCallId, source }) => {

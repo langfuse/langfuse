@@ -63,9 +63,11 @@ export function ControlledInAppAgentWindow(
     liveMessageVersion,
     messages,
     pendingToolApprovals,
+    pendingUserInputs,
     approveToolCall,
     alwaysAllowToolCall,
     rejectToolCall,
+    answerUserInput,
     selectConversation,
     selectedConversationId,
     selectedConversationTitle,
@@ -112,6 +114,7 @@ export function ControlledInAppAgentWindow(
     isAnimating ||
     isSubmitting ||
     pendingToolApprovals.length > 0 ||
+    pendingUserInputs.length > 0 ||
     displayedPendingToolApprovals.length > 0;
   // Settle from the durable run, not from attach/animation. A finished
   // attached conversation can still be `isRunning` while the watch connects.
@@ -120,6 +123,7 @@ export function ControlledInAppAgentWindow(
   const isRunUnsettled =
     isSubmitting ||
     pendingToolApprovals.length > 0 ||
+    pendingUserInputs.length > 0 ||
     displayedPendingToolApprovals.length > 0 ||
     (execution.run
       ? isUnsettledInAppAgentRunStatus(execution.run.status)
@@ -132,6 +136,7 @@ export function ControlledInAppAgentWindow(
   const isAwaitingApproval =
     execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
     (pendingToolApprovals.length > 0 ||
+      pendingUserInputs.length > 0 ||
       displayedPendingToolApprovals.length > 0);
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
@@ -152,11 +157,13 @@ export function ControlledInAppAgentWindow(
         isRunning: isRunning || isAnimating,
         messages: displayedMessages,
         pendingToolApprovals: displayedPendingToolApprovals,
+        pendingUserInputs,
         runningToolCallIds,
       }),
     [
       displayedMessages,
       displayedPendingToolApprovals,
+      pendingUserInputs,
       error,
       isAnimating,
       isRunning,
@@ -203,6 +210,7 @@ export function ControlledInAppAgentWindow(
       onApproveToolCall={approveToolCall}
       onAlwaysAllowToolCall={alwaysAllowToolCall}
       onRejectToolCall={rejectToolCall}
+      onSubmitUserInput={answerUserInput}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />

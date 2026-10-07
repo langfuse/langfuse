@@ -3,6 +3,9 @@ import { InAppAgentRunStatus } from "../features/inAppAgent/types";
 // Avoid renaming this as the FE is aware of this when rendering, renaming it would cause history issues
 export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 
+/** Local suspending tool that parks the run until the user answers. */
+export const IN_APP_AGENT_ASK_USER_TOOL_NAME = "ask_user";
+
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
 export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =

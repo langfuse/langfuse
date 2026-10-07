@@ -107,7 +107,11 @@ type ObservationBody = {
   userId?: string;
   sessionId?: string;
 };
-type ToolCallApprovalStatus = "approved" | "rejected";
+type ToolCallApprovalStatus =
+  | "approved"
+  | "rejected"
+  | "answered"
+  | "cancelled";
 type AgentRunToolSpan = {
   name: string;
   startTime: Date;
@@ -1086,7 +1090,10 @@ export class InAppAgentInstrumentation {
       id: `${this.runId}-approval-wait`,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
-      name: `waiting for user approval for tool ${continuation.toolName}`,
+      name:
+        continuation.metadata.continuation_type === "user_input"
+          ? `waiting for user input for ${continuation.toolName}`
+          : `waiting for user approval for tool ${continuation.toolName}`,
       startTime: requestedAt,
       endTime,
       input: {
@@ -1110,6 +1117,48 @@ function getApprovalContinuation(
     return undefined;
   }
 
+  const resume = forwardedProps.data.command.resume;
+  if ("kind" in resume && resume.kind === "user_input") {
+    const {
+      status,
+      userInputRequest,
+      continuationNumber = 1,
+      rootRunId = userInputRequest.runId,
+      traceStartedAt,
+      approvalRequestedAt,
+      approvalDecidedAt,
+    } = resume;
+    const mappedStatus = status === "resolved" ? "answered" : "cancelled";
+
+    return {
+      status: mappedStatus,
+      continuationNumber,
+      rootRunId,
+      toolCallId: userInputRequest.toolCallId,
+      toolName: userInputRequest.toolName,
+      ...(traceStartedAt ? { traceStartedAt: new Date(traceStartedAt) } : {}),
+      ...(approvalRequestedAt
+        ? { approvalRequestedAt: new Date(approvalRequestedAt) }
+        : {}),
+      ...(approvalDecidedAt
+        ? { approvalDecidedAt: new Date(approvalDecidedAt) }
+        : {}),
+      metadata: {
+        continuation_type: "user_input",
+        continuation_number: continuationNumber,
+        parent_run_id: userInputRequest.runId,
+        user_input_status: status,
+        user_input_tool_call_id: userInputRequest.toolCallId,
+        ...(approvalRequestedAt
+          ? { approval_requested_at: approvalRequestedAt }
+          : {}),
+        ...(approvalDecidedAt
+          ? { approval_decided_at: approvalDecidedAt }
+          : {}),
+      },
+    };
+  }
+
   const {
     approved,
     approvalRequest,
@@ -1118,7 +1167,7 @@ function getApprovalContinuation(
     traceStartedAt,
     approvalRequestedAt,
     approvalDecidedAt,
-  } = forwardedProps.data.command.resume;
+  } = resume;
   const status = approved ? "approved" : "rejected";
 
   return {

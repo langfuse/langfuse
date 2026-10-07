@@ -3,6 +3,7 @@
 // covered by the client-bundle scan.
 export * from "./schema";
 export * from "./approvalEvents";
+export * from "./userInputEvents";
 export * from "./constants";
 export * from "./interrupts";
 export * from "./messages";
