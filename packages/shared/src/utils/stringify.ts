@@ -27,6 +27,7 @@ export const stringify = (data: any, key?: string, indent?: number): string => {
  * are passed through JSON.stringify and then CSV-escaped.
  */
 export const stringifyForCsv = (data: any, key?: string): string => {
+  if (typeof data === "bigint") return data.toString();
   if (typeof data === "string") return decodeUnicodeEscapesOnly(data, true);
   return stringify(data, key);
 };
