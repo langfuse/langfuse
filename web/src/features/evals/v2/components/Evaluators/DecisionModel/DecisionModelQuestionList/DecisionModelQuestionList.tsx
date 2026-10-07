@@ -65,6 +65,25 @@ export const QUESTION_EXAMPLES: Record<
   },
 };
 
+/** OpenAI questions cannot name state fields, so these examples stay plain. */
+export const OPENAI_QUESTION_EXAMPLES: Record<
+  DecisionModelQuestionType,
+  Omit<DecisionModelQuestionDraft, "id">
+> = {
+  [DecisionModelQuestionType.CHOICE]: {
+    ...QUESTION_EXAMPLES[DecisionModelQuestionType.CHOICE],
+    instructions: "Is the reply ready to send to the customer?",
+  },
+  [DecisionModelQuestionType.SCORE]: {
+    ...QUESTION_EXAMPLES[DecisionModelQuestionType.SCORE],
+    instructions: "How frustrated is the customer?",
+  },
+  [DecisionModelQuestionType.NOUL]: {
+    ...QUESTION_EXAMPLES[DecisionModelQuestionType.NOUL],
+    instructions: "Does the customer request a refund?",
+  },
+};
+
 /**
  * The ordered questions of a decision-model evaluator. Every question is
  * answered in the same call, so adding one costs only its own tokens; the
@@ -83,6 +102,7 @@ export function DecisionModelQuestionList({
   onReorder,
   scoreLevelLabels = false,
   plainInstructions = false,
+  examples = QUESTION_EXAMPLES,
 }: {
   questions: DecisionModelQuestionDraft[];
   expandedId: string | null;
@@ -96,6 +116,10 @@ export function DecisionModelQuestionList({
   onReorder: (fromIndex: number, toIndex: number) => void;
   scoreLevelLabels?: boolean;
   plainInstructions?: boolean;
+  examples?: Record<
+    DecisionModelQuestionType,
+    Omit<DecisionModelQuestionDraft, "id">
+  >;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -129,8 +153,7 @@ export function DecisionModelQuestionList({
                   onClick={() => onAddExample(type)}
                 >
                   <Sparkles className="icon-base text-icon-foreground mr-1" />
-                  {copy.label}: “
-                  {QUESTION_EXAMPLES[type].instructions.replace(/`/g, "")}”
+                  {copy.label}: “{examples[type].instructions}”
                 </Button>
               );
             })}

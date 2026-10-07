@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import {
   DecisionModelQuestionList,
+  OPENAI_QUESTION_EXAMPLES,
   QUESTION_EXAMPLES,
 } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionList/DecisionModelQuestionList";
 import {
@@ -55,6 +56,10 @@ export function DecisionModelQuestionsEditor({
     return errors;
   }, [openaiDecision, state.questions]);
 
+  const examples = openaiDecision
+    ? OPENAI_QUESTION_EXAMPLES
+    : QUESTION_EXAMPLES;
+
   return (
     <DecisionModelQuestionList
       questions={state.questions}
@@ -64,16 +69,13 @@ export function DecisionModelQuestionsEditor({
       onExpandedChange={state.actions.setExpandedQuestionId}
       onChange={state.actions.setQuestion}
       onAdd={() => state.actions.addQuestion(createEmptyQuestion())}
-      onAddExample={(type) => {
-        const example = QUESTION_EXAMPLES[type];
+      examples={examples}
+      onAddExample={(type) =>
         state.actions.addQuestion({
           id: safeRandomUUID(),
-          ...example,
-          instructions: openaiDecision
-            ? example.instructions.replace(/`/g, "")
-            : example.instructions,
-        });
-      }}
+          ...examples[type],
+        })
+      }
       onRemove={state.actions.removeQuestion}
       onReorder={state.actions.reorderQuestion}
       scoreLevelLabels={openaiDecision}
