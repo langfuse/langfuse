@@ -46,6 +46,47 @@ const mediaUploadCache = new WeakMap<
   Map<string, Promise<CachedMediaUpload>>
 >();
 
+function jsonStringEscapeLayers(value: string, referenceIndex: number): number {
+  // Native provider references replace an entire JSON string value. Each outer
+  // JSON stringification turns the opening quote's escape run into 0, 1, 3, 7,
+  // ... backslashes, so restore the provider value through every layer.
+  if (value[referenceIndex - 1] !== '"') return 1;
+
+  let escapedQuoteBackslashes = 0;
+  for (
+    let index = referenceIndex - 2;
+    index >= 0 && value[index] === "\\";
+    index--
+  ) {
+    escapedQuoteBackslashes++;
+  }
+
+  let outerLayers = 0;
+  while (escapedQuoteBackslashes > 0) {
+    if ((escapedQuoteBackslashes - 1) % 2 !== 0) return 1;
+    escapedQuoteBackslashes = (escapedQuoteBackslashes - 1) / 2;
+    outerLayers++;
+  }
+  return outerLayers + 1;
+}
+
+function escapeJsonString(value: string): string {
+  return JSON.stringify(value).slice(1, -1);
+}
+
+function escapeJsonStringAtReference(
+  original: string,
+  value: string,
+  referenceIndex: number,
+): string {
+  let escaped = original;
+  const layers = jsonStringEscapeLayers(value, referenceIndex);
+  for (let layer = 0; layer < layers; layer++) {
+    escaped = escapeJsonString(escaped);
+  }
+  return escaped;
+}
+
 function batchMedia(batch: EarlyOtelBatch): MediaRegistry {
   let media = mediaRegistries.get(batch);
   if (!media) {
@@ -226,9 +267,14 @@ function createMediaRestorer(batch: EarlyOtelBatch, media: MediaRegistry) {
       const entry = media.get(match[0]);
       if (!entry) continue;
       const original = await originalFor(entry);
-      output +=
-        value.slice(end, match.index) +
-        (jsonString ? JSON.stringify(original).slice(1, -1) : original);
+      let replacement = original;
+      if (jsonString) {
+        replacement =
+          entry.kind === "data_uri"
+            ? escapeJsonString(original)
+            : escapeJsonStringAtReference(original, value, match.index);
+      }
+      output += value.slice(end, match.index) + replacement;
       end = match.index + match[0].length;
     }
     return end === 0 ? value : output + value.slice(end);
@@ -592,7 +638,10 @@ export async function resolveExtractedMedia(params: {
     for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
       const entry = media.get(match[0]);
       if (!entry || entry.kind === "data_uri") continue;
-      output += value.slice(cursor, match.index) + (await originalFor(entry));
+      const original = await originalFor(entry);
+      output +=
+        value.slice(cursor, match.index) +
+        escapeJsonStringAtReference(original, value, match.index);
       cursor = match.index + match[0].length;
     }
     return cursor === 0 ? value : output + value.slice(cursor);
