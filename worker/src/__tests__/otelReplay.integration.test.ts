@@ -521,8 +521,8 @@ describe(
     });
 
     it("extracts only media accepted by masking", async () => {
-      const originalMedia = Buffer.from("original-media");
-      const maskedMedia = Buffer.from("masked-media");
+      const originalMedia = Buffer.from("original-media".repeat(512));
+      const maskedMedia = Buffer.from("masked-media".repeat(512));
       const rawBytes = focusedReplayBytes({
         attributes: [
           stringAttribute(
@@ -880,7 +880,7 @@ describe(
         const { projectId, orgId } = await createOrgProjectAndApiKey();
         const existingReference =
           "@@@langfuseMedia:type=image/png|id=preexisting-media-id|source=bytes@@@";
-        const content = Buffer.from("dual-inline-media");
+        const content = Buffer.from("dual-inline-media".repeat(256));
         const dataUri = `data:image/png;base64,${content.toString("base64")}`;
         const input = JSON.stringify([existingReference, dataUri]);
         const uploadFails = outcome === "fail";

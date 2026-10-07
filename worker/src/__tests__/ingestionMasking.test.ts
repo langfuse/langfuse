@@ -293,12 +293,37 @@ describe("Ingestion Masking", () => {
   });
 
   describe("applyIngestionMasking", () => {
-    it.each(["success", "bom-success", "fail-open", "fail-closed"] as const)(
+    it.each([
+      "success",
+      "bom-success",
+      "double-bom-success",
+      "triple-bom-fail-open",
+      "fail-open",
+      "fail-closed",
+    ] as const)(
       "compacts only the accepted raw masking input (%s)",
       async (outcome) => {
-        const original = { input: "data:image/png;base64,b3JpZ2luYWw=" };
-        const masked = { input: "data:image/png;base64,bWFza2Vk" };
-        const accepted = outcome === "success" || outcome === "bom-success";
+        const originalMediaBody = Buffer.alloc(4096, 0x6f);
+        const maskedMediaBody = Buffer.alloc(4096, 0x6d);
+        const original = {
+          input: `data:image/png;base64,${originalMediaBody.toString("base64")}`,
+        };
+        const masked = {
+          input: `data:image/png;base64,${maskedMediaBody.toString("base64")}`,
+        };
+        const accepted =
+          outcome === "success" ||
+          outcome === "bom-success" ||
+          outcome === "double-bom-success";
+        const responseBody = accepted
+          ? (outcome === "bom-success"
+              ? "\uFEFF"
+              : outcome === "double-bom-success"
+                ? "\uFEFF\uFEFF"
+                : "") + JSON.stringify(masked)
+          : outcome === "triple-bom-fail-open"
+            ? "\uFEFF\uFEFF\uFEFF" + JSON.stringify(masked)
+            : "{";
         const overrides = createTestEnv({
           LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
             "https://masking.example.com/raw",
@@ -314,14 +339,14 @@ describe("Ingestion Masking", () => {
         );
         const fetch = vi
           .spyOn(globalThis, "fetch")
-          .mockResolvedValueOnce(
-            new Response(
-              accepted
-                ? (outcome === "bom-success" ? "\uFEFF" : "") +
-                    JSON.stringify(masked)
-                : "{",
-            ),
+          .mockResolvedValueOnce(new Response(responseBody));
+        if (accepted) {
+          await expect(new Response(responseBody).json()).resolves.toEqual(
+            masked,
           );
+        } else if (outcome === "triple-bom-fail-open") {
+          await expect(new Response(responseBody).json()).rejects.toThrow();
+        }
         let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
         try {
           prepared = await prepareOtelBatch({
@@ -343,8 +368,8 @@ describe("Ingestion Masking", () => {
           const batch = prepared?.batch;
           expect(batch).toBeDefined();
           expect(batch!.media).toHaveLength(1);
-          expect((await batch!.mediaBody(0)).toString()).toBe(
-            accepted ? "masked" : "original",
+          expect(await batch!.mediaBody(0)).toEqual(
+            accepted ? maskedMediaBody : originalMediaBody,
           );
           expect(JSON.parse(batch!.json()).input).toBe(
             batch!.media[0].reference,
@@ -361,10 +386,12 @@ describe("Ingestion Masking", () => {
     it.each(["request", "response"] as const)(
       "sanitizes invalid UTF-8 in the masking %s before media discovery",
       async (side) => {
+        const mediaBody = Buffer.alloc(4096, 0x68);
+        const mediaUri = `data:image/png;base64,${mediaBody.toString("base64")}`;
         const malformed = Buffer.concat([
           Buffer.from('[{"note":"'),
           Buffer.from([0xff, 0xe2, 0x82]),
-          Buffer.from('","input":"data:image/png;base64,aGk="}]'),
+          Buffer.from(`","input":"${mediaUri}"}]`),
         ]);
         const sanitized = Buffer.from(malformed.toString("utf8"));
         const originalBytes = side === "request" ? malformed : sanitized;
@@ -397,7 +424,7 @@ describe("Ingestion Masking", () => {
           const batch = prepared.batch!;
           expect(JSON.parse(batch.json())[0].note).toBe("��");
           expect(batch.media).toHaveLength(1);
-          expect((await batch.mediaBody(0)).toString()).toBe("hi");
+          expect(await batch.mediaBody(0)).toEqual(mediaBody);
           expectPreparationMetrics("native", true);
         } finally {
           await prepared?.batch?.dispose();
