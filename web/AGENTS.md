@@ -59,7 +59,9 @@
   lifecycle, policy, tool-result, compaction, and prompt subpaths. Web owns the
   UI, IDs, feedback/source/rate-limit schemas, conversation access, tRPC run
   adapters, snapshot construction, watch framing/service, and the authenticated
-  watch route in `src/app/api/in-app-agent/watch/`.
+  watch route in `src/app/api/in-app-agent/watch/`. The opt-in internal
+  experiment endpoint is `src/pages/api/internal/in-app-agent/runs.ts`; its
+  credential binding and result authorization live in the feature server.
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,

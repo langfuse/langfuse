@@ -183,6 +183,87 @@ Environment ownership:
   heartbeat, 1000 ms watch poll, 15000 ms keepalive, and 90000 ms watch
   connection. These are intentionally not environment variables.
 
+## Internal experiment webhook
+
+An operator can enable `/api/internal/in-app-agent/runs` for an experiment runner.
+This is an internal integration endpoint, not a project API-key endpoint. Configure
+`LANGFUSE_IN_APP_AGENT_WEBHOOKS` on web as a JSON array:
+
+```json
+[
+  {
+    "id": "agent-evals",
+    "tokenSha256": "<SHA-256 hex digest of the secret>",
+    "projectId": "<target project ID>",
+    "userId": "<acting Langfuse user ID>"
+  }
+]
+```
+
+Generate a secret with `openssl rand -hex 32`. Store it in the experiment runner's
+secret store; configure only its SHA-256 digest on web. Hash the secret's text
+without a trailing newline, for example `printf %s "$WEBHOOK_SECRET" | openssl dgst -sha256`.
+IDs and digests must be unique. Use HTTPS outside local development. Requests use
+`Authorization: Bearer <id>.<secret>`. Project API keys and browser sessions are
+not accepted by this endpoint. Unconfigured endpoints return 404.
+
+The operator provisions each credential for one project and one existing user.
+The endpoint rechecks current membership (including project role overrides),
+agent availability, and organization AI settings on every request. The worker
+also rechecks user access before execution. Removing an entry or rotating its
+secret takes effect after the updated web configuration is deployed to all
+replicas; it prevents subsequent submissions and result reads, but does not
+cancel already accepted runs. Keep IDs stable for rotation and do not reuse an
+ID for an unrelated integration.
+
+### Submit and retrieve a run
+
+```bash
+curl --fail-with-body "$LANGFUSE_HOST/api/internal/in-app-agent/runs" \
+  -H "Authorization: Bearer agent-evals.$WEBHOOK_SECRET" \
+  -H 'Content-Type: application/json' \
+  -d '{"projectId":"<target project ID>","userId":"<acting user ID>","message":"Investigate failed traces","context":[]}'
+```
+
+The response is `202 {"conversationId":"aconv_…","runId":"arun_…"}`. Every
+POST starts a fresh conversation; the caller cannot select an existing one.
+Retries therefore create additional runs. `message` and AG-UI `context` follow
+the same validation/sanitization as UI submissions. Organization, plan, model,
+and telemetry settings are derived on the server. Body project/user IDs must
+match the credential; attempts to override other runtime settings are rejected.
+
+```bash
+curl --fail-with-body "$LANGFUSE_HOST/api/internal/in-app-agent/runs?runId=$RUN_ID" \
+  -H "Authorization: Bearer agent-evals.$WEBHOOK_SECRET"
+```
+
+GET returns `{conversationId, runId, status, errorCode, messages}` with canonical
+AG-UI messages, including tool calls and results, for that run only. It requires
+the same credential ID, target project, and acting user. Existing UI runs, other
+credentials' runs, deleted conversations, and later UI turns are not exposed.
+Responses use `Cache-Control: no-store`.
+
+Poll while status is `QUEUED` or `RUNNING`, with a bounded timeout and backoff on 429. Evaluate completed results when status is `SUCCEEDED`; record `FAILED` and
+`CANCELLED` as execution failures. Treat `AWAITING_APPROVAL` as a blocked test
+case: the webhook never approves tools or grants persistent tool permissions.
+`errorCode` also reports truncation/step limits on successful runs.
+
+### Use from a Langfuse experiment
+
+Use the SDK experiment task as an adapter: submit `item.input`, poll the returned
+run ID, then return the interaction to code or LLM evaluators. Keep
+`expectedOutput` and grading rubrics in the evaluator, not in the agent input.
+For a UI-triggered experiment, configure the dataset's Custom Experiment webhook
+with the **runner's URL**; the runner loads the dataset and calls this endpoint
+once per item. This agent endpoint does not consume a dataset webhook payload.
+
+The evaluation project may be the target project or a different project. Keep
+its dataset/score API keys in the runner, separate from the target credential.
+Provisioning this integration explicitly authorizes exporting the selected run's
+interaction to the evaluation project; its members can read those results. The
+runner owns that destination. Normal optional agent telemetry continues to use
+the configured AI-feature tracing project.
+
 ## Sandbox Runtime
 
 The worker runtime sandbox service gives the agent a conversation-scoped sandbox interface with `read`, `write`, and `edit` plus a separate turn-end callback. It reuses an existing provider session when the stored provider/session/TTL still match, otherwise it boots a fresh session and persists the new state on the conversation.
