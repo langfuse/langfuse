@@ -1,14 +1,67 @@
 //! Owned raw input and extracted-media handles shared by the TS and Rust paths.
 
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use napi::bindgen_prelude::*;
 use napi::{JsError, JsString};
 use napi_derive::napi;
 
 use crate::native_memory::NativeMemory;
-use crate::native_task::OwnedTask;
+use crate::native_task::{NativeResult, OwnedTask};
 use crate::otel_media::{self, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
+
+const TIMED_MEDIA_OPERATIONS: [&str; 2] = ["validate", "extract"];
+
+pub struct OtelMediaTask<T> {
+    operation: &'static str,
+    inner: OwnedTask<T>,
+}
+
+impl<T: Send + ToNapiValue + TypeName + 'static> OtelMediaTask<T> {
+    fn run(
+        operation: &'static str,
+        work: impl FnOnce() -> NativeResult<T> + Send + 'static,
+    ) -> AsyncTask<Self> {
+        AsyncTask::new(Self {
+            operation,
+            inner: OwnedTask::new(work),
+        })
+    }
+}
+
+impl<T: Send + ToNapiValue + TypeName + 'static> Task for OtelMediaTask<T> {
+    type Output = NativeResult<T>;
+    type JsValue = T;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        let started = TIMED_MEDIA_OPERATIONS
+            .contains(&self.operation)
+            .then(Instant::now);
+        let _span = tracing::debug_span!("otel_media", operation = self.operation).entered();
+        let result = self.inner.compute()?;
+        if result
+            .as_ref()
+            .is_err_and(|error| error.status == "ERR_NATIVE_PANIC")
+        {
+            tracing::error!(operation = self.operation, "native task panicked");
+        }
+        if let Some(started) = started {
+            metrics::counter!("langfuse.native.otel_media.operations",
+                "operation" => self.operation,
+                "outcome" => result.as_ref().err().map_or("success", |error| error.status)
+            )
+            .increment(1);
+            metrics::histogram!("langfuse.native.otel_media.duration_ms", "operation" => self.operation)
+                .record(started.elapsed().as_secs_f64() * 1000.0);
+        }
+        Ok(result)
+    }
+
+    fn resolve(&mut self, env: Env, output: Self::Output) -> Result<T> {
+        self.inner.resolve(env, output)
+    }
+}
 
 #[napi]
 pub struct ValidatedOtelJson {
@@ -37,9 +90,9 @@ impl ValidatedOtelJson {
 
     /// Release a superseded masking input without waiting for the JS handle to be collected.
     #[napi(ts_return_type = "Promise<void>")]
-    pub fn dispose(&mut self) -> AsyncTask<OwnedTask<()>> {
+    pub fn dispose(&mut self) -> AsyncTask<OtelMediaTask<()>> {
         let payload = self.payload.take();
-        OwnedTask::run("dispose", move || {
+        OtelMediaTask::run("dispose", move || {
             drop(payload);
             Ok(())
         })
@@ -47,10 +100,10 @@ impl ValidatedOtelJson {
 
     /// Consume the validated input, optionally extracting media into a new batch.
     #[napi(ts_return_type = "Promise<EarlyOtelBatch>")]
-    pub fn extract(&mut self, enabled: bool) -> AsyncTask<OwnedTask<EarlyOtelBatch>> {
+    pub fn extract(&mut self, enabled: bool) -> AsyncTask<OtelMediaTask<EarlyOtelBatch>> {
         // Claim ownership before scheduling, so a later dispose cannot invalidate this task.
         let payload = self.payload.take();
-        OwnedTask::run("extract", move || {
+        OtelMediaTask::run("extract", move || {
             let (validated, memory) = payload.ok_or_else(|| {
                 Error::new(
                     "ERR_OTEL_CLOSED",
@@ -144,9 +197,9 @@ pub struct ExtractedOtelMedia {
 impl EarlyOtelBatch {
     /// Release this handle; pending reads retain ownership until they complete.
     #[napi(ts_return_type = "Promise<void>")]
-    pub fn dispose(&mut self) -> AsyncTask<OwnedTask<()>> {
+    pub fn dispose(&mut self) -> AsyncTask<OtelMediaTask<()>> {
         let inner = self.inner.take();
-        OwnedTask::run("dispose", move || {
+        OtelMediaTask::run("dispose", move || {
             drop(inner);
             Ok(())
         })
@@ -203,9 +256,9 @@ impl EarlyOtelBatch {
 
     /// Decode one media body. Callers control concurrency and the returned Buffer's lifetime.
     #[napi(ts_return_type = "Promise<Buffer>")]
-    pub fn media_body(&self, index: u32) -> AsyncTask<OwnedTask<Buffer>> {
+    pub fn media_body(&self, index: u32) -> AsyncTask<OtelMediaTask<Buffer>> {
         let inner = self.data();
-        OwnedTask::run("decode", move || {
+        OtelMediaTask::run("decode", move || {
             let inner = inner.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
             let media = inner
                 .media
@@ -220,9 +273,9 @@ impl EarlyOtelBatch {
 
     /// Read the original encoded text for restoring the selected media occurrence.
     #[napi(ts_return_type = "Promise<string>")]
-    pub fn original_media(&self, index: u32) -> AsyncTask<OwnedTask<String>> {
+    pub fn original_media(&self, index: u32) -> AsyncTask<OtelMediaTask<String>> {
         let inner = self.data();
-        OwnedTask::run("restore", move || {
+        OtelMediaTask::run("restore", move || {
             let inner = inner.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
             inner
                 .media
@@ -240,10 +293,10 @@ impl EarlyOtelBatch {
 pub fn validate_otel_json(
     env: Env,
     bytes: Buffer,
-) -> Result<AsyncTask<OwnedTask<ValidatedOtelJson>>> {
+) -> Result<AsyncTask<OtelMediaTask<ValidatedOtelJson>>> {
     let bytes = bytes.to_vec();
     let memory = NativeMemory::new(&env, bytes.capacity())?;
-    Ok(OwnedTask::run("validate", move || {
+    Ok(OtelMediaTask::run("validate", move || {
         let payload = otel_media::validate(bytes)
             .map_err(|error| Error::new(error.code(), error.to_string()))?;
         memory.resize(payload.retained_bytes());

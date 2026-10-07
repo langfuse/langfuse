@@ -2,24 +2,18 @@
 
 use napi::bindgen_prelude::*;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::time::Instant;
 
 pub(crate) type NativeResult<T> = Result<T, &'static str>;
 
 pub struct OwnedTask<T> {
-    operation: &'static str,
     work: Option<Box<dyn FnOnce() -> NativeResult<T> + Send>>,
 }
 
 impl<T: Send + ToNapiValue + TypeName + 'static> OwnedTask<T> {
-    pub(crate) fn run(
-        operation: &'static str,
-        work: impl FnOnce() -> NativeResult<T> + Send + 'static,
-    ) -> AsyncTask<Self> {
-        AsyncTask::new(Self {
-            operation,
+    pub(crate) fn new(work: impl FnOnce() -> NativeResult<T> + Send + 'static) -> Self {
+        Self {
             work: Some(Box::new(work)),
-        })
+        }
     }
 }
 
@@ -28,27 +22,14 @@ impl<T: Send + ToNapiValue + TypeName + 'static> Task for OwnedTask<T> {
     type JsValue = T;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        let started = matches!(self.operation, "validate" | "extract").then(Instant::now);
-        let _span = tracing::debug_span!("otel_media", operation = self.operation).entered();
         let work = self
             .work
             .take()
             .ok_or_else(|| Error::from_reason("native task already executed"))?;
         // libuv calls compute through an extern-C callback. Unwinding through
         // that boundary aborts Node rather than rejecting the pending promise.
-        let result = catch_unwind(AssertUnwindSafe(work)).unwrap_or_else(|_| {
-            tracing::error!(operation = self.operation, "native task panicked");
-            Err(Error::new("ERR_NATIVE_PANIC", "native task panicked"))
-        });
-        if let Some(started) = started {
-            metrics::counter!("langfuse.native.otel_media.operations",
-                "operation" => self.operation,
-                "outcome" => result.as_ref().err().map_or("success", |error| error.status)
-            )
-            .increment(1);
-            metrics::histogram!("langfuse.native.otel_media.duration_ms", "operation" => self.operation)
-                .record(started.elapsed().as_secs_f64() * 1000.0);
-        }
+        let result = catch_unwind(AssertUnwindSafe(work))
+            .unwrap_or_else(|_| Err(Error::new("ERR_NATIVE_PANIC", "native task panicked")));
         Ok(result)
     }
 
@@ -65,7 +46,6 @@ mod tests {
     #[test]
     fn task_panics_become_errors_before_the_ffi_boundary() {
         let mut task = OwnedTask::<()> {
-            operation: "test",
             work: Some(Box::new(|| panic!("invalid internal state"))),
         };
         let error = task
