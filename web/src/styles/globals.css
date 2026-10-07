@@ -707,7 +707,7 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: var(--background); /* same as the page */
+    --sidebar-background: 0 0% 4.5%; /* just below the 6% page */
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
