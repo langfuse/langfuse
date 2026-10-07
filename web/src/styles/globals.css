@@ -562,7 +562,7 @@
     --icon-foreground: 0 0% 54%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
-    --surface-sunken: 0 0% 8%; /* just below the 9% modal */
+    --surface-sunken: var(--card); /* one step below the modal */
     --surface-output: var(--popover);
 
     --popover: 0 0% 12%;
@@ -707,7 +707,7 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 4.5%; /* just below the 6% page */
+    --sidebar-background: 0 0% 4%; /* one step below the page */
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
