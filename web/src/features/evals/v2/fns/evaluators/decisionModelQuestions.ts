@@ -249,13 +249,15 @@ export function previewOpenAIDecisionQuestions(
           type: "score",
           name,
           instructions,
-          levels: draft.levels.map((level) => {
+          levels: draft.levels.map((level, index) => {
             const label = level.label?.trim();
             const description = level.description.trim();
-            return {
-              ...(label ? { label } : {}),
-              ...(description ? { description } : {}),
-            };
+            // The Decisions API names levels by index. The model reads the
+            // description, or the entered label when the description is empty.
+            const sent = description || label;
+            return sent
+              ? { label: String(index), description: sent }
+              : { label: String(index) };
           }),
         };
       case DecisionModelQuestionType.NOUL:

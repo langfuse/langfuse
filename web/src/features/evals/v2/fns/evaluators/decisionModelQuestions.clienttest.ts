@@ -89,8 +89,8 @@ describe("previewOpenAIDecisionQuestions", () => {
         name: "severity",
         instructions: "How severe?",
         levels: [
-          { label: "Cosmetic", description: "Appearance only" },
-          { label: "Blocked" },
+          { label: "0", description: "Appearance only" },
+          { label: "1", description: "Blocked" },
         ],
       },
       {
