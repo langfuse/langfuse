@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
@@ -10,14 +9,7 @@ import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button"
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import {
   PageTabs,
   type PageTabsProps,
@@ -177,46 +169,11 @@ const PageHeader = ({
                   <EntityTitle
                     as="h2"
                     type={itemType}
-                    title={
-                      <>
-                        {titleContent ? (
-                          titleContent
-                        ) : titleTooltip ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span
-                                  className="cursor-help"
-                                  data-testid="page-header-title"
-                                >
-                                  {title}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="bottom"
-                                className="max-w-xs"
-                              >
-                                {titleTooltip}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <span title={title} data-testid="page-header-title">
-                            {title}
-                          </span>
-                        )}
-                        {help && (
-                          <span className="whitespace-nowrap">
-                            &nbsp;
-                            <DocPopup
-                              description={help.description}
-                              href={help.href}
-                              className={help.className}
-                            />
-                          </span>
-                        )}
-                      </>
-                    }
+                    title={title}
+                    titleContent={titleContent}
+                    tooltip={titleTooltip}
+                    help={help}
+                    data-testid="page-header-title"
                   />
                 </div>
                 {titleBadges && (

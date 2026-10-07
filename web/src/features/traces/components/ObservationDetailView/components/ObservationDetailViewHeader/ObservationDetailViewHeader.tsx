@@ -24,12 +24,12 @@ import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailVi
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -203,7 +203,6 @@ export const ObservationDetailViewHeader = memo(
               as="span"
               type={observation.type as ObservationType}
               title={observation.name || observation.id}
-              titleText={observation.name || observation.id}
               trailing={
                 observation.level !== "DEFAULT" && (
                   <ObservationLevelBadge level={observation.level} />

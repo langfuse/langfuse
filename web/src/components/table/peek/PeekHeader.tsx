@@ -33,7 +33,7 @@ import {
 
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
-  title: React.ReactNode;
+  title: string;
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
@@ -175,15 +175,9 @@ export function PeekHeader({
     <TooltipProvider>
       <div
         ref={headerRef}
-        className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-2 pb-1.5 pl-4"
+        className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-2 pr-2 pb-2.5 pl-4"
       >
-        <EntityTitle
-          as="span"
-          type={itemType}
-          title={title}
-          titleText={typeof title === "string" ? title : undefined}
-          isFocusable
-        />
+        <EntityTitle as="span" type={itemType} title={title} isFocusable />
         <div
           ref={clusterRef}
           className="flex shrink-0 flex-row items-center gap-1"

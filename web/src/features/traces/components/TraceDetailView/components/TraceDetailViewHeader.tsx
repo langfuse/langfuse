@@ -108,12 +108,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       {/* Title row with actions */}
       <div className="grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]">
         <div className="flex w-full min-w-0 flex-row items-center gap-2">
-          <EntityTitle
-            as="span"
-            type="TRACE"
-            title={trace.name || trace.id}
-            titleText={trace.name || trace.id}
-          />
+          <EntityTitle as="span" type="TRACE" title={trace.name || trace.id} />
           {!isMobile && (
             <ConnectedDetailHeaderActionsMenuController
               idItems={[{ id: trace.id, name: "Trace ID" }]}
