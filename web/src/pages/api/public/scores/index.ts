@@ -19,7 +19,7 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
-    action: "scores:create",
+    action: "scores:save",
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
     allowedAccessLevels: ["project", "scores"],

@@ -3,6 +3,7 @@
 import { cn } from "@/src/utils/tailwind";
 import {
   type FC,
+  type ComponentProps,
   type ReactNode,
   type ReactElement,
   memo,
@@ -19,7 +20,7 @@ import ReactMarkdown, {
 import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { useTheme } from "next-themes";
-import { ImageOff, Info } from "lucide-react";
+import { ChevronRight, ImageOff, Info } from "lucide-react";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -414,9 +415,11 @@ const markdownComponents: NonNullable<Options["components"]> = {
 function MarkdownRenderer({
   markdown,
   className,
+  fallbackDisplay,
 }: {
   markdown: string;
   className?: string;
+  fallbackDisplay?: "expanded" | "collapsed";
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
   const characterLimit = useMarkdownRenderCharacterLimit();
@@ -438,9 +441,34 @@ function MarkdownRenderer({
           Content is too large or deeply nested to render as markdown.
           Displaying as plain text.
         </div>
-        <pre className="text-base break-words whitespace-pre-wrap">
-          {markdown}
-        </pre>
+        {fallbackDisplay === "collapsed" ? (
+          <details className="group" data-markdown-fallback>
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground w-fit cursor-pointer justify-start gap-1.5 text-left text-xs [&::-webkit-details-marker]:hidden"
+            >
+              <summary>
+                <ChevronRight
+                  className="icon-sm transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+                <span className="group-open:hidden">Expand content</span>
+                <span className="hidden group-open:inline">
+                  Collapse content
+                </span>
+              </summary>
+            </Button>
+            <pre className="pt-2 text-base break-words whitespace-pre-wrap">
+              {markdown}
+            </pre>
+          </details>
+        ) : (
+          <pre className="text-base break-words whitespace-pre-wrap">
+            {markdown}
+          </pre>
+        )}
       </div>
     );
   }
@@ -511,6 +539,7 @@ export function MarkdownView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  fallbackDisplay,
 }: {
   /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
       reference strings must still be strings when they reach the part guards. */
@@ -527,6 +556,7 @@ export function MarkdownView({
       (`role === "system"`) — the title can be a message `name` instead of the
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
+  fallbackDisplay?: ComponentProps<typeof MarkdownRenderer>["fallbackDisplay"];
 }) {
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
@@ -626,6 +656,7 @@ export function MarkdownView({
               <>
                 <MarkdownRenderer
                   markdown={isCollapsed ? truncatedContent : markdown}
+                  fallbackDisplay={fallbackDisplay}
                 />
                 {collapseToggle}
               </>
@@ -638,7 +669,10 @@ export function MarkdownView({
             <>
               {isCollapsed ? (
                 <>
-                  <MarkdownRenderer markdown={truncatedContent} />
+                  <MarkdownRenderer
+                    markdown={truncatedContent}
+                    fallbackDisplay={fallbackDisplay}
+                  />
                   {(markdown ?? []).map((content, index) =>
                     isOpenAITextContentPart(content)
                       ? null
@@ -654,6 +688,7 @@ export function MarkdownView({
           {audio ? (
             <>
               <MarkdownRenderer
+                fallbackDisplay={fallbackDisplay}
                 markdown={
                   audio.transcript ? "[Audio] \n" + audio.transcript : ""
                 }
@@ -700,7 +735,13 @@ export function MarkdownView({
     }
 
     if (isOpenAITextContentPart(content)) {
-      return <MarkdownRenderer key={index} markdown={content.text} />;
+      return (
+        <MarkdownRenderer
+          key={index}
+          markdown={content.text}
+          fallbackDisplay={fallbackDisplay}
+        />
+      );
     }
 
     if (content.type === "image_url") {

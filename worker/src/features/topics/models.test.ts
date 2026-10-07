@@ -26,6 +26,7 @@ import {
   embedTopicSummary,
   nameTopicGroup,
   summarizeTopicTrace,
+  summarizeTopicTraceFacets,
 } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 
@@ -97,7 +98,9 @@ describe("Topics naming boundary", () => {
         profile: "ai-test",
       });
       expect(request.messages[0].content).toContain(facet.prompt);
-      expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
+      expect(request.messages[1].content).toBe(
+        "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summary now, in the facet's format.",
+      );
     },
   );
 
@@ -156,6 +159,65 @@ describe("Topics naming boundary", () => {
     ).rejects.toThrow(
       /are \d+ tokens, above this run's 256-token input limit\. No model call was made; the transcript is never shortened per facet\./,
     );
+    expect(state.call).not.toHaveBeenCalled();
+  });
+
+  it("summarizes all facets of a trace in one request and checks its size first", async () => {
+    state.call.mockResolvedValue({
+      output: {
+        intent_1: {
+          notes: "n",
+          summary: "Export sales.",
+          status: "applicable",
+        },
+        issues_2: { notes: "n", summary: "", status: "not_applicable" },
+      },
+      usage: { inputTokens: 100, outputTokens: 30 },
+    });
+    const config = topicProcessingConfigSchema.parse({
+      summaryModel: "us.openai.gpt-5.6-luna",
+    });
+    const issues = {
+      ...facet,
+      facetId: "issues",
+      prompt: "Describe the main problem.",
+    };
+    const facets = [
+      { key: "intent_1", facet },
+      { key: "issues_2", facet: issues },
+    ];
+    await summarizeTopicTraceFacets(facets, "RAW_TRANSCRIPT_SENTINEL", config);
+    expect(state.call).toHaveBeenCalledOnce();
+    const request = state.call.mock.calls[0][0];
+    expect(request.messages[0].content).toContain(
+      `<facet key="intent_1">\n${facet.prompt}\n</facet>`,
+    );
+    expect(request.messages[0].content).toContain(
+      `<facet key="issues_2">\n${issues.prompt}\n</facet>`,
+    );
+    expect(request.maxOutputTokens).toBe(config.maxOutputTokens * 2);
+    // Every facet key is required in the structured output.
+    expect(
+      request.schema.safeParse({
+        intent_1: {
+          notes: "n",
+          summary: "Export sales.",
+          status: "applicable",
+        },
+      }).success,
+    ).toBe(false);
+
+    state.call.mockClear();
+    await expect(
+      summarizeTopicTraceFacets(
+        facets,
+        "Trace evidence. ".repeat(1000),
+        topicProcessingConfigSchema.parse({
+          maxInputTokens: 256,
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toThrow(/above this run's 256-token input limit/);
     expect(state.call).not.toHaveBeenCalled();
   });
 

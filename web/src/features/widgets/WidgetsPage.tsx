@@ -17,6 +17,7 @@ export default function WidgetsPage() {
   return (
     <Page
       headerProps={{
+        className: "border-b-0",
         title: "Widgets",
         help: {
           description: "Manage and create widgets for your dashboard.",

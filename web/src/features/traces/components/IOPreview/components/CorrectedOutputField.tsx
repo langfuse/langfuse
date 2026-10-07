@@ -43,7 +43,7 @@ export function CorrectedOutputField({
   environment = "default",
   compact = false,
 }: CorrectedOutputFieldProps) {
-  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
   const capture = usePostHogClientCapture();
 
   // JSON validation toggle (persisted in localStorage)
