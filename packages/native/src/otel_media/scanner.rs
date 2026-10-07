@@ -1,7 +1,7 @@
-//! Stateful JSON discovery walk for OTEL media candidates.
+//! Forward JSON discovery walk for OTEL media candidates.
 
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -10,524 +10,1014 @@ use jiter::Jiter;
 
 use super::encoding::{
     has_data_uri_boundary, hash_encoded_data, is_base64_character, is_data_uri_terminator,
-    is_valid_content_type, is_valid_data_uri_parameters, BASE64,
+    is_python_bytes_literal, is_valid_base64_syntax, is_valid_content_type,
+    is_valid_data_uri_parameters, BASE64,
 };
-use super::encoding::{is_python_bytes_literal, is_valid_base64_syntax};
-use super::json::{
-    map_jiter_error, parse_unicode_escape, scan_jiter_value, skip_whitespace, validate_utf8,
-    Boundaries, UnicodeEscapeError, MAX_JSON_DEPTH,
-};
+use super::json::{parse_unicode_escape, skip_whitespace, string_end, UnicodeEscapeError};
 use super::payload::{
-    validate_edit_plan, validate_manifest, EarlyMediaError, ManifestMediaStorage, MediaEncoding,
-    MediaMetadata, MediaPayloadKind, ValidatedPayload,
+    validate_edit_plan, EarlyMediaError, ManifestMediaStorage, MediaEncoding, MediaManifest,
+    MediaManifestEntry, MediaMetadata, MediaPayloadKind, MediaSource,
 };
-use super::payload::{MediaManifest, MediaManifestEntry, MediaSource};
 use super::rules::{
     is_media_reference, is_otel_envelope_field, is_supported_content_type, may_be_serialized_json,
     may_contain_media_candidate, may_contain_serialized_media, media_scan_mode_for_field,
-    MediaScanMode, BASE64_MARKER, DATA_URI_PREFIX, MEDIA_REFERENCE_PREFIX, MEDIA_REFERENCE_SUFFIX,
+    MediaScanMode, BASE64_MARKER, DATA_URI_PREFIX,
 };
 
-// Embedded JSON strings are recursively scanned only to this smaller depth.
 const MAX_EMBEDDED_JSON_DEPTH: usize = 10;
-/// One document's shared descriptors, including its embedded JSON strings.
-/// Test counters track syntax validation and boundary tape capacity, not all
-/// discovery CPU work or peak memory. Marker searches and hashing are separate.
+
 #[derive(Default)]
 struct ScanState {
     metadata: HashMap<String, Arc<MediaMetadata>>,
-    #[cfg(test)]
-    scanned_bytes: usize,
-    #[cfg(test)]
-    max_boundary_bytes: usize,
 }
 
-/// Validate and discover edits while retaining the original source for masking.
-/// Candidates use source ranges unless their text requires JSON unescaping;
-/// those retain one decoded candidate copy. No compact document or upload body
-/// is retained by this pass.
-pub fn validate(input: Vec<u8>, discover_media: bool) -> Result<ValidatedPayload, EarlyMediaError> {
-    validate_with_state(input, discover_media, &mut ScanState::default())
+#[derive(Default)]
+struct WalkStats {
+    bytes_walked: usize,
+    // Stack and candidate-index backing storage; owned keys, decoded strings,
+    // and retained media are measured separately by retention tests/benchmarks.
+    peak_index_bytes: usize,
 }
 
-fn validate_with_state(
-    input: Vec<u8>,
-    discover_media: bool,
-    state: &mut ScanState,
-) -> Result<ValidatedPayload, EarlyMediaError> {
-    let input_text = validate_utf8(&input)?;
-    let discover_media = discover_media && may_contain_media_candidate(input_text);
-    // Keep the Vec allocation inside the Arc. Converting Vec<u8> directly to
-    // Arc<[u8]> may allocate a second buffer, which is unacceptable for a
-    // large OTEL body containing large inline media values.
-    let source = Arc::new(input);
-    // A media-free document still needs full structural validation, but does
-    // not need the envelope classification and discovery walk. The hint is
-    // deliberately conservative: escaped marker text falls back to the full
-    // detector, while false positives only cost the normal discovery pass.
-    let (manifest, end) = if discover_media {
-        Extractor::new(&source, state).discover()?
-    } else {
-        Extractor::new(&source, state).validate_only()?
-    };
-    if end != source.len() {
-        return Err(EarlyMediaError::TrailingBytes { offset: end });
-    }
-    Ok(ValidatedPayload::from_discovery(source, manifest))
+/// Discover media only when extraction is requested. Validation happens in
+/// `ValidatedPayload` with library syntax validators; this pass
+/// walks that already-valid source once with an explicit stack.
+pub(super) fn discover(input: &[u8]) -> Result<MediaManifest, EarlyMediaError> {
+    discover_inner(
+        input,
+        0,
+        &mut ScanState::default(),
+        &mut WalkStats::default(),
+    )
 }
 
 #[cfg(test)]
-pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, EarlyMediaError> {
-    validate(input, true)
+pub(super) fn discover_measured(
+    input: &[u8],
+) -> Result<(MediaManifest, usize, usize, usize), EarlyMediaError> {
+    let mut state = ScanState::default();
+    let mut stats = WalkStats::default();
+    let manifest = discover_inner(input, 0, &mut state, &mut stats)?;
+    Ok((
+        manifest,
+        stats.bytes_walked,
+        stats.peak_index_bytes,
+        state.metadata.len(),
+    ))
+}
+
+fn discover_inner(
+    input: &[u8],
+    embedded_depth: usize,
+    state: &mut ScanState,
+    stats: &mut WalkStats,
+) -> Result<MediaManifest, EarlyMediaError> {
+    // Most payloads have no media-specific markers. This packed-literal
+    // prefilter avoids allocating a structural stack for those documents.
+    if std::str::from_utf8(input).is_ok_and(|text| !may_contain_media_candidate(text)) {
+        stats.bytes_walked = stats.bytes_walked.saturating_add(input.len());
+        return Ok(MediaManifest {
+            entries: Vec::new(),
+        });
+    }
+
+    let mut walk = StructuralWalk::new(input, embedded_depth == 0, stats);
+    let root_end = walk.run()?;
+    let StructuralWalk {
+        candidates,
+        mask_operations,
+        stats,
+        ..
+    } = walk;
+    if skip_whitespace(input, root_end) != input.len() {
+        return Err(EarlyMediaError::TrailingBytes {
+            offset: skip_whitespace(input, root_end),
+        });
+    }
+
+    let mut candidates = apply_mask_operations(candidates, &mask_operations);
+    let mut entries = Vec::new();
+    let mut discovery = MediaDiscovery {
+        input,
+        state,
+        stats,
+        embedded_depth,
+        entries: &mut entries,
+    };
+    for candidate in candidates.drain(..) {
+        if candidate.mask == 0 {
+            continue;
+        }
+        match candidate.kind {
+            PendingKind::String(token_range) => {
+                discovery.discover_string_token(token_range)?;
+            }
+            PendingKind::Structured {
+                token_range,
+                content_type,
+                kind,
+            } => discovery.discover_structured(token_range, &content_type, kind)?,
+        }
+    }
+
+    entries.sort_by_key(|entry| entry.edit_range.start);
+    validate_edit_plan(input, &entries)?;
+    Ok(MediaManifest { entries })
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ShapeKey {
+    Type,
+    Data,
+    MediaType,
+    MimeType,
+    MimeTypeCamel,
+    MediaTypeCamel,
+    Content,
+    Image,
+    InlineData,
+    InlineDataCamel,
+}
+
+impl ShapeKey {
+    const ALL: [Self; 10] = [
+        Self::Type,
+        Self::Data,
+        Self::MediaType,
+        Self::MimeType,
+        Self::MimeTypeCamel,
+        Self::MediaTypeCamel,
+        Self::Content,
+        Self::Image,
+        Self::InlineData,
+        Self::InlineDataCamel,
+    ];
+
+    fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "type" => Self::Type,
+            "data" => Self::Data,
+            "media_type" => Self::MediaType,
+            "mime_type" => Self::MimeType,
+            "mimeType" => Self::MimeTypeCamel,
+            "mediaType" => Self::MediaTypeCamel,
+            "content" => Self::Content,
+            "image" => Self::Image,
+            "inline_data" => Self::InlineData,
+            "inlineData" => Self::InlineDataCamel,
+            _ => return None,
+        })
+    }
+
+    fn index(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|key| *key == self)
+            .expect("shape keys belong to the fixed key set")
+    }
 }
 
 #[derive(Clone, Debug)]
-struct ObjectField {
-    key: String,
-    value_start: usize,
-    value_end: usize,
+enum ShapeValue {
+    String(Range<usize>),
+    InlineObject {
+        fields: InlineFields,
+        range: Range<usize>,
+    },
+    Other(Range<usize>),
+}
+
+#[derive(Clone, Debug, Default)]
+struct InlineFields {
+    data: Option<InlineValue>,
+    mime_type: Option<InlineValue>,
+    mime_type_camel: Option<InlineValue>,
 }
 
 #[derive(Clone, Debug)]
-struct StructuredShape {
+enum InlineValue {
+    String(Range<usize>),
+    Other(Range<usize>),
+}
+
+impl InlineFields {
+    fn from_provider(fields: &ProviderFields) -> Self {
+        Self {
+            data: fields.get(ShapeKey::Data).map(to_inline_value),
+            mime_type: fields.get(ShapeKey::MimeType).map(to_inline_value),
+            mime_type_camel: fields.get(ShapeKey::MimeTypeCamel).map(to_inline_value),
+        }
+    }
+}
+
+fn to_inline_value(value: &ShapeValue) -> InlineValue {
+    match value {
+        ShapeValue::String(range) => InlineValue::String(range.clone()),
+        ShapeValue::InlineObject { range, .. } | ShapeValue::Other(range) => {
+            InlineValue::Other(range.clone())
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ProviderFields {
+    values: [Option<ShapeValue>; ShapeKey::ALL.len()],
+}
+
+impl Default for ProviderFields {
+    fn default() -> Self {
+        Self {
+            values: std::array::from_fn(|_| None),
+        }
+    }
+}
+
+impl ProviderFields {
+    fn set(&mut self, key: ShapeKey, value: ShapeValue) {
+        self.values[key.index()] = Some(value);
+    }
+
+    fn get(&self, key: ShapeKey) -> Option<&ShapeValue> {
+        self.values[key.index()].as_ref()
+    }
+}
+
+enum ValueShape {
+    String(Range<usize>),
+    Object {
+        range: Range<usize>,
+        fields: Option<Box<ProviderFields>>,
+    },
+    Other(Range<usize>),
+}
+
+struct ValueSummary {
+    end: usize,
+    shape: ValueShape,
+}
+
+#[derive(Clone)]
+struct PendingCandidate {
+    /// Bit zero is the generic payload path; bit one is the possible OTLP
+    /// envelope path. A root object or root-array object chooses one at close.
+    mask: u8,
+    kind: PendingKind,
+}
+
+#[derive(Clone)]
+enum PendingKind {
+    String(Range<usize>),
+    Structured {
+        token_range: Range<usize>,
+        content_type: String,
+        kind: MediaPayloadKind,
+    },
+}
+
+struct MaskOperation {
+    start: usize,
+    end: usize,
+    clear_mask: u8,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ContainerKind {
+    Object,
+    Array,
+}
+
+struct WalkFrame<'a> {
+    kind: ContainerKind,
+    start: usize,
+    cursor: usize,
+    first_child: bool,
+    candidate_start: usize,
+    modes: [MediaScanMode; 2],
+    is_envelope_decider: bool,
+    is_root_array: bool,
+    has_envelope_field: bool,
+    current_shape_key: Option<ShapeKey>,
+    current_key: Option<Cow<'a, str>>,
+    current_candidate_start: usize,
+    provider_fields: Option<Box<ProviderFields>>,
+    last_key_candidates: HashMap<String, Range<usize>>,
+}
+
+impl<'a> WalkFrame<'a> {
+    fn new(
+        input: &'a [u8],
+        start: usize,
+        candidate_start: usize,
+        modes: [MediaScanMode; 2],
+        is_envelope_decider: bool,
+        is_root_array: bool,
+    ) -> Self {
+        let kind = match input.get(start) {
+            Some(b'{') => ContainerKind::Object,
+            Some(b'[') => ContainerKind::Array,
+            _ => unreachable!("container frame starts with an opening delimiter"),
+        };
+        Self {
+            kind,
+            start,
+            cursor: start + 1,
+            first_child: true,
+            candidate_start,
+            modes,
+            is_envelope_decider,
+            is_root_array,
+            has_envelope_field: false,
+            current_shape_key: None,
+            current_key: None,
+            current_candidate_start: candidate_start,
+            provider_fields: None,
+            last_key_candidates: HashMap::new(),
+        }
+    }
+
+    fn adopt(&mut self, summary: ValueSummary) {
+        self.cursor = summary.end;
+        if let Some(key) = self.current_shape_key.take() {
+            let value = match summary.shape {
+                ValueShape::String(range) => ShapeValue::String(range),
+                ValueShape::Object { range, fields }
+                    if matches!(key, ShapeKey::InlineData | ShapeKey::InlineDataCamel) =>
+                {
+                    fields.map_or_else(
+                        || ShapeValue::Other(range.clone()),
+                        |fields| ShapeValue::InlineObject {
+                            fields: InlineFields::from_provider(&fields),
+                            range: range.clone(),
+                        },
+                    )
+                }
+                ValueShape::Object { range, .. } | ValueShape::Other(range) => {
+                    ShapeValue::Other(range)
+                }
+            };
+            self.provider_fields
+                .get_or_insert_with(|| Box::new(ProviderFields::default()))
+                .set(key, value);
+        }
+    }
+}
+
+enum NextValue {
+    Child {
+        start: usize,
+        modes: [MediaScanMode; 2],
+        is_envelope_decider: bool,
+        is_root_array: bool,
+    },
+    Closed(usize),
+}
+
+struct StructuralWalk<'a, 'stats> {
+    input: &'a [u8],
+    allow_envelope: bool,
+    stats: &'stats mut WalkStats,
+    candidates: Vec<PendingCandidate>,
+    mask_operations: Vec<MaskOperation>,
+}
+
+impl<'a, 'stats> StructuralWalk<'a, 'stats> {
+    fn new(input: &'a [u8], allow_envelope: bool, stats: &'stats mut WalkStats) -> Self {
+        Self {
+            input,
+            allow_envelope,
+            stats,
+            candidates: Vec::new(),
+            mask_operations: Vec::new(),
+        }
+    }
+
+    fn run(&mut self) -> Result<usize, EarlyMediaError> {
+        let input = self.input;
+        let mut stack: Vec<WalkFrame<'a>> = Vec::new();
+        let root_start = measured_skip_whitespace(input, 0, self.stats);
+        let root_is_object = self.allow_envelope && input.get(root_start) == Some(&b'{');
+        let root_is_array = self.allow_envelope && input.get(root_start) == Some(&b'[');
+        let mut next_value = Some((
+            root_start,
+            if root_is_object {
+                [MediaScanMode::Payload, MediaScanMode::Envelope]
+            } else {
+                [MediaScanMode::Payload, MediaScanMode::Payload]
+            },
+            root_is_object,
+            root_is_array,
+        ));
+        let mut completed: Option<ValueSummary> = None;
+
+        loop {
+            if let Some((start, modes, is_envelope_decider, is_root_array)) = next_value.take() {
+                match input.get(start).copied() {
+                    Some(b'{') | Some(b'[') => {
+                        stack.push(WalkFrame::new(
+                            input,
+                            start,
+                            self.candidates.len(),
+                            modes,
+                            is_envelope_decider,
+                            is_root_array,
+                        ));
+                        self.update_peak(&stack);
+                    }
+                    Some(b'"') => {
+                        let end = string_end(input, start);
+                        self.stats.bytes_walked =
+                            self.stats.bytes_walked.saturating_add(end - start);
+                        let range = start..end;
+                        let raw = input
+                            .get(start + 1..end.saturating_sub(1))
+                            .unwrap_or_default();
+                        self.stats.bytes_walked = self.stats.bytes_walked.saturating_add(raw.len());
+                        if std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate) {
+                            let mask = payload_mask(modes);
+                            if mask != 0 {
+                                self.candidates.push(PendingCandidate {
+                                    mask,
+                                    kind: PendingKind::String(range.clone()),
+                                });
+                                self.update_peak(&stack);
+                            }
+                        }
+                        completed = Some(ValueSummary {
+                            end,
+                            shape: ValueShape::String(range),
+                        });
+                    }
+                    Some(_) => {
+                        let end = primitive_end(input, start, self.stats);
+                        completed = Some(ValueSummary {
+                            end,
+                            shape: ValueShape::Other(start..end),
+                        });
+                    }
+                    None => {
+                        return Err(EarlyMediaError::InvalidJson {
+                            offset: start,
+                            message: "missing JSON value",
+                        });
+                    }
+                }
+            }
+
+            if let Some(summary) = completed.take() {
+                let mut duplicate_range = None;
+                if let Some(parent) = stack.last_mut() {
+                    let child_end = self.candidates.len();
+                    if let Some(key) = parent.current_key.take() {
+                        let candidate_range = parent.current_candidate_start..child_end;
+                        if let Some(previous) = parent.last_key_candidates.remove(key.as_ref()) {
+                            duplicate_range = Some(previous);
+                        }
+                        if candidate_range.start < candidate_range.end {
+                            parent
+                                .last_key_candidates
+                                .insert(key.into_owned(), candidate_range);
+                        }
+                    }
+                    parent.adopt(summary);
+                } else {
+                    return Ok(summary.end);
+                }
+                if let Some(previous) = duplicate_range {
+                    self.add_mask_operation(previous.start, previous.end, 0b11);
+                }
+                self.update_peak(&stack);
+            }
+
+            let Some(frame) = stack.last_mut() else {
+                return Err(EarlyMediaError::InvalidJson {
+                    offset: 0,
+                    message: "missing JSON value",
+                });
+            };
+            match next_frame_value(input, frame, self.stats, self.candidates.len())? {
+                NextValue::Child {
+                    start,
+                    modes,
+                    is_envelope_decider,
+                    is_root_array,
+                } => {
+                    next_value = Some((start, modes, is_envelope_decider, is_root_array));
+                    self.update_peak(&stack);
+                }
+                NextValue::Closed(end) => {
+                    let frame = stack.pop().expect("the current frame is on the stack");
+                    let shape = self.close_frame(frame, end);
+                    completed = Some(ValueSummary { end, shape });
+                }
+            }
+        }
+    }
+
+    fn close_frame(&mut self, frame: WalkFrame<'_>, end: usize) -> ValueShape {
+        if frame.kind != ContainerKind::Object {
+            return ValueShape::Other(frame.start..end);
+        }
+        let candidate_end = self.candidates.len();
+        let provider_fields = frame.provider_fields.as_deref();
+        if frame.is_envelope_decider {
+            let selected_bit = if frame.has_envelope_field { 0b10 } else { 0b01 };
+            self.add_mask_operation(frame.candidate_start, candidate_end, (!selected_bit) & 0b11);
+            if selected_bit == 0b01 {
+                if let Some(shape) =
+                    provider_fields.and_then(|fields| structured_shape(self.input, fields))
+                {
+                    self.add_mask_operation(frame.candidate_start, candidate_end, selected_bit);
+                    self.candidates.push(PendingCandidate {
+                        mask: selected_bit,
+                        kind: PendingKind::Structured {
+                            token_range: shape.token_range,
+                            content_type: shape.content_type,
+                            kind: shape.kind,
+                        },
+                    });
+                }
+            }
+        } else {
+            let active = payload_mask(frame.modes);
+            if active != 0 {
+                if let Some(shape) =
+                    provider_fields.and_then(|fields| structured_shape(self.input, fields))
+                {
+                    self.add_mask_operation(frame.candidate_start, candidate_end, active);
+                    self.candidates.push(PendingCandidate {
+                        mask: active,
+                        kind: PendingKind::Structured {
+                            token_range: shape.token_range,
+                            content_type: shape.content_type,
+                            kind: shape.kind,
+                        },
+                    });
+                }
+            }
+        }
+        self.update_peak_from_capacities(0);
+        ValueShape::Object {
+            range: frame.start..end,
+            fields: frame.provider_fields,
+        }
+    }
+
+    fn add_mask_operation(&mut self, start: usize, end: usize, clear_mask: u8) {
+        if start < end && clear_mask != 0 {
+            self.mask_operations.push(MaskOperation {
+                start,
+                end,
+                clear_mask,
+            });
+        }
+    }
+
+    fn update_peak(&mut self, stack: &Vec<WalkFrame<'_>>) {
+        let stack_bytes = stack
+            .capacity()
+            .saturating_mul(std::mem::size_of::<WalkFrame>());
+        let candidate_bytes = self
+            .candidates
+            .capacity()
+            .saturating_mul(std::mem::size_of::<PendingCandidate>());
+        let operation_bytes = self
+            .mask_operations
+            .capacity()
+            .saturating_mul(std::mem::size_of::<MaskOperation>());
+        self.stats.peak_index_bytes = self.stats.peak_index_bytes.max(
+            stack_bytes
+                .saturating_add(candidate_bytes)
+                .saturating_add(operation_bytes),
+        );
+    }
+
+    fn update_peak_from_capacities(&mut self, stack_bytes: usize) {
+        let candidate_bytes = self
+            .candidates
+            .capacity()
+            .saturating_mul(std::mem::size_of::<PendingCandidate>());
+        let operation_bytes = self
+            .mask_operations
+            .capacity()
+            .saturating_mul(std::mem::size_of::<MaskOperation>());
+        self.stats.peak_index_bytes = self.stats.peak_index_bytes.max(
+            stack_bytes
+                .saturating_add(candidate_bytes)
+                .saturating_add(operation_bytes),
+        );
+    }
+}
+
+fn next_frame_value<'a>(
+    input: &'a [u8],
+    frame: &mut WalkFrame<'a>,
+    stats: &mut WalkStats,
+    candidate_count: usize,
+) -> Result<NextValue, EarlyMediaError> {
+    let mut cursor = measured_skip_whitespace(input, frame.cursor, stats);
+    let closing = match frame.kind {
+        ContainerKind::Object => b'}',
+        ContainerKind::Array => b']',
+    };
+    if frame.first_child {
+        if input.get(cursor) == Some(&closing) {
+            stats.bytes_walked += 1;
+            return Ok(NextValue::Closed(cursor + 1));
+        }
+    } else {
+        match input.get(cursor).copied() {
+            Some(b',') => {
+                stats.bytes_walked += 1;
+                cursor += 1;
+                cursor = measured_skip_whitespace(input, cursor, stats);
+            }
+            Some(byte) if byte == closing => {
+                stats.bytes_walked += 1;
+                return Ok(NextValue::Closed(cursor + 1));
+            }
+            _ => {
+                return Err(EarlyMediaError::InvalidJson {
+                    offset: cursor,
+                    message: "invalid container separator",
+                });
+            }
+        }
+    }
+
+    let (value_start, child_modes, shape_key, current_key) = match frame.kind {
+        ContainerKind::Array => (cursor, frame.modes, None, None),
+        ContainerKind::Object => {
+            if input.get(cursor) != Some(&b'"') {
+                return Err(EarlyMediaError::InvalidJson {
+                    offset: cursor,
+                    message: "expected object key",
+                });
+            }
+            let key_end = string_end(input, cursor);
+            stats.bytes_walked = stats.bytes_walked.saturating_add(key_end - cursor);
+            let key = decode_json_string(input, cursor..key_end);
+            let shape_key = key.as_deref().and_then(ShapeKey::from_name);
+            let mut child_modes = frame.modes;
+            for (index, mode) in frame.modes.iter().enumerate() {
+                child_modes[index] = match key.as_deref() {
+                    Some(key) => media_scan_mode_for_field(*mode, key),
+                    // An undecodable key cannot participate in duplicate-key
+                    // resolution; leave its value inline rather than extract
+                    // a potentially shadowed occurrence.
+                    None => MediaScanMode::Disabled,
+                };
+            }
+            if key.as_deref().is_some_and(is_otel_envelope_field) {
+                frame.has_envelope_field = true;
+            }
+            let mut colon = measured_skip_whitespace(input, key_end, stats);
+            if input.get(colon) != Some(&b':') {
+                return Err(EarlyMediaError::InvalidJson {
+                    offset: colon,
+                    message: "expected object colon",
+                });
+            }
+            stats.bytes_walked += 1;
+            colon += 1;
+            (
+                measured_skip_whitespace(input, colon, stats),
+                child_modes,
+                shape_key,
+                key,
+            )
+        }
+    };
+
+    frame.first_child = false;
+    frame.cursor = value_start;
+    frame.current_shape_key = shape_key;
+    frame.current_key = current_key;
+    frame.current_candidate_start = candidate_count;
+    if shape_key.is_some() {
+        frame
+            .provider_fields
+            .get_or_insert_with(|| Box::new(ProviderFields::default()));
+    }
+    let is_envelope_decider = frame.kind == ContainerKind::Array
+        && frame.is_root_array
+        && input.get(value_start) == Some(&b'{');
+    let modes = if is_envelope_decider {
+        [MediaScanMode::Payload, MediaScanMode::Envelope]
+    } else {
+        child_modes
+    };
+    Ok(NextValue::Child {
+        start: value_start,
+        modes,
+        is_envelope_decider,
+        is_root_array: false,
+    })
+}
+
+fn measured_skip_whitespace(input: &[u8], mut cursor: usize, stats: &mut WalkStats) -> usize {
+    while matches!(input.get(cursor), Some(b' ' | b'\n' | b'\r' | b'\t')) {
+        stats.bytes_walked += 1;
+        cursor += 1;
+    }
+    cursor
+}
+
+fn primitive_end(input: &[u8], start: usize, stats: &mut WalkStats) -> usize {
+    let end = input[start..]
+        .iter()
+        .position(|byte| matches!(*byte, b',' | b']' | b'}' | b' ' | b'\n' | b'\r' | b'\t'))
+        .map_or(input.len(), |length| start + length);
+    stats.bytes_walked = stats.bytes_walked.saturating_add(end - start);
+    end
+}
+
+fn payload_mask(modes: [MediaScanMode; 2]) -> u8 {
+    modes
+        .iter()
+        .enumerate()
+        .filter(|(_, mode)| **mode == MediaScanMode::Payload)
+        .fold(0, |mask, (index, _)| mask | (1 << index))
+}
+
+fn apply_mask_operations(
+    mut candidates: Vec<PendingCandidate>,
+    operations: &[MaskOperation],
+) -> Vec<PendingCandidate> {
+    let mut clear_payload = vec![0i32; candidates.len() + 1];
+    let mut clear_envelope = vec![0i32; candidates.len() + 1];
+    for operation in operations {
+        if operation.clear_mask & 0b01 != 0 {
+            clear_payload[operation.start] += 1;
+            clear_payload[operation.end] -= 1;
+        }
+        if operation.clear_mask & 0b10 != 0 {
+            clear_envelope[operation.start] += 1;
+            clear_envelope[operation.end] -= 1;
+        }
+    }
+    let (mut active_payload, mut active_envelope) = (0, 0);
+    for (index, candidate) in candidates.iter_mut().enumerate() {
+        active_payload += clear_payload[index];
+        active_envelope += clear_envelope[index];
+        if active_payload > 0 {
+            candidate.mask &= !0b01;
+        }
+        if active_envelope > 0 {
+            candidate.mask &= !0b10;
+        }
+    }
+    candidates
+}
+
+fn decode_json_string<'a>(input: &'a [u8], token_range: Range<usize>) -> Option<Cow<'a, str>> {
+    let raw = input.get(token_range.start + 1..token_range.end.checked_sub(1)?)?;
+    if !raw.contains(&b'\\') {
+        return std::str::from_utf8(raw).ok().map(Cow::Borrowed);
+    }
+    let token = input.get(token_range)?;
+    let mut jiter = Jiter::new(token);
+    jiter
+        .next_str()
+        .ok()
+        .map(|value| Cow::Owned(value.to_owned()))
+}
+
+fn structured_shape(input: &[u8], fields: &ProviderFields) -> Option<StructuredCandidate> {
+    let Some(type_name) = fields
+        .get(ShapeKey::Type)
+        .and_then(|value| field_string(input, value))
+    else {
+        return structured_gemini_shape(input, fields);
+    };
+    let provider = match type_name.as_ref() {
+        "base64" => Some((
+            ShapeKey::MediaType,
+            fields.get(ShapeKey::Data),
+            MediaPayloadKind::Anthropic,
+        )),
+        "media" => Some((
+            ShapeKey::MimeType,
+            fields.get(ShapeKey::Data),
+            MediaPayloadKind::Vertex,
+        )),
+        "blob" => Some((
+            ShapeKey::MimeType,
+            fields.get(ShapeKey::Content),
+            MediaPayloadKind::AiSdkV7,
+        )),
+        "file" => {
+            let data = fields
+                .get(ShapeKey::Data)
+                .filter(|value| matches!(value, ShapeValue::String(_)))
+                .or_else(|| fields.get(ShapeKey::Image));
+            Some((ShapeKey::MediaTypeCamel, data, MediaPayloadKind::AiSdkV6))
+        }
+        _ => None,
+    };
+    if let Some((content_type_key, data_value, kind)) = provider {
+        if let (Some(data_range), Some(content_type)) = (
+            data_value.and_then(shape_string_range),
+            fields
+                .get(content_type_key)
+                .and_then(|value| field_string(input, value)),
+        ) {
+            return Some(StructuredCandidate {
+                token_range: data_range,
+                content_type: content_type.into_owned(),
+                kind,
+            });
+        }
+    }
+    structured_gemini_shape(input, fields)
+}
+
+fn structured_gemini_shape(input: &[u8], fields: &ProviderFields) -> Option<StructuredCandidate> {
+    for inline_key in [ShapeKey::InlineData, ShapeKey::InlineDataCamel] {
+        let Some(ShapeValue::InlineObject { fields: inline, .. }) = fields.get(inline_key) else {
+            continue;
+        };
+        let Some(data_range) = inline.data.as_ref().and_then(inline_string_range) else {
+            continue;
+        };
+        let snake_is_null = inline
+            .mime_type
+            .as_ref()
+            .is_some_and(|value| value_starts_with_null(input, value));
+        let selected_type = if inline.mime_type.is_some() && !snake_is_null {
+            inline.mime_type.as_ref()
+        } else {
+            inline.mime_type_camel.as_ref()
+        };
+        let content_type = selected_type.and_then(|value| inline_field_string(input, value))?;
+        return Some(StructuredCandidate {
+            token_range: data_range,
+            content_type: content_type.into_owned(),
+            kind: MediaPayloadKind::Gemini,
+        });
+    }
+    None
+}
+
+struct StructuredCandidate {
     token_range: Range<usize>,
-    // Keep the selected outer field and its already-parsed children so reference
-    // collection skips exactly the media token, including with duplicate keys.
-    outer_start: usize,
-    nested_fields: Vec<ObjectField>,
     content_type: String,
     kind: MediaPayloadKind,
 }
 
-struct Extractor<'a, 'state> {
-    input: &'a [u8],
-    state: &'state mut ScanState,
-    embedded_depth: usize,
-    /// Reuse validated boundaries for all containers, including tiny nested
-    /// objects, and for media-sized scalars. The tape lives only during discovery.
-    scan_cache: Option<Boundaries>,
-    manifest: Vec<MediaManifestEntry>,
-    existing_references: HashSet<String>,
-    pending_ambiguity: Option<EarlyMediaError>,
+fn shape_string_range(value: &ShapeValue) -> Option<Range<usize>> {
+    match value {
+        ShapeValue::String(range) => Some(range.clone()),
+        ShapeValue::InlineObject { .. } | ShapeValue::Other(_) => None,
+    }
 }
 
-impl<'a, 'state> Extractor<'a, 'state> {
-    fn new(input: &'a [u8], state: &'state mut ScanState) -> Self {
-        Self::new_with_embedded_depth(input, 0, state)
+fn field_string<'a>(input: &'a [u8], value: &ShapeValue) -> Option<Cow<'a, str>> {
+    match value {
+        ShapeValue::String(range) => decode_json_string(input, range.clone()),
+        ShapeValue::InlineObject { .. } | ShapeValue::Other(_) => None,
     }
+}
 
-    fn new_with_embedded_depth(
-        input: &'a [u8],
-        embedded_depth: usize,
-        state: &'state mut ScanState,
-    ) -> Self {
-        Self {
-            input,
-            state,
-            embedded_depth,
-            scan_cache: Some(Boundaries::default()),
-            manifest: Vec::new(),
-            existing_references: HashSet::new(),
-            pending_ambiguity: None,
-        }
+fn inline_string_range(value: &InlineValue) -> Option<Range<usize>> {
+    match value {
+        InlineValue::String(range) => Some(range.clone()),
+        InlineValue::Other(_) => None,
     }
+}
 
-    fn discover(self) -> Result<(MediaManifest, usize), EarlyMediaError> {
-        self.discover_at_depth(0)
+fn inline_field_string<'a>(input: &'a [u8], value: &InlineValue) -> Option<Cow<'a, str>> {
+    match value {
+        InlineValue::String(range) => decode_json_string(input, range.clone()),
+        InlineValue::Other(_) => None,
     }
+}
 
-    /// Validate a document without classifying or inspecting payload strings.
-    /// The caller has already established that no supported media marker can
-    /// occur in the byte representation, so discovery would only repeat the
-    /// structural walk performed here.
-    fn validate_only(mut self) -> Result<(MediaManifest, usize), EarlyMediaError> {
-        // Validation visits each value once, so retaining its boundary cannot save work.
-        self.scan_cache = None;
-        let start = skip_whitespace(self.input, 0);
-        let end = self.scan_value(start, 0)?;
-        let end = skip_whitespace(self.input, end);
-        if end != self.input.len() {
-            return Err(EarlyMediaError::TrailingBytes { offset: end });
-        }
-        Ok((
-            MediaManifest {
-                entries: Vec::new(),
-                existing_references: Vec::new(),
-            },
-            end,
-        ))
+fn value_starts_with_null(input: &[u8], value: &InlineValue) -> bool {
+    match value {
+        InlineValue::Other(range) => input
+            .get(range.clone())
+            .is_some_and(|bytes| bytes.starts_with(b"null")),
+        InlineValue::String(_) => false,
     }
+}
 
-    fn discover_at_depth(
-        mut self,
-        depth: usize,
-    ) -> Result<(MediaManifest, usize), EarlyMediaError> {
-        let start = skip_whitespace(self.input, 0);
-        let scan_mode = self.root_media_scan_mode(start, depth)?;
-        let end = self.discover_value(start, depth, scan_mode)?;
-        let end = skip_whitespace(self.input, end);
-        if let Some(error) = self.pending_ambiguity {
-            return Err(error);
-        }
-        if end != self.input.len() {
-            return Err(EarlyMediaError::TrailingBytes { offset: end });
-        }
-        self.manifest.sort_by_key(|entry| entry.edit_range.start);
-        self.manifest.shrink_to_fit();
-        let existing_references = self.existing_references.into_iter().collect::<Vec<_>>();
-        let manifest = MediaManifest {
-            entries: self.manifest,
-            existing_references,
-        };
-        validate_manifest(self.input, &manifest)?;
-        validate_edit_plan(self.input, &manifest.entries)?;
-        Ok((manifest, end))
-    }
+struct MediaDiscovery<'a, 'state, 'stats> {
+    input: &'a [u8],
+    state: &'state mut ScanState,
+    stats: &'stats mut WalkStats,
+    embedded_depth: usize,
+    entries: &'stats mut Vec<MediaManifestEntry>,
+}
 
-    fn root_media_scan_mode(
-        &mut self,
-        start: usize,
-        depth: usize,
-    ) -> Result<MediaScanMode, EarlyMediaError> {
-        // Embedded strings are user payloads. A provider document can happen
-        // to contain a field named like an OTLP envelope field, but it does
-        // not carry the surrounding OTLP schema that gives those names their
-        // structural meaning.
-        if self.embedded_depth > 0 {
-            return Ok(MediaScanMode::Payload);
-        }
-        let is_envelope = match self.input.get(start) {
-            Some(b'{') => self.object_has_envelope_field(start, depth)?,
-            // Root arrays classify each object independently in
-            // `discover_array`, allowing batches that mix OTLP envelopes and
-            // ordinary provider objects to preserve both media paths.
-            Some(b'[') => false,
-            _ => false,
-        };
-        Ok(if is_envelope {
-            MediaScanMode::Envelope
-        } else {
-            MediaScanMode::Payload
-        })
-    }
-
-    /// Inspect root-level object keys until the OTLP envelope marker is found.
-    /// Values before the marker are still validated so malformed input keeps
-    /// the same error precedence; the marker value and remaining document are
-    /// validated by the fused discovery walk.
-    fn object_has_envelope_field(
-        &mut self,
-        start: usize,
-        depth: usize,
-    ) -> Result<bool, EarlyMediaError> {
-        let saved = self.scan_cache.take();
-        let result = self.object_has_envelope_field_uncached(start, depth);
-        self.scan_cache = saved;
-        result
-    }
-
-    fn object_has_envelope_field_uncached(
-        &mut self,
-        start: usize,
-        depth: usize,
-    ) -> Result<bool, EarlyMediaError> {
+impl MediaDiscovery<'_, '_, '_> {
+    fn discover_string_token(&mut self, token_range: Range<usize>) -> Result<(), EarlyMediaError> {
         let input = self.input;
-        let mut cursor = Jiter::new(&input[start..]);
-        let mut base = start;
-        let Some(first_key) = cursor
-            .next_object()
-            .map_err(|error| map_jiter_error(input, start, error))?
-        else {
-            return Ok(false);
-        };
-        let mut key = first_key.to_owned();
-        loop {
-            if is_otel_envelope_field(&key) {
-                return Ok(true);
-            }
-            let value_start = skip_whitespace(input, base + cursor.current_index());
-            let value_end = self.scan_value(value_start, depth + 1)?;
-            cursor = Jiter::new(&input[value_end..]);
-            base = value_end;
-            match cursor
-                .next_key()
-                .map_err(|error| map_jiter_error(input, base, error))?
-            {
-                Some(next_key) => key = next_key.to_owned(),
-                None => return Ok(false),
-            }
-        }
-    }
-
-    fn discover_value(
-        &mut self,
-        start: usize,
-        depth: usize,
-        scan_mode: MediaScanMode,
-    ) -> Result<usize, EarlyMediaError> {
-        let start = skip_whitespace(self.input, start);
-        if depth > MAX_JSON_DEPTH {
-            return Err(EarlyMediaError::NestingLimit { offset: start });
-        }
-        // Continue validating the enclosing document before returning a
-        // nested ambiguity, so syntax errors take precedence.
-        if self.pending_ambiguity.is_some() {
-            return self.scan_value(start, depth);
-        }
-        if self.input.get(start) == Some(&b'[') {
-            return self.discover_array(start, depth, scan_mode);
-        }
-        if self.input.get(start) == Some(&b'{') && scan_mode != MediaScanMode::Payload {
-            return self.discover_object(start, depth, scan_mode);
-        }
-        let end = self.scan_value(start, depth)?;
-        match self.input.get(start).copied() {
-            Some(b'"') => self.discover_string_range(start, end, scan_mode)?,
-            Some(b'{') => {
-                let fields = self.object_fields(start, end, depth)?;
-                if scan_mode == MediaScanMode::Payload {
-                    if let Some(shape) = self.structured_shape(&fields, depth)? {
-                        self.collect_structured_sibling_references(&fields, &shape, depth)?;
-                        if self.pending_ambiguity.is_some() {
-                            return Ok(end);
-                        }
-                        self.discover_structured(&shape)?;
-                        return Ok(end);
-                    }
-                }
-                // Object keys are structural names, not OTEL payload values.
-                for field in fields {
-                    let child_mode = media_scan_mode_for_field(scan_mode, &field.key);
-                    self.discover_value(field.value_start, depth + 1, child_mode)?;
-                }
-            }
-            Some(b'[') => unreachable!("arrays are discovered by discover_array"),
-            _ => {}
-        }
-        Ok(end)
-    }
-
-    fn discover_array(
-        &mut self,
-        start: usize,
-        depth: usize,
-        scan_mode: MediaScanMode,
-    ) -> Result<usize, EarlyMediaError> {
-        let owns_scope = self
-            .scan_cache
-            .as_ref()
-            .is_some_and(|boundaries| boundaries.get(start).is_none());
-        let input = self.input;
-        let mut cursor = Jiter::new(&input[start..]);
-        let Some(_first_value) = cursor
-            .next_array()
-            .map_err(|error| map_jiter_error(input, start, error))?
-        else {
-            return Ok(start + cursor.current_index());
-        };
-        let mut base = start;
-        loop {
-            let value_start = skip_whitespace(input, base + cursor.current_index());
-            let element_mode = if depth == 0
-                && self.embedded_depth == 0
-                && input.get(value_start) == Some(&b'{')
-            {
-                if self.object_has_envelope_field(value_start, depth + 1)? {
-                    MediaScanMode::Envelope
-                } else {
-                    MediaScanMode::Payload
-                }
-            } else {
-                scan_mode
-            };
-            let value_end = self.discover_value(value_start, depth + 1, element_mode)?;
-            // Streaming containers own no parent tape. Release the completed
-            // child's lookahead rather than retaining every sibling's boundaries.
-            if owns_scope {
-                self.scan_cache = Some(Boundaries::default());
-            }
-            cursor = Jiter::new(&input[value_end..]);
-            base = value_end;
-            match cursor
-                .array_step()
-                .map_err(|error| map_jiter_error(input, base, error))?
-            {
-                Some(_) => {}
-                None => return Ok(base + cursor.current_index()),
-            }
-        }
-    }
-
-    fn discover_object(
-        &mut self,
-        start: usize,
-        depth: usize,
-        scan_mode: MediaScanMode,
-    ) -> Result<usize, EarlyMediaError> {
-        let owns_scope = self
-            .scan_cache
-            .as_ref()
-            .is_some_and(|boundaries| boundaries.get(start).is_none());
-        let input = self.input;
-        let mut cursor = Jiter::new(&input[start..]);
-        let Some(first_key) = cursor
-            .next_object()
-            .map_err(|error| map_jiter_error(input, start, error))?
-        else {
-            return Ok(start + cursor.current_index());
-        };
-        let mut base = start;
-        let mut key = first_key.to_owned();
-        loop {
-            let child_mode = media_scan_mode_for_field(scan_mode, &key);
-            let value_start = skip_whitespace(input, base + cursor.current_index());
-            let value_end = self.discover_value(value_start, depth + 1, child_mode)?;
-            // Streaming containers own no parent tape. Release the completed
-            // child's lookahead rather than retaining every sibling's boundaries.
-            if owns_scope {
-                self.scan_cache = Some(Boundaries::default());
-            }
-            cursor = Jiter::new(&input[value_end..]);
-            base = value_end;
-            match cursor
-                .next_key()
-                .map_err(|error| map_jiter_error(input, base, error))?
-            {
-                Some(next_key) => key = next_key.to_owned(),
-                None => return Ok(base + cursor.current_index()),
-            }
-        }
-    }
-
-    fn collect_structured_sibling_references(
-        &mut self,
-        fields: &[ObjectField],
-        shape: &StructuredShape,
-        depth: usize,
-    ) -> Result<(), EarlyMediaError> {
-        for field in fields {
-            if field.value_start != shape.outer_start {
-                self.discover_value(field.value_start, depth + 1, MediaScanMode::Disabled)?;
-            }
-        }
-        for field in &shape.nested_fields {
-            if field.value_start != shape.token_range.start {
-                self.discover_value(field.value_start, depth + 2, MediaScanMode::Disabled)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn discover_string_range(
-        &mut self,
-        start: usize,
-        end: usize,
-        scan_mode: MediaScanMode,
-    ) -> Result<(), EarlyMediaError> {
-        let Some(raw) = self.input.get(start + 1..end.saturating_sub(1)) else {
+        let mut decoder = Jiter::new(&input[token_range.clone()]);
+        let Ok(value) = decoder.next_str() else {
+            // One escaped lone surrogate makes only this string unavailable to
+            // the detector. Structural scanning has already continued through
+            // sibling fields, so unrelated candidates remain discoverable.
             return Ok(());
         };
-        let token_range = start..end;
-        if let Ok(raw) = std::str::from_utf8(raw) {
-            // Keep ordinary media text borrowed from the source. Escaped strings
-            // are decoded only when inspection of their logical value requires it.
-            if !raw.contains('\\') {
-                self.discover_string(raw, token_range, scan_mode)?;
-                return Ok(());
-            }
-        }
-        let input = self.input;
-        let Some(token) = input.get(token_range.clone()) else {
-            return Ok(());
-        };
-        let mut jiter = Jiter::new(token);
-        match jiter.next_str() {
-            Ok(value) => self.discover_string(value, token_range, scan_mode)?,
-            Err(error) => {
-                let error = map_jiter_error(input, start, error);
-                if matches!(error, EarlyMediaError::UnsupportedUnicodeSurrogate { .. }) {
-                    return Err(error);
-                }
-            }
-        }
-        Ok(())
+        // Keep escaped payloads borrowed from the decoder until discovery ends;
+        // copying this string would duplicate an entire media-heavy document.
+        self.discover_string(value, token_range)
     }
 
     fn discover_string(
         &mut self,
         value: &str,
         token_range: Range<usize>,
-        scan_mode: MediaScanMode,
     ) -> Result<(), EarlyMediaError> {
-        self.collect_media_references(value);
-        if scan_mode != MediaScanMode::Payload || is_media_reference(value) {
+        if is_media_reference(value) {
             return Ok(());
         }
 
         if may_be_serialized_json(value)
             && self.embedded_depth < MAX_EMBEDDED_JSON_DEPTH
-            // Unicode escapes can spell provider keys and public references after the
-            // embedded document is decoded, so they must take the nested JSON path too.
             && (value.contains(DATA_URI_PREFIX)
                 || value.contains("\\u")
                 || may_contain_serialized_media(value))
+            && super::json::validate_json(value).is_ok()
         {
-            let nested_result = Extractor::new_with_embedded_depth(
+            let mut nested = discover_inner(
                 value.as_bytes(),
-                self.embedded_depth.saturating_add(1),
-                &mut *self.state,
-            )
-            .discover();
-            match nested_result {
-                Ok((mut nested_manifest, _)) => {
-                    self.translate_nested_entries(
-                        value,
-                        &token_range,
-                        &mut nested_manifest.entries,
-                    )?;
-                    self.manifest.extend(nested_manifest.entries);
-                    self.existing_references
-                        .extend(nested_manifest.existing_references);
-                    return Ok(());
-                }
-                Err(error @ EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. }) => {
-                    if self.pending_ambiguity.is_none() {
-                        self.pending_ambiguity = Some(error);
-                    }
-                    return Ok(());
-                }
-                Err(
-                    error @ (EarlyMediaError::UnsupportedUnicodeSurrogate { .. }
-                    | EarlyMediaError::NestingLimit { .. }
-                    | EarlyMediaError::InvalidEditPlan { .. }),
-                ) => return Err(error),
-                // Ordinary strings may resemble JSON without being valid embedded documents.
-                Err(
-                    EarlyMediaError::InvalidJson { .. } | EarlyMediaError::TrailingBytes { .. },
-                ) => {}
-            }
+                self.embedded_depth + 1,
+                self.state,
+                self.stats,
+            )?;
+            self.translate_nested_entries(value, &token_range, &mut nested.entries)?;
+            self.entries.extend(nested.entries);
+            return Ok(());
         }
 
         let candidates = find_data_uri_candidates(value);
-
-        if !candidates.is_empty() {
-            let boundaries = candidates
-                .iter()
-                .flat_map(|(range, _)| [range.start, range.end])
-                .collect::<Vec<_>>();
-            let mapped = self.map_string_boundaries(&token_range, &boundaries)?;
-            for (index, (range, content_type)) in candidates.into_iter().enumerate() {
-                self.register_candidate(
-                    value[range.clone()].as_bytes(),
-                    content_type,
-                    MediaPayloadKind::DataUri,
-                    MediaSource::Base64DataUri,
-                    MediaEncoding::Base64DataUri,
-                    mapped[index * 2]..mapped[index * 2 + 1],
-                )?;
-            }
+        if candidates.is_empty() {
+            return Ok(());
+        }
+        self.entries.reserve(candidates.len());
+        let boundaries = candidates
+            .iter()
+            .flat_map(|(range, _)| [range.start, range.end])
+            .collect::<Vec<_>>();
+        let mapped = self.map_string_boundaries(&token_range, &boundaries)?;
+        for (index, (range, content_type)) in candidates.into_iter().enumerate() {
+            self.register_candidate(
+                value[range].as_bytes(),
+                content_type,
+                MediaPayloadKind::DataUri,
+                MediaSource::Base64DataUri,
+                MediaEncoding::Base64DataUri,
+                mapped[index * 2]..mapped[index * 2 + 1],
+            )?;
         }
         Ok(())
+    }
+
+    fn discover_structured(
+        &mut self,
+        token_range: Range<usize>,
+        content_type: &str,
+        kind: MediaPayloadKind,
+    ) -> Result<(), EarlyMediaError> {
+        if !is_supported_content_type(content_type) {
+            return Ok(());
+        }
+        let input = self.input;
+        let mut decoder = Jiter::new(&input[token_range.clone()]);
+        let Ok(content) = decoder.next_str() else {
+            return Ok(());
+        };
+        let (encoding, valid) = if content.starts_with(DATA_URI_PREFIX) {
+            (
+                MediaEncoding::Base64DataUri,
+                parse_data_uri(content, 0).and_then(|candidate| {
+                    (candidate.start == 0 && candidate.end == content.len())
+                        .then_some(())
+                        .and_then(|_| candidate.valid.map(|_| ()))
+                }),
+            )
+        } else if is_python_bytes_literal(content) {
+            (MediaEncoding::PythonBytesLiteral, Some(()))
+        } else {
+            (
+                MediaEncoding::Base64,
+                is_valid_base64_syntax(content.as_bytes()).then_some(()),
+            )
+        };
+        if valid.is_none() {
+            return Ok(());
+        }
+
+        let raw_range = self.map_string_boundaries(&token_range, &[0, content.len()])?;
+        self.register_candidate(
+            content.as_bytes(),
+            content_type,
+            kind,
+            MediaSource::Bytes,
+            encoding,
+            raw_range[0]..raw_range[1],
+        )
     }
 
     fn translate_nested_entries(
@@ -573,55 +1063,6 @@ impl<'a, 'state> Extractor<'a, 'state> {
         Ok(())
     }
 
-    fn discover_structured(&mut self, shape: &StructuredShape) -> Result<(), EarlyMediaError> {
-        let token_range = &shape.token_range;
-        let input = self.input;
-        let Some(encoded_token) = input.get(token_range.clone()) else {
-            return Ok(());
-        };
-        let mut jiter = Jiter::new(encoded_token);
-        let Ok(content) = jiter.next_str() else {
-            return Ok(());
-        };
-
-        self.collect_media_references(content);
-        if !is_supported_content_type(&shape.content_type) {
-            return Ok(());
-        }
-        let (encoding, valid) = if content.starts_with(DATA_URI_PREFIX) {
-            (
-                MediaEncoding::Base64DataUri,
-                parse_data_uri(content, 0).and_then(|candidate| {
-                    (candidate.start == 0 && candidate.end == content.len())
-                        .then_some(())
-                        .and_then(|_| candidate.valid.map(|_| ()))
-                }),
-            )
-        } else if is_python_bytes_literal(content) {
-            // `register_candidate` hashes and validates the literal with a bounded buffer.
-            // Do not decode the full body here only to discard it before hashing.
-            (MediaEncoding::PythonBytesLiteral, Some(()))
-        } else {
-            (
-                MediaEncoding::Base64,
-                is_valid_base64_syntax(content.as_bytes()).then_some(()),
-            )
-        };
-        if valid.is_none() {
-            return Ok(());
-        }
-        let raw_range = self.map_string_boundaries(token_range, &[0, content.len()])?;
-        self.register_candidate(
-            content.as_bytes(),
-            &shape.content_type,
-            shape.kind,
-            MediaSource::Bytes,
-            encoding,
-            raw_range[0]..raw_range[1],
-        )?;
-        Ok(())
-    }
-
     fn register_candidate(
         &mut self,
         encoded_data: &[u8],
@@ -635,8 +1076,6 @@ impl<'a, 'state> Extractor<'a, 'state> {
             .input
             .get(source_range.clone())
             .is_some_and(|bytes| bytes == encoded_data);
-        // Hashing also validates the complete encoded body with a bounded decode buffer.
-        // Candidate syntax checks therefore do not need a separate full-body decode.
         let Some((reference, sha256_hash)) =
             media_identity_from_encoded(encoded_data, content_type, source, encoding)
         else {
@@ -647,13 +1086,11 @@ impl<'a, 'state> Extractor<'a, 'state> {
         } else {
             ManifestMediaStorage::Owned(encoded_data.to_vec())
         };
-        // The public reference fixes the content hash and MIME type. Kind,
-        // encoding and exact source representation stay occurrence-specific;
-        // manifest validation still detects ambiguous restoration identities.
         let metadata = if let Some(metadata) = self.state.metadata.get(&reference) {
             Arc::clone(metadata)
         } else {
             let metadata = Arc::new(MediaMetadata {
+                source,
                 reference: reference.clone(),
                 content_type: content_type.to_owned(),
                 sha256_hash,
@@ -661,7 +1098,7 @@ impl<'a, 'state> Extractor<'a, 'state> {
             self.state.metadata.insert(reference, Arc::clone(&metadata));
             metadata
         };
-        self.manifest.push(MediaManifestEntry {
+        self.entries.push(MediaManifestEntry {
             metadata,
             kind,
             encoding,
@@ -688,11 +1125,10 @@ impl<'a, 'state> Extractor<'a, 'state> {
         let Some(raw_content) = self.input.get(content_start..content_end) else {
             return Err(invalid(token_range.start, "invalid JSON string range"));
         };
-
         let mut boundaries = Vec::with_capacity(decoded_offsets.len());
         if !raw_content.contains(&b'\\') {
             let raw_text = std::str::from_utf8(raw_content).map_err(|error| {
-                self.invalid(
+                invalid(
                     content_start + error.valid_up_to(),
                     "invalid UTF-8 in string",
                 )
@@ -728,18 +1164,14 @@ impl<'a, 'state> Extractor<'a, 'state> {
                             .copied()
                             .ok_or_else(|| invalid(escaped_offset, "unterminated escape"))?;
                         match escaped {
-                            b'"' | b'\\' | b'/' => {
-                                raw_cursor += 2;
-                                decoded_cursor += 1;
-                            }
-                            b'b' | b'f' | b'n' | b'r' | b't' => {
+                            b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't' => {
                                 raw_cursor += 2;
                                 decoded_cursor += 1;
                             }
                             b'u' => {
                                 let (next, character) =
                                     parse_unicode_escape(self.input, raw_cursor)
-                                        .map_err(|error| self.unicode_error(raw_cursor, error))?;
+                                        .map_err(|error| unicode_error(raw_cursor, error))?;
                                 raw_cursor = next;
                                 decoded_cursor += character.len_utf8();
                             }
@@ -777,232 +1209,15 @@ impl<'a, 'state> Extractor<'a, 'state> {
         }
         Ok(boundaries)
     }
+}
 
-    fn collect_media_references(&mut self, value: &str) {
-        let mut cursor = 0;
-        while let Some(relative) = value[cursor..].find(MEDIA_REFERENCE_PREFIX) {
-            let start = cursor + relative;
-            let suffix_start = start + MEDIA_REFERENCE_PREFIX.len();
-            let Some(relative_end) = value[suffix_start..].find(MEDIA_REFERENCE_SUFFIX) else {
-                break;
-            };
-            let end = suffix_start + relative_end + MEDIA_REFERENCE_SUFFIX.len();
-            let reference = &value[start..end];
-            if is_media_reference(reference) {
-                self.existing_references.insert(reference.to_owned());
-            }
-            cursor = end;
-        }
-    }
-
-    fn scan_value(&mut self, start: usize, depth: usize) -> Result<usize, EarlyMediaError> {
-        let start = skip_whitespace(self.input, start);
-        if depth > MAX_JSON_DEPTH {
-            return Err(EarlyMediaError::NestingLimit { offset: start });
-        }
-        if let Some(end) = self.scan_cache.as_ref().and_then(|cache| cache.get(start)) {
-            return Ok(end);
-        }
-        let input = self.input;
-        let mut cursor = Jiter::new(&input[start..]);
-        let mut base = start;
-        let end = scan_jiter_value(
-            input,
-            &mut self.scan_cache,
-            &mut cursor,
-            &mut base,
-            depth,
-            None,
-        )?;
-        #[cfg(test)]
-        {
-            self.state.scanned_bytes += end - start;
-            if let Some(cache) = &self.scan_cache {
-                self.state.max_boundary_bytes =
-                    self.state.max_boundary_bytes.max(cache.allocated_bytes());
-            }
-        }
-        Ok(end)
-    }
-
-    fn scan_string(&self, start: usize) -> Result<usize, EarlyMediaError> {
-        let input = self.input;
-        let suffix = input
-            .get(start..)
-            .ok_or_else(|| self.invalid(start, "expected JSON string"))?;
-        let mut jiter = Jiter::new(suffix);
-        jiter
-            .next_bytes()
-            .map_err(|error| map_jiter_error(input, start, error))?;
-        Ok(start + jiter.current_index())
-    }
-
-    fn object_fields(
-        &mut self,
-        start: usize,
-        end: usize,
-        depth: usize,
-    ) -> Result<Vec<ObjectField>, EarlyMediaError> {
-        let mut fields = Vec::new();
-        let input = self.input;
-        let bytes = input
-            .get(start..end)
-            .ok_or_else(|| self.invalid(start, "invalid JSON object range"))?;
-        let mut cursor = Jiter::new(bytes);
-        let mut base = start;
-        let Some(first_key) = cursor
-            .next_object()
-            .map_err(|error| map_jiter_error(input, start, error))?
-        else {
-            return Ok(fields);
-        };
-        let mut key = first_key.to_owned();
-        loop {
-            let value_start = skip_whitespace(input, base + cursor.current_index());
-            let value_end = self.scan_value(value_start, depth + 1)?;
-            fields.push(ObjectField {
-                key,
-                value_start,
-                value_end,
-            });
-            let Some(suffix) = input.get(value_end..end) else {
-                return Err(self.invalid(value_end, "invalid JSON object range"));
-            };
-            cursor = Jiter::new(suffix);
-            base = value_end;
-            match cursor
-                .next_key()
-                .map_err(|error| map_jiter_error(input, base, error))?
-            {
-                Some(next_key) => key = next_key.to_owned(),
-                None => return Ok(fields),
-            }
-        }
-    }
-
-    fn structured_shape(
-        &mut self,
-        fields: &[ObjectField],
-        depth: usize,
-    ) -> Result<Option<StructuredShape>, EarlyMediaError> {
-        let field = |name: &str| fields.iter().rev().find(|field| field.key == name);
-        let string = |name: &str| -> Result<Option<String>, EarlyMediaError> {
-            field(name)
-                .filter(|field| self.input.get(field.value_start) == Some(&b'"'))
-                .map(|field| self.string_value(field.value_start).map(Cow::into_owned))
-                .transpose()
-        };
-        let object = |name: &str| -> Option<(usize, usize)> {
-            field(name).and_then(|field| {
-                (self.input.get(field.value_start) == Some(&b'{'))
-                    .then_some((field.value_start, field.value_end))
-            })
-        };
-
-        let provider = match string("type")?.as_deref() {
-            Some("base64") => Some(("media_type", field("data"), MediaPayloadKind::Anthropic)),
-            Some("media") => Some(("mime_type", field("data"), MediaPayloadKind::Vertex)),
-            Some("blob") => Some(("mime_type", field("content"), MediaPayloadKind::AiSdkV7)),
-            Some("file") => Some((
-                "mediaType",
-                field("data")
-                    .filter(|field| self.is_string(field))
-                    .or_else(|| field("image")),
-                MediaPayloadKind::AiSdkV6,
-            )),
-            _ => None,
-        };
-        if let Some((mime_key, Some(data), kind)) = provider {
-            if let Some(content_type) = string(mime_key)? {
-                if self.is_string(data) {
-                    return Ok(Some(StructuredShape {
-                        token_range: data.value_start..data.value_end,
-                        outer_start: data.value_start,
-                        nested_fields: Vec::new(),
-                        content_type,
-                        kind,
-                    }));
-                }
-            }
-        }
-
-        for key in ["inline_data", "inlineData"] {
-            let Some((inline_start, inline_end)) = object(key) else {
-                continue;
-            };
-            let inline_fields = self.object_fields(inline_start, inline_end, depth + 1)?;
-            let Some(data) = inline_fields.iter().rev().find(|field| field.key == "data") else {
-                continue;
-            };
-            // JSON.parse keeps the last exact key, while Gemini gives the snake-case
-            // alias precedence unless it is absent or null.
-            let content_type_field = inline_fields
-                .iter()
-                .rfind(|field| field.key == "mime_type")
-                .filter(|field| self.input.get(field.value_start) != Some(&b'n'))
-                .or_else(|| inline_fields.iter().rfind(|field| field.key == "mimeType"));
-            let Some(content_type) = content_type_field
-                .filter(|field| self.input.get(field.value_start) == Some(&b'"'))
-                .map(|field| self.string_value(field.value_start).map(Cow::into_owned))
-                .transpose()?
-            else {
-                continue;
-            };
-            if self.is_string(data) {
-                return Ok(Some(StructuredShape {
-                    token_range: data.value_start..data.value_end,
-                    outer_start: inline_start,
-                    nested_fields: inline_fields,
-                    content_type,
-                    kind: MediaPayloadKind::Gemini,
-                }));
-            }
-        }
-        Ok(None)
-    }
-
-    fn is_string(&self, field: &ObjectField) -> bool {
-        self.input.get(field.value_start) == Some(&b'"')
-    }
-
-    fn string_value(&self, start: usize) -> Result<Cow<'a, str>, EarlyMediaError> {
-        let end = self.scan_string(start)?;
-        let raw = self
-            .input
-            .get(start + 1..end - 1)
-            .ok_or_else(|| self.invalid(start, "invalid JSON string range"))?;
-        if !raw.contains(&b'\\') {
-            if let Ok(value) = std::str::from_utf8(raw) {
-                return Ok(Cow::Borrowed(value));
-            }
-        }
-        self.parse_string(start).map(|(_, value)| Cow::Owned(value))
-    }
-
-    fn parse_string(&self, start: usize) -> Result<(usize, String), EarlyMediaError> {
-        let input = self.input;
-        let suffix = input
-            .get(start..)
-            .ok_or_else(|| self.invalid(start, "expected JSON string"))?;
-        let mut jiter = Jiter::new(suffix);
-        let value = jiter
-            .next_str()
-            .map_err(|error| map_jiter_error(input, start, error))?
-            .to_owned();
-        Ok((start + jiter.current_index(), value))
-    }
-
-    fn invalid(&self, offset: usize, message: &'static str) -> EarlyMediaError {
-        EarlyMediaError::InvalidJson { offset, message }
-    }
-
-    fn unicode_error(&self, offset: usize, error: UnicodeEscapeError) -> EarlyMediaError {
-        match error {
-            UnicodeEscapeError::Invalid(message) => self.invalid(offset, message),
-            UnicodeEscapeError::UnsupportedSurrogate => {
-                EarlyMediaError::UnsupportedUnicodeSurrogate { offset }
-            }
-        }
+fn unicode_error(offset: usize, error: UnicodeEscapeError) -> EarlyMediaError {
+    match error {
+        UnicodeEscapeError::Invalid(message) => EarlyMediaError::InvalidJson { offset, message },
+        UnicodeEscapeError::UnsupportedSurrogate => EarlyMediaError::InvalidJson {
+            offset,
+            message: "cannot map an unpaired Unicode surrogate",
+        },
     }
 }
 
@@ -1038,9 +1253,6 @@ struct ParsedDataUri<'a> {
 fn parse_data_uri(value: &str, mut start: usize) -> Option<ParsedDataUri<'_>> {
     let bytes = value.as_bytes();
     let mut header_cursor = start + DATA_URI_PREFIX.len();
-    // Advance once through the header, restarting at a later plausible prefix.
-    // Searching the remaining suffix separately for every `data:` is quadratic
-    // on text with many prefixes and no Base64 marker.
     let marker_start = loop {
         let Some(&byte) = bytes.get(header_cursor) else {
             return Some(ParsedDataUri {
@@ -1131,18 +1343,4 @@ fn find_data_uri_candidates(value: &str) -> Vec<(Range<usize>, &str)> {
         cursor = candidate.end.max(start + DATA_URI_PREFIX.len());
     }
     candidates
-}
-
-#[cfg(test)]
-pub(super) fn validate_measured(
-    input: Vec<u8>,
-) -> Result<(ValidatedPayload, usize, usize, usize), EarlyMediaError> {
-    let mut state = ScanState::default();
-    let payload = validate_with_state(input, true, &mut state)?;
-    Ok((
-        payload,
-        state.scanned_bytes,
-        state.max_boundary_bytes,
-        state.metadata.len(),
-    ))
 }

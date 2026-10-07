@@ -1,9 +1,13 @@
 //! Owned media registry, source storage, and compaction.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
+use std::io::Write;
 use std::ops::Range;
 use std::sync::Arc;
+
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
 
 const SOURCE_DETACH_MIN_BYTES: usize = 8 * 1024 * 1024;
 
@@ -64,6 +68,7 @@ pub enum MediaEncoding {
 /// its exact representation rather than just the decoded content identity.
 #[derive(Debug, Eq, PartialEq)]
 pub struct MediaMetadata {
+    pub source: MediaSource,
     pub reference: String,
     pub content_type: String,
     pub sha256_hash: String,
@@ -80,13 +85,12 @@ impl MediaMetadata {
 
 /// One media occurrence removed from the compact document.
 ///
-/// The registry is occurrence-based even though `reference` is content-derived
-/// and therefore may repeat. Consumers may deduplicate uploads by reference,
-/// but must retain the media index (or source range) for failure restoration;
-/// two syntactically different values can intentionally share one reference.
+/// Temporary references identify occurrences; metadata hashes identify assets.
+/// Distinct source spellings can share an upload without sharing restoration text.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExtractedMedia {
     pub(crate) metadata: Arc<MediaMetadata>,
+    occurrence_id: u128,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
     /// Exact source text for the candidate. When the candidate was ASCII-safe
@@ -107,6 +111,14 @@ enum MediaStorage {
 }
 
 impl ExtractedMedia {
+    /// Temporary identity travels with this occurrence through normalization.
+    /// Upload deduplication uses the separate content hash.
+    pub fn reference(&self) -> String {
+        let mut bytes = Vec::with_capacity(reference_length(&self.metadata));
+        write_reference(&mut bytes, &self.metadata, self.occurrence_id);
+        String::from_utf8(bytes).expect("media reference is UTF-8")
+    }
+
     /// Decode an extracted candidate only when the storage adapter is ready to
     /// upload it. The encoded text remains owned by the registry for retry and
     /// restoration until that work is complete.
@@ -158,26 +170,45 @@ impl ExtractedMedia {
 /// Result of validating and extracting one JSON document.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EarlyMediaResult {
-    /// Valid JSON with extracted values replaced by content-derived media references.
+    /// Valid JSON with extracted values replaced by temporary occurrence references.
     pub compact_json: Vec<u8>,
     /// Media removed from `compact_json`, in source traversal order.
     pub media: Vec<ExtractedMedia>,
 }
 
-/// An owned source snapshot and the media edit plan found during validation.
-/// Keeping this object across masking lets fail-open reuse the original bytes
-/// without retaining a compact copy prematurely. Escaped media candidates may
-/// carry one owned candidate fallback so restoration preserves their decoded
-/// source text.
+/// An owned, syntax-validated source snapshot. Discovery is deferred until
+/// extraction so masking cannot cause media hashing of a discarded input.
 #[derive(Debug, Eq, PartialEq)]
 pub struct ValidatedPayload {
     source: Arc<Vec<u8>>,
     pub manifest: MediaManifest,
+    discovery_pending: bool,
+}
+
+/// Reject malformed UTF-8, then validate syntax without media work.
+/// All later offsets refer to the original immutable source.
+pub fn validate(input: Vec<u8>, discover_media: bool) -> Result<ValidatedPayload, EarlyMediaError> {
+    let text = std::str::from_utf8(&input).map_err(|error| EarlyMediaError::InvalidJson {
+        offset: error.valid_up_to(),
+        message: "invalid UTF-8",
+    })?;
+    super::json::validate_json(text)?;
+    Ok(ValidatedPayload {
+        source: Arc::new(input),
+        manifest: MediaManifest {
+            entries: Vec::new(),
+        },
+        discovery_pending: discover_media,
+    })
 }
 
 impl ValidatedPayload {
-    pub(super) fn from_discovery(source: Arc<Vec<u8>>, manifest: MediaManifest) -> Self {
-        Self { source, manifest }
+    pub(super) fn discover(&mut self) -> Result<(), EarlyMediaError> {
+        if self.discovery_pending {
+            self.manifest = super::scanner::discover(self.source.as_slice())?;
+            self.discovery_pending = false;
+        }
+        Ok(())
     }
 
     /// Retained allocations, excluding allocator bookkeeping and shared-pointer headers.
@@ -200,21 +231,17 @@ impl ValidatedPayload {
                     }
                 })
                 .sum::<usize>()
-            + self.manifest.existing_references.capacity() * std::mem::size_of::<String>()
-            + self
-                .manifest
-                .existing_references
-                .iter()
-                .map(String::capacity)
-                .sum::<usize>()
     }
 
     /// Apply the discovered edits and materialize the media registry once.
     /// Source-backed candidates keep ranges into the owned source allocation.
-    pub fn compact(self) -> Result<EarlyMediaResult, EarlyMediaError> {
-        let ValidatedPayload { source, manifest } = self;
+    pub fn compact(mut self) -> Result<EarlyMediaResult, EarlyMediaError> {
+        self.discover()?;
+        let ValidatedPayload {
+            source, manifest, ..
+        } = self;
         if manifest.entries.is_empty() {
-            // Validation already proved that no value needs rewriting. Transfer
+            // Discovery found no value to rewrite. Transfer
             // the one owned Vec instead of parsing and copying a large no-media
             // document into an identical compact buffer.
             let compact_json =
@@ -240,7 +267,6 @@ impl ValidatedPayload {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MediaManifest {
     pub entries: Vec<MediaManifestEntry>,
-    pub(super) existing_references: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -270,30 +296,13 @@ pub enum EarlyMediaError {
         offset: usize,
         message: &'static str,
     },
-    /// Node's JSON parser preserves lone UTF-16 surrogates as strings, while
-    /// Rust `String` cannot represent them. The caller should use its existing
-    /// TypeScript path for this valid-but-unsupported input rather than treat it
-    /// as malformed JSON.
-    UnsupportedUnicodeSurrogate {
-        offset: usize,
-    },
-    /// The public content-derived reference is ambiguous: either two newly
-    /// extracted values have different source representations, or an extracted
-    /// value collides with a reference already present in the payload. The TS
-    /// path must retain the original payload for these cases so failed uploads
-    /// can restore each occurrence exactly.
-    UnsupportedMediaReferenceAmbiguity {
-        reference: String,
-    },
     TrailingBytes {
-        offset: usize,
-    },
-    NestingLimit {
         offset: usize,
     },
     InvalidEditPlan {
         entry: usize,
     },
+    RandomnessUnavailable,
 }
 
 impl fmt::Display for EarlyMediaError {
@@ -302,18 +311,8 @@ impl fmt::Display for EarlyMediaError {
             Self::InvalidJson { offset, message } => {
                 write!(f, "invalid JSON at byte {offset}: {message}")
             }
-            Self::UnsupportedUnicodeSurrogate { offset } => write!(
-                f,
-                "JSON contains a UTF-16 surrogate unsupported by the Rust path at byte {offset}"
-            ),
-            Self::UnsupportedMediaReferenceAmbiguity { reference } => write!(
-                f,
-                "media reference is ambiguous for the Rust path: {reference}"
-            ),
             Self::TrailingBytes { offset } => write!(f, "trailing JSON bytes at byte {offset}"),
-            Self::NestingLimit { offset } => {
-                write!(f, "JSON nesting limit exceeded at byte {offset}")
-            }
+            Self::RandomnessUnavailable => f.write_str("could not create temporary media identity"),
             Self::InvalidEditPlan { entry } => {
                 write!(
                     f,
@@ -327,18 +326,10 @@ impl fmt::Display for EarlyMediaError {
 impl std::error::Error for EarlyMediaError {}
 
 impl EarlyMediaError {
-    /// Stable NAPI codes distinguish syntax failures from inputs the TS parser
-    /// must validate and process because of representation compatibility.
+    /// Syntax failures never request a different processing implementation.
     pub fn code(&self) -> &'static str {
         match self {
-            Self::UnsupportedUnicodeSurrogate { .. }
-            | Self::UnsupportedMediaReferenceAmbiguity { .. }
-            | Self::NestingLimit { .. }
-            | Self::InvalidJson {
-                message: "invalid UTF-8",
-                ..
-            } => "ERR_OTEL_UNSUPPORTED",
-            Self::InvalidEditPlan { .. } => "ERR_OTEL_INTERNAL",
+            Self::InvalidEditPlan { .. } | Self::RandomnessUnavailable => "ERR_OTEL_INTERNAL",
             Self::InvalidJson { .. } | Self::TrailingBytes { .. } => "ERR_OTEL_INVALID_JSON",
         }
     }
@@ -373,31 +364,35 @@ fn apply_edit_plan(
     source: Option<Arc<Vec<u8>>>,
 ) -> Result<EarlyMediaResult, EarlyMediaError> {
     validate_edit_plan(input, &manifest.entries)?;
+    let mut nonce = [0; 16];
+    getrandom::fill(&mut nonce).map_err(|_| EarlyMediaError::RandomnessUnavailable)?;
+    let first_id = u128::from_le_bytes(nonce);
     let replacement_bytes = manifest
         .entries
         .iter()
-        .map(|entry| entry.metadata.reference.len())
+        .map(|entry| {
+            // The temporary ID has a fixed-width representation, independent of the index.
+            reference_length(&entry.metadata)
+        })
         .sum::<usize>();
     let removed_bytes = manifest
         .entries
         .iter()
         .map(|entry| entry.edit_range.len())
         .sum::<usize>();
-    let output_capacity = input
-        .len()
-        .saturating_sub(removed_bytes)
-        .saturating_add(replacement_bytes);
-    let mut compact_json = Vec::with_capacity(output_capacity);
+    let mut compact_json = Vec::with_capacity(
+        input
+            .len()
+            .saturating_sub(removed_bytes)
+            .saturating_add(replacement_bytes),
+    );
     let mut cursor = 0;
-    for entry in &manifest.entries {
-        compact_json.extend_from_slice(&input[cursor..entry.edit_range.start]);
-        compact_json.extend_from_slice(entry.metadata.reference.as_bytes());
-        cursor = entry.edit_range.end;
-    }
-    compact_json.extend_from_slice(&input[cursor..]);
-
     let mut media = Vec::with_capacity(manifest.entries.len());
-    for entry in manifest.entries {
+    for (index, entry) in manifest.entries.into_iter().enumerate() {
+        let occurrence_id = first_id.wrapping_add(index as u128);
+        compact_json.extend_from_slice(&input[cursor..entry.edit_range.start]);
+        write_reference(&mut compact_json, &entry.metadata, occurrence_id);
+        cursor = entry.edit_range.end;
         let storage = match entry.storage {
             ManifestMediaStorage::Owned(bytes) => MediaStorage::Owned(bytes),
             ManifestMediaStorage::SourceRange(range) => source
@@ -406,22 +401,17 @@ fn apply_edit_plan(
                     bytes: Arc::clone(source),
                     range: range.clone(),
                 })
-                .unwrap_or_else(|| {
-                    MediaStorage::Owned(
-                        input
-                            .get(range)
-                            .expect("validated media source range")
-                            .to_vec(),
-                    )
-                }),
+                .unwrap_or_else(|| MediaStorage::Owned(input[range].to_vec())),
         };
         media.push(ExtractedMedia {
             metadata: entry.metadata,
+            occurrence_id,
             kind: entry.kind,
             encoding: entry.encoding,
             storage,
         });
     }
+    compact_json.extend_from_slice(&input[cursor..]);
 
     if let Some(source) = source.as_ref() {
         detach_small_source_ranges(source, &mut media);
@@ -449,33 +439,28 @@ pub(super) fn validate_edit_plan(
     Ok(())
 }
 
-pub(super) fn validate_manifest(
-    input: &[u8],
-    manifest: &MediaManifest,
-) -> Result<(), EarlyMediaError> {
-    let existing = manifest.existing_references.iter().collect::<HashSet<_>>();
-    let mut representations = HashMap::<&str, &[u8]>::new();
-    for (index, entry) in manifest.entries.iter().enumerate() {
-        if existing.contains(&entry.metadata.reference) {
-            return Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity {
-                reference: entry.metadata.reference.clone(),
-            });
-        }
-        let representation = match &entry.storage {
-            ManifestMediaStorage::Owned(bytes) => bytes.as_slice(),
-            ManifestMediaStorage::SourceRange(range) => input
-                .get(range.clone())
-                .ok_or(EarlyMediaError::InvalidEditPlan { entry: index })?,
-        };
-        if let Some(previous) = representations.insert(&entry.metadata.reference, representation) {
-            if previous != representation {
-                return Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity {
-                    reference: entry.metadata.reference.clone(),
-                });
-            }
-        }
-    }
-    Ok(())
+fn reference_length(metadata: &MediaMetadata) -> usize {
+    "@@@langfuseMedia:type=|id=|source=@@@".len()
+        + metadata.content_type.len()
+        + 22
+        + metadata.source.as_str().len()
+}
+
+fn write_reference(output: &mut Vec<u8>, metadata: &MediaMetadata, id: u128) {
+    // The registry distinguishes pending occurrences from pre-existing public
+    // references. Both use 22-character IDs, so temporary IDs do not inflate JSON.
+    let mut encoded_id = [0; 22];
+    URL_SAFE_NO_PAD
+        .encode_slice(id.to_le_bytes(), &mut encoded_id)
+        .expect("22 bytes hold an unpadded base64-encoded 128-bit ID");
+    let id = std::str::from_utf8(&encoded_id).expect("base64 IDs are ASCII");
+    write!(
+        output,
+        "@@@langfuseMedia:type={}|id={id}|source={}@@@",
+        metadata.content_type,
+        metadata.source.as_str()
+    )
+    .expect("writing a media reference to a Vec cannot fail");
 }
 
 /// Avoid pinning a large input snapshot for a handful of small media ranges.

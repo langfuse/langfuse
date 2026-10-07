@@ -45,8 +45,7 @@ pub(super) enum MediaScanMode {
     /// The OTLP envelope itself. Only known payload-bearing descendants enter
     /// `Payload`; arbitrary envelope fields stay untouched.
     Envelope,
-    /// A structural field. Traverse only to validate JSON and collect existing
-    /// public references, never to create new media entries.
+    /// A structural field whose strings are not eligible for media extraction.
     Disabled,
 }
 
@@ -223,9 +222,8 @@ pub(super) fn may_contain_serialized_media(value: &str) -> bool {
 }
 
 /// Return true when a document might contain a media candidate. This is a
-/// conservative string prefilter used only to choose between the fused
-/// discovery walk and validation-only mode. Unicode escapes always fall back
-/// to discovery because they can spell any marker after JSON decoding.
+/// conservative prefilter for the discovery pass after syntax validation.
+/// Unicode escapes select discovery because they can spell a marker after decoding.
 pub(super) fn may_contain_media_candidate(value: &str) -> bool {
     // Every structured provider shape has one of these MIME/property
     // markers. Broad fragments are intentional: false positives only select

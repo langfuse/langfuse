@@ -5,7 +5,7 @@ use serde_json::Value;
 use super::super::encoding::BASE64;
 use super::super::tests::{data_uri, json_string_strategy, json_value_strategy};
 use super::super::validate_and_discover;
-use super::{EarlyMediaError, MediaStorage};
+use super::MediaStorage;
 
 #[test]
 fn discovery_keeps_the_source_until_the_accepted_payload_is_compacted() {
@@ -45,7 +45,7 @@ fn compaction_changes_only_the_bytes_inside_discovered_data_uris() {
         .zip(&compacted.media)
     {
         assert_eq!(media.original_value().unwrap(), *uri);
-        expected = expected.replacen(uri, &media.metadata.reference, 1);
+        expected = expected.replacen(uri, &media.reference(), 1);
     }
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
 }
@@ -80,7 +80,7 @@ fn nested_json_manifest_is_reused_for_the_accepted_payload() {
     assert_eq!(compacted.media.len(), 1);
     assert_eq!(compacted.media[0].decode().unwrap(), b"hi");
     assert_eq!(compacted.media[0].original_value().unwrap(), "aGk=");
-    let expected = input.replacen("aGk=", &compacted.media[0].metadata.reference, 1);
+    let expected = input.replacen("aGk=", &compacted.media[0].reference(), 1);
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
     let MediaStorage::Source { bytes, range } = &compacted.media[0].storage else {
         panic!("ASCII-safe nested media should retain the outer source range");
@@ -103,8 +103,7 @@ fn nested_json_manifest_is_reused_for_the_accepted_payload() {
         escaped_result.media[0].decode().unwrap(),
         b"escaped-candidate"
     );
-    let expected =
-        escaped_input.replacen(&escaped_uri, &escaped_result.media[0].metadata.reference, 1);
+    let expected = escaped_input.replacen(&escaped_uri, &escaped_result.media[0].reference(), 1);
     assert_eq!(
         String::from_utf8(escaped_result.compact_json).unwrap(),
         expected
@@ -137,8 +136,8 @@ fn nested_duplicate_providers_compact_at_their_original_source_spans() {
     assert_eq!(compacted.media[0].original_value().unwrap(), first_data);
     assert_eq!(compacted.media[1].original_value().unwrap(), second_data);
     let expected = input
-        .replacen(first_data, &compacted.media[0].metadata.reference, 1)
-        .replacen(&second_data, &compacted.media[1].metadata.reference, 1);
+        .replacen(first_data, &compacted.media[0].reference(), 1)
+        .replacen(&second_data, &compacted.media[1].reference(), 1);
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
     for (media, expected_range) in compacted.media.iter().zip([first_data, &second_data]) {
         let MediaStorage::Source { bytes, range } = &media.storage else {
@@ -199,7 +198,7 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
     let mut expected = source;
     for (uri, media) in uris.iter().zip(&compacted.media) {
         prop_assert_eq!(media.original_value().unwrap(), uri.as_str());
-        expected = expected.replacen(uri, &media.metadata.reference, 1);
+        expected = expected.replacen(uri, &media.reference(), 1);
         match &media.storage {
             MediaStorage::Source { bytes, range } => {
                 prop_assert_eq!(&bytes[range.clone()], uri.as_bytes());
@@ -215,13 +214,7 @@ fn valid_json_values_survive_scan_and_compaction(
     value in json_value_strategy(6),
 ) {
     let source = serde_json::to_vec(&value).expect("serialize generated JSON");
-    let validated = match validate_and_discover(source.clone()) {
-        Ok(validated) => validated,
-        // Ambiguous public references intentionally fall back to the TypeScript path;
-        // they are valid JSON but outside this representation's lossless contract.
-        Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. }) => return Ok(()),
-        Err(error) => panic!("valid JSON was rejected: {error:?}"),
-    };
+    let validated = validate_and_discover(source.clone()).expect("valid JSON remains native");
     prop_assert_eq!(validated.source.as_slice(), source.as_slice());
 
     let compacted = validated.compact().expect("discovered manifest is reusable");

@@ -1,12 +1,20 @@
 use super::encoding::BASE64;
-use super::json::MAX_JSON_DEPTH;
 use super::payload::{EarlyMediaError, MediaEncoding, MediaPayloadKind, MediaSource};
 use super::rules::{may_contain_media_candidate, MEDIA_REFERENCE_PREFIX};
-use super::scanner::{media_identity_from_encoded, validate_measured};
+use super::scanner::{discover_measured, media_identity_from_encoded};
 use super::{extract_media, validate, validate_and_discover};
 use base64::Engine;
 use proptest::prelude::*;
 use serde_json::{json, Value};
+
+fn validate_measured(
+    input: Vec<u8>,
+) -> Result<(super::ValidatedPayload, usize, usize, usize), EarlyMediaError> {
+    let mut validated = validate(input.clone(), false)?;
+    let (manifest, visited, index_bytes, unique) = discover_measured(&input)?;
+    validated.manifest = manifest;
+    Ok((validated, visited, index_bytes, unique))
+}
 
 pub(super) fn json_string_strategy() -> BoxedStrategy<String> {
     prop::collection::vec(any::<char>(), 0..32)
@@ -79,10 +87,7 @@ fn nested_otlp_map_keys_stay_structural() {
     let entry = &compact["resourceSpans"][0]["resource"]["attributes"][0]["value"]["arrayValue"]
         ["values"][0]["kvlistValue"]["values"][0];
     assert_eq!(entry["key"], uri);
-    assert_eq!(
-        entry["value"]["stringValue"],
-        result.media[0].metadata.reference
-    );
+    assert_eq!(entry["value"]["stringValue"], result.media[0].reference());
 }
 
 #[test]
@@ -97,33 +102,16 @@ fn accepts_deep_otlp_structure_before_embedded_json_limit() {
 }
 
 #[test]
-fn enforces_the_json_depth_limit_for_empty_and_nonempty_containers() {
-    let nested_array = |leaf: &str, depth: usize| {
-        (0..depth).fold(leaf.to_owned(), |value, _| format!("[{value}]"))
-    };
-    let nested_object = |leaf: &str, depth: usize| {
-        (0..depth).fold(leaf.to_owned(), |value, _| format!(r#"{{"x":{value}}}"#))
-    };
-
-    for value in [
-        nested_array("null", MAX_JSON_DEPTH),
-        nested_array("[]", MAX_JSON_DEPTH),
-        nested_object("null", MAX_JSON_DEPTH),
-        nested_object("{}", MAX_JSON_DEPTH),
-    ] {
-        extract_media(value.as_bytes()).expect("JSON at the depth limit is accepted");
-    }
-
-    for value in [
-        nested_array("null", MAX_JSON_DEPTH + 1),
-        nested_array("[]", MAX_JSON_DEPTH + 1),
-        nested_object("null", MAX_JSON_DEPTH + 1),
-        nested_object("{}", MAX_JSON_DEPTH + 1),
-    ] {
-        assert!(matches!(
-            extract_media(value.as_bytes()),
-            Err(EarlyMediaError::NestingLimit { .. })
-        ));
+fn validates_and_extracts_beyond_the_former_parser_depth_limit() {
+    let uri = data_uri(b"deep");
+    for depth in [128, 512, 4096] {
+        let array = format!("{}\"{uri}\"{}", "[".repeat(depth), "]".repeat(depth));
+        let object = format!("{}\"{uri}\"{}", "{\"x\":".repeat(depth), "}".repeat(depth));
+        for input in [array, object] {
+            let result = extract_media(input.as_bytes()).expect("deep JSON remains native");
+            assert_eq!(result.media.len(), 1);
+            assert_eq!(result.media[0].decode().unwrap(), b"deep");
+        }
     }
 }
 
@@ -249,9 +237,18 @@ fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
 fn explicit_validation_skips_media_discovery() {
     let uri = data_uri(b"validation-only");
     let input = format!(r#"{{"input":"{uri}"}}"#);
-    let validated = validate(input.as_bytes().to_vec(), false).expect("valid JSON");
-    assert!(validated.manifest.entries.is_empty());
-    assert_eq!(validated.into_source(), input.as_bytes());
+    for enabled in [false, true] {
+        let validated = validate(input.as_bytes().to_vec(), enabled).expect("valid JSON");
+        assert!(validated.manifest.entries.is_empty());
+        let result = validated.compact().unwrap();
+        if enabled {
+            assert_eq!(result.media.len(), 1);
+            assert_eq!(result.media[0].decode().unwrap(), b"validation-only");
+        } else {
+            assert!(result.media.is_empty());
+            assert_eq!(result.compact_json, input.as_bytes());
+        }
+    }
 }
 
 #[test]
@@ -264,7 +261,7 @@ fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
         "[{}]",
         std::iter::repeat_n(chain, 32).collect::<Vec<_>>().join(",")
     );
-    let (validated, scanned, boundary_bytes, _) =
+    let (validated, scanned, index_bytes, _) =
         validate_measured(input.as_bytes().to_vec()).expect("valid nested input stays native");
     // One structural pass plus small scalar inspection. This catches repeated
     // subtree validation deterministically, without a wall-clock threshold.
@@ -273,9 +270,9 @@ fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
         "scanned {scanned} for {} source bytes",
         input.len()
     );
-    // Each indexed container needs two offsets; Vec capacity may double. Empty
-    // containers consume at least two input bytes, establishing this bound.
-    assert!(boundary_bytes <= 16 * input.len());
+    // Temporary discovery state must scale with source structure, independently
+    // of how many times that structure occurs beside other values.
+    assert!(index_bytes <= 16 * input.len());
     let result = validated.compact().unwrap();
     assert_eq!(result.media.len(), 32);
     assert!(result
@@ -309,14 +306,14 @@ fn indexed_subtrees_survive_mixed_siblings_and_provider_lookahead() {
         (format!("[{payload},{envelope}]"), 2),
         (format!(r#"{{"one":{embedded},"two":{embedded}}}"#), 2),
     ] {
-        let (validated, scanned, boundary_bytes, _) =
+        let (validated, scanned, index_bytes, _) =
             validate_measured(input.as_bytes().to_vec()).unwrap();
         assert!(
             scanned <= 6 * input.len(),
             "scanned {scanned} for {} source bytes",
             input.len()
         );
-        assert!(boundary_bytes <= 16 * input.len());
+        assert!(index_bytes <= 16 * input.len());
         let result = validated.compact().unwrap();
         let bodies = result
             .media
@@ -339,10 +336,10 @@ fn preserves_large_existing_media_references_without_a_resource_fallback() {
     let references = (0..16_385)
         .map(|index| format!("@@@langfuseMedia:type=image/png|id={index}@@@"))
         .collect::<Vec<_>>();
-    for (text, count) in [(reference, 1), (references.join(" "), references.len())] {
+    for text in [reference, references.join(" ")] {
         let input = format!(r#"{{"existing":"{text}"}}"#);
         let (validated, scanned, _, _) = validate_measured(input.as_bytes().to_vec()).unwrap();
-        assert_eq!(validated.manifest.existing_references.len(), count);
+        assert!(validated.manifest.entries.is_empty());
         assert!(scanned <= 3 * input.len());
         assert!(validated.retained_bytes() <= 3 * input.len());
         let result = validated.compact().unwrap();
@@ -595,74 +592,64 @@ fn recognizes_a_top_level_resource_span_array_as_an_otlp_envelope() {
 }
 
 #[test]
-fn rejects_bad_escaping_and_unsupported_surrogates() {
+fn leaves_lone_surrogate_strings_inline_and_extracts_siblings() {
+    let uri = data_uri(b"sibling");
+    for text in [r"\ud800", r"\udc00", r"\ud800\u0061"] {
+        let input = format!(r#"{{"note":"{text}","image":"{uri}"}}"#);
+        let result = extract_media(input.as_bytes()).expect("raw surrogate escape is valid JSON");
+        assert_eq!(result.media.len(), 1);
+        assert_eq!(result.media[0].decode().unwrap(), b"sibling");
+        assert!(String::from_utf8(result.compact_json)
+            .unwrap()
+            .contains(text));
+    }
+    let input = br#"{"value":"\ud83d\ude80"}"#;
+    assert_eq!(extract_media(input).unwrap().compact_json, input);
+    for input in [br#"{"x":"\q"}"#.as_slice(), br#"{"x":"\ud800\uZZZZ"}"#] {
+        assert!(matches!(
+            extract_media(input),
+            Err(EarlyMediaError::InvalidJson { .. })
+        ));
+    }
+}
+
+#[test]
+fn malformed_utf8_is_rejected_before_discovery() {
+    let mut input = b"{\"note\":\"".to_vec();
+    input.extend([0xff, 0xe2, 0x82]);
+    input.extend_from_slice(b"\",\"image\":\"data:image/png;base64,YWJj\"}");
     assert!(matches!(
-        extract_media(br#"{"x":"\q"}"#),
-        Err(EarlyMediaError::InvalidJson { .. })
-    ));
-    assert!(matches!(
-        extract_media(br#"{"x":"\ud800"}"#),
-        Err(EarlyMediaError::UnsupportedUnicodeSurrogate { .. })
+        extract_media(&input),
+        Err(EarlyMediaError::InvalidJson { offset: 9, .. })
     ));
 }
 
 #[test]
-fn distinguishes_valid_surrogate_pairs_from_unsupported_or_invalid_escapes() {
-    let valid_pair = br#"{"value":"\ud83d\ude80"}"#;
-    assert_eq!(
-        extract_media(valid_pair)
-            .expect("valid surrogate pair")
-            .compact_json,
-        valid_pair
-    );
-
-    let unpaired_low = r#"{"prefix":"é","value":"\udc00"}"#;
-    let error = extract_media(unpaired_low.as_bytes()).expect_err("lone surrogate falls back");
-    assert!(matches!(
-        error,
-        EarlyMediaError::UnsupportedUnicodeSurrogate { .. }
-    ));
-
-    assert!(matches!(
-        extract_media(br#"{"value":"\ud800\u0061"}"#),
-        Err(EarlyMediaError::UnsupportedUnicodeSurrogate { .. })
-    ));
-    assert!(matches!(
-        extract_media(br#"{"value":"\ud800\uZZZZ"}"#),
-        Err(EarlyMediaError::InvalidJson { .. })
-    ));
-
-    // An escaped backslash leaves the following `uD800` as ordinary text. The
-    // same suffix after three backslashes contains a real, unsupported escape.
-    assert!(matches!(
-        extract_media(r#""\\ud800"#.as_bytes()),
-        Err(EarlyMediaError::InvalidJson { .. })
-    ));
-    assert!(matches!(
-        extract_media(r#""\\\ud800"#.as_bytes()),
-        Err(EarlyMediaError::UnsupportedUnicodeSurrogate { .. })
-    ));
+fn embedded_json_keeps_surrogate_strings_and_extracts_sibling_fields() {
+    let nested = r#"{"note":"\ud800","image":"data:image/png;base64,aGk="}"#;
+    let input = serde_json::to_string(nested).unwrap();
+    let result = extract_media(input.as_bytes()).expect("embedded surrogate remains inline");
+    assert_eq!(result.media.len(), 1);
+    assert_eq!(result.media[0].decode().unwrap(), b"hi");
+    let expected = input.replace("data:image/png;base64,aGk=", &result.media[0].reference());
+    assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
 }
 
 #[test]
-fn propagates_unsupported_embedded_json_shapes_to_the_typescript_path() {
-    let nested_surrogate =
-        serde_json::to_string(r#"{"value":"\ud800"}"#).expect("serialize nested JSON string");
-    let surrogate_input = format!(r#"{{"marker":"data: ","nested":{nested_surrogate}}}"#);
-    assert!(matches!(
-        extract_media(surrogate_input.as_bytes()),
-        Err(EarlyMediaError::UnsupportedUnicodeSurrogate { .. })
-    ));
-
-    let nested_deep = (0..=MAX_JSON_DEPTH).fold(r#""data: ""#.to_owned(), |value, _| {
-        format!(r#"{{"x":{value}}}"#)
-    });
-    let encoded_deep = serde_json::to_string(&nested_deep).expect("serialize deep JSON string");
-    let deep_input = format!(r#"{{"marker":"data: ","nested":{encoded_deep}}}"#);
-    assert!(matches!(
-        extract_media(deep_input.as_bytes()),
-        Err(EarlyMediaError::NestingLimit { .. })
-    ));
+fn undecodable_keys_leave_their_values_inline_including_shadowed_values() {
+    // Keys that cannot be decoded cannot be compared for JSON's last-key-wins
+    // behavior. Preserve their values while still extracting ordinary siblings.
+    let object = r#"{"\ud800":"data:image/png;base64,YQ==","\uD800":"data:image/png;base64,Yg==","ok":"data:image/png;base64,Yw=="}"#;
+    for input in [object.to_owned(), serde_json::to_string(object).unwrap()] {
+        let result = extract_media(input.as_bytes()).unwrap();
+        assert_eq!(result.media.len(), 1);
+        assert_eq!(result.media[0].decode().unwrap(), b"c");
+        let restored = String::from_utf8(result.compact_json).unwrap().replace(
+            &result.media[0].reference(),
+            &result.media[0].original_value().unwrap(),
+        );
+        assert_eq!(restored, input);
+    }
 }
 
 #[test]
@@ -677,10 +664,7 @@ fn rejects_raw_controls_at_any_position_in_a_string() {
 
             assert!(matches!(
                 validate_and_discover(input),
-                Err(EarlyMediaError::InvalidJson {
-                    message: "control byte in string",
-                    ..
-                })
+                Err(EarlyMediaError::InvalidJson { .. })
             ));
         }
     }
@@ -715,32 +699,38 @@ fn malformed_envelope_takes_precedence_over_nested_media_ambiguity() {
 }
 
 #[test]
-fn allows_exact_duplicate_representations() {
+fn duplicate_occurrences_have_distinct_references_and_shared_content_identity() {
     let input = br#"[{"type":"file","mediaType":"image/png","data":"b'abc'"},{"type":"file","mediaType":"image/png","data":"b'abc'"}]"#;
-    let result = extract_media(input).expect("identical representations are unambiguous");
+    let result = extract_media(input).expect("duplicate representations");
     assert_eq!(result.media.len(), 2);
+    assert_ne!(result.media[0].reference(), result.media[1].reference());
     assert_eq!(
-        result.media[0].metadata.reference,
-        result.media[1].metadata.reference
+        result.media[0].metadata.sha256_hash,
+        result.media[1].metadata.sha256_hash
     );
     assert_eq!(result.media[0].original_value().unwrap(), "b'abc'");
     assert_eq!(result.media[1].original_value().unwrap(), "b'abc'");
 }
 
 #[test]
-fn rejects_same_content_with_different_source_representations() {
+fn same_content_with_different_spellings_keeps_each_original() {
     let encoded = BASE64.encode(b"abc");
     let input = format!(
         r#"[{{"type":"file","mediaType":"image/png","data":"{encoded}"}},{{"type":"file","mediaType":"image/png","data":"b'abc'"}}]"#
     );
-    assert!(matches!(
-        validate_and_discover(input.into_bytes()),
-        Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. })
-    ));
+    let result = extract_media(input.as_bytes()).unwrap();
+    assert_eq!(result.media.len(), 2);
+    assert_ne!(result.media[0].reference(), result.media[1].reference());
+    assert_eq!(
+        result.media[0].metadata.sha256_hash,
+        result.media[1].metadata.sha256_hash
+    );
+    assert_eq!(result.media[0].original_value().unwrap(), encoded);
+    assert_eq!(result.media[1].original_value().unwrap(), "b'abc'");
 }
 
 #[test]
-fn rejects_extracted_media_that_collides_with_a_preexisting_reference() {
+fn existing_public_references_are_preserved_beside_new_occurrences() {
     let uri = data_uri(b"collision");
     let (reference, _) = media_identity_from_encoded(
         uri.as_bytes(),
@@ -748,13 +738,7 @@ fn rejects_extracted_media_that_collides_with_a_preexisting_reference() {
         MediaSource::Base64DataUri,
         MediaEncoding::Base64DataUri,
     )
-    .expect("valid data URI reference");
-    let input = format!(r#"{{"input":"{uri}","existing":"{reference}"}}"#);
-    assert!(matches!(
-        validate_and_discover(input.clone().into_bytes()),
-        Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. })
-    ));
-
+    .unwrap();
     let encoded = BASE64.encode(b"hi");
     let (structured_reference, _) = media_identity_from_encoded(
         encoded.as_bytes(),
@@ -762,39 +746,40 @@ fn rejects_extracted_media_that_collides_with_a_preexisting_reference() {
         MediaSource::Bytes,
         MediaEncoding::Base64,
     )
-    .expect("valid structured media reference");
-    let provider_input = format!(
-        r#"{{"type":"base64","media_type":"image/png","data":"{encoded}","other":"{structured_reference}"}}"#
-    );
-    let gemini_input = format!(
-        r#"{{"inline_data":{{"mime_type":"image/png","data":"{encoded}","other":"{structured_reference}"}}}}"#
-    );
-    for input in [provider_input, gemini_input] {
-        assert!(matches!(
-            validate_and_discover(input.clone().into_bytes()),
-            Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. })
-        ));
-    }
-}
-
-#[test]
-fn rejects_media_that_collides_with_a_unicode_escaped_nested_reference() {
-    let uri = data_uri(b"nested-collision");
-    let (reference, _) = media_identity_from_encoded(
-        uri.as_bytes(),
-        "image/png",
-        MediaSource::Base64DataUri,
-        MediaEncoding::Base64DataUri,
-    )
-    .expect("valid data URI reference");
+    .unwrap();
     let nested = format!(r#"{{"existing":"\u0040{}"}}"#, &reference[1..]);
-    let encoded_nested = serde_json::to_string(&nested).expect("serialize nested JSON");
-    let input = format!(r#"{{"input":"{uri}","nested":{encoded_nested}}}"#);
-
-    assert!(matches!(
-        validate_and_discover(input.clone().into_bytes()),
-        Err(EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. })
-    ));
+    let encoded_nested = serde_json::to_string(&nested).unwrap();
+    for (input, expected_reference) in [
+        (
+            format!(r#"{{"input":"{uri}","existing":"{reference}"}}"#),
+            reference.clone(),
+        ),
+        (
+            format!(
+                r#"{{"type":"base64","media_type":"image/png","data":"{encoded}","other":"{structured_reference}"}}"#
+            ),
+            structured_reference.clone(),
+        ),
+        (
+            format!(
+                r#"{{"inline_data":{{"mime_type":"image/png","data":"{encoded}","other":"{structured_reference}"}}}}"#
+            ),
+            structured_reference,
+        ),
+        (
+            format!(r#"{{"input":"{uri}","nested":{encoded_nested}}}"#),
+            reference,
+        ),
+    ] {
+        let result = extract_media(input.as_bytes()).unwrap();
+        assert_eq!(result.media.len(), 1);
+        let pending = result.media[0].reference();
+        assert_ne!(pending, expected_reference);
+        let restored = String::from_utf8(result.compact_json)
+            .unwrap()
+            .replace(&pending, &result.media[0].original_value().unwrap());
+        assert_eq!(restored, input);
+    }
 }
 
 proptest! {
@@ -813,11 +798,13 @@ proptest! {
         let mut input = format!("[{}]", std::iter::repeat_n(chain, width).collect::<Vec<_>>().join(","));
         if object_root { input = format!(r#"{{"items":{input}}}"#); }
         if embedded { input = serde_json::to_string(&input).unwrap(); }
-        let (validated, scanned, boundary_bytes, unique) = validate_measured(input.as_bytes().to_vec()).unwrap();
+        let (validated, scanned, index_bytes, unique) = validate_measured(input.as_bytes().to_vec()).unwrap();
         // Embedded documents are separately validated after decoding, but every
         // structural pass stays linear in that document's source size.
         prop_assert!(scanned <= 6 * input.len(), "{} syntax bytes for {} input bytes", scanned, input.len());
-        prop_assert!(boundary_bytes <= 16 * input.len());
+        // The walk retains open frames and candidates, not every closed container.
+        // Allow fixed initial Vec capacities as well as depth and result growth.
+        prop_assert!(index_bytes <= 4096 + 512 * (depth + 3 + width), "{} index bytes", index_bytes);
         prop_assert_eq!(unique, 1);
         let result = validated.compact().unwrap();
         prop_assert_eq!(result.media.len(), width);

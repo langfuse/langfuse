@@ -132,7 +132,7 @@ impl EarlyOtelBatch {
             .enumerate()
             .map(|(index, media)| ExtractedOtelMedia {
                 index: index as u32,
-                reference: media.metadata.reference.clone(),
+                reference: media.reference(),
                 content_type: media.metadata.content_type.clone(),
                 sha256_hash: media.metadata.sha256_hash.clone(),
                 kind: media.kind.as_str().to_owned(),
