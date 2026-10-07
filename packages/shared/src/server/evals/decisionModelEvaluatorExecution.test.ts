@@ -37,6 +37,7 @@ const questions: DecisionModelQuestions = DecisionModelQuestionsSchema.parse([
     scoreName: "refund_requested",
     type: "noul",
     instructions: "Does `question` request a refund?",
+    criteria: { true: "Asks for money back", false: "Does not" },
   },
 ]);
 
@@ -91,19 +92,27 @@ describe("executeDecisionModelEvaluator", () => {
         readiness: {
           type: "choice",
           instructions: "Is `reply` ready to send as an answer to `question`?",
-          criteria: {
-            ready: "Answers and states the next step",
-            needs_revision: null,
-          },
+          choices: [
+            {
+              value: "ready",
+              description: "Answers and states the next step",
+            },
+            { value: "needs_revision" },
+          ],
         },
         frustration: {
           type: "score",
           instructions: "How frustrated is the customer in `question`?",
-          criteria: ["Calm", "Frustrated but civil", "Very angry"],
+          levels: [
+            { description: "Calm" },
+            { description: "Frustrated but civil" },
+            { description: "Very angry" },
+          ],
         },
         refund: {
-          type: "boolean",
+          type: "predicate",
           instructions: "Does `question` request a refund?",
+          criteria: { true: "Asks for money back", false: "Does not" },
         },
       },
     });
@@ -170,6 +179,25 @@ describe("executeDecisionModelEvaluator", () => {
         },
       },
     ]);
+  });
+
+  it("writes OpenAI score details under metadata.openai", async () => {
+    const { client } = createClient({ ...evaluation, model: "gpt-6-luna" });
+
+    const { scores } = await executeDecisionModelEvaluator({
+      variables: [{ var: "question", value: "refund?" }],
+      questions,
+      client,
+    });
+
+    expect(scores.map((score) => Object.keys(score.metadata ?? {}))).toEqual([
+      ["openai"],
+      ["openai"],
+      ["openai"],
+    ]);
+    expect(scores[1]?.metadata).toMatchObject({
+      openai: { model: "gpt-6-luna", questionId: "frustration", type: "score" },
+    });
   });
 
   it("fails permanently when the state is empty", async () => {

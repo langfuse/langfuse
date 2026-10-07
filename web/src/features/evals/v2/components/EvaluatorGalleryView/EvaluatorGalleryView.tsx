@@ -178,7 +178,7 @@ export function EvaluatorGalleryView({
                   type="button"
                   variant="secondary"
                   className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  title="Ask TypeSafe Jev typed questions and get calibrated answers in one call. Experimental."
+                  title="Ask Jev or the OpenAI Decisions API typed questions in one call. Experimental."
                   onClick={() =>
                     onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
                   }
