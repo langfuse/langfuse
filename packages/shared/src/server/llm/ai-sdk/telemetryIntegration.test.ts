@@ -24,7 +24,11 @@ import {
   type ModelParams,
   type TraceSinkParams,
 } from "../types";
-import { generateLLMText, mapLegacyLLMCompletionParams } from "../llmText";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+} from "../llmText";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 
@@ -462,6 +466,46 @@ describe("AI SDK telemetry integration", () => {
 
     expect(generationSpan.status).toMatchObject({ code: 2 });
     expect(attributes).toMatchObject({ "error.type": "AI_APICallError" });
+    expect(
+      (generationSpan.events ?? []).filter(
+        (event: { name?: string }) => event.name === "exception",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the model response when structured output parsing fails", async () => {
+    await expect(
+      generateLLMText({
+        ...mapLegacyLLMCompletionParams({
+          messages,
+          modelParams,
+          connection: { secretKey: encrypt("sk-test") },
+        }),
+        output: createLLMOutput({
+          type: "object",
+          properties: { score: { type: "string" } },
+          required: ["score"],
+        }),
+        timeout: 10_000,
+        trace: traceSinkParams,
+      }),
+    ).rejects.toThrow();
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const { OtelIngestionProcessor } = await vi.importActual<
+      typeof import("../../otel/OtelIngestionProcessor")
+    >("../../otel/OtelIngestionProcessor");
+    const eventInputs = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "",
+      sdkName: "langfuse-internal-ai-sdk",
+      sdkVersion: "unknown",
+      isLangfuseInternal: true,
+    }).processToEvent(resourceSpans);
+    const rootEvent = eventInputs.find((input: any) => !input.parentSpanId);
+
+    expect(rootEvent).toMatchObject({ level: "ERROR" });
+    expect(String(rootEvent.output)).toContain("Hello there");
   });
 
   it("records unsupported media URL errors without downloading or calling the model", async () => {

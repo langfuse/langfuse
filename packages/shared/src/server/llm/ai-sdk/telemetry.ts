@@ -428,6 +428,9 @@ function createGenerationSpanTelemetry(params: {
 
       if (span !== existingSpan) openSpans.delete(event.callId);
 
+      const outputMessages = safeJsonStringify([
+        { role: "assistant", content: event.content },
+      ]);
       span.setAttributes({
         "gen_ai.response.finish_reasons": [event.finishReason],
         ...(event.responseId ? { "gen_ai.response.id": event.responseId } : {}),
@@ -439,24 +442,22 @@ function createGenerationSpanTelemetry(params: {
           "gen_ai.usage.cache_creation.input_tokens":
             event.usage.inputTokenDetails?.cacheWriteTokens,
         }),
-        "gen_ai.output.messages": safeJsonStringify([
-          { role: "assistant", content: event.content },
-        ]),
+        "gen_ai.output.messages": outputMessages,
+        // The root span already has observation input. Without observation
+        // output, ingestion ignores this model response when a later step fails.
+        ...(span === existingSpan
+          ? {
+              [LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT]: outputMessages,
+            }
+          : {}),
       });
       if (span !== existingSpan) span.end();
     },
 
     onError(event) {
-      const error = getTelemetryError(event);
-      if (existingSpan) {
-        existingSpan.setAttribute("error.type", getErrorType(error));
-        existingSpan.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        });
-        if (error instanceof Error) existingSpan.recordException(error);
-      }
-      endAllOpenSpans(error);
+      // The root span's error is recorded by setRootError. Marking it here too
+      // would store the same exception twice.
+      endAllOpenSpans(getTelemetryError(event));
     },
 
     onAbort() {
