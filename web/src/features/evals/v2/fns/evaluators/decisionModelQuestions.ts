@@ -192,3 +192,75 @@ export function draftsToQuestions(
   const parsed = DecisionModelQuestionsSchema.safeParse(questions);
   return parsed.success ? parsed.data : null;
 }
+
+export type OpenAIDecisionQuestionPreview =
+  | {
+      type: "choice";
+      name: string;
+      instructions: string;
+      choices: Array<{ value: string; description?: string }>;
+    }
+  | {
+      type: "score";
+      name: string;
+      instructions: string;
+      levels: Array<{ label?: string; description?: string }>;
+    }
+  | { type: "predicate"; name: string; instructions: string };
+
+/** Questions as the Decisions API receives them, including unfinished drafts. */
+export function previewOpenAIDecisionQuestions(
+  drafts: DecisionModelQuestionDraft[],
+): OpenAIDecisionQuestionPreview[] {
+  return drafts.map((draft) => {
+    const name = draft.id;
+    const instructions = openAIInstructions(draft);
+    switch (draft.type) {
+      case DecisionModelQuestionType.CHOICE:
+        return {
+          type: "choice",
+          name,
+          instructions,
+          choices: draft.options.flatMap((option) => {
+            const value = option.value.trim();
+            if (!value) return [];
+            const description = option.description.trim();
+            return [
+              {
+                value,
+                ...(description ? { description } : {}),
+              },
+            ];
+          }),
+        };
+      case DecisionModelQuestionType.SCORE:
+        return {
+          type: "score",
+          name,
+          instructions,
+          levels: draft.levels.map((level) => {
+            const label = level.label?.trim();
+            const description = level.description.trim();
+            return {
+              ...(label ? { label } : {}),
+              ...(description ? { description } : {}),
+            };
+          }),
+        };
+      case DecisionModelQuestionType.NOUL:
+        return { type: "predicate", name, instructions };
+    }
+  });
+}
+
+function openAIInstructions(draft: DecisionModelQuestionDraft) {
+  if (draft.type !== DecisionModelQuestionType.NOUL) {
+    return draft.instructions.trim();
+  }
+  const parts = [draft.instructions.trim()];
+  const whenTrue = draft.criteria.true.trim();
+  const whenFalse = draft.criteria.false.trim();
+  if (whenTrue) parts.push(`Criteria for true:\n${whenTrue}`);
+  if (whenFalse) parts.push(`Criteria for false:\n${whenFalse}`);
+  return parts.filter((part) => part.length > 0).join("\n\n");
+}

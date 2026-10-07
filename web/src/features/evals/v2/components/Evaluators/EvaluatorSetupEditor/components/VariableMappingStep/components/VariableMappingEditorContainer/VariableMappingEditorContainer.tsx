@@ -30,6 +30,7 @@ export function VariableMappingEditorContainer({
       type: state.type,
       promptMessages: state.promptMessages,
       stateKeys: state.stateKeys,
+      questions: state.questions,
       variableFields: state.variableFields,
       selectedModel: state.selectedModel,
       activeMapping: state.activeMapping,
@@ -77,6 +78,7 @@ export function VariableMappingEditorContainer({
         onChangeField={(fieldState) =>
           state.actions.setVariableField("input", fieldState)
         }
+        questions={state.questions}
         sourceObject={displayedSample}
         hasMatchingObservations={Boolean(displayedSample)}
         sourceUnavailableMessage={SOURCE_UNAVAILABLE_MESSAGE}

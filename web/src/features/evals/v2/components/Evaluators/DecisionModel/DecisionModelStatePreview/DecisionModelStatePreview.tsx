@@ -39,15 +39,21 @@ function buildStatePreview(
 export function DecisionModelStatePreview({
   fields,
   sourceObject,
+  questions,
+  title = "State sent to the model",
 }: {
   fields: PreviewField[];
   sourceObject: Record<string, unknown> | null;
+  /** Included beside the state. OpenAI sends these on the same request. */
+  questions?: unknown[];
+  title?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const statePreview = useMemo(
-    () => buildStatePreview(fields, sourceObject),
-    [fields, sourceObject],
-  );
+  const statePreview = useMemo(() => {
+    const state = buildStatePreview(fields, sourceObject);
+    if (!state) return null;
+    return questions ? { ...state, questions } : state;
+  }, [fields, questions, sourceObject]);
   const stateSize = statePreview ? JSON.stringify(statePreview).length : 0;
   const tooLarge = stateSize > STATE_SIZE_WARNING_CHARS;
 
@@ -60,7 +66,7 @@ export function DecisionModelStatePreview({
         onClick={() => setOpen((current) => !current)}
       >
         <span className="flex items-center gap-2">
-          <span className="font-bold">State sent to the model</span>
+          <span className="font-bold">{title}</span>
           {statePreview ? (
             <span
               className={cn(

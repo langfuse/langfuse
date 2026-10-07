@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DecisionModelQuestionType } from "@langfuse/shared";
 import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
@@ -7,6 +8,24 @@ import type {
   VariableFieldState,
 } from "@/src/features/evals/v2/types/variableMapping";
 import { OpenAIDecisionModelStateEditor } from "./OpenAIDecisionModelStateEditor";
+
+const QUESTIONS = [
+  {
+    id: "severity",
+    type: DecisionModelQuestionType.SCORE,
+    scoreName: "severity",
+    instructions: "How severe is the issue in the input?",
+    options: [
+      { value: "", description: "" },
+      { value: "", description: "" },
+    ],
+    levels: [
+      { label: "Cosmetic", description: "Appearance only" },
+      { label: "Blocked", description: "Cannot continue" },
+    ],
+    criteria: { true: "", false: "" },
+  },
+];
 
 const meta = preview.meta({ component: OpenAIDecisionModelStateEditor });
 
@@ -24,6 +43,7 @@ export const MappedInput = meta.story({
     activeMapping: null,
     onActiveMappingChange: fn(),
     onChangeField: fn(),
+    questions: QUESTIONS,
     sourceObject: SAMPLE,
     hasMatchingObservations: true,
   },
@@ -57,6 +77,7 @@ export const NoSample = meta.story({
     activeMapping: null,
     onActiveMappingChange: fn(),
     onChangeField: fn(),
+    questions: QUESTIONS,
     sourceObject: null,
     hasMatchingObservations: false,
     sourceUnavailableMessage:
