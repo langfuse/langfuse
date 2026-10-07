@@ -845,3 +845,294 @@ LIMIT 1",
   },
 ]
 `;
+
+exports[`golden: events simple aggregates family > getLatestSdkVersionInfoFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2025-12-25 00:00:00.000",
+      "param3": [
+        "langfuse-internal-ai-sdk",
+        "langfuse-internal-otel-writer",
+        "langfuse-internal-ai-features",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.ingestion_sdk_name AS ingestion_sdk_name,
+    e.ingestion_sdk_version AS ingestion_sdk_version,
+    e.telemetry_sdk_language AS telemetry_sdk_language,
+    min(e.start_time) AS first_seen,
+    max(e.start_time) AS last_seen,
+    count() AS event_count
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.start_time >= {param2:DateTime64(3)}) AND (toDate(e.start_time) >= toDate({param2:DateTime64(3)})) AND startsWith(e.source, 'otel') AND (e.ingestion_sdk_name NOT IN ({param3:Array(String)})) AND (e.is_deleted = 0)
+GROUP BY
+    e.ingestion_sdk_name,
+    e.ingestion_sdk_version,
+    e.telemetry_sdk_language
+ORDER BY last_seen DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationMetricsForPromptsFromEvents time=from+to 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-prompt-id",
+        "golden-prompt-id-b",
+      ],
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "WITH prompt_events AS
+    (
+        SELECT
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.prompt_version AS prompt_version,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id,
+            e.start_time AS start_time,
+            e.end_time AS end_time,
+            e.usage_details AS usage_details,
+            e.cost_details AS cost_details,
+            e.is_deleted AS is_deleted
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (e.type = 'GENERATION') AND (e.prompt_id IN ({param2:Array(String)})) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time <= {param4:DateTime64(6)})
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
+    )
+SELECT
+    count(*) AS count,
+    e.prompt_id AS prompt_id,
+    e.prompt_version AS prompt_version,
+    min(e.start_time) AS first_observation,
+    max(e.start_time) AS last_observation,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), e.usage_details)))
+    ) AS median_input_usage,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), e.usage_details)))
+    ) AS median_output_usage,
+    medianExact(e.cost_details['total']) AS median_total_cost,
+    medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms
+FROM prompt_events AS e
+WHERE e.is_deleted = 0
+GROUP BY
+    e.prompt_id,
+    e.prompt_version
+ORDER BY e.prompt_version DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationMetricsForPromptsFromEvents time=unset 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-prompt-id",
+        "golden-prompt-id-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "WITH prompt_events AS
+    (
+        SELECT
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.prompt_version AS prompt_version,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id,
+            e.start_time AS start_time,
+            e.end_time AS end_time,
+            e.usage_details AS usage_details,
+            e.cost_details AS cost_details,
+            e.is_deleted AS is_deleted
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (e.type = 'GENERATION') AND (e.prompt_id IN ({param2:Array(String)}))
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
+    )
+SELECT
+    count(*) AS count,
+    e.prompt_id AS prompt_id,
+    e.prompt_version AS prompt_version,
+    min(e.start_time) AS first_observation,
+    max(e.start_time) AS last_observation,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), e.usage_details)))
+    ) AS median_input_usage,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), e.usage_details)))
+    ) AS median_output_usage,
+    medianExact(e.cost_details['total']) AS median_total_cost,
+    medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms
+FROM prompt_events AS e
+WHERE e.is_deleted = 0
+GROUP BY
+    e.prompt_id,
+    e.prompt_version
+ORDER BY e.prompt_version DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationsWithPromptNameFromEvents time=from+to 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-prompt",
+        "golden-prompt-b",
+      ],
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    uniq(span_id) AS count,
+    prompt_name
+FROM events_core
+WHERE (project_id = {param1:String}) AND (prompt_name IN ({param2:Array(String)})) AND (prompt_name != '') AND (is_deleted = 0) AND (start_time >= {param3:DateTime64(6)}) AND (start_time <= {param4:DateTime64(6)})
+GROUP BY prompt_name",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationsWithPromptNameFromEvents time=unset 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-prompt",
+        "golden-prompt-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    uniq(span_id) AS count,
+    prompt_name
+FROM events_core
+WHERE (project_id = {param1:String}) AND (prompt_name IN ({param2:Array(String)})) AND (prompt_name != '') AND (is_deleted = 0)
+GROUP BY prompt_name",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getSessionMetricsFromEvents sessionIds=empty 1`] = `[]`;
+
+exports[`golden: events simple aggregates family > getSessionMetricsFromEvents sessionIds=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-session",
+        "golden-session-b",
+      ],
+      "param3": 2,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    session_id,
+    max(start_time) AS max_timestamp,
+    min(start_time) AS min_timestamp,
+    groupUniqArray(trace_id) AS trace_ids,
+    groupUniqArrayIf(user_id, (user_id IS NOT NULL) AND (user_id != '')) AS user_ids,
+    uniq(trace_id) AS trace_count,
+    groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags,
+    argMaxIf(environment, event_ts, environment != '') AS environment,
+    uniqIf(span_id, parent_span_id != '') AS total_observations,
+    dateDiff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration,
+    sumMap(usage_details) AS session_usage_details,
+    sumMap(cost_details) AS session_cost_details,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(cost_details)))
+    ) AS session_input_cost,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(cost_details)))
+    ) AS session_output_cost,
+    sumMap(cost_details)['total'] AS session_total_cost,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(usage_details)))
+    ) AS session_input_usage,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(usage_details)))
+    ) AS session_output_usage,
+    sumMap(usage_details)['total'] AS session_total_usage
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (session_id != '')
+GROUP BY session_id
+LIMIT {param3:Int32}",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getSessionMetricsFromEvents sessionIds=set+queryFromTimestamp 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-session",
+        "golden-session-b",
+      ],
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": 2,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    session_id,
+    max(start_time) AS max_timestamp,
+    min(start_time) AS min_timestamp,
+    groupUniqArray(trace_id) AS trace_ids,
+    groupUniqArrayIf(user_id, (user_id IS NOT NULL) AND (user_id != '')) AS user_ids,
+    uniq(trace_id) AS trace_count,
+    groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags,
+    argMaxIf(environment, event_ts, environment != '') AS environment,
+    uniqIf(span_id, parent_span_id != '') AS total_observations,
+    dateDiff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration,
+    sumMap(usage_details) AS session_usage_details,
+    sumMap(cost_details) AS session_cost_details,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(cost_details)))
+    ) AS session_input_cost,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(cost_details)))
+    ) AS session_output_cost,
+    sumMap(cost_details)['total'] AS session_total_cost,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(usage_details)))
+    ) AS session_input_usage,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(usage_details)))
+    ) AS session_output_usage,
+    sumMap(usage_details)['total'] AS session_total_usage
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (start_time >= ({param3:DateTime64(3)} - toIntervalDay(2))) AND (session_id != '')
+GROUP BY session_id
+LIMIT {param4:Int32}",
+  },
+]
+`;
