@@ -19,9 +19,9 @@ export function SkillFilePreview({
     return (
       <Tabs defaultValue="preview">
         <div className="mb-3 flex justify-end">
-          <Tabs.List aria-label="File display" size="sm">
-            <Tabs.Trigger value="preview" label="Preview" size="sm" />
-            <Tabs.Trigger value="raw" label="Raw" size="sm" />
+          <Tabs.List aria-label="File display" variant="inset" size="sm">
+            <Tabs.Trigger value="preview" label="Preview" />
+            <Tabs.Trigger value="raw" label="Raw" />
           </Tabs.List>
         </div>
         <Tabs.Content value="preview">

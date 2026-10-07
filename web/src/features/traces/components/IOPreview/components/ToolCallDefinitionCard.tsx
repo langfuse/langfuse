@@ -383,9 +383,9 @@ function ToolDefinitionRow({
                   setCurrentView(value as "formatted" | "json")
                 }
               >
-                <Tabs.List size="sm">
-                  <Tabs.Trigger value="formatted" size="sm" label="Formatted" />
-                  <Tabs.Trigger value="json" size="sm" label="Raw" />
+                <Tabs.List variant="inset" size="sm">
+                  <Tabs.Trigger value="formatted" label="Formatted" />
+                  <Tabs.Trigger value="json" label="Raw" />
                 </Tabs.List>
               </Tabs>
             </div>

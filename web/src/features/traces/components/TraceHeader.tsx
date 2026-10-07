@@ -15,6 +15,7 @@ import {
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -46,10 +47,13 @@ export function TraceHeader() {
     <div
       className={cn(
         "shrink-0 border-b",
-        traceContext === "fullscreen" ? "px-3 pt-1 pb-1.5" : "px-2 py-2",
+        traceContext === "fullscreen" && "px-4 pt-1 pb-1.5",
+        // Peek's title bar already pads above, so no top padding here.
+        traceContext === "peek" && "pt-0 pr-2 pb-2 pl-4",
+        traceContext !== "fullscreen" && traceContext !== "peek" && "px-2 py-2",
       )}
     >
-      <div className="flex flex-wrap items-center gap-4">
+      <CollapsibleBadgeRow>
         {trace.latency != null && (
           <LatencyBadge latencySeconds={trace.latency} />
         )}
@@ -110,7 +114,7 @@ export function TraceHeader() {
             )}
           </div>
         )}
-      </div>
+      </CollapsibleBadgeRow>
     </div>
   );
 }

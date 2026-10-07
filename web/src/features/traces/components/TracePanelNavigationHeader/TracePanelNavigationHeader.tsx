@@ -372,7 +372,7 @@ function ViewModeSwitch({
       value={activeView}
       onValueChange={(value) => onSelect(value as TraceViewMode)}
     >
-      <Tabs.List size="md" aria-label="Trace view">
+      <Tabs.List variant="inset" size="md" aria-label="Trace view">
         <Tabs.Trigger value="tree" label="Tree" />
         {/* One Timeline. What it IS depends on the Compact Timeline feature
             preview — see TracePanelNavigation — rather than on a third segment

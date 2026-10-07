@@ -40,7 +40,7 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS: Record<
   InAppAgentQuickActionContext,
   string
 > = {
-  observability: "Observability",
+  observability: "Observe",
   prompts: "Prompts",
   evaluation: "Evaluation",
   dashboards: "Dashboard",

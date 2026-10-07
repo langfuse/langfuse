@@ -102,8 +102,11 @@ function handleStorageError(err: unknown, operation: string): never {
     err.code === "EAI_AGAIN"
   ) {
     logger.error(`DNS lookup failure during ${operation}`, err);
-    throw new ServiceUnavailableError(
-      "Storage service temporarily unavailable due to network issues",
+    throw Object.assign(
+      new ServiceUnavailableError(
+        "Storage service temporarily unavailable due to network issues",
+      ),
+      { cause: err },
     );
   }
   // For other errors, throw with the original cause preserved
@@ -774,13 +777,20 @@ class S3StorageService implements StorageService {
       params.region === undefined
         ? undefined
         : normalizeBlobStorageRegion(params.region);
+    // `auto` is a real region for S3-compatible stores such as Cloudflare R2,
+    // but not for Amazon S3. There, sign for us-east-1 and let the SDK follow
+    // S3's redirect (`x-amz-bucket-region`) to the bucket's actual region.
+    const isAutoRegionOnAws =
+      region?.toLowerCase() === "auto" && !params.endpoint;
+    const clientRegion = isAutoRegionOnAws ? "us-east-1" : region;
 
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
       endpoint: params.endpoint,
-      region,
+      region: clientRegion,
       forcePathStyle: params.forcePathStyle,
+      followRegionRedirects: isAutoRegionOnAws,
       // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
       // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
       requestChecksumCalculation: "WHEN_REQUIRED",
