@@ -51,7 +51,6 @@ type ResolutionContext = {
   decisions: Array<string | null | undefined>;
   occurrenceQueues: Map<string, number[]>;
   occurrenceCursors: Map<string, number>;
-  jsonString: boolean;
   jsonLayers?: Map<number, number>;
 };
 
@@ -141,15 +140,19 @@ function containsDataUriReference(
   return false;
 }
 
-function isSerializedJsonContainer(value: string): boolean {
+function parseSerializedJsonContainer(value: string): unknown {
   const trimmed = value.trimStart();
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return false;
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
   try {
     const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) || isObject(parsed);
+    return Array.isArray(parsed) || isObject(parsed) ? parsed : undefined;
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+function isSerializedJsonContainer(value: string): boolean {
+  return parseSerializedJsonContainer(value) !== undefined;
 }
 
 /**
@@ -335,18 +338,7 @@ function serializedReferenceLayers(
     }
   };
 
-  const parseContainer = (text: string): unknown => {
-    const trimmed = text.trimStart();
-    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
-    try {
-      const parsed: unknown = JSON.parse(text);
-      return Array.isArray(parsed) || isObject(parsed) ? parsed : undefined;
-    } catch {
-      return undefined;
-    }
-  };
-
-  const root = parseContainer(value);
+  const root = parseSerializedJsonContainer(value);
   if (root === undefined) {
     assign(value, 1);
     return layers;
@@ -366,7 +358,7 @@ function serializedReferenceLayers(
       // A nested JSON string owns the references represented inside it. Do not
       // assign the same textual markers once at the outer string layer and
       // again after decoding the nested document.
-      const nested = parseContainer(current.value);
+      const nested = parseSerializedJsonContainer(current.value);
       if (nested !== undefined) {
         stack.push({ value: nested, depth: current.depth + 1 });
       } else {
@@ -425,10 +417,6 @@ function createMediaRestorer(
     return original;
   }
 
-  function hasKnownMediaReference(value: string): boolean {
-    return knownMediaReferenceMatches(value, media).next().done === false;
-  }
-
   async function restoreReference(
     entry: ExtractedOtelMedia,
     jsonLayers?: number,
@@ -460,7 +448,7 @@ function createMediaRestorer(
 
   async function restore(value: unknown): Promise<unknown> {
     if (typeof value === "string") {
-      if (!hasKnownMediaReference(value)) return value;
+      if (!hasKnownMediaReferenceInRegistry(value, media)) return value;
       return restoreReferences(value, isSerializedJsonContainer(value));
     }
     if (Array.isArray(value)) {
@@ -475,7 +463,6 @@ function createMediaRestorer(
 
   return {
     originalFor,
-    hasKnownMediaReference,
     restore,
     restoreReference,
   };
@@ -527,7 +514,6 @@ export async function resolveExtractedMedia(params: {
   };
   const {
     originalFor,
-    hasKnownMediaReference,
     restoreReference,
     restore: restoreAll,
   } = createMediaRestorer(batch, media, (reference) =>
@@ -610,24 +596,8 @@ export async function resolveExtractedMedia(params: {
     }
     if (!isObject(value)) return value;
 
-    if (mode === "all") {
-      for (const key of Object.keys(value)) {
-        for (const match of knownMediaReferenceMatches(key, media))
-          skipReference(match.reference);
-        const current = value[key];
-        const next = await resolveMediaValue(
-          current,
-          target,
-          field,
-          depth + 1,
-          "all",
-        );
-        setObjectValue(value, key, current, next);
-      }
-      return value;
-    }
-
-    const structuredTarget = matchStructuredMedia(value);
+    const structuredTarget =
+      mode === "all" ? undefined : matchStructuredMedia(value);
     for (const key of Object.keys(value)) {
       for (const match of knownMediaReferenceMatches(key, media))
         skipReference(match.reference);
@@ -709,16 +679,16 @@ export async function resolveExtractedMedia(params: {
       rootString &&
       startsWithJson &&
       mayContainSerializedMedia(value) &&
-      hasKnownMediaReference(value)
+      hasKnownMediaReferenceInRegistry(value, media)
     ) {
       try {
         const parsed: unknown = JSON.parse(value);
         if (Array.isArray(parsed) || isObject(parsed)) {
-          const context = resolutionContext(value, true);
+          const context = resolutionContext(value);
           resolutionContexts.push(context);
           try {
             await resolveMediaValue(parsed, target, field, depth, mode);
-            return replaceResolvedReferences(value, true, context);
+            return replaceResolvedReferences(value, context);
           } finally {
             resolutionContexts.pop();
           }
@@ -730,13 +700,13 @@ export async function resolveExtractedMedia(params: {
 
     // Restore provider references before decoding generic JSON so only data-URI
     // references enter the broad traversal.
-    if (!startsWithJson || !hasKnownMediaReference(value)) {
+    if (!startsWithJson || !hasKnownMediaReferenceInRegistry(value, media)) {
       return resolveDirectReferences(value, target, field, mode);
     }
 
     const firstPass =
       mode === "generic" ? await restoreProviderReferences(value) : value;
-    if (!hasKnownMediaReference(firstPass)) return firstPass;
+    if (!hasKnownMediaReferenceInRegistry(firstPass, media)) return firstPass;
 
     const firstPassTrimmed = firstPass.trimStart();
     const firstPassIsJson =
@@ -745,11 +715,11 @@ export async function resolveExtractedMedia(params: {
       try {
         const parsed: unknown = JSON.parse(firstPass);
         if (Array.isArray(parsed) || isObject(parsed)) {
-          const context = resolutionContext(firstPass, true);
+          const context = resolutionContext(firstPass);
           resolutionContexts.push(context);
           try {
             await resolveMediaValue(parsed, target, field, depth, "all");
-            return replaceResolvedReferences(firstPass, true, context);
+            return replaceResolvedReferences(firstPass, context);
           } finally {
             resolutionContexts.pop();
           }
@@ -812,7 +782,7 @@ export async function resolveExtractedMedia(params: {
 
   function activeJsonLayers(entry: ExtractedOtelMedia): number {
     const context = resolutionContexts.at(-1);
-    if (!context?.jsonString) return 0;
+    if (!context) return 0;
     const matchIndex = nextContextMatch(context, entry.reference, false);
     if (matchIndex === undefined) return 0;
     const match = context.matches[matchIndex];
@@ -827,21 +797,14 @@ export async function resolveExtractedMedia(params: {
     target: OtelMediaTarget,
     field: MediaField,
     mode: Exclude<ResolutionMode, "restore">,
-    jsonLayers?: number | (() => number),
+    getJsonLayers: () => number,
   ): Promise<string> {
-    const getJsonLayers = (): number => {
-      if (jsonLayers === undefined) return activeJsonLayers(entry);
-      if (typeof jsonLayers === "function") return jsonLayers();
-      return jsonLayers;
-    };
     if (mode === "generic" && entry.kind !== "data_uri") {
       const original = await originalFor(entry, getJsonLayers());
       recordReference(entry.reference);
       return original;
     }
     try {
-      if (!isMediaContentType(entry.contentType))
-        throw new Error("unsupported extracted media type");
       const result = await uploadExtractedMedia(entry, target, field);
       stats.candidates++;
       stats.bytesProcessed += result.byteLength;
@@ -906,12 +869,10 @@ export async function resolveExtractedMedia(params: {
 
   async function replaceResolvedReferences(
     value: string,
-    jsonString: boolean,
     context: ResolutionContext,
   ): Promise<string> {
     let layers: Map<number, number> | undefined;
     const layerFor = (match: KnownMediaReferenceMatch): number => {
-      if (!jsonString) return 0;
       if (layers === undefined) {
         layers = context.jsonLayers ?? serializedReferenceLayers(value, media);
         context.jsonLayers = layers;
@@ -940,10 +901,7 @@ export async function resolveExtractedMedia(params: {
     return changed ? output + value.slice(end) : value;
   }
 
-  function resolutionContext(
-    value: string,
-    jsonString = false,
-  ): ResolutionContext {
+  function resolutionContext(value: string): ResolutionContext {
     const matches = [...knownMediaReferenceMatches(value, media)];
     const occurrenceQueues = new Map<string, number[]>();
     for (const [matchIndex, match] of matches.entries()) {
@@ -957,7 +915,6 @@ export async function resolveExtractedMedia(params: {
       decisions: new Array(matches.length).fill(null),
       occurrenceQueues,
       occurrenceCursors: new Map(),
-      jsonString,
     };
   }
 }

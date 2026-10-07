@@ -78,6 +78,12 @@ const processResult = {
 const DEFAULT_MEDIA_REFERENCE =
   "@@@langfuseMedia:type=image/png|id=provider|source=bytes@@@";
 
+const MEDIA_DESTINATION = {
+  projectId: "project-id",
+  mediaBucket: "media-bucket",
+  mediaPrefix: "media/",
+} as const;
+
 function createFakeMediaBatch({
   kind = "anthropic",
   originalValue = "aGk=",
@@ -422,9 +428,7 @@ describe("processOtelEventMedia", () => {
     const result = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -536,17 +540,13 @@ describe("processOtelEventMedia", () => {
     const first = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([firstTarget]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "legacy",
     });
     const second = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([secondTarget]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -593,9 +593,7 @@ describe("processOtelEventMedia", () => {
     await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([target("first")]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "legacy",
     });
     mocks.linkMediaToTraceOrObservation.mockRejectedValueOnce(
@@ -605,18 +603,14 @@ describe("processOtelEventMedia", () => {
     const failed = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([failedTarget]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
     const recoveredTarget = target("recovered");
     const recovered = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([recoveredTarget]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -653,18 +647,14 @@ describe("processOtelEventMedia", () => {
     const failed = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([target()]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
     const retriedTarget = target();
     const retried = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([retriedTarget]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -705,9 +695,7 @@ describe("processOtelEventMedia", () => {
       const result = await resolveExtractedMedia({
         batch,
         targets: createDirectOtelMediaTargets([target]),
-        projectId: "project-id",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
+        ...MEDIA_DESTINATION,
         writePath: "direct",
       });
       expect(result).toMatchObject({ failed: 2, uploaded: 0, reused: 0 });
@@ -747,9 +735,7 @@ describe("processOtelEventMedia", () => {
       const result = await resolveExtractedMedia({
         batch,
         targets: createDirectOtelMediaTargets([payload]),
-        projectId: "project-id",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
+        ...MEDIA_DESTINATION,
         writePath: "direct",
       });
 
@@ -809,9 +795,7 @@ describe("processOtelEventMedia", () => {
         await resolveExtractedMedia({
           batch,
           targets: createDirectOtelMediaTargets([target]),
-          projectId: "project-id",
-          mediaBucket: "media-bucket",
-          mediaPrefix: "media/",
+          ...MEDIA_DESTINATION,
           writePath: "direct",
         });
 
@@ -823,13 +807,30 @@ describe("processOtelEventMedia", () => {
     },
   );
 
-  it("preserves escaped Data URI source text in a native nested document", async () => {
-    mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-    const nestedProvider = String.raw`{
+  it.each([
+    [
+      "escaped Data URI source text in a native nested document",
+      () =>
+        String.raw`{
   "type": "file",
   "mediaType": "image/png",
   "data": "data:image/png;base64,${String.raw`\/\/\/\/`.repeat(1024)}"
-}`;
+}`,
+    ],
+    [
+      "Unicode-escaped quotes across two native string layers",
+      () => {
+        const provider = String.raw`{"type":"file","mediaType":"text/plain","data":"b'${"a".repeat(4096)}\u0022'"}`;
+        const encodedProvider = JSON.stringify(provider).replace(
+          /\\"/g,
+          "\\u0022",
+        );
+        return `{"child":${encodedProvider}}`;
+      },
+    ],
+  ] as const)("preserves %s", async (_name, createInput) => {
+    mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
+    const nestedProvider = createInput();
     const source = JSON.stringify({
       traceId: "trace-id",
       spanId: "observation-id",
@@ -844,45 +845,11 @@ describe("processOtelEventMedia", () => {
       await resolveExtractedMedia({
         batch,
         targets: createDirectOtelMediaTargets([target]),
-        projectId: "project-id",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
+        ...MEDIA_DESTINATION,
         writePath: "direct",
       });
 
       expect(target.input).toBe(nestedProvider);
-    } finally {
-      await batch.dispose();
-      await validated.dispose();
-    }
-  });
-
-  it("preserves Unicode-escaped quotes across two native string layers", async () => {
-    mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-    const provider = String.raw`{"type":"file","mediaType":"text/plain","data":"b'${"a".repeat(4096)}\u0022'"}`;
-    const encodedProvider = JSON.stringify(provider).replace(/\\"/g, "\\u0022");
-    const firstLayer = `{"child":${encodedProvider}}`;
-    const source = JSON.stringify({
-      traceId: "trace-id",
-      spanId: "observation-id",
-      input: firstLayer,
-    });
-    const validated = await validateOtelJson(Buffer.from(source));
-    const batch = await validated.extract(true);
-    try {
-      expect(batch.media).toHaveLength(1);
-      const target = JSON.parse(batch.json()) as { input: string };
-
-      await resolveExtractedMedia({
-        batch,
-        targets: createDirectOtelMediaTargets([target]),
-        projectId: "project-id",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
-        writePath: "direct",
-      });
-
-      expect(target.input).toBe(firstLayer);
     } finally {
       await batch.dispose();
       await validated.dispose();
@@ -919,9 +886,7 @@ describe("processOtelEventMedia", () => {
       const result = await resolveExtractedMedia({
         batch,
         targets: createDirectOtelMediaTargets([target]),
-        projectId: "project-id",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
+        ...MEDIA_DESTINATION,
         writePath: "direct",
       });
       expect(result).toMatchObject({ uploaded: 2, failed: 0 });
@@ -954,9 +919,7 @@ describe("processOtelEventMedia", () => {
     await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -982,9 +945,7 @@ describe("processOtelEventMedia", () => {
     await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -1012,9 +973,7 @@ describe("processOtelEventMedia", () => {
     await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -1066,9 +1025,7 @@ describe("processOtelEventMedia", () => {
         await resolveExtractedMedia({
           batch,
           targets: createDirectOtelMediaTargets([target]),
-          projectId: "project-id",
-          mediaBucket: "media-bucket",
-          mediaPrefix: "media/",
+          ...MEDIA_DESTINATION,
           writePath: "direct",
         });
 
@@ -1118,9 +1075,7 @@ describe("processOtelEventMedia", () => {
     await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -1150,9 +1105,7 @@ describe("processOtelEventMedia", () => {
     const result = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
@@ -1212,9 +1165,7 @@ describe("processOtelEventMedia", () => {
     const result = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+      ...MEDIA_DESTINATION,
       writePath: "direct",
     });
 
