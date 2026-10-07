@@ -2004,7 +2004,6 @@ export default function ObservationsEventsTable({
                     projectId={projectId}
                     tableName={eventsFilterConfig.tableName}
                     isV4={true}
-                    size="large"
                     store={searchBarStore}
                     commit={searchBarCommit}
                     observed={observedOptions}
