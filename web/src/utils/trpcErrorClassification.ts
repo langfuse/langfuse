@@ -45,11 +45,13 @@ const withTransportMetadata = (
   error: TRPCClientError<any>,
   classification: Pick<ToastErrorAnalytics, "errorOrigin" | "errorCategory">,
 ): ToastErrorAnalytics => {
+  const operation = getPath(error);
   const trpcCode = getCode(error);
   const httpStatus = getHttpStatus(error);
 
   return {
     ...classification,
+    ...(operation ? { operation } : {}),
     ...(trpcCode ? { trpcCode } : {}),
     ...(httpStatus !== undefined ? { httpStatus } : {}),
   };
