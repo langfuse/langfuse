@@ -91,7 +91,7 @@ export type AuthedProjectAPIRouteConfig<
    * Admin API key authentication requires:
    * - Authorization: Bearer <ADMIN_API_KEY>
    * - x-langfuse-admin-api-key: <ADMIN_API_KEY> (must match exactly for redundancy)
-   * - x-langfuse-project-id: <project-id> (target project)
+   * - x-langfuse-project-id or langfuse-project-id: <project-id> (target project)
    *
    * This authentication method is ONLY available when NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set (self-hosted).
    *

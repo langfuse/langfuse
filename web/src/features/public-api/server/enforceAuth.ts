@@ -36,10 +36,10 @@ import {
 export const __dangerouslySkipAuthz = "__dangerouslySkipAuthz" as const;
 
 /** orgIdHeader selects the target org. */
-const orgIdHeader = "x-langfuse-organization-id";
+const orgIdHeader = "langfuse-organization-id";
 
 /** projectIdHeader selects the target project for keys without a bound project. */
-const projectIdHeader = "x-langfuse-project-id";
+const projectIdHeader = "langfuse-project-id";
 
 /** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
 export async function enforceAuth({
@@ -215,12 +215,12 @@ function getBoundProjectId(context: AuthorizationContext): string | undefined {
 
 /** getHeaderOrgId returns the target org from the header. */
 function getHeaderOrgId(req: NextApiRequest): string | undefined {
-  return getHeaderValue(req.headers[orgIdHeader]) || undefined;
+  return getHeaderValue(req, orgIdHeader);
 }
 
 /** getHeaderProjectId returns the target project from the header. */
 function getHeaderProjectId(req: NextApiRequest): string | undefined {
-  return getHeaderValue(req.headers[projectIdHeader]) || undefined;
+  return getHeaderValue(req, projectIdHeader);
 }
 
 /** getUrlProjectId returns the target project from the URL param. */
@@ -230,10 +230,14 @@ function getUrlProjectId(req: NextApiRequest): string | undefined {
     : undefined;
 }
 
-/** getHeaderValue normalizes a possibly-repeated header to its first value. */
-const getHeaderValue = (
-  value: string | string[] | undefined,
-): string | undefined => (Array.isArray(value) ? value[0] : value);
+/** getHeaderValue prefers the X-prefixed alias and normalizes repeated headers to their first value. */
+function getHeaderValue(
+  req: NextApiRequest,
+  header: string,
+): string | undefined {
+  const value = req.headers[`x-${header}`] ?? req.headers[header];
+  return (Array.isArray(value) ? value[0] : value) || undefined;
+}
 
 /** equal returns true when every defined value agrees. */
 function equal(os: (string | undefined)[]): boolean {
