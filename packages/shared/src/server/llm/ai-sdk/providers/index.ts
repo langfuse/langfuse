@@ -1,15 +1,22 @@
-import type { LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 
 import type { LLMConnectionConfig } from "../../../../interfaces/customLLMProviderConfigSchemas";
 import { LLMAdapter } from "../../types";
 import type { AiSdkModelConfig } from "../resolveAiSdkModelConfig";
 import { buildAnthropicModel } from "./anthropic";
-import { buildAzureModel } from "./azure";
-import { buildBedrockModel } from "./bedrock";
-import { buildGoogleAIStudioModel } from "./google";
-import { buildOpenAIModel } from "./openai";
+import { buildAzureEmbeddingModel, buildAzureModel } from "./azure";
+import { buildBedrockEmbeddingModel, buildBedrockModel } from "./bedrock";
+import {
+  buildGoogleAIStudioEmbeddingModel,
+  buildGoogleAIStudioModel,
+} from "./google";
+import { buildOpenAIEmbeddingModel, buildOpenAIModel } from "./openai";
 import type { LLMCredentialSource } from "./types";
-import { buildVertexModel, isClaudeModel } from "./vertex";
+import {
+  buildVertexEmbeddingModel,
+  buildVertexModel,
+  isClaudeModel,
+} from "./vertex";
 
 const AZURE_OPENAI_API_KEY_HEADER = "api-key";
 const ANTHROPIC_API_KEY_HEADER = "x-api-key";
@@ -122,6 +129,84 @@ export async function buildAiSdkModel(params: {
       throw new Error(
         "TypeSafe decision models cannot generate text; use a decision-model evaluator",
       );
+
+    default: {
+      const _exhaustiveCheck: never = model.adapter;
+      throw new Error(`AI SDK adapter is not supported: ${_exhaustiveCheck}`);
+    }
+  }
+}
+
+/**
+ * Builds the AI SDK `EmbeddingModel` for a persisted connection. Anthropic and
+ * TypeSafe have no embeddings API.
+ */
+export async function buildAiSdkEmbeddingModel(params: {
+  model: { adapter: LLMAdapter; id: string };
+  apiKey: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+  config?: LLMConnectionConfig | null;
+  credentialSource: LLMCredentialSource;
+  createFetch: CreateSecureFetch;
+}): Promise<EmbeddingModel> {
+  const { model, apiKey, baseURL, extraHeaders, config, credentialSource } =
+    params;
+
+  switch (model.adapter) {
+    case LLMAdapter.OpenAI:
+      return buildOpenAIEmbeddingModel({
+        modelId: model.id,
+        apiKey,
+        baseURL,
+        extraHeaders,
+        fetch: params.createFetch("OpenAI LLM base URL"),
+      });
+
+    case LLMAdapter.Azure:
+      return buildAzureEmbeddingModel({
+        modelId: model.id,
+        apiKey,
+        baseURL,
+        extraHeaders,
+        fetch: params.createFetch("Azure OpenAI LLM base URL", [
+          AZURE_OPENAI_API_KEY_HEADER,
+        ]),
+      });
+
+    case LLMAdapter.Bedrock:
+      return buildBedrockEmbeddingModel({
+        modelId: model.id,
+        apiKey,
+        config,
+        credentialSource,
+      });
+
+    case LLMAdapter.GoogleAIStudio:
+      return buildGoogleAIStudioEmbeddingModel({
+        modelId: model.id,
+        apiKey,
+        baseURL,
+        fetch: params.createFetch("Google AI Studio LLM base URL", [
+          GOOGLE_API_KEY_HEADER,
+        ]),
+      });
+
+    case LLMAdapter.VertexAI:
+      return buildVertexEmbeddingModel({
+        modelId: model.id,
+        apiKey,
+        config,
+        extraHeaders,
+        credentialSource,
+        fetch: params.createFetch("Vertex AI LLM endpoint", [
+          VERTEX_AI_AUTH_HEADER,
+        ]),
+      });
+
+    case LLMAdapter.Anthropic:
+    case LLMAdapter.TypeSafe:
+      throw new Error(`${model.adapter} connections do not support embeddings`);
 
     default: {
       const _exhaustiveCheck: never = model.adapter;

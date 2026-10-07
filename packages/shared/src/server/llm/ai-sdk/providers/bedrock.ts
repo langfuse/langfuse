@@ -1,6 +1,6 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import { type LanguageModel } from "ai";
+import { type EmbeddingModel, type LanguageModel } from "ai";
 
 import { env } from "../../../../env";
 import {
@@ -173,13 +173,12 @@ export function resolveBedrockProviderAuth(params: {
  * Bedrock through VPC endpoints resolving to private IPs, which the secure
  * LLM fetch would block. Requests therefore use the provider's AWS transport.
  */
-export function buildBedrockModel(params: {
-  modelId: string;
+function createBedrockProvider(params: {
   apiKey: string;
   config?: LLMConnectionConfig | null;
   credentialSource: LLMCredentialSource;
-}): LanguageModel {
-  const { modelId, apiKey, config, credentialSource } = params;
+}) {
+  const { apiKey, config, credentialSource } = params;
   const shouldUseLangfuseAPIKey = credentialSource === "langfuse";
 
   const { region } = shouldUseLangfuseAPIKey
@@ -194,10 +193,26 @@ export function buildBedrockModel(params: {
     profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 
-  const provider = createAmazonBedrock({
+  return createAmazonBedrock({
     region,
     ...auth,
   });
+}
 
-  return provider(modelId);
+export function buildBedrockModel(params: {
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  credentialSource: LLMCredentialSource;
+}): LanguageModel {
+  return createBedrockProvider(params)(params.modelId);
+}
+
+export function buildBedrockEmbeddingModel(params: {
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  credentialSource: LLMCredentialSource;
+}): EmbeddingModel {
+  return createBedrockProvider(params).embeddingModel(params.modelId);
 }
