@@ -55,7 +55,7 @@ export function EvaluatorSetupFooter({
         currentSnapshot: JSON.stringify({
           name: state.name.trim(),
           description: state.description.trim() || null,
-          definition,
+          definition: prepareEvaluatorDraft(state).definition,
         }),
         canSubmit: Boolean(definition) && hasCompleteMappings,
         promptMessagesReason:

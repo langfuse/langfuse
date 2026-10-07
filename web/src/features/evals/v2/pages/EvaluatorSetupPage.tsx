@@ -294,13 +294,13 @@ export function EvaluatorSetupPage(
     projectId,
     modelDraft.type === "DECISION_MODEL",
   );
+  // The default decision model arrives with the connection list. It is applied
+  // on save, not stored, so it must not count as an edit.
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
     JSON.stringify({
       name: state.name.trim(),
       description: state.description.trim() || null,
-      definition: prepareEvaluatorDraft(
-        applyFallbackDecisionModel(state, fallbackDecisionModel),
-      ).definition,
+      definition: prepareEvaluatorDraft(state).definition,
     });
   const initialSnapshot = useRef(getCurrentSnapshot());
   const testPanelOpen = useStore(
