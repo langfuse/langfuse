@@ -302,15 +302,6 @@ export const traceBatchQueueProcessor: Processor<
       // Reaching EOF completes the last trace; a failed stream must not flush it.
       if (traceObservations.length && !summaryFailed)
         enqueueSummary(traceObservations, traceBytes);
-    } catch (error) {
-      // Only rows consumed before the failure; never count these as successful throughput.
-      for (const [name, value] of [
-        ["observation_count", observationCount],
-        ["input_bytes", inputBytes],
-      ] as const) {
-        recordDistribution(`langfuse.trace_batch.failed_read_${name}`, value);
-      }
-      throw error;
     } finally {
       try {
         // Drain accepted summaries even when the stream fails.
@@ -352,6 +343,15 @@ export const traceBatchQueueProcessor: Processor<
       ioMetadataBytes,
     };
   } finally {
+    if (queryId && outcome === "failure") {
+      // Consumed rows from failed attempts are not successful throughput.
+      for (const [name, value] of [
+        ["observation_count", observationCount],
+        ["input_bytes", inputBytes],
+      ] as const) {
+        recordDistribution(`langfuse.trace_batch.failed_read_${name}`, value);
+      }
+    }
     const durationMs = performance.now() - startedAt;
     span?.setAttributes({
       "langfuse.trace_batch.outcome": outcome,

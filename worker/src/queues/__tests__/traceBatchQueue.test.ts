@@ -31,6 +31,7 @@ import { tokenCount } from "../../features/tokenisation/usage";
 import { TopicsProviderUnavailable } from "../../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
+import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
   recordTraceBatchActiveReads,
   traceBatchQueueProcessor,
@@ -1071,6 +1072,79 @@ describe("trace batch queue", () => {
       env.BUILD_ID = originalEnv.BUILD_ID;
     }
   });
+  it.each([false, true])(
+    "records partial-read metrics once when transcript processing fails (stream also fails: %s)",
+    async (streamFails) => {
+      const summaryError = new Error("transcript assembly failed");
+      const streamError = new Error("stream failed");
+      vi.spyOn(
+        traceBatchTranscript,
+        "recordTraceBatchTranscript",
+      ).mockRejectedValue(summaryError);
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const traceId of ["a", "b"]) {
+            yield {
+              project_id: "project",
+              trace_id: traceId,
+              environment: "default",
+              span_id: traceId,
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: "GENERATION",
+              name: "generation",
+              input: "hello",
+              output: "",
+              metadata: {},
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+          }
+          if (streamFails) throw streamError;
+        },
+      );
+      const job = {
+        data: {
+          id: "failed-transcript",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["a", "b"].map((traceId) => ({
+              projectId: "project",
+              traceId,
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+      await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
+        streamFails ? streamError : summaryError,
+      );
+      expect(
+        vi
+          .mocked(recordDistribution)
+          .mock.calls.filter(([name]) =>
+            name.startsWith("langfuse.trace_batch.failed_read_"),
+          ),
+      ).toEqual([
+        ["langfuse.trace_batch.failed_read_observation_count", 2],
+        ["langfuse.trace_batch.failed_read_input_bytes", 10],
+      ]);
+      expect(recordDistribution).not.toHaveBeenCalledWith(
+        "langfuse.trace_batch.observation_count",
+        expect.any(Number),
+      );
+      expect(summarizeAssembledTrace).not.toHaveBeenCalled();
+      expect(recordGauge).toHaveBeenLastCalledWith(
+        "langfuse.trace_batch.active_reads",
+        0,
+      );
+    },
+  );
   it("retains the active read count when overlapping reads succeed or fail", async () => {
     env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "overlapping";
     const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
