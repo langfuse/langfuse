@@ -11,6 +11,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
+import { authenticator } from "@/src/features/apiKey/server";
 
 /**
  * Creates a complete MCP test setup including:
@@ -39,6 +40,11 @@ export async function createMcpTestSetup(): Promise<{
     throw new Error("Failed to create API key for test setup");
   }
 
+  const authenticated = await authenticator.authenticate({
+    headers: { authorization: auth },
+  });
+  if (!authenticated.success) throw authenticated.error;
+
   const context: ServerContext = {
     projectId,
     orgId,
@@ -47,6 +53,7 @@ export async function createMcpTestSetup(): Promise<{
     publicKey: result.publicKey,
     plan: "oss",
     rateLimitOverrides: [],
+    auth: authenticated.context,
   };
 
   return {
@@ -107,6 +114,13 @@ export async function createInAppAgentMcpContext(params: {
     name: "In-app agent MCP session",
     isInAppAgentKey: true,
   });
+  const authenticated = await authenticator.authenticate({
+    headers: {
+      authorization: `Basic ${Buffer.from(`${apiKey.publicKey}:${apiKey.secretKey}`).toString("base64")}`,
+    },
+    allowInAppAgentKey: true,
+  });
+  if (!authenticated.success) throw authenticated.error;
 
   return {
     apiKeyId: apiKey.id,
@@ -118,6 +132,7 @@ export async function createInAppAgentMcpContext(params: {
       publicKey: apiKey.publicKey,
       plan: "oss",
       rateLimitOverrides: [],
+      auth: authenticated.context,
     },
   };
 }
