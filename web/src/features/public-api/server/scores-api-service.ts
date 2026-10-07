@@ -11,7 +11,7 @@ import {
   InternalServerError,
   LISTABLE_SCORE_TYPES,
   type ScoreSourceType,
-  type PostScoresBodyV1,
+  type PostScoreBodyV1,
   scoresTableCols,
   type ScoreDataTypeType,
 } from "@langfuse/shared";
@@ -227,7 +227,7 @@ export class ScoresApiService {
     scoreId = body.id ?? randomUUID(),
     attribution,
   }: {
-    body: z.infer<typeof PostScoresBodyV1>;
+    body: z.infer<typeof PostScoreBodyV1>;
     auth: AuthHeaderValidVerificationResultIngestion;
     auditScope?: { projectId: string; orgId: string; apiKeyId: string };
     scoreId?: string;
@@ -278,6 +278,27 @@ export class ScoresApiService {
     }
 
     return { id: scoreId, result };
+  }
+
+  async createScores({
+    bodies,
+    auth,
+    attribution,
+  }: {
+    bodies: unknown[];
+    auth: AuthHeaderValidVerificationResultIngestion;
+    attribution: IngestionAttribution;
+  }) {
+    const events = bodies.map((body) => ({
+      id: randomUUID(),
+      type: eventTypes.SCORE_CREATE,
+      timestamp: new Date().toISOString(),
+      body,
+    }));
+
+    const result = await processEventBatch(events, auth, { attribution });
+
+    return { result };
   }
 
   async deleteScore({
