@@ -1,7 +1,8 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { createBedrockMantle } from "@ai-sdk/amazon-bedrock/mantle";
-import { generateText, Output, type ModelMessage } from "ai";
-import type { z } from "zod";
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
+import { generateText, Output } from "ai";
+import { AwsClient } from "aws4fetch";
+import { z } from "zod";
 import {
   assertValidBedrockRegion,
   createDefaultBedrockProviderAuth,
@@ -10,28 +11,25 @@ import {
 /** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
 export type TopicPromptPart = { text: string; cache?: boolean };
 
-const GEO_PREFIX_REGION = { us: "us-", eu: "eu-", apac: "ap-" } as const;
+type TopicTextResult = {
+  output: unknown;
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+  };
+};
+
+const TIMEOUT_MS = 60_000;
 
 /**
- * GPT-5.6+ models on Bedrock reuse a shared prompt prefix only with explicit
- * cache breakpoints, which Converse does not accept for them; the regional
- * Bedrock Mantle endpoint (OpenAI-compatible) does. Returns the in-region model
- * ID when the configured model's geography matches the configured region, so a
- * request never leaves that geography; other models keep using Converse.
+ * Uses AWS credentials for Topics structured text. GPT-5.6+ models on Bedrock
+ * reuse a shared prompt prefix only with explicit cache breakpoints, which
+ * Converse does not accept for them, so cached prompts on OpenAI models use
+ * InvokeModel at the same regional endpoint and model ID; others use Converse.
  */
-function mantleModelId(model: string, region: string): string | undefined {
-  const match = /^(?:(us|eu|apac)\.)?(openai\..+)$/.exec(model);
-  if (!match) return undefined;
-  const [, geo, inRegionModel] = match;
-  if (
-    geo &&
-    !region.startsWith(GEO_PREFIX_REGION[geo as keyof typeof GEO_PREFIX_REGION])
-  )
-    return undefined;
-  return inRegionModel;
-}
-
-/** Uses the shared AI SDK and AWS credentials for Topics structured text. */
 export async function generateTopicText<T>(params: {
   model: string;
   system: TopicPromptPart[];
@@ -40,47 +38,15 @@ export async function generateTopicText<T>(params: {
   maxOutputTokens: number;
   region: string;
   profile?: string;
-}) {
+}): Promise<TopicTextResult> {
   assertValidBedrockRegion(params.region);
-  const auth = createDefaultBedrockProviderAuth({ profile: params.profile });
-  const cached = params.system.some((part) => part.cache);
-  const mantleModel = cached
-    ? mantleModelId(params.model, params.region)
-    : undefined;
+  if (/(^|\.)openai\./.test(params.model) && params.system.some((p) => p.cache))
+    return invokeWithCache(params);
 
-  if (mantleModel) {
-    const provider = createBedrockMantle({ region: params.region, ...auth });
-    const breakpoint = {
-      openai: { promptCacheBreakpoint: { mode: "explicit" as const } },
-    };
-    const messages: ModelMessage[] = [
-      ...params.system.map((part) => ({
-        role: "system" as const,
-        content: part.text,
-        ...(part.cache ? { providerOptions: breakpoint } : {}),
-      })),
-      { role: "user", content: params.input },
-    ];
-    const result = await generateText({
-      model: provider.chat(mantleModel),
-      messages,
-      allowSystemInMessages: true,
-      output: Output.object({ schema: params.schema }),
-      providerOptions: {
-        openai: {
-          promptCacheOptions: { mode: "explicit", ttl: "30m" },
-          reasoningEffort: "none",
-          // The SDK does not recognize Bedrock model IDs as reasoning models, so set this explicitly.
-          maxCompletionTokens: params.maxOutputTokens,
-        },
-      },
-      maxRetries: 0,
-      timeout: 60_000,
-    });
-    return toTopicTextResult(result);
-  }
-
-  const provider = createAmazonBedrock({ region: params.region, ...auth });
+  const provider = createAmazonBedrock({
+    region: params.region,
+    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
+  });
   const result = await generateText({
     model: provider(params.model),
     messages: [
@@ -99,31 +65,109 @@ export async function generateTopicText<T>(params: {
       },
     },
     maxRetries: 0,
-    timeout: 60_000,
+    timeout: TIMEOUT_MS,
   });
-  return toTopicTextResult(result);
-}
-
-function toTopicTextResult(result: {
-  output: unknown;
-  usage: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    inputTokenDetails?: {
-      cacheReadTokens?: number;
-      cacheWriteTokens?: number;
-    };
-  };
-}) {
   return {
     output: result.output,
     usage: {
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
       totalTokens: result.usage.totalTokens,
-      cacheReadTokens: result.usage.inputTokenDetails?.cacheReadTokens,
-      cacheWriteTokens: result.usage.inputTokenDetails?.cacheWriteTokens,
+    },
+  };
+}
+
+async function invokeWithCache(params: {
+  model: string;
+  system: TopicPromptPart[];
+  input: string;
+  schema: z.ZodType;
+  maxOutputTokens: number;
+  region: string;
+  profile?: string;
+}): Promise<TopicTextResult> {
+  const credentials = await fromNodeProviderChain(
+    params.profile ? { profile: params.profile } : {},
+  )();
+  const aws = new AwsClient({
+    ...credentials,
+    region: params.region,
+    service: "bedrock",
+    // Like the Converse path (maxRetries: 0): no hidden retries inside one model call.
+    retries: 0,
+  });
+  const { $schema: _, ...schema } = z.toJSONSchema(params.schema);
+  const response = await aws.fetch(
+    `https://bedrock-runtime.${params.region}.amazonaws.com/model/${encodeURIComponent(params.model)}/invoke`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "system",
+            content: params.system.map((part) => ({
+              type: "text",
+              text: part.text,
+              ...(part.cache
+                ? { prompt_cache_breakpoint: { mode: "explicit" } }
+                : {}),
+            })),
+          },
+          { role: "user", content: [{ type: "text", text: params.input }] },
+        ],
+        prompt_cache_options: { mode: "explicit", ttl: "30m" },
+        reasoning_effort: "none",
+        max_completion_tokens: params.maxOutputTokens,
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "topics", schema, strict: true },
+        },
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    },
+  );
+  // The status lets the Topics error classification tell throttling from auth or input errors.
+  if (!response.ok)
+    throw Object.assign(
+      new Error(
+        `Bedrock InvokeModel failed with ${response.status}: ${(await response.text()).slice(0, 500)}`,
+      ),
+      { status: response.status },
+    );
+  const json = (await response.json()) as {
+    choices?: {
+      finish_reason?: string;
+      message?: { content?: string | null; refusal?: string | null };
+    }[];
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      prompt_tokens_details?: {
+        cached_tokens?: number;
+        cache_write_tokens?: number;
+      };
+    };
+  };
+  const message = json.choices?.[0]?.message;
+  if (!message?.content || json.choices?.[0]?.finish_reason === "length")
+    throw new Error(
+      message?.refusal
+        ? `The model refused: ${message.refusal}`
+        : "The model returned no complete output.",
+    );
+  return {
+    output: JSON.parse(message.content) as unknown,
+    usage: {
+      inputTokens: json.usage?.prompt_tokens,
+      outputTokens: json.usage?.completion_tokens,
+      totalTokens: json.usage?.total_tokens,
+      cacheReadTokens: json.usage?.prompt_tokens_details?.cached_tokens,
+      cacheWriteTokens: json.usage?.prompt_tokens_details?.cache_write_tokens,
     },
   };
 }

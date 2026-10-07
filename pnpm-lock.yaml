@@ -377,6 +377,9 @@ importers:
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
+      aws4fetch:
+        specifier: ^1.0.20
+        version: 1.0.20
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3

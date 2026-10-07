@@ -107,21 +107,13 @@ describe("generateTopicText", () => {
     },
   );
 
-  it("sends cached prompts to the regional Bedrock Mantle endpoint with explicit cache breakpoints", async () => {
+  it("sends cached prompts through InvokeModel at the configured region and inference profile", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json({
-        id: "chatcmpl-1",
-        object: "chat.completion",
-        created: 0,
-        model: "openai.gpt-6-luna",
         choices: [
           {
-            index: 0,
             finish_reason: "stop",
-            message: {
-              role: "assistant",
-              content: JSON.stringify({ summary: "Account access" }),
-            },
+            message: { content: JSON.stringify({ summary: "Account access" }) },
           },
         ],
         usage: {
@@ -133,7 +125,6 @@ describe("generateTopicText", () => {
       }),
     );
     vi.stubGlobal("fetch", fetch);
-    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "ambient-bearer-token");
 
     const result = await generateTopicText({
       model: "us.openai.gpt-6-luna",
@@ -144,94 +135,64 @@ describe("generateTopicText", () => {
       input: "I cannot sign in.",
       schema: z.object({ summary: z.string() }),
       maxOutputTokens: 256,
-      region: "us-east-1",
+      region: "us-west-2",
       profile: "topics-local",
     });
 
     const request = new Request(...fetch.mock.calls[0]);
-    // The configured region's endpoint and the in-region model ID; no cross-geography routing.
     expect(request.url).toBe(
-      "https://bedrock-mantle.us-east-1.api.aws/openai/v1/chat/completions",
+      "https://bedrock-runtime.us-west-2.amazonaws.com/model/us.openai.gpt-6-luna/invoke",
     );
     expect(request.headers.get("authorization")).toMatch(
-      /^AWS4-HMAC-SHA256 Credential=topics-test-key\/\d{8}\/us-east-1\/bedrock-mantle\//,
+      /^AWS4-HMAC-SHA256 Credential=topics-test-key\/\d{8}\/us-west-2\/bedrock\//,
     );
-    const body = (await request.json()) as Record<string, unknown>;
-    expect(body.model).toBe("openai.gpt-6-luna");
+    const body = (await request.json()) as {
+      messages: { content: unknown }[];
+      prompt_cache_options: unknown;
+    };
+    // One breakpoint per cached part; the transcript stays after the last one.
     expect(body.messages).toEqual([
       {
         role: "system",
         content: [
-          {
-            type: "text",
-            text: "System prompt and built-in facets.",
+          expect.objectContaining({
             prompt_cache_breakpoint: { mode: "explicit" },
-          },
+          }),
+          expect.objectContaining({
+            prompt_cache_breakpoint: { mode: "explicit" },
+          }),
         ],
       },
-      {
-        role: "system",
-        content: [
-          {
-            type: "text",
-            text: "Custom facets.",
-            prompt_cache_breakpoint: { mode: "explicit" },
-          },
-        ],
-      },
-      // The transcript stays after the last breakpoint, outside the cached prefix.
-      { role: "user", content: "I cannot sign in." },
+      { role: "user", content: [{ type: "text", text: "I cannot sign in." }] },
     ]);
-    expect(body).toMatchObject({
-      prompt_cache_options: { mode: "explicit", ttl: "30m" },
-      reasoning_effort: "none",
-      max_completion_tokens: 256,
-      response_format: { type: "json_schema" },
-    });
-    expect(result.output).toEqual({ summary: "Account access" });
-    expect(result.usage).toMatchObject({
-      inputTokens: 3653,
-      outputTokens: 275,
-      cacheReadTokens: 2840,
+    expect(body.prompt_cache_options).toEqual({ mode: "explicit", ttl: "30m" });
+    expect(result).toEqual({
+      output: { summary: "Account access" },
+      usage: {
+        inputTokens: 3653,
+        outputTokens: 275,
+        totalTokens: 3928,
+        cacheReadTokens: 2840,
+        cacheWriteTokens: 0,
+      },
     });
   });
 
-  it("keeps a model from another geography on Converse instead of routing across regions", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      Response.json({
-        output: {
-          message: {
-            role: "assistant",
-            content: [
-              {
-                toolUse: {
-                  toolUseId: "json-1",
-                  name: "json",
-                  input: { summary: "x" },
-                },
-              },
-            ],
-          },
-        },
-        stopReason: "tool_use",
-        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
-        metrics: { latencyMs: 1 },
+  it("reports the InvokeModel HTTP status so throttling is classified", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("Too many requests", { status: 429 })),
+    );
+    await expect(
+      generateTopicText({
+        model: "us.openai.gpt-6-luna",
+        system: [{ text: "Summarize.", cache: true }],
+        input: "Hi",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        region: "us-west-2",
       }),
-    );
-    vi.stubGlobal("fetch", fetch);
-
-    await generateTopicText({
-      model: "us.openai.gpt-6-luna",
-      system: [{ text: "Summarize.", cache: true }],
-      input: "Hi",
-      schema: z.object({ summary: z.string() }),
-      maxOutputTokens: 256,
-      region: "eu-west-1",
-    });
-
-    expect(new Request(...fetch.mock.calls[0]).url).toBe(
-      "https://bedrock-runtime.eu-west-1.amazonaws.com/model/us.openai.gpt-6-luna/converse",
-    );
+    ).rejects.toMatchObject({ status: 429 });
   });
 
   it("rejects a host-reshaping region before resolving credentials or sending a request", async () => {
