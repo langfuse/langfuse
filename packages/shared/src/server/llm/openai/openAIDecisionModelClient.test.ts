@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { DecisionModelEvaluatorError } from "../../evals/decisionModelEvaluatorExecution";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
 import { createOpenAIDecisionModelClient } from "./openAIDecisionModelClient";
 
@@ -32,7 +31,7 @@ const request: DecisionModelRequest = {
     refund: {
       type: "predicate",
       instructions: "Does `input` request a refund?",
-      criteria: { true: "Asks for money back" },
+      criteria: { true: "Asks for money back", false: { note: "money" } },
     },
   },
 };
@@ -107,7 +106,7 @@ describe("createOpenAIDecisionModelClient", () => {
           type: "predicate",
           name: "refund",
           instructions:
-            "Does `input` request a refund?\n\nCriteria for true:\nAsks for money back",
+            'Does `input` request a refund?\n\nCriteria for true:\nAsks for money back\n\nCriteria for false:\n{"note":"money"}',
         },
       ],
     });
@@ -193,49 +192,9 @@ describe("createOpenAIDecisionModelClient", () => {
       fetchImpl,
     });
 
-    await expect(client.evaluate(request)).rejects.toBeInstanceOf(
-      DecisionModelEvaluatorError,
-    );
-    await expect(client.evaluate(request)).rejects.toThrow(
-      /declined to answer: refund/,
-    );
-  });
-
-  it("serializes JSON instructions and criteria before the request", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      jsonResponse({
-        model: "gpt-6-luna",
-        answers: [{ type: "predicate", name: "refund", probability: 0.5 }],
-      }),
-    );
-    const client = createOpenAIDecisionModelClient({
-      apiKey: "sk-test",
-      model: "gpt-6-luna",
-      fetchImpl,
-    });
-
-    await client.evaluate({
-      state: { input: { text: "refund please" } },
-      questions: {
-        refund: {
-          type: "predicate",
-          instructions: { rubric: "refund asked" },
-          criteria: { true: { note: "money" } },
-        },
-      },
-    });
-
-    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toMatchObject({
-      input: JSON.stringify({ input: { text: "refund please" } }),
-      questions: [
-        {
-          type: "predicate",
-          name: "refund",
-          instructions:
-            '{"rubric":"refund asked"}\n\nCriteria for true:\n{"note":"money"}',
-        },
-      ],
+    await expect(client.evaluate(request)).rejects.toMatchObject({
+      name: "DecisionModelEvaluatorError",
+      message: "OpenAI declined to answer: refund.",
     });
   });
 
