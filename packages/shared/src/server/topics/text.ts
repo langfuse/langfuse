@@ -1,7 +1,8 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
+import { Sha256 } from "@aws-crypto/sha256-js";
+import { SignatureV4 } from "@smithy/signature-v4";
 import { generateText, Output } from "ai";
-import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 import {
   assertValidBedrockRegion,
@@ -86,50 +87,59 @@ async function invokeWithCache(params: {
   region: string;
   profile?: string;
 }): Promise<TopicTextResult> {
-  const credentials = await fromNodeProviderChain(
-    params.profile ? { profile: params.profile } : {},
-  )();
-  const aws = new AwsClient({
-    ...credentials,
+  const { $schema: _, ...schema } = z.toJSONSchema(params.schema);
+  const url = new URL(
+    `https://bedrock-runtime.${params.region}.amazonaws.com/model/${encodeURIComponent(params.model)}/invoke`,
+  );
+  const body = JSON.stringify({
+    messages: [
+      {
+        role: "system",
+        content: params.system.map((part) => ({
+          type: "text",
+          text: part.text,
+          ...(part.cache
+            ? { prompt_cache_breakpoint: { mode: "explicit" } }
+            : {}),
+        })),
+      },
+      { role: "user", content: [{ type: "text", text: params.input }] },
+    ],
+    prompt_cache_options: { mode: "explicit", ttl: "30m" },
+    reasoning_effort: "none",
+    max_completion_tokens: params.maxOutputTokens,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "topics", schema, strict: true },
+    },
+  });
+  // AWS's own SigV4 signer (as used by the AWS SDK), with the default credential chain.
+  const signed = await new SignatureV4({
+    credentials: fromNodeProviderChain(
+      params.profile ? { profile: params.profile } : {},
+    ),
     region: params.region,
     service: "bedrock",
-    // Like the Converse path (maxRetries: 0): no hidden retries inside one model call.
-    retries: 0,
-  });
-  const { $schema: _, ...schema } = z.toJSONSchema(params.schema);
-  const response = await aws.fetch(
-    `https://bedrock-runtime.${params.region}.amazonaws.com/model/${encodeURIComponent(params.model)}/invoke`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: "system",
-            content: params.system.map((part) => ({
-              type: "text",
-              text: part.text,
-              ...(part.cache
-                ? { prompt_cache_breakpoint: { mode: "explicit" } }
-                : {}),
-            })),
-          },
-          { role: "user", content: [{ type: "text", text: params.input }] },
-        ],
-        prompt_cache_options: { mode: "explicit", ttl: "30m" },
-        reasoning_effort: "none",
-        max_completion_tokens: params.maxOutputTokens,
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: "topics", schema, strict: true },
-        },
-      }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+    sha256: Sha256,
+  }).sign({
+    method: "POST",
+    protocol: url.protocol,
+    hostname: url.hostname,
+    path: url.pathname,
+    headers: {
+      host: url.hostname,
+      "content-type": "application/json",
+      accept: "application/json",
     },
-  );
+    body,
+  });
+  // A single attempt, like the Converse path (maxRetries: 0).
+  const response = await fetch(url, {
+    method: "POST",
+    headers: signed.headers,
+    body,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
   // The status lets the Topics error classification tell throttling from auth or input errors.
   if (!response.ok)
     throw Object.assign(

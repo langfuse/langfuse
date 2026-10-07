@@ -164,7 +164,7 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("prices cache reads at the cache rate", async () => {
+  it("prices cache reads and writes at their cache rates", async () => {
     state.summaryModel.mockReturnValue("us.openai.gpt-6-luna");
     state.call.mockResolvedValue({
       output: { summary: "A billing request.", status: "applicable" },
@@ -173,6 +173,7 @@ describe("Topics naming boundary", () => {
         outputTokens: 300,
         totalTokens: 4300,
         cacheReadTokens: 2840,
+        cacheWriteTokens: 100,
       },
     });
     const result = await summarizeTopicTrace(
@@ -186,9 +187,10 @@ describe("Topics naming boundary", () => {
       summary_input: 4000,
       summary_input_cache_read: 2840,
     });
-    // 1,160 uncached tokens at $0.11 plus 2,840 cached at $0.011 per million.
+    expect(result.usageDetails.summary_input_cache_write).toBe(100);
+    // 1,060 uncached at $0.11, 2,840 cache reads at $0.011 and 100 cache writes at $0.1375 per million.
     expect(result.costDetails.summary_input).toBeCloseTo(
-      (1160 * 0.11 + 2840 * 0.011) / 1_000_000,
+      (1060 * 0.11 + 2840 * 0.011 + 100 * 0.1375) / 1_000_000,
       12,
     );
   });

@@ -305,6 +305,9 @@ importers:
       '@ai-sdk/typesafe-ai':
         specifier: ^3.0.4
         version: 3.0.4(zod@4.3.6)
+      '@aws-crypto/sha256-js':
+        specifier: 5.2.0
+        version: 5.2.0
       '@aws-sdk/client-cloudwatch':
         specifier: 'catalog:'
         version: 3.1074.0
@@ -365,6 +368,9 @@ importers:
       '@smithy/node-http-handler':
         specifier: 4.5.1
         version: 4.5.1
+      '@smithy/signature-v4':
+        specifier: 5.6.4
+        version: 5.6.4
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
@@ -377,9 +383,6 @@ importers:
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
-      aws4fetch:
-        specifier: ^1.0.20
-        version: 1.0.20
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
