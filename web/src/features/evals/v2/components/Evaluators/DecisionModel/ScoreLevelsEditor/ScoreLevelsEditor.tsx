@@ -1,7 +1,7 @@
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
 import { Trash2 } from "lucide-react";
 
-import { TextActionButton } from "@/src/components/design-system/TextActionButton/TextActionButton";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";

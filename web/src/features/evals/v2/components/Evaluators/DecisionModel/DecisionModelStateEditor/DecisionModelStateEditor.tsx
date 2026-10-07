@@ -1,5 +1,5 @@
 import { DecisionModelStateKeySchema } from "@langfuse/shared";
-import { TextActionButton } from "@/src/components/design-system/TextActionButton/TextActionButton";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { DecisionModelStatePreview } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelStatePreview/DecisionModelStatePreview";
 import { EditableVariableMapping } from "@/src/features/evals/v2/components/VariableMapping/components/EditableVariableMapping/EditableVariableMapping";
 import type {

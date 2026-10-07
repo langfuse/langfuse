@@ -4,7 +4,7 @@ import {
 } from "@langfuse/shared";
 import { Sparkles } from "lucide-react";
 
-import { TextActionButton } from "@/src/components/design-system/TextActionButton/TextActionButton";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";

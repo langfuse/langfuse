@@ -1,6 +1,6 @@
 import { fn } from "storybook/test";
 
-import preview from "../../../../.storybook/preview";
+import preview from "../../../.storybook/preview";
 import { TextActionButton } from "./TextActionButton";
 
 const meta = preview.meta({

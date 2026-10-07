@@ -32,7 +32,7 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { Badge } from "@/src/components/ui/badge";
-import { TextActionButton } from "@/src/components/design-system/TextActionButton/TextActionButton";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import {
   Tooltip,
