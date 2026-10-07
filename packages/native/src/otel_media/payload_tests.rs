@@ -3,13 +3,28 @@ use proptest::prelude::*;
 use serde_json::Value;
 
 use super::super::encoding::BASE64;
+use super::super::scanner::MIN_EARLY_MEDIA_BYTES;
 use super::super::tests::{data_uri, json_string_strategy, json_value_strategy};
 use super::super::validate;
 use super::MediaStorage;
 
+fn large_data_uri(label: &[u8]) -> (String, Vec<u8>) {
+    let mut body = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
+    let copy_len = label.len().min(body.len());
+    body[..copy_len].copy_from_slice(&label[..copy_len]);
+    (data_uri(&body), body)
+}
+
+fn large_base64(label: &[u8]) -> (String, Vec<u8>) {
+    let mut body = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
+    let copy_len = label.len().min(body.len());
+    body[..copy_len].copy_from_slice(&label[..copy_len]);
+    (BASE64.encode(&body), body)
+}
+
 #[test]
 fn validation_keeps_the_source_until_the_accepted_payload_is_compacted() {
-    let uri = data_uri(b"discovery");
+    let (uri, _) = large_data_uri(b"discovery");
     let input = format!(r#"{{"input":"{uri}","keep":"ordinary"}}"#).into_bytes();
     let validated = validate(input.clone()).expect("valid JSON");
     assert_eq!(validated.source.as_slice(), input.as_slice());
@@ -28,9 +43,9 @@ fn validation_keeps_the_source_until_the_accepted_payload_is_compacted() {
 
 #[test]
 fn compaction_changes_only_the_bytes_inside_discovered_data_uris() {
-    let first_uri = data_uri(b"offset-first");
-    let second_uri = data_uri(b"offset-second");
-    let third_uri = data_uri(b"offset-third");
+    let (first_uri, _) = large_data_uri(b"offset-first");
+    let (second_uri, _) = large_data_uri(b"offset-second");
+    let (third_uri, _) = large_data_uri(b"offset-third");
     let input = format!(
         "{{\n  \"text\"   : \"before {first_uri} / {second_uri} after\",\n  \"number\" : 1.2300e+04,\n  \"attachment\" : \"{third_uri}\"\n}}"
     );
@@ -51,7 +66,7 @@ fn compaction_changes_only_the_bytes_inside_discovered_data_uris() {
 
 #[test]
 fn provider_media_retains_source_backed_storage_during_compaction() {
-    let encoded = BASE64.encode(b"provider");
+    let (encoded, body) = large_base64(b"provider");
     let input =
         format!(r#"{{"type":"media","mime_type":"image/png","data":"{encoded}"}}"#).into_bytes();
     let validated = validate(input).expect("valid JSON");
@@ -60,12 +75,14 @@ fn provider_media_retains_source_backed_storage_during_compaction() {
         &compacted.media[0].storage,
         MediaStorage::Source { .. }
     ));
-    assert_eq!(compacted.media[0].decode().unwrap(), b"provider");
+    assert_eq!(compacted.media[0].decode().unwrap(), body);
 }
 
 #[test]
 fn nested_json_compaction_retains_source_ranges() {
-    let provider = r#"{"type":"base64","media_type":"image/png","data":"aGk="}"#;
+    let (provider_data, provider_body) = large_base64(b"nested");
+    let provider =
+        format!(r#"{{"type":"base64","media_type":"image/png","data":"{provider_data}"}}"#);
     let nested = format!(
         r#"{{ "prefix" : "café\/雪\u2603", "layer" : {{ "provider" : {provider} }}, "number" : 1.2300e+04 }}"#
     );
@@ -75,17 +92,17 @@ fn nested_json_compaction_retains_source_ranges() {
     let source_ptr = validated.source.as_ptr();
     let compacted = validated.compact().expect("compact media");
     assert_eq!(compacted.media.len(), 1);
-    assert_eq!(compacted.media[0].decode().unwrap(), b"hi");
-    assert_eq!(compacted.media[0].original_value().unwrap(), "aGk=");
-    let expected = input.replacen("aGk=", &compacted.media[0].reference(), 1);
+    assert_eq!(compacted.media[0].decode().unwrap(), provider_body);
+    assert_eq!(compacted.media[0].original_value().unwrap(), provider_data);
+    let expected = input.replacen(&provider_data, &compacted.media[0].reference(), 1);
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
     let MediaStorage::Source { bytes, range } = &compacted.media[0].storage else {
         panic!("ASCII-safe nested media should retain the outer source range");
     };
     assert_eq!(bytes.as_ptr(), source_ptr);
-    assert_eq!(&bytes[range.clone()], b"aGk=");
+    assert_eq!(&bytes[range.clone()], provider_data.as_bytes());
 
-    let uri = data_uri(b"escaped-candidate");
+    let (uri, uri_body) = large_data_uri(b"escaped-candidate");
     let (header, payload) = uri.split_once(',').unwrap();
     let escaped_uri = format!("{header},\\u{:04x}{}", payload.as_bytes()[0], &payload[1..]);
     let escaped_input = format!("{{\n  \"image\" : \"{escaped_uri}\"\n}}");
@@ -95,10 +112,7 @@ fn nested_json_compaction_retains_source_ranges() {
         .expect("escaped media compaction succeeds");
     assert_eq!(escaped_result.media.len(), 1);
     assert_eq!(escaped_result.media[0].original_value().unwrap(), uri);
-    assert_eq!(
-        escaped_result.media[0].decode().unwrap(),
-        b"escaped-candidate"
-    );
+    assert_eq!(escaped_result.media[0].decode().unwrap(), uri_body);
     let expected = escaped_input.replacen(&escaped_uri, &escaped_result.media[0].reference(), 1);
     assert_eq!(
         String::from_utf8(escaped_result.compact_json).unwrap(),
@@ -112,8 +126,8 @@ fn nested_json_compaction_retains_source_ranges() {
 
 #[test]
 fn nested_duplicate_providers_compact_at_their_original_source_spans() {
-    let first_data = "aGk=";
-    let second_data = BASE64.encode(b"longer media payload");
+    let (first_data, first_body) = large_base64(b"first provider");
+    let (second_data, second_body) = large_base64(b"second provider");
     let first_provider =
         format!(r#"{{ "type" : "base64", "media_type" : "image/png", "data" : "{first_data}" }}"#);
     let second_provider =
@@ -132,28 +146,25 @@ fn nested_duplicate_providers_compact_at_their_original_source_spans() {
     assert_eq!(compacted.media[0].original_value().unwrap(), first_data);
     assert_eq!(compacted.media[1].original_value().unwrap(), second_data);
     let expected = input
-        .replacen(first_data, &compacted.media[0].reference(), 1)
+        .replacen(&first_data, &compacted.media[0].reference(), 1)
         .replacen(&second_data, &compacted.media[1].reference(), 1);
     assert_eq!(String::from_utf8(compacted.compact_json).unwrap(), expected);
-    for (media, expected_range) in compacted.media.iter().zip([first_data, &second_data]) {
+    for (media, expected_range) in compacted.media.iter().zip([&first_data, &second_data]) {
         let MediaStorage::Source { bytes, range } = &media.storage else {
             panic!("ASCII-safe nested media should retain the source range");
         };
         assert_eq!(bytes.as_ptr(), source_ptr);
         assert_eq!(&bytes[range.clone()], expected_range.as_bytes());
     }
-    assert_eq!(compacted.media[0].decode().unwrap(), b"hi");
-    assert_eq!(
-        compacted.media[1].decode().unwrap(),
-        b"longer media payload"
-    );
+    assert_eq!(compacted.media[0].decode().unwrap(), first_body);
+    assert_eq!(compacted.media[1].decode().unwrap(), second_body);
 }
 
 proptest! {
 #[test]
 fn compaction_preserves_source_bytes_around_generated_data_uri(
     suffix in json_string_strategy(),
-    payloads in prop::collection::vec(prop::collection::vec(any::<u8>(), 1..32), 3..5),
+    payloads in prop::collection::vec(prop::collection::vec(any::<u8>(), MIN_EARLY_MEDIA_BYTES..MIN_EARLY_MEDIA_BYTES + 32), 3..5),
     layers in 0usize..4,
 ) {
     let prefix = format!("café-雪{suffix}");

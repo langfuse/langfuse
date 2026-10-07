@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { validateOtelJson } from "@langfuse/native";
 import { MediaContentType } from "@langfuse/shared";
-import { mediaPayloadCases } from "../../../packages/shared/src/server/media/MediaPayloadProcessor.fixtures";
+import {
+  mediaPayloadCases,
+  PNG_BASE64,
+  TEXT_BASE64,
+} from "../../../packages/shared/src/server/media/MediaPayloadProcessor.fixtures";
 import { getMediaId } from "../../../packages/shared/src/server/media/mediaService";
 import { processOtelMedia } from "../../../packages/shared/src/server/otel/OtelMediaProcessor";
 
@@ -13,6 +17,19 @@ vi.mock("../../../packages/shared/src/server/instrumentation", () => ({
 }));
 
 type MediaBody = { contentType: string; bytes: Buffer };
+
+const MEDIA_BODY = Buffer.from("hi".repeat(2048));
+const MEDIA_BASE64 = MEDIA_BODY.toString("base64");
+const MEDIA_URI = `data:image/png;base64,${MEDIA_BASE64}`;
+
+// These shared fixtures use tiny bodies. Enlarge their literal contents without
+// parsing their JSON: duplicate keys and escape spelling are part of the test.
+function extractionSizedFixture(json: string): string {
+  for (const encoded of [PNG_BASE64, TEXT_BASE64, "YWJj", "ZGVm", "aGk="]) {
+    json = json.replaceAll(encoded, "A".repeat(4096) + encoded);
+  }
+  return json.replace(/b'(?=[^'])/g, `b'${"a".repeat(4096)}`);
+}
 
 // Compare occurrences as a multiset: TS handles Data URIs before provider objects
 // in stringified JSON, while Rust visits their source order. The compact payload
@@ -63,6 +80,7 @@ function canonicalizeNativeReferences(
 }
 
 async function expectMediaParity(json: string): Promise<void> {
+  json = extractionSizedFixture(json);
   const payload = { input: JSON.parse(json) as unknown };
   const expectedBodies: MediaBody[] = [];
   // Use the production TS detector and decoder; only the external upload is
@@ -149,7 +167,7 @@ describe(
     it("matches Node decoding at Base64 length and padding boundaries", async () => {
       for (let length = 0; length <= 20; length++) {
         for (let padding = 0; padding <= 3; padding++) {
-          const data = "A".repeat(length) + "=".repeat(padding);
+          const data = "A".repeat(4096 + length) + "=".repeat(padding);
           await expectMediaParity(
             JSON.stringify([
               `data:image/png;base64,${data}`,
@@ -178,7 +196,7 @@ describe(
           fc.integer({ min: 0, max: 3 }),
           fc.constantFrom("", "data:malformed@", "data:broken "),
           async (body, padding, prefix) => {
-            const data = body + "=".repeat(padding);
+            const data = "A".repeat(4096) + body + "=".repeat(padding);
             // Keep repeated keys in the source. Building a JS object first would
             // erase the last-value-wins behavior this boundary needs to preserve.
             await expectMediaParity(
@@ -191,9 +209,10 @@ describe(
     });
 
     it.each(["deep objects", "many tiny media"] as const)(
-      "extracts %s entirely through the native API",
+      "handles %s entirely through the native API",
       async (shape) => {
-        const uri = "data:image/png;base64,aGk=";
+        const uri =
+          shape === "deep objects" ? MEDIA_URI : "data:image/png;base64,aGk=";
         const count = shape === "deep objects" ? 32 : 16_385;
         let value = JSON.stringify(uri);
         if (shape === "deep objects") {
@@ -204,11 +223,16 @@ describe(
         const batch = await validated.extract(true);
         try {
           const media = batch.media;
+          if (shape === "many tiny media") {
+            expect(media).toHaveLength(0);
+            expect(batch.json()).toBe(source);
+            return;
+          }
           expect(media).toHaveLength(count);
           expect(batch.json()).not.toContain(uri);
           expect(batch.json().match(/@@@langfuseMedia:/g)).toHaveLength(count);
           for (const index of [0, count - 1]) {
-            expect((await batch.mediaBody(index)).toString()).toBe("hi");
+            expect(await batch.mediaBody(index)).toEqual(MEDIA_BODY);
             expect(await batch.originalMedia(index)).toBe(uri);
           }
         } finally {
@@ -228,7 +252,7 @@ describe(
         const bytes = Buffer.concat([
           Buffer.from('{"note":"'),
           Buffer.from(sequence),
-          Buffer.from('","input":"data:image/png;base64,aGk="}'),
+          Buffer.from(`","input":"${MEDIA_URI}"}`),
         ]);
         const validated = await validateOtelJson(bytes);
         const normalized = Buffer.from(bytes.toString("utf8"));
@@ -239,10 +263,8 @@ describe(
             JSON.parse(normalized.toString("utf8")).note,
           );
           expect(batch.media).toHaveLength(1);
-          expect((await batch.mediaBody(0)).toString()).toBe("hi");
-          expect(await batch.originalMedia(0)).toBe(
-            "data:image/png;base64,aGk=",
-          );
+          expect(await batch.mediaBody(0)).toEqual(MEDIA_BODY);
+          expect(await batch.originalMedia(0)).toBe(MEDIA_URI);
         } finally {
           await batch.dispose();
           await validated.dispose();
@@ -254,12 +276,12 @@ describe(
       const embedded = JSON.stringify({
         type: "file",
         mediaType: "image/png",
-        data: "aGk=",
+        data: MEDIA_BASE64,
         note: "\ud800",
       });
       const input = JSON.stringify({
         input: embedded,
-        sibling: "data:image/png;base64,aGk=",
+        sibling: MEDIA_URI,
       });
 
       const validated = await validateOtelJson(Buffer.from(input));
@@ -279,7 +301,7 @@ describe(
         expect(compact.sibling).toBe(batch.media[1]?.reference);
         for (const media of batch.media) {
           await expect(batch.mediaBody(media.index)).resolves.toEqual(
-            Buffer.from("hi"),
+            MEDIA_BODY,
           );
         }
       } finally {
@@ -333,7 +355,9 @@ it(
     const contentTypes = Object.values(MediaContentType);
     const validated = await validateOtelJson(
       Buffer.from(
-        JSON.stringify(contentTypes.map((type) => `data:${type};base64,aGk=`)),
+        JSON.stringify(
+          contentTypes.map((type) => `data:${type};base64,${MEDIA_BASE64}`),
+        ),
       ),
     );
     const batch = await validated.extract(true);
@@ -355,7 +379,7 @@ it(
   "owns input snapshots and in-flight media reads across handle disposal",
   { retry: 0 },
   async () => {
-    const uri = "data:image/png;base64,aGk=";
+    const uri = MEDIA_URI;
     const source = Buffer.from(JSON.stringify({ input: uri }));
     const validation = validateOtelJson(source);
     source.fill(0); // JS retains a mutable Buffer; the async validator must own its snapshot.
@@ -373,14 +397,14 @@ it(
         expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
       );
       expect(media.sha256Hash).toBe(
-        createHash("sha256").update("hi").digest("base64"),
+        createHash("sha256").update(MEDIA_BODY).digest("base64"),
       );
       await expect(batch.mediaBody(1)).rejects.toThrow("unknown media index");
 
       const body = batch.mediaBody(media.index);
       const original = batch.originalMedia(media.index);
       await batch.dispose();
-      await expect(body).resolves.toEqual(Buffer.from("hi"));
+      await expect(body).resolves.toEqual(MEDIA_BODY);
       await expect(original).resolves.toBe(uri);
       expect(() => batch.json()).toThrowError(
         expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
@@ -408,7 +432,7 @@ it(
   "transfers compact JSON to a Buffer while retaining media reads after disposal",
   { retry: 0 },
   async () => {
-    const uri = "data:image/png;base64,aGk=";
+    const uri = MEDIA_URI;
     const validated = await validateOtelJson(
       Buffer.from(JSON.stringify({ input: uri })),
     );
@@ -430,7 +454,7 @@ it(
       const body = batch.mediaBody(media.index);
       await batch.dispose();
       expect(compact.toString("utf8")).toContain(media.reference);
-      await expect(body).resolves.toEqual(Buffer.from("hi"));
+      await expect(body).resolves.toEqual(MEDIA_BODY);
     } finally {
       await batch.dispose();
       await validated.dispose();
@@ -443,7 +467,7 @@ it(
   { retry: 0 },
   async () => {
     const count = 4_097;
-    const uri = "data:image/png;base64,aGk=";
+    const uri = MEDIA_URI;
     const validated = await validateOtelJson(
       Buffer.from(JSON.stringify(Array.from({ length: count }, () => uri))),
     );

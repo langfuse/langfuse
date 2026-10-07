@@ -31,6 +31,10 @@ const MAX_EMBEDDED_JSON_DEPTH: usize = 2;
 // Bound structural discovery inside embedded JSON. Below this depth, scan for Data URIs
 // without deriving provider shapes or allocating one frame per nesting level.
 const MAX_STRUCTURAL_DEPTH: usize = 256;
+// Candidates whose encoded representation (including a Data URI header) is
+// tiny are left for the later media pass. This avoids one descriptor and hash
+// entry per small value in the early manifest.
+pub(super) const MIN_EARLY_MEDIA_BYTES: usize = 4 * 1024;
 
 #[derive(Default)]
 struct ScanState {
@@ -481,7 +485,9 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                             .get(start + 1..end.saturating_sub(1))
                             .unwrap_or_default();
                         self.stats.add_bytes(raw.len());
-                        if std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate) {
+                        if raw.len() >= MIN_EARLY_MEDIA_BYTES
+                            && std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate)
+                        {
                             let mask = payload_mask(modes);
                             if mask != 0 {
                                 self.candidates.push(PendingCandidate {
@@ -627,7 +633,9 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                         cursor = end;
                         continue;
                     }
-                    if mask != 0 && std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate)
+                    if mask != 0
+                        && raw.len() >= MIN_EARLY_MEDIA_BYTES
+                        && std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate)
                     {
                         self.candidates.push(PendingCandidate {
                             mask,
@@ -1095,7 +1103,12 @@ impl MediaDiscovery<'_, '_, '_> {
             return Ok(());
         }
 
-        let candidates = find_data_uri_candidates(value);
+        let text_only = !allow_embedded_json
+            || (self.embedded_depth >= MAX_EMBEDDED_JSON_DEPTH && may_be_serialized_json(value));
+        let candidates = find_data_uri_candidates(value)
+            .into_iter()
+            .filter(|(range, _)| value[range.clone()].len() >= MIN_EARLY_MEDIA_BYTES)
+            .collect::<Vec<_>>();
         if candidates.is_empty() {
             return Ok(());
         }
@@ -1106,13 +1119,26 @@ impl MediaDiscovery<'_, '_, '_> {
             .collect::<Vec<_>>();
         let mapped = self.map_string_boundaries(&token_range, &boundaries)?;
         for (index, (range, content_type)) in candidates.into_iter().enumerate() {
+            let source_range = mapped[index * 2]..mapped[index * 2 + 1];
+            // At a bounded text-only boundary, escaped spellings are ambiguous:
+            // the candidate range is decoded text, while restoration needs the
+            // exact source spelling. Leave those values untouched so a later
+            // pass can handle them with the surrounding representation.
+            if text_only
+                && self
+                    .input
+                    .get(source_range.clone())
+                    .is_some_and(|source| source.contains(&b'\\'))
+            {
+                continue;
+            }
             self.register_candidate(
                 value[range].as_bytes(),
                 content_type,
                 MediaPayloadKind::DataUri,
                 MediaSource::Base64DataUri,
                 MediaEncoding::Base64DataUri,
-                mapped[index * 2]..mapped[index * 2 + 1],
+                source_range,
             )?;
         }
         Ok(())
@@ -1227,6 +1253,9 @@ impl MediaDiscovery<'_, '_, '_> {
         encoding: MediaEncoding,
         source_range: Range<usize>,
     ) -> Result<(), EarlyMediaError> {
+        if encoded_data.len() < MIN_EARLY_MEDIA_BYTES {
+            return Ok(());
+        }
         let source_backed = self
             .input
             .get(source_range.clone())
