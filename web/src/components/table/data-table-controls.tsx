@@ -1185,7 +1185,7 @@ export function DataTableControls({
           // pinning to the top of the scroll area would otherwise sit tight
           // against the field. pb-2.5 + the header's own 6px = 16px below
           // the field, at rest and scrolled alike.
-          <div className="bg-surface shrink-0 px-3 pt-2 pb-2.5">
+          <div className="bg-surface shrink-0 px-3 pt-0.5 pb-2.5">
             <div className="relative">
               <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
               <Input
