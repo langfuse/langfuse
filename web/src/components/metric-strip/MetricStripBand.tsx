@@ -29,7 +29,7 @@ export type MetricStripStatus = "loading" | "empty" | "ready";
  */
 export function MetricStripMessage({ message }: { message: string }) {
   return (
-    <div className="text-muted-foreground flex h-full items-center justify-center text-[11px]">
+    <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
       {message}
     </div>
   );
