@@ -135,7 +135,7 @@ const MetadataJsonPathPill = ({
   onRemove: (path: string) => void;
 }) => (
   <span className="group flex max-w-full min-w-0 items-center">
-    <BadgeShell data-session-header-pill="true">
+    <BadgeShell font="mono" data-session-header-pill="true">
       <span
         className="text-muted-foreground max-w-64 shrink-0 truncate"
         title={display.path}
@@ -320,7 +320,7 @@ export function ModernSessionHeader({
       searchText: `traces ${countTraces}`,
       type: "traces",
       content: (
-        <BadgeShell color="ghost" data-session-header-pill="true">
+        <BadgeShell font="mono" color="ghost" data-session-header-pill="true">
           <span>
             {numberFormatter(countTraces, 0)}{" "}
             <ChipKey>{countTraces === 1 ? "trace" : "traces"}</ChipKey>
@@ -336,6 +336,7 @@ export function ModernSessionHeader({
     type: "duration",
     content: (
       <Badge
+        font="mono"
         color="ghost"
         data-session-header-pill="true"
         text={formatIntervalSeconds(durationSeconds)}
@@ -350,6 +351,7 @@ export function ModernSessionHeader({
     type: "cost",
     content: (
       <Badge
+        font="mono"
         color="ghost"
         data-session-header-pill="true"
         text={usdFormatter(totalCost, 2, 3)}
@@ -369,6 +371,7 @@ export function ModernSessionHeader({
           isCost={false}
         >
           <Badge
+            font="mono"
             color="ghost"
             interactive
             data-session-header-pill="true"
@@ -490,7 +493,7 @@ export function ModernSessionHeader({
               }}
             >
               <PopoverTrigger asChild>
-                <BadgeShell asChild data-session-header-pill="true">
+                <BadgeShell font="mono" asChild data-session-header-pill="true">
                   <button
                     type="button"
                     aria-label={`Show ${overflowItemCount} more session details`}

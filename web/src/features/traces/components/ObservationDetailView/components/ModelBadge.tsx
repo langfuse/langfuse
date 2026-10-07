@@ -56,7 +56,7 @@ export function ModelBadge({
           className="inline-flex cursor-pointer font-mono"
           onClick={openDialog}
         >
-          <Badge color="ghost" interactive text={model} />
+          <Badge color="ghost" font="mono" interactive text={model} />
         </button>
       )}
     </UpsertModelFormDialogController>

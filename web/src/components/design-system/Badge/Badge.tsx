@@ -33,7 +33,7 @@ const badgeVariants = cva(
       },
       /** Metric values (latency, cost, timestamps) read in mono. */
       font: {
-        sans: "",
+        sans: "font-sans",
         mono: "font-mono",
       },
     },
