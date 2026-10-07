@@ -19,9 +19,9 @@ type PreparedInput =
   | { batch?: never; error: string | undefined };
 
 /**
- * Validate and optionally compact an OTEL document without constructing the
- * TypeScript span graph. OTLP receiver sanitization replaces malformed UTF-8
- * with U+FFFD; masking receives the same bytes accepted by the native validator.
+ * Validate raw OTLP bytes and optionally extract media before the TypeScript
+ * ingestion graph is built. Masking receives the normalized byte view and may
+ * return a replacement body.
  */
 export async function prepareOtelBatch(params: {
   bytes: Buffer;
@@ -61,8 +61,8 @@ export async function prepareOtelBatch(params: {
       outcome = "masking_drop";
       return { error: masking.error };
     }
-    // A successful callback can replace a media-heavy body. Drop the superseded Rust copy
-    // before compacting the accepted response, rather than retaining both during extraction.
+    // A successful callback can replace the body. Release superseded native
+    // ownership before extracting from the accepted response.
     await Promise.all(
       validators
         .filter((input) => input !== masking.data.validated)
