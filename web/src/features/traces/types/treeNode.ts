@@ -45,6 +45,8 @@ export type TreeNode = {
   subtreeWallClockDurationMs?: number;
   // Observation-specific properties (when type !== 'TRACE')
   parentObservationId?: string | null;
+  /** Original parent when a cyclic relationship was detached for display. */
+  cyclicParentObservationId?: string;
   traceId?: string;
   // Temporal and structural properties
   /** Milliseconds from trace start to this node's start time */
