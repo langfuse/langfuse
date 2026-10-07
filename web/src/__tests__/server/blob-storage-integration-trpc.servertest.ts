@@ -347,6 +347,21 @@ describe("Blob Storage Integration tRPC Router", () => {
         expect(integration?.secretAccessKey).toBeNull();
       });
 
+      it("does not store an endpoint left over from another provider", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        // The form keeps the hidden endpoint value across a provider switch.
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+          endpoint: "http://minio.internal:9000",
+        });
+
+        expect((await findIntegration(project.id))?.endpoint).toBeNull();
+      });
+
       it("treats switching from S3 with no new secret as keyless (allowlist applies)", async () => {
         const { caller, project } = await prepare({
           plan: "self-hosted:enterprise",

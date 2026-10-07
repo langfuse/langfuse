@@ -106,6 +106,9 @@ export async function upsertBlobStorageIntegration(params: {
   }
 
   const accessKeyId = isGcs ? null : data.accessKeyId?.trim() || null;
+  // The GCS client always talks to Google, so an endpoint (e.g. one the form
+  // kept from another provider) is neither validated nor stored.
+  const endpoint = isGcs ? null : data.endpoint;
   let region: string;
   try {
     region = normalizeBlobStorageRegion(data.region);
@@ -113,9 +116,9 @@ export async function upsertBlobStorageIntegration(params: {
     throw new InvalidRequestError(BLOB_STORAGE_REGION_INVALID_MESSAGE);
   }
 
-  if (data.endpoint) {
+  if (endpoint) {
     try {
-      await validateBlobStorageEndpoint(data.endpoint);
+      await validateBlobStorageEndpoint(endpoint);
     } catch (error) {
       throw new InvalidRequestError(
         `Invalid blob storage endpoint: ${error instanceof Error ? error.message : "Endpoint validation failed"}`,
@@ -137,7 +140,7 @@ export async function upsertBlobStorageIntegration(params: {
   const writeData = {
     type: data.type,
     bucketName: data.bucketName,
-    endpoint: data.endpoint,
+    endpoint,
     region,
     accessKeyId,
     prefix: data.prefix,
