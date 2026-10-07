@@ -283,6 +283,14 @@ describe("/api/public/scores API Endpoint", () => {
         [
           { name: "accepted-score", value: 1, traceId: v4() },
           { id: "bad\r", name: "rejected-score", value: 1, traceId: v4() },
+          { value: 1, traceId: v4() },
+          {
+            name: "wrong-type",
+            dataType: "NUMERIC",
+            value: "great",
+            traceId: v4(),
+          },
+          null,
         ],
         auth,
       );
@@ -290,14 +298,17 @@ describe("/api/public/scores API Endpoint", () => {
       expect(response.status).toBe(207);
       expect(response.body).toEqual({
         accepted: 1,
-        rejected: 1,
-        errors: [
+        rejected: 4,
+        errors: expect.arrayContaining([
+          { message: expect.stringContaining("name") },
+          { message: expect.stringContaining("value") },
+          { message: expect.stringContaining("null") },
           {
             message: expect.stringContaining(
               "ID cannot contain carriage return characters",
             ),
           },
-        ],
+        ]),
       });
     });
 

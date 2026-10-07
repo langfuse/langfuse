@@ -120,7 +120,8 @@ export const PostScoreBody = applyScoreValidation(
   path: ["configId"],
 });
 
-export const PostScoresBody = z.union([PostScoreBody, z.array(PostScoreBody)]);
+// Batch items are validated individually so invalid scores do not reject valid siblings.
+export const PostScoresBody = z.union([PostScoreBody, z.array(z.unknown())]);
 
 export const PostScoresResponse = z.union([
   z.object({ id: z.string() }),

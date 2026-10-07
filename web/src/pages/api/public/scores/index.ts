@@ -37,11 +37,18 @@ export default withMiddlewares({
       });
 
       if (Array.isArray(body)) {
-        // Generate IDs for scores with missing or empty IDs.
-        const conformedBodies = body.map((score) => ({
-          ...score,
-          id: score.id || randomUUID(),
-        }));
+        const conformedBodies = body.map((score) => {
+          if (
+            typeof score !== "object" ||
+            score === null ||
+            Array.isArray(score)
+          ) {
+            // Leave malformed items for ingestion to reject.
+            return score;
+          }
+          // Generate IDs for scores with missing or empty IDs.
+          return { ...score, id: ("id" in score && score.id) || randomUUID() };
+        });
         const { result } = await scoresApiService.createScores({
           bodies: conformedBodies,
           auth,

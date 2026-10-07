@@ -285,7 +285,7 @@ export class ScoresApiService {
     auth,
     attribution,
   }: {
-    bodies: z.infer<typeof PostScoreBodyV1>[];
+    bodies: unknown[];
     auth: AuthHeaderValidVerificationResultIngestion;
     attribution: IngestionAttribution;
   }) {
