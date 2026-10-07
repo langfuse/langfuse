@@ -292,10 +292,8 @@ type TabsTriggerProps = {
   );
 
 function TabsTrigger(props: TabsTriggerProps) {
-  const list = React.use(TabsListContext);
-  if (!list) {
-    throw new Error("Tabs.Trigger must be rendered inside Tabs.List");
-  }
+  // Outside a Tabs.List, fall back to the underline look instead of crashing.
+  const list = React.use(TabsListContext) ?? { look: "underline" as const };
   const { children, disabled, icon: Icon, label, title } = props;
   const className = tabsTriggerVariants({ look: list.look, size: list.size });
   const content = (
