@@ -29,11 +29,11 @@ export function DecisionModelQuestionsEditor({
       actions: state.actions,
     })),
   );
-  const scoreLevelLabels =
+  const openaiDecision =
     state.selectedModel?.model === OPENAI_DECISION_MODEL_ID;
   const errorsById = useMemo(() => {
     const errors = getQuestionDraftErrors(state.questions, {
-      requireLevelLabels: scoreLevelLabels,
+      requireLevelLabels: openaiDecision,
     });
     for (const question of state.questions) {
       if (!question.instructions && !question.scoreName) {
@@ -41,7 +41,7 @@ export function DecisionModelQuestionsEditor({
       }
     }
     return errors;
-  }, [scoreLevelLabels, state.questions]);
+  }, [openaiDecision, state.questions]);
 
   return (
     <DecisionModelQuestionList
@@ -60,7 +60,8 @@ export function DecisionModelQuestionsEditor({
       }
       onRemove={state.actions.removeQuestion}
       onReorder={state.actions.reorderQuestion}
-      scoreLevelLabels={scoreLevelLabels}
+      scoreLevelLabels={openaiDecision}
+      plainInstructions={openaiDecision}
     />
   );
 }
