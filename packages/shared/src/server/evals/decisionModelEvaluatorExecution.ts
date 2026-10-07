@@ -12,7 +12,9 @@ import {
   type InternalTraceEventInput,
 } from "../llm/internalTraceEvents";
 import {
+  isOpenAIDecisionModel,
   LangfuseInternalTraceEnvironment,
+  LLMAdapter,
   type InternalTraceWriteInput,
 } from "../llm/types";
 import type { CodeEvalScoreWithName } from "./codeEvalDispatcherTypes";
@@ -222,6 +224,11 @@ export function formatDecisionModelComment(params: {
   return parts.join("; ");
 }
 
+/** Score details are namespaced by the API that produced them. */
+function decisionScoreMetadataKey(model: string) {
+  return isOpenAIDecisionModel(model) ? LLMAdapter.OpenAI : LLMAdapter.TypeSafe;
+}
+
 function toScoreMetadata(params: {
   question: DecisionModelQuestion;
   answer: DecisionModelAnswer;
@@ -229,10 +236,11 @@ function toScoreMetadata(params: {
 }): Record<string, unknown> {
   const { question, answer, model } = params;
   const base = { questionId: question.id, type: question.type, model };
+  const key = decisionScoreMetadataKey(model);
   switch (answer.type) {
     case "choice":
       return {
-        typesafe: {
+        [key]: {
           ...base,
           choice: answer.choice,
           confidence: answer.confidence,
@@ -241,7 +249,7 @@ function toScoreMetadata(params: {
       };
     case "score":
       return {
-        typesafe: {
+        [key]: {
           ...base,
           confidence: answer.confidence,
           probabilities: answer.probabilities,
@@ -260,7 +268,7 @@ function toScoreMetadata(params: {
         },
       };
     case "boolean":
-      return { typesafe: base };
+      return { [key]: base };
   }
 }
 

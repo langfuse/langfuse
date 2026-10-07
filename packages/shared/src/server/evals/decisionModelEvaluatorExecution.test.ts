@@ -181,6 +181,25 @@ describe("executeDecisionModelEvaluator", () => {
     ]);
   });
 
+  it("writes OpenAI score details under metadata.openai", async () => {
+    const { client } = createClient({ ...evaluation, model: "gpt-6-luna" });
+
+    const { scores } = await executeDecisionModelEvaluator({
+      variables: [{ var: "question", value: "refund?" }],
+      questions,
+      client,
+    });
+
+    expect(scores.map((score) => Object.keys(score.metadata ?? {}))).toEqual([
+      ["openai"],
+      ["openai"],
+      ["openai"],
+    ]);
+    expect(scores[1]?.metadata).toMatchObject({
+      openai: { model: "gpt-6-luna", questionId: "frustration", type: "score" },
+    });
+  });
+
   it("fails permanently when the state is empty", async () => {
     const { client, evaluate } = createClient(evaluation);
 
