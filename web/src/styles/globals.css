@@ -562,7 +562,7 @@
     --icon-foreground: 0 0% 54%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
-    --surface-sunken: var(--card); /* one step below the modal */
+    --surface-sunken: 0 0% 8%; /* one step below the modal */
     --surface-output: var(--popover);
 
     --popover: 0 0% 12%;
