@@ -1,5 +1,381 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`golden: events IO payload reads family > getObservationFullIOForSessionFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-session",
+      "param3": "golden-trace",
+      "param4": "golden-span",
+      "param5": "2025-12-31 23:59:59.000",
+      "param6": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.input AS input,
+    e.output AS output,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (xxHash32(e.trace_id) = xxHash32({param3:String})) AND (e.trace_id = {param3:String}) AND (e.span_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})
+ORDER BY e.event_ts DESC
+LIMIT 1",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationIOFieldByteLengthFromEventsTable field=input 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+    },
+    "route": "observation-io-stream-length",
+    "sql": "SELECT length(e.input) AS len
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+ORDER BY e.event_ts DESC
+LIMIT 1",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationIOFieldByteLengthFromEventsTable field=metadata 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+    },
+    "route": "observation-io-stream-length",
+    "sql": "SELECT length(toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)))) AS len
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+ORDER BY e.event_ts DESC
+LIMIT 1",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationIOFieldByteLengthFromEventsTable field=output 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+    },
+    "route": "observation-io-stream-length",
+    "sql": "SELECT length(e.output) AS len
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+ORDER BY e.event_ts DESC
+LIMIT 1",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable full 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param3": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param4": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param5": "2025-11-30 23:59:59.000",
+      "param6": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.input AS input,
+    e.output AS output,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param3": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param4": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param5": "2025-11-30 23:59:59.000",
+      "param6": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    leftUTF8(e.input, 5000) AS input,
+    leftUTF8(e.output, 5000) AS output,
+    leftUTF8(e.experiment_item_expected_output, 5000) AS experiment_item_expected_output,
+    mapFromArrays(
+        arrayReverse(e.experiment_item_metadata_names),
+        arrayReverse(arrayMap(v -> leftUTF8(v, 5000), e.experiment_item_metadata_values))
+    ) AS experiment_item_metadata,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    mapFromArrays(
+        arrayReverse(e.metadata_names),
+        arrayReverse(arrayMap(v -> leftUTF8(v, 5000), e.metadata_values))
+    ) AS metadata
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable truncated 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param3": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param4": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param5": "2025-11-30 23:59:59.000",
+      "param6": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    leftUTF8(e.input, 1000) AS input,
+    leftUTF8(e.output, 1000) AS output,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable truncated+sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param3": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param4": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param5": "golden-session",
+      "param6": "2025-11-30 23:59:59.000",
+      "param7": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    leftUTF8(e.input, 1000) AS input,
+    leftUTF8(e.output, 1000) AS output,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.trace_id IN (
+    SELECT trace_id
+    FROM events_core
+    WHERE (project_id = {param1:String}) AND (trace_id IN ({param3:Array(String)}))
+    GROUP BY trace_id
+    HAVING argMaxIf(session_id, event_ts, session_id != '') = {param5:String}
+)) AND (e.start_time >= {param6:DateTime64(3)}) AND (e.start_time <= {param7:DateTime64(3)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > streamObservationIOFieldFromEventsTable field=input 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+    },
+    "route": "observation-io-stream",
+    "sql": "SELECT e.input AS field
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+ORDER BY e.event_ts DESC
+LIMIT 1
+FORMAT RawBLOB",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > streamObservationIOFieldFromEventsTable field=metadata 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+    },
+    "route": "observation-io-stream",
+    "sql": "SELECT toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))) AS field
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+ORDER BY e.event_ts DESC
+LIMIT 1
+FORMAT RawBLOB",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > streamObservationIOFieldFromEventsTable field=output 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+    },
+    "route": "observation-io-stream",
+    "sql": "SELECT e.output AS field
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+ORDER BY e.event_ts DESC
+LIMIT 1
+FORMAT RawBLOB",
+  },
+]
+`;
+
 exports[`golden: events point-reads & existence family > getAgentGraphDataFromEventsTable 1`] = `
 [
   {
