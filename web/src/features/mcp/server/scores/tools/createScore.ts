@@ -2,7 +2,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   PublicApiCreateScoreSourceDomain,
-  PostScoresBodyV1,
+  PostScoreBodyV1,
   PostScoresResponseV1,
   UnauthorizedError,
 } from "@langfuse/shared";
@@ -81,7 +81,7 @@ export const [createScoreTool, handleCreateScore] = defineTool({
   ].join("\n"),
   action: "scores:create",
   baseSchema: CreateScoreBaseSchema,
-  inputSchema: PostScoresBodyV1,
+  inputSchema: PostScoreBodyV1,
   destructiveHint: true,
   handler: async (input, context) => {
     return await runMcpTool({

@@ -7,11 +7,14 @@ service:
   base-path: /api/public
   endpoints:
     create:
-      docs: Create a score (supports trace, observation, session, and dataset run scores)
+      docs: >
+        Create one score or a list of scores.
+        Scores are processed asynchronously. Single-score requests return HTTP 200 with the score ID.
+        List requests return HTTP 202 with {"message":"Accepted"} once the batch has been accepted for processing.
       method: POST
       path: /scores
-      request: CreateScoreRequest
-      response: CreateScoreResponse
+      request: CreateScoresRequest
+      response: CreateScoresResponse
     get-many:
       availability:
         status: deprecated
@@ -108,6 +111,24 @@ service:
       response: commons.Score
 
 types:
+  CreateScoresRequest:
+    discriminated: false
+    union:
+      - CreateScoreRequest
+      - CreateScoreBatchRequest
+
+  CreateScoreBatchRequest:
+    type: list<CreateScoreRequest>
+    examples:
+      - value:
+          - name: "accuracy"
+            value: 0.9
+            traceId: "cdef-1234-5678-90ab"
+          - name: "helpfulness"
+            value: 1
+            dataType: "BOOLEAN"
+            traceId: "cdef-1234-5678-90ab"
+
   CreateScoreRequest:
     properties:
       id: optional<string>
@@ -196,6 +217,17 @@ types:
     enum:
       - API
       - ANNOTATION
+  CreateScoresResponse:
+    discriminated: false
+    union:
+      - CreateScoreResponse
+      - CreateScoreBatchResponse
+
+  CreateScoreBatchResponse:
+    docs: The batch has been accepted for asynchronous processing. Returned with HTTP 202.
+    properties:
+      message: literal<"Accepted">
+
   CreateScoreResponse:
     properties:
       id:
