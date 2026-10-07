@@ -436,6 +436,7 @@ export function SkillEditor({
     <DialogController<boolean>
       renderDialog={({ state: createNew, closeDialog }) => (
         <CreateSkillVersionDialog
+          projectId={projectId}
           store={store}
           name={createNew ? draftName : name}
           isFirstVersion={createNew}
@@ -545,6 +546,8 @@ export function SkillEditor({
               <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
                 {history.kind === "versions" ? (
                   <SkillVersionHistory
+                    projectId={projectId}
+                    name={name}
                     {...history}
                     dirty={dirty}
                     isDraft={isDraft}
