@@ -88,6 +88,8 @@ function isNetworkError(err: object): boolean {
   return (
     NETWORK_ERROR_CODES.has(codeOf(err) as string) ||
     name === "TimeoutError" ||
-    message.includes("socket hang up")
+    message.includes("socket hang up") ||
+    // @clickhouse/client request_timeout
+    message.includes("timeout error")
   );
 }

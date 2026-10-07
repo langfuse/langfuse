@@ -43,6 +43,7 @@ describe("classifyJobFailure", () => {
       ),
       "network",
     ],
+    ["ClickHouse request timeout", new Error("Timeout error."), "network"],
     [
       "multi-address connect failure",
       wrapStorage(
