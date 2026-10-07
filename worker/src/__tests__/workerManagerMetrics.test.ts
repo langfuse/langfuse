@@ -130,7 +130,11 @@ describe("WorkerManager queue metrics", () => {
     mocks.handlers.get("stalled")?.("job-id");
 
     expect(mocks.recordIncrement.mock.calls).toEqual([
-      ["langfuse.queue.trace_delete.rate", 1, { type: "failed" }],
+      [
+        "langfuse.queue.trace_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
       ["langfuse.queue.trace_delete.rate", 1, { type: "error" }],
       ["langfuse.queue.trace_delete.rate", 1, { type: "stalled" }],
     ]);
@@ -168,9 +172,21 @@ describe("WorkerManager queue metrics", () => {
     );
 
     expect(mocks.recordIncrement.mock.calls).toEqual([
-      ["langfuse.queue.project_delete.rate", 1, { type: "failed" }],
-      ["langfuse.queue.project_delete.rate", 1, { type: "failed" }],
-      ["langfuse.queue.project_delete.rate", 1, { type: "failed_terminal" }],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed_terminal", reason: "other" },
+      ],
     ]);
   });
 
@@ -199,7 +215,7 @@ describe("WorkerManager queue metrics", () => {
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.score_delete.rate",
       1,
-      { type: "failed" },
+      { type: "failed", reason: "s3_slowdown" },
     );
 
     mocks.handlers.get("failed")?.(
