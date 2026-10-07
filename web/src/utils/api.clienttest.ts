@@ -496,7 +496,10 @@ describe("isExpectedTrpcClientError", () => {
     // triggerRemoteExperiment / upsertRemoteExperiment throw BAD_REQUEST
     // only when validateWebhookURL rejects a user-configured URL (DNS
     // lookup failed, private IP, …). The UI already toasts the message.
-    for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
+    for (const path of [
+      "datasets.triggerRemoteExperiment",
+      "datasets.upsertRemoteExperiment",
+    ] as const) {
       expect(
         isExpectedTrpcClientError(
           trpcServerError({
@@ -509,6 +512,22 @@ describe("isExpectedTrpcClientError", () => {
         ),
       ).toBe(true);
     }
+  });
+
+  it("treats a disabled blob storage Run Now as expected", () => {
+    // runNow throws BAD_REQUEST when enabled is false. The settings button
+    // gates on cached config.enabled, but that cache can be stale after
+    // the worker auto-disables. The toast is the UX.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "blobStorageIntegration.runNow",
+          message: "Blob storage integration is disabled",
+        }),
+      ),
+    ).toBe(true);
   });
 
   it("does not treat BAD_REQUEST on other procedures as expected", () => {
@@ -525,12 +544,24 @@ describe("isExpectedTrpcClientError", () => {
         }),
       ),
     ).toBe(false);
+    for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
+      expect(
+        isExpectedTrpcClientError(
+          trpcServerError({
+            code: "INTERNAL_SERVER_ERROR",
+            httpStatus: 500,
+            path,
+          }),
+        ),
+      ).toBe(false);
+    }
     expect(
       isExpectedTrpcClientError(
         trpcServerError({
-          code: "INTERNAL_SERVER_ERROR",
-          httpStatus: 500,
-          path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "blobStorageIntegration.update",
+          message: "Invalid endpoint",
         }),
       ),
     ).toBe(false);
@@ -833,24 +864,46 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("still captures a 5xx on an allowlisted remote-experiment path", () => {
+  it("still captures a 5xx on every allowlisted BAD_REQUEST path", () => {
     // Negative fixture: the BAD_REQUEST allowlist must not swallow a real
     // server failure on the same procedure.
+    for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
+      captureExceptionMock.mockClear();
+      reportTrpcErrorWithoutToast(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path,
+        }),
+        "trpc",
+      );
+
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags).toMatchObject({
+        area: "trpc",
+        "trpc.code": "INTERNAL_SERVER_ERROR",
+        "trpc.path": path,
+      });
+    }
+  });
+
+  it("suppresses a disabled blob storage Run Now (breadcrumb, no capture)", () => {
     reportTrpcErrorWithoutToast(
       trpcServerError({
-        code: "INTERNAL_SERVER_ERROR",
-        httpStatus: 500,
-        path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: "blobStorageIntegration.runNow",
+        message: "Blob storage integration is disabled",
       }),
-      "experiments",
+      "blob-storage",
     );
 
-    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
-    const [, options] = captureExceptionMock.mock.calls[0]!;
-    expect(options.tags).toMatchObject({
-      area: "trpc",
-      "trpc.code": "INTERNAL_SERVER_ERROR",
-      "trpc.path": "datasets.triggerRemoteExperiment",
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "BAD_REQUEST",
+      path: "blobStorageIntegration.runNow",
     });
   });
 

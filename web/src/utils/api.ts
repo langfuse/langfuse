@@ -133,9 +133,10 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
  * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
- * must not log them.
+ * in-app-agent approvals, a rejected user-configured remote-experiment
+ * URL, and a manual blob-storage run against a disabled integration are
+ * the product working as designed — the toast is the UX; Sentry must not
+ * log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
@@ -164,17 +165,24 @@ export const EXPECTED_TRPC_CONFLICT_PATHS = [
 /**
  * BAD_REQUEST is usually a client bug (a missing hydrated route param,
  * an invariant the UI should not have sent). These procedures throw 400
- * only as user-configured-URL / secret-header validation the product
- * already toasts — expected user-facing state, not a regression.
+ * only as user-facing validation / stale-UI races the product already
+ * toasts — expected state, not a regression.
  *
  * `datasets.triggerRemoteExperiment` and `datasets.upsertRemoteExperiment`
  * wrap `validateWebhookURL` (and related header checks) as BAD_REQUEST.
  * A DNS miss, private IP, or missing remote URL is the user fixing their
  * webhook, not an app failure.
+ *
+ * `blobStorageIntegration.runNow` throws BAD_REQUEST when the integration
+ * is disabled. The settings button already gates on cached `config.enabled`,
+ * but that cache can be stale: the worker auto-disables after a customer-
+ * config fault, and the get query uses a long staleTime with refetchOnMount
+ * off. The toast is the UX.
  */
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
   "datasets.upsertRemoteExperiment",
+  "blobStorageIntegration.runNow",
 ] as const;
 
 const getTrpcErrorData = (
