@@ -99,8 +99,8 @@ describe("createOpenAIDecisionModelClient", () => {
           name: "severity",
           instructions: "How severe is the issue?",
           levels: [
-            { label: "Cosmetic", description: "Appearance only" },
-            { label: "Blocked" },
+            { label: "0", description: "Appearance only" },
+            { label: "1", description: "Blocked" },
           ],
         },
         {
@@ -140,7 +140,12 @@ describe("createOpenAIDecisionModelClient", () => {
     async (status, isRetryable) => {
       const fetchImpl = vi
         .fn()
-        .mockResolvedValue(jsonResponse({ message: "nope" }, status));
+        .mockImplementation(() =>
+          jsonResponse(
+            { error: { message: "nope", type: "invalid_request_error" } },
+            status,
+          ),
+        );
       const client = createOpenAIDecisionModelClient({
         apiKey: "sk-bad",
         model: "gpt-6-luna",
@@ -164,7 +169,19 @@ describe("createOpenAIDecisionModelClient", () => {
             type: "choice",
             name: "department",
             choice: "billing",
-            probabilities: [{ value: "billing", probability: 1 }],
+            probabilities: [
+              { value: "billing", probability: 1 },
+              { value: "other", probability: 0 },
+            ],
+          },
+          {
+            type: "score",
+            name: "severity",
+            score: 0,
+            probabilities: [
+              { value: 0, probability: 1 },
+              { value: 1, probability: 0 },
+            ],
           },
           { type: "refusal", name: "refund" },
         ],
