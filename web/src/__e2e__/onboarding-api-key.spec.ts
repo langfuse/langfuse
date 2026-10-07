@@ -4,7 +4,7 @@ import { signIn } from "./utils/auth";
 
 /**
  * Creating the first API key from the onboarding card is the first thing a new
- * project does, and it is the one call site that sends no role at all —
+ * project does, and it is one of the call sites that sends no role at all —
  * `projectApiKeys.create.mutateAsync({ projectId })`. So a create input whose
  * *default* role the active `API_AUTH_MIGRATION` mode refuses breaks onboarding
  * while every caller that passes a role explicitly, and every server test that
