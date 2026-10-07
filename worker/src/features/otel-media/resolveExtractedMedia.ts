@@ -19,6 +19,15 @@ import {
 
 const MAX_LEGACY_MEDIA_DEPTH = 10;
 const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
+// Keep this list aligned with OtelIngestionProcessor.extractTags.
+const OTEL_TAG_ATTRIBUTE_KEYS = new Set([
+  "langfuse.trace.tags",
+  "langfuse.tags",
+  "langfuse.observation.metadata.langfuse_tags",
+  "langfuse.trace.metadata.langfuse_tags",
+  "ai.telemetry.metadata.tags",
+  "tag.tags",
+]);
 
 type CachedMediaUpload = {
   mediaId: string;
@@ -146,6 +155,42 @@ export async function restoreInlineMedia(
         (key !== "input" && key !== "output" && key !== "metadata")
       )
         setObjectValue(record, key, record[key], await restore(record[key]));
+    }
+  }
+}
+
+/**
+ * Restore media references in OTLP tag attributes before the shared processor
+ * converts scalar values into comma-delimited tag arrays.
+ */
+export async function restoreOtelTagAttributes(
+  batch: EarlyOtelBatch,
+  resourceSpans: unknown[],
+): Promise<void> {
+  const media = batchMedia(batch);
+  if (media.size === 0) return;
+  const { restore } = createMediaRestorer(batch, media);
+  for (const resourceSpan of resourceSpans) {
+    if (!isObject(resourceSpan) || !Array.isArray(resourceSpan.scopeSpans))
+      continue;
+    for (const scopeSpan of resourceSpan.scopeSpans) {
+      if (!isObject(scopeSpan) || !Array.isArray(scopeSpan.spans)) continue;
+      for (const span of scopeSpan.spans) {
+        if (!isObject(span) || !Array.isArray(span.attributes)) continue;
+        for (const attribute of span.attributes) {
+          if (
+            isObject(attribute) &&
+            typeof attribute.key === "string" &&
+            OTEL_TAG_ATTRIBUTE_KEYS.has(attribute.key)
+          )
+            setObjectValue(
+              attribute,
+              "value",
+              attribute.value,
+              await restore(attribute.value),
+            );
+        }
+      }
     }
   }
 }
