@@ -23,10 +23,25 @@ import { randomUUID } from "crypto";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
-  return {
-    ...actual,
-    env: { ...actual.env, API_AUTH_MIGRATION: "enforce" },
-  };
+  return { ...actual, env: { ...actual.env } };
+});
+
+const originalRoleConfig = {
+  API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
+  API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
+  API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
+};
+
+beforeEach(() => {
+  Object.assign(env, {
+    API_AUTH_MIGRATION: "enforce",
+    API_KEY_ORG_ROLES_ENABLE: "false",
+    API_KEY_PROJECT_ROLES_ENABLE: "false",
+  });
+});
+
+afterEach(() => {
+  Object.assign(env, originalRoleConfig);
 });
 
 describe("organization API keys trpc", () => {
@@ -591,6 +606,7 @@ describe("organization API keys trpc", () => {
     // expands that owner to the project-kind wildcard, so a project-capable role
     // reaches every project of the org rather than a chosen subset.
     it("creates an org key that reaches every project via the project wildcard", async () => {
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
 
@@ -607,47 +623,100 @@ describe("organization API keys trpc", () => {
       expect(projectResources).toContain(ProjectId("*"));
     });
 
-    it("rejects a legacy role under enforce", async () => {
-      const orgId = `org-${randomUUID()}`;
-      await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
-
-      await expect(
-        ownerCallerForOrg(orgId).organizationApiKeys.create({
-          orgId,
-          role: "LEGACY_ORGANIZATION_API_KEY",
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-
-      await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
-    });
-
-    it("accepts only the LEGACY_ORGANIZATION_API_KEY role when enforce is off", async () => {
-      const orgId = `org-${randomUUID()}`;
-      await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
-
-      const originalMigration = (env as { API_AUTH_MIGRATION: string })
-        .API_AUTH_MIGRATION;
-      (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION = "legacy";
-      try {
-        await expect(
-          ownerCallerForOrg(orgId).organizationApiKeys.create({
-            orgId,
-            role: "ADMIN",
-          }),
-        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-
+    it.each([
+      "ADMIN",
+      "VIEWER",
+      "INGEST",
+      "SCORES_INGEST",
+      "AI_GATEWAY",
+    ] as const)(
+      "creates an organization key with %s when role selection is enabled",
+      async (role) => {
+        Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+        const orgId = `org-${randomUUID()}`;
+        await prisma.organization.create({
+          data: { id: orgId, name: "Scoped" },
+        });
         const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
-          role: "LEGACY_ORGANIZATION_API_KEY",
+          role,
         });
-        const roleIds = (await getRolesForPrincipal(ApiKeyId(key.id))).map(
-          (role) => role.id,
+        expect(
+          await prisma.roleAssignment.findFirstOrThrow({
+            where: { principalApiKeyId: key.id },
+          }),
+        ).toMatchObject({ systemRole: role, ownerOrgId: orgId });
+      },
+    );
+
+    describe.each([
+      { migration: "legacy", enabled: "false" },
+      { migration: "legacy", enabled: "true" },
+      { migration: "shadow", enabled: "false" },
+      { migration: "shadow", enabled: "true" },
+      { migration: "enforce", enabled: "false" },
+      { migration: "enforce", enabled: "true" },
+    ])(
+      "role creation with $migration and exposure $enabled",
+      ({ migration, enabled }) => {
+        beforeEach(() => {
+          Object.assign(env, {
+            API_AUTH_MIGRATION: migration,
+            API_KEY_ORG_ROLES_ENABLE: enabled,
+            API_KEY_PROJECT_ROLES_ENABLE: "true",
+          });
+        });
+
+        it.each([{}, { role: undefined }, { role: null }])(
+          "defaults %j to the legacy role",
+          async (input) => {
+            const orgId = `org-${randomUUID()}`;
+            await prisma.organization.create({
+              data: { id: orgId, name: "Scoped" },
+            });
+            const key = await ownerCallerForOrg(
+              orgId,
+            ).organizationApiKeys.create({ orgId, ...input });
+            expect(
+              await prisma.roleAssignment.findFirstOrThrow({
+                where: { principalApiKeyId: key.id },
+              }),
+            ).toMatchObject({
+              systemRole: "LEGACY_ORGANIZATION_API_KEY",
+              ownerOrgId: orgId,
+            });
+          },
         );
-        expect(roleIds).toContain(SystemRoleId("LEGACY_ORGANIZATION_API_KEY"));
-      } finally {
-        (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
-          originalMigration;
-      }
-    });
+
+        it("rejects explicit legacy, empty, invalid and disabled roles without creating keys", async () => {
+          const orgId = `org-${randomUUID()}`;
+          await prisma.organization.create({
+            data: { id: orgId, name: "Scoped" },
+          });
+          const caller = ownerCallerForOrg(orgId);
+          const rejectedRoles = [
+            "LEGACY_PROJECT_API_KEY",
+            "LEGACY_ORGANIZATION_API_KEY",
+            "",
+            "OWNER",
+            "invalid",
+          ];
+          if (migration !== "enforce" || enabled === "false")
+            rejectedRoles.push(
+              "ADMIN",
+              "VIEWER",
+              "INGEST",
+              "SCORES_INGEST",
+              "AI_GATEWAY",
+            );
+          for (const role of rejectedRoles) {
+            await expect(
+              caller.organizationApiKeys.create({ orgId, role: role as never }),
+            ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+          }
+          expect(await prisma.apiKey.count({ where: { orgId } })).toBe(0);
+        });
+      },
+    );
   });
 });

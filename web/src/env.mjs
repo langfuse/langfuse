@@ -404,6 +404,8 @@ export const env = createEnv({
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
       .default("legacy"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+    API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -1122,6 +1124,8 @@ export const env = createEnv({
     LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:
       process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
+    API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
+    API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
