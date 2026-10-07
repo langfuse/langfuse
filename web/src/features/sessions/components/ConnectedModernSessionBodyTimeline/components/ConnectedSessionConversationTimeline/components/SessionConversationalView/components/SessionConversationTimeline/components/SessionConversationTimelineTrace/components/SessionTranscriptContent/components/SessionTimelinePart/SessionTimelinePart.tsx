@@ -33,6 +33,7 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
       >
         <MarkdownView
           markdown={decodeUnicodeEscapesOnly(content.text, true)}
+          fallbackDisplay="collapsed"
           className="px-0 py-0"
         />
       </SessionTimelineCollapsiblePart>
@@ -131,6 +132,7 @@ export function SessionTimelinePart({
         <div data-session-search-content>
           <MarkdownView
             markdown={decodeUnicodeEscapesOnly(part.text, true)}
+            fallbackDisplay="collapsed"
             className="px-0 py-0"
           />
         </div>
