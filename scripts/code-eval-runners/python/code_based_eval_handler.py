@@ -125,7 +125,15 @@ def handler(event, context):
     except Exception as error:
         return runner_error("USER_CODE_ERROR", format_error(error))
 
-    return normalize_result(result)
+    # Cycles raise RecursionError, or ValueError from json.dumps.
+    try:
+        return normalize_result(result)
+    except (RecursionError, ValueError) as error:
+        return runner_error(
+            "INVALID_RESULT",
+            "Evaluator returned a result that could not be serialized: "
+            f"{format_error(error)}",
+        )
 
 
 def normalize_result(result):

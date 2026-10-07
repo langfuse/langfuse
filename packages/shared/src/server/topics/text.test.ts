@@ -18,7 +18,12 @@ afterEach(() => {
 });
 
 describe("generateTopicText", () => {
-  it.each(["us.openai.gpt-5.6-luna", "us.openai.gpt-5.6-terra"])(
+  it.each([
+    "us.openai.gpt-5.6-luna",
+    "us.openai.gpt-5.6-terra",
+    "us.openai.gpt-6-luna",
+    "global.openai.gpt-6-luna",
+  ])(
     "serializes %s structured output through Bedrock with the Topics profile",
     async (model) => {
       const schema = z.object({ summary: z.string() });

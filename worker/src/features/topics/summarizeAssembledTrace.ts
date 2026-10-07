@@ -18,10 +18,25 @@ import {
 } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { TopicMetrics } from "./metrics";
-import { embedTopicSummary, summarizeTopicTrace } from "./models";
+import { embedTopicSummary, summarizeTopicTraceFacets } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
-import { mergeTopicModelUsage, topicSummaryOutputError } from "./summaryResult";
+import {
+  mergeTopicModelUsage,
+  topicSummaryOutputError,
+  type TopicModelUsage,
+} from "./summaryResult";
 import { getTopicsModelConfig } from "@langfuse/shared/topics/server";
+
+type FacetOutput = {
+  summary: string;
+  status: "applicable" | "not_applicable" | "insufficient_input";
+};
+const NO_USAGE: TopicModelUsage = {
+  providedUsageDetails: {},
+  usageDetails: {},
+  providedCostDetails: {},
+  costDetails: {},
+};
 
 type AssembledTraceInput = {
   projectId: string;
@@ -33,8 +48,9 @@ type AssembledTraceInput = {
 };
 
 /**
- * Summarizes one trace from the transcript the batch job already assembled.
- * Does not load observations again.
+ * Summarizes one trace from the transcript the batch job already assembled,
+ * with one model call for all of its pending facets. Does not load
+ * observations again.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
@@ -66,84 +82,140 @@ async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
 ): Promise<"unchanged" | "summarized"> {
-  let prepared: ReturnType<typeof prepareAssembledTopicTranscript> | undefined;
   const models = getTopicsModelConfig();
   if (!models.summaryModel || !models.embeddingModel)
     throw new TopicsProviderUnavailable(
       "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before processing Topics traces.",
       "authentication",
     );
+  const { embeddingModel } = models;
   const facets = await ensureDefaultTopicFacets(input.projectId);
-  const versions = facets.flatMap((facet) =>
-    facet.projectId === input.projectId ? facet.versions.slice(0, 1) : [],
-  );
   const config = topicProcessingConfigSchema.parse({
     summaryModel: models.summaryModel,
   });
   const embeddingConfig = topicEmbeddingConfigSchema.parse({
-    embeddingModel: models.embeddingModel,
+    embeddingModel,
   });
-  const dimensions = embeddingConfig.embeddingDimensions;
   const timestamp = Date.parse(input.traceTimestamp);
   const timeRange = {
     from: new Date(timestamp),
     to: new Date(timestamp + 1),
   };
-  let written = 0;
-  for (const facet of versions) {
+  const pending: { name: string; version: TopicFacetVersion }[] = [];
+  for (const facet of facets) {
+    const version = facet.versions[0];
+    if (facet.projectId !== input.projectId || !version) continue;
     const stored = await listTopicSummaries(
       input.projectId,
       {
         traceIds: [input.traceId],
-        facetId: facet.facetId,
-        facetVersion: facet.version,
+        facetId: version.facetId,
+        facetVersion: version.version,
       },
       timeRange,
     );
-    if (stored.length) continue;
-    if (!prepared) prepared = prepareAssembledTopicTranscript(input.transcript);
-    const summary = await summarizeFacet({
-      ...input,
-      facet,
-      text: prepared.text,
-      hasContent: prepared.hasContent,
-      config,
-      dimensions,
-      embeddingModel: embeddingConfig.embeddingModel,
-      metrics,
-    });
-    await metrics.measure("storage", () => writeTopicSummaries([summary]));
-    recordIncrement("langfuse.topics.facet_summaries", 1, {
-      state: summary.state,
-    });
-    written++;
+    if (!stored.length) pending.push({ name: facet.name, version });
   }
-  return written ? "summarized" : "unchanged";
+  if (!pending.length) return "unchanged";
+
+  const prepared = prepareAssembledTopicTranscript(input.transcript);
+  const bases = pending.map(({ version }) =>
+    baseSummary(input, version, config, embeddingModel),
+  );
+  let rows = bases;
+  let failure: unknown;
+  if (prepared.hasContent) {
+    const keyed = pending.map(({ name, version }, index) => ({
+      key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
+      facet: version,
+    }));
+    const invalidFacets = new Set<string>();
+    let generated:
+      | Awaited<ReturnType<typeof summarizeTopicTraceFacets>>
+      | undefined;
+    const result = await metrics
+      .measure("summary", async () => {
+        generated = await summarizeTopicTraceFacets(
+          keyed,
+          prepared.text,
+          config,
+        );
+        const outputs = generated.output as Record<string, FacetOutput>;
+        for (const { key } of keyed) {
+          const message = outputs[key]
+            ? topicSummaryOutputError(outputs[key])
+            : "The model response is missing a facet.";
+          if (!message) continue;
+          const error = new TopicsProviderUnavailable(
+            message,
+            "invalid_output",
+          );
+          invalidFacets.add(key);
+          metrics.error("summary", error);
+          if (failure === undefined) failure = error;
+        }
+        if (failure !== undefined) throw failure;
+        return generated;
+      })
+      .catch((error: unknown) => {
+        // Valid facets can still be persisted after summary validation fails.
+        if (error !== failure || !generated) throw error;
+        return generated;
+      });
+    const outputs = result.output as Record<string, FacetOutput>;
+    const usage: TopicModelUsage = {
+      providedUsageDetails: result.providedUsageDetails,
+      usageDetails: result.usageDetails,
+      providedCostDetails: result.providedCostDetails,
+      costDetails: result.costDetails,
+    };
+    rows = [];
+    // A failed facet (invalid output, embedding error) must not discard the others.
+    for (const [index, { key }] of keyed.entries()) {
+      if (invalidFacets.has(key)) continue;
+      try {
+        rows.push(
+          await finalizeSummary(
+            bases[index],
+            outputs[key],
+            // One call serves every facet of the trace; record its usage once.
+            rows.length ? NO_USAGE : usage,
+            embeddingConfig.embeddingDimensions,
+            embeddingModel,
+            metrics,
+          ),
+        );
+      } catch (error) {
+        if (failure === undefined) failure = error;
+      }
+    }
+  }
+  if (rows.length)
+    await metrics.measure("storage", () => writeTopicSummaries(rows));
+  for (const row of rows)
+    recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
+  if (failure) throw failure;
+  return "summarized";
 }
 
-async function summarizeFacet(input: {
-  projectId: string;
-  traceId: string;
-  traceTimestamp: string;
-  environment: string;
-  traceName: string;
-  facet: TopicFacetVersion;
-  text: string;
-  hasContent: boolean;
-  config: ReturnType<typeof topicProcessingConfigSchema.parse>;
-  dimensions: number;
-  embeddingModel?: string;
-  metrics: TopicMetrics;
-}): Promise<TopicSummary> {
-  const source = {
+function baseSummary(
+  input: {
+    projectId: string;
+    traceId: string;
+    traceTimestamp: string;
+    environment: string;
+    traceName: string;
+  },
+  facet: TopicFacetVersion,
+  config: ReturnType<typeof topicProcessingConfigSchema.parse>,
+  embeddingModel: string,
+): TopicSummary {
+  return {
     projectId: input.projectId,
-    facetId: input.facet.facetId,
-    facetVersion: input.facet.version,
+    facetId: facet.facetId,
+    facetVersion: facet.version,
     traceId: input.traceId,
     sessionId: null,
-  };
-  const base: TopicSummary = {
-    ...source,
     triggerType: "manual_poc",
     unitStartTime: input.traceTimestamp,
     environment: input.environment,
@@ -153,49 +225,40 @@ async function summarizeFacet(input: {
     embedding: [],
     transcriptId: "trace-batch",
     transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-    summaryModel: input.config.summaryModel!,
-    embeddingModel: input.embeddingModel!,
-    providedUsageDetails: {},
-    usageDetails: {},
-    providedCostDetails: {},
-    costDetails: {},
+    summaryModel: config.summaryModel!,
+    embeddingModel,
+    ...NO_USAGE,
     processedAt: new Date().toISOString(),
     metadata: { input: "assembled-transcript" },
   };
-  if (!input.hasContent) return base;
-  const result = await input.metrics.measure("summary", async () => {
-    const result = await summarizeTopicTrace(
-      input.facet,
-      input.text,
-      input.config,
-    );
-    const error = topicSummaryOutputError(result.output);
-    if (error) throw new TopicsProviderUnavailable(error, "invalid_output");
-    return result;
-  });
-  const applicable = result.output.status === "applicable";
-  const summary = result.output.summary.trim();
-  if (!applicable) {
+}
+
+async function finalizeSummary(
+  base: TopicSummary,
+  output: FacetOutput,
+  usage: TopicModelUsage,
+  dimensions: number,
+  embeddingModel: string,
+  metrics: TopicMetrics,
+): Promise<TopicSummary> {
+  if (output.status !== "applicable")
     return {
       ...base,
       state:
-        result.output.status === "not_applicable"
+        output.status === "not_applicable"
           ? "not_applicable"
           : "insufficient_input",
-      providedUsageDetails: result.providedUsageDetails,
-      usageDetails: result.usageDetails,
-      providedCostDetails: result.providedCostDetails,
-      costDetails: result.costDetails,
+      ...usage,
     };
-  }
-  const embedded = await input.metrics.measure("embedding", () =>
-    embedTopicSummary(summary, input.dimensions, input.embeddingModel!),
+  const summary = output.summary.trim();
+  const embedded = await metrics.measure("embedding", () =>
+    embedTopicSummary(summary, dimensions, embeddingModel),
   );
   return {
     ...base,
     state: "complete",
     summary,
     embedding: embedded.embedding,
-    ...mergeTopicModelUsage(result, embedded),
+    ...mergeTopicModelUsage(usage, embedded),
   };
 }

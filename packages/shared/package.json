@@ -31,6 +31,18 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/transcript/ordering": {
+      "import": "./dist/src/server/transcript/ordering.js",
+      "require": "./dist/src/server/transcript/ordering.js"
+    },
+    "./src/server/transcript/transcript": {
+      "import": "./dist/src/server/transcript/transcript.js",
+      "require": "./dist/src/server/transcript/transcript.js"
+    },
+    "./src/server/transcript/types": {
+      "import": "./dist/src/server/transcript/types.js",
+      "require": "./dist/src/server/transcript/types.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"
@@ -55,6 +67,10 @@
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
     },
+    "./src/utils/json": {
+      "import": "./dist/src/utils/json.js",
+      "require": "./dist/src/utils/json.js"
+    },
     "./src/utils/normalized-io": {
       "import": "./dist/src/utils/normalized-io/index.js",
       "require": "./dist/src/utils/normalized-io/index.js"
@@ -66,6 +82,10 @@
     "./src/server/ee/ingestionMasking": {
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
+    },
+    "./src/server/ee/fips": {
+      "import": "./dist/src/server/ee/fips/index.js",
+      "require": "./dist/src/server/ee/fips/index.js"
     },
     "./src/server/ee/licenseCheck": {
       "import": "./dist/src/server/ee/licenseCheck/index.js",

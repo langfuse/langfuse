@@ -47,17 +47,19 @@ export function TraceDetailTabsBarList({
       >
         {/* The triggers stay mounted while the dropdown is shown so their
             natural width remains measurable and the row can come back once
-            there is room. Hiding them also takes them out of the tab order. */}
+            there is room. Hiding them also takes them out of the tab order.
+            Until the first measurement neither presentation shows. */}
         <div
           ref={contentRef}
           className={cn(
             "flex h-full w-max shrink-0 items-center",
-            !fits && "invisible absolute",
+            fits !== true && "invisible",
+            fits === false && "absolute",
           )}
         >
           {triggers}
         </div>
-        {!fits && (
+        {fits === false && (
           <TraceDetailTabMenu
             tabs={tabs}
             selectedTab={selectedTab}

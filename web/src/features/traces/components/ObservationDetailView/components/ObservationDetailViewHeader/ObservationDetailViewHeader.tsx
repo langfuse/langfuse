@@ -184,6 +184,14 @@ export const ObservationDetailViewHeader = memo(
       />
     );
 
+    const renderAddToButton = (triggerProps: Record<string, unknown> = {}) => (
+      <Button variant="secondary" size="sm" className="gap-1" {...triggerProps}>
+        <PlusIcon className="icon-base" />
+        <span>Add to</span>
+        <DropdownIndicator size="sm" nudge />
+      </Button>
+    );
+
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
@@ -342,7 +350,7 @@ export const ObservationDetailViewHeader = memo(
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-              {observationWithIO && (
+              {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   projectId={projectId}
@@ -359,19 +367,12 @@ export const ObservationDetailViewHeader = memo(
                       : undefined
                   }
                 >
-                  {({ getTriggerProps }) => (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="gap-1"
-                      {...getTriggerProps()}
-                    >
-                      <PlusIcon className="icon-base" />
-                      <span>Add to</span>
-                      <DropdownIndicator size="sm" nudge />
-                    </Button>
-                  )}
+                  {({ getTriggerProps }) =>
+                    renderAddToButton(getTriggerProps())
+                  }
                 </ConnectedTraceObservationAddToDropdownMenuController>
+              ) : (
+                renderAddToButton({ disabled: true })
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
