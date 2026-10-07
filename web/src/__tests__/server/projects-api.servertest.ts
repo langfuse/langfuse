@@ -20,6 +20,16 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import projectApiKeysHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys";
 import projectApiKeyHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys/[apiKeyId]";
+import {
+  organizationApiKeyCreationSchema,
+  projectApiKeyCreationSchema,
+} from "@/src/ee/features/admin-api/server/apiKeys";
+import { env } from "@/src/env.mjs";
+
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
 
 // Schema for project response
 const ProjectResponseSchema = z.object({
@@ -92,6 +102,84 @@ const ApiKeyCreationResponseSchema = z.object({
 // Schema for API key deletion response
 const ApiKeyDeletionResponseSchema = z.object({
   success: z.boolean(),
+});
+
+describe("REST API key creation schemas", () => {
+  const originalFlags = {
+    API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
+    API_KEY_ROLES_ENABLED: env.API_KEY_ROLES_ENABLED,
+  };
+
+  afterEach(() => {
+    Object.assign(env, originalFlags);
+  });
+
+  describe.each([
+    {
+      scope: "project",
+      schema: projectApiKeyCreationSchema,
+      legacyRole: "LEGACY_PROJECT_API_KEY",
+      roles: ["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"],
+      invalidRoles: [
+        "LEGACY_PROJECT_API_KEY",
+        "LEGACY_ORGANIZATION_API_KEY",
+        "AI_GATEWAY",
+        "OWNER",
+        "",
+        "INVALID",
+        [],
+      ],
+    },
+    {
+      scope: "organization",
+      schema: organizationApiKeyCreationSchema,
+      legacyRole: "LEGACY_ORGANIZATION_API_KEY",
+      roles: ["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST", "AI_GATEWAY"],
+      invalidRoles: [
+        "LEGACY_PROJECT_API_KEY",
+        "LEGACY_ORGANIZATION_API_KEY",
+        "OWNER",
+        "",
+        "INVALID",
+        [],
+      ],
+    },
+  ])("$scope", ({ schema, legacyRole, roles, invalidRoles }) => {
+    describe.each(["false", "true"])("roles enabled: %s", (rolesEnabled) => {
+      beforeEach(() => {
+        Object.assign(env, {
+          API_AUTH_MIGRATION: "enforce",
+          API_KEY_ROLES_ENABLED: rolesEnabled,
+        });
+      });
+
+      it.each([
+        { label: "omitted", body: {} },
+        { label: "undefined", body: { role: undefined } },
+        { label: "null", body: { role: null } },
+      ])("defaults $label role to the stored legacy role", ({ body }) => {
+        expect(schema.parse(body).role).toBe(legacyRole);
+      });
+
+      it.each(roles)("gates %s on role exposure", (role) => {
+        const result = schema.safeParse({ role });
+
+        if (rolesEnabled === "true") {
+          expect(result.success).toBe(true);
+          expect(result.data?.role).toBe(role);
+        } else {
+          expect(result.success).toBe(false);
+        }
+      });
+
+      it.each(invalidRoles.map((role) => ({ role })))(
+        "rejects role $role",
+        ({ role }) => {
+          expect(schema.safeParse({ role }).success).toBe(false);
+        },
+      );
+    });
+  });
 });
 
 describe("Projects API", () => {
@@ -884,11 +972,16 @@ describe("Projects API", () => {
         name: "Named key",
       },
       { label: "null", role: null, expiresAt: null, name: "Named key" },
-      { label: "empty", role: "", expiresAt: undefined, name: "" },
       {
-        label: "explicit legacy",
+        label: "omitted with empty name",
+        role: undefined,
+        expiresAt: undefined,
+        name: "",
+      },
+      {
+        label: "null with expiration",
         name: undefined,
-        role: "LEGACY_PROJECT_API_KEY",
+        role: null,
         expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
       },
     ])(
@@ -958,6 +1051,11 @@ describe("Projects API", () => {
       { label: "past expiration", body: { expiresAt: "2000-01-01T00:00:00Z" } },
       { label: "invalid expiration", body: { expiresAt: "not-a-date" } },
       { label: "numeric expiration", body: { expiresAt: 4_102_444_800_000 } },
+      { label: "empty role", body: { role: "" } },
+      {
+        label: "explicit legacy role",
+        body: { role: "LEGACY_PROJECT_API_KEY" },
+      },
       {
         label: "wrong-scope legacy role",
         body: { role: "LEGACY_ORGANIZATION_API_KEY" },

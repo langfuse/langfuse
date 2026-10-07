@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { type SystemRole } from "@langfuse/shared/src/db";
 import {
   apiKeyRolesForScope,
-  legacyApiKeyRoleForScope,
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
@@ -45,7 +44,7 @@ const DEFAULT_ROLE: SystemRole = "ADMIN";
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
   name: string;
-  role: SystemRole;
+  role?: SystemRole;
   expiresAt: Date | null;
 };
 
@@ -125,7 +124,7 @@ function ApiKeyCreateForm({
     if (submitDisabled) return;
     onSubmit({
       name: name.trim(),
-      role: roleSelectionEnabled ? role : legacyApiKeyRoleForScope(scope),
+      ...(roleSelectionEnabled ? { role } : {}),
       expiresAt,
     });
   };

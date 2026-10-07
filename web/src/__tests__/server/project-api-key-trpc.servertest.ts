@@ -13,10 +13,23 @@ import { randomUUID } from "crypto";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
-  return {
-    ...actual,
-    env: { ...actual.env, API_AUTH_MIGRATION: "enforce" },
-  };
+  return { ...actual, env: { ...actual.env } };
+});
+
+const originalRoleConfig = {
+  API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
+  API_KEY_ROLES_ENABLED: env.API_KEY_ROLES_ENABLED,
+};
+
+beforeEach(() => {
+  Object.assign(env, {
+    API_AUTH_MIGRATION: "enforce",
+    API_KEY_ROLES_ENABLED: "false",
+  });
+});
+
+afterEach(() => {
+  Object.assign(env, originalRoleConfig);
 });
 
 describe("project API keys trpc", () => {
@@ -130,6 +143,11 @@ describe("project API keys trpc", () => {
       });
       expect(dbKey.createdByUserId).toBe("user-1");
       expect(dbKey.createdByApiKeyId).toBeNull();
+      expect(
+        await prisma.roleAssignment.findFirstOrThrow({
+          where: { principalApiKeyId: apiKeyResult.id },
+        }),
+      ).toMatchObject({ systemRole: "LEGACY_PROJECT_API_KEY" });
       expect(dbKey.scope).toBe("PROJECT");
       expect(dbKey.projectId).toBe(projectId);
       expect(dbKey.orgId).toBeNull();
@@ -172,6 +190,7 @@ describe("project API keys trpc", () => {
     // org-only AI Gateway role) would grant nothing on the project it is
     // scoped to, so it is not among the roles the create input accepts.
     it("rejects an organization-only role on a project key", async () => {
+      Object.assign(env, { API_KEY_ROLES_ENABLED: "true" });
       const { caller, projectId } = await createProjectCaller();
 
       await expect(
@@ -189,51 +208,78 @@ describe("project API keys trpc", () => {
       ).resolves.toBe(0);
     });
 
-    it("creates a project key with a project-capable role", async () => {
-      const { caller, projectId } = await createProjectCaller();
-
-      const key = await caller.projectApiKeys.create({
-        projectId,
-        name: "viewer project key",
-        role: "VIEWER",
-      });
-
-      const assignment = await prisma.roleAssignment.findFirstOrThrow({
-        where: { principalApiKeyId: key.id },
-      });
-      expect(assignment.systemRole).toBe("VIEWER");
-      expect(assignment.ownerProjectId).toBe(projectId);
-    });
-
-    it("accepts only the LEGACY_PROJECT_API_KEY role when enforce is off", async () => {
-      const { caller, projectId } = await createProjectCaller();
-
-      const originalMigration = (env as { API_AUTH_MIGRATION: string })
-        .API_AUTH_MIGRATION;
-      (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION = "legacy";
-      try {
-        await expect(
-          caller.projectApiKeys.create({
-            projectId,
-            name: "normal role off enforce",
-            role: "VIEWER",
-          }),
-        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-
-        const key = await caller.projectApiKeys.create({
-          projectId,
-          name: "legacy role off enforce",
-          role: "LEGACY_PROJECT_API_KEY",
-        });
+    it.each(["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"] as const)(
+      "creates a project key with %s when role selection is enabled",
+      async (role) => {
+        Object.assign(env, { API_KEY_ROLES_ENABLED: "true" });
+        const { caller, projectId } = await createProjectCaller();
+        const key = await caller.projectApiKeys.create({ projectId, role });
         const assignment = await prisma.roleAssignment.findFirstOrThrow({
           where: { principalApiKeyId: key.id },
         });
-        expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
-      } finally {
-        (env as { API_AUTH_MIGRATION: string }).API_AUTH_MIGRATION =
-          originalMigration;
-      }
-    });
+        expect(assignment.systemRole).toBe(role);
+        expect(assignment.ownerProjectId).toBe(projectId);
+      },
+    );
+
+    describe.each([
+      { migration: "legacy", enabled: "false" },
+      { migration: "shadow", enabled: "false" },
+      { migration: "enforce", enabled: "false" },
+      { migration: "enforce", enabled: "true" },
+    ])(
+      "role creation with $migration and exposure $enabled",
+      ({ migration, enabled }) => {
+        beforeEach(() => {
+          Object.assign(env, {
+            API_AUTH_MIGRATION: migration,
+            API_KEY_ROLES_ENABLED: enabled,
+          });
+        });
+
+        it.each([{}, { role: undefined }, { role: null }])(
+          "defaults %j to the legacy role",
+          async (input) => {
+            const { caller, projectId } = await createProjectCaller();
+            const key = await caller.projectApiKeys.create({
+              projectId,
+              ...input,
+            });
+            expect(
+              await prisma.roleAssignment.findFirstOrThrow({
+                where: { principalApiKeyId: key.id },
+              }),
+            ).toMatchObject({
+              systemRole: "LEGACY_PROJECT_API_KEY",
+              ownerProjectId: projectId,
+            });
+          },
+        );
+
+        it("rejects explicit legacy, empty, invalid and disabled roles without creating keys", async () => {
+          const { caller, projectId } = await createProjectCaller();
+          const before = await prisma.apiKey.count({ where: { projectId } });
+          const rejectedRoles = [
+            "LEGACY_PROJECT_API_KEY",
+            "LEGACY_ORGANIZATION_API_KEY",
+            "",
+            "OWNER",
+            "AI_GATEWAY",
+            "invalid",
+          ];
+          if (enabled === "false")
+            rejectedRoles.push("ADMIN", "VIEWER", "INGEST", "SCORES_INGEST");
+          for (const role of rejectedRoles) {
+            await expect(
+              caller.projectApiKeys.create({ projectId, role: role as never }),
+            ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+          }
+          expect(await prisma.apiKey.count({ where: { projectId } })).toBe(
+            before,
+          );
+        });
+      },
+    );
   });
 
   describe("projectApiKeys.updateName", () => {

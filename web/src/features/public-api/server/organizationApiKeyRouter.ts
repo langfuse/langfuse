@@ -10,20 +10,8 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import {
-  apiKeyRolesAcceptedForScope,
-  OrganizationId,
-  SystemRoleId,
-  UserId,
-} from "@langfuse/shared/rbac";
-import { SystemRole } from "@langfuse/shared/src/db";
-
-import { assertApiKeyRoleForMigration } from "@/src/features/public-api/server/assertApiKeyRoleForMigration";
-
-const organizationApiKeyRoles = apiKeyRolesAcceptedForScope("organization") as [
-  SystemRole,
-  ...SystemRole[],
-];
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -78,7 +66,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         name: z.string().optional(),
-        role: z.enum(organizationApiKeyRoles).default(SystemRole.ADMIN),
+        role: apiKeyCreationRoleSchema("organization"),
         expiresAt: z
           .date()
           .nullish()
@@ -101,8 +89,6 @@ export const organizationApiKeysRouter = createTRPCRouter({
         sessionUser: ctx.session.user,
         orgId: input.orgId,
       });
-
-      assertApiKeyRoleForMigration(input.role);
 
       const apiKeyMeta = await createApiKey(ctx.prisma, {
         owner: OrganizationId(input.orgId),
