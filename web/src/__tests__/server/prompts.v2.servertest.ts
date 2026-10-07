@@ -21,6 +21,8 @@ import {
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
+  PromptService,
+  redis,
 } from "@langfuse/shared/src/server";
 import {
   createUserWithOrgRole,
@@ -1367,6 +1369,33 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         }),
       ]);
       expect(result.meta.totalItems).toBe(1);
+    });
+  });
+
+  describe("when counting a prompt list across prompt writes", () => {
+    it("serves the cached count per filter until the epoch rotates", async () => {
+      // CI disables the prompt cache via env, so enable it explicitly.
+      const promptService = new PromptService(prisma, redis, undefined, true);
+      const projectId = randomUUID();
+      const computeCount = vi.fn();
+      const count = (filterKey: string) =>
+        promptService.getPromptListCount({
+          projectId,
+          filterKey,
+          computeCount,
+        });
+
+      computeCount.mockResolvedValueOnce(1).mockResolvedValueOnce(5);
+      expect(await count("all")).toBe(1);
+      expect(await count("all")).toBe(1);
+      expect(await count("tag=a")).toBe(5);
+      expect(computeCount).toHaveBeenCalledTimes(2);
+
+      await promptService.invalidateCache({ projectId });
+
+      computeCount.mockResolvedValueOnce(2);
+      expect(await count("all")).toBe(2);
+      expect(computeCount).toHaveBeenCalledTimes(3);
     });
   });
 
