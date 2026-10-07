@@ -1011,7 +1011,7 @@ export function DataTableControls({
             {/* Inline: the count already shows on the sheet's Filters trigger
                 and footer, so a bare number here (title hidden) is just noise. */}
             {layout !== "inline" && activeFilterCount > 0 && (
-              <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
                 {activeFilterCount}
               </Badge>
             )}
