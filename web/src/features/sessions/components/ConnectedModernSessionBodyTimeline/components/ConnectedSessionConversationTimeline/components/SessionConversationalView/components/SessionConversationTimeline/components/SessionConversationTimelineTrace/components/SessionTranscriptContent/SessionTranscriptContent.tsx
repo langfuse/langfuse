@@ -107,7 +107,12 @@ function SessionTranscriptThread({
       data-session-compact-row={isCompact ? "" : undefined}
       className={cn(
         index > 0 &&
-          (isCompact && displayGroups[index - 1]!.isCompact ? "mt-1" : "mt-4"),
+          (() => {
+            const previousIsCompact = displayGroups[index - 1]!.isCompact;
+            if (isCompact && previousIsCompact) return "mt-1";
+            if (!isCompact && !previousIsCompact) return "mt-4";
+            return "mt-6";
+          })(),
       )}
     >
       {group.type === "tools" ? (
