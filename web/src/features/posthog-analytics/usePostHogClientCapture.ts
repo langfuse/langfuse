@@ -170,6 +170,7 @@ const events = {
     "new_form_open",
     "version_create",
     "version_download",
+    "version_compare",
     "delete",
     "import_open",
     "import",
