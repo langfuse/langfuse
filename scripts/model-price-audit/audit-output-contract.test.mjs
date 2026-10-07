@@ -408,6 +408,68 @@ test("removes a retired model listed in several selectable arrays", () => {
   assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
 });
 
+test("accepts a Google provider alias for a Gemini selectable-model removal", () => {
+  const model = "gemini-1";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({
+      googleAIStudio: ["gemini-2", model],
+      vertexAI: ["gemini-2", model],
+    }),
+    currentTypes: typesSource(),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, {
+            officialSources: ["https://ai.google.dev/gemini-api/docs/models"],
+          }),
+          provider: "Google Gemini",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired gemini-1 from pickers",
+    },
+    typesDiff: `-  "${model}",\n-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+});
+
+test("ignores an unresolved other-provider note for a removed selectable model", () => {
+  const model = "claude-3-5-sonnet-20240620";
+  const anthropicSource =
+    "https://platform.claude.com/docs/en/about-claude/model-deprecations";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({ anthropic: ["claude-sonnet-5", model] }),
+    basePrices: [pricingEntry(model)],
+    currentTypes: typesSource({ anthropic: ["claude-sonnet-5"] }),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, { officialSources: [anthropicSource] }),
+          provider: "Anthropic",
+        },
+        {
+          ...retiredRow(model, {
+            change: "unresolved",
+            officialSources: ["https://aws.amazon.com/bedrock/pricing/"],
+            comments: "Bedrock extended-access SKU is not representable.",
+          }),
+          provider: "AWS Bedrock",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired claude-3-5-sonnet",
+    },
+    typesDiff: `-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+  const bedrockRow = normalizedOutput.modelsChecked.find(
+    (row) => row.provider === "AWS Bedrock",
+  );
+  assert.equal(bedrockRow.change, "unresolved");
+});
+
 test("rejects a selectable-model removal without official evidence", () => {
   const model = "gpt-4o";
   const { result } = runContract({
