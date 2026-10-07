@@ -184,6 +184,13 @@ export function useSessionConversationTimelineController(
             )
           : undefined;
       const mountedTarget = rowId || observationId ? row : entry;
+      row
+        ?.querySelectorAll<HTMLDetailsElement>(
+          "details[data-markdown-fallback]",
+        )
+        .forEach((fallback) => {
+          fallback.open = true;
+        });
       const measurements = virtualizer.measurementsCache;
       const itemOffset = measurements[currentIndex]?.start;
       if (itemOffset === undefined) {

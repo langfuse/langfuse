@@ -56,7 +56,7 @@ describe("EvaluatorVersionHistorySheet", () => {
     );
 
     expect(screen.getByText("Version 1").parentElement).toHaveClass(
-      "items-baseline",
+      "items-center",
     );
     expect(
       screen.queryByRole("button", { name: "Restore version 2" }),

@@ -210,6 +210,7 @@ export async function* getTraceBatchEventStream(
   options: {
     maxThreads?: number;
     maxBlockSize?: number;
+    requestTimeoutMs?: number;
     experimentId?: string;
     queryId?: string;
   } = {},
@@ -229,6 +230,9 @@ export async function* getTraceBatchEventStream(
     preferredClickhouseService: "EventsReadOnly",
     clickhouseConfigs: {
       compression: { response: true },
+      ...(options.requestTimeoutMs === undefined
+        ? {}
+        : { request_timeout: options.requestTimeoutMs }),
     },
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
     clickhouseSettings: {

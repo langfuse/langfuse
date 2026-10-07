@@ -2,8 +2,9 @@ import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,
 } from "@langfuse/shared";
-import { Plus, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";
@@ -48,7 +49,9 @@ export const QUESTION_EXAMPLES: Record<
     levels: [
       { description: "Calm, just stating facts" },
       { description: "Frustrated but civil" },
-      { description: "Very angry, strong language or threatening to leave" },
+      {
+        description: "Very angry, strong language or threatening to leave",
+      },
     ],
     criteria: { true: "", false: "" },
   },
@@ -59,6 +62,25 @@ export const QUESTION_EXAMPLES: Record<
     options: [],
     levels: [],
     criteria: { true: "", false: "" },
+  },
+};
+
+/** OpenAI questions cannot name state fields, so these examples stay plain. */
+export const OPENAI_QUESTION_EXAMPLES: Record<
+  DecisionModelQuestionType,
+  Omit<DecisionModelQuestionDraft, "id">
+> = {
+  [DecisionModelQuestionType.CHOICE]: {
+    ...QUESTION_EXAMPLES[DecisionModelQuestionType.CHOICE],
+    instructions: "Is the reply ready to send to the customer?",
+  },
+  [DecisionModelQuestionType.SCORE]: {
+    ...QUESTION_EXAMPLES[DecisionModelQuestionType.SCORE],
+    instructions: "How frustrated is the customer?",
+  },
+  [DecisionModelQuestionType.NOUL]: {
+    ...QUESTION_EXAMPLES[DecisionModelQuestionType.NOUL],
+    instructions: "Does the customer request a refund?",
   },
 };
 
@@ -78,6 +100,8 @@ export function DecisionModelQuestionList({
   onAddExample,
   onRemove,
   onReorder,
+  plainInstructions = false,
+  examples = QUESTION_EXAMPLES,
 }: {
   questions: DecisionModelQuestionDraft[];
   expandedId: string | null;
@@ -89,19 +113,28 @@ export function DecisionModelQuestionList({
   onAddExample: (type: DecisionModelQuestionType) => void;
   onRemove: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  plainInstructions?: boolean;
+  examples?: Record<
+    DecisionModelQuestionType,
+    Omit<DecisionModelQuestionDraft, "id">
+  >;
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Label className="flex items-center gap-1.5">
+      <Label className="flex items-baseline gap-1.5">
         Questions
-        <InfoTooltip label="About questions">
-          Each question is one snap judgment about the state and writes one
-          score. All questions are answered in a single model call, so a second
-          or tenth question costs only its own tokens.
-        </InfoTooltip>
-        <span className="text-muted-foreground text-xs font-normal">
-          {questions.length} of {DECISION_MODEL_LIMITS.maxQuestions}
+        <span className="inline-flex self-center">
+          <InfoTooltip label="About questions">
+            Each question is one snap judgment about the state and writes one
+            score. All questions are answered in a single model call, so a
+            second or tenth question costs only its own tokens.
+          </InfoTooltip>
         </span>
+        {questions.length > 40 ? (
+          <span className="text-muted-foreground text-xs leading-none font-normal">
+            {questions.length} of {DECISION_MODEL_LIMITS.maxQuestions}
+          </span>
+        ) : null}
       </Label>
 
       {questions.length === 0 ? (
@@ -122,8 +155,7 @@ export function DecisionModelQuestionList({
                   onClick={() => onAddExample(type)}
                 >
                   <Sparkles className="icon-base text-icon-foreground mr-1" />
-                  {copy.label}: “
-                  {QUESTION_EXAMPLES[type].instructions.replace(/`/g, "")}”
+                  {copy.label}: “{examples[type].instructions}”
                 </Button>
               );
             })}
@@ -152,20 +184,18 @@ export function DecisionModelQuestionList({
                 questions.length > 1 ? () => onRemove(question.id) : null
               }
               errors={errorsById[question.id]}
+              plainInstructions={plainInstructions}
             />
           )}
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={onAdd}>
-          <Plus className="icon-base text-icon-foreground mr-1" />
-          Add question
-        </Button>
-        <span className="text-muted-foreground text-xs">
+      <div className="flex items-center gap-1.5">
+        <TextActionButton text="Add question" onClick={onAdd} />
+        <InfoTooltip label="About extra questions">
           Answered together in one call; extra questions add only their own
           tokens.
-        </span>
+        </InfoTooltip>
       </div>
     </div>
   );

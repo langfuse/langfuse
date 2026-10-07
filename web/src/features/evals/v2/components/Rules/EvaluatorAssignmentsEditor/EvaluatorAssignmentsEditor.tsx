@@ -4,7 +4,7 @@ import { type ReactNode, useState } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import { Button } from "@/src/components/ui/button";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import {
   Command,
   CommandEmpty,
@@ -100,22 +100,11 @@ export function EvaluatorAssignmentsEditor({
             </span>
           </button>
         ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
+          <TextActionButton
+            text={additionalActionLabel}
             disabled={disabled}
-            className={cn(
-              "text-foreground hover:text-foreground inline-flex h-auto items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline",
-              pickerWidth === "trigger" && "w-full justify-start",
-            )}
-          >
-            <Plus
-              className="icon-base text-icon-foreground shrink-0"
-              aria-hidden="true"
-            />
-            {additionalActionLabel}
-          </Button>
+            width={pickerWidth === "trigger" ? "fill" : "content"}
+          />
         )}
       </PopoverTrigger>
       <PopoverContent

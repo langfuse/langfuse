@@ -10043,6 +10043,7 @@ components:
         metadata:
           type: object
           additionalProperties: true
+          nullable: true
           description: Additional metadata of the observation
         output:
           description: The output data of the observation
@@ -10101,7 +10102,6 @@ components:
         - modelParameters
         - input
         - version
-        - metadata
         - output
         - usage
         - level
@@ -10561,6 +10561,7 @@ components:
         metadata:
           type: object
           additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10591,7 +10592,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -10754,6 +10754,7 @@ components:
         metadata:
           type: object
           additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10783,7 +10784,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -11916,15 +11916,11 @@ components:
         metadata:
           nullable: true
         inputSchema:
-          type: object
-          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item inputs. When set, all new
             and existing dataset items will be validated against this schema.
         expectedOutputSchema:
-          type: object
-          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item expected outputs. When set,
@@ -12210,6 +12206,17 @@ components:
         - does not contain
         - starts with
         - ends with
+    EvaluationRuleStringObjectFilterOperator:
+      title: EvaluationRuleStringObjectFilterOperator
+      type: string
+      enum:
+        - '='
+        - contains
+        - does not contain
+        - starts with
+        - ends with
+        - is set
+        - is not set
     EvaluationRuleNumberFilterOperator:
       title: EvaluationRuleNumberFilterOperator
       type: string
@@ -12342,9 +12349,13 @@ components:
           type: string
           description: Top-level key inside the object-valued column to filter on.
         operator:
-          $ref: '#/components/schemas/EvaluationRuleStringFilterOperator'
+          $ref: '#/components/schemas/EvaluationRuleStringObjectFilterOperator'
+          description: Use `is set` / `is not set` to filter on key presence.
         value:
           type: string
+          description: >-
+            Value to compare against. Ignored for `is set` / `is not set`; send
+            `""`.
       required:
         - column
         - key
@@ -15499,8 +15510,6 @@ components:
             Span attributes including Langfuse-specific attributes
             (langfuse.observation.*)
         status:
-          type: object
-          additionalProperties: true
           nullable: true
           description: Span status object
     OtelAttribute:
