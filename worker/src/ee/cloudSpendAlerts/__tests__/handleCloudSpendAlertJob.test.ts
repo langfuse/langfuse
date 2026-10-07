@@ -12,7 +12,7 @@ const {
   mockRecordIncrement,
   mockTraceException,
   mockSendCloudSpendAlertEmail,
-  mockGetAttachedPlan,
+  mockQueryBills,
   mockGetChbApiClient,
 } = vi.hoisted(() => ({
   mockOrganizationFindFirst: vi.fn(),
@@ -25,7 +25,7 @@ const {
   mockRecordIncrement: vi.fn(),
   mockTraceException: vi.fn(),
   mockSendCloudSpendAlertEmail: vi.fn(),
-  mockGetAttachedPlan: vi.fn(),
+  mockQueryBills: vi.fn(),
   mockGetChbApiClient: vi.fn(),
 }));
 
@@ -62,13 +62,13 @@ vi.mock("@langfuse/shared/src/db", () => ({
 }));
 
 /**
- * The real CHB helpers, not stand-ins: `chbPeriodUsageAmountUSD` encodes the
+ * The real CHB helpers, not stand-ins: `chbBillUsageAmountUSD` encodes the
  * major-unit/USD-only contract these cases exist to pin, and `ChbApiError` is
  * what the job's status branching uses `instanceof` against. Only the
  * side-effecting exports (logging, metrics, email) are replaced.
  */
 vi.mock("@langfuse/shared/src/server", async () => {
-  const { CHB_USAGE_CURRENCY, ChbApiError, chbPeriodUsageAmountUSD } =
+  const { CHB_USAGE_CURRENCY, ChbApiError, chbBillUsageAmountUSD } =
     await import("../../../../../packages/shared/src/server/clickhouseBilling/chbApiClient");
   return {
     logger: {
@@ -82,7 +82,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     sendCloudSpendAlertEmail: mockSendCloudSpendAlertEmail,
     CHB_USAGE_CURRENCY,
     ChbApiError,
-    chbPeriodUsageAmountUSD,
+    chbBillUsageAmountUSD,
   };
 });
 
@@ -142,19 +142,20 @@ const chbCloudConfig = () => ({
   },
 });
 
-const attachedPlan = (
+/** A `POST /bills/query` result holding the org's one open bill. */
+const openBill = (
   amount: number | null,
   currency: string | null = "USD",
   startDate: string | null = "2026-09-01T00:00:00.000Z",
-) => ({
-  id: "ap_1",
-  plan: { code: "LANGFUSE_CORE" },
-  period: {
+) => [
+  {
+    id: "bill_1",
+    organizationId: CH_ORG_ID,
     startDate,
     endDate: "2026-10-01T00:00:00.000Z",
-    usage: { amount, currency },
+    usage: { amount, currency, asOf: "2026-09-29T12:00:00.000Z" },
   },
-});
+];
 
 const skipReasons = () =>
   mockRecordIncrement.mock.calls
@@ -173,7 +174,7 @@ describe("handleCloudSpendAlertJob", () => {
     ]);
     mockSpendAlertUpdate.mockResolvedValue({});
     mockGetChbApiClient.mockReturnValue({
-      getAttachedPlan: mockGetAttachedPlan,
+      queryBills: mockQueryBills,
     });
   });
 
@@ -236,26 +237,25 @@ describe("handleCloudSpendAlertJob", () => {
   describe("ClickHouse-billed organizations", () => {
     it("never reaches for Stripe state", async () => {
       mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
-      mockGetAttachedPlan.mockResolvedValue(attachedPlan(10));
+      mockQueryBills.mockResolvedValue(openBill(10));
 
       await handleCloudSpendAlertJob(createJob());
 
       // The Stripe branch's skip reasons are what a CHB org used to collect.
       expect(skipReasons()).toEqual([]);
-      expect(mockGetAttachedPlan).toHaveBeenCalledWith({
-        chOrganizationId: CH_ORG_ID,
+      expect(mockQueryBills).toHaveBeenCalledWith({
+        chOrganizationIds: [CH_ORG_ID],
       });
     });
 
     /**
-     * CHB reports the accrued amount in major units — its own total is the sum
-     * of line-item subtotals in ClickHouse Credits, rounded to two decimals,
-     * and CHC converts 1:1 into USD. Reading it as minor units would put every
-     * threshold 100x out of reach.
+     * CHB reports the accrued amount in major-unit USD (1250.68 means
+     * $1,250.68). Reading it as minor units would put every threshold 100x out
+     * of reach.
      */
     it("compares the accrued amount against the threshold as whole USD", async () => {
       mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
-      mockGetAttachedPlan.mockResolvedValue(attachedPlan(250.75));
+      mockQueryBills.mockResolvedValue(openBill(250.75));
 
       await handleCloudSpendAlertJob(createJob());
 
@@ -273,7 +273,7 @@ describe("handleCloudSpendAlertJob", () => {
 
     it("does not alert below the threshold", async () => {
       mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
-      mockGetAttachedPlan.mockResolvedValue(attachedPlan(199.99));
+      mockQueryBills.mockResolvedValue(openBill(199.99));
 
       await handleCloudSpendAlertJob(createJob());
 
@@ -284,11 +284,11 @@ describe("handleCloudSpendAlertJob", () => {
     it("alerts once per billing period", async () => {
       mockOrganizationFindFirst.mockResolvedValue(
         createOrg(chbCloudConfig(), {
-          // Already fired inside the period the attached plan reports.
+          // Already fired inside the period the open bill reports.
           triggeredAt: new Date("2026-09-10T00:00:00.000Z"),
         }),
       );
-      mockGetAttachedPlan.mockResolvedValue(attachedPlan(250));
+      mockQueryBills.mockResolvedValue(openBill(250));
 
       await handleCloudSpendAlertJob(createJob());
 
@@ -299,11 +299,11 @@ describe("handleCloudSpendAlertJob", () => {
     it("alerts again once the period has rolled over", async () => {
       mockOrganizationFindFirst.mockResolvedValue(
         createOrg(chbCloudConfig(), {
-          // Fired in the previous period, which the plan's startDate ended.
+          // Fired in the previous period, which the bill's startDate ended.
           triggeredAt: new Date("2026-08-10T00:00:00.000Z"),
         }),
       );
-      mockGetAttachedPlan.mockResolvedValue(attachedPlan(250));
+      mockQueryBills.mockResolvedValue(openBill(250));
 
       await handleCloudSpendAlertJob(createJob());
 
@@ -312,7 +312,7 @@ describe("handleCloudSpendAlertJob", () => {
 
     it("refuses a currency other than USD rather than comparing it", async () => {
       mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
-      mockGetAttachedPlan.mockResolvedValue(attachedPlan(5000, "EUR"));
+      mockQueryBills.mockResolvedValue(openBill(5000, "EUR"));
 
       await handleCloudSpendAlertJob(createJob());
 
@@ -322,7 +322,7 @@ describe("handleCloudSpendAlertJob", () => {
 
     it("skips when CHB reports no period start to scope the alert to", async () => {
       mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
-      mockGetAttachedPlan.mockResolvedValue(attachedPlan(250, "USD", null));
+      mockQueryBills.mockResolvedValue(openBill(250, "USD", null));
 
       await handleCloudSpendAlertJob(createJob());
 
@@ -330,18 +330,35 @@ describe("handleCloudSpendAlertJob", () => {
       expect(skipReasons()).toContain("missing_chb_period_start");
     });
 
-    it("treats a 404 from CHB as a cancelled plan, not a failure", async () => {
+    it("skips an org CHB reports no open bill for, without failing", async () => {
       mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
-      mockGetAttachedPlan.mockRejectedValue(new ChbApiError("not found", 404));
+      // CHB omits an org without an open bill instead of erroring.
+      mockQueryBills.mockResolvedValue([]);
 
       await expect(
         handleCloudSpendAlertJob(createJob()),
       ).resolves.toBeUndefined();
 
+      expect(mockSendCloudSpendAlertEmail).not.toHaveBeenCalled();
       expect(mockTraceException).not.toHaveBeenCalled();
-      expect(skipReasons()).toContain("chb_attached_plan_not_found");
-      // A 4xx must not burn the retry budget.
-      expect(mockGetAttachedPlan).toHaveBeenCalledTimes(1);
+      expect(skipReasons()).toContain("chb_open_bill_not_found");
+    });
+
+    /**
+     * Unlike the attached-plan route, `/bills/query` has no "not found" of its
+     * own: a 4xx means the request itself was refused (a route CHB has not
+     * deployed, a token without access), which must fail visibly.
+     */
+    it("fails on a CHB 4xx without spending the retry budget", async () => {
+      mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
+      mockQueryBills.mockRejectedValue(new ChbApiError("not found", 404));
+
+      await expect(handleCloudSpendAlertJob(createJob())).rejects.toThrow(
+        "not found",
+      );
+
+      expect(mockQueryBills).toHaveBeenCalledTimes(1);
+      expect(mockTraceException).toHaveBeenCalled();
     });
 
     it("skips an org whose attached plan was cancelled locally", async () => {
@@ -351,7 +368,7 @@ describe("handleCloudSpendAlertJob", () => {
 
       await handleCloudSpendAlertJob(createJob());
 
-      expect(mockGetAttachedPlan).not.toHaveBeenCalled();
+      expect(mockQueryBills).not.toHaveBeenCalled();
       expect(skipReasons()).toContain("missing_chb_attached_plan");
     });
 
@@ -367,13 +384,13 @@ describe("handleCloudSpendAlertJob", () => {
 
     it("retries and rethrows a CHB server error", async () => {
       mockOrganizationFindFirst.mockResolvedValue(createOrg(chbCloudConfig()));
-      mockGetAttachedPlan.mockRejectedValue(new ChbApiError("boom", 500));
+      mockQueryBills.mockRejectedValue(new ChbApiError("boom", 500));
 
       await expect(handleCloudSpendAlertJob(createJob())).rejects.toThrow(
         "boom",
       );
 
-      expect(mockGetAttachedPlan).toHaveBeenCalledTimes(3);
+      expect(mockQueryBills).toHaveBeenCalledTimes(3);
       expect(mockTraceException).toHaveBeenCalled();
       expect(mockRecordIncrement).toHaveBeenCalledWith(
         "langfuse.queue.cloud_spend_alert_queue.skipped_orgs_with_errors",

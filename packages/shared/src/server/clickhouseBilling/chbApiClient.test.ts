@@ -18,7 +18,7 @@ import {
   ChbApiClient,
   ChbApiError,
   ChbPaymentRequiredError,
-  chbPeriodUsageAmountUSD,
+  chbBillUsageAmountUSD,
 } from "./chbApiClient";
 
 /**
@@ -206,6 +206,21 @@ describe("chbApiClient", () => {
       const { url } = lastChbCall();
       expect(url.pathname).toBe("/api/v1/invoices");
       expect(url.searchParams.get("organizationId")).toBe(CH_ORG_ID);
+    });
+
+    it("queries bills by organization ids in the body, not by header", async () => {
+      onChb(jsonResponse(200, []));
+
+      await client().queryBills({ chOrganizationIds: [CH_ORG_ID] });
+
+      const { url, init } = lastChbCall();
+      expect(init.method).toBe("POST");
+      expect(url.pathname).toBe("/api/v1/bills/query");
+      expect(url.searchParams.get("fields")).toBe("usage");
+      expect(JSON.parse(init.body as string)).toEqual({
+        organizationIds: [CH_ORG_ID],
+      });
+      expect(headersOf(init)["CH-Organization-Id"]).toBeUndefined();
     });
 
     it("always sends a checkout idempotency key, generating one when the caller has none", async () => {
@@ -398,6 +413,33 @@ describe("chbApiClient", () => {
       expect(attachedPlan.scheduled).toBeUndefined();
     });
 
+    it("parses a bill without usage instead of failing the whole batch", async () => {
+      onChb(
+        jsonResponse(200, [
+          {
+            id: "bill_1",
+            organizationId: CH_ORG_ID,
+            startDate: "2026-09-01T00:00:00.000Z",
+            endDate: "2026-10-01T00:00:00.000Z",
+            usage: {
+              amount: 1250.68,
+              currency: "USD",
+              asOf: "2026-09-29T12:00:00.000Z",
+            },
+          },
+          { id: "bill_2", organizationId: "other-org", extra: true },
+        ]),
+      );
+
+      const bills = await client().queryBills({
+        chOrganizationIds: [CH_ORG_ID, "other-org"],
+      });
+
+      expect(bills.map((bill) => bill.id)).toEqual(["bill_1", "bill_2"]);
+      expect(bills[0]!.usage?.amount).toBe(1250.68);
+      expect(bills[1]!.usage).toBeUndefined();
+    });
+
     it("reads the portal URL from CHB's portalUrl field", async () => {
       onChb(jsonResponse(200, { portalUrl: "https://pay.example.com/s/1" }));
 
@@ -486,47 +528,47 @@ describe("chbApiClient", () => {
   });
 
   /**
-   * CHB computes this amount as the sum of the bill's line-item subtotals in
-   * ClickHouse Credits, rounded to two decimals and floored at zero, and
-   * converts CHC 1:1 into USD while refusing any other currency. So it is a
-   * major-unit figure — unlike `ChbInvoice.amount`, which is minor units — and
+   * CHB reports this amount in USD and refuses any other currency, as a
+   * major-unit figure — unlike `ChbInvoice.amount`, which is minor units — so
    * a caller comparing it against a USD spend threshold uses it as-is.
    */
-  describe("chbPeriodUsageAmountUSD", () => {
+  describe("chbBillUsageAmountUSD", () => {
     const withUsage = (usage: unknown) =>
       ({
-        id: "ap_1",
-        period: { startDate: "2026-09-01T00:00:00.000Z", usage },
-      }) as Parameters<typeof chbPeriodUsageAmountUSD>[0];
+        id: "bill_1",
+        organizationId: CH_ORG_ID,
+        startDate: "2026-09-01T00:00:00.000Z",
+        usage,
+      }) as Parameters<typeof chbBillUsageAmountUSD>[0];
 
     it("returns the amount unchanged as USD", () => {
       expect(
-        chbPeriodUsageAmountUSD(
-          withUsage({ amount: 1234.56, currency: "USD" }),
-        ),
+        chbBillUsageAmountUSD(withUsage({ amount: 1234.56, currency: "USD" })),
       ).toBe(1234.56);
     });
 
     it("accepts a lowercase currency", () => {
       expect(
-        chbPeriodUsageAmountUSD(withUsage({ amount: 10, currency: "usd" })),
+        chbBillUsageAmountUSD(withUsage({ amount: 10, currency: "usd" })),
       ).toBe(10);
     });
 
     it("treats an absent currency as USD, which is all CHB emits", () => {
-      expect(chbPeriodUsageAmountUSD(withUsage({ amount: 10 }))).toBe(10);
+      expect(chbBillUsageAmountUSD(withUsage({ amount: 10 }))).toBe(10);
     });
 
     /** Nothing spent yet is a reading; no reading is not. */
     it("distinguishes zero spend from a missing amount", () => {
       expect(
-        chbPeriodUsageAmountUSD(withUsage({ amount: 0, currency: "USD" })),
+        chbBillUsageAmountUSD(withUsage({ amount: 0, currency: "USD" })),
       ).toBe(0);
       expect(
-        chbPeriodUsageAmountUSD(withUsage({ amount: null, currency: "USD" })),
+        chbBillUsageAmountUSD(withUsage({ amount: null, currency: "USD" })),
       ).toBeNull();
-      expect(chbPeriodUsageAmountUSD(withUsage(null))).toBeNull();
-      expect(chbPeriodUsageAmountUSD({ id: "ap_1" })).toBeNull();
+      expect(chbBillUsageAmountUSD(withUsage(null))).toBeNull();
+      expect(
+        chbBillUsageAmountUSD({ id: "bill_1", organizationId: CH_ORG_ID }),
+      ).toBeNull();
     });
 
     /**
@@ -535,18 +577,18 @@ describe("chbApiClient", () => {
      */
     it("refuses a currency it cannot compare against a USD threshold", () => {
       expect(
-        chbPeriodUsageAmountUSD(withUsage({ amount: 1000, currency: "EUR" })),
+        chbBillUsageAmountUSD(withUsage({ amount: 1000, currency: "EUR" })),
       ).toBeNull();
     });
 
     it("refuses a non-finite amount", () => {
       expect(
-        chbPeriodUsageAmountUSD(
+        chbBillUsageAmountUSD(
           withUsage({ amount: Number.POSITIVE_INFINITY, currency: "USD" }),
         ),
       ).toBeNull();
       expect(
-        chbPeriodUsageAmountUSD(withUsage({ amount: NaN, currency: "USD" })),
+        chbBillUsageAmountUSD(withUsage({ amount: NaN, currency: "USD" })),
       ).toBeNull();
     });
   });

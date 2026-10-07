@@ -64,19 +64,6 @@ const ChbAttachedPlanSchema = z.object({
       startDate: z.string().nullish(),
       // CHB's period end is exclusive (`endDateExclusive` on its side).
       endDate: z.string().nullish(),
-      // Accrued cost of the open period, as CHB computes it: the sum of the
-      // bill's line-item subtotals in ClickHouse Credits, rounded to two
-      // decimals and floored at zero. CHC converts 1:1 into USD and CHB
-      // refuses any other currency, so `amount` is a **major-unit** figure
-      // (12.34 means $12.34) -- unlike `ChbInvoice.amount`, which is minor
-      // units. Read it through `chbPeriodUsageAmountUSD`, which is the one
-      // place that encodes this.
-      usage: z
-        .object({
-          amount: z.number().nullish(),
-          currency: z.string().nullish(),
-        })
-        .nullish(),
     })
     .nullish(),
   payment: z
@@ -101,6 +88,33 @@ const ChbCheckoutSessionSchema = z.object({
   organizationId: z.uuid(),
 });
 export type ChbCheckoutSession = z.infer<typeof ChbCheckoutSessionSchema>;
+
+// An organization's open bill, as POST /bills/query reports it. Permissive for
+// the same reason as the attached plan: a field CHB leaves out must surface as
+// "no reading" to the caller, not fail the whole batch it arrived in.
+const ChbBillSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  startDate: z.string().nullish(),
+  // Exclusive, like the attached plan's period end.
+  endDate: z.string().nullish(),
+  // Accrued metered usage of the open bill: CHB counts only its USAGE line
+  // items, so the plan's fixed fee (STANDING_CHARGE) and prorated upgrade
+  // deltas (DEBIT_MEMO) are not in it. `amount` is a **major-unit** USD figure
+  // (1250.68 means $1,250.68) -- unlike `ChbInvoice.amount`, which is minor
+  // units. Read it through `chbBillUsageAmountUSD`, which is the one place
+  // that encodes this. `asOf` is when CHB last exported the bill.
+  usage: z
+    .object({
+      amount: z.number().nullish(),
+      currency: z.string().nullish(),
+      asOf: z.string().nullish(),
+    })
+    .nullish(),
+});
+export type ChbBill = z.infer<typeof ChbBillSchema>;
+
+const ChbBillListSchema = z.array(ChbBillSchema);
 
 const ChbInvoiceSchema = z.object({
   id: z.string().nullish(),
@@ -381,6 +395,28 @@ export class ChbApiClient {
   }
 
   /**
+   * The open bill of each organization, with its accrued usage. CHB serves this
+   * from its billing warehouse rather than from m3ter, so it can be polled
+   * without spending m3ter's rate limit, at the cost of lagging by up to one
+   * warehouse export (`usage.asOf`). Not scoped by header: the organizations
+   * are the request body, 1 to 100 of them. An organization without an open
+   * bill is absent from the result rather than an error.
+   */
+  async queryBills(params: {
+    chOrganizationIds: string[];
+  }): Promise<ChbBill[]> {
+    const body = await this.request({
+      operation: "chb.bills.query",
+      // POST because CHB's API toolkit has no QUERY method yet.
+      method: "POST",
+      path: "bills/query",
+      body: { organizationIds: params.chOrganizationIds },
+      searchParams: { fields: "usage" },
+    });
+    return ChbBillListSchema.parse(body);
+  }
+
+  /**
    * Issued invoices, most recent first. Unlike the attached-plan routes this
    * one is scoped by an `organizationId` query parameter.
    */
@@ -416,7 +452,7 @@ export class ChbApiClient {
 export const CHB_USAGE_CURRENCY = "USD";
 
 /**
- * The open period's accrued cost in USD, or null when CHB did not report a
+ * The open bill's accrued usage in USD, or null when CHB did not report a
  * usable figure. Returning null rather than 0 keeps "no reading" distinct from
  * "nothing spent yet" -- a caller comparing against a spend threshold must skip
  * the former and evaluate the latter.
@@ -425,10 +461,8 @@ export const CHB_USAGE_CURRENCY = "USD";
  * computes the amount, so anything else means the contract moved and the number
  * can no longer be compared against a USD threshold.
  */
-export const chbPeriodUsageAmountUSD = (
-  attachedPlan: ChbAttachedPlan,
-): number | null => {
-  const usage = attachedPlan.period?.usage;
+export const chbBillUsageAmountUSD = (bill: ChbBill): number | null => {
+  const usage = bill.usage;
   if (usage?.amount == null || !Number.isFinite(usage.amount)) return null;
   if (
     usage.currency != null &&

@@ -5,8 +5,7 @@ import { env } from "../../env";
 import {
   CHB_USAGE_CURRENCY,
   ChbApiError,
-  type ChbAttachedPlan,
-  chbPeriodUsageAmountUSD,
+  chbBillUsageAmountUSD,
   logger,
 } from "@langfuse/shared/src/server";
 import { recordIncrement, traceException } from "@langfuse/shared/src/server";
@@ -27,7 +26,7 @@ type MissingBillingConfigReason =
   | "missing_chb_organization_id"
   | "missing_chb_attached_plan"
   | "chb_not_configured"
-  | "chb_attached_plan_not_found"
+  | "chb_open_bill_not_found"
   | "missing_chb_usage_amount"
   | "missing_chb_period_start";
 
@@ -128,10 +127,12 @@ const readStripeSpend = async (
 };
 
 /**
- * CHB's reading: the open period's accrued usage on the attached plan. This is
- * the CHB equivalent of Stripe's preview invoice — CHB issues no preview
- * invoice, but it does report what the current period has accrued so far, in
- * major-unit USD (see `chbPeriodUsageAmountUSD`).
+ * CHB's reading: the accrued usage on the org's open bill. This is the CHB
+ * equivalent of Stripe's preview invoice — CHB issues no preview invoice, but
+ * its billing warehouse reports what the open bill has accrued so far, in
+ * major-unit USD (see `chbBillUsageAmountUSD`). The warehouse, not m3ter,
+ * serves this read, which is what makes hourly polling affordable on CHB's
+ * side; the price is a reading up to one warehouse export old.
  */
 const readClickhouseSpend = async (
   org: OrgWithAlerts,
@@ -162,43 +163,44 @@ const readClickhouseSpend = async (
     return null;
   }
 
-  let attachedPlan: ChbAttachedPlan;
-  try {
-    attachedPlan = await backOff(
-      async () => await client.getAttachedPlan({ chOrganizationId }),
-      {
-        numOfAttempts: 3,
-        // A 4xx is CHB's verdict on the request, not a blip: retrying it just
-        // spends the budget. 5xx and transport failures still get the retries.
-        retry: (error: unknown) =>
-          !(
-            error instanceof ChbApiError &&
-            error.status >= 400 &&
-            error.status < 500
-          ),
-      },
+  const bills = await backOff(
+    async () =>
+      await client.queryBills({ chOrganizationIds: [chOrganizationId] }),
+    {
+      numOfAttempts: 3,
+      // A 4xx is CHB's verdict on the request, not a blip: retrying it just
+      // spends the budget. 5xx and transport failures still get the retries.
+      retry: (error: unknown) =>
+        !(
+          error instanceof ChbApiError &&
+          error.status >= 400 &&
+          error.status < 500
+        ),
+    },
+  );
+
+  const bill = bills.find(
+    (candidate) => candidate.organizationId === chOrganizationId,
+  );
+  if (!bill) {
+    // CHB leaves an org without an open bill out of the result: its plan ended
+    // after the fan-out read it, or it is newer than the warehouse's last
+    // export. Either way nothing has accrued that we could compare.
+    logger.info(
+      `[CLOUD SPEND ALERTS] CHB reports no open bill for org ${org.id}, skipping`,
     );
-  } catch (error) {
-    if (error instanceof ChbApiError && error.status === 404) {
-      // The plan went away between the fan-out and now — a cancellation racing
-      // this job, not a failure.
-      logger.info(
-        `[CLOUD SPEND ALERTS] CHB reports no attached plan for org ${org.id}, skipping`,
-      );
-      recordMissingBillingConfigSkip("chb_attached_plan_not_found");
-      return null;
-    }
-    throw error;
+    recordMissingBillingConfigSkip("chb_open_bill_not_found");
+    return null;
   }
 
   // Logged raw as well as converted: this is the one place the major-unit
   // reading of CHB's amount is observable in production, so a contract change
   // shows up here rather than as alerts that quietly stop matching reality.
   logger.info(
-    `[CLOUD SPEND ALERTS] Org ${org.id} CHB attached plan ${attachedPlan.id} reports accrued usage ${attachedPlan.period?.usage?.amount} ${attachedPlan.period?.usage?.currency ?? CHB_USAGE_CURRENCY} for period ${attachedPlan.period?.startDate} - ${attachedPlan.period?.endDate}`,
+    `[CLOUD SPEND ALERTS] Org ${org.id} CHB bill ${bill.id} reports accrued usage ${bill.usage?.amount} ${bill.usage?.currency ?? CHB_USAGE_CURRENCY} as of ${bill.usage?.asOf} for period ${bill.startDate} - ${bill.endDate}`,
   );
 
-  const currentSpendUSD = chbPeriodUsageAmountUSD(attachedPlan);
+  const currentSpendUSD = chbBillUsageAmountUSD(bill);
   if (currentSpendUSD === null) {
     logger.warn(
       `[CLOUD SPEND ALERTS] CHB reported no usable ${CHB_USAGE_CURRENCY} usage amount for org ${org.id}, skipping`,
@@ -207,9 +209,7 @@ const readClickhouseSpend = async (
     return null;
   }
 
-  const periodStart = attachedPlan.period?.startDate
-    ? new Date(attachedPlan.period.startDate)
-    : null;
+  const periodStart = bill.startDate ? new Date(bill.startDate) : null;
   if (!periodStart || Number.isNaN(periodStart.getTime())) {
     // Without a period start an alert cannot be held to once per cycle, and
     // every run past the threshold would email the org's admins again.
