@@ -133,9 +133,11 @@ export function DecisionModelQuestionList({
             second or tenth question costs only its own tokens.
           </InfoTooltip>
         </span>
-        <span className="text-muted-foreground text-xs leading-none font-normal">
-          {questions.length} of {DECISION_MODEL_LIMITS.maxQuestions}
-        </span>
+        {questions.length > 40 ? (
+          <span className="text-muted-foreground text-xs leading-none font-normal">
+            {questions.length} of {DECISION_MODEL_LIMITS.maxQuestions}
+          </span>
+        ) : null}
       </Label>
 
       {questions.length === 0 ? (

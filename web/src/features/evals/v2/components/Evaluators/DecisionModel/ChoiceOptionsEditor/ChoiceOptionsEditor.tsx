@@ -46,9 +46,11 @@ export function ChoiceOptionsEditor({
             every input.
           </InfoTooltip>
         </span>
-        <span className="text-muted-foreground text-xs leading-none font-normal">
-          {options.length} of {DECISION_MODEL_LIMITS.maxChoiceOptions}
-        </span>
+        {options.length >= 240 ? (
+          <span className="text-muted-foreground text-xs leading-none font-normal">
+            {options.length} of {DECISION_MODEL_LIMITS.maxChoiceOptions}
+          </span>
+        ) : null}
       </Label>
       <SortableList
         items={options}
