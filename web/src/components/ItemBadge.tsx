@@ -23,11 +23,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type ObservationType } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
@@ -151,8 +147,8 @@ export function ItemTypeTile({
   const Icon = iconMap[type] || ListTree;
   const { displayLabel } = getItemTypeLabels(type);
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip label={displayLabel}>
+      {({ getTriggerProps }) => (
         <span
           role="img"
           aria-label={displayLabel}
@@ -161,11 +157,11 @@ export function ItemTypeTile({
             tileVariants({ type }),
             className,
           )}
+          {...getTriggerProps()}
         >
           <Icon className="icon-base text-white" />
         </span>
-      </TooltipTrigger>
-      <TooltipContent>{displayLabel}</TooltipContent>
+      )}
     </Tooltip>
   );
 }
