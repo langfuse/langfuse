@@ -7,6 +7,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     "params": {
       "param1": "golden-project",
       "param2": "golden-session",
+      "param3": 0,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -62,7 +63,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
     any(experiment_id) AS experiment_id
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (e.is_deleted = 0)
+WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (e.is_deleted = {param3:UInt8})
 GROUP BY
     trace_id,
     project_id

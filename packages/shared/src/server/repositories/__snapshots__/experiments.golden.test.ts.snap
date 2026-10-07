@@ -12,6 +12,7 @@ exports[`golden: experiments simple aggregates family > getExperimentMetricsFrom
         "golden-experiment",
         "golden-experiment-b",
       ],
+      "param3": "",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -22,7 +23,7 @@ exports[`golden: experiments simple aggregates family > getExperimentMetricsFrom
         (e.span_id = e.experiment_item_root_span_id) AND (e.end_time IS NOT NULL)
     ) AS latency_avg
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.experiment_id IN ({param2:Array(String)})) AND (e.experiment_id != '')
+WHERE (e.project_id = {param1:String}) AND (e.experiment_id IN ({param2:Array(String)})) AND (e.experiment_id != {param3:String})
 GROUP BY
     e.project_id,
     e.experiment_id",

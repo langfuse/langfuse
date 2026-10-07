@@ -1,4 +1,5 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { sql } from "kysely";
 import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
@@ -12,12 +13,14 @@ import {
   type SessionEventsMetricsRow,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
+import { compileClickhouseQuery } from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
 import {
   eventsSessionsAggregation,
   eventsSessionScoresAggregation,
-  eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
+import { traceAggregationSelects } from "../repositories/events";
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
@@ -60,29 +63,15 @@ export const getSessionTracesFromEvents = async (props: {
   projectId: string;
   sessionId: string;
 }) => {
-  const tracesBuilder = eventsTracesAggregation({
-    projectId: props.projectId,
-  })
-    .whereRaw("e.session_id = {sessionId: String}", {
-      sessionId: props.sessionId,
-    })
-    .whereRaw("e.is_deleted = 0")
-    .orderByColumns([{ column: "timestamp", direction: "ASC" }]);
-
-  const tracesCte = tracesBuilder.buildWithParams();
-
-  const query = `
-    ${tracesCte.query}
-  `;
-
-  const input = {
-    params: {
-      ...tracesCte.params,
-      projectId: props.projectId,
-      sessionId: props.sessionId,
-    },
-    tags: { projectId: props.projectId },
-  };
+  const { projectId, sessionId } = props;
+  const builder = getClickhouseKysely()
+    .selectFrom("events_full as e")
+    .select(traceAggregationSelects() as never)
+    .where("e.session_id", "=", sessionId)
+    .where("e.is_deleted", "=", 0)
+    .groupBy(["trace_id", "project_id"])
+    .orderBy(sql.ref("timestamp"), "asc");
+  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
 
   const rows = await queryClickhouse<{
     id: string;
@@ -94,8 +83,8 @@ export const getSessionTracesFromEvents = async (props: {
     latency_milliseconds: number | string | null;
   }>({
     query,
-    params: input.params,
-    tags: input.tags,
+    params,
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
