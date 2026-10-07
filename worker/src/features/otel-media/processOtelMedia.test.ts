@@ -319,7 +319,7 @@ describe("processOtelEventMedia", () => {
     const original = {
       traceId: "trace-id",
       spanId: "observation-id",
-      input: "data:image/png;base64,aGVsbG8=",
+      input: `data:image/png;base64,${"aGVsbG8h".repeat(1024)}`,
     };
     const validated = await validateOtelJson(
       Buffer.from(JSON.stringify(original)),
@@ -678,9 +678,14 @@ describe("processOtelEventMedia", () => {
   });
 
   it("restores each source spelling after identical-content uploads fail", async () => {
+    const content = "abc".repeat(2048);
     const input = [
-      { type: "file", mediaType: "image/png", data: "YWJj" },
-      { type: "file", mediaType: "image/png", data: "b'abc'" },
+      {
+        type: "file",
+        mediaType: "image/png",
+        data: Buffer.from(content).toString("base64"),
+      },
+      { type: "file", mediaType: "image/png", data: `b'${content}'` },
     ];
     const validated = await validateOtelJson(
       Buffer.from(JSON.stringify(input)),
@@ -771,8 +776,7 @@ describe("processOtelEventMedia", () => {
     "preserves escaped nested provider text (placement=%s, layers=%s)",
     async (placement, layers) => {
       mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-      const pythonLiteral =
-        "b'\\xff\\xd8\\xff\\xe0test\\nquote\\'slash\\\\\\x00'";
+      const pythonLiteral = `b'${"a".repeat(4096)}\\xff\\xd8\\xff\\xe0test\\nquote\\'slash\\\\\\x00'`;
       // Keep the native serialized-media prefilter active through the second
       // stringification layer without adding another media occurrence.
       const nestedProvider = [
@@ -824,7 +828,7 @@ describe("processOtelEventMedia", () => {
     const nestedProvider = String.raw`{
   "type": "file",
   "mediaType": "image/png",
-  "data": "data:image/png;base64,\/\/\/\/"
+  "data": "data:image/png;base64,${String.raw`\/\/\/\/`.repeat(1024)}"
 }`;
     const source = JSON.stringify({
       traceId: "trace-id",
@@ -855,7 +859,7 @@ describe("processOtelEventMedia", () => {
 
   it("preserves Unicode-escaped quotes across two native string layers", async () => {
     mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-    const provider = String.raw`{"type":"file","mediaType":"text/plain","data":"b'\u0022'"}`;
+    const provider = String.raw`{"type":"file","mediaType":"text/plain","data":"b'${"a".repeat(4096)}\u0022'"}`;
     const encodedProvider = JSON.stringify(provider).replace(/\\"/g, "\\u0022");
     const firstLayer = `{"child":${encodedProvider}}`;
     const source = JSON.stringify({
@@ -889,11 +893,11 @@ describe("processOtelEventMedia", () => {
     mocks.uploadMediaForTrace.mockImplementation(
       async ({ contentBytes }: { contentBytes: Buffer }) => ({
         outcome: "uploaded",
-        mediaId: contentBytes.toString("utf8"),
+        mediaId: contentBytes.toString("utf8", 0, 3),
       }),
     );
-    const first = '{"type":"file","mediaType":"image/png","data":"b\'abc\'"}';
-    const second = '{"type":"file","mediaType":"image/png","data":"b\'def\'"}';
+    const first = `{"type":"file","mediaType":"image/png","data":"b'${"abc".repeat(2048)}'"}`;
+    const second = `{"type":"file","mediaType":"image/png","data":"b'${"def".repeat(2048)}'"}`;
     // JSON.parse enumerates integer-like keys in ascending order even though
     // the source document visits key "2" before key "1".
     const nested = `{"2":${first},"1":${second}}`;
@@ -1029,7 +1033,7 @@ describe("processOtelEventMedia", () => {
   ] as const)(
     "preserves native stringified payload text after a %s",
     async (_outcome, failUpload) => {
-      const dataUri = "data:image/png;base64,aGk=";
+      const dataUri = `data:image/png;base64,${"aGkh".repeat(1024)}`;
       const input = `{
   "type": "base64",
   "media_type": "image/png",
@@ -1229,7 +1233,11 @@ describe("processOtelEventMedia", () => {
     "preserves unknown references in a %s during restoration",
     async (location) => {
       const validated = await validateOtelJson(
-        Buffer.from('{"input":"data:image/png;base64,aGk="}'),
+        Buffer.from(
+          JSON.stringify({
+            input: `data:image/png;base64,${"aGkh".repeat(1024)}`,
+          }),
+        ),
       );
       const batch = await validated.extract(true);
       const opaque =
