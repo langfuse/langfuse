@@ -92,7 +92,9 @@ describe("@langfuse/native telemetry", () => {
 
   it("records media stage outcomes and timing without per-body metrics", async () => {
     const validated = await validateOtelJson(
-      Buffer.from('"data:image/png;base64,aGk="'),
+      Buffer.from(
+        JSON.stringify(`data:image/png;base64,${"aGkh".repeat(1024)}`),
+      ),
     );
     const batch = await validated.extract(true);
     try {

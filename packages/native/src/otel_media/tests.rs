@@ -1,7 +1,7 @@
 use super::encoding::BASE64;
 use super::payload::{EarlyMediaError, MediaEncoding, MediaPayloadKind, MediaSource};
 use super::rules::{may_contain_media_candidate, MEDIA_REFERENCE_PREFIX};
-use super::scanner::{discover_measured, media_identity_from_encoded};
+use super::scanner::{discover_measured, media_identity_from_encoded, MIN_EARLY_MEDIA_BYTES};
 use super::{extract_media, validate};
 use base64::Engine;
 use proptest::prelude::*;
@@ -60,23 +60,68 @@ pub(super) fn data_uri(payload: &[u8]) -> String {
     format!("data:image/png;base64,{}", BASE64.encode(payload))
 }
 
+fn large_data_uri(label: &[u8]) -> (String, Vec<u8>) {
+    let mut payload = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
+    let copy_len = label.len().min(payload.len());
+    payload[..copy_len].copy_from_slice(&label[..copy_len]);
+    (data_uri(&payload), payload)
+}
+
+fn large_base64(label: &[u8]) -> (String, Vec<u8>) {
+    let mut payload = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
+    let copy_len = label.len().min(payload.len());
+    payload[..copy_len].copy_from_slice(&label[..copy_len]);
+    (BASE64.encode(&payload), payload)
+}
+
+#[test]
+fn leaves_small_data_uris_for_the_later_media_pass() {
+    let small = data_uri(&vec![b'x'; MIN_EARLY_MEDIA_BYTES / 2]);
+    let (large, large_body) = large_data_uri(b"large");
+    let input = format!(r#"{{"small":"{small}","large":"{large}"}}"#);
+
+    let result = extract_media(input.as_bytes()).expect("valid JSON");
+
+    assert_eq!(result.media.len(), 1);
+    assert_eq!(result.media[0].decode().unwrap(), large_body);
+    let compact = String::from_utf8(result.compact_json).unwrap();
+    assert!(compact.contains(&small));
+    assert!(compact.contains(&result.media[0].reference()));
+}
+
+#[test]
+fn early_extraction_uses_encoded_size_for_uri_and_provider_candidates() {
+    for size in [4095, 4096] {
+        let header = "data:image/png;name=a;base64,";
+        let uri = format!("{header}{}", "A".repeat(size - header.len()));
+        let provider = "A".repeat(size);
+        let input =
+            format!(r#"["{uri}",{{"type":"file","mediaType":"image/png","data":"{provider}"}}]"#);
+        let result = extract_media(input.as_bytes()).unwrap();
+        assert_eq!(result.media.len(), if size < 4096 { 0 } else { 2 });
+        if size < 4096 {
+            assert_eq!(result.compact_json, input.as_bytes());
+        }
+    }
+}
+
 #[test]
 fn validates_and_extracts_data_uri_without_parsing_a_value_tree() {
-    let uri = data_uri(b"image");
+    let (uri, body) = large_data_uri(b"image");
     let input = format!(r#"{{"input":"before {uri} after"}}"#);
     let result = extract_media(input.as_bytes()).expect("valid JSON");
 
     assert_eq!(result.media.len(), 1);
     assert!(String::from_utf8_lossy(&result.compact_json)
         .contains("@@@langfuseMedia:type=image/png|id="));
-    assert_eq!(result.media[0].decode().unwrap(), b"image");
+    assert_eq!(result.media[0].decode().unwrap(), body);
     assert_eq!(result.media[0].original_value().unwrap(), uri);
     assert_eq!(result.media[0].kind, MediaPayloadKind::DataUri);
 }
 
 #[test]
 fn nested_otlp_map_keys_stay_structural() {
-    let uri = data_uri(b"nested-map");
+    let (uri, _) = large_data_uri(b"nested-map");
     let attributes = json!([{"key": "metadata", "value": {"arrayValue": {"values": [
         {"kvlistValue": {"values": [{"key": uri, "value": {"stringValue": uri}}]}}
     ]}}}]);
@@ -103,7 +148,7 @@ fn accepts_deep_otlp_structure_before_embedded_json_limit() {
 
 #[test]
 fn validates_and_extracts_beyond_the_former_parser_depth_limit() {
-    let uri = data_uri(b"deep");
+    let (uri, body) = large_data_uri(b"deep");
     for depth in [128, 512, 4096] {
         let array = format!("{}\"{uri}\"{}", "[".repeat(depth), "]".repeat(depth));
         let object = format!("{}\"{uri}\"{}", "{\"x\":".repeat(depth), "}".repeat(depth));
@@ -118,16 +163,17 @@ fn validates_and_extracts_beyond_the_former_parser_depth_limit() {
             );
             let result = validated.compact().unwrap();
             assert_eq!(result.media.len(), 1);
-            assert_eq!(result.media[0].decode().unwrap(), b"deep");
+            assert_eq!(result.media[0].decode().unwrap(), body);
         }
     }
 }
 
 #[test]
 fn deep_structural_scan_keeps_provider_objects_inline_but_finds_uri_text() {
-    let uri = data_uri(b"deep-uri");
+    let (uri, body) = large_data_uri(b"deep-uri");
+    let (provider_data, _) = large_base64(b"deep-provider");
     let mut embedded = format!(
-        r#"{{"provider":{{"type":"base64","media_type":"image/png","data":"aGk="}},"uri":"{uri}"}}"#
+        r#"{{"provider":{{"type":"base64","media_type":"image/png","data":"{provider_data}"}},"uri":"{uri}"}}"#
     );
     for _ in 0..300 {
         embedded = format!(r#"{{"nested":{embedded}}}"#);
@@ -144,18 +190,54 @@ fn deep_structural_scan_keeps_provider_objects_inline_but_finds_uri_text() {
 
     let result = extract_media(input.as_bytes()).expect("deep JSON remains valid");
     assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].decode().unwrap(), b"deep-uri");
+    assert_eq!(result.media[0].decode().unwrap(), body);
     let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
     let compact_embedded = compact["text"].as_str().unwrap();
     assert!(compact_embedded.contains(r#""type":"base64""#));
-    assert!(compact_embedded.contains(r#""data":"aGk=""#));
+    assert!(compact_embedded.contains(&provider_data));
+}
+
+#[test]
+fn bounded_text_scan_leaves_escaped_uri_spelling_inline() {
+    let plain_body = vec![b'p'; MIN_EARLY_MEDIA_BYTES];
+    let plain_uri = data_uri(&plain_body);
+    let escaped_body = vec![0xff; MIN_EARLY_MEDIA_BYTES];
+    let escaped_base64 = BASE64.encode(&escaped_body);
+    for escaped_uri in [
+        format!("data:image/png;base64,\\/\\/\\/\\/{}", &escaped_base64[4..]),
+        format!(r"data:image/png;name=C:\\img\\a.png;base64,{escaped_base64}"),
+        format!(r"data:image/png;name=snow\u2603;base64,{escaped_base64}"),
+    ] {
+        let mut embedded = format!(r#"{{"escaped":"{escaped_uri}","plain":"{plain_uri}"}}"#);
+        for _ in 0..3 {
+            embedded = format!(
+                r#"{{"embedded":{}}}"#,
+                serde_json::to_string(&embedded).unwrap()
+            );
+        }
+        let two_layer_input = format!(r#"{{"deep":{embedded}}}"#);
+        let mut deep = format!(r#"{{"escaped":"{escaped_uri}","plain":"{plain_uri}"}}"#);
+        for _ in 0..300 {
+            deep = format!(r#"{{"nested":{deep}}}"#);
+        }
+        let deep_input = format!(r#"{{"text":{}}}"#, serde_json::to_string(&deep).unwrap());
+
+        for input in [two_layer_input, deep_input] {
+            let result = extract_media(input.as_bytes()).expect("valid nested JSON");
+            assert_eq!(result.media.len(), 1);
+            assert_eq!(result.media[0].decode().unwrap(), plain_body);
+            let expected = input.replacen(&plain_uri, &result.media[0].reference(), 1);
+            assert_eq!(result.compact_json, expected.as_bytes());
+        }
+    }
 }
 
 #[test]
 fn preserves_json_escaping_and_scans_nested_stringified_json() {
+    let (encoded, body) = large_base64(b"nested");
     let nested = format!(
         r#"{{"type":"base64","media_type":"image/png","data":"{}"}}"#,
-        BASE64.encode(b"nested")
+        encoded
     );
     let encoded_nested = serde_json::to_string(&nested).expect("serialize nested JSON");
     let input = format!(r#"{{"text":{encoded_nested}}}"#);
@@ -165,18 +247,16 @@ fn preserves_json_escaping_and_scans_nested_stringified_json() {
     let compact = String::from_utf8(result.compact_json).unwrap();
     assert!(compact.contains("@@@langfuseMedia:type=image/png|id="));
     assert_eq!(result.media[0].kind, MediaPayloadKind::Anthropic);
-    assert_eq!(
-        result.media[0].original_value().unwrap(),
-        BASE64.encode(b"nested")
-    );
+    assert_eq!(result.media[0].original_value().unwrap(), encoded);
+    assert_eq!(result.media[0].decode().unwrap(), body);
 }
 
 #[test]
 fn limits_embedded_documents_without_losing_uri_text_or_siblings() {
-    let provider_data = BASE64.encode(b"provider");
-    let deep_uri = data_uri(b"at-limit");
-    let quoted_uri = data_uri(b"quoted");
-    let sibling_uri = data_uri(b"sibling");
+    let (provider_data, provider_body) = large_base64(b"provider");
+    let (deep_uri, deep_body) = large_data_uri(b"at-limit");
+    let (quoted_uri, quoted_body) = large_data_uri(b"quoted");
+    let (sibling_uri, sibling_body) = large_data_uri(b"sibling");
     for layers in [2, 3, 10] {
         let mut document = format!(
             r#"{{"provider":{{"type":"base64","media_type":"image/png","data":"{provider_data}"}},"text":"{deep_uri} after","quoted":"{quoted_uri}"}}"#
@@ -194,21 +274,17 @@ fn limits_embedded_documents_without_losing_uri_text_or_siblings() {
             .collect::<Vec<_>>();
         let expected_bodies = if layers == 2 {
             vec![
-                b"provider".to_vec(),
-                b"at-limit".to_vec(),
-                b"quoted".to_vec(),
-                b"sibling".to_vec(),
+                provider_body.clone(),
+                deep_body.clone(),
+                quoted_body.clone(),
+                sibling_body.clone(),
             ]
         } else if layers == 3 {
-            vec![
-                b"at-limit".to_vec(),
-                b"quoted".to_vec(),
-                b"sibling".to_vec(),
-            ]
+            vec![deep_body.clone(), quoted_body.clone(), sibling_body.clone()]
         } else {
             // Further quoting leaves a backslash after the payload, which is not
             // a valid URI terminator for text-only scanning.
-            vec![b"at-limit".to_vec(), b"sibling".to_vec()]
+            vec![deep_body.clone(), sibling_body.clone()]
         };
         assert_eq!(bodies, expected_bodies, "embedded layers: {layers}");
         let mut expected = input;
@@ -221,34 +297,40 @@ fn limits_embedded_documents_without_losing_uri_text_or_siblings() {
 
 #[test]
 fn scans_unicode_escaped_provider_keys_in_nested_json() {
-    let nested = r#"{"type":"base64","media_\u0074ype":"image/png","data":"aGk="}"#;
-    let encoded_nested = serde_json::to_string(nested).expect("serialize nested JSON");
+    let (encoded, body) = large_base64(b"unicode-key");
+    let nested = format!(r#"{{"type":"base64","media_\u0074ype":"image/png","data":"{encoded}"}}"#);
+    let encoded_nested = serde_json::to_string(&nested).expect("serialize nested JSON");
     let input = format!(r#"{{"text":{encoded_nested}}}"#);
 
     let result = extract_media(input.as_bytes()).expect("valid nested provider JSON");
 
     assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].decode().unwrap(), b"hi");
+    assert_eq!(result.media[0].decode().unwrap(), body);
 }
 
 #[test]
 fn recognizes_provider_shapes_and_python_bytes() {
-    let encoded = BASE64.encode(b"provider");
+    let (encoded, encoded_body) = large_base64(b"provider");
+    let mut python_body = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
+    python_body[..4].copy_from_slice(b"abcd");
+    let python_literal = format!("b'{}'", String::from_utf8(python_body.clone()).unwrap());
     let input = format!(
-        r#"[{{"type":"media","mime_type":"image/png","data":"{encoded}"}},{{"type":"file","mediaType":"image/png","data":"b'abc\\x64'"}}]"#
+        r#"[{{"type":"media","mime_type":"image/png","data":"{encoded}"}},{{"type":"file","mediaType":"image/png","data":"{python_literal}"}}]"#
     );
     let result = extract_media(input.as_bytes()).expect("valid JSON");
     assert_eq!(result.media.len(), 2);
     assert_eq!(result.media[0].kind, MediaPayloadKind::Vertex);
     assert_eq!(result.media[1].kind, MediaPayloadKind::AiSdkV6);
-    assert_eq!(result.media[1].decode().unwrap(), b"abcd");
+    assert_eq!(result.media[0].decode().unwrap(), encoded_body);
+    assert_eq!(result.media[1].decode().unwrap(), python_body);
 }
 
 #[test]
 fn data_uri_provider_fields_use_the_uri_metadata() {
+    let (uri, body) = large_data_uri(b"provider-uri");
     for input in [
-        r#"{"type":"file","mediaType":"image/jpeg","data":"data:image/png;base64,aGk="}"#,
-        r#"{"type":"base64","media_type":"image/jpeg","data":"data:image/png;base64,aGk="}"#,
+        format!(r#"{{"type":"file","mediaType":"image/jpeg","data":"{uri}"}}"#),
+        format!(r#"{{"type":"base64","media_type":"image/jpeg","data":"{uri}"}}"#),
     ] {
         let result = extract_media(input.as_bytes()).expect("valid provider Data URI");
 
@@ -257,35 +339,58 @@ fn data_uri_provider_fields_use_the_uri_metadata() {
         assert_eq!(media.kind, MediaPayloadKind::DataUri);
         assert_eq!(media.metadata.content_type, "image/png");
         assert_eq!(media.metadata.source, MediaSource::Base64DataUri);
-        assert_eq!(media.decode().unwrap(), b"hi");
+        assert_eq!(media.decode().unwrap(), body);
     }
 }
 
 #[test]
+fn leaves_small_structured_media_inline() {
+    let input = br#"{"type":"media","mime_type":"image/png","data":"aGk="}"#;
+    let result = extract_media(input).expect("valid provider JSON");
+    assert!(result.media.is_empty());
+    assert_eq!(result.compact_json, input);
+}
+
+#[test]
 fn nested_provider_original_value_preserves_inner_json_escapes() {
+    let (base64, base64_body) = large_base64(b"escaped");
+    let escaped_base64 = format!(
+        r#"data:image/png;base64,\u{:04x}{}"#,
+        base64.as_bytes()[0],
+        &base64[1..]
+    );
+    let slash_body = vec![0xff; MIN_EARLY_MEDIA_BYTES];
+    let slash_base64 = BASE64.encode(&slash_body);
+    let escaped_slashes = format!("data:image/png;base64,\\/\\/\\/\\/{}", &slash_base64[4..]);
+    let python_body = {
+        let mut body = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
+        body[0] = b'"';
+        body
+    };
+    let python_source = format!("b'\\u0022{}'", "x".repeat(MIN_EARLY_MEDIA_BYTES - 1));
     let cases = [
         (
-            r#"{"type":"file","mediaType":"image/png","data":"data:image/png;base64,\u0061Gk="}"#,
-            r#"data:image/png;base64,\u0061Gk="#,
-            "data:image/png;base64,aGk=",
-            b"hi".as_slice(),
+            format!(r#"{{"type":"file","mediaType":"image/png","data":"{escaped_base64}"}}"#),
+            escaped_base64,
+            format!("data:image/png;base64,{}", base64),
+            base64_body,
         ),
         (
-            r#"{"type":"file","mediaType":"image/png","data":"data:image/png;base64,\/\/\/\/"}"#,
-            r#"data:image/png;base64,\/\/\/\/"#,
-            "data:image/png;base64,////",
-            &[0xff, 0xff, 0xff][..],
+            format!(r#"{{"type":"file","mediaType":"image/png","data":"{escaped_slashes}"}}"#),
+            escaped_slashes,
+            format!("data:image/png;base64,{}", slash_base64),
+            slash_body,
         ),
         (
-            r#"{"type":"file","mediaType":"text/plain","data":"b'\u0022'"}"#,
-            r#"b'\u0022'"#,
-            "b'\"'",
-            b"\"".as_slice(),
+            format!(r#"{{"type":"file","mediaType":"text/plain","data":"{python_source}"}}"#),
+            python_source,
+            format!("b'{}'", String::from_utf8_lossy(&python_body)),
+            python_body,
         ),
     ];
 
     for (nested, expected_original, expected_decoded, expected_body) in cases {
-        let encoded_nested = serde_json::to_string(nested).expect("serialize nested JSON");
+        let encoded_nested = serde_json::to_string(&nested).expect("serialize nested JSON");
         let input = format!(r#"{{"text":{encoded_nested}}}"#);
         let result = extract_media(input.as_bytes()).expect("valid nested provider JSON");
 
@@ -306,8 +411,10 @@ fn nested_provider_original_value_preserves_inner_json_escapes() {
 
 #[test]
 fn nested_provider_source_spelling_survives_two_stringified_layers() {
-    let provider = r#"{"type":"file","mediaType":"text/plain","data":"b'\u0022'"}"#;
-    let encoded_provider = serde_json::to_string(provider)
+    let python_body = "x".repeat(MIN_EARLY_MEDIA_BYTES - 1);
+    let provider =
+        format!(r#"{{"type":"file","mediaType":"text/plain","data":"b'\u0022{python_body}'"}}"#);
+    let encoded_provider = serde_json::to_string(&provider)
         .expect("serialize provider")
         .replace("\\\"", "\\u0022");
     let first_layer = format!(r#"{{"child":{}}}"#, encoded_provider);
@@ -320,16 +427,20 @@ fn nested_provider_source_spelling_survives_two_stringified_layers() {
 
     let media = &result.media[0];
     assert_eq!(media.original_json_depth(), 2);
-    assert_eq!(media.original_value().unwrap(), r#"b'\\u0022'"#);
+    let expected_original = format!(r#"b'\\u0022{}'"#, python_body);
+    assert_eq!(media.original_value().unwrap(), expected_original);
     assert_eq!(
         media.original_value_for_layers(Some(2)).unwrap(),
-        r#"b'\\u0022'"#
+        expected_original
     );
     assert_eq!(
         media.original_value_for_layers(Some(1)).unwrap(),
-        r#"b'\u0022'"#
+        format!(r#"b'\u0022{}'"#, python_body)
     );
-    assert_eq!(media.original_value_for_layers(Some(0)).unwrap(), "b'\"'");
+    assert_eq!(
+        media.original_value_for_layers(Some(0)).unwrap(),
+        format!("b'\"{}'", python_body)
+    );
     assert!(matches!(
         media.original_value_for_layers(Some(17)),
         Err(super::payload::MediaDecodeError::JsonLayerLimit)
@@ -346,17 +457,20 @@ fn nested_provider_source_spelling_survives_two_stringified_layers() {
 
 #[test]
 fn continues_to_the_next_gemini_shape_when_one_is_not_decodable() {
-    let input = br#"{"inline_data":{"mime_type":1,"data":"aGk="},"inlineData":{"mimeType":"image/png","data":"aGk="}}"#;
-    let result = extract_media(input).expect("valid Gemini alternatives");
+    let (encoded, body) = large_base64(b"gemini");
+    let input = format!(
+        r#"{{"inline_data":{{"mime_type":1,"data":"{encoded}"}},"inlineData":{{"mimeType":"image/png","data":"{encoded}"}}}}"#
+    );
+    let result = extract_media(input.as_bytes()).expect("valid Gemini alternatives");
 
     assert_eq!(result.media.len(), 1);
     assert_eq!(result.media[0].kind, MediaPayloadKind::Gemini);
-    assert_eq!(result.media[0].decode().unwrap(), b"hi");
+    assert_eq!(result.media[0].decode().unwrap(), body);
 }
 
 #[test]
 fn keeps_embedded_provider_documents_in_payload_mode() {
-    let encoded = BASE64.encode(b"embedded-provider");
+    let (encoded, body) = large_base64(b"embedded-provider");
     let nested = format!(
         r#"{{"scopeSpans":"provider field","type":"file","mediaType":"image/png","data":"{encoded}"}}"#
     );
@@ -366,14 +480,14 @@ fn keeps_embedded_provider_documents_in_payload_mode() {
     let result = extract_media(input.as_bytes()).expect("valid embedded provider JSON");
 
     assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].decode().unwrap(), b"embedded-provider");
+    assert_eq!(result.media[0].decode().unwrap(), body);
 }
 
 #[test]
 fn classifies_each_root_array_object_before_discovery() {
-    let provider_data = BASE64.encode(b"provider-first");
-    let envelope_uri = data_uri(b"envelope-second");
-    let structural_uri = data_uri(b"structural-name");
+    let (provider_data, provider_body) = large_base64(b"provider-first");
+    let (envelope_uri, envelope_body) = large_data_uri(b"envelope-second");
+    let (structural_uri, _) = large_data_uri(b"structural-name");
     let input = format!(
         r#"[{{"type":"file","mediaType":"image/png","data":"{provider_data}"}},{{"scopeSpans":[{{"scope":{{"name":"{structural_uri}"}},"spans":[{{"attributes":[{{"key":"{structural_uri}","value":{{"stringValue":"{envelope_uri}"}}}}]}}]}}]}}]"#
     );
@@ -381,8 +495,8 @@ fn classifies_each_root_array_object_before_discovery() {
     let result = extract_media(input.as_bytes()).expect("valid mixed root array");
 
     assert_eq!(result.media.len(), 2);
-    assert_eq!(result.media[0].decode().unwrap(), b"provider-first");
-    assert_eq!(result.media[1].decode().unwrap(), b"envelope-second");
+    assert_eq!(result.media[0].decode().unwrap(), provider_body);
+    assert_eq!(result.media[1].decode().unwrap(), envelope_body);
     let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
     assert_eq!(compact[1]["scopeSpans"][0]["scope"]["name"], structural_uri);
     assert_eq!(
@@ -427,19 +541,19 @@ fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
 
 #[test]
 fn validation_preserves_inline_media_until_compaction() {
-    let uri = data_uri(b"validation-only");
+    let (uri, body) = large_data_uri(b"validation-only");
     let input = format!(r#"{{"input":"{uri}"}}"#);
     let validated = validate(input.as_bytes().to_vec()).expect("valid JSON");
     assert_eq!(validated.into_source(), input.as_bytes());
 
     let result = validate(input.into_bytes()).unwrap().compact().unwrap();
     assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].decode().unwrap(), b"validation-only");
+    assert_eq!(result.media[0].decode().unwrap(), body);
 }
 
 #[test]
 fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
-    let uri = data_uri(b"deep");
+    let (uri, body) = large_data_uri(b"deep");
     let chain = (0..120).fold(format!("\"{uri}\""), |value, _| {
         format!(r#"{{"x":{value}}}"#)
     });
@@ -462,12 +576,13 @@ fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
     assert!(result
         .media
         .iter()
-        .all(|media| media.decode().unwrap() == b"deep"));
+        .all(|media| media.decode().unwrap() == body));
 }
 
 #[test]
 fn indexed_subtrees_survive_mixed_siblings_and_provider_lookahead() {
-    let uri = data_uri(b"deep");
+    let (uri, body) = large_data_uri(b"deep");
+    let (provider_data, provider_body) = large_base64(b"provider");
     let chain = (0..118).fold(format!("\"{uri}\""), |value, level| {
         if level % 2 == 0 {
             format!(r#"{{"x":{value}}}"#)
@@ -475,7 +590,9 @@ fn indexed_subtrees_survive_mixed_siblings_and_provider_lookahead() {
             format!("[{value}]")
         }
     });
-    let provider = r#"{"inline_data":{"mime_type":"image/png","data":"aGk=","other":[{"x":[0]}]},"siblings":[{},[{"x":[]}]]}"#;
+    let provider = format!(
+        r#"{{"inline_data":{{"mime_type":"image/png","data":"{provider_data}","other":[{{"x":[0]}}]}},"siblings":[{{}},[{{"x":[]}}]]}}"#
+    );
     let payload = format!(r#"{{"first":[{chain},{provider}],"second":[{provider},{chain}]}}"#);
     let envelope = format!(
         r#"{{"resourceSpans":[{{"attributes":[{{"key":"input","value":{{"stringValue":{}}}}}]}}],"scopeSpans":[]}}"#,
@@ -506,7 +623,13 @@ fn indexed_subtrees_survive_mixed_siblings_and_provider_lookahead() {
             .collect::<Vec<_>>();
         assert_eq!(
             bodies,
-            [b"deep".as_slice(), b"hi", b"hi", b"deep"].repeat(repetitions)
+            [
+                body.as_slice(),
+                provider_body.as_slice(),
+                provider_body.as_slice(),
+                body.as_slice()
+            ]
+            .repeat(repetitions)
         );
     }
 }
@@ -532,16 +655,13 @@ fn preserves_large_existing_media_references_without_a_resource_fallback() {
 }
 
 #[test]
-fn extracts_many_tiny_candidates_without_a_resource_fallback() {
+fn leaves_many_tiny_candidates_inline_without_a_resource_fallback() {
     let uri = data_uri(b"candidate");
     let values = std::iter::repeat_n(uri.as_str(), 16 * 1024 + 1).collect::<Vec<_>>();
     let input = format!(r#"{{"text":"{}"}}"#, values.join(" "));
     let (validated, scanned, _, unique, retained_bytes) =
         validate_measured(input.as_bytes().to_vec()).expect("many candidates stay native");
-    assert_eq!(
-        unique, 1,
-        "identical occurrences share one content descriptor"
-    );
+    assert_eq!(unique, 0, "tiny candidates do not allocate descriptors");
     assert!(scanned <= 3 * input.len());
     assert!(
         retained_bytes <= 4 * input.len(),
@@ -550,17 +670,18 @@ fn extracts_many_tiny_candidates_without_a_resource_fallback() {
         input.len()
     );
     let result = validated.compact().unwrap();
-    assert_eq!(result.media.len(), values.len());
-    assert!(result
-        .media
-        .iter()
-        .all(|media| media.decode().unwrap() == b"candidate"));
+    assert!(result.media.is_empty());
+    assert_eq!(result.compact_json, input.as_bytes());
 }
 
 #[test]
 fn unique_and_escaped_candidates_have_input_proportional_retention() {
-    let uris = (0..16_385u32)
-        .map(|value| data_uri(&value.to_le_bytes()))
+    let uris = (0..1_024u32)
+        .map(|value| {
+            let mut payload = vec![b'x'; MIN_EARLY_MEDIA_BYTES];
+            payload[..4].copy_from_slice(&value.to_le_bytes());
+            data_uri(&payload)
+        })
         .collect::<Vec<_>>();
     for escaped in [false, true] {
         let values = uris
@@ -588,10 +709,7 @@ fn unique_and_escaped_candidates_have_input_proportional_retention() {
         // decoded document per entry.
         assert!(retained_bytes <= 8 * input.len());
         let result = validated.compact().unwrap();
-        for (index, media) in result.media.iter().enumerate() {
-            assert_eq!(media.decode().unwrap(), (index as u32).to_le_bytes());
-            assert_eq!(media.original_value().unwrap(), uris[index]);
-        }
+        assert_eq!(result.media.len(), uris.len());
     }
 }
 
@@ -609,46 +727,57 @@ fn validates_large_numbers_without_converting_them_to_floats_or_integers() {
 
 #[test]
 fn structured_data_uri_must_occupy_the_entire_provider_field() {
-    let input =
-        br#"{"type":"file","mediaType":"image/png","data":"data:image/png;base64,aGk= trailing"}"#;
-    let result = extract_media(input).expect("valid JSON");
+    let (uri, _) = large_data_uri(b"trailing");
+    let input = format!(r#"{{"type":"file","mediaType":"image/png","data":"{uri} trailing"}}"#);
+    let result = extract_media(input.as_bytes()).expect("valid JSON");
     assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input);
+    assert_eq!(result.compact_json, input.as_bytes());
 }
 
 #[test]
 fn matches_data_uri_parameter_validation() {
-    let valid = br#"{"type":"file","mediaType":"image/png","data":"data:image/png;charset=utf-8;base64,aGk="}"#;
-    let result = extract_media(valid).expect("valid JSON");
+    let (encoded, _) = large_base64(b"parameter");
+    let valid = format!(
+        r#"{{"type":"file","mediaType":"image/png","data":"data:image/png;charset=utf-8;base64,{encoded}"}}"#
+    );
+    let result = extract_media(valid.as_bytes()).expect("valid JSON");
     assert_eq!(result.media.len(), 1);
 
-    let invalid = br#"{"type":"file","mediaType":"image/png","data":"data:image/png;charset=not valid;base64,aGk="}"#;
-    let result = extract_media(invalid).expect("valid JSON");
+    let invalid = format!(
+        r#"{{"type":"file","mediaType":"image/png","data":"data:image/png;charset=not valid;base64,{encoded}"}}"#
+    );
+    let result = extract_media(invalid.as_bytes()).expect("valid JSON");
     assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, invalid);
+    assert_eq!(result.compact_json, invalid.as_bytes());
 }
 
 #[test]
 fn leaves_invalid_python_bytes_literals_inline_like_typescript() {
     for input in [
-        br#"{"type":"file","mediaType":"image/png","data":"b'caf\u00e9'"}"#.as_slice(),
+        br#"{"type":"file","mediaType":"image/png","data":"b'text\u00e9'"}"#.as_slice(),
         br#"{"type":"file","mediaType":"image/png","data":"b'abc\\'"}"#,
         br#"{"type":"file","mediaType":"image/png","data":"b\"abc\\\""}"#,
     ] {
-        let result = extract_media(input).expect("valid JSON");
-        assert!(
-            result.media.is_empty(),
-            "invalid literal extracted: {}",
-            String::from_utf8_lossy(input)
-        );
-        assert_eq!(result.compact_json, input);
+        let input = String::from_utf8_lossy(input)
+            .replace(
+                "text",
+                &format!("{}text", "x".repeat(MIN_EARLY_MEDIA_BYTES)),
+            )
+            .replace("abc", &"abc".repeat(MIN_EARLY_MEDIA_BYTES));
+        let result = extract_media(input.as_bytes()).expect("valid JSON");
+        assert!(result.media.is_empty(), "invalid literal extracted");
+        assert_eq!(result.compact_json, input.as_bytes());
     }
 }
 
 #[test]
 fn leaves_invalid_and_unsupported_candidates_inline() {
-    let input = br#"{"valid":"data:image/png;base64,aGk=","invalid":"data:image/png;base64,not#base64","invalid_padding":"data:image/png;base64,AAAA===","unsupported":"data/application/x-unknown;base64,aGk=","provider":{"type":"base64","media_type":"image/png","data":"AAAA==="}}"#;
-    let result = extract_media(input).expect("valid JSON");
+    let (valid, _) = large_data_uri(b"valid");
+    let prefix = "A".repeat(MIN_EARLY_MEDIA_BYTES);
+    let input = format!(
+        r#"{{"valid":"{valid}","invalid":"data:image/png;base64,{prefix}not#base64","invalid_padding":"data:image/png;base64,{prefix}AAAA===","unsupported":"data:application/x-unknown;base64,{prefix}aGk=","provider":{{"type":"base64","media_type":"image/png","data":"{prefix}AAAA==="}}}}"#
+    );
+    let result = extract_media(input.as_bytes()).expect("valid JSON");
     assert_eq!(result.media.len(), 1);
     let compact = String::from_utf8(result.compact_json).unwrap();
     assert!(compact.contains("not#base64"));
@@ -658,7 +787,7 @@ fn leaves_invalid_and_unsupported_candidates_inline() {
 
 #[test]
 fn never_rewrites_media_like_object_keys() {
-    let uri = data_uri(b"object-key");
+    let (uri, _) = large_data_uri(b"object-key");
     let input = format!(r#"{{"{uri}":"ordinary value"}}"#);
     let result = extract_media(input.as_bytes()).expect("valid JSON");
     assert!(result.media.is_empty());
@@ -667,13 +796,14 @@ fn never_rewrites_media_like_object_keys() {
 
 #[test]
 fn extracts_user_payload_values_named_name_or_key() {
-    let name_uri = data_uri(b"payload-name");
-    let key_uri = data_uri(b"payload-key");
+    let (name_uri, _) = large_data_uri(b"payload-name");
+    let (key_uri, _) = large_data_uri(b"payload-key");
+    let (nested_uri, _) = large_data_uri(b"nested-name");
     let input = serde_json::json!({
         "type": 1,
         "name": name_uri,
         "payload": { "type": "file", "mediaType": 42, "key": key_uri },
-        "scope": { "name": data_uri(b"nested-name") },
+        "scope": { "name": nested_uri },
     });
     let source = serde_json::to_vec(&input).expect("serialize payload");
     let result = extract_media(&source).expect("valid JSON");
@@ -693,7 +823,7 @@ fn extracts_user_payload_values_named_name_or_key() {
 
 #[test]
 fn does_not_extract_structural_otlp_strings_or_attribute_keys() {
-    let uri = data_uri(b"structural");
+    let (uri, _) = large_data_uri(b"structural");
     let input = serde_json::json!({
         "resourceSpans": [{
             "scopeSpans": [{
@@ -745,7 +875,7 @@ fn does_not_extract_structural_otlp_strings_or_attribute_keys() {
 
 #[test]
 fn recognizes_a_top_level_resource_span_array_as_an_otlp_envelope() {
-    let uri = data_uri(b"array-envelope");
+    let (uri, _) = large_data_uri(b"array-envelope");
     let input = serde_json::json!([{
         "scopeSpans": [{
             "scope": { "name": uri },
@@ -778,12 +908,12 @@ fn recognizes_a_top_level_resource_span_array_as_an_otlp_envelope() {
 
 #[test]
 fn leaves_lone_surrogate_strings_inline_and_extracts_siblings() {
-    let uri = data_uri(b"sibling");
+    let (uri, body) = large_data_uri(b"sibling");
     for text in [r"\ud800", r"\udc00", r"\ud800\u0061"] {
         let input = format!(r#"{{"note":"{text}","image":"{uri}"}}"#);
         let result = extract_media(input.as_bytes()).expect("raw surrogate escape is valid JSON");
         assert_eq!(result.media.len(), 1);
-        assert_eq!(result.media[0].decode().unwrap(), b"sibling");
+        assert_eq!(result.media[0].decode().unwrap(), body);
         assert!(String::from_utf8(result.compact_json)
             .unwrap()
             .contains(text));
@@ -800,27 +930,26 @@ fn leaves_lone_surrogate_strings_inline_and_extracts_siblings() {
 
 #[test]
 fn malformed_utf8_is_replaced_before_discovery() {
+    let (uri, body) = large_data_uri(b"abc");
     let mut input = b"{\"note\":\"".to_vec();
     input.extend([0xff, 0xe2, 0x82]);
-    input.extend_from_slice(b"\",\"image\":\"data:image/png;base64,YWJj\"}");
+    input.extend_from_slice(format!(r#"","image":"{uri}"}}"#).as_bytes());
     let result = extract_media(&input).unwrap();
     let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
     assert_eq!(compact["note"], "��");
-    assert_eq!(result.media[0].decode().unwrap(), b"abc");
-    assert_eq!(
-        result.media[0].original_value().unwrap(),
-        "data:image/png;base64,YWJj"
-    );
+    assert_eq!(result.media[0].decode().unwrap(), body);
+    assert_eq!(result.media[0].original_value().unwrap(), uri);
 }
 
 #[test]
 fn embedded_json_keeps_surrogate_strings_and_extracts_sibling_fields() {
-    let nested = r#"{"note":"\ud800","image":"data:image/png;base64,aGk="}"#;
-    let input = serde_json::to_string(nested).unwrap();
+    let (uri, body) = large_data_uri(b"embedded");
+    let nested = format!(r#"{{"note":"\ud800","image":"{uri}"}}"#);
+    let input = serde_json::to_string(&nested).unwrap();
     let result = extract_media(input.as_bytes()).expect("embedded surrogate remains inline");
     assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].decode().unwrap(), b"hi");
-    let expected = input.replace("data:image/png;base64,aGk=", &result.media[0].reference());
+    assert_eq!(result.media[0].decode().unwrap(), body);
+    let expected = input.replace(&uri, &result.media[0].reference());
     assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
 }
 
@@ -828,11 +957,12 @@ fn embedded_json_keeps_surrogate_strings_and_extracts_sibling_fields() {
 fn undecodable_keys_leave_their_values_inline_including_shadowed_values() {
     // Undecodable keys cannot participate in last-key-wins resolution. Preserve
     // their values while still extracting ordinary siblings.
-    let object = r#"{"\ud800":"data:image/png;base64,YQ==","\uD800":"data:image/png;base64,Yg==","ok":"data:image/png;base64,Yw=="}"#;
-    for input in [object.to_owned(), serde_json::to_string(object).unwrap()] {
+    let (uri, body) = large_data_uri(b"sibling");
+    let object = format!(r#"{{"\ud800":"{uri}","\uD800":"{uri}","ok":"{uri}"}}"#);
+    for input in [object.to_owned(), serde_json::to_string(&object).unwrap()] {
         let result = extract_media(input.as_bytes()).unwrap();
         assert_eq!(result.media.len(), 1);
-        assert_eq!(result.media[0].decode().unwrap(), b"c");
+        assert_eq!(result.media[0].decode().unwrap(), body);
         let restored = String::from_utf8(result.compact_json).unwrap().replace(
             &result.media[0].reference(),
             &result.media[0].original_value().unwrap(),
@@ -889,23 +1019,30 @@ fn malformed_envelope_takes_precedence_over_nested_media_ambiguity() {
 
 #[test]
 fn duplicate_occurrences_have_distinct_references_and_shared_content_identity() {
-    let input = br#"[{"type":"file","mediaType":"image/png","data":"b'abc'"},{"type":"file","mediaType":"image/png","data":"b'abc'"}]"#;
-    let result = extract_media(input).expect("duplicate representations");
+    let (_, body) = large_base64(b"duplicate");
+    let python_literal = format!("b'{}'", String::from_utf8(body.clone()).unwrap());
+    let input = format!(
+        r#"[{{"type":"file","mediaType":"image/png","data":"{python_literal}"}},{{"type":"file","mediaType":"image/png","data":"{python_literal}"}}]"#
+    );
+    let result = extract_media(input.as_bytes()).expect("duplicate representations");
     assert_eq!(result.media.len(), 2);
     assert_ne!(result.media[0].reference(), result.media[1].reference());
     assert_eq!(
         result.media[0].metadata.sha256_hash,
         result.media[1].metadata.sha256_hash
     );
-    assert_eq!(result.media[0].original_value().unwrap(), "b'abc'");
-    assert_eq!(result.media[1].original_value().unwrap(), "b'abc'");
+    assert_eq!(result.media[0].original_value().unwrap(), python_literal);
+    assert_eq!(result.media[1].original_value().unwrap(), python_literal);
+    assert_eq!(result.media[0].decode().unwrap(), body);
+    assert_eq!(result.media[1].decode().unwrap(), body);
 }
 
 #[test]
 fn same_content_with_different_spellings_keeps_each_original() {
-    let encoded = BASE64.encode(b"abc");
+    let (encoded, body) = large_base64(b"same-content");
+    let python_literal = format!("b'{}'", String::from_utf8(body.clone()).unwrap());
     let input = format!(
-        r#"[{{"type":"file","mediaType":"image/png","data":"{encoded}"}},{{"type":"file","mediaType":"image/png","data":"b'abc'"}}]"#
+        r#"[{{"type":"file","mediaType":"image/png","data":"{encoded}"}},{{"type":"file","mediaType":"image/png","data":"{python_literal}"}}]"#
     );
     let result = extract_media(input.as_bytes()).unwrap();
     assert_eq!(result.media.len(), 2);
@@ -915,12 +1052,14 @@ fn same_content_with_different_spellings_keeps_each_original() {
         result.media[1].metadata.sha256_hash
     );
     assert_eq!(result.media[0].original_value().unwrap(), encoded);
-    assert_eq!(result.media[1].original_value().unwrap(), "b'abc'");
+    assert_eq!(result.media[1].original_value().unwrap(), python_literal);
+    assert_eq!(result.media[0].decode().unwrap(), body);
+    assert_eq!(result.media[1].decode().unwrap(), body);
 }
 
 #[test]
 fn existing_public_references_are_preserved_beside_new_occurrences() {
-    let uri = data_uri(b"collision");
+    let (uri, _) = large_data_uri(b"collision");
     let (reference, _) = media_identity_from_encoded(
         uri.as_bytes(),
         "image/png",
@@ -928,7 +1067,7 @@ fn existing_public_references_are_preserved_beside_new_occurrences() {
         MediaEncoding::Base64DataUri,
     )
     .unwrap();
-    let encoded = BASE64.encode(b"hi");
+    let (encoded, _) = large_base64(b"structured");
     let (structured_reference, _) = media_identity_from_encoded(
         encoded.as_bytes(),
         "image/png",
@@ -978,7 +1117,10 @@ proptest! {
         width in 1usize..32,
         embedded in any::<bool>(),
         object_root in any::<bool>(),
-        body in prop::collection::vec(any::<u8>(), 1..24),
+        body in prop_oneof![
+            prop::collection::vec(any::<u8>(), 1..24),
+            prop::collection::vec(any::<u8>(), MIN_EARLY_MEDIA_BYTES..=MIN_EARLY_MEDIA_BYTES + 32),
+        ],
     ) {
         let uri = data_uri(&body);
         let chain = (0..depth).fold(format!("\"{uri}\""), |value, level| {
@@ -995,9 +1137,14 @@ proptest! {
         // The walk retains open frames and candidates, not closed containers.
         // Allow fixed initial capacities as well as depth and result growth.
         prop_assert!(index_bytes <= 4096 + 512 * (depth + 3 + width), "{} index bytes", index_bytes);
-        prop_assert_eq!(unique, 1);
+        let should_extract = uri.len() >= MIN_EARLY_MEDIA_BYTES;
+        prop_assert_eq!(unique, usize::from(should_extract));
         let result = validated.compact().unwrap();
-        prop_assert_eq!(result.media.len(), width);
+        prop_assert_eq!(result.media.len(), if should_extract { width } else { 0 });
+        if !should_extract {
+            prop_assert_eq!(result.compact_json, input.as_bytes());
+            return Ok(());
+        }
         for media in result.media { let decoded = media.decode().unwrap();
             prop_assert_eq!(decoded.as_slice(), body.as_slice()); }
     }
