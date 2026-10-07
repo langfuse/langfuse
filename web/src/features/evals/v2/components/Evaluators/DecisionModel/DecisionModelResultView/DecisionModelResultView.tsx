@@ -116,12 +116,12 @@ function NoulGauge({ probability }: { probability: number }) {
   );
 }
 
-function resultValue(result: DecisionModelQuestionResult) {
+function resultValue(
+  result: Exclude<DecisionModelQuestionResult, { type: "score" }>,
+) {
   switch (result.type) {
     case "choice":
       return result.choice;
-    case "score":
-      return result.score.toFixed(2);
     case "noul":
       return result.probability.toFixed(2);
   }
@@ -181,7 +181,9 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
           {result.type !== "noul" && result.confidence !== null ? (
             <ConfidenceBadge confidence={result.confidence} />
           ) : null}
-          <Badge className="font-mono">{resultValue(result)}</Badge>
+          {result.type === "score" ? null : (
+            <Badge className="font-mono">{resultValue(result)}</Badge>
+          )}
         </span>
       </div>
       <ResultVisual result={result} />
