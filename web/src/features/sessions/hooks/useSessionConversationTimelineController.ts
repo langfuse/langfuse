@@ -254,8 +254,8 @@ export function useSessionConversationTimelineController(
             behavior: "instant",
           });
         }
-        window.clearTimeout(timeout);
-        window.cancelAnimationFrame(frame);
+        cleanup();
+        navigationCleanupRef.current = null;
         if (
           !canRepresentSelection &&
           (actualAnchor < itemOffset || actualAnchor >= nextOffset)
@@ -265,8 +265,6 @@ export function useSessionConversationTimelineController(
             fallbackOffset: feed.scrollTop,
           });
         } else {
-          cleanup();
-          navigationCleanupRef.current = null;
           setSelection(null);
         }
         return;

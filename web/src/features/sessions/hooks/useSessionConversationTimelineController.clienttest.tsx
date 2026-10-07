@@ -152,6 +152,39 @@ describe("useSessionConversationTimelineController", () => {
     expect(result.current.activeItemId).toBe("trace:2");
   });
 
+  it.each(["wheel", "touchstart", "pointerdown", "keydown"])(
+    "keeps fallback selection after %s until scrolling past the buffer",
+    async (eventType) => {
+      const feed = createMeasuredFeed();
+      Object.defineProperty(feed, "clientHeight", { value: 800 });
+      appendMeasuredRow(feed, "trace:0", "0:0", 0);
+      const { result } = renderHook(() =>
+        useSessionConversationTimelineController([
+          { trace, itemId: "trace:0" },
+          { trace, itemId: "trace:2" },
+        ]),
+      );
+      act(() => result.current.onSelect(0));
+      await act(
+        async () =>
+          await new Promise((resolve) => window.setTimeout(resolve, 300)),
+      );
+      fireEvent(
+        feed,
+        eventType === "keydown"
+          ? new KeyboardEvent(eventType, { key: "ArrowDown" })
+          : new Event(eventType),
+      );
+      expect(result.current.activeItemId).toBe("trace:0");
+      feed.scrollTop = 80;
+      fireEvent.scroll(feed);
+      expect(result.current.activeItemId).toBe("trace:0");
+      feed.scrollTop = 81;
+      fireEvent.scroll(feed);
+      expect(result.current.activeItemId).toBe("trace:2");
+    },
+  );
+
   it("uses content starts rather than clamped scroll offsets at the natural bottom", () => {
     const feed = createMeasuredFeed();
     appendMeasuredRow(feed, "trace:2", "2:0", 9_750);
