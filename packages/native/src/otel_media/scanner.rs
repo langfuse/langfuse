@@ -577,7 +577,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
             .expect("every closed object frame has object state");
         let candidate_end = self.candidates.len();
         let provider_fields = object.provider_fields.as_deref();
-        if is_envelope_decider {
+        let active = if is_envelope_decider {
             let selected_bit = if object.has_envelope_field {
                 0b10
             } else {
@@ -585,36 +585,26 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
             };
             self.add_mask_operation(candidate_start, candidate_end, (!selected_bit) & 0b11);
             if selected_bit == 0b01 {
-                if let Some(shape) =
-                    provider_fields.and_then(|fields| structured_shape(self.input, fields))
-                {
-                    self.add_mask_operation(candidate_start, candidate_end, selected_bit);
-                    self.candidates.push(PendingCandidate {
-                        mask: selected_bit,
-                        kind: PendingKind::Structured {
-                            token_range: shape.token_range,
-                            content_type: shape.content_type,
-                            kind: shape.kind,
-                        },
-                    });
-                }
+                selected_bit
+            } else {
+                0
             }
         } else {
-            let active = payload_mask(modes);
-            if active != 0 {
-                if let Some(shape) =
-                    provider_fields.and_then(|fields| structured_shape(self.input, fields))
-                {
-                    self.add_mask_operation(candidate_start, candidate_end, active);
-                    self.candidates.push(PendingCandidate {
-                        mask: active,
-                        kind: PendingKind::Structured {
-                            token_range: shape.token_range,
-                            content_type: shape.content_type,
-                            kind: shape.kind,
-                        },
-                    });
-                }
+            payload_mask(modes)
+        };
+        if active != 0 {
+            if let Some(shape) =
+                provider_fields.and_then(|fields| structured_shape(self.input, fields))
+            {
+                self.add_mask_operation(candidate_start, candidate_end, active);
+                self.candidates.push(PendingCandidate {
+                    mask: active,
+                    kind: PendingKind::Structured {
+                        token_range: shape.token_range,
+                        content_type: shape.content_type,
+                        kind: shape.kind,
+                    },
+                });
             }
         }
         self.update_peak_from_capacities(0);
@@ -635,31 +625,18 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
     }
 
     fn update_peak(&mut self, stack: &Vec<WalkFrame>, object_states: &Vec<ObjectFrame<'_>>) {
-        #[cfg(not(test))]
-        let _ = (stack, object_states);
         #[cfg(test)]
         {
             let stack_bytes = stack
                 .capacity()
                 .saturating_mul(std::mem::size_of::<WalkFrame>());
-            let candidate_bytes = self
-                .candidates
-                .capacity()
-                .saturating_mul(std::mem::size_of::<PendingCandidate>());
-            let operation_bytes = self
-                .mask_operations
-                .capacity()
-                .saturating_mul(std::mem::size_of::<MaskOperation>());
             let object_state_bytes = object_states
                 .capacity()
                 .saturating_mul(std::mem::size_of::<ObjectFrame>());
-            self.stats.update_peak(
-                stack_bytes
-                    .saturating_add(candidate_bytes)
-                    .saturating_add(operation_bytes)
-                    .saturating_add(object_state_bytes),
-            );
+            self.update_peak_from_capacities(stack_bytes.saturating_add(object_state_bytes));
         }
+        #[cfg(not(test))]
+        let _ = (stack, object_states);
     }
 
     fn update_peak_from_capacities(&mut self, stack_bytes: usize) {

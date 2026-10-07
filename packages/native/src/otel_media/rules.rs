@@ -34,7 +34,7 @@ static MEDIA_CANDIDATE_MARKERS: LazyLock<AhoCorasick> = LazyLock::new(|| {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum MediaScanMode {
     /// A payload value or a generic JSON document. Media candidates are
-    /// eligible except in known structural fields.
+    /// eligible in every field.
     Payload,
     /// An OTLP KeyValue list. The `key` is a metadata name, while the
     /// corresponding `value` contains the data-bearing AnyValue subtree.
@@ -69,54 +69,9 @@ pub(super) fn is_otel_envelope_field(field: &str) -> bool {
 /// The legacy processor never treats those strings as media, so scanning them
 /// here would create references that later become metadata keys or routing
 /// fields. Unknown fields are eligible in a generic payload, while unknown
-/// envelope fields remain disabled until their semantics are established.
+/// envelope fields remain disabled until their semantics are established by
+/// the allowlist below.
 pub(super) fn media_scan_mode_for_field(parent: MediaScanMode, field: &str) -> MediaScanMode {
-    // These names are structural only while walking the OTLP envelope. In a
-    // user payload they are ordinary object fields and the legacy processor
-    // scans their string values for Data URIs.
-    if parent != MediaScanMode::Payload
-        && matches!(
-            field,
-            "key"
-                | "name"
-                | "version"
-                | "id"
-                | "traceId"
-                | "trace_id"
-                | "spanId"
-                | "span_id"
-                | "parentSpanId"
-                | "parent_span_id"
-                | "traceState"
-                | "trace_state"
-                | "startTimeUnixNano"
-                | "start_time_unix_nano"
-                | "endTimeUnixNano"
-                | "end_time_unix_nano"
-                | "timeUnixNano"
-                | "time_unix_nano"
-                | "observedTimeUnixNano"
-                | "observed_time_unix_nano"
-                | "severityNumber"
-                | "severity_number"
-                | "severityText"
-                | "severity_text"
-                | "flags"
-                | "kind"
-                | "status"
-                | "droppedAttributesCount"
-                | "dropped_attributes_count"
-                | "droppedEventsCount"
-                | "dropped_events_count"
-                | "droppedLinksCount"
-                | "dropped_links_count"
-                | "schemaUrl"
-                | "schema_url"
-        )
-    {
-        return MediaScanMode::Disabled;
-    }
-
     match parent {
         MediaScanMode::Disabled => MediaScanMode::Disabled,
         MediaScanMode::Payload => MediaScanMode::Payload,

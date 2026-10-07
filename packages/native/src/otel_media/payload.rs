@@ -177,8 +177,7 @@ pub struct EarlyMediaResult {
 /// extraction so masking cannot cause media hashing of a discarded input.
 #[derive(Debug, Eq, PartialEq)]
 pub struct ValidatedPayload {
-    source: Arc<Vec<u8>>,
-    pub manifest: Option<MediaManifest>,
+    source: Vec<u8>,
     normalized: bool,
 }
 
@@ -192,8 +191,7 @@ pub fn validate(input: Vec<u8>) -> Result<ValidatedPayload, EarlyMediaError> {
     };
     super::json::validate_json(&input)?;
     Ok(ValidatedPayload {
-        source: Arc::new(input.into_bytes()),
-        manifest: None,
+        source: input.into_bytes(),
         normalized,
     })
 }
@@ -203,22 +201,50 @@ impl ValidatedPayload {
         self.normalized.then_some(self.source.as_slice())
     }
 
-    pub(super) fn discover(&mut self) -> Result<(), EarlyMediaError> {
-        if self.manifest.is_none() {
-            self.manifest = Some(super::scanner::discover(self.source.as_slice())?);
-        }
-        Ok(())
+    /// Retained source allocation used for the validation handle's baseline.
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.source.capacity()
     }
 
-    /// Retained allocations, excluding allocator bookkeeping and shared-pointer headers.
-    pub(crate) fn retained_bytes(&self) -> usize {
-        let Some(manifest) = &self.manifest else {
-            return self.source.capacity();
-        };
+    /// Discover and apply edits only for the accepted payload selected for extraction.
+    /// Source-backed candidates keep ranges into the owned source allocation.
+    pub fn compact(self) -> Result<EarlyMediaResult, EarlyMediaError> {
+        let ValidatedPayload { source, .. } = self;
+        let manifest = super::scanner::discover(source.as_slice())?;
+        if manifest.entries.is_empty() {
+            // Discovery found no value to rewrite. Transfer
+            // the one owned Vec instead of parsing and copying a large no-media
+            // document into an identical compact buffer.
+            return Ok(EarlyMediaResult {
+                compact_json: source,
+                media: Vec::new(),
+            });
+        }
+        apply_edit_plan(Arc::new(source), manifest)
+    }
+
+    /// Consume the validation handle and transfer its original allocation to a
+    /// caller that intentionally keeps the document un-compacted. This is the
+    /// extraction-disabled path; discovery has not run, so transfer the source
+    /// allocation directly.
+    pub fn into_source(self) -> Vec<u8> {
+        self.source
+    }
+}
+
+/// Transient discovery output consumed by compaction.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct MediaManifest {
+    pub(super) entries: Vec<MediaManifestEntry>,
+}
+
+#[cfg(test)]
+impl MediaManifest {
+    /// Retained allocations in the transient discovery result for bounded-memory tests.
+    pub(super) fn retained_bytes(&self) -> usize {
         let mut seen = HashSet::new();
-        self.source.capacity()
-            + manifest.entries.capacity() * std::mem::size_of::<MediaManifestEntry>()
-            + manifest
+        self.entries.capacity() * std::mem::size_of::<MediaManifestEntry>()
+            + self
                 .entries
                 .iter()
                 .map(|entry| {
@@ -233,46 +259,10 @@ impl ValidatedPayload {
                 })
                 .sum::<usize>()
     }
-
-    /// Apply the discovered edits and materialize the media registry once.
-    /// Source-backed candidates keep ranges into the owned source allocation.
-    pub fn compact(mut self) -> Result<EarlyMediaResult, EarlyMediaError> {
-        self.discover()?;
-        let ValidatedPayload {
-            source, manifest, ..
-        } = self;
-        let manifest = manifest.expect("discovery initialized the manifest");
-        if manifest.entries.is_empty() {
-            // Discovery found no value to rewrite. Transfer
-            // the one owned Vec instead of parsing and copying a large no-media
-            // document into an identical compact buffer.
-            let compact_json =
-                Arc::try_unwrap(source).unwrap_or_else(|source| source.as_ref().clone());
-            return Ok(EarlyMediaResult {
-                compact_json,
-                media: Vec::new(),
-            });
-        }
-        apply_edit_plan(source, manifest)
-    }
-
-    /// Consume the validation handle and transfer its original allocation to a
-    /// caller that intentionally keeps the document un-compacted. This is the
-    /// no-early-media path; cloning the complete input here would defeat the
-    /// ownership boundary even though discovery found no media to rewrite.
-    pub fn into_source(self) -> Vec<u8> {
-        Arc::try_unwrap(self.source).unwrap_or_else(|source| source.as_ref().clone())
-    }
-}
-
-/// Discovery output suitable for masking coordination and later compaction.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MediaManifest {
-    pub entries: Vec<MediaManifestEntry>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MediaManifestEntry {
+pub(super) struct MediaManifestEntry {
     pub(crate) metadata: Arc<MediaMetadata>,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,

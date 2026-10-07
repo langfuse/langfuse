@@ -19,16 +19,10 @@ mod rules;
 mod scanner;
 
 pub use payload::{validate, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
-#[cfg(test)]
-pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, payload::EarlyMediaError> {
-    let mut validated = validate(input)?;
-    validated.discover()?;
-    Ok(validated)
-}
 
 #[cfg(test)]
 pub fn extract_media(input: &[u8]) -> Result<EarlyMediaResult, payload::EarlyMediaError> {
-    validate_and_discover(input.to_vec())?.compact()
+    validate(input.to_vec())?.compact()
 }
 
 #[cfg(test)]
