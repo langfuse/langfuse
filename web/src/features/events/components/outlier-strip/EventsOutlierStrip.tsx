@@ -443,7 +443,7 @@ export function EventsOutlierStrip({
     >
       {!canApplyFilters ? (
         <OutlierBarStrip
-          className="mt-2 mr-2 mb-2 ml-6"
+          className="mt-2 mr-2 ml-6"
           dense={[]}
           maxValue={0}
           ticks={[]}
@@ -454,7 +454,7 @@ export function EventsOutlierStrip({
         />
       ) : (
         <OutlierBarStrip
-          className={cn("mt-2 mr-2 mb-2", yGutter.className)}
+          className={cn("mt-2 mr-2", yGutter.className)}
           dense={series.dense}
           maxValue={series.maxValue}
           ticks={series.ticks}
