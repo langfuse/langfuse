@@ -4,7 +4,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
  * Contains:
- * - Title row with ItemBadge, observation name, options menu
+ * - Title row with EntityTitle, observation name, options menu
  * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
@@ -19,7 +19,8 @@ import {
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { EntityTitle } from "@/src/components/EntityTitle";
+import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -28,7 +29,6 @@ import {
   LatencyBadge,
   TimeToFirstTokenBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -61,7 +61,6 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
@@ -178,6 +177,7 @@ export const ObservationDetailViewHeader = memo(
 
     const timestampBadge = preparedDate && (
       <Badge
+        font="mono"
         color="ghost"
         text={preparedDate.display}
         title={preparedDate.title}
@@ -193,20 +193,16 @@ export const ObservationDetailViewHeader = memo(
     );
 
     return (
-      <div className="@container shrink-0 space-y-2 border-b p-2">
+      <DetailViewHeaderShell>
         {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="flex w-full min-w-0 flex-row items-center gap-1">
-            <ItemBadge type={observation.type as ObservationType} isSmall />
-            <span
-              className={cn(
-                "mb-0 min-w-0 truncate text-lg leading-7 font-bold",
-                isMobile && "flex-1",
-              )}
+        <div className="grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="flex w-full min-w-0 flex-row items-center gap-2">
+            <EntityTitle
+              as="span"
+              type={observation.type as ObservationType}
               title={observation.name || observation.id}
-            >
-              {observation.name || observation.id}
-            </span>
+              level={observation.level}
+            />
             {isMobile && (
               <ConnectedTraceObservationAddToDropdownMenuController
                 analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
@@ -349,7 +345,7 @@ export const ObservationDetailViewHeader = memo(
           </div>
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
-            <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+            <div className="flex flex-wrap content-start items-center justify-start gap-0.5 @md:justify-end">
               {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
@@ -379,7 +375,7 @@ export const ObservationDetailViewHeader = memo(
                 <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button
-                      variant="secondary"
+                      variant="ghost"
                       size="sm"
                       disabled={disabled}
                       onClick={() =>
@@ -408,7 +404,7 @@ export const ObservationDetailViewHeader = memo(
               )}
               <Button
                 type="button"
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 disabled={commentDrawerControl.disabled}
                 onClick={commentDrawerControl.openDrawer}
@@ -455,7 +451,7 @@ export const ObservationDetailViewHeader = memo(
                     className="shrink-0"
                     size="icon-sm"
                     title="Options"
-                    variant="secondary"
+                    variant="ghost"
                     {...getTriggerProps()}
                   >
                     <EllipsisVertical className="icon-base" />
@@ -529,9 +525,6 @@ export const ObservationDetailViewHeader = memo(
                 usageDetails={observation.usageDetails}
               />
             )}
-            {observation.level !== "DEFAULT" && (
-              <ObservationLevelBadge level={observation.level} />
-            )}
             {observation.promptId && !prompt.isLoading && prompt.data && (
               <PromptBadge
                 promptName={prompt.data.name}
@@ -541,7 +534,7 @@ export const ObservationDetailViewHeader = memo(
             )}
           </CollapsibleBadgeRow>
         )}
-      </div>
+      </DetailViewHeaderShell>
     );
   },
 );

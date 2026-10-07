@@ -148,7 +148,7 @@ describe("summarizeAssembledTrace", () => {
     const submitted = state.summarize.mock.calls[0];
     expect(submitted[0]).toBe(models);
     expect(submitted[1]).toEqual([
-      { key: "intent_1", facet: facet.versions[0] },
+      { key: "intent_1", facet: facet.versions[0], builtIn: true },
     ]);
     expect(submitted[2]).toContain("Export monthly sales");
     expect(submitted[2]).not.toContain("observation");
@@ -310,6 +310,38 @@ describe("summarizeAssembledTrace", () => {
       "langfuse.topics.trace_outcome",
       "failed",
     );
+  });
+
+  it("puts built-in facets before custom facets so the cached prefix stays stable", async () => {
+    const custom: TopicFacet = {
+      ...facet,
+      id: "facet-custom",
+      name: "Language",
+      isBuiltIn: false,
+      versions: [{ ...facet.versions[0], facetId: "facet-custom", version: 1 }],
+    };
+    state.facets.mockReturnValue([custom, facet]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "Export monthly sales.", status: "applicable" },
+        language_2: { summary: "English.", status: "applicable" },
+      },
+      ...usage,
+    });
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    expect(state.summarize.mock.calls[0][1]).toEqual([
+      { key: "intent_1", facet: facet.versions[0], builtIn: true },
+      { key: "language_2", facet: custom.versions[0], builtIn: false },
+    ]);
   });
 
   it("persists successful facets and attributes an embedding failure once", async () => {

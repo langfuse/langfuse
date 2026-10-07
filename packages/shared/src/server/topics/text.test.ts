@@ -50,10 +50,8 @@ describe("generateTopicText", () => {
 
     const result = await generateTopicText({
       model: bedrockModel("summary", "us.openai.gpt-6-luna"),
-      messages: [
-        { role: "system", content: "Summarize the user's request." },
-        { role: "user", content: "I cannot sign in." },
-      ],
+      system: [{ text: "Summarize the user's request." }],
+      input: "I cannot sign in.",
       schema: z.object({ summary: z.string() }),
       maxOutputTokens: 256,
     });
@@ -73,6 +71,137 @@ describe("generateTopicText", () => {
       toolConfig: { toolChoice: { any: {} } },
     });
     expect(result.output).toEqual(output);
+  });
+
+  it("sends cached prompts through InvokeModel with the connection's credentials and region", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: JSON.stringify({ summary: "Account access" }) },
+          },
+        ],
+        usage: {
+          prompt_tokens: 3653,
+          completion_tokens: 275,
+          total_tokens: 3928,
+          prompt_tokens_details: { cached_tokens: 2840, cache_write_tokens: 0 },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      system: [
+        { text: "System prompt and built-in facets.", cache: true },
+        { text: "Custom facets.", cache: true },
+      ],
+      input: "I cannot sign in.",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    const request = new Request(...fetch.mock.calls[0]);
+    expect(request.url).toBe(
+      "https://bedrock-runtime.eu-central-1.amazonaws.com/model/us.openai.gpt-6-luna/invoke",
+    );
+    expect(request.headers.get("authorization")).toMatch(
+      /^AWS4-HMAC-SHA256 Credential=AKIATOPICS\/\d{8}\/eu-central-1\/bedrock\//,
+    );
+    const body = (await request.json()) as {
+      messages: { content: unknown }[];
+      prompt_cache_options: unknown;
+    };
+    // One breakpoint per cached part; the transcript stays after the last one.
+    expect(body.messages).toEqual([
+      {
+        role: "system",
+        content: [
+          expect.objectContaining({
+            prompt_cache_breakpoint: { mode: "explicit" },
+          }),
+          expect.objectContaining({
+            prompt_cache_breakpoint: { mode: "explicit" },
+          }),
+        ],
+      },
+      { role: "user", content: [{ type: "text", text: "I cannot sign in." }] },
+    ]);
+    expect(body.prompt_cache_options).toEqual({ mode: "explicit", ttl: "30m" });
+    expect(result.usage).toEqual({
+      inputTokens: 3653,
+      outputTokens: 275,
+      totalTokens: 3928,
+      cacheReadTokens: 2840,
+      cacheWriteTokens: 0,
+    });
+  });
+
+  it("reports the InvokeModel HTTP status so throttling is classified", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("Too many requests", { status: 429 })),
+    );
+    await expect(
+      generateTopicText({
+        model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+        system: [{ text: "Summarize.", cache: true }],
+        input: "Hi",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+      }),
+    ).rejects.toMatchObject({ status: 429 });
+  });
+
+  it("reports cached prompt tokens from providers that cache automatically", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          id: "chatcmpl-1",
+          object: "chat.completion",
+          created: 1,
+          model: "gpt-6-luna",
+          choices: [
+            {
+              index: 0,
+              finish_reason: "stop",
+              message: {
+                role: "assistant",
+                content: JSON.stringify({ summary: "Account access" }),
+              },
+            },
+          ],
+          usage: {
+            prompt_tokens: 3000,
+            completion_tokens: 200,
+            total_tokens: 3200,
+            prompt_tokens_details: { cached_tokens: 2560 },
+          },
+        }),
+      ),
+    );
+
+    const result = await generateTopicText({
+      model: {
+        slot: "summary",
+        provider: "openai-topics",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-6-luna",
+        connection: { secretKey: encrypt("sk-test") },
+      },
+      system: [{ text: "System prompt and facets.", cache: true }],
+      input: "I cannot sign in.",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    expect(result.usage).toMatchObject({
+      inputTokens: 3000,
+      cacheReadTokens: 2560,
+    });
   });
 });
 

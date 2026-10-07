@@ -4,8 +4,7 @@
  */
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { ExternalLinkIcon } from "lucide-react";
-import Link from "next/link";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 import { UpsertModelFormDialogController } from "@/src/features/models";
 
 export function ModelBadge({
@@ -22,13 +21,11 @@ export function ModelBadge({
   // Linked model - show link to model settings
   if (internalModelId) {
     return (
-      <Link
+      <LinkBadge
         href={`/project/${projectId}/settings/models/${internalModelId}`}
-        className="inline-flex"
+        text={model}
         title="View model details"
-      >
-        <Badge color="ghost" text={model} trailingIcon={ExternalLinkIcon} />
-      </Link>
+      />
     );
   }
 
@@ -57,10 +54,10 @@ export function ModelBadge({
         <button
           type="button"
           title="Create model definition"
-          className="inline-flex cursor-pointer"
+          className="inline-flex cursor-pointer font-mono"
           onClick={openDialog}
         >
-          <Badge color="ghost" interactive text={model} />
+          <Badge color="ghost" font="mono" interactive text={model} />
         </button>
       )}
     </UpsertModelFormDialogController>

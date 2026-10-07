@@ -26,7 +26,7 @@ export function TracePanelNavigationLayoutDesktop({
     useDesktopLayoutContext();
 
   return (
-    <div className="flex h-full flex-col border-r">
+    <div className="flex h-full flex-col">
       <TracePanelNavigationHeader
         isPanelCollapsed={isNavigationPanelCollapsed}
         onTogglePanel={handleTogglePanel}

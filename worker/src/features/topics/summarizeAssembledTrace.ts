@@ -91,8 +91,17 @@ async function summarizeEnabledTrace(
     from: new Date(timestamp),
     to: new Date(timestamp + 1),
   };
-  const pending: { name: string; version: TopicFacetVersion }[] = [];
-  for (const facet of facets) {
+  const pending: {
+    name: string;
+    version: TopicFacetVersion;
+    builtIn: boolean;
+  }[] = [];
+  // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
+  const ordered = [
+    ...facets.filter((facet) => facet.isBuiltIn),
+    ...facets.filter((facet) => !facet.isBuiltIn),
+  ];
+  for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
     const stored = await listTopicSummaries(
@@ -104,7 +113,8 @@ async function summarizeEnabledTrace(
       },
       timeRange,
     );
-    if (!stored.length) pending.push({ name: facet.name, version });
+    if (!stored.length)
+      pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (!pending.length) return "unchanged";
 
@@ -115,9 +125,10 @@ async function summarizeEnabledTrace(
   let rows = bases;
   let failure: unknown;
   if (prepared.hasContent) {
-    const keyed = pending.map(({ name, version }, index) => ({
+    const keyed = pending.map(({ name, version, builtIn }, index) => ({
       key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
       facet: version,
+      builtIn,
     }));
     const invalidFacets = new Set<string>();
     let generated:

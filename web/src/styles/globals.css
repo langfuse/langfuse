@@ -60,6 +60,7 @@
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
   --color-primary-accent: hsl(var(--primary-accent));
+  --color-primary-accent-fill: var(--primary-accent-fill);
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
   --color-preview-banner: hsl(var(--preview-banner));
@@ -376,6 +377,7 @@
     --ring: 240 5% 64.9%; /* zinc-400 */
 
     --primary-accent: 243 75.4% 58.6%;
+    --primary-accent-fill: hsl(var(--primary-accent));
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
        same lavender family as dark, but muted — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
@@ -602,6 +604,7 @@
     --ring: 246 55% 70%;
 
     --primary-accent: 246 55% 70%;
+    --primary-accent-fill: oklch(50% 0.11 287);
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
     /* Preview-deployment strip: fill is blue-500/25 precomposed over the 6%
@@ -909,7 +912,7 @@
     content: "";
     position: absolute;
     right: calc(var(--spacing) * -1);
-    bottom: -2px;
+    bottom: -1px;
     left: calc(var(--spacing) * -1);
     height: 1px;
     background-image: linear-gradient(

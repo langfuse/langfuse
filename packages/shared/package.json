@@ -95,6 +95,14 @@
       "import": "./dist/src/features/query/index.js",
       "require": "./dist/src/features/query/index.js"
     },
+    "./rbac": {
+      "import": "./dist/src/features/rbac/index.js",
+      "require": "./dist/src/features/rbac/index.js"
+    },
+    "./rbac/server": {
+      "import": "./dist/src/features/rbac/server.js",
+      "require": "./dist/src/features/rbac/server.js"
+    },
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
       "require": "./dist/src/features/query/server/index.js"
@@ -202,6 +210,7 @@
     "@ai-sdk/openai": "^4.0.86",
     "@ai-sdk/openai-compatible": "^3.0.3",
     "@ai-sdk/typesafe-ai": "^3.0.4",
+    "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
     "@aws-sdk/client-s3": "catalog:",
@@ -222,6 +231,7 @@
     "@slack/oauth": "3.0.5",
     "@slack/web-api": "^7.15.0",
     "@smithy/node-http-handler": "4.5.1",
+    "@smithy/signature-v4": "5.6.4",
     "@types/bcryptjs": "^2.4.6",
     "ai": "^7.0.130",
     "ajv": "^8.18.0",

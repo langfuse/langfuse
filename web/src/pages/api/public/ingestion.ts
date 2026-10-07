@@ -40,9 +40,10 @@ import {
   shadowAuthorize,
   __dangerouslySkipAuthz,
 } from "@/src/features/public-api/server";
+import { type ProjectAction } from "@langfuse/shared/rbac";
 import {
+  unauthorizedError,
   type AuthorizationContext,
-  type ProjectAction,
 } from "@/src/features/auth/policy/types";
 
 export const config = {
@@ -350,7 +351,7 @@ export function filterBatchForEventsOnly(
   return { batchForProcessing, rejectedErrors };
 }
 
-/** authorizeIngestionBatch authorizes each event against the resolved context, dropping enforce-mode denials as 207 rejections; legacy and shadow keep every event. */
+/** authorizeIngestionBatch filters out unauthorized events from the batch */
 function authorizeIngestionBatch(
   batch: unknown[],
   ctx: AuthorizationContext | undefined,
@@ -359,13 +360,12 @@ function authorizeIngestionBatch(
 ): IngestionBatchFilter {
   const batchForProcessing: unknown[] = [];
   const rejectedErrors: IngestionEventRejection[] = [];
-
   for (const event of batch) {
     const decision = shadowAuthorize({
       ctx,
       action: ingestionActionForEventType(eventTypeOf(event)),
       resource: { projectId },
-      accessLevel,
+      legacyDecision: ingestionLegacyDecision(eventTypeOf(event), accessLevel),
     });
     if (!decision.success) {
       rejectedErrors.push({
@@ -381,12 +381,26 @@ function authorizeIngestionBatch(
   return { batchForProcessing, rejectedErrors };
 }
 
+function ingestionLegacyDecision(
+  eventType: string | null,
+  accessLevel: ApiAccessLevel,
+) {
+  if (
+    eventType === eventTypes.SDK_LOG ||
+    accessLevel === "project" ||
+    (eventType === eventTypes.SCORE_CREATE && accessLevel === "scores")
+  ) {
+    return { success: true as const, scope: { accessLevel } };
+  }
+  return unauthorizedError("Access Scope Denied");
+}
+
 /** ingestionActionForEventType maps an event type to the project action its write asserts; SDK logs skip authz. */
 function ingestionActionForEventType(
   type: string | null,
 ): ProjectAction | typeof __dangerouslySkipAuthz {
   if (type === eventTypes.SDK_LOG) return __dangerouslySkipAuthz;
-  if (type === eventTypes.SCORE_CREATE) return "scores:create";
+  if (type === eventTypes.SCORE_CREATE) return "scores:save";
   return "traces:create";
 }
 

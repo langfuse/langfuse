@@ -53,7 +53,8 @@ export async function listTopicFacets(
   const rows = await prisma.evaluator.findMany({
     where: { projectId, type: "FACET" },
     include: { versions: { orderBy: { version: "desc" } } },
-    orderBy: { createdAt: "asc" },
+    // A stable order keeps the Topics summary prompt (and its cache) identical across traces.
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
   return rows.map(topicFacet);
 }
