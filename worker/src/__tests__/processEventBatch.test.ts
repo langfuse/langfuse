@@ -178,4 +178,35 @@ describe("processEventBatch", () => {
     expect(error).toMatchObject({ httpCode: 503, retryAfterSeconds: 2 });
     expect(queueAddMock).not.toHaveBeenCalled();
   });
+
+  it("does not report a retryable 503 when another upload failed for a different reason", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+    const otherTrace = createTraceCreateEvent();
+    otherTrace.id = "other-event-id";
+    otherTrace.body.id = "other-trace-id";
+    uploadJsonMock
+      .mockRejectedValueOnce(
+        Object.assign(new Error("throttled"), { name: "SlowDown" }),
+      )
+      .mockRejectedValueOnce(new Error("Access Denied"));
+
+    const error = await processEventBatch(
+      [createTraceCreateEvent(), otherTrace],
+      authCheck,
+      {
+        delay: 0,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+      },
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(ServiceUnavailableError);
+  });
 });
