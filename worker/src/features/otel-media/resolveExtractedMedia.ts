@@ -310,13 +310,7 @@ export async function resolveExtractedMedia(params: {
         // The legacy detector only treats a string property as media content.
         next =
           typeof current === "string"
-            ? await resolveMediaValue(
-                current,
-                target,
-                field,
-                depth + 1,
-                "provider",
-              )
+            ? await resolveMediaValue(current, target, field, depth, "provider")
             : await restoreAll(current);
       } else if (structuredTarget?.container === key) {
         if (isObject(current)) {
@@ -329,7 +323,7 @@ export async function resolveExtractedMedia(params: {
                     nestedCurrent,
                     target,
                     field,
-                    depth + 1,
+                    depth,
                     "provider",
                   )
                 : await restoreAll(nestedCurrent);
@@ -367,17 +361,25 @@ export async function resolveExtractedMedia(params: {
     const startsWithJson = trimmed.startsWith("{") || trimmed.startsWith("[");
     // Root provider-shaped strings are decoded here so their media fields can
     // be resolved in the same traversal as object values.
-    if (rootString && startsWithJson && mayContainSerializedMedia(value)) {
+    if (
+      rootString &&
+      startsWithJson &&
+      mayContainSerializedMedia(value) &&
+      hasKnownMediaReference(value)
+    ) {
       try {
         const parsed: unknown = JSON.parse(value);
         if (Array.isArray(parsed) || isObject(parsed)) {
+          const successfulBefore = stats.uploaded + stats.reused;
           const resolved = await resolveMediaValue(
             parsed,
             target,
             field,
-            depth + 1,
+            depth,
             mode,
           );
+          if (stats.uploaded + stats.reused === successfulBefore)
+            return restoreStringifiedReferences(value);
           return JSON.stringify(resolved);
         }
       } catch {
@@ -388,13 +390,13 @@ export async function resolveExtractedMedia(params: {
     // A generic stringified JSON value restores non-data references before it
     // is decoded, so only data-URI references enter the decoded traversal.
     // Plain strings can resolve each extracted reference in one scan.
-    if (!startsWithJson || !value.includes(MEDIA_REFERENCE_PREFIX)) {
+    if (!startsWithJson || !hasKnownMediaReference(value)) {
       return resolveDirectReferences(value, target, field, mode);
     }
 
     const firstPass =
       mode === "generic" ? await rewriteReferences(value, false, false) : value;
-    if (!firstPass.includes(MEDIA_REFERENCE_PREFIX)) return firstPass;
+    if (!hasKnownMediaReference(firstPass)) return firstPass;
 
     const firstPassTrimmed = firstPass.trimStart();
     const firstPassIsJson =
@@ -403,13 +405,16 @@ export async function resolveExtractedMedia(params: {
       try {
         const parsed: unknown = JSON.parse(firstPass);
         if (Array.isArray(parsed) || isObject(parsed)) {
+          const successfulBefore = stats.uploaded + stats.reused;
           const resolved = await resolveMediaValue(
             parsed,
             target,
             field,
-            depth + 1,
+            depth,
             "all",
           );
+          if (stats.uploaded + stats.reused === successfulBefore)
+            return restoreStringifiedReferences(value);
           return JSON.stringify(resolved);
         }
       } catch {
@@ -442,6 +447,35 @@ export async function resolveExtractedMedia(params: {
       output += replacement;
       changed = changed || replacement !== entry.reference;
       end = match.index + match[0].length;
+    }
+    return changed ? output + value.slice(end) : value;
+  }
+
+  function hasKnownMediaReference(value: string): boolean {
+    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
+      if (media.has(match[0])) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Restore a decoded JSON string without reserializing its surrounding document. This keeps
+   * whitespace, escaping, and number spelling intact when every extracted upload failed.
+   */
+  async function restoreStringifiedReferences(value: string): Promise<string> {
+    let output = "";
+    let end = 0;
+    let changed = false;
+    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
+      const entry = media.get(match[0]);
+      if (!entry) continue;
+      output += value.slice(end, match.index);
+      const original = await originalFor(entry);
+      // The marker occurs inside a JSON string. Preserve the surrounding quotes while
+      // escaping the restored value exactly as JSON would have represented it.
+      output += JSON.stringify(original).slice(1, -1);
+      end = match.index + match[0].length;
+      changed = true;
     }
     return changed ? output + value.slice(end) : value;
   }

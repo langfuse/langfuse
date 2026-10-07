@@ -75,12 +75,12 @@ queues is not.
 `LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED` is the kill switch.
 `LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS` selects projects by exact ID:
 
-| Enabled | Project IDs | Selected path |
-| --- | --- | --- |
-| `false` | Any valid value | Original TypeScript for everyone |
-| `true` | Unset or empty | Original TypeScript for everyone |
-| `true` | `project-a,project-b` | Early extraction for those projects only |
-| `true` | `*` | Early extraction for everyone |
+| Enabled | Project IDs           | Selected path                            |
+| ------- | --------------------- | ---------------------------------------- |
+| `false` | Any valid value       | Original TypeScript for everyone         |
+| `true`  | Unset or empty        | Original TypeScript for everyone         |
+| `true`  | `project-a,project-b` | Early extraction for those projects only |
+| `true`  | `*`                   | Early extraction for everyone            |
 
 Whitespace around IDs is ignored. Mixing `*` with IDs fails worker startup,
 including when the toggle is disabled.
@@ -88,6 +88,12 @@ The selection happens before downloading or passing the document to Rust.
 `LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED` and the media bucket configuration still
 control whether media is extracted and uploaded; the selector does not enable
 uploads by itself or change the existing late TypeScript detector.
+
+The early path replaces malformed UTF-8 sequences with U+FFFD before JSON
+validation, following [OTLP receiver guidance](https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md#utf-8-string-handling).
+Masking and media discovery use that same sanitized source. Masked responses pass
+through the same boundary within the existing masking retry and fail-open/fail-closed
+policy. Invalid JSON still fails; preparation never falls back to TypeScript.
 
 Start with internal projects and a dedicated secondary OTEL worker pool:
 
@@ -124,14 +130,10 @@ secondary export.
   span has the same `langfuse.ingestion.otel.media_path` attribute. Selection does
   not imply that media was found or that processing completed.
 - `langfuse.ingestion.otel.early_media.preparation` counts one final preparation
-  outcome: `native`, `typescript_fallback`, `masking_drop`, or `error`.
+  outcome: `native`, `masking_drop`, or `error`.
   `preparation_duration_ms` measures validation, masking, compaction and validator
   disposal. Both use `outcome` and `extract_media` tags. They exclude S3 download
   and the subsequent ingestion pipeline. A native result may contain no media.
-- `langfuse.ingestion.otel.native_fallback{reason=representation}` counts
-  compatibility fallbacks during validation/extraction, including masking
-  attempts. It is not a per-job fallback rate; use the preparation outcomes for
-  the final selected result.
 - Existing `langfuse.ingestion.otel.media` counters describe upload/reuse/failure
   callbacks and associations by `write_path=legacy|direct`. Reuse can avoid an S3
   upload, and dual writes can report more than one association for the same asset.
@@ -139,11 +141,11 @@ secondary export.
   also carry `media_path=early|reference`. Filter or group by this tag to compare
   pipelines, or omit the grouping to aggregate them. The tag describes the whole
   media-processing path: late TS detection within an early batch is still tagged
-  `early`; a complete TS fallback is tagged `reference`. Existing media duration
+  `early`. Existing media duration
   covers late detection/resolution/uploads, not native preparation.
 
 Watch queue age/retries, worker RSS/CPU/event-loop delay and restarts alongside
-preparation errors/fallbacks and media outcomes. The dedicated pool provides a
+preparation errors and media outcomes. The dedicated pool provides a
 cohort for resource comparisons without project-ID metric tags. Existing byte
 counters do not measure whole-document compaction savings, and restore outcomes
 have no dedicated counter. The reference S3-size metric counts JavaScript string
