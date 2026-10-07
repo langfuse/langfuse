@@ -143,7 +143,7 @@ const PageHeader = ({
                   <div className="flex items-center">{leadingControl}</div>
                 )
               )}
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {envLabel.visible && (
                   <EnvLabelBadge
                     region={envLabel.region}
