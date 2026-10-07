@@ -10,11 +10,25 @@ export declare class EarlyOtelBatch {
    * Media metadata and source ranges remain owned by this batch for later reads.
    */
   takeJson(): string
+  /**
+   * Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
+   * The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
+   * here because Node now owns the allocation through that finalizer. Media metadata and
+   * source ranges remain owned by this batch for later reads.
+   */
+  takeJsonBuffer(): Buffer
   get media(): Array<ExtractedOtelMedia>
+  /** Return the number of extracted media descriptors without materializing them in JavaScript. */
+  mediaCount(): number
+  /** Materialize a bounded page of descriptors for callers processing very large batches. */
+  mediaPage(offset: number, limit: number): Array<ExtractedOtelMedia>
   /** Decode one media body. Callers control concurrency and the returned Buffer's lifetime. */
   mediaBody(index: number): Promise<Buffer>
-  /** Read the original encoded text for restoring the selected media occurrence. */
-  originalMedia(index: number): Promise<string>
+  /**
+   * Read media text for the selected number of remaining JSON string layers.
+   * Omitting the count returns the exact spelling after parsing the outer document.
+   */
+  originalMedia(index: number, jsonLayers?: number | undefined | null): Promise<string>
 }
 
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
@@ -62,6 +76,7 @@ export interface ExtractedOtelMedia {
   sha256Hash: string
   kind: string
   originalByteLength: number
+  originalJsonDepth: number
 }
 
 /**

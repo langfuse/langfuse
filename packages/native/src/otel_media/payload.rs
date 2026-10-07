@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use jiter::Jiter;
 
 const SOURCE_DETACH_MIN_BYTES: usize = 8 * 1024 * 1024;
 
@@ -23,7 +24,7 @@ pub enum MediaPayloadKind {
 }
 
 impl MediaPayloadKind {
-    /// Stable labels used by the existing media counters and logs.
+    /// Stable labels used when reporting extracted media.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::DataUri => "data_uri",
@@ -87,11 +88,17 @@ impl MediaMetadata {
 pub struct ExtractedMedia {
     pub(crate) metadata: Arc<MediaMetadata>,
     occurrence_id: u128,
+    /// Number of serialized JSON documents between the outer input and this candidate.
+    original_json_depth: u8,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
     /// Encoded media text: a shared source range when JSON escaping left it unchanged,
     /// otherwise an owned copy with JSON escapes decoded.
     storage: MediaStorage,
+    /// Representation restored when an upload fails. For media found inside a
+    /// stringified JSON document this is the candidate text after that
+    /// document's outer string decode, so deeper escapes remain intact.
+    original_storage: Option<Arc<Vec<u8>>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -117,17 +124,53 @@ impl ExtractedMedia {
         super::encoding::decode_encoded_data(self.encoded_data(), self.encoding)
     }
 
-    /// Return the original media text for inline restoration, with JSON escapes decoded.
-    /// Base64 and Python bytes encodings are preserved.
+    /// Return the media text used for inline restoration.
     pub fn original_value(&self) -> Result<String, MediaDecodeError> {
-        String::from_utf8(self.encoded_data().to_vec())
+        String::from_utf8(self.original_data().to_vec())
             .map_err(|_| MediaDecodeError::InvalidSourceText)
     }
 
+    /// Return the source spelling at a requested number of remaining JSON layers.
+    /// `None` returns the exact spelling after parsing the outer document;
+    /// zero returns the fully decoded candidate.
+    pub fn original_value_for_layers(
+        &self,
+        json_layers: Option<u32>,
+    ) -> Result<String, MediaDecodeError> {
+        let Some(json_layers) = json_layers else {
+            return self.original_value();
+        };
+        if json_layers > MAX_JSON_LAYER_ADJUSTMENT {
+            return Err(MediaDecodeError::JsonLayerLimit);
+        }
+        if json_layers == 0 {
+            return String::from_utf8(self.encoded_data().to_vec())
+                .map_err(|_| MediaDecodeError::InvalidSourceText);
+        }
+
+        let source_depth = u32::from(self.original_json_depth);
+        let mut value = self.original_data().to_vec();
+        if json_layers < source_depth {
+            for _ in 0..(source_depth - json_layers) {
+                value = unescape_json_layer(&value)?;
+            }
+        } else {
+            for _ in 0..(json_layers - source_depth) {
+                value = escape_json_layer(&value)?;
+            }
+        }
+        String::from_utf8(value).map_err(|_| MediaDecodeError::InvalidSourceText)
+    }
+
+    /// Number of serialized JSON documents containing this candidate.
+    pub fn original_json_depth(&self) -> u8 {
+        self.original_json_depth
+    }
+
     /// Number of UTF-8 bytes in the source representation restored when an
-    /// upload fails. This is the same unit as the TypeScript media counters.
+    /// upload fails.
     pub fn original_byte_length(&self) -> usize {
-        self.encoded_data().len()
+        self.original_data().len()
     }
 
     pub(crate) fn retained_bytes(&self, seen: &mut HashSet<*const MediaMetadata>) -> usize {
@@ -137,10 +180,11 @@ impl ExtractedMedia {
             0
         };
         metadata
-            + match &self.storage {
-                MediaStorage::Owned(bytes) => bytes.capacity(),
-                MediaStorage::Source { .. } => 0,
-            }
+            + storage_retained_bytes(&self.storage)
+            + self
+                .original_storage
+                .as_ref()
+                .map_or(0, |bytes| bytes.capacity())
     }
 
     pub(crate) fn source_capacity(&self) -> Option<usize> {
@@ -151,10 +195,27 @@ impl ExtractedMedia {
     }
 
     fn encoded_data(&self) -> &[u8] {
-        match &self.storage {
-            MediaStorage::Owned(bytes) => bytes,
-            MediaStorage::Source { bytes, range } => &bytes[range.clone()],
-        }
+        storage_bytes(&self.storage)
+    }
+
+    fn original_data(&self) -> &[u8] {
+        self.original_storage
+            .as_ref()
+            .map_or_else(|| self.encoded_data(), |bytes| bytes.as_slice())
+    }
+}
+
+fn storage_bytes(storage: &MediaStorage) -> &[u8] {
+    match storage {
+        MediaStorage::Owned(bytes) => bytes,
+        MediaStorage::Source { bytes, range } => &bytes[range.clone()],
+    }
+}
+
+fn storage_retained_bytes(storage: &MediaStorage) -> usize {
+    match storage {
+        MediaStorage::Owned(bytes) => bytes.capacity(),
+        MediaStorage::Source { .. } => 0,
     }
 }
 
@@ -241,10 +302,7 @@ impl MediaManifest {
                         entry.metadata.retained_bytes()
                     } else {
                         0
-                    }) + match &entry.storage {
-                        ManifestMediaStorage::SourceRange(_) => 0,
-                        ManifestMediaStorage::Owned(bytes) => bytes.capacity(),
-                    }
+                    }) + manifest_storage_retained_bytes(&entry.storage)
                 })
                 .sum::<usize>()
     }
@@ -253,6 +311,7 @@ impl MediaManifest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct MediaManifestEntry {
     pub(crate) metadata: Arc<MediaMetadata>,
+    pub(crate) original_json_depth: u8,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
     /// Exact raw source span replaced during compaction.
@@ -266,6 +325,14 @@ pub(super) struct MediaManifestEntry {
 pub(super) enum ManifestMediaStorage {
     SourceRange(Range<usize>),
     Owned(Vec<u8>),
+}
+
+#[cfg(test)]
+fn manifest_storage_retained_bytes(storage: &ManifestMediaStorage) -> usize {
+    match storage {
+        ManifestMediaStorage::SourceRange(_) => 0,
+        ManifestMediaStorage::Owned(bytes) => bytes.capacity(),
+    }
 }
 
 /// JSON syntax errors and failures to construct or apply a media edit plan.
@@ -321,6 +388,8 @@ pub enum MediaDecodeError {
     InvalidPythonBytes,
     InvalidDataUri,
     InvalidSourceText,
+    InvalidJsonString,
+    JsonLayerLimit,
 }
 
 impl fmt::Display for MediaDecodeError {
@@ -331,6 +400,8 @@ impl fmt::Display for MediaDecodeError {
             Self::InvalidPythonBytes => f.write_str("invalid Python bytes literal"),
             Self::InvalidDataUri => f.write_str("invalid Data URI media"),
             Self::InvalidSourceText => f.write_str("media source is not UTF-8 text"),
+            Self::InvalidJsonString => f.write_str("invalid JSON string representation"),
+            Self::JsonLayerLimit => f.write_str("JSON string layer limit exceeded"),
         }
     }
 }
@@ -341,21 +412,20 @@ fn apply_edit_plan(
     source: Arc<Vec<u8>>,
     manifest: MediaManifest,
 ) -> Result<EarlyMediaResult, EarlyMediaError> {
+    let entries = manifest.entries;
     let input = source.as_slice();
-    validate_edit_plan(input, &manifest.entries)?;
+    validate_edit_plan(input, &entries)?;
     let mut nonce = [0; 16];
     getrandom::fill(&mut nonce).map_err(|_| EarlyMediaError::RandomnessUnavailable)?;
     let first_id = u128::from_le_bytes(nonce);
-    let replacement_bytes = manifest
-        .entries
+    let replacement_bytes = entries
         .iter()
         .map(|entry| {
             // The temporary ID has a fixed-width representation, independent of the index.
             reference_length(&entry.metadata)
         })
         .sum::<usize>();
-    let removed_bytes = manifest
-        .entries
+    let removed_bytes = entries
         .iter()
         .map(|entry| entry.edit_range.len())
         .sum::<usize>();
@@ -366,8 +436,8 @@ fn apply_edit_plan(
             .saturating_add(replacement_bytes),
     );
     let mut cursor = 0;
-    let mut media = Vec::with_capacity(manifest.entries.len());
-    for (index, entry) in manifest.entries.into_iter().enumerate() {
+    let mut media = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.into_iter().enumerate() {
         let occurrence_id = first_id.wrapping_add(index as u128);
         compact_json.extend_from_slice(&input[cursor..entry.edit_range.start]);
         write_reference(&mut compact_json, &entry.metadata, occurrence_id);
@@ -379,12 +449,27 @@ fn apply_edit_plan(
                 range: range.clone(),
             },
         };
+        // A source range identical to the edit range already has the exact spelling needed for
+        // restoration. Only an owned candidate crossed a JSON escape boundary and needs the
+        // source span decoded once; avoid rescanning large, source-backed media bodies.
+        let original_storage = match &storage {
+            MediaStorage::Source { range, .. } if *range == entry.edit_range => None,
+            _ => original_value_from_source(
+                input,
+                &entry.edit_range,
+                storage_bytes(&storage),
+                index,
+            )?
+            .map(Arc::new),
+        };
         media.push(ExtractedMedia {
             metadata: entry.metadata,
             occurrence_id,
+            original_json_depth: entry.original_json_depth,
             kind: entry.kind,
             encoding: entry.encoding,
             storage,
+            original_storage,
         });
     }
     compact_json.extend_from_slice(&input[cursor..]);
@@ -394,6 +479,59 @@ fn apply_edit_plan(
         compact_json,
         media,
     })
+}
+
+const MAX_JSON_LAYER_ADJUSTMENT: u32 = 16;
+
+fn unescape_json_layer(value: &[u8]) -> Result<Vec<u8>, MediaDecodeError> {
+    let mut token = Vec::with_capacity(value.len() + 2);
+    token.push(b'"');
+    token.extend_from_slice(value);
+    token.push(b'"');
+    let mut decoder = Jiter::new(&token);
+    let decoded = decoder
+        .next_str()
+        .map_err(|_| MediaDecodeError::InvalidJsonString)?
+        .as_bytes()
+        .to_vec();
+    decoder
+        .finish()
+        .map_err(|_| MediaDecodeError::InvalidJsonString)?;
+    Ok(decoded)
+}
+
+fn escape_json_layer(value: &[u8]) -> Result<Vec<u8>, MediaDecodeError> {
+    let value = std::str::from_utf8(value).map_err(|_| MediaDecodeError::InvalidSourceText)?;
+    let encoded = serde_json::to_string(value).map_err(|_| MediaDecodeError::InvalidJsonString)?;
+    Ok(encoded.as_bytes()[1..encoded.len() - 1].to_vec())
+}
+
+/// Decode the final source span once, matching the string layer visible after
+/// the outer document has been parsed. Deeper stringified documents remain
+/// escaped for the caller that still owns their serialized representation.
+fn original_value_from_source(
+    input: &[u8],
+    range: &Range<usize>,
+    encoded_data: &[u8],
+    entry: usize,
+) -> Result<Option<Vec<u8>>, EarlyMediaError> {
+    let raw = input
+        .get(range.clone())
+        .ok_or(EarlyMediaError::InvalidEditPlan { entry })?;
+    if !raw.contains(&b'\\') {
+        return Ok(None);
+    }
+    let mut token = Vec::with_capacity(raw.len() + 2);
+    token.push(b'"');
+    token.extend_from_slice(raw);
+    token.push(b'"');
+    let mut decoder = Jiter::new(&token);
+    let decoded = decoder
+        .next_str()
+        .map_err(|_| EarlyMediaError::InvalidEditPlan { entry })?
+        .as_bytes()
+        .to_vec();
+    Ok((decoded != encoded_data).then_some(decoded))
 }
 
 pub(super) fn validate_edit_plan(
@@ -449,7 +587,8 @@ fn detach_small_source_ranges(source: &Arc<Vec<u8>>, media: &mut [ExtractedMedia
 
     let source_backed_bytes = media
         .iter()
-        .filter_map(|entry| match &entry.storage {
+        .map(|entry| &entry.storage)
+        .filter_map(|storage| match storage {
             MediaStorage::Source { range, .. } => Some(range.len()),
             MediaStorage::Owned(_) => None,
         })

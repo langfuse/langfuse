@@ -403,3 +403,72 @@ it(
     }
   },
 );
+
+it(
+  "transfers compact JSON to a Buffer while retaining media reads after disposal",
+  { retry: 0 },
+  async () => {
+    const uri = "data:image/png;base64,aGk=";
+    const validated = await validateOtelJson(
+      Buffer.from(JSON.stringify({ input: uri })),
+    );
+    const batch = await validated.extract(true);
+    try {
+      const [media] = batch.media;
+      const compact = batch.takeJsonBuffer();
+      expect(Buffer.isBuffer(compact)).toBe(true);
+      expect(JSON.parse(compact.toString("utf8"))).toEqual({
+        input: media.reference,
+      });
+      expect(() => batch.json()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
+      );
+      expect(() => batch.takeJsonBuffer()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
+      );
+
+      const body = batch.mediaBody(media.index);
+      await batch.dispose();
+      expect(compact.toString("utf8")).toContain(media.reference);
+      await expect(body).resolves.toEqual(Buffer.from("hi"));
+    } finally {
+      await batch.dispose();
+      await validated.dispose();
+    }
+  },
+);
+
+it(
+  "pages large media descriptor registries with stable bounds",
+  { retry: 0 },
+  async () => {
+    const count = 4_097;
+    const uri = "data:image/png;base64,aGk=";
+    const validated = await validateOtelJson(
+      Buffer.from(JSON.stringify(Array.from({ length: count }, () => uri))),
+    );
+    const batch = await validated.extract(true);
+    try {
+      expect(batch.mediaCount()).toBe(count);
+      expect(batch.mediaPage(0, 2).map((entry) => entry.index)).toEqual([0, 1]);
+      expect(batch.mediaPage(4_095, 2).map((entry) => entry.index)).toEqual([
+        4_095, 4_096,
+      ]);
+      expect(batch.mediaPage(count, 1)).toEqual([]);
+      expect(() => batch.mediaPage(0, 0)).toThrow(/media page limit/);
+      expect(() => batch.mediaPage(0, 4_097)).toThrow(/media page limit/);
+      expect(() => batch.mediaPage(count + 1, 1)).toThrow(/offset/);
+
+      await batch.dispose();
+      expect(() => batch.mediaCount()).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
+      expect(() => batch.mediaPage(0, 1)).toThrowError(
+        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
+      );
+    } finally {
+      await batch.dispose();
+      await validated.dispose();
+    }
+  },
+);
