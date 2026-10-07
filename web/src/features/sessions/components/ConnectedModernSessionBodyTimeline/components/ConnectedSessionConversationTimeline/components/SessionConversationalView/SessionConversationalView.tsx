@@ -1,4 +1,9 @@
 import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
+import { Search } from "lucide-react";
+import { Input } from "@/src/components/ui/input";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Trigger as DialogTrigger } from "@radix-ui/react-dialog";
 import {
   SessionConversationSidebar,
   type SessionConversationSidebarTrace,
@@ -191,20 +196,82 @@ export function SessionConversationalView(
       });
     }
   }
+  const sidebarProps =
+    props.state === "loading"
+      ? { state: "loading" as const }
+      : {
+          ...props,
+          traces: sidebarTraces,
+          activeTraceId: props.controller.activeItemId ?? undefined,
+        };
   return (
-    <div className="bg-background session-review-stack:grid-rows-[minmax(7rem,9rem)_minmax(0,1fr)] session-review-stack:gap-x-0 relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
-      {props.state === "loading" ? (
-        <SessionConversationSidebar state="loading" />
-      ) : (
-        <SessionConversationSidebar
-          {...props}
-          traces={sidebarTraces}
-          activeTraceId={props.controller.activeItemId ?? undefined}
-        />
-      )}
+    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
+      <div className="border-b px-2 py-2.5 @3xl/session-workspace:hidden">
+        <DialogController
+          renderDialog={({ closeDialog }) => (
+            <Dialog title="Search session" closeOnInteractionOutside>
+              <div className="shrink-0 border-b px-4 pt-0 pb-2">
+                <div className="relative min-w-0">
+                  <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
+                  <Input
+                    disabled={props.state === "loading"}
+                    value={props.state === "loaded" ? props.search : ""}
+                    onChange={(event) => {
+                      if (props.state === "loaded")
+                        props.onSearchChange(event.target.value);
+                    }}
+                    aria-label="Search session"
+                    placeholder="Search session"
+                    className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
+                  />
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 sm:h-[60dvh] sm:flex-none">
+                {sidebarProps.state === "loading" ? (
+                  <SessionConversationSidebar
+                    state="loading"
+                    searchVisibility="hidden"
+                  />
+                ) : (
+                  <SessionConversationSidebar
+                    {...sidebarProps}
+                    searchVisibility="hidden"
+                    onSelect={(...args) => {
+                      sidebarProps.onSelect(...args);
+                      closeDialog();
+                    }}
+                  />
+                )}
+              </div>
+            </Dialog>
+          )}
+        >
+          {({ openDialog }) => (
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                disabled={props.state === "loading"}
+                onClick={() => openDialog()}
+                aria-label="Search session"
+                className="border-input text-muted-foreground flex h-7 w-full items-center gap-2 rounded-sm border px-2 text-left font-mono text-xs"
+              >
+                <Search className="icon-base shrink-0" />
+                <span className="truncate">
+                  {props.state === "loaded" && props.search
+                    ? props.search
+                    : "Search session"}
+                </span>
+              </button>
+            </DialogTrigger>
+          )}
+        </DialogController>
+      </div>
+      <div className="hidden min-h-0 @3xl/session-workspace:block">
+        <SessionConversationSidebar {...sidebarProps} />
+      </div>
       <div
         ref={transcriptRef}
-        className="bg-card dark:bg-background session-review-stack:min-w-0 relative min-h-0 min-w-[320px]"
+        className="bg-card dark:bg-background relative min-h-0 min-w-0"
       >
         <style>{`::highlight(${highlightName}) { background-color: ${searchQuery ? "hsl(var(--find-match-background))" : "transparent"}; color: ${searchQuery ? "hsl(var(--foreground))" : "inherit"}; }`}</style>
         <SessionConversationTimeline

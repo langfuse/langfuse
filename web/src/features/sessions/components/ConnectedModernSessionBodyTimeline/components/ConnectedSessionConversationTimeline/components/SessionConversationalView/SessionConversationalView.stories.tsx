@@ -2129,6 +2129,7 @@ function SessionConversationalViewStory({
   groupedTools = false,
   searchQueryOverride,
   viewportHeight,
+  viewportWidth,
   pageOffset = 0,
   delayedLoad = false,
 }: {
@@ -2139,6 +2140,7 @@ function SessionConversationalViewStory({
   groupedTools?: boolean;
   searchQueryOverride?: string;
   viewportHeight?: number;
+  viewportWidth?: number;
   pageOffset?: number;
   delayedLoad?: boolean;
 }) {
@@ -2260,6 +2262,7 @@ function SessionConversationalViewStory({
             ? undefined
             : viewportHeight + pageOffset,
         paddingTop: pageOffset,
+        width: viewportWidth,
       }}
     >
       {delayedLoad && !transcriptsLoaded && (
@@ -2478,6 +2481,48 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
 });
 export default meta;
+
+export const MobileSearch = meta.story({
+  args: {
+    transcriptTraces: navigationTraces,
+    viewportHeight: 600,
+    viewportWidth: 390,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    expect(canvas.queryByRole("complementary")).not.toBeInTheDocument();
+    const page = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", {
+      name: "Search session",
+    });
+    await userEvent.click(trigger);
+    const dialog = within(await page.findByRole("dialog"));
+    const search = dialog.getByRole("textbox", {
+      name: "Search session",
+    });
+    await expect(search).toHaveFocus();
+    await userEvent.type(search, "Turn 2 thread 1");
+    const sidebar = await dialog.findByRole("complementary");
+    await userEvent.click(
+      within(sidebar).getByRole("button", { name: "User message" }),
+    );
+    await waitFor(() =>
+      expect(page.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    await expect(trigger).toHaveFocus();
+    expect(trigger).toHaveTextContent("Turn 2 thread 1");
+    await userEvent.click(trigger);
+    const reopenedDialog = within(await page.findByRole("dialog"));
+    const reopenedSearch = reopenedDialog.getByRole("textbox");
+    expect(reopenedSearch).toHaveValue("Turn 2 thread 1");
+    await userEvent.clear(reopenedSearch);
+    expect(page.getByRole("dialog")).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(page.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
 
 export const ManualScrollSynchronization = meta.story({
   name: "(Test) Manual Scroll Synchronization",
@@ -2843,7 +2888,7 @@ export const NestedThreadsHidden = meta.story({
       }
     }
     const search = sidebar.getByRole("textbox", {
-      name: "Search messages and tools",
+      name: "Search session",
     });
     await userEvent.type(search, "confirms delivery");
     await expect(
@@ -2875,7 +2920,7 @@ export const Loading = meta.story({
     await expect(sidebar).toHaveAttribute("aria-busy", "true");
     await expect(
       within(sidebar).getByRole("textbox", {
-        name: "Search messages and tools",
+        name: "Search session",
       }),
     ).toBeDisabled();
   },
@@ -2899,7 +2944,7 @@ export const SupportAgentWorkflow = meta.story({
       await sidebar.findByRole("button", { name: "tool: Get order" }),
     ).toBeInTheDocument();
     await expect(
-      sidebar.getByRole("textbox", { name: "Search messages and tools" }),
+      sidebar.getByRole("textbox", { name: "Search session" }),
     ).toBeEnabled();
     await expect(
       await within(
@@ -3064,7 +3109,7 @@ export const ClearPendingSearch = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByRole("textbox", {
-      name: "Search messages and tools",
+      name: "Search session",
     });
     const timeline = canvas.getByLabelText("Session conversation timeline");
     await userEvent.type(input, "ORDER");
