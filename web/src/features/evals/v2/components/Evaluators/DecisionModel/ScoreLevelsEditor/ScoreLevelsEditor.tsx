@@ -1,6 +1,7 @@
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
+import { TextActionButton } from "@/src/components/design-system/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
@@ -120,11 +121,8 @@ export function ScoreLevelsEditor({
         )}
       />
       <div className="flex items-center gap-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:text-foreground h-6 justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+        <TextActionButton
+          text="Add level"
           disabled={levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels}
           onClick={() =>
             onChange([
@@ -132,10 +130,7 @@ export function ScoreLevelsEditor({
               labels ? { label: "", description: "" } : { description: "" },
             ])
           }
-        >
-          <Plus className="icon-base text-icon-foreground shrink-0" />
-          Add level
-        </Button>
+        />
         <InfoTooltip label="About the score">
           The score is the probability-weighted average of the level numbers, so
           it can be a decimal from 0 to {Math.max(levels.length - 1, 0)}.

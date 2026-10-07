@@ -2,8 +2,9 @@ import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,
 } from "@langfuse/shared";
-import { Plus, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
+import { TextActionButton } from "@/src/components/design-system/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";
@@ -192,16 +193,7 @@ export function DecisionModelQuestionList({
       )}
 
       <div className="flex items-center gap-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:text-foreground h-6 justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
-          onClick={onAdd}
-        >
-          <Plus className="icon-base text-icon-foreground shrink-0" />
-          Add question
-        </Button>
+        <TextActionButton text="Add question" onClick={onAdd} />
         <InfoTooltip label="About extra questions">
           Answered together in one call; extra questions add only their own
           tokens.

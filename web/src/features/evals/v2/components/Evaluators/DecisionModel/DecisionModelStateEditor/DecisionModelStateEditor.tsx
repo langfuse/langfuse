@@ -1,7 +1,5 @@
 import { DecisionModelStateKeySchema } from "@langfuse/shared";
-import { Plus } from "lucide-react";
-
-import { Button } from "@/src/components/ui/button";
+import { TextActionButton } from "@/src/components/design-system/TextActionButton/TextActionButton";
 import { DecisionModelStatePreview } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelStatePreview/DecisionModelStatePreview";
 import { EditableVariableMapping } from "@/src/features/evals/v2/components/VariableMapping/components/EditableVariableMapping/EditableVariableMapping";
 import type {
@@ -80,16 +78,7 @@ export function DecisionModelStateEditor({
         sourceUnavailableMessage={sourceUnavailableMessage}
       />
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="text-foreground hover:text-foreground h-6 justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
-        onClick={onAddField}
-      >
-        <Plus className="icon-base text-icon-foreground shrink-0" />
-        Add field
-      </Button>
+      <TextActionButton text="Add field" onClick={onAddField} />
 
       <DecisionModelStatePreview fields={fields} sourceObject={sourceObject} />
     </div>
