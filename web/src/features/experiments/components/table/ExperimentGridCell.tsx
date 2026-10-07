@@ -4,7 +4,8 @@
 /* eslint-disable @repo/no-style-props */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
-import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { type ExperimentIoRenderMode } from "@/src/features/experiments/types/experimentIoRenderMode";
+import { ExperimentIOCell } from "./ExperimentIOCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,
@@ -43,6 +44,7 @@ type ExperimentGridCellProps = {
   projectId: string;
   itemId: string;
   output: unknown;
+  outputTruncated?: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -51,8 +53,7 @@ type ExperimentGridCellProps = {
   baselineLatencyMs?: number | null;
   observationId: string;
   traceId: string;
-  /** Render the output cell as single-line text (true) or JSON tree (false). */
-  singleLine: boolean;
+  ioRenderMode: ExperimentIoRenderMode;
   scores: ScoreAggregate;
   traceScores: ScoreAggregate;
   observationScoreOrder: string[];
@@ -81,6 +82,7 @@ type GridCellData = {
   projectId: string;
   itemId: string;
   output: unknown;
+  outputTruncated: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -477,6 +479,7 @@ export const ExperimentGridCell = ({
   projectId,
   itemId,
   output,
+  outputTruncated = false,
   level,
   startTime,
   totalCost,
@@ -485,7 +488,7 @@ export const ExperimentGridCell = ({
   baselineLatencyMs,
   observationId,
   traceId,
-  singleLine,
+  ioRenderMode,
   scores,
   traceScores,
   observationScoreOrder,
@@ -537,6 +540,7 @@ export const ExperimentGridCell = ({
     projectId,
     itemId,
     output,
+    outputTruncated,
     level,
     startTime,
     totalCost,
@@ -596,20 +600,18 @@ export const ExperimentGridCell = ({
     {
       accessorKey: "output",
       header: "Output",
-      cell: ({ data }) =>
-        data.isLoading ? (
-          <ConnectedIOTableCell
-            isLoading
-            variant="output"
-            singleLine={singleLine}
-          />
-        ) : (
-          <ConnectedIOTableCell
-            data={data.output ?? null}
-            variant="output"
-            singleLine={singleLine}
-          />
-        ),
+      cell: ({ data }) => (
+        <ExperimentIOCell
+          projectId={data.projectId}
+          traceId={data.traceId}
+          field="output"
+          mode={ioRenderMode}
+          data={data.output ?? null}
+          isLoading={data.isLoading}
+          isTruncated={data.outputTruncated}
+          variant="output"
+        />
+      ),
     },
   ];
 
@@ -669,7 +671,7 @@ export const ExperimentGridCell = ({
           const isFirst = index === 0;
           const isLast = index === sectionsToRender.length - 1;
 
-          // Output section - special handling for ConnectedIOTableCell. It is the
+          // Output section - special handling for ExperimentIOCell. It is the
           // one section that grows, so a taller row shows more output rather than
           // more chrome.
           if (row.accessorKey === "output" && row.cell) {

@@ -57,6 +57,11 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { aggregateScores } from "@/src/features/scores/server";
 import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
+import {
+  experimentBatchIOInput,
+  EXPERIMENT_FORMATTED_IO_SIZE_CAP,
+  limitExperimentIO,
+} from "./experimentIo";
 
 const ExperimentFilterOptions = z.object({
   projectId: z.string(),
@@ -857,14 +862,7 @@ export const experimentsRouter = createTRPCRouter({
     }),
 
   batchIO: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        itemIds: z.array(z.string()),
-        baseExperimentId: z.string().nullish(),
-        compExperimentIds: z.array(z.string()),
-      }),
-    )
+    .input(experimentBatchIOInput)
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -881,9 +879,12 @@ export const experimentsRouter = createTRPCRouter({
         itemIds: input.itemIds,
         baseExperimentId: input.baseExperimentId ?? undefined,
         compExperimentIds: input.compExperimentIds,
+        ...(input.includeFullIo
+          ? { ioSizeCap: EXPERIMENT_FORMATTED_IO_SIZE_CAP }
+          : {}),
       });
 
-      return batchIO;
+      return input.includeFullIo ? limitExperimentIO(batchIO) : batchIO;
     }),
 
   byProjectId: protectedProjectProcedure

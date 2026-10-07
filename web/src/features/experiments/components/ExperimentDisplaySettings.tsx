@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { type IoRenderMode } from "@/src/components/table/data-table-io-render-mode-switch";
+import { type ExperimentIoRenderMode } from "@/src/features/experiments/types/experimentIoRenderMode";
 import { Button } from "@/src/components/ui/button";
 import { Settings2, Check } from "lucide-react";
 import {
@@ -24,8 +24,8 @@ type ExperimentDisplaySettingsProps = {
   onItemVisibilityChange: (visibility: "baseline-only" | "all") => void;
   hasComparisons: boolean;
   hasBaseline: boolean;
-  ioRenderMode: IoRenderMode;
-  onIoRenderModeChange: (mode: IoRenderMode) => void;
+  ioRenderMode: ExperimentIoRenderMode;
+  onIoRenderModeChange: (mode: ExperimentIoRenderMode) => void;
 };
 
 /** A menu row that reads as a radio option. */
@@ -70,6 +70,7 @@ export function ExperimentDisplaySettings({
   onIoRenderModeChange,
 }: ExperimentDisplaySettingsProps) {
   const isItemVisibilityDisabled = !hasComparisons || !hasBaseline;
+  const handleFormattedSelect = () => onIoRenderModeChange("formatted");
 
   return (
     <DropdownMenu>
@@ -103,6 +104,12 @@ export function ExperimentDisplaySettings({
         <DropdownMenuSeparator />
 
         <DropdownMenuLabel>Cell format</DropdownMenuLabel>
+        <OptionItem
+          selected={ioRenderMode === "formatted"}
+          onSelect={handleFormattedSelect}
+        >
+          Formatted
+        </OptionItem>
         <OptionItem
           selected={ioRenderMode === "json"}
           onSelect={() => onIoRenderModeChange("json")}

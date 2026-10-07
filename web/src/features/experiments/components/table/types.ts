@@ -1,6 +1,7 @@
 import { type FilterState, type ScoreAggregate } from "@langfuse/shared";
 import { type VisibilityState } from "@tanstack/react-table";
 import { type ReactNode } from "react";
+import { type ExperimentIoRenderMode } from "@/src/features/experiments/types/experimentIoRenderMode";
 
 // Shared font color palette for experiment rows/columns
 const EXPERIMENT_COLOR_STYLES = [
@@ -150,6 +151,7 @@ export type ExperimentItemData = {
 export type ExperimentOutputData = {
   experimentId: string;
   output: string | null;
+  outputTruncated?: boolean;
 };
 
 /**
@@ -166,7 +168,9 @@ export type ExperimentItemsTableRow = {
 
   // IO data (from batchIO query)
   input?: string | null; // From base experiment only
+  inputTruncated?: boolean;
   expectedOutput?: string | null; // From base experiment only
+  expectedOutputTruncated?: boolean;
   outputs?: ExperimentOutputData[]; // From ALL experiments
 };
 
@@ -183,7 +187,7 @@ type ExperimentOption = {
  */
 export type ExperimentItemsTableProps = {
   projectId: string;
-  ioRenderMode: "json" | "text";
+  ioRenderMode: ExperimentIoRenderMode;
   hideControls?: boolean;
   /** Available experiments for filter targeting (baseline + comparisons) */
   availableExperiments?: ExperimentOption[];
