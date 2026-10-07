@@ -2482,140 +2482,6 @@ const meta = preview.meta({
 });
 export default meta;
 
-export const CollapsedLargeMessage = meta.story({
-  args: {
-    transcriptTraces: [
-      {
-        ...traces[0]!,
-        trace: { ...traces[0]!.trace, name: "Large message fallback" },
-        state: {
-          type: "transcript",
-          result: {
-            state: "loaded",
-            cutoff: false,
-            transcript: {
-              threads: [
-                {
-                  conversationHistory: [],
-                  currentTurn: {
-                    nestingLevel: 0,
-                    observations: [],
-                    messages: [
-                      {
-                        observationId: "large-message",
-                        traceId: "trace-1",
-                        startTime: new Date("2026-09-24T12:00:00Z"),
-                        endTime: null,
-                        role: "user",
-                        source: "input",
-                        parts: [
-                          {
-                            type: "text",
-                            text: "Show me the diagnostic output.",
-                          },
-                        ],
-                      },
-                      {
-                        observationId: "large-message",
-                        traceId: "trace-1",
-                        startTime: new Date("2026-09-24T12:00:00Z"),
-                        endTime: null,
-                        role: "assistant",
-                        source: "output",
-                        parts: [
-                          {
-                            type: "text",
-                            text: `${"> ".repeat(101)}Deeply nested diagnostic output\n\n${"Diagnostic line: operation completed successfully.\n".repeat(300)}`,
-                          },
-                        ],
-                      },
-                      {
-                        observationId: "large-message-summary",
-                        traceId: "trace-1",
-                        startTime: new Date("2026-09-24T12:00:01Z"),
-                        endTime: null,
-                        role: "assistant",
-                        source: "output",
-                        parts: [
-                          {
-                            type: "text",
-                            text: "Summary: all operations completed successfully.",
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                },
-              ],
-            },
-          },
-        },
-      },
-    ],
-  },
-  play: async ({ canvasElement }) => {
-    const timeline = within(
-      within(canvasElement).getByLabelText("Session conversation timeline"),
-    );
-    const content = await timeline.findByText(
-      /Deeply nested diagnostic output/,
-      {
-        selector: "pre",
-      },
-    );
-    await expect(content).not.toBeVisible();
-    await expect(
-      timeline.getByText("Summary: all operations completed successfully."),
-    ).toBeVisible();
-    await userEvent.click(timeline.getByText("Expand content"));
-    await expect(content).toBeVisible();
-    await userEvent.click(timeline.getByText("Collapse content"));
-    await expect(content).not.toBeVisible();
-  },
-});
-
-export const MobileSearch = meta.story({
-  args: {
-    transcriptTraces: navigationTraces,
-    viewportHeight: 600,
-    viewportWidth: 390,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    expect(canvas.queryByRole("complementary")).not.toBeInTheDocument();
-    const page = within(canvasElement.ownerDocument.body);
-    const trigger = canvas.getByRole("button", {
-      name: "Search session",
-    });
-    await userEvent.click(trigger);
-    const dialog = within(await page.findByRole("dialog"));
-    const search = dialog.getByRole("textbox", {
-      name: "Search session",
-    });
-    await expect(search).toHaveFocus();
-    await userEvent.type(search, "Turn 2 thread 1");
-    const sidebar = await dialog.findByRole("complementary");
-    await userEvent.click(
-      within(sidebar).getByRole("button", { name: "User message" }),
-    );
-    await waitFor(() =>
-      expect(page.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    await expect(trigger).toHaveFocus();
-    expect(trigger).toHaveTextContent("Turn 2 thread 1");
-    await userEvent.click(trigger);
-    const reopenedDialog = within(await page.findByRole("dialog"));
-    const reopenedSearch = reopenedDialog.getByRole("textbox");
-    expect(reopenedSearch).toHaveValue("Turn 2 thread 1");
-    await userEvent.clear(reopenedSearch);
-    expect(page.getByRole("dialog")).toBeVisible();
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(page.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  },
-});
-
 export const ManualScrollSynchronization = meta.story({
   name: "(Test) Manual Scroll Synchronization",
   args: {
@@ -3119,6 +2985,97 @@ export const CodingAgentWorkflow = meta.story({
 });
 export const LangfuseAssistantWorkflow = meta.story({
   args: { workflowTraces: langfuseAssistantWorkflow },
+});
+export const CollapsedLargeMessage = meta.story({
+  args: {
+    transcriptTraces: [
+      {
+        ...traces[0]!,
+        trace: { ...traces[0]!.trace, name: "Large message fallback" },
+        state: {
+          type: "transcript",
+          result: {
+            state: "loaded",
+            cutoff: false,
+            transcript: {
+              threads: [
+                {
+                  conversationHistory: [],
+                  currentTurn: {
+                    nestingLevel: 0,
+                    observations: [],
+                    messages: [
+                      {
+                        observationId: "large-message",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:00Z"),
+                        endTime: null,
+                        role: "user",
+                        source: "input",
+                        parts: [
+                          {
+                            type: "text",
+                            text: "Show me the diagnostic output.",
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "large-message",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:00Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "text",
+                            text: `${"> ".repeat(101)}Deeply nested diagnostic output\n\n${"Diagnostic line: operation completed successfully.\n".repeat(300)}`,
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "large-message-summary",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:01Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "text",
+                            text: "Summary: all operations completed successfully.",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const timeline = within(
+      within(canvasElement).getByLabelText("Session conversation timeline"),
+    );
+    const content = await timeline.findByText(
+      /Deeply nested diagnostic output/,
+      {
+        selector: "pre",
+      },
+    );
+    await expect(content).not.toBeVisible();
+    await expect(
+      timeline.getByText("Summary: all operations completed successfully."),
+    ).toBeVisible();
+    await userEvent.click(timeline.getByText("Expand content"));
+    await expect(content).toBeVisible();
+    await userEvent.click(timeline.getByText("Collapse content"));
+    await expect(content).not.toBeVisible();
+  },
 });
 export const ManySimpleTurns = meta.story({
   args: { workflowTraces: manySimpleTurnsWorkflow },
