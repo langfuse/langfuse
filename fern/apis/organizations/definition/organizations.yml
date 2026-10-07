@@ -109,9 +109,6 @@ service:
                 status: deprecated
                 message: Use name instead.
               docs: Deprecated alias for name. Cannot be provided together with name, even if either value is an empty string.
-            role:
-              type: optional<nullable<CreateApiKeyRole>>
-              docs: API key role. Omit, set to null, or use an empty string for LEGACY_ORGANIZATION_API_KEY. Only LEGACY_ORGANIZATION_API_KEY is currently supported; other presets are rejected.
             expiresAt:
               type: optional<nullable<datetime>>
               docs: Optional expiration timestamp in ISO 8601 format. Must be in the future. Omit or set to null for a key that does not expire.
@@ -167,24 +164,6 @@ types:
     properties:
       success: boolean
 
-  CreateApiKeyRole:
-    docs: Roles accepted when provisioning an API key.
-    enum:
-      - LEGACY_ORGANIZATION_API_KEY
-      - value: ""
-        name: EMPTY
-        docs: Use the legacy role for this API key scope.
-
-  ApiKeyRole:
-    docs: Stored role of an API key. Keys created through other interfaces may have roles unavailable for provisioning through this endpoint.
-    enum:
-      - LEGACY_ORGANIZATION_API_KEY
-      - ADMIN
-      - VIEWER
-      - INGEST
-      - SCORES_INGEST
-      - AI_GATEWAY
-
   ApiKeyList:
     docs: List of API keys for an organization
     properties:
@@ -199,9 +178,6 @@ types:
         type: optional<datetime>
         docs: Expiration timestamp. Null if the key does not expire.
       lastUsedAt: optional<datetime>
-      role:
-        type: optional<nullable<ApiKeyRole>>
-        docs: Single stored role assignment. Null if the key has no unique role assignment.
       name:
         type: optional<nullable<string>>
         docs: Name of the API key. Contains the same value as note; null if no name was provided.
@@ -225,9 +201,6 @@ types:
       publicKey: string
       secretKey: string
       displaySecretKey: string
-      role:
-        type: optional<nullable<ApiKeyRole>>
-        docs: Single stored role assignment. Null if the key has no unique role assignment.
       name:
         type: optional<nullable<string>>
         docs: Name of the API key. Contains the same value as note; null if no name was provided.

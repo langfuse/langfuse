@@ -383,14 +383,6 @@ paths:
                     Deprecated alias for name. Cannot be provided together with
                     name, even if either value is an empty string.
                   deprecated: true
-                role:
-                  $ref: '#/components/schemas/CreateApiKeyRole'
-                  nullable: true
-                  description: >-
-                    API key role. Omit, set to null, or use an empty string for
-                    LEGACY_ORGANIZATION_API_KEY. Only
-                    LEGACY_ORGANIZATION_API_KEY is currently supported; other
-                    presets are rejected.
                 expiresAt:
                   type: string
                   format: date-time
@@ -521,26 +513,6 @@ components:
           type: boolean
       required:
         - success
-    CreateApiKeyRole:
-      title: CreateApiKeyRole
-      type: string
-      enum:
-        - LEGACY_ORGANIZATION_API_KEY
-        - ''
-      description: Roles accepted when provisioning an API key.
-    ApiKeyRole:
-      title: ApiKeyRole
-      type: string
-      enum:
-        - LEGACY_ORGANIZATION_API_KEY
-        - ADMIN
-        - VIEWER
-        - INGEST
-        - SCORES_INGEST
-        - AI_GATEWAY
-      description: >-
-        Stored role of an API key. Keys created through other interfaces may
-        have roles unavailable for provisioning through this endpoint.
     ApiKeyList:
       title: ApiKeyList
       type: object
@@ -571,12 +543,6 @@ components:
           type: string
           format: date-time
           nullable: true
-        role:
-          $ref: '#/components/schemas/ApiKeyRole'
-          nullable: true
-          description: >-
-            Single stored role assignment. Null if the key has no unique role
-            assignment.
         name:
           type: string
           nullable: true
@@ -618,12 +584,6 @@ components:
           type: string
         displaySecretKey:
           type: string
-        role:
-          $ref: '#/components/schemas/ApiKeyRole'
-          nullable: true
-          description: >-
-            Single stored role assignment. Null if the key has no unique role
-            assignment.
         name:
           type: string
           nullable: true

@@ -110,16 +110,6 @@ types:
     properties:
       projects: list<OrganizationProject>
 
-  OrganizationApiKeyRole:
-    docs: Stored role of an organization API key.
-    enum:
-      - LEGACY_ORGANIZATION_API_KEY
-      - ADMIN
-      - VIEWER
-      - INGEST
-      - SCORES_INGEST
-      - AI_GATEWAY
-
   OrganizationApiKey:
     properties:
       id: string
@@ -128,9 +118,6 @@ types:
         type: optional<datetime>
         docs: Expiration timestamp. Null if the key does not expire.
       lastUsedAt: optional<datetime>
-      role:
-        type: optional<nullable<OrganizationApiKeyRole>>
-        docs: Single stored role assignment. Null if the key has no unique role assignment.
       name:
         type: optional<nullable<string>>
         docs: Name of the API key. Contains the same value as note; null if no name was provided.
