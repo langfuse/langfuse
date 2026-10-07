@@ -46,6 +46,7 @@ function toSdkQuestion(id: string, question: DecisionModelRequestQuestion) {
       return {
         type: "boolean" as const,
         instructions: question.instructions,
+        ...(question.criteria ? { criteria: question.criteria } : {}),
       };
   }
 }

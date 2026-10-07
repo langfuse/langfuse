@@ -111,8 +111,8 @@ describe("executeDecisionModelEvaluator", () => {
         },
         refund: {
           type: "predicate",
-          instructions:
-            "Does `question` request a refund?\n\nCriteria for true:\nAsks for money back\n\nCriteria for false:\nDoes not",
+          instructions: "Does `question` request a refund?",
+          criteria: { true: "Asks for money back", false: "Does not" },
         },
       },
     });

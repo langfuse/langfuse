@@ -1,7 +1,7 @@
 import { createTypeSafeAi } from "@ai-sdk/typesafe-ai";
 import {
-  experimental_evaluate as evaluate,
-  type Experimental_EvaluationQuestion as EvaluationQuestion,
+  experimental_decide as decide,
+  type Experimental_DecisionQuestion,
   type JSONValue,
 } from "ai";
 import type {
@@ -38,6 +38,14 @@ function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
       return {
         type: "boolean" as const,
         instructions: question.instructions,
+        ...(question.criteria
+          ? {
+              criteria: {
+                true: question.criteria.true ?? null,
+                false: question.criteria.false ?? null,
+              },
+            }
+          : {}),
       };
   }
 }
@@ -64,7 +72,7 @@ export function createTypeSafeDecisionModelClient(params: {
 
   return {
     evaluate: async (request) => {
-      const result = await evaluate({
+      const result = await decide({
         model,
         state: request.state as Record<string, JSONValue>,
         questions: Object.fromEntries(
@@ -72,7 +80,7 @@ export function createTypeSafeDecisionModelClient(params: {
             id,
             toTypeSafeQuestion(question),
           ]),
-        ) as Record<string, EvaluationQuestion>,
+        ) as Record<string, Experimental_DecisionQuestion>,
         maxRetries: 1,
       });
 

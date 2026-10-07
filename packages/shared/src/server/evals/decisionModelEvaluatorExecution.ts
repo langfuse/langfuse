@@ -39,6 +39,11 @@ export type DecisionModelRequestQuestion =
   | {
       type: "predicate";
       instructions: DecisionModelEntry;
+      /** Yes/no notes from a saved TypeSafe question. Each SDK attaches them. */
+      criteria?: {
+        true?: DecisionModelEntry | null;
+        false?: DecisionModelEntry | null;
+      };
     };
 
 export type DecisionModelRequest = {
@@ -92,25 +97,6 @@ export function buildDecisionModelState(
   return state;
 }
 
-function entryText(entry: DecisionModelEntry | null | undefined) {
-  if (entry == null) return undefined;
-  return typeof entry === "string" ? entry : JSON.stringify(entry);
-}
-
-function predicateInstructions(
-  question: Extract<
-    DecisionModelQuestion,
-    { type: typeof DecisionModelQuestionType.NOUL }
-  >,
-) {
-  const parts = [entryText(question.instructions) ?? ""];
-  const whenTrue = entryText(question.criteria?.true);
-  const whenFalse = entryText(question.criteria?.false);
-  if (whenTrue) parts.push(`Criteria for true:\n${whenTrue}`);
-  if (whenFalse) parts.push(`Criteria for false:\n${whenFalse}`);
-  return parts.join("\n\n");
-}
-
 export function toDecisionModelRequestQuestion(
   question: DecisionModelQuestion,
 ): DecisionModelRequestQuestion {
@@ -140,7 +126,19 @@ export function toDecisionModelRequestQuestion(
     case DecisionModelQuestionType.NOUL:
       return {
         type: "predicate",
-        instructions: predicateInstructions(question),
+        instructions: question.instructions,
+        ...(question.criteria?.true != null || question.criteria?.false != null
+          ? {
+              criteria: {
+                ...(question.criteria.true != null
+                  ? { true: question.criteria.true }
+                  : {}),
+                ...(question.criteria.false != null
+                  ? { false: question.criteria.false }
+                  : {}),
+              },
+            }
+          : {}),
       };
   }
 }

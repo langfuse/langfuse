@@ -31,8 +31,8 @@ const request: DecisionModelRequest = {
     },
     refund: {
       type: "predicate",
-      instructions:
-        "Does `input` request a refund?\n\nCriteria for true:\nAsks for money back",
+      instructions: "Does `input` request a refund?",
+      criteria: { true: "Asks for money back" },
     },
   },
 };
