@@ -1,3 +1,4 @@
+import { codeExecutionChildToolFixture } from "./trace/code-execution-child-tool";
 import type { TranscriptFixture } from "./fixture-types";
 import { openaiAgentsSpanishHandoffFixture } from "./trace/openai-agents-spanish-handoff";
 import { vercelAiSdkDocsToolLoopFixture } from "./trace/vercel-ai-sdk-docs-tool-loop";
@@ -12,6 +13,7 @@ export type { TranscriptFixture } from "./fixture-types";
 
 export const transcriptFixtures: TranscriptFixture[] = [
   standaloneToolObservationFixture,
+  codeExecutionChildToolFixture,
   openaiAgentsSpanishHandoffFixture,
   vercelAiSdkDocsToolLoopFixture,
   openaiAgentsJokeAndRatingFixture,

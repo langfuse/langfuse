@@ -1,4 +1,7 @@
 import { partition } from "lodash";
+import type { NormalizedMessage } from "../../utils/normalized-io";
+import { toolCallPart } from "../../utils/normalized-io/core/normalize/message-parts/tool-calls";
+import { toolResultPart } from "../../utils/normalized-io/core/normalize/message-parts/tool-results";
 import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
 import type { Transcript, TranscriptOptions } from "./types";
@@ -10,6 +13,8 @@ import {
   messageKey,
   splitTurn,
   type ThreadState,
+  type TranscriptObservation,
+  type KeyedMessage,
 } from "./threads";
 import { createToolCallRegistry } from "./tool-calls";
 
@@ -36,6 +41,45 @@ function normalize(observation: OrderedObservation) {
     messages.map((message) => ({ message, key: messageKey(message) })),
     ({ message }) => message.source === "input",
   );
+}
+
+/** Express an observed execution using the same parts as model tool messages. */
+function normalizeToolExecution(
+  observation: TranscriptObservation,
+  output: KeyedMessage[],
+) {
+  if (
+    !observation.name ||
+    (observation.input == null && observation.output == null)
+  )
+    return [];
+  const parts = output.flatMap(({ message }) => message.parts);
+  const result =
+    parts.length === 1 && parts[0]?.type === "tool-result"
+      ? parts[0]
+      : undefined;
+  const call = toolCallPart({
+    toolCallId: result?.toolCallId,
+    toolName: observation.name,
+    input: observation.input,
+  });
+  if (!call) return [];
+  const messages: NormalizedMessage[] = [
+    { role: "assistant", source: "output", parts: [call] },
+  ];
+  if (observation.output != null)
+    messages.push({
+      role: "tool",
+      source: "output",
+      parts: [
+        result ??
+          toolResultPart({
+            toolName: observation.name,
+            output: observation.output,
+          }),
+      ],
+    });
+  return messages.map((message) => ({ message, key: messageKey(message) }));
 }
 
 /**
@@ -65,7 +109,14 @@ export function assembleTranscript(
     const [input, output] = normalize(observation);
     if (onTimings) normalizationMs += performance.now() - normalizationStart;
     if (observation.type === "TOOL") {
-      toolCalls.attachToolOutput(observation, output);
+      const attached = toolCalls.attachToolOutput(observation, output);
+      if (!attached && threads.length === 1) {
+        const toolNormalizationStart = onTimings ? performance.now() : 0;
+        const execution = normalizeToolExecution(observation, output);
+        if (onTimings)
+          normalizationMs += performance.now() - toolNormalizationStart;
+        append(threads[0]!, observation, [], execution, toolCalls);
+      }
       continue;
     }
     if (input.length === 0 && output.length === 0) continue;

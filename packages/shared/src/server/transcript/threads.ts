@@ -26,12 +26,15 @@ export type ThreadState = {
   contributors: Contributor[];
   /** Added reasoning from replayed content must not establish a turn boundary. */
   replaySupplements: WeakSet<EmittedMessage>;
+  /** Observed executions need not appear in the model conversation history. */
+  observedToolMessages: WeakSet<EmittedMessage>;
 };
 
 export const createThread = (): ThreadState => ({
   messages: [],
   contributors: [],
   replaySupplements: new WeakSet(),
+  observedToolMessages: new WeakSet(),
 });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -90,10 +93,12 @@ export function findThread(threads: ThreadState[], input: KeyedMessage[]) {
       .filter(({ message }) => contributesToThreadContinuity(message))
       .map(({ message, key }) => continuityKey(message, key)),
   );
-  return threads.findLast(({ messages }) => {
+  return threads.findLast(({ messages, observedToolMessages }) => {
     const defining = messages.filter(
       (message) =>
-        message.key !== undefined && contributesToThreadContinuity(message),
+        message.key !== undefined &&
+        !observedToolMessages.has(message) &&
+        contributesToThreadContinuity(message),
     );
     return (
       defining.length > 0 &&
@@ -140,6 +145,8 @@ export function append(
           endTime: observation.endTime,
         };
         thread.messages.push(emitted);
+        if (observation.type === "TOOL")
+          thread.observedToolMessages.add(emitted);
         if (retained.isSupplement) thread.replaySupplements.add(emitted);
         addContributor(thread, observation);
         calls.register(emitted);
