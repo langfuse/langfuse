@@ -1,3 +1,4 @@
+import { Sha256 } from "@aws-crypto/sha256-browser";
 import type {
   DiscoveredSkill,
   ComparedSkill,
@@ -23,13 +24,12 @@ export async function compareImportedSkills(
         );
         const hashes = await Promise.all(
           skill.files.map(async (file) => {
-            const digest = await crypto.subtle.digest(
-              "SHA-256",
-              new TextEncoder().encode(file.content),
-            );
+            const sha256 = new Sha256();
+            sha256.update(new TextEncoder().encode(file.content));
+            const digest = await sha256.digest();
             return {
               path: file.path,
-              hash: btoa(String.fromCharCode(...new Uint8Array(digest))),
+              hash: btoa(String.fromCharCode(...digest)),
             };
           }),
         );

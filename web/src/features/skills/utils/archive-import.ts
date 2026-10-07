@@ -3,18 +3,21 @@ import { z } from "zod/v4";
 import {
   CreateSkillVersionBodySchema,
   InvalidRequestError,
-  SkillFilePathSchema,
 } from "@langfuse/shared";
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 
 const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 
-export function readSkillArchive(archive: Uint8Array) {
+export function readSkillArchive(
+  archive: Uint8Array,
+  maxExpandedBytes = MAX_EXPANDED_BYTES,
+) {
   if (archive.byteLength > 10 * 1024 * 1024) {
     throw new InvalidRequestError("This archive is too large to import.");
   }
   const declaredSizes = new Map<string, number>();
+  const byteLimit = Math.min(maxExpandedBytes, MAX_EXPANDED_BYTES);
   const entries = new Map<string, Uint8Array>();
   let declaredBytes = 0;
   let expandedBytes = 0;
@@ -23,10 +26,7 @@ export function readSkillArchive(archive: Uint8Array) {
     unzipSync(archive, {
       filter: (entry) => {
         declaredBytes += entry.originalSize;
-        if (
-          declaredBytes > MAX_EXPANDED_BYTES ||
-          declaredSizes.size >= 10_000
-        ) {
+        if (declaredBytes > byteLimit || declaredSizes.size >= 10_000) {
           throw new InvalidRequestError("This archive is too large to import.");
         }
         if (declaredSizes.has(entry.name)) {
@@ -57,7 +57,7 @@ export function readSkillArchive(archive: Uint8Array) {
         if (error) throw error;
         fileBytes += chunk.byteLength;
         expandedBytes += chunk.byteLength;
-        if (expandedBytes > MAX_EXPANDED_BYTES) {
+        if (expandedBytes > byteLimit) {
           throw new InvalidRequestError("This archive is too large to import.");
         }
         if (fileBytes > expectedSize || (final && fileBytes !== expectedSize)) {
@@ -101,9 +101,11 @@ export function readSkillArchive(archive: Uint8Array) {
 export function discoverFileSkills({
   files: inputFiles,
   fallbackName,
+  sourceRoots = [],
 }: {
   files: { path: string; bytes: Uint8Array }[];
   fallbackName: string;
+  sourceRoots?: string[];
 }) {
   const files = inputFiles.filter(
     ({ path }) =>
@@ -129,6 +131,22 @@ export function discoverFileSkills({
       skillFile,
     ]);
   }
+  const orderedDirectories = [...directories.keys()].sort(
+    (a, b) => b.length - a.length,
+  );
+  const filesByDirectory = new Map<string, typeof files>(
+    orderedDirectories.map((directory) => [directory, []]),
+  );
+  // Each file belongs to the nearest ancestor directory containing SKILL.md.
+  for (const file of files) {
+    const sourceRoot = sourceRoots.find((root) => file.path.startsWith(root));
+    const directory = orderedDirectories.find(
+      (directory) =>
+        file.path.startsWith(directory) &&
+        (!sourceRoot || directory.startsWith(sourceRoot)),
+    );
+    if (directory !== undefined) filesByDirectory.get(directory)!.push(file);
+  }
   const discovered = [...directories].map(([directory, candidates]) => {
     const skillFile = candidates[0]!;
     const path = directory.slice(0, -1) || ".";
@@ -143,20 +161,17 @@ export function discoverFileSkills({
         throw new InvalidRequestError(
           "This directory contains multiple SKILL.md files with different casing.",
         );
-      SkillFilePathSchema.parse(skillFile.path);
       const input = CreateSkillVersionBodySchema.parse({
-        files: files
-          .filter((file) => file.path.startsWith(directory))
-          .map((file) => ({
-            path:
-              file.path === skillFile.path
-                ? "SKILL.md"
-                : file.path.slice(directory.length),
-            content: new TextDecoder("utf-8", {
-              fatal: true,
-              ignoreBOM: true,
-            }).decode(file.bytes),
-          })),
+        files: filesByDirectory.get(directory)!.map((file) => ({
+          path:
+            file.path === skillFile.path
+              ? "SKILL.md"
+              : file.path.slice(directory.length),
+          content: new TextDecoder("utf-8", {
+            fatal: true,
+            ignoreBOM: true,
+          }).decode(file.bytes),
+        })),
       });
       const importedFiles = input.files.map((file) => ({
         path: file.path,

@@ -1,4 +1,4 @@
-import { MAX_SKILL_BYTES, SkillFilePathSchema } from "@langfuse/shared";
+import { MAX_SKILL_BYTES } from "@langfuse/shared";
 import { discoverFileSkills, readSkillArchive } from "./archive-import";
 import { MAX_SKILL_ZIP_UPLOAD_BYTES } from "./importLimits";
 
@@ -28,7 +28,6 @@ export async function discoverLocalSkills(
     skillDirectories.some((directory) => path.startsWith(directory)),
   );
   for (const { path, file } of [...relevantFiles, ...archives]) {
-    SkillFilePathSchema.parse(path);
     const isArchive = path.toLowerCase().endsWith(".zip");
     if (file.size > (isArchive ? MAX_SKILL_ZIP_UPLOAD_BYTES : MAX_SKILL_BYTES))
       throw new Error(
@@ -48,14 +47,27 @@ export async function discoverLocalSkills(
     );
 
   const files: { path: string; bytes: Uint8Array }[] = [];
+  const sourceRoots: string[] = [];
+  const sourceDirectories = new Set(
+    ordinaryFiles.map(({ path }) => path.split("/")[0]!),
+  );
   let expandedBytes = 0;
   for (const { path, file } of [...relevantFiles, ...archives]) {
     const bytes = new Uint8Array(await file.arrayBuffer());
+    let archiveDirectory = path.slice(0, -4) || path;
+    if (path.toLowerCase().endsWith(".zip")) {
+      for (let suffix = 2; sourceDirectories.has(archiveDirectory); suffix++)
+        archiveDirectory = `${path} (${suffix})`;
+      sourceDirectories.add(archiveDirectory);
+      sourceRoots.push(`${archiveDirectory}/`);
+    }
     const entries = path.toLowerCase().endsWith(".zip")
-      ? readSkillArchive(bytes).map((entry) => ({
-          ...entry,
-          path: `${path.slice(0, -4)}/${entry.path}`,
-        }))
+      ? readSkillArchive(bytes, MAX_LOCAL_BYTES - expandedBytes).map(
+          (entry) => ({
+            ...entry,
+            path: `${archiveDirectory}/${entry.path}`,
+          }),
+        )
       : [{ path, bytes }];
     for (const entry of entries) {
       expandedBytes += entry.bytes.byteLength;
@@ -69,5 +81,6 @@ export async function discoverLocalSkills(
   return discoverFileSkills({
     files,
     fallbackName: "Local files",
+    sourceRoots,
   });
 }
