@@ -1,4 +1,5 @@
 import "./instrumentation"; // instrumenting the application
+import "./ee/fipsMode"; // enforce LANGFUSE_REQUIRE_FIPS before anything connects
 import type { Server } from "http";
 import { initializeWorker } from "./initialize";
 import { env } from "./env";

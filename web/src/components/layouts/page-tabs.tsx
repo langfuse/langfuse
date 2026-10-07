@@ -41,15 +41,15 @@ export const PageTabs = ({
     <div className={cn(scrollable && "-mx-1 overflow-x-auto px-1", className)}>
       <div
         className={cn(
-          "inline-flex h-8 items-center justify-start",
+          "inline-flex h-9 items-center justify-start",
           listClassName,
         )}
       >
         {tabs.map((tab) => {
           const tabClassName = cn(
-            "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+            "focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-2 border-transparent px-3 py-0.5 text-base whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
             tab.value === activeTab
-              ? "border-primary-accent text-foreground bg-transparent shadow-none"
+              ? "border-foreground-secondary text-foreground bg-transparent shadow-none"
               : "",
             tab.disabled && "pointer-events-none opacity-50",
             tab.className,

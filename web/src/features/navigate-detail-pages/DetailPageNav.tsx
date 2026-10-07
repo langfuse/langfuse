@@ -1,7 +1,6 @@
 /* eslint-disable @repo/no-null-render */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   type ListEntry,
@@ -165,7 +164,7 @@ export const DetailPageNav = (props: {
     }
     const buttonClassName = (active: boolean) =>
       cn(
-        "gap-1.5 px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
+        "px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
         active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
       );
     return (
@@ -174,6 +173,7 @@ export const DetailPageNav = (props: {
           {({ getTriggerProps }) => (
             <Button
               {...getTriggerProps()}
+              aria-label="Navigate up"
               variant="outline"
               type="button"
               size={size}
@@ -186,9 +186,6 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowUp className="icon-base text-icon-foreground" />
-              <span className="hidden md:inline-flex">
-                <KeyboardShortcut keys={["K"]} />
-              </span>
             </Button>
           )}
         </Tooltip>
@@ -197,6 +194,7 @@ export const DetailPageNav = (props: {
           {({ getTriggerProps }) => (
             <Button
               {...getTriggerProps()}
+              aria-label="Navigate down"
               variant="outline"
               type="button"
               size={size}
@@ -209,9 +207,6 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowDown className="icon-base text-icon-foreground" />
-              <span className="hidden md:inline-flex">
-                <KeyboardShortcut keys={["J"]} />
-              </span>
             </Button>
           )}
         </Tooltip>
