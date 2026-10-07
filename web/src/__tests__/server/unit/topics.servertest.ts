@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   loadTopicTranscript: vi.fn<typeof topicsServer.loadTopicTranscript>(),
   isTopicsEnabled: vi.fn(),
   isTopicsProjectEnabled: vi.fn(),
-  getTopicsModelConfig: vi.fn(),
+  getTopicsModels: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
@@ -187,10 +187,10 @@ beforeEach(() => {
   mocks.queryClickhouse.mockResolvedValue([]);
   mocks.isTopicsEnabled.mockReturnValue(true);
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
-  mocks.getTopicsModelConfig.mockReturnValue({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  });
+  mocks.getTopicsModels.mockResolvedValue({
+    summary: { model: "us.openai.gpt-5.6-luna" },
+    embedding: { model: "eu.cohere.embed-v4:0", dimensions: 1024 },
+  } as Awaited<ReturnType<typeof topicsServer.getTopicsModels>>);
   mocks.getTopicFacetVersion.mockResolvedValue({
     facetId,
     version: facetVersion,
@@ -722,6 +722,15 @@ describe("Topics published scatter map", () => {
 });
 
 describe("Topics local execution access and publication", () => {
+  it("requires the project's Topics models before creating work", async () => {
+    mocks.getTopicsModels.mockResolvedValue(null);
+    await expect(caller().trigger(input)).rejects.toThrow(
+      "Choose summary, embedding, and naming models",
+    );
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("rejects a foreign facet before creating or enqueuing work", async () => {
     mocks.getTopicFacetVersion.mockResolvedValue(null);
     await expect(caller().trigger(input)).rejects.toMatchObject({
@@ -764,7 +773,6 @@ describe("Topics local execution access and publication", () => {
     const request = {
       projectId,
       facets: selectedFacets,
-      embeddingConfig: input.embeddingConfig,
       timeRange,
     };
     mocks.getTopicSummaryCounts.mockResolvedValue([

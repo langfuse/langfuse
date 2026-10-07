@@ -340,9 +340,6 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // Internal Topics PoC model selection; not a supported self-hosting setting.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

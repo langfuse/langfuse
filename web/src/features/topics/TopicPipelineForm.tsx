@@ -17,7 +17,6 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import {
-  topicEmbeddingConfigSchema,
   topicMinimumTraceCountSchema,
   type TopicFacet,
   type TopicOperation,
@@ -82,12 +81,6 @@ export function useTopicPipelineForm({
   const minimumTraceCountResult = topicMinimumTraceCountSchema.safeParse(
     Number(minimumTraceCountValue),
   );
-  const [dimensions, setDimensions] = useState(() =>
-    String(topicEmbeddingConfigSchema.parse({}).embeddingDimensions),
-  );
-  const embeddingConfig = topicEmbeddingConfigSchema.safeParse({
-    embeddingDimensions: Number(dimensions),
-  });
   const [error, setError] = useState<string | null>(null);
   const request = useRef<{ key: string; id: string } | null>(null);
   const trigger = api.topics.trigger.useMutation();
@@ -130,15 +123,12 @@ export function useTopicPipelineForm({
           projectId,
           facets: selectedFacets,
           timeRange,
-          embeddingConfig:
-            embeddingConfig.data ?? topicEmbeddingConfigSchema.parse({}),
         }
       : skipToken,
     {
       enabled:
         operation === "update" &&
         timeRange !== null &&
-        embeddingConfig.success &&
         selectedFacets.length > 0,
     },
   );
@@ -165,9 +155,6 @@ export function useTopicPipelineForm({
       const base = {
         projectId,
         facets: selectedFacets,
-        embeddingConfig: topicEmbeddingConfigSchema.parse({
-          embeddingDimensions: Number(dimensions),
-        }),
       };
       const values = (() => {
         if (operation === "update") {
@@ -306,7 +293,6 @@ export function useTopicPipelineForm({
         size="sm"
         disabled={
           !canWrite ||
-          !embeddingConfig.success ||
           (operation === "update" &&
             (!timeRange || !minimumTraceCountResult.success)) ||
           trigger.isPending ||
@@ -456,19 +442,6 @@ export function useTopicPipelineForm({
                   />
                 </label>
               )}
-              <label className="flex flex-col gap-1 text-sm">
-                Embedding dimensions
-                <SelectInput
-                  aria-label="Embedding dimensions"
-                  placeholder="Embedding dimensions"
-                  value={dimensions}
-                  onValueChange={setDimensions}
-                  options={[256, 512, 1024, 1536].map((value) => ({
-                    value: String(value),
-                    label: String(value),
-                  }))}
-                />
-              </label>
               {operation === "update" && (
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -502,8 +475,8 @@ export function useTopicPipelineForm({
                 Process {selection.count.toLocaleString()} traces across{" "}
                 {selectedFacets.length} facets.{" "}
                 {reuseExistingSummaries
-                  ? "Matching stored summaries and embeddings are reused. Missing summaries use OpenAI; embeddings use Cohere on Amazon Bedrock."
-                  : "Generate fresh summaries with OpenAI and embeddings with Cohere on Amazon Bedrock."}
+                  ? "Matching stored summaries and embeddings are reused. Missing ones use the project's Topics models."
+                  : "Generate fresh summaries and embeddings with the project's Topics models."}
               </p>
             ) : null}
             {operation === "process" && (

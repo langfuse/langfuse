@@ -1,3 +1,9 @@
+import {
+  TOPICS_MODEL_SLOT_DETAILS,
+  type TopicsModelSlotName,
+} from "@langfuse/shared/topics";
+import type { TopicsModel } from "@langfuse/shared/topics/server";
+
 type TopicsProviderErrorReason =
   | "authentication"
   | "rate_limit"
@@ -10,13 +16,17 @@ export class TopicsProviderUnavailable extends Error {
   constructor(
     message: string,
     readonly reason: TopicsProviderErrorReason = "provider_error",
+    readonly slot?: TopicsModelSlotName,
   ) {
     super(message);
   }
 }
 
 /** Provider bodies and exception messages can echo credentials or trace content. */
-export function topicProviderError(error: unknown): TopicsProviderUnavailable {
+export function topicProviderError(
+  error: unknown,
+  model: Pick<TopicsModel, "slot" | "provider" | "model">,
+): TopicsProviderUnavailable {
   let current = error;
   let status: number | undefined;
   let reason: TopicsProviderErrorReason = "provider_error";
@@ -29,7 +39,8 @@ export function topicProviderError(error: unknown): TopicsProviderUnavailable {
     const candidate = record.statusCode ?? record.status;
     if (typeof candidate === "number" && candidate >= 400 && candidate <= 599) {
       status = candidate;
-      if (status === 401 || status === 403) reason = "authentication";
+      if (status === 401 || status === 402 || status === 403)
+        reason = "authentication";
       else if (status === 400 || status === 413 || status === 422)
         reason = "invalid_input";
       else if (status === 429) reason = "rate_limit";
@@ -51,7 +62,8 @@ export function topicProviderError(error: unknown): TopicsProviderUnavailable {
     current = record.cause;
   }
   return new TopicsProviderUnavailable(
-    `Topics provider call failed${status ? ` (HTTP ${status})` : ""}. Processing stopped. Check worker credentials or provider availability, then resume the execution.`,
+    `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}" failed${status ? ` (HTTP ${status})` : ""}. Check the connection's credentials, the model ID, and provider availability.`,
     reason,
+    model.slot,
   );
 }

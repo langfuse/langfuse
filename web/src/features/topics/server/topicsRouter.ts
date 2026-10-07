@@ -10,6 +10,7 @@ import {
   topicTraceIdSchema,
   topicRuleConfigSchema,
   topicTimeRangeSchema,
+  topicsModelSettingsSchema,
   type TopicTimeRange,
   type TopicExecutionSummary,
   type TopicFacetRef,
@@ -36,7 +37,9 @@ import {
   loadTopicTranscript,
   isTopicsEnabled,
   isTopicsProjectEnabled,
-  getTopicsModelConfig,
+  getTopicsModels,
+  readTopicsModelSettings,
+  saveTopicsModelSettings,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "@langfuse/shared/topics/server";
@@ -89,6 +92,15 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   });
   return next();
 });
+
+async function requireTopicsModels(projectId: string) {
+  const models = await getTopicsModels(projectId);
+  if (!models)
+    throw new InvalidRequestError(
+      "Choose summary, embedding, and naming models in the Topics model settings first.",
+    );
+  return models;
+}
 
 async function requireFacetVersions(
   projectId: string,
@@ -309,26 +321,29 @@ export const topicsRouter = createTRPCRouter({
       }),
     )
     .mutation(({ input }) => saveTopicRule(input)),
+  modelSettings: topicsProcedure.query(({ input }) =>
+    readTopicsModelSettings(input.projectId),
+  ),
+  saveModelSettings: topicsWriteProcedure
+    .input(topicsModelSettingsSchema.extend({ projectId: topicIdSchema }))
+    .mutation(({ input: { projectId, ...settings } }) =>
+      saveTopicsModelSettings(projectId, settings),
+    ),
   summaryCounts: topicsProcedure
     .input(
       resultInput.extend({
         facets: z.array(topicFacetRefSchema).min(1),
-        embeddingConfig: topicEmbeddingConfigSchema,
       }),
     )
     .query(async ({ input }) => {
       await requireFacetVersions(input.projectId, input.facets);
-      const { embeddingModel } = getTopicsModelConfig();
-      if (!embeddingModel)
-        throw new InvalidRequestError(
-          "Set LANGFUSE_TOPICS_EMBEDDING_MODEL on web and worker to use Topics.",
-        );
+      const { embedding } = await requireTopicsModels(input.projectId);
       return getTopicSummaryCounts(
         input.projectId,
         input.facets,
         topicEmbeddingConfigSchema.parse({
-          ...input.embeddingConfig,
-          embeddingModel,
+          embeddingModel: embedding.model,
+          embeddingDimensions: embedding.dimensions,
         }),
         input.timeRange,
       );
@@ -360,11 +375,12 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Topics processing is not enabled for this project.",
         );
-      const models = getTopicsModelConfig();
-      if (!models.summaryModel || !models.embeddingModel)
-        throw new InvalidRequestError(
-          "Set LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL on web and worker to run Topics.",
-        );
+      const { summary, embedding } = await requireTopicsModels(input.projectId);
+      const models = {
+        summaryModel: summary.model,
+        embeddingModel: embedding.model,
+        embeddingDimensions: embedding.dimensions,
+      };
       const requestHash = createHash("sha256")
         .update(JSON.stringify({ input, models }))
         .digest("hex");
@@ -410,8 +426,8 @@ export const topicsRouter = createTRPCRouter({
       const configuredInput = topicExecutionInputSchema.parse({
         ...resolvedInput,
         embeddingConfig: {
-          ...resolvedInput.embeddingConfig,
           embeddingModel: models.embeddingModel,
+          embeddingDimensions: models.embeddingDimensions,
         },
         ...(resolvedInput.operation === "process"
           ? {

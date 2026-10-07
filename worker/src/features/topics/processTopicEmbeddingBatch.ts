@@ -1,13 +1,14 @@
 import { UnrecoverableError } from "bullmq";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
+  getTopicsModels,
   readStagedTopicSummary,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   updateStagedTopicSummary,
   writeTopicSummaries,
   type TopicEmbeddingBatch,
 } from "@langfuse/shared/topics/server";
-import { embedTopicSummary, requireTopicsModelConfig } from "./models";
+import { embedTopicSummary } from "./models";
 import { TopicMetrics } from "./metrics";
 import { mergeTopicModelUsage } from "./summaryResult";
 import {
@@ -22,13 +23,18 @@ export async function processTopicEmbeddingBatch(
   const metrics = new TopicMetrics();
   const pending: TopicSummary[] = [];
   try {
-    const models = requireTopicsModelConfig();
+    const models = await getTopicsModels(batch.projectId);
+    if (!models)
+      throw new TopicsProviderUnavailable(
+        "Choose Topics models for this project, then start a new Topics execution.",
+        "authentication",
+      );
     for (const ref of batch.summaries) {
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
-      if (staged.embeddingConfig.embeddingModel !== models.embeddingModel)
+      if (staged.embeddingConfig.embeddingModel !== models.embedding.model)
         throw new TopicsProviderUnavailable(
-          "LANGFUSE_TOPICS_EMBEDDING_MODEL changed after this batch was created. Start a new Topics execution.",
+          "The project's embedding model changed after this batch was created. Start a new Topics execution.",
           "authentication",
         );
       let { summary } = staged;
@@ -36,14 +42,14 @@ export async function processTopicEmbeddingBatch(
         const result = await metrics.measure("embedding", async () => {
           try {
             return await embedTopicSummary(
+              models.embedding,
               summary.summary,
               staged.embeddingConfig.embeddingDimensions,
-              staged.embeddingConfig.embeddingModel!,
             );
           } catch (error) {
             throw error instanceof TopicsProviderUnavailable
               ? error
-              : topicProviderError(error);
+              : topicProviderError(error, models.embedding);
           }
         });
         summary = {

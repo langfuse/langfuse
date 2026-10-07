@@ -30,9 +30,10 @@
   use the `langfuseTopics` flag and project permissions. Storage, retry and setup
   details: `../worker/src/features/topics/README.md`. Preview and trigger
   selection share `topics/server`'s bounded trace selector with worker
-  backfills; preserve sampling and the frozen submission range. Internal PoC
-  model selection requires `LANGFUSE_TOPICS_SUMMARY_MODEL` and
-  `LANGFUSE_TOPICS_EMBEDDING_MODEL` on both web and worker, with no defaults.
+  backfills; preserve sampling and the frozen submission range. Models come
+  from the project's LLM connections (`TopicModelSettings.tsx`,
+  `topics.modelSettings` / `saveModelSettings`); triggers stamp the configured
+  summary and embedding models into the frozen request.
   The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
   directly, using the same character cap as worker inference.
 - Reusable UI components: `src/components/*`

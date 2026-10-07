@@ -17,6 +17,18 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   writeTopicSummaries: mocks.write,
   readStagedTopicSummary: mocks.staged,
   updateStagedTopicSummary: mocks.update,
+  getTopicsModels: async () => ({
+    projectId: "project",
+    enabled: true,
+    embedding: {
+      slot: "embedding",
+      provider: "bedrock",
+      adapter: "bedrock",
+      model: "eu.cohere.embed-v4:0",
+      connection: { secretKey: "encrypted" },
+      dimensions: 256,
+    },
+  }),
   TOPIC_EMBEDDING_EXPIRED_ERROR:
     "Topics staged results expired before processing completed. Start a new execution with stored-summary reuse to recover persisted results.",
 }));
@@ -26,10 +38,6 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 vi.mock("./models", () => ({
   embedTopicSummary: mocks.embed,
-  requireTopicsModelConfig: () => ({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
 }));
 
 import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";

@@ -1,44 +1,51 @@
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { embed } from "ai";
+import { embedLLMText } from "../llm/llmText";
 import { topicEmbeddingConfigSchema } from "../../topics";
-import {
-  assertValidBedrockRegion,
-  createDefaultBedrockProviderAuth,
-} from "../llm/ai-sdk/providers/bedrock";
+import type { TopicsModel } from "./model-config";
 
-/** Uses the shared AI SDK version for the Topics worker's embedding call. */
+// Bedrock Titan and Nova accept fewer output sizes than Cohere.
+const TITAN_DIMENSIONS = new Set([256, 512, 1024]);
+const NOVA_DIMENSIONS = new Set([256, 1024]);
+
+/** Embeds one summary through the project's LLM connection. */
 export async function generateTopicEmbedding(params: {
-  model: string;
+  model: TopicsModel;
   summary: string;
   dimensions: number;
-  region: string;
-  profile?: string;
 }) {
-  const config = topicEmbeddingConfigSchema.parse({
-    embeddingModel: params.model,
+  const { embeddingDimensions } = topicEmbeddingConfigSchema.parse({
     embeddingDimensions: params.dimensions,
   });
-  if (!config.embeddingModel)
-    throw new Error("Topics embedding model is not configured.");
-  assertValidBedrockRegion(params.region);
-  const provider = createAmazonBedrock({
-    region: params.region,
-    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
-  });
-  const result = await embed({
-    model: provider.embeddingModel(params.model),
+  const result = await embedLLMText({
+    model: { adapter: params.model.adapter, id: params.model.model },
+    connection: params.model.connection,
     value: params.summary,
+    // Discovery and later centroid assignment must share one vector space, so
+    // every provider is asked for clustering vectors of the configured size.
     providerOptions: {
+      openai: { dimensions: embeddingDimensions },
       amazonBedrock: {
-        // Discovery and later centroid assignment must share one vector space.
         inputType: "clustering",
-        outputDimension: config.embeddingDimensions,
+        outputDimension: embeddingDimensions,
         truncate: "NONE",
+        embeddingPurpose: "CLUSTERING",
+        ...(TITAN_DIMENSIONS.has(embeddingDimensions)
+          ? { dimensions: embeddingDimensions }
+          : {}),
+        ...(NOVA_DIMENSIONS.has(embeddingDimensions)
+          ? { embeddingDimension: embeddingDimensions }
+          : {}),
+      },
+      google: {
+        taskType: "CLUSTERING",
+        outputDimensionality: embeddingDimensions,
+      },
+      vertex: {
+        taskType: "CLUSTERING",
+        outputDimensionality: embeddingDimensions,
       },
     },
-    maxRetries: 0,
+    maxRetries: 2,
     abortSignal: AbortSignal.timeout(60_000),
   });
-  // Cohere defaults to float output; the SDK accepts only float vectors.
   return { embedding: result.embedding, tokens: result.usage.tokens };
 }

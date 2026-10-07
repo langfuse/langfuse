@@ -40,6 +40,7 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { useTopicModelSettings } from "./TopicModelSettings";
 import { CurrentTopics } from "./CurrentTopics";
 import {
   isValidTopicTimeRange,
@@ -204,8 +205,10 @@ function TopicsWorkspaceView({
         <FacetEditor projectId={projectId} facets={facets.data} />
       ) : null,
   });
+  const modelSettings = useTopicModelSettings({ projectId, canWrite });
   const actions = (
     <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
+      {modelSettings.action}
       {pipelineActions}
       <Button
         text="History"
@@ -269,7 +272,11 @@ function TopicsWorkspaceView({
       {!validTimeRange && (
         <ErrorMessage message="Select a time range of at most 93 days." />
       )}
+      {modelSettings.notice && (
+        <div className="ph-no-capture mb-6">{modelSettings.notice}</div>
+      )}
       {configuration}
+      {modelSettings.dialog}
       <Sheet
         open={historyOpen || executionId !== null}
         onOpenChange={showExecutionList}

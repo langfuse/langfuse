@@ -13,6 +13,14 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import {
+  ensureDefaultTopicFacets,
+  getEnabledTopicsModels,
+  isTopicsProjectEnabled,
+  pauseTopicsModels,
+  type TopicsModels,
+} from "@langfuse/shared/topics/server";
+import type { TopicFacet } from "@langfuse/shared/topics";
 import { env } from "../env";
 import { TopicsProviderUnavailable } from "../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
@@ -22,8 +30,44 @@ type TraceOutcome =
   | { outcome: "disabled" | "unchanged" | "summarized" }
   | { outcome: "failed"; reason: string };
 
+/**
+ * Topics settings of one batch, loaded with one query while the read starts.
+ * A project paused mid-batch is skipped for the rest of the batch.
+ */
+class TopicsBatchProjects {
+  private readonly models: Promise<Map<string, TopicsModels>>;
+  private readonly facets = new Map<string, Promise<TopicFacet[]>>();
+  private readonly paused = new Set<string>();
+
+  constructor(projectIds: Iterable<string>) {
+    const allowed = [...new Set(projectIds)].filter(isTopicsProjectEnabled);
+    this.models = getEnabledTopicsModels(allowed);
+    // A failed load fails each trace that reads it, not the whole batch.
+    this.models.catch(() => {});
+  }
+
+  async get(projectId: string) {
+    if (this.paused.has(projectId)) return null;
+    const models = (await this.models).get(projectId);
+    if (!models) return null;
+    let facets = this.facets.get(projectId);
+    if (!facets) {
+      facets = ensureDefaultTopicFacets(projectId);
+      this.facets.set(projectId, facets);
+    }
+    return { models, facets: await facets };
+  }
+
+  async pause(projectId: string, reason: string) {
+    if (this.paused.has(projectId)) return;
+    this.paused.add(projectId);
+    await pauseTopicsModels(projectId, reason);
+  }
+}
+
 async function summarizeTraceBatch(
   observations: Observation[],
+  topics: TopicsBatchProjects,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -43,6 +87,8 @@ async function summarizeTraceBatch(
   let outcome: TraceOutcome = { outcome: "disabled" };
   await recordTraceBatchTranscript(observations, async (transcript) => {
     try {
+      const project = await topics.get(first.projectId);
+      if (!project) return;
       outcome = {
         outcome: await summarizeAssembledTrace({
           projectId: first.projectId,
@@ -51,12 +97,21 @@ async function summarizeTraceBatch(
           environment: first.environment,
           traceName: first.name ?? "",
           transcript,
+          ...project,
         }),
       };
     } catch (error) {
       // One trace's failure must not fail or re-read the shared batch.
       const reason =
         error instanceof TopicsProviderUnavailable ? error.reason : "other";
+      if (
+        error instanceof TopicsProviderUnavailable &&
+        reason === "authentication"
+      )
+        await topics.pause(
+          first.projectId,
+          `${error.message} Topics was turned off; fix the connection and turn it on again.`,
+        );
       outcome = { outcome: "failed", reason };
       logger.warn("Topics summary failed for trace", {
         projectId: first.projectId,
@@ -154,6 +209,9 @@ export const traceBatchQueueProcessor: Processor<
     }
     const batch = event.payload;
     const topicsOutcomes: TraceOutcome[] = [];
+    const topics = new TopicsBatchProjects(
+      batch.traces.map((trace) => trace.projectId),
+    );
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
       maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
@@ -226,7 +284,9 @@ export const traceBatchQueueProcessor: Processor<
             performance.now() - enqueuedAt,
           );
           if (!summaryFailed)
-            topicsOutcomes.push(await summarizeTraceBatch(observations));
+            topicsOutcomes.push(
+              await summarizeTraceBatch(observations, topics),
+            );
         })
         .catch((error: unknown) => {
           if (!summaryFailed) summaryError = error;

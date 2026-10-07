@@ -1,14 +1,11 @@
 import { get_encoding } from "tiktoken";
 import { z } from "zod";
-import {
-  logger,
-  getLangfuseAIAwsProfile,
-  getLangfuseAIBedrockRegion,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import {
   generateTopicEmbedding,
   generateTopicText,
-  getTopicsModelConfig,
+  type TopicsModel,
+  type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
   topicEmbeddingConfigSchema,
@@ -22,7 +19,6 @@ import {
   topicProviderError,
 } from "./provider-error";
 
-export const TOPICS_NAMING_MODEL = "us.openai.gpt-5.6-terra";
 // Summary inputs are capped below the 272k-token long-context pricing threshold.
 const TOPICS_SUMMARY_RATES: Record<string, { input: number; output: number }> =
   {
@@ -30,33 +26,20 @@ const TOPICS_SUMMARY_RATES: Record<string, { input: number; output: number }> =
     "us.openai.gpt-6-luna": { input: 0.11, output: 0.55 },
     "global.openai.gpt-6-luna": { input: 0.1, output: 0.5 },
   };
+// Bedrock rates apply to the entire request above 272k input tokens.
+const TOPICS_NAMING_RATES: Record<
+  string,
+  (inputTokens: number) => { input: number; output: number }
+> = {
+  "us.openai.gpt-5.6-terra": (tokens) => ({
+    input: tokens > 272_000 ? 4 : 2,
+    output: tokens > 272_000 ? 18 : 12,
+  }),
+};
 const TOPICS_EMBEDDING_COST_MODELS = new Set([
   "us.cohere.embed-v4:0",
   "eu.cohere.embed-v4:0",
 ]);
-
-export function requireTopicsModelConfig() {
-  const models = getTopicsModelConfig();
-  if (!models.summaryModel || !models.embeddingModel)
-    throw new TopicsProviderUnavailable(
-      "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before running Topics.",
-      "authentication",
-    );
-  return models;
-}
-
-function bedrockConfig() {
-  const region = getLangfuseAIBedrockRegion();
-  if (!region)
-    throw new TopicsProviderUnavailable(
-      "LANGFUSE_AI_AWS_BEDROCK_REGION is required for Topics models. Configure the worker's Bedrock region before resuming.",
-      "authentication",
-    );
-  return {
-    region,
-    profile: getLangfuseAIAwsProfile(),
-  };
-}
 
 function countTopicRequestTokens(
   system: string,
@@ -88,33 +71,29 @@ async function structuredCall<T>(
   inputLimit: number,
   outputLimit: number,
   stage: "summary" | "naming",
-  model: string,
+  model: TopicsModel,
 ): Promise<ModelResult<T>> {
-  const connection = bedrockConfig();
   const messages = [
     { role: "system" as const, content: system },
     { role: "user" as const, content: input },
   ];
-  // Bedrock global rates apply to the entire request above 272k input tokens.
+  // Unknown model IDs record usage without cost.
   const rates = (tokens: number) =>
     stage === "naming"
-      ? {
-          input: tokens > 272_000 ? 4 : 2,
-          output: tokens > 272_000 ? 18 : 12,
-        }
-      : TOPICS_SUMMARY_RATES[model];
+      ? TOPICS_NAMING_RATES[model.model]?.(tokens)
+      : TOPICS_SUMMARY_RATES[model.model];
   const result = await generateTopicText({
-    ...connection,
     model,
     messages,
     schema,
     maxOutputTokens: outputLimit,
   }).catch((error: unknown) => {
     logger.warn("Topics model request failed", {
-      model,
+      model: model.model,
+      adapter: model.adapter,
       errorType: error instanceof Error ? error.name : "unknown",
     });
-    throw topicProviderError(error);
+    throw topicProviderError(error, model);
   });
   const actualRates = rates(result.usage.inputTokens ?? inputLimit);
   recordTopicTokenUsage(stage, {
@@ -183,18 +162,24 @@ Recordings come from many frameworks and can be messy. Repeated, partial, or pas
 Status says whether the facet applies, not whether the run succeeded.
 </status>`;
 
+function requireFrozenSummaryModel(
+  models: TopicsModels,
+  config: TopicProcessingConfig,
+) {
+  if (config.summaryModel !== models.summary.model)
+    throw new TopicsProviderUnavailable(
+      "The project's summary model changed after this request was created. Start a new Topics execution.",
+      "authentication",
+    );
+}
+
 export async function summarizeTopicTrace(
+  models: TopicsModels,
   facet: TopicFacetVersion,
   text: string,
   config: TopicProcessingConfig,
 ) {
-  const models = requireTopicsModelConfig();
-  const model = config.summaryModel;
-  if (!model || model !== models.summaryModel)
-    throw new TopicsProviderUnavailable(
-      "Configure the matching LANGFUSE_TOPICS_SUMMARY_MODEL on web and worker before running Topics.",
-      "authentication",
-    );
+  requireFrozenSummaryModel(models, config);
   const system = `${SUMMARY_SYSTEM_PROMPT}\n\n<facet>\n${facet.prompt}\n</facet>`;
   // Repeat the format request after the transcript; long inputs otherwise dilute it.
   const input = `<transcript>\n${text}\n</transcript>\n\nWrite the summary now, in the facet's format.`;
@@ -212,7 +197,7 @@ export async function summarizeTopicTrace(
     config.maxInputTokens,
     config.maxOutputTokens,
     "summary",
-    model,
+    models.summary,
   );
 }
 
@@ -222,17 +207,12 @@ export async function summarizeTopicTrace(
  * independently, with short evidence notes before each summary.
  */
 export async function summarizeTopicTraceFacets(
+  models: TopicsModels,
   facets: { key: string; facet: TopicFacetVersion }[],
   text: string,
   config: TopicProcessingConfig,
 ) {
-  const models = requireTopicsModelConfig();
-  const model = config.summaryModel;
-  if (!model || model !== models.summaryModel)
-    throw new TopicsProviderUnavailable(
-      "Configure the matching LANGFUSE_TOPICS_SUMMARY_MODEL on web and worker before running Topics.",
-      "authentication",
-    );
+  requireFrozenSummaryModel(models, config);
   const entry = z.object({
     notes: z
       .string()
@@ -268,15 +248,17 @@ ${facets.map(({ key, facet }) => `<facet key="${key}">\n${facet.prompt}\n</facet
     config.maxInputTokens,
     config.maxOutputTokens * facets.length,
     "summary",
-    model,
+    models.summary,
   );
 }
 
-export async function nameTopicGroup(group: {
-  members: { id: string; summary: string }[];
-  contrasts: { id: string; summary: string }[];
-}) {
-  requireTopicsModelConfig();
+export async function nameTopicGroup(
+  models: TopicsModels,
+  group: {
+    members: { id: string; summary: string }[];
+    contrasts: { id: string; summary: string }[];
+  },
+) {
   if (!group.members.length)
     throw new Error("Naming requires one non-empty effective group.");
   const memberIds = new Set(group.members.map((member) => member.id));
@@ -316,22 +298,15 @@ export async function nameTopicGroup(group: {
     inputLimit,
     1000,
     "naming",
-    TOPICS_NAMING_MODEL,
+    models.naming,
   );
 }
 
 export async function embedTopicSummary(
+  model: TopicsModel,
   summary: string,
   dimensions: number,
-  model: string,
 ): Promise<TopicModelUsage & { embedding: number[] }> {
-  const models = requireTopicsModelConfig();
-  if (!model.trim() || model !== models.embeddingModel)
-    throw new TopicsProviderUnavailable(
-      "Configure the matching LANGFUSE_TOPICS_EMBEDDING_MODEL on web and worker before running Topics.",
-      "authentication",
-    );
-  const connection = bedrockConfig();
   if (
     !summary.trim() ||
     !topicEmbeddingConfigSchema.safeParse({ embeddingDimensions: dimensions })
@@ -342,12 +317,11 @@ export async function embedTopicSummary(
       "invalid_input",
     );
   const result = await generateTopicEmbedding({
-    ...connection,
     model,
     summary,
     dimensions,
   }).catch((error: unknown) => {
-    throw topicProviderError(error);
+    throw topicProviderError(error, model);
   });
   recordTopicTokenUsage("embedding", { input: result.tokens });
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
@@ -365,12 +339,12 @@ export async function embedTopicSummary(
   const costDetails: Record<string, number> = {};
   if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
     usageDetails.embedding_input = usageDetails.total = result.tokens;
-    if (TOPICS_EMBEDDING_COST_MODELS.has(model))
+    if (TOPICS_EMBEDDING_COST_MODELS.has(model.model))
       costDetails.embedding_input = costDetails.total =
         (result.tokens * 0.12) / 1_000_000;
   } else {
     logger.warn("Topics embedding response omitted token usage", {
-      model,
+      model: model.model,
     });
   }
   return {

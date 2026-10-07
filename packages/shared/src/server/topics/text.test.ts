@@ -1,128 +1,108 @@
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { encrypt } from "../../encryption";
+import { LLMAdapter } from "../llm/types";
+import { generateTopicEmbedding } from "./embeddings";
+import type { TopicsModel } from "./model-config";
 import { generateTopicText } from "./text";
-
-vi.mock("@aws-sdk/credential-providers", () => ({
-  fromNodeProviderChain: vi.fn(() => async () => ({
-    accessKeyId: "topics-test-key",
-    secretAccessKey: "topics-test-secret",
-    sessionToken: "topics-test-session",
-  })),
-}));
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
-  vi.clearAllMocks();
 });
 
-describe("generateTopicText", () => {
-  it.each([
-    "us.openai.gpt-5.6-luna",
-    "us.openai.gpt-5.6-terra",
-    "us.openai.gpt-6-luna",
-    "global.openai.gpt-6-luna",
-  ])(
-    "serializes %s structured output through Bedrock with the Topics profile",
-    async (model) => {
-      const schema = z.object({ summary: z.string() });
-      const output = { summary: "Account access" };
-      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-        Response.json({
-          output: {
-            message: {
-              role: "assistant",
-              content: [
-                {
-                  toolUse: { toolUseId: "json-1", name: "json", input: output },
-                },
-              ],
-            },
-          },
-          stopReason: "tool_use",
-          usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
-          metrics: { latencyMs: 1 },
-        }),
-      );
-      vi.stubGlobal("fetch", fetch);
-      vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "ambient-bearer-token");
-
-      const result = await generateTopicText({
-        model,
-        messages: [
-          { role: "system", content: "Summarize the user's request." },
-          { role: "user", content: "I cannot sign in." },
-        ],
-        schema,
-        maxOutputTokens: 256,
-        region: "eu-central-1",
-        profile: "topics-local",
-      });
-
-      expect(fromNodeProviderChain).toHaveBeenCalledWith({
-        profile: "topics-local",
-      });
-      expect(fetch).toHaveBeenCalledTimes(1);
-      const request = new Request(...fetch.mock.calls[0]);
-      expect(request.url).toBe(
-        `https://bedrock-runtime.eu-central-1.amazonaws.com/model/${model}/converse`,
-      );
-      expect(request.headers.get("authorization")).toMatch(
-        /^AWS4-HMAC-SHA256 Credential=topics-test-key\//,
-      );
-      expect(request.headers.get("x-amz-security-token")).toBe(
-        "topics-test-session",
-      );
-      const body = await request.json();
-      expect(body).toMatchObject({
-        system: [{ text: "Summarize the user's request." }],
-        messages: [{ role: "user", content: [{ text: "I cannot sign in." }] }],
-        inferenceConfig: { maxTokens: 256 },
-        additionalModelRequestFields: { reasoning: { effort: "none" } },
-        toolConfig: {
-          tools: [
-            {
-              toolSpec: {
-                name: "json",
-                inputSchema: {
-                  json: {
-                    type: "object",
-                    properties: { summary: { type: "string" } },
-                    required: ["summary"],
-                    additionalProperties: false,
-                  },
-                },
-              },
-            },
-          ],
-          toolChoice: { any: {} },
-        },
-      });
-      expect(body).not.toHaveProperty("inferenceConfig.temperature");
-      expect(result.output).toEqual(output);
-      expect(result.usage).toMatchObject({
-        inputTokens: 12,
-        outputTokens: 4,
-        totalTokens: 16,
-      });
+function bedrockModel(slot: TopicsModel["slot"], model: string): TopicsModel {
+  return {
+    slot,
+    provider: "bedrock-topics",
+    adapter: LLMAdapter.Bedrock,
+    model,
+    connection: {
+      secretKey: encrypt(
+        JSON.stringify({ accessKeyId: "AKIATOPICS", secretAccessKey: "s" }),
+      ),
+      config: { region: "eu-central-1" },
     },
-  );
+  };
+}
 
-  it("rejects a host-reshaping region before resolving credentials or sending a request", async () => {
-    const fetch = vi.fn();
+describe("generateTopicText", () => {
+  it("sends structured output through the project's Bedrock connection", async () => {
+    const output = { summary: "Account access" };
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        output: {
+          message: {
+            role: "assistant",
+            content: [
+              { toolUse: { toolUseId: "json-1", name: "json", input: output } },
+            ],
+          },
+        },
+        stopReason: "tool_use",
+        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        metrics: { latencyMs: 1 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    // Connection credentials must win over ambient worker credentials.
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "ambient-bearer-token");
+
+    const result = await generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      messages: [
+        { role: "system", content: "Summarize the user's request." },
+        { role: "user", content: "I cannot sign in." },
+      ],
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const request = new Request(...fetch.mock.calls[0]);
+    expect(request.url).toBe(
+      "https://bedrock-runtime.eu-central-1.amazonaws.com/model/us.openai.gpt-6-luna/converse",
+    );
+    expect(request.headers.get("authorization")).toMatch(
+      /^AWS4-HMAC-SHA256 Credential=AKIATOPICS\//,
+    );
+    expect(await request.json()).toMatchObject({
+      system: [{ text: "Summarize the user's request." }],
+      inferenceConfig: { maxTokens: 256 },
+      additionalModelRequestFields: { reasoning: { effort: "none" } },
+      toolConfig: { toolChoice: { any: {} } },
+    });
+    expect(result.output).toEqual(output);
+  });
+});
+
+describe("generateTopicEmbedding", () => {
+  it("requests clustering vectors of the configured size from Cohere on Bedrock", async () => {
+    const vector = Array.from({ length: 512 }, (_, index) => index + 1);
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json(
+        { embeddings: { float: [vector] }, texts: ["Account access"] },
+        { headers: { "x-amzn-bedrock-input-token-count": "3" } },
+      ),
+    );
     vi.stubGlobal("fetch", fetch);
 
-    await expect(
-      generateTopicText({
-        model: "us.openai.gpt-5.6-luna",
-        messages: [{ role: "user", content: "Hi" }],
-        schema: z.object({ summary: z.string() }),
-        maxOutputTokens: 256,
-        region: "eu-central-1.attacker.test",
-      }),
-    ).rejects.toThrow("Invalid Bedrock region");
-    expect(fromNodeProviderChain).not.toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
+    const result = await generateTopicEmbedding({
+      model: bedrockModel("embedding", "eu.cohere.embed-v4:0"),
+      summary: "Account access",
+      dimensions: 512,
+    });
+
+    const request = new Request(...fetch.mock.calls[0]);
+    expect(decodeURIComponent(request.url)).toBe(
+      "https://bedrock-runtime.eu-central-1.amazonaws.com/model/eu.cohere.embed-v4:0/invoke",
+    );
+    expect(await request.json()).toEqual({
+      input_type: "clustering",
+      texts: ["Account access"],
+      truncate: "NONE",
+      output_dimension: 512,
+    });
+    expect(result.embedding).toEqual(vector);
   });
 });

@@ -34,6 +34,9 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 vi.mock("./TopicPipelineForm", () => ({
   useTopicPipelineForm: () => ({ actions: null, configuration: null }),
 }));
+vi.mock("./TopicModelSettings", () => ({
+  useTopicModelSettings: () => ({ action: null, dialog: null, notice: null }),
+}));
 vi.mock("./CurrentTopics", () => ({
   CurrentTopics: ({
     running,

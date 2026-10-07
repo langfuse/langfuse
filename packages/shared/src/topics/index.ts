@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { LLMAdapter } from "../server/llm/types";
 
 export const topicIdSchema = z
   .string()
@@ -24,6 +25,50 @@ export const topicEmbeddingConfigSchema = z.object({
     .default(1024),
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
+
+export const TOPICS_MODEL_SLOTS = ["summary", "embedding", "naming"] as const;
+export type TopicsModelSlotName = (typeof TOPICS_MODEL_SLOTS)[number];
+// Every slot must support embeddings or structured output; Anthropic has no embeddings API.
+export const TOPICS_SUPPORTED_ADAPTERS: readonly string[] = [
+  LLMAdapter.OpenAI,
+  LLMAdapter.Azure,
+  LLMAdapter.Bedrock,
+  LLMAdapter.GoogleAIStudio,
+  LLMAdapter.VertexAI,
+];
+export const TOPICS_MODEL_SLOT_DETAILS: Record<
+  TopicsModelSlotName,
+  { label: string; recommendation: string }
+> = {
+  summary: {
+    label: "Facet summaries",
+    recommendation:
+      "A small, fast model such as GPT-6 Luna. It runs once per trace.",
+  },
+  embedding: {
+    label: "Embeddings",
+    recommendation:
+      "An embedding model such as text-embedding-3-small or Cohere Embed v4. It cannot be changed once summaries are embedded.",
+  },
+  naming: {
+    label: "Topic naming",
+    recommendation:
+      "A stronger model such as GPT-5.6 Terra or Claude Sonnet. It runs once per topic.",
+  },
+};
+const topicsModelSlotSchema = z.object({
+  llmApiKeyId: z.string().min(1),
+  model: z.string().trim().min(1).max(256),
+});
+export const topicsModelSettingsSchema = z.object({
+  summary: topicsModelSlotSchema.nullable(),
+  embedding: topicsModelSlotSchema.nullable(),
+  embeddingDimensions:
+    topicEmbeddingConfigSchema.shape.embeddingDimensions.unwrap(),
+  naming: topicsModelSlotSchema.nullable(),
+  enabled: z.boolean(),
+});
+export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;
 export const topicProcessingConfigSchema = z.object({
   summaryModel: z.string().trim().min(1).optional(),
   maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),

@@ -411,6 +411,17 @@ export async function getTopicClusteringSummaries(
   return rows.map(summaryResult);
 }
 
+export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
+  const rows = await queryClickhouse<{ found: number }>({
+    query: `SELECT 1 AS found FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND processing_state = 'complete'
+      LIMIT 1`,
+    params: { projectId },
+    tags: { route: "topics-has-embeddings", projectId },
+  });
+  return rows.length > 0;
+}
+
 /** Count current compatible summaries without loading summary text or vectors. */
 export async function getTopicSummaryCounts(
   projectId: string,

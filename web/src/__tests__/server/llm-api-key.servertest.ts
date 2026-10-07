@@ -1821,5 +1821,45 @@ describe("llmApiKey.all RPC", () => {
         });
       }
     });
+
+    it("turns Topics off and records why when its connection is deleted", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        customModels: [],
+        withDefaultModels: true,
+      });
+      const connection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      await prisma.topicsModelConfig.create({
+        data: {
+          projectId,
+          enabled: true,
+          summaryLlmApiKeyId: connection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: connection.id,
+          embeddingModel: "text-embedding-3-small",
+          namingLlmApiKeyId: connection.id,
+          namingModel: "gpt-5.6-terra",
+        },
+      });
+
+      await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      expect(
+        await prisma.topicsModelConfig.findUniqueOrThrow({
+          where: { projectId },
+        }),
+      ).toMatchObject({
+        enabled: false,
+        pausedReason: expect.stringContaining(`"${PROVIDER}" was deleted`),
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        namingLlmApiKeyId: null,
+      });
+    });
   });
 });

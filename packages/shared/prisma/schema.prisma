@@ -191,6 +191,7 @@ model Project {
   Automation                        Automation[]
   monitors                          Monitor[]
   DefaultLlmModel                   DefaultLlmModel[]
+  TopicsModelConfig                 TopicsModelConfig?
   Price                             Price[]
   SlackIntegration                  SlackIntegration?
   PendingDeletion                   PendingDeletion[]
@@ -435,6 +436,9 @@ model LlmApiKeys {
   projectId       String            @map("project_id")
   project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
+  topicsSummaryModelConfigs   TopicsModelConfig[] @relation("TopicsSummaryLlmApiKey")
+  topicsEmbeddingModelConfigs TopicsModelConfig[] @relation("TopicsEmbeddingLlmApiKey")
+  topicsNamingModelConfigs    TopicsModelConfig[] @relation("TopicsNamingLlmApiKey")
 
   @@unique([projectId, provider])
   @@map("llm_api_keys")
@@ -1269,6 +1273,38 @@ model DefaultLlmModel {
 
   @@unique([projectId])
   @@map("default_llm_models")
+}
+
+// Models for Langfuse Topics. Each slot references one of the project's LLM connections.
+model TopicsModelConfig {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @unique @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Kill switch for automatic trace processing; facet rules are kept while off.
+  enabled      Boolean @default(false)
+  pausedReason String? @map("paused_reason")
+
+  summaryLlmApiKeyId String?     @map("summary_llm_api_key_id")
+  summaryLlmApiKey   LlmApiKeys? @relation("TopicsSummaryLlmApiKey", fields: [summaryLlmApiKeyId], references: [id], onDelete: SetNull)
+  summaryModel       String?     @map("summary_model")
+
+  embeddingLlmApiKeyId String?     @map("embedding_llm_api_key_id")
+  embeddingLlmApiKey   LlmApiKeys? @relation("TopicsEmbeddingLlmApiKey", fields: [embeddingLlmApiKeyId], references: [id], onDelete: SetNull)
+  embeddingModel       String?     @map("embedding_model")
+  embeddingDimensions  Int         @default(1024) @map("embedding_dimensions")
+
+  namingLlmApiKeyId String?     @map("naming_llm_api_key_id")
+  namingLlmApiKey   LlmApiKeys? @relation("TopicsNamingLlmApiKey", fields: [namingLlmApiKeyId], references: [id], onDelete: SetNull)
+  namingModel       String?     @map("naming_model")
+
+  @@index([summaryLlmApiKeyId])
+  @@index([embeddingLlmApiKeyId])
+  @@index([namingLlmApiKeyId])
+  @@map("topics_model_configs")
 }
 
 // Single Sign-On configuration for a domain

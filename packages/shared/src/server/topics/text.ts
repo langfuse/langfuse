@@ -1,37 +1,37 @@
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { generateText, Output, type ModelMessage } from "ai";
+import { Output, type ModelMessage } from "ai";
 import type { z } from "zod";
-import {
-  assertValidBedrockRegion,
-  createDefaultBedrockProviderAuth,
-} from "../llm/ai-sdk/providers/bedrock";
+import { generateLLMText } from "../llm/llmText";
+import { LLMAdapter } from "../llm/types";
+import type { TopicsModel } from "./model-config";
 
-/** Uses the shared AI SDK and AWS credentials for Topics structured text. */
+/** Structured Topics text through the project's LLM connection. */
 export async function generateTopicText<T>(params: {
-  model: string;
+  model: TopicsModel;
   messages: ModelMessage[];
   schema: z.ZodType<T>;
   maxOutputTokens: number;
-  region: string;
-  profile?: string;
 }) {
-  assertValidBedrockRegion(params.region);
-  const provider = createAmazonBedrock({
-    region: params.region,
-    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
-  });
-  return generateText({
-    model: provider(params.model),
+  return generateLLMText({
+    model: { adapter: params.model.adapter, id: params.model.model },
+    connection: params.model.connection,
     messages: params.messages,
-    allowSystemInMessages: true,
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
-    providerOptions: {
-      bedrock: {
-        additionalModelRequestFields: { reasoning: { effort: "none" } },
-      },
-    },
-    maxRetries: 0,
+    reasoning: "none",
+    // Bedrock ignores portable reasoning for OpenAI models; their default effort
+    // is not none.
+    ...(params.model.adapter === LLMAdapter.Bedrock &&
+    params.model.model.includes("openai.")
+      ? {
+          providerOptions: {
+            bedrock: {
+              additionalModelRequestFields: { reasoning: { effort: "none" } },
+            },
+          },
+        }
+      : {}),
+    // The AI SDK retries 429 and 5xx responses with exponential backoff.
+    maxRetries: 2,
     timeout: 60_000,
   });
 }
