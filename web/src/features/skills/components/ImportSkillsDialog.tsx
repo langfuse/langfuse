@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,
   SKILL_LATEST_LABEL,
@@ -192,9 +192,53 @@ export function ImportSkillsDialog({
     if (importedCount === selectedSkills.length) closeDialog();
   };
 
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSearch(event.target.value);
+  };
+
+  const toggleVisibleSelection = () => {
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const skill of visibleSelectable) {
+        if (allVisibleSelected) next.delete(skill.path);
+        else next.add(skill.path);
+      }
+      return next;
+    });
+  };
+
+  const createSkillSelectHandler = (path: string) => {
+    return function handleSkillSelectChange(
+      checked: boolean | "indeterminate",
+    ) {
+      setSelected((current) => {
+        const next = new Set(current);
+        if (checked === true) next.add(path);
+        else next.delete(path);
+        return next;
+      });
+    };
+  };
+
+  const canCloseDialog = () => !inFlight.current;
+
+  const createImportHandler = (closeDialog: () => void) => {
+    return function handleImportSelected() {
+      return importSelected(closeDialog);
+    };
+  };
+
+  const createOpenHandler = (openDialog: () => void) => {
+    return function handleOpenDialog() {
+      reset();
+      capture("skills:import_open");
+      openDialog();
+    };
+  };
+
   return (
     <DialogController
-      onBeforeClose={() => !inFlight.current}
+      onBeforeClose={canCloseDialog}
       renderDialog={({ closeDialog }) => (
         <Dialog
           title="Import skills"
@@ -205,7 +249,7 @@ export function ImportSkillsDialog({
                     label: `Import ${selectedSkills.length} ${selectedSkills.length === 1 ? "skill" : "skills"}`,
                     loading: isImporting,
                     disabled: busy || selectedSkills.length === 0,
-                    onClick: () => importSelected(closeDialog),
+                    onClick: createImportHandler(closeDialog),
                   },
                 ]
               : undefined
@@ -230,7 +274,7 @@ export function ImportSkillsDialog({
                     aria-label="Search skills"
                     placeholder="Search skills by name, description, or path"
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={handleSearchChange}
                   />
                 </div>
                 <div className="flex items-center justify-between gap-2">
@@ -246,16 +290,7 @@ export function ImportSkillsDialog({
                     variant="ghost"
                     size="sm"
                     disabled={busy || visibleSelectable.length === 0}
-                    onClick={() =>
-                      setSelected((current) => {
-                        const next = new Set(current);
-                        for (const skill of visibleSelectable) {
-                          if (allVisibleSelected) next.delete(skill.path);
-                          else next.add(skill.path);
-                        }
-                        return next;
-                      })
-                    }
+                    onClick={toggleVisibleSelection}
                   />
                 </div>
                 {visibleSkills.length === 0 ? (
@@ -288,14 +323,9 @@ export function ImportSkillsDialog({
                               imported ||
                               (skill.exists && !skill.hasChanges)
                             }
-                            onCheckedChange={(checked) =>
-                              setSelected((current) => {
-                                const next = new Set(current);
-                                if (checked === true) next.add(skill.path);
-                                else next.delete(skill.path);
-                                return next;
-                              })
-                            }
+                            onCheckedChange={createSkillSelectHandler(
+                              skill.path,
+                            )}
                           />
                         </div>
                         <label
@@ -368,13 +398,7 @@ export function ImportSkillsDialog({
         </Dialog>
       )}
     >
-      {({ openDialog }) =>
-        children(() => {
-          reset();
-          capture("skills:import_open");
-          openDialog();
-        })
-      }
+      {({ openDialog }) => children(createOpenHandler(openDialog))}
     </DialogController>
   );
 }

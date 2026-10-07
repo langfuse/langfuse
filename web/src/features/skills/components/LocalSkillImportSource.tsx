@@ -11,6 +11,35 @@ export function LocalSkillImportSource({
 }: SkillImportSourceProps) {
   const [files, setFiles] = useState<File[]>();
   const [error, setError] = useState<string>();
+
+  const handleDropError = (error: Error) => {
+    onReset();
+    setFiles(undefined);
+    setError(error.message);
+  };
+
+  const handleDrop = async (acceptedFiles: FileWithPath[]) => {
+    if (acceptedFiles.length === 0 || busy) return;
+    setFiles(acceptedFiles);
+    setError(undefined);
+    await onScan(async () => ({
+      skills: await discoverLocalSkills(
+        acceptedFiles.map((file) => ({
+          // file-selector prefixes dropped paths with "/" or "./".
+          path: (
+            file.webkitRelativePath ||
+            file.relativePath ||
+            file.path ||
+            file.name
+          ).replace(/^(\.\/|\/)/, ""),
+          file,
+        })),
+      ),
+      source: "local",
+      commitMessage: "Imported from local files",
+    }));
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <p className="text-muted-foreground text-sm">
@@ -26,32 +55,8 @@ export function LocalSkillImportSource({
           minSize={undefined}
           src={files}
           isDisabled={busy}
-          onError={(error) => {
-            onReset();
-            setFiles(undefined);
-            setError(error.message);
-          }}
-          onDrop={async (acceptedFiles: FileWithPath[]) => {
-            if (!acceptedFiles.length || busy) return;
-            setFiles(acceptedFiles);
-            setError(undefined);
-            await onScan(async () => ({
-              skills: await discoverLocalSkills(
-                acceptedFiles.map((file) => ({
-                  // file-selector prefixes dropped paths with "/" or "./".
-                  path: (
-                    file.webkitRelativePath ||
-                    file.relativePath ||
-                    file.path ||
-                    file.name
-                  ).replace(/^(\.\/|\/)/, ""),
-                  file,
-                })),
-              ),
-              source: "local",
-              commitMessage: "Imported from local files",
-            }));
-          }}
+          onError={handleDropError}
+          onDrop={handleDrop}
         />
       </div>
       {busy ? <p role="status">Scanning local files for skills…</p> : null}
