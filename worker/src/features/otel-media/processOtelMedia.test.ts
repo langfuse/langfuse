@@ -19,17 +19,23 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@langfuse/shared/src/server", () => ({
-  getClickhouseEntityType: (eventType: string) =>
-    eventType === "trace-create" ? "trace" : "observation",
-  instrumentAsync: mocks.instrumentAsync,
-  logger: mocks.logger,
-  processOtelMedia: vi.fn(),
-  recordDistribution: mocks.recordDistribution,
-  recordIncrement: mocks.recordIncrement,
-  linkMediaToTraceOrObservation: mocks.linkMediaToTraceOrObservation,
-  uploadMediaForTrace: mocks.uploadMediaForTrace,
-}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const { matchStructuredMedia, mayContainSerializedMedia } =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    matchStructuredMedia,
+    mayContainSerializedMedia,
+    getClickhouseEntityType: (eventType: string) =>
+      eventType === "trace-create" ? "trace" : "observation",
+    instrumentAsync: mocks.instrumentAsync,
+    logger: mocks.logger,
+    processOtelMedia: vi.fn(),
+    recordDistribution: mocks.recordDistribution,
+    recordIncrement: mocks.recordIncrement,
+    linkMediaToTraceOrObservation: mocks.linkMediaToTraceOrObservation,
+    uploadMediaForTrace: mocks.uploadMediaForTrace,
+  };
+});
 
 import { MediaAssociationOrigin } from "@langfuse/shared";
 import type { IngestionEventType } from "@langfuse/shared/src/server";
@@ -38,7 +44,10 @@ import {
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
 } from "./processOtelMedia";
-import { resolveExtractedMedia } from "./resolveExtractedMedia";
+import {
+  resolveExtractedMedia,
+  restoreInlineMedia,
+} from "./resolveExtractedMedia";
 
 const processResult = {
   uploaded: 1,
@@ -407,17 +416,20 @@ describe("processOtelEventMedia", () => {
       mediaId: "uploaded",
     });
     mocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
+    const readMedia = vi.fn(() => [
+      {
+        index: 0,
+        reference,
+        contentType: "image/png",
+        sha256Hash: "hash",
+        kind: "anthropic",
+        originalByteLength: 4,
+      },
+    ]);
     const batch = {
-      media: [
-        {
-          index: 0,
-          reference,
-          contentType: "image/png",
-          sha256Hash: "hash",
-          kind: "anthropic",
-          originalByteLength: 4,
-        },
-      ],
+      get media() {
+        return readMedia();
+      },
       mediaBody: vi.fn().mockResolvedValue(Buffer.from("media")),
       originalMedia: vi.fn().mockResolvedValue("aGk="),
     } as never;
@@ -437,6 +449,7 @@ describe("processOtelEventMedia", () => {
       input: providerInput(),
     };
 
+    await restoreInlineMedia(batch, [firstTarget, secondTarget]);
     const first = await resolveExtractedMedia({
       batch,
       targets: createDirectOtelMediaTargets([firstTarget]),
@@ -456,6 +469,7 @@ describe("processOtelEventMedia", () => {
 
     expect(first).toMatchObject({ uploaded: 1, reused: 0, bytesProcessed: 5 });
     expect(second).toMatchObject({ uploaded: 0, reused: 1, bytesProcessed: 5 });
+    expect(readMedia).toHaveBeenCalledOnce();
     expect(batch.mediaBody).toHaveBeenCalledOnce();
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
@@ -795,4 +809,45 @@ describe("processOtelEventMedia", () => {
     expect(payload.input).toBe(input);
     expect(batch.mediaBody).not.toHaveBeenCalled();
   });
+
+  it.each(["non-payload field", "provider sibling"])(
+    "preserves unknown references in a %s during restoration",
+    async (location) => {
+      const validated = await validateOtelJson(
+        Buffer.from('{"input":"data:image/png;base64,aGk="}'),
+      );
+      const batch = await validated.extract(true);
+      const opaque =
+        '{ "large": 9007199254740993, "escaped": "\\u0061", "ref": "@@@langfuseMedia:existing@@@" }';
+      const record = {
+        name: opaque,
+        input: {
+          type: "base64",
+          media_type: "image/png",
+          data: "https://example.com/image.png",
+          other: opaque,
+        },
+      };
+      try {
+        expect(batch.media).toHaveLength(1);
+        if (location === "non-payload field") {
+          await restoreInlineMedia(batch, [record]);
+          expect(record.name).toBe(opaque);
+        } else {
+          await resolveExtractedMedia({
+            batch,
+            targets: [{ traceId: "trace", payload: record }],
+            projectId: "project",
+            mediaBucket: "media-bucket",
+            mediaPrefix: "media/",
+            writePath: "direct",
+          });
+          expect(record.input.other).toBe(opaque);
+        }
+        expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+      } finally {
+        await batch.dispose();
+      }
+    },
+  );
 });

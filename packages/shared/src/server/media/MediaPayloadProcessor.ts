@@ -96,9 +96,11 @@ type TraversalNode = {
   key: string | number;
 };
 
-type StructuredMedia = {
+export type StructuredMedia = {
   target: Record<string, unknown>;
   property: string;
+  /** Parent property when the media target is nested under inline_data/inlineData. */
+  container?: "inline_data" | "inlineData";
   content: string;
   contentType: string;
   kind: Exclude<MediaPayloadKind, "data_uri">;
@@ -558,7 +560,13 @@ function defineOwnValue(
   });
 }
 
-function matchStructuredMedia(
+/**
+ * Match the canonical provider-specific media shapes used by the payload detector.
+ *
+ * The order and type checks here are part of the compatibility contract. Consumers that need to
+ * walk the same provider shapes should use this result instead of maintaining a second list.
+ */
+export function matchStructuredMedia(
   value: Record<string, unknown>,
 ): StructuredMedia | undefined {
   for (const shape of STRUCTURED_MEDIA_SHAPES) {
@@ -607,6 +615,7 @@ function matchStructuredMedia(
     if (typeof contentType === "string") {
       return {
         target: inlineData,
+        container: inlineDataKey,
         property: "data",
         content: inlineData.data,
         contentType,
@@ -718,11 +727,12 @@ function isPythonBytesLiteral(value: string): boolean {
 }
 
 /**
- * Cheaply requires a complete provider-specific key combination before the
- * more expensive JSON.parse and structured traversal. A common `data` key by
- * itself is deliberately insufficient.
+ * Cheaply checks whether a stringified JSON value may contain a recognized provider media shape.
+ * This requires a complete provider-specific key combination before the more expensive
+ * `JSON.parse` and structured traversal. A common `data` key by itself is deliberately
+ * insufficient. The prefilter is conservative; callers still need full matching.
  */
-function mayContainSerializedMedia(value: string): boolean {
+export function mayContainSerializedMedia(value: string): boolean {
   const hasData = value.includes('"data"');
   const hasMimeType = value.includes('"mime_type"');
   const hasProviderShapeKeys =

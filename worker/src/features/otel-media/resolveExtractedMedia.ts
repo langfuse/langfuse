@@ -1,4 +1,4 @@
-import type { EarlyOtelBatch } from "@langfuse/native";
+import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
 import {
   isMediaContentType,
   MediaAssociationOrigin,
@@ -7,6 +7,8 @@ import {
 } from "@langfuse/shared";
 import {
   logger,
+  matchStructuredMedia,
+  mayContainSerializedMedia,
   recordDistribution,
   recordIncrement,
   type OtelMediaTarget,
@@ -17,8 +19,6 @@ import {
 
 const MAX_LEGACY_MEDIA_DEPTH = 10;
 const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
-const SERIALIZED_PROVIDER_MEDIA_TYPE =
-  /"type"\s*:\s*"(?:base64|media|blob|file)"/;
 
 type CachedMediaUpload = {
   mediaId: string;
@@ -26,13 +26,29 @@ type CachedMediaUpload = {
   byteLength: number;
 };
 
-// The same EarlyOtelBatch can feed legacy and direct targets. Keep only the successful
-// asset result here: decoded bodies remain owned by the individual upload call and are
-// released as soon as that call settles. WeakMap lifetime follows the batch handle.
-const mediaUploadCache = new WeakMap<
+type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
+
+// Retain descriptor metadata and completed upload results for the batch's lifetime.
+// Decoded bodies and restored source strings stay local to each processing call.
+const batches = new WeakMap<
   EarlyOtelBatch,
-  Map<string, Promise<CachedMediaUpload>>
+  {
+    media: MediaRegistry;
+    uploads: Map<string, Promise<CachedMediaUpload>>;
+  }
 >();
+
+function batchMedia(batch: EarlyOtelBatch) {
+  let state = batches.get(batch);
+  if (!state) {
+    state = {
+      media: new Map(batch.media.map((entry) => [entry.reference, entry])),
+      uploads: new Map(),
+    };
+    batches.set(batch, state);
+  }
+  return state;
+}
 
 /**
  * Upload one extracted asset once for an EarlyOtelBatch and retain only its
@@ -70,10 +86,7 @@ async function uploadExtractedMediaOnce(params: {
     sha256Hash,
     contentType,
   ].join("\u0000");
-  const cache =
-    mediaUploadCache.get(batch) ??
-    new Map<string, Promise<CachedMediaUpload>>();
-  mediaUploadCache.set(batch, cache);
+  const cache = batchMedia(batch).uploads;
 
   const cached = cache.get(key);
   if (cached) {
@@ -124,62 +137,94 @@ export async function restoreInlineMedia(
   records: Record<string, unknown>[],
   { includePayloads = false }: { includePayloads?: boolean } = {},
 ): Promise<void> {
-  const registry = new Map(
-    batch.media.map((media) => [media.reference, media]),
-  );
-  if (registry.size === 0) return;
-  const originals = new Map<string, Promise<string>>();
-  const restore = async (value: unknown): Promise<unknown> => {
-    if (typeof value === "string" && value.includes("@@@langfuseMedia:")) {
-      if (/^\s*[[{]/.test(value)) {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(value);
-        } catch {
-          /* Plain text also accepts media references. */
-        }
-        if (parsed !== undefined) return JSON.stringify(await restore(parsed));
-      }
-      let result = "";
-      let end = 0;
-      for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
-        const entry = registry.get(match[0]);
-        if (!entry) continue;
-        let original = originals.get(entry.reference);
-        if (!original) {
-          original = batch.originalMedia(entry.index);
-          originals.set(entry.reference, original);
-        }
-        result += value.slice(end, match.index) + (await original);
-        end = match.index + match[0].length;
-      }
-      return end === 0 ? value : result + value.slice(end);
-    }
-    if (Array.isArray(value)) {
-      for (let index = 0; index < value.length; index++)
-        value[index] = await restore(value[index]);
-    } else if (value !== null && typeof value === "object") {
-      for (const key of Object.keys(value)) {
-        const object = value as Record<string, unknown>;
-        Object.defineProperty(object, key, {
-          value: await restore(object[key]),
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      }
-    }
-    return value;
-  };
+  const { media } = batchMedia(batch);
+  if (media.size === 0) return;
+  const { restore } = createMediaRestorer(batch, media);
   for (const record of records) {
     for (const key of Object.keys(record)) {
       if (
         includePayloads ||
         (key !== "input" && key !== "output" && key !== "metadata")
       )
-        record[key] = await restore(record[key]);
+        setObjectValue(record, key, record[key], await restore(record[key]));
     }
   }
+}
+
+// Each processing call owns its restoration cache so large source strings are
+// released when that call completes, even if another path still owns the batch.
+function createMediaRestorer(batch: EarlyOtelBatch, media: MediaRegistry) {
+  const originals = new Map<string, Promise<string>>();
+  function originalFor(entry: ExtractedOtelMedia): Promise<string> {
+    let original = originals.get(entry.reference);
+    if (!original) {
+      original = batch.originalMedia(entry.index);
+      originals.set(entry.reference, original);
+    }
+    return original;
+  }
+
+  function hasKnownMediaReference(value: string): boolean {
+    if (!value.includes(MEDIA_REFERENCE_PREFIX)) return false;
+    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
+      if (media.has(match[0])) return true;
+    }
+    return false;
+  }
+
+  async function restoreReferences(
+    value: string,
+    jsonString = false,
+  ): Promise<string> {
+    let output = "";
+    let end = 0;
+    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
+      const entry = media.get(match[0]);
+      if (!entry) continue;
+      const original = await originalFor(entry);
+      output +=
+        value.slice(end, match.index) +
+        (jsonString ? JSON.stringify(original).slice(1, -1) : original);
+      end = match.index + match[0].length;
+    }
+    return end === 0 ? value : output + value.slice(end);
+  }
+
+  async function restore(value: unknown): Promise<unknown> {
+    if (typeof value === "string") {
+      // Existing public references are opaque. Parsing an unrelated string could
+      // change whitespace, escapes or large numeric literals without replacing media.
+      if (!hasKnownMediaReference(value)) return value;
+      if (/^\s*[[{]/.test(value)) {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(value);
+        } catch {
+          // Plain text containing references need not itself be JSON.
+        }
+        if (parsed !== undefined) return JSON.stringify(await restore(parsed));
+      }
+      return restoreReferences(value);
+    }
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index++)
+        value[index] = await restore(value[index]);
+    } else if (isObject(value)) {
+      for (const key of Object.keys(value))
+        setObjectValue(value, key, value[key], await restore(value[key]));
+    }
+    return value;
+  }
+
+  return {
+    originalFor,
+    hasKnownMediaReference,
+    restore,
+    // Preserve surrounding JSON text when all uploads fail; escape only the
+    // original media spelling inserted back inside its JSON string quotes.
+    restoreStringifiedReferences: (value: string) =>
+      restoreReferences(value, true),
+  };
 }
 
 /** Resolve references that survived normalization, retaining the registry for both write paths. */
@@ -201,21 +246,17 @@ export async function resolveExtractedMedia(params: {
     bytesProcessed: 0,
     bytesRemoved: 0,
   };
-  const media = new Map(batch.media.map((entry) => [entry.reference, entry]));
+  const { media } = batchMedia(batch);
   if (media.size === 0) return stats;
-  const originalValues = new Map<string, Promise<string>>();
-
-  function originalFor(entry: (typeof batch.media)[number]): Promise<string> {
-    let original = originalValues.get(entry.reference);
-    if (!original) {
-      original = batch.originalMedia(entry.index);
-      originalValues.set(entry.reference, original);
-    }
-    return original;
-  }
+  const {
+    originalFor,
+    hasKnownMediaReference,
+    restore: restoreAll,
+    restoreStringifiedReferences,
+  } = createMediaRestorer(batch, media);
 
   async function uploadExtractedMedia(
-    entry: (typeof batch.media)[number],
+    entry: ExtractedOtelMedia,
     target: OtelMediaTarget,
     field: MediaField,
   ): Promise<CachedMediaUpload> {
@@ -302,7 +343,7 @@ export async function resolveExtractedMedia(params: {
       return value;
     }
 
-    const structuredTarget = structuredMediaTarget(value);
+    const structuredTarget = matchStructuredMedia(value);
     for (const key of Object.keys(value)) {
       const current = value[key];
       let next: unknown;
@@ -395,7 +436,7 @@ export async function resolveExtractedMedia(params: {
     }
 
     const firstPass =
-      mode === "generic" ? await rewriteReferences(value, false, false) : value;
+      mode === "generic" ? await restoreProviderReferences(value) : value;
     if (!hasKnownMediaReference(firstPass)) return firstPass;
 
     const firstPassTrimmed = firstPass.trimStart();
@@ -451,37 +492,8 @@ export async function resolveExtractedMedia(params: {
     return changed ? output + value.slice(end) : value;
   }
 
-  function hasKnownMediaReference(value: string): boolean {
-    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
-      if (media.has(match[0])) return true;
-    }
-    return false;
-  }
-
-  /**
-   * Restore a decoded JSON string without reserializing its surrounding document. This keeps
-   * whitespace, escaping, and number spelling intact when every extracted upload failed.
-   */
-  async function restoreStringifiedReferences(value: string): Promise<string> {
-    let output = "";
-    let end = 0;
-    let changed = false;
-    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
-      const entry = media.get(match[0]);
-      if (!entry) continue;
-      output += value.slice(end, match.index);
-      const original = await originalFor(entry);
-      // The marker occurs inside a JSON string. Preserve the surrounding quotes while
-      // escaping the restored value exactly as JSON would have represented it.
-      output += JSON.stringify(original).slice(1, -1);
-      end = match.index + match[0].length;
-      changed = true;
-    }
-    return changed ? output + value.slice(end) : value;
-  }
-
   async function resolveReference(
-    entry: (typeof batch.media)[number],
+    entry: ExtractedOtelMedia,
     target: OtelMediaTarget,
     field: MediaField,
     mode: Exclude<ResolutionMode, "restore">,
@@ -530,118 +542,34 @@ export async function resolveExtractedMedia(params: {
     }
   }
 
-  function setObjectValue(
-    object: Record<string, unknown>,
-    key: string,
-    previous: unknown,
-    next: unknown,
-  ): void {
-    if (previous === next) return;
-    // Define the property instead of assigning through the prototype setter;
-    // media references can occur under a user-controlled `__proto__` key.
-    Object.defineProperty(object, key, {
-      value: next,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
-  }
-
-  async function restoreAll(value: unknown): Promise<unknown> {
-    if (typeof value === "string") {
-      const trimmed = value.trimStart();
-      if (
-        (trimmed.startsWith("{") || trimmed.startsWith("[")) &&
-        value.includes(MEDIA_REFERENCE_PREFIX)
-      ) {
-        try {
-          const parsed: unknown = JSON.parse(value);
-          if (Array.isArray(parsed) || isObject(parsed)) {
-            return JSON.stringify(await restoreAll(parsed));
-          }
-        } catch {
-          // Treat malformed embedded JSON as an ordinary string.
-        }
-      }
-      return rewriteReferences(value, false, true);
-    }
-    if (Array.isArray(value)) {
-      for (let index = 0; index < value.length; index++)
-        value[index] = await restoreAll(value[index]);
-      return value;
-    }
-    if (isObject(value)) {
-      for (const key of Object.keys(value))
-        value[key] = await restoreAll(value[key]);
-    }
-    return value;
-  }
-
-  async function rewriteReferences(
-    value: string,
-    allowProvider: boolean,
-    forceRestore: boolean,
-  ): Promise<string> {
-    if (!value.includes(MEDIA_REFERENCE_PREFIX)) return value;
-    const matches = [...value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)];
+  async function restoreProviderReferences(value: string): Promise<string> {
     let output = "";
     let cursor = 0;
-    let changed = false;
-    for (const match of matches) {
-      const reference = match[0];
-      const entry = media.get(reference);
-      if (!entry) continue;
-      output += value.slice(cursor, match.index);
-      if (!forceRestore && (allowProvider || entry.kind === "data_uri")) {
-        output += reference;
-      } else {
-        output += await originalFor(entry);
-        changed = true;
-      }
-      cursor = (match.index ?? 0) + reference.length;
+    for (const match of value.matchAll(/@@@langfuseMedia:[^@]*@@@/g)) {
+      const entry = media.get(match[0]);
+      if (!entry || entry.kind === "data_uri") continue;
+      output += value.slice(cursor, match.index) + (await originalFor(entry));
+      cursor = match.index + match[0].length;
     }
-    return changed ? output + value.slice(cursor) : value;
+    return cursor === 0 ? value : output + value.slice(cursor);
   }
 }
 
-function structuredMediaTarget(
-  value: Record<string, unknown>,
-): { property: string; container?: string } | undefined {
-  if (value.type === "base64" && typeof value.media_type === "string")
-    return typeof value.data === "string" ? { property: "data" } : undefined;
-  if (value.type === "media" && typeof value.mime_type === "string")
-    return typeof value.data === "string" ? { property: "data" } : undefined;
-  if (value.type === "blob" && typeof value.mime_type === "string")
-    return typeof value.content === "string"
-      ? { property: "content" }
-      : undefined;
-  if (value.type === "file" && typeof value.mediaType === "string") {
-    if (typeof value.data === "string") return { property: "data" };
-    if (typeof value.image === "string") return { property: "image" };
-  }
-  for (const container of ["inline_data", "inlineData"] as const) {
-    const nested = value[container];
-    if (!isObject(nested)) continue;
-    const contentType = nested.mime_type ?? nested.mimeType;
-    if (typeof contentType === "string" && typeof nested.data === "string")
-      return { container, property: "data" };
-  }
-  return undefined;
-}
-
-function mayContainSerializedMedia(value: string): boolean {
-  const hasData = value.includes('"data"');
-  const hasMimeType = value.includes('"mime_type"');
-  const hasProviderShapeKeys =
-    (hasData && (value.includes('"media_type"') || hasMimeType)) ||
-    (value.includes('"content"') && hasMimeType) ||
-    ((hasData || value.includes('"image"')) && value.includes('"mediaType"'));
-  return (
-    (hasProviderShapeKeys && SERIALIZED_PROVIDER_MEDIA_TYPE.test(value)) ||
-    (hasData &&
-      (value.includes('"inline_data"') || value.includes('"inlineData"')) &&
-      (hasMimeType || value.includes('"mimeType"')))
-  );
+function setObjectValue(
+  object: Record<string, unknown>,
+  key: string,
+  previous: unknown,
+  next: unknown,
+): void {
+  if (previous === next) return;
+  // Define the property instead of assigning through the prototype setter;
+  // media references can occur under a user-controlled `__proto__` key.
+  Object.defineProperty(object, key, {
+    value: next,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
