@@ -88,6 +88,7 @@ export async function summarizeAssembledTrace(input: {
     baseSummary(input, version, config, embeddingModel),
   );
   let rows = bases;
+  let failure: unknown;
   if (prepared.hasContent) {
     const keyed = pending.map(({ name, version }, index) => ({
       key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
@@ -99,22 +100,35 @@ export async function summarizeAssembledTrace(input: {
       config,
     );
     const outputs = result.output as Record<string, FacetOutput>;
+    const usage: TopicModelUsage = {
+      providedUsageDetails: result.providedUsageDetails,
+      usageDetails: result.usageDetails,
+      providedCostDetails: result.providedCostDetails,
+      costDetails: result.costDetails,
+    };
     rows = [];
-    for (const [index, { key }] of keyed.entries())
-      rows.push(
-        await finalizeSummary(
-          bases[index],
-          outputs[key],
-          // One call serves every facet of the trace; record its usage once.
-          index === 0 ? result : NO_USAGE,
-          embeddingConfig.embeddingDimensions,
-          embeddingModel,
-        ),
-      );
+    // A failed facet (invalid output, embedding error) must not discard the others.
+    for (const [index, { key }] of keyed.entries()) {
+      try {
+        rows.push(
+          await finalizeSummary(
+            bases[index],
+            outputs[key],
+            // One call serves every facet of the trace; record its usage once.
+            rows.length ? NO_USAGE : usage,
+            embeddingConfig.embeddingDimensions,
+            embeddingModel,
+          ),
+        );
+      } catch (error) {
+        if (failure === undefined) failure = error;
+      }
+    }
   }
-  await writeTopicSummaries(rows);
+  if (rows.length) await writeTopicSummaries(rows);
   for (const row of rows)
     recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
+  if (failure) throw failure;
   return "summarized";
 }
 

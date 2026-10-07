@@ -230,6 +230,41 @@ describe("summarizeAssembledTrace", () => {
     });
   });
 
+  it("keeps the other facets when one facet's output is invalid", async () => {
+    const issues: TopicFacet = {
+      ...facet,
+      id: "facet-2",
+      name: "Issues",
+      versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
+    };
+    state.facets.mockResolvedValue([facet, issues]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "", status: "applicable" },
+        issues_2: { summary: "Retried a failed export.", status: "applicable" },
+      },
+      ...usage,
+    });
+    await expect(
+      summarizeAssembledTrace({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+      }),
+    ).rejects.toThrow(
+      "Applicable facet summary must contain a concise summary.",
+    );
+    const written = state.write.mock.calls[0][0];
+    expect(written).toHaveLength(1);
+    expect(written[0]).toMatchObject({ facetId: "facet-2", state: "complete" });
+    // The shared call's usage moves to the first row that is written.
+    expect(written[0].usageDetails.summary_input).toBe(20);
+    expect(written[0]).not.toHaveProperty("output");
+  });
+
   it("propagates a provider failure for the trace outcome", async () => {
     state.summarize.mockRejectedValue(new Error("provider unavailable"));
     await expect(
