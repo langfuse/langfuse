@@ -55,7 +55,7 @@ describe("DecisionModelSelector", () => {
       { wrapper: LayerProvider },
     );
 
-    return screen.getByRole("combobox", { name: "Decision model" });
+    return screen.getByRole("button");
   };
 
   it.each([
@@ -67,7 +67,7 @@ describe("DecisionModelSelector", () => {
       connection.withDefaultModels = withDefaultModels;
 
       expect(renderWithSelectedModel("jev-1.13.0")).toHaveTextContent(
-        "jev: jev-1.13.0",
+        "jev / jev-1.13.0",
       );
     },
   );
@@ -84,7 +84,7 @@ describe("DecisionModelSelector", () => {
       connection.customModels = customModels;
 
       expect(renderWithSelectedModel("jev-latest").textContent).toBe(
-        "jev: jev-latest",
+        "jev / jev-latest",
       );
     },
   );
