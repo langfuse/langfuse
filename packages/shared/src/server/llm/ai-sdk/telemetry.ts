@@ -207,15 +207,18 @@ export function createAiSdkTelemetryCapture(params: {
     ? trace.setSpan(ROOT_CONTEXT, rootSpan)
     : ROOT_CONTEXT;
 
-  const experimentAttributes =
-    experimentContext && rootSpan
-      ? buildExperimentAttributes(
-          experimentContext,
-          rootSpan.spanContext().spanId,
-        )
-      : undefined;
-  if (experimentAttributes) {
-    rootSpan?.setAttributes(experimentAttributes);
+  // Experiment traces always keep the wrapper span: generationIsRoot requires
+  // experimentContext to be absent.
+  let experimentAttributes: Record<string, string> | undefined;
+  if (experimentContext) {
+    if (!rootSpan) {
+      throw new Error("Experiment trace is missing its root span");
+    }
+    experimentAttributes = buildExperimentAttributes(
+      experimentContext,
+      rootSpan.spanContext().spanId,
+    );
+    rootSpan.setAttributes(experimentAttributes);
   }
 
   const promptAttributes = traceSinkParams.prompt
