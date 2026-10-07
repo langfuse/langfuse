@@ -246,6 +246,15 @@ export async function getDecisionModelConfigurationError(params: {
   if (missingLabel) {
     return "Each OpenAI score level needs a label.";
   }
+  const missingDescription = params.definition.questions.some(
+    (question) =>
+      question.type === "score" &&
+      modelConfig.config.apiKey.adapter !== LLMAdapter.OpenAI &&
+      question.levels.some((level) => level.description == null),
+  );
+  if (missingDescription) {
+    return "Each score level needs a description.";
+  }
   return null;
 }
 

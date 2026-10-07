@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   isAllowedDecisionModel,
   isOpenAIDecisionModel,
@@ -83,13 +83,11 @@ export function DecisionModelSelector({
     const group = providerGroups.find(([, models]) => models.includes(model));
     return group ? [{ provider: group[0], model }] : [];
   }).at(0);
-  const preferredProvider = preferred?.provider;
-  const preferredModel = preferred?.model;
-
-  useEffect(() => {
-    if (selectedModel || !preferredProvider || !preferredModel) return;
-    selectModel({ provider: preferredProvider, model: preferredModel });
-  }, [preferredModel, preferredProvider, selectedModel, selectModel]);
+  // The connection list arrives with this render. Write the default before
+  // questions and save read the store.
+  if (selectedModel == null && preferred != null) {
+    selectModel(preferred);
+  }
 
   if (connections.isSuccess && providerGroups.length === 0 && !selectedModel) {
     return (

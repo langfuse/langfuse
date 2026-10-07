@@ -34,6 +34,8 @@ describe("DecisionModelSelector", () => {
   });
 
   beforeEach(() => {
+    connection.provider = "jev";
+    connection.adapter = "typesafe";
     connection.withDefaultModels = true;
     connection.customModels = [];
   });
@@ -57,6 +59,30 @@ describe("DecisionModelSelector", () => {
 
     return screen.getByRole("button");
   };
+
+  it("selects gpt-6-luna when nothing is selected and the connection offers it", () => {
+    connection.provider = "openai";
+    connection.adapter = "openai";
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "DECISION_MODEL",
+      mode: "create",
+    });
+
+    render(
+      <DecisionModelSelector
+        projectId="project"
+        store={store}
+        onConfigureProviders={vi.fn()}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    expect(store.getState().selectedModel).toEqual({
+      provider: "openai",
+      model: "gpt-6-luna",
+    });
+  });
 
   it.each([
     ["lists only default models", true],
