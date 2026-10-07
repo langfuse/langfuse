@@ -2,18 +2,18 @@ use super::encoding::BASE64;
 use super::payload::{EarlyMediaError, MediaEncoding, MediaPayloadKind, MediaSource};
 use super::rules::{may_contain_media_candidate, MEDIA_REFERENCE_PREFIX};
 use super::scanner::{discover_measured, media_identity_from_encoded};
-use super::{extract_media, validate, validate_and_discover};
+use super::{extract_media, validate};
 use base64::Engine;
 use proptest::prelude::*;
 use serde_json::{json, Value};
 
 fn validate_measured(
     input: Vec<u8>,
-) -> Result<(super::ValidatedPayload, usize, usize, usize), EarlyMediaError> {
-    let mut validated = validate(input.clone())?;
+) -> Result<(super::ValidatedPayload, usize, usize, usize, usize), EarlyMediaError> {
+    let validated = validate(input.clone())?;
     let (manifest, visited, index_bytes, unique) = discover_measured(&input)?;
-    validated.manifest = Some(manifest);
-    Ok((validated, visited, index_bytes, unique))
+    let retained_bytes = validated.retained_bytes() + manifest.retained_bytes();
+    Ok((validated, visited, index_bytes, unique, retained_bytes))
 }
 
 pub(super) fn json_string_strategy() -> BoxedStrategy<String> {
@@ -108,7 +108,7 @@ fn validates_and_extracts_beyond_the_former_parser_depth_limit() {
         let array = format!("{}\"{uri}\"{}", "[".repeat(depth), "]".repeat(depth));
         let object = format!("{}\"{uri}\"{}", "{\"x\":".repeat(depth), "}".repeat(depth));
         for input in [array, object] {
-            let (validated, _, index_bytes, _) =
+            let (validated, _, index_bytes, _, _) =
                 validate_measured(input.as_bytes().to_vec()).expect("deep JSON remains native");
             // Array frames must not reserve object-only maps and provider state.
             assert!(
@@ -239,24 +239,22 @@ fn media_prefilter_is_conservative_for_structured_and_escaped_candidates() {
 #[test]
 fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
     let input = br#"{"traceId":{"type":"Buffer","data":[1,2,3]},"text":"plain"}"#;
-    let validated = validate_and_discover(input.to_vec()).expect("valid JSON");
-    assert!(validated.manifest.as_ref().unwrap().entries.is_empty());
+    let validated = validate(input.to_vec()).expect("valid JSON");
     assert_eq!(validated.into_source(), input);
 
     let mut invalid = input.to_vec();
     invalid.push(b'x');
     assert!(matches!(
-        validate_and_discover(invalid),
+        validate(invalid),
         Err(EarlyMediaError::TrailingBytes { .. })
     ));
 }
 
 #[test]
-fn explicit_validation_skips_media_discovery() {
+fn validation_preserves_inline_media_until_compaction() {
     let uri = data_uri(b"validation-only");
     let input = format!(r#"{{"input":"{uri}"}}"#);
     let validated = validate(input.as_bytes().to_vec()).expect("valid JSON");
-    assert!(validated.manifest.is_none());
     assert_eq!(validated.into_source(), input.as_bytes());
 
     let result = validate(input.into_bytes()).unwrap().compact().unwrap();
@@ -274,7 +272,7 @@ fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
         "[{}]",
         std::iter::repeat_n(chain, 32).collect::<Vec<_>>().join(",")
     );
-    let (validated, scanned, index_bytes, _) =
+    let (validated, scanned, index_bytes, _, _) =
         validate_measured(input.as_bytes().to_vec()).expect("valid nested input stays native");
     // One structural pass plus small scalar inspection. This catches repeated
     // subtree validation deterministically, without a wall-clock threshold.
@@ -319,7 +317,7 @@ fn indexed_subtrees_survive_mixed_siblings_and_provider_lookahead() {
         (format!("[{payload},{envelope}]"), 2),
         (format!(r#"{{"one":{embedded},"two":{embedded}}}"#), 2),
     ] {
-        let (validated, scanned, index_bytes, _) =
+        let (validated, scanned, index_bytes, _, _) =
             validate_measured(input.as_bytes().to_vec()).unwrap();
         assert!(
             scanned <= 6 * input.len(),
@@ -351,10 +349,10 @@ fn preserves_large_existing_media_references_without_a_resource_fallback() {
         .collect::<Vec<_>>();
     for text in [reference, references.join(" ")] {
         let input = format!(r#"{{"existing":"{text}"}}"#);
-        let (validated, scanned, _, _) = validate_measured(input.as_bytes().to_vec()).unwrap();
-        assert!(validated.manifest.as_ref().unwrap().entries.is_empty());
+        let (validated, scanned, _, _, retained_bytes) =
+            validate_measured(input.as_bytes().to_vec()).unwrap();
         assert!(scanned <= 3 * input.len());
-        assert!(validated.retained_bytes() <= 3 * input.len());
+        assert!(retained_bytes <= 3 * input.len());
         let result = validated.compact().unwrap();
         assert_eq!(result.compact_json, input.as_bytes());
     }
@@ -365,7 +363,7 @@ fn extracts_many_tiny_candidates_without_a_resource_fallback() {
     let uri = data_uri(b"candidate");
     let values = std::iter::repeat_n(uri.as_str(), 16 * 1024 + 1).collect::<Vec<_>>();
     let input = format!(r#"{{"text":"{}"}}"#, values.join(" "));
-    let (validated, scanned, _, unique) =
+    let (validated, scanned, _, unique, retained_bytes) =
         validate_measured(input.as_bytes().to_vec()).expect("many candidates stay native");
     assert_eq!(
         unique, 1,
@@ -373,9 +371,9 @@ fn extracts_many_tiny_candidates_without_a_resource_fallback() {
     );
     assert!(scanned <= 3 * input.len());
     assert!(
-        validated.retained_bytes() <= 4 * input.len(),
+        retained_bytes <= 4 * input.len(),
         "retained {} for {} source bytes",
-        validated.retained_bytes(),
+        retained_bytes,
         input.len()
     );
     let result = validated.compact().unwrap();
@@ -409,12 +407,13 @@ fn unique_and_escaped_candidates_have_input_proportional_retention() {
             .collect::<Vec<_>>()
             .join(",");
         let input = format!("[{values}]");
-        let (validated, scanned, _, unique) = validate_measured(input.as_bytes().to_vec()).unwrap();
+        let (validated, scanned, _, unique, retained_bytes) =
+            validate_measured(input.as_bytes().to_vec()).unwrap();
         assert_eq!(unique, uris.len());
         assert!(scanned <= 3 * input.len());
         // Unique tiny bodies pay one descriptor each. Escaped bodies may own
         // decoded text, but must not retain a whole decoded document per entry.
-        assert!(validated.retained_bytes() <= 8 * input.len());
+        assert!(retained_bytes <= 8 * input.len());
         let result = validated.compact().unwrap();
         for (index, media) in result.media.iter().enumerate() {
             assert_eq!(media.decode().unwrap(), (index as u32).to_le_bytes());
@@ -680,7 +679,7 @@ fn rejects_raw_controls_at_any_position_in_a_string() {
             input.extend_from_slice(br#""}"#);
 
             assert!(matches!(
-                validate_and_discover(input),
+                validate(input),
                 Err(EarlyMediaError::InvalidJson { .. })
             ));
         }
@@ -815,7 +814,8 @@ proptest! {
         let mut input = format!("[{}]", std::iter::repeat_n(chain, width).collect::<Vec<_>>().join(","));
         if object_root { input = format!(r#"{{"items":{input}}}"#); }
         if embedded { input = serde_json::to_string(&input).unwrap(); }
-        let (validated, scanned, index_bytes, unique) = validate_measured(input.as_bytes().to_vec()).unwrap();
+        let (validated, scanned, index_bytes, unique, _) =
+            validate_measured(input.as_bytes().to_vec()).unwrap();
         // Embedded documents are separately validated after decoding, but every
         // structural pass stays linear in that document's source size.
         prop_assert!(scanned <= 6 * input.len(), "{} syntax bytes for {} input bytes", scanned, input.len());

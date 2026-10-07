@@ -4,19 +4,18 @@ use serde_json::Value;
 
 use super::super::encoding::BASE64;
 use super::super::tests::{data_uri, json_string_strategy, json_value_strategy};
-use super::super::validate_and_discover;
+use super::super::validate;
 use super::MediaStorage;
 
 #[test]
-fn discovery_keeps_the_source_until_the_accepted_payload_is_compacted() {
+fn validation_keeps_the_source_until_the_accepted_payload_is_compacted() {
     let uri = data_uri(b"discovery");
     let input = format!(r#"{{"input":"{uri}","keep":"ordinary"}}"#).into_bytes();
-    let validated = validate_and_discover(input.clone()).expect("valid JSON");
-    assert_eq!(validated.manifest.as_ref().unwrap().entries.len(), 1);
+    let validated = validate(input.clone()).expect("valid JSON");
     assert_eq!(validated.source.as_slice(), input.as_slice());
     let source_ptr = validated.source.as_ptr();
 
-    let compacted = validated.compact().expect("manifest matches source");
+    let compacted = validated.compact().expect("compact media");
     assert_eq!(compacted.media.len(), 1);
     assert!(String::from_utf8(compacted.compact_json)
         .unwrap()
@@ -35,8 +34,8 @@ fn compaction_changes_only_the_bytes_inside_discovered_data_uris() {
     let input = format!(
         "{{\n  \"text\"   : \"before {first_uri} / {second_uri} after\",\n  \"number\" : 1.2300e+04,\n  \"attachment\" : \"{third_uri}\"\n}}"
     );
-    let validated = validate_and_discover(input.as_bytes().to_vec()).expect("valid JSON");
-    let compacted = validated.compact().expect("manifest matches source");
+    let validated = validate(input.as_bytes().to_vec()).expect("valid JSON");
+    let compacted = validated.compact().expect("compact media");
 
     assert_eq!(compacted.media.len(), 3);
     let mut expected = input;
@@ -55,9 +54,8 @@ fn provider_media_retains_source_backed_storage_during_compaction() {
     let encoded = BASE64.encode(b"provider");
     let input =
         format!(r#"{{"type":"media","mime_type":"image/png","data":"{encoded}"}}"#).into_bytes();
-    let validated = validate_and_discover(input).expect("valid JSON");
-    assert_eq!(validated.manifest.as_ref().unwrap().entries.len(), 1);
-    let compacted = validated.compact().expect("manifest matches source");
+    let validated = validate(input).expect("valid JSON");
+    let compacted = validated.compact().expect("compact media");
     assert!(matches!(
         &compacted.media[0].storage,
         MediaStorage::Source { .. }
@@ -66,17 +64,16 @@ fn provider_media_retains_source_backed_storage_during_compaction() {
 }
 
 #[test]
-fn nested_json_manifest_is_reused_for_the_accepted_payload() {
+fn nested_json_compaction_retains_source_ranges() {
     let provider = r#"{"type":"base64","media_type":"image/png","data":"aGk="}"#;
     let nested = format!(
         r#"{{ "prefix" : "café\/雪\u2603", "layer" : {{ "provider" : {provider} }}, "number" : 1.2300e+04 }}"#
     );
     let encoded_nested = serde_json::to_string(&nested).expect("serialize nested JSON");
     let input = format!("{{\n  \"input\" : {encoded_nested},\n  \"number\" : 7.000e0\n}}");
-    let validated = validate_and_discover(input.as_bytes().to_vec()).expect("valid JSON");
-    assert_eq!(validated.manifest.as_ref().unwrap().entries.len(), 1);
+    let validated = validate(input.as_bytes().to_vec()).expect("valid JSON");
     let source_ptr = validated.source.as_ptr();
-    let compacted = validated.compact().expect("manifest matches source");
+    let compacted = validated.compact().expect("compact media");
     assert_eq!(compacted.media.len(), 1);
     assert_eq!(compacted.media[0].decode().unwrap(), b"hi");
     assert_eq!(compacted.media[0].original_value().unwrap(), "aGk=");
@@ -92,11 +89,10 @@ fn nested_json_manifest_is_reused_for_the_accepted_payload() {
     let (header, payload) = uri.split_once(',').unwrap();
     let escaped_uri = format!("{header},\\u{:04x}{}", payload.as_bytes()[0], &payload[1..]);
     let escaped_input = format!("{{\n  \"image\" : \"{escaped_uri}\"\n}}");
-    let escaped_validated =
-        validate_and_discover(escaped_input.as_bytes().to_vec()).expect("valid escaped URI");
+    let escaped_validated = validate(escaped_input.as_bytes().to_vec()).expect("valid escaped URI");
     let escaped_result = escaped_validated
         .compact()
-        .expect("escaped media manifest matches source");
+        .expect("escaped media compaction succeeds");
     assert_eq!(escaped_result.media.len(), 1);
     assert_eq!(escaped_result.media[0].original_value().unwrap(), uri);
     assert_eq!(
@@ -128,9 +124,9 @@ fn nested_duplicate_providers_compact_at_their_original_source_spans() {
     let input = format!(
         "{{\n  \"first\" : {encoded_first},\n  \"prefix\" : \"café\\/雪\\u2603\",\n  \"second\" : {encoded_second},\n  \"number\" : 1.2300e+04\n}}"
     );
-    let validated = validate_and_discover(input.as_bytes().to_vec()).expect("discovery");
+    let validated = validate(input.as_bytes().to_vec()).expect("valid JSON");
     let source_ptr = validated.source.as_ptr();
-    let compacted = validated.compact().expect("manifest matches source");
+    let compacted = validated.compact().expect("compact media");
 
     assert_eq!(compacted.media.len(), 2);
     assert_eq!(compacted.media[0].original_value().unwrap(), first_data);
@@ -184,16 +180,9 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
         let encoded = serde_json::to_string(&source).expect("serialize nested source");
         source = format!("{{ \n  \"layer{layer}\" : {encoded} \n}}");
     }
-    let validated = validate_and_discover(source.as_bytes().to_vec())
+    let validated = validate(source.as_bytes().to_vec())
         .expect("generated nested JSON is valid");
-    prop_assert_eq!(
-        validated.manifest.as_ref().unwrap().entries.len(),
-        uris.len(),
-        "source: {:?}; URIs: {:?}",
-        source,
-        uris
-    );
-    let compacted = validated.compact().expect("manifest matches source");
+    let compacted = validated.compact().expect("compact media");
     prop_assert_eq!(compacted.media.len(), uris.len());
     let mut expected = source;
     for (uri, media) in uris.iter().zip(&compacted.media) {
@@ -214,10 +203,10 @@ fn valid_json_values_survive_scan_and_compaction(
     value in json_value_strategy(6),
 ) {
     let source = serde_json::to_vec(&value).expect("serialize generated JSON");
-    let validated = validate_and_discover(source.clone()).expect("valid JSON remains native");
+    let validated = validate(source.clone()).expect("valid JSON remains native");
     prop_assert_eq!(validated.source.as_slice(), source.as_slice());
 
-    let compacted = validated.compact().expect("discovered manifest is reusable");
+    let compacted = validated.compact().expect("compact media");
     let compact: Value = serde_json::from_slice(&compacted.compact_json)
         .expect("compaction preserves valid JSON");
     if compacted.media.is_empty() {
