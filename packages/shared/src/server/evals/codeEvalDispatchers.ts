@@ -44,6 +44,7 @@ export function resolveConfiguredCodeEvalDispatcher(): CodeEvalDispatcher | null
   if (dispatcherName === "external") {
     return new ExternalCodeEvalDispatcher({
       endpoint: env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT!,
+      secret: env.LANGFUSE_CODE_EVAL_EXTERNAL_SECRET,
     });
   }
 

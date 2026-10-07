@@ -61,9 +61,11 @@ type UserCodeError = z.infer<typeof UserCodeErrorSchema>;
 export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "external";
   private readonly endpoint: string;
+  private readonly secret: string | undefined;
 
-  constructor(params: { endpoint: string }) {
+  constructor(params: { endpoint: string; secret?: string }) {
     this.endpoint = params.endpoint;
+    this.secret = params.secret;
   }
 
   async dispatch(input: DispatchInput): Promise<DispatchResult> {
@@ -117,6 +119,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          ...(this.secret ? { authorization: `Bearer ${this.secret}` } : {}),
         },
         body: serializedPayload,
         redirect: "manual",

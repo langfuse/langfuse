@@ -55,11 +55,32 @@ function expectSpanAttributes(attributes: Record<string, unknown>): void {
   );
 }
 
+async function resolveExternalDispatcherWithSecret(secret: string) {
+  vi.resetModules();
+  vi.stubEnv("DOCKER_BUILD", undefined);
+  vi.stubEnv("CLICKHOUSE_URL", "http://localhost:8123");
+  vi.stubEnv("CLICKHOUSE_USER", "test");
+  vi.stubEnv("CLICKHOUSE_PASSWORD", "test");
+  vi.stubEnv("LANGFUSE_S3_EVENT_UPLOAD_BUCKET", "test");
+  vi.stubEnv("LANGFUSE_CODE_EVAL_DISPATCHER", "external");
+  vi.stubEnv(
+    "LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT",
+    "https://code-eval.example.com/evaluations",
+  );
+  vi.stubEnv("LANGFUSE_CODE_EVAL_EXTERNAL_SECRET", secret);
+
+  const { resolveConfiguredCodeEvalDispatcher } =
+    await import("./codeEvalDispatchers.js");
+  return resolveConfiguredCodeEvalDispatcher()!;
+}
+
 describe("ExternalCodeEvalDispatcher", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 
   describe("dispatch requests", () => {
@@ -152,6 +173,88 @@ describe("ExternalCodeEvalDispatcher", () => {
         "langfuse.code_eval.error.retryable": false,
       });
       expect(mocks.logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("authentication", () => {
+    it("sends the configured shared secret as a bearer token", async () => {
+      const secret = "test-external-secret";
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(
+              JSON.stringify({ scores: [{ name: "quality", value: 1 }] }),
+            ),
+          ),
+      );
+      const dispatcher = await resolveExternalDispatcherWithSecret(secret);
+
+      await expect(dispatcher.dispatch(baseInput)).resolves.toEqual({
+        scores: [{ name: "quality", value: 1 }],
+      });
+      expect(fetch).toHaveBeenCalledWith(
+        "https://code-eval.example.com/evaluations",
+        expect.objectContaining({
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${secret}`,
+          },
+          body: JSON.stringify(baseInput),
+          redirect: "manual",
+        }),
+      );
+    });
+
+    it("rejects redirects without forwarding or logging the bearer token", async () => {
+      const secret = "test-external-secret";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(null, {
+            status: 307,
+            headers: { location: "https://another-service.example.com" },
+          }),
+        ),
+      );
+      const dispatcher = await resolveExternalDispatcherWithSecret(secret);
+
+      await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
+        code: CodeEvalDispatcherErrorCodes.EXTERNAL_INVOCATION_ERROR,
+        retryable: false,
+      });
+      expect(fetch).toHaveBeenCalledOnce();
+      expect(fetch).toHaveBeenCalledWith(
+        "https://code-eval.example.com/evaluations",
+        expect.objectContaining({
+          redirect: "manual",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${secret}`,
+          },
+        }),
+      );
+      expect(
+        JSON.stringify([
+          mocks.logger.warn.mock.calls,
+          mocks.span.setAttribute.mock.calls,
+          mocks.span.setAttributes.mock.calls,
+        ]),
+      ).not.toContain(secret);
+    });
+
+    it("rejects malformed secrets without exposing them in validation errors", async () => {
+      const secret = "test-external-secret\r\ninjected-header";
+      const error = await resolveExternalDispatcherWithSecret(secret).catch(
+        (error: unknown) => error,
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(
+        "LANGFUSE_CODE_EVAL_EXTERNAL_SECRET must be a valid bearer token",
+      );
+      expect((error as Error).message).not.toContain("test-external-secret");
     });
   });
 

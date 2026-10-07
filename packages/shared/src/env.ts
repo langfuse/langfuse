@@ -211,6 +211,13 @@ const BaseEnvSchema = z.object({
     .enum(["insecure-local", "aws-lambda", "external"])
     .optional(),
   LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_SECRET: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9._~+/-]+=*$/,
+      "LANGFUSE_CODE_EVAL_EXTERNAL_SECRET must be a valid bearer token",
+    )
+    .optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
     .string()
