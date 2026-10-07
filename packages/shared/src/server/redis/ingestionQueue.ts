@@ -146,7 +146,7 @@ export class SecondaryIngestionQueue {
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,
-            attempts: 5,
+            attempts: 8,
             backoff: {
               type: "exponential",
               delay: 5000,
