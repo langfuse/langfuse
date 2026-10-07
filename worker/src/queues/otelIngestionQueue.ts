@@ -541,7 +541,9 @@ export const otelIngestionQueueProcessorBuilder = (
           return;
         }
         earlyBatch = prepared.batch;
-        parsedSpans = JSON.parse(prepared.batch.takeJson());
+        parsedSpans = JSON.parse(
+          prepared.batch.takeJsonBuffer().toString("utf8"),
+        );
         if (Array.isArray(parsedSpans)) {
           await restoreOtelTagAttributes(prepared.batch, parsedSpans);
         }
