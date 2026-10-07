@@ -43,6 +43,7 @@ export type SessionConversationSidebarTrace = {
 
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
 const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
+const SIDEBAR_SCROLL_PADDING = 16;
 
 export function SessionConversationSidebar(
   props:
@@ -140,6 +141,10 @@ export function SessionConversationSidebar(
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: 5,
+    paddingStart: SIDEBAR_SCROLL_PADDING,
+    paddingEnd: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingStart: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingEnd: SIDEBAR_SCROLL_PADDING,
     getItemKey: (index) =>
       traces[index]?.itemId ?? traces[index]?.trace.id ?? index,
     onChange: (instance) => {
@@ -159,6 +164,10 @@ export function SessionConversationSidebar(
         ({ trace, itemId }) => (itemId ?? trace.id) === activeTraceId,
       )
     : -1;
+  const activeTraceSize = virtualizer
+    .getVirtualItems()
+    .find((item) => item.index === activeTraceIndex)?.size;
+  const sidebarHeight = virtualizer.scrollRect?.height;
   const setListElement = useCallback(
     (element: HTMLDivElement | null) => {
       listRef.current = element;
@@ -169,10 +178,16 @@ export function SessionConversationSidebar(
         Date.now() < autoFollowPausedUntilRef.current
       )
         return;
-      // `auto` preserves the viewport when the active turn is already visible.
-      virtualizer.scrollToIndex(activeTraceIndex, { align: "auto" });
+      const availableHeight =
+        (sidebarHeight ?? element.clientHeight) - SIDEBAR_SCROLL_PADDING * 2;
+      virtualizer.scrollToIndex(activeTraceIndex, {
+        align:
+          activeTraceSize !== undefined && activeTraceSize > availableHeight
+            ? "start"
+            : "auto",
+      });
     },
-    [activeTraceIndex, virtualizer],
+    [activeTraceIndex, activeTraceSize, sidebarHeight, virtualizer],
   );
   useLayoutEffect(() => {
     resumeAutoFollowRef.current = () => {
@@ -265,7 +280,7 @@ export function SessionConversationSidebar(
         ref={setListElement}
         role="region"
         aria-label="Session turns"
-        className="min-h-0 flex-1 overflow-y-auto pt-2.5 pb-4"
+        className="min-h-0 flex-1 overflow-y-auto"
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
