@@ -57,9 +57,12 @@ function normalizeToolExecution(
   const result =
     parts.length === 1 && parts[0]?.type === "tool-result"
       ? parts[0]
-      : undefined;
+      : toolResultPart({
+          toolName: observation.name,
+          output: observation.output,
+        });
   const call = toolCallPart({
-    toolCallId: result?.toolCallId,
+    toolCallId: result.toolCallId,
     toolName: observation.name,
     input: observation.input,
   });
@@ -71,13 +74,7 @@ function normalizeToolExecution(
     messages.push({
       role: "tool",
       source: "output",
-      parts: [
-        result ??
-          toolResultPart({
-            toolName: observation.name,
-            output: observation.output,
-          }),
-      ],
+      parts: [result],
     });
   return messages.map((message) => ({ message, key: messageKey(message) }));
 }
@@ -104,19 +101,25 @@ export function assembleTranscript(
   const threads: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
 
+  function attachOrAppendTool(
+    observation: TranscriptObservation,
+    output: KeyedMessage[],
+  ) {
+    if (toolCalls.attachToolOutput(observation, output) || threads.length !== 1)
+      return;
+
+    const normalizationStart = onTimings ? performance.now() : 0;
+    const execution = normalizeToolExecution(observation, output);
+    if (onTimings) normalizationMs += performance.now() - normalizationStart;
+    append(threads[0]!, observation, [], execution, toolCalls);
+  }
+
   for (const observation of orderedObservations.filter(isRelevantObservation)) {
     const normalizationStart = onTimings ? performance.now() : 0;
     const [input, output] = normalize(observation);
     if (onTimings) normalizationMs += performance.now() - normalizationStart;
     if (observation.type === "TOOL") {
-      const attached = toolCalls.attachToolOutput(observation, output);
-      if (!attached && threads.length === 1) {
-        const toolNormalizationStart = onTimings ? performance.now() : 0;
-        const execution = normalizeToolExecution(observation, output);
-        if (onTimings)
-          normalizationMs += performance.now() - toolNormalizationStart;
-        append(threads[0]!, observation, [], execution, toolCalls);
-      }
+      attachOrAppendTool(observation, output);
       continue;
     }
     if (input.length === 0 && output.length === 0) continue;

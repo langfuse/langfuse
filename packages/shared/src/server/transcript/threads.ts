@@ -79,8 +79,12 @@ function continuityKey(message: NormalizedMessage, fullKey?: string): string {
   });
 }
 
-function contributesToThreadContinuity(message: NormalizedMessage) {
+function contributesToThreadContinuity(
+  message: NormalizedMessage,
+  observedToolMessages?: WeakSet<NormalizedMessage>,
+) {
   return (
+    !observedToolMessages?.has(message) &&
     message.role !== "system" &&
     message.parts.some((part) => !isReasoningPart(part))
   );
@@ -97,8 +101,7 @@ export function findThread(threads: ThreadState[], input: KeyedMessage[]) {
     const defining = messages.filter(
       (message) =>
         message.key !== undefined &&
-        !observedToolMessages.has(message) &&
-        contributesToThreadContinuity(message),
+        contributesToThreadContinuity(message, observedToolMessages),
     );
     return (
       defining.length > 0 &&
