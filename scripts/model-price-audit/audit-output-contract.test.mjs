@@ -408,6 +408,32 @@ test("removes a retired model listed in several selectable arrays", () => {
   assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
 });
 
+test("accepts a Google provider alias for a Gemini selectable-model removal", () => {
+  const model = "gemini-1";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({
+      googleAIStudio: ["gemini-2", model],
+      vertexAI: ["gemini-2", model],
+    }),
+    currentTypes: typesSource(),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, {
+            officialSources: ["https://ai.google.dev/gemini-api/docs/models"],
+          }),
+          provider: "Google Gemini",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired gemini-1 from pickers",
+    },
+    typesDiff: `-  "${model}",\n-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+});
+
 test("rejects a selectable-model removal without official evidence", () => {
   const model = "gpt-4o";
   const { result } = runContract({

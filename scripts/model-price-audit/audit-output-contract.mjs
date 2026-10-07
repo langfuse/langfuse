@@ -89,6 +89,33 @@ const selectableModelArrays = [
   },
 ];
 
+// The audit reports free-form provider labels, and the pricing skill refers to
+// Google as "Google Gemini (AI Studio)" and "Google Gemini (Vertex AI)".
+const providerAliases = new Map([
+  [
+    "google",
+    new Set([
+      "google",
+      "google gemini",
+      "gemini",
+      "google ai studio",
+      "google gemini (ai studio)",
+      "google vertex ai",
+      "google gemini (vertex ai)",
+      "vertex ai",
+    ]),
+  ],
+]);
+
+export const reportedProviderMatches = (reportedProvider, expectedProvider) => {
+  const reported = normalize(reportedProvider).replace(/\s+/gu, " ");
+  const expected = normalize(expectedProvider);
+  return (
+    reported === expected ||
+    (providerAliases.get(expected)?.has(reported) ?? false)
+  );
+};
+
 const readSelectableModelArrays = (source, label) =>
   new Map(
     selectableModelArrays.map(({ name, pattern, provider }) => {
@@ -410,7 +437,7 @@ export function reconcileAuditOutput(
     const matchingRows = rowsByModel.get(normalize(change.modelName)) ?? [];
     if (
       matchingRows.length === 1 &&
-      normalize(matchingRows[0].provider) !== normalize(change.provider)
+      !reportedProviderMatches(matchingRows[0].provider, change.provider)
     ) {
       throw new Error(
         `${change.arrayName} changes require provider ${change.provider}: ${change.modelName}`,
