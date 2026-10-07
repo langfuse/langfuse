@@ -183,26 +183,33 @@ pub struct ValidatedPayload {
     source: Arc<Vec<u8>>,
     pub manifest: MediaManifest,
     discovery_pending: bool,
+    normalized: bool,
 }
 
-/// Reject malformed UTF-8, then validate syntax without media work.
-/// All later offsets refer to the original immutable source.
+/// OTLP receivers sanitize invalid UTF-8 sequences to U+FFFD before processing:
+/// https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md#utf-8-string-handling
+/// All later offsets refer to the sanitized source. Valid UTF-8 keeps its allocation.
 pub fn validate(input: Vec<u8>, discover_media: bool) -> Result<ValidatedPayload, EarlyMediaError> {
-    let text = std::str::from_utf8(&input).map_err(|error| EarlyMediaError::InvalidJson {
-        offset: error.valid_up_to(),
-        message: "invalid UTF-8",
-    })?;
-    super::json::validate_json(text)?;
+    let (input, normalized) = match String::from_utf8(input) {
+        Ok(input) => (input, false),
+        Err(error) => (String::from_utf8_lossy(error.as_bytes()).into_owned(), true),
+    };
+    super::json::validate_json(&input)?;
     Ok(ValidatedPayload {
-        source: Arc::new(input),
+        source: Arc::new(input.into_bytes()),
         manifest: MediaManifest {
             entries: Vec::new(),
         },
         discovery_pending: discover_media,
+        normalized,
     })
 }
 
 impl ValidatedPayload {
+    pub(crate) fn normalized_bytes(&self) -> Option<&[u8]> {
+        self.normalized.then_some(self.source.as_slice())
+    }
+
     pub(super) fn discover(&mut self) -> Result<(), EarlyMediaError> {
         if self.discovery_pending {
             self.manifest = super::scanner::discover(self.source.as_slice())?;

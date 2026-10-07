@@ -25,6 +25,11 @@ export declare class PreparedEvent {
 }
 
 export declare class ValidatedOtelJson {
+  /**
+   * Return sanitized bytes only when malformed UTF-8 required replacement.
+   * Masking must see the same source as validation and media discovery.
+   */
+  normalizedBytes(): Buffer | null
   /** Release a superseded masking input without waiting for the JS handle to be collected. */
   dispose(): Promise<void>
   /** Compact the accepted document; media ranges retain its source until both write paths finish. */
