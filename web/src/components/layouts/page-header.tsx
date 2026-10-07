@@ -129,7 +129,7 @@ const PageHeader = ({
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
@@ -143,15 +143,13 @@ const PageHeader = ({
                   <div className="flex items-center">{leadingControl}</div>
                 )
               )}
-              <div>
+              <div className="flex flex-wrap items-center gap-1.5">
                 {envLabel.visible && (
                   <EnvLabelBadge
                     region={envLabel.region}
                     onClick={envLabel.dismiss}
                   />
                 )}
-              </div>
-              <div className="flex translate-y-px items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
