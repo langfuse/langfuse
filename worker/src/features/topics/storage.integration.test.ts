@@ -71,7 +71,7 @@ describe("Topics eval-backed configuration", () => {
       where: { projectId, type: "FACET", isBuiltIn: true },
       include: { versions: true },
     });
-    expect(defaults).toHaveLength(3);
+    expect(defaults).toHaveLength(4);
     for (const result of results)
       expect(
         result
