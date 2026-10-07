@@ -44,6 +44,7 @@ export const MobilePageTitle = ({
     actionButtonsRight,
     mobileActionButtons,
     actionButtonsMenu,
+    showActionMenuBadge,
     titleBadges,
     breadcrumb,
     breadcrumbBadges,
@@ -156,7 +157,15 @@ export const MobilePageTitle = ({
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
-                <MoreHorizontal className="icon-base text-icon-foreground" />
+                <span className="relative">
+                  <MoreHorizontal className="icon-base text-icon-foreground" />
+                  {showActionMenuBadge ? (
+                    <span
+                      className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500"
+                      aria-label="New actions available"
+                    />
+                  ) : null}
+                </span>
               </Button>
             </PopoverTrigger>
             <MobilePageActionsContent

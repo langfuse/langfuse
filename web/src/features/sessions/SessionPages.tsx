@@ -112,6 +112,11 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
+import {
+  SESSION_INTRODUCTION_STORAGE_KEY,
+  SESSION_INTRODUCTION_ACKNOWLEDGED_STORAGE_KEY,
+  SessionIntroductionDialogController,
+} from "@/src/features/sessions/SessionIntroductionDialogController";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
@@ -1095,6 +1100,44 @@ const LoadedSessionEventsPage: React.FC<{
     enableForAdmins: false,
     projectId,
   });
+  const [sessionIntroductionState, setSessionIntroductionState] =
+    useState<
+      React.ComponentProps<
+        typeof SessionIntroductionDialogController
+      >["initialState"]
+    >();
+
+  useEffect(() => {
+    if (!isModernSessionEnabled || !isSessionTimelineEnabled) return;
+
+    try {
+      if (
+        localStorage.getItem(SESSION_INTRODUCTION_ACKNOWLEDGED_STORAGE_KEY) ===
+        "true"
+      ) {
+        setSessionIntroductionState("acknowledged");
+        return;
+      }
+      setSessionIntroductionState(
+        localStorage.getItem(SESSION_INTRODUCTION_STORAGE_KEY) === "true"
+          ? "dismissed"
+          : "first-visit",
+      );
+    } catch {
+      setSessionIntroductionState("first-visit");
+    }
+  }, [isModernSessionEnabled, isSessionTimelineEnabled]);
+
+  const handleSessionIntroductionDismiss = (
+    state: Parameters<
+      React.ComponentProps<
+        typeof SessionIntroductionDialogController
+      >["onDismiss"]
+    >[0],
+  ) => {
+    setSessionIntroductionState(state);
+  };
+
   const isMobile = useIsMobile();
   const openAnnotateRef = useRef<(payload: SessionAnnotatePayload) => void>(
     () => {},
@@ -1669,7 +1712,15 @@ const LoadedSessionEventsPage: React.FC<{
     getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
-  return (
+  const renderSessionPage = (
+    introduction:
+      | Parameters<
+          React.ComponentProps<
+            typeof SessionIntroductionDialogController
+          >["children"]
+        >[0]
+      | undefined,
+  ) => (
     <SessionDetailStoreProvider store={sessionDetailStore}>
       <TraceReviewPanelProvider
         key={`${projectId}:${sessionId}`}
@@ -1843,6 +1894,9 @@ const LoadedSessionEventsPage: React.FC<{
                     projectId={projectId}
                     sessionId={sessionId}
                     isPublic={session.public}
+                    introduction={
+                      introduction?.hasDismissed ? introduction : undefined
+                    }
                     {...(!isSessionTimelineEnabled
                       ? {
                           showCorrections,
@@ -1862,126 +1916,145 @@ const LoadedSessionEventsPage: React.FC<{
             // Mobile compact header: the same session actions as full-width
             // labeled menu rows for the `⋯` overflow popover, instead of the
             // inline icon toolbar. Session-to-session nav stays desktop-only.
-            actionButtonsMenu: ({ closeMenu }) => (
-              <>
-                <ModernSessionHeaderActionsController
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  isPublic={session.public}
-                  layout="menu"
-                />
-                <CommentDrawerController
-                  projectId={projectId}
-                  count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-                >
-                  {({ disabled, openDrawer }) => {
-                    const commentCount = getNumberFromMap(
+            showActionMenuBadge: introduction?.showBadge,
+            actionButtonsMenu: ({ closeMenu }) => {
+              const handleOpenIntroduction = () => {
+                closeMenu({ handoffFocus: true });
+                introduction?.openDialog();
+              };
+
+              return (
+                <>
+                  <ModernSessionHeaderActionsController
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    isPublic={session.public}
+                    layout="menu"
+                    introduction={
+                      introduction?.hasDismissed
+                        ? {
+                            showBadge: introduction.showBadge,
+                            openDialog: handleOpenIntroduction,
+                          }
+                        : undefined
+                    }
+                  />
+                  <CommentDrawerController
+                    projectId={projectId}
+                    count={getNumberFromMap(
                       sessionCommentCounts.data,
                       sessionId,
-                    );
-                    return (
+                    )}
+                  >
+                    {({ disabled, openDrawer }) => {
+                      const commentCount = getNumberFromMap(
+                        sessionCommentCounts.data,
+                        sessionId,
+                      );
+                      return (
+                        <HeaderActionMenuRow
+                          label={commentCount ? "Comments" : "Comment"}
+                          icon={
+                            disabled ? (
+                              <MessageSquareOff className="icon-base" />
+                            ) : (
+                              <MessageSquare className="icon-base" />
+                            )
+                          }
+                          badge={
+                            !disabled && commentCount ? (
+                              <ActionButtonCountBadge count={commentCount} />
+                            ) : null
+                          }
+                          disabled={disabled}
+                          onClick={() => {
+                            closeMenu({ handoffFocus: true });
+                            openDrawer({
+                              type: "comments",
+                              objectId: sessionId,
+                              objectType: "SESSION",
+                            });
+                          }}
+                        />
+                      );
+                    }}
+                  </CommentDrawerController>
+                  <HeaderActionMenuRow
+                    label="Score"
+                    icon={
+                      annotateDisabled ? (
+                        <LockIcon className="icon-base" />
+                      ) : (
+                        <Plus className="icon-base" />
+                      )
+                    }
+                    badge={
+                      isModernSessionEnabled && annotationCount > 0 ? (
+                        <ActionButtonCountBadge count={annotationCount} />
+                      ) : null
+                    }
+                    disabled={annotateDisabled}
+                    onClick={() => {
+                      closeMenu({ handoffFocus: true });
+                      openAnnotateRef.current({
+                        scoreTarget: { type: "session", sessionId },
+                        scores: session.scores,
+                        analyticsData: {
+                          type: "session",
+                          source: "SessionDetail",
+                          isV4: true,
+                        },
+                        scoreMetadata: {
+                          projectId,
+                          environment: session.environment,
+                        },
+                      });
+                    }}
+                  />
+                  <ConnectedSessionAddToDropdownMenuController
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    analyticsData={{ source: "SessionDetail", isV4: true }}
+                  >
+                    {({ getTriggerProps, totalCount }) => (
                       <HeaderActionMenuRow
-                        label={commentCount ? "Comments" : "Comment"}
-                        icon={
-                          disabled ? (
-                            <MessageSquareOff className="icon-base" />
-                          ) : (
-                            <MessageSquare className="icon-base" />
-                          )
-                        }
+                        label="Add to"
+                        icon={<Plus className="icon-base" />}
                         badge={
-                          !disabled && commentCount ? (
-                            <ActionButtonCountBadge count={commentCount} />
+                          totalCount > 0 ? (
+                            <ActionButtonCountBadge count={totalCount} />
                           ) : null
                         }
-                        disabled={disabled}
-                        onClick={() => {
-                          closeMenu({ handoffFocus: true });
-                          openDrawer({
-                            type: "comments",
-                            objectId: sessionId,
-                            objectType: "SESSION",
-                          });
-                        }}
+                        {...getTriggerProps()}
                       />
-                    );
-                  }}
-                </CommentDrawerController>
-                <HeaderActionMenuRow
-                  label="Score"
-                  icon={
-                    annotateDisabled ? (
-                      <LockIcon className="icon-base" />
-                    ) : (
-                      <Plus className="icon-base" />
-                    )
-                  }
-                  badge={
-                    isModernSessionEnabled && annotationCount > 0 ? (
-                      <ActionButtonCountBadge count={annotationCount} />
-                    ) : null
-                  }
-                  disabled={annotateDisabled}
-                  onClick={() => {
-                    closeMenu({ handoffFocus: true });
-                    openAnnotateRef.current({
-                      scoreTarget: { type: "session", sessionId },
-                      scores: session.scores,
-                      analyticsData: {
-                        type: "session",
-                        source: "SessionDetail",
-                        isV4: true,
-                      },
-                      scoreMetadata: {
-                        projectId,
-                        environment: session.environment,
-                      },
-                    });
-                  }}
-                />
-                <ConnectedSessionAddToDropdownMenuController
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  analyticsData={{ source: "SessionDetail", isV4: true }}
-                >
-                  {({ getTriggerProps, totalCount }) => (
-                    <HeaderActionMenuRow
-                      label="Add to"
-                      icon={<Plus className="icon-base" />}
-                      badge={
-                        totalCount > 0 ? (
-                          <ActionButtonCountBadge count={totalCount} />
-                        ) : null
-                      }
-                      {...getTriggerProps()}
-                    />
+                    )}
+                  </ConnectedSessionAddToDropdownMenuController>
+                  {webCalloutAction && (
+                    <WebCalloutButton action={webCalloutAction} layout="menu" />
                   )}
-                </ConnectedSessionAddToDropdownMenuController>
-                {webCalloutAction && (
-                  <WebCalloutButton action={webCalloutAction} layout="menu" />
-                )}
-                {!isModernSessionEnabled || !isSessionTimelineEnabled ? (
-                  <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
-                    <span className="text-sm">Show corrections</span>
-                    <Switch
-                      checked={showCorrections}
-                      onCheckedChange={setShowCorrectionsForSession}
-                      size="sm"
-                    />
-                  </label>
-                ) : null}
-                {isModernSessionEnabled && !isSessionTimelineEnabled ? (
-                  <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
-                    <span className="text-sm">Show system prompt</span>
-                    <Switch
-                      checked={showSystemPrompt}
-                      onCheckedChange={setShowSystemPromptForSession}
-                      size="sm"
-                    />
-                  </label>
-                ) : null}
-              </>
-            ),
+                  {!isModernSessionEnabled || !isSessionTimelineEnabled ? (
+                    <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                      <span className="text-sm">Show corrections</span>
+                      <Switch
+                        checked={showCorrections}
+                        onCheckedChange={setShowCorrectionsForSession}
+                        size="sm"
+                      />
+                    </label>
+                  ) : null}
+                  {isModernSessionEnabled && !isSessionTimelineEnabled ? (
+                    <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                      <span className="text-sm">Show system prompt</span>
+                      <Switch
+                        checked={showSystemPrompt}
+                        onCheckedChange={setShowSystemPromptForSession}
+                        size="sm"
+                      />
+                    </label>
+                  ) : null}
+                </>
+              );
+            },
           }}
         >
           <SessionReviewWorkspace projectId={projectId}>
@@ -2170,6 +2243,22 @@ const LoadedSessionEventsPage: React.FC<{
         layout={isModernSessionEnabled ? "observation-focused" : "default"}
       />
     </SessionDetailStoreProvider>
+  );
+  if (
+    !isModernSessionEnabled ||
+    !isSessionTimelineEnabled ||
+    sessionIntroductionState === undefined
+  ) {
+    return renderSessionPage(undefined);
+  }
+
+  return (
+    <SessionIntroductionDialogController
+      initialState={sessionIntroductionState}
+      onDismiss={handleSessionIntroductionDismiss}
+    >
+      {renderSessionPage}
+    </SessionIntroductionDialogController>
   );
 };
 

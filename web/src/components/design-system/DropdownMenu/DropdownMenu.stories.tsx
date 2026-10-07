@@ -50,6 +50,58 @@ export const ManyItems = meta.story({
   },
 });
 
+export const TestNewIndicator = meta.story({
+  name: "(Test) New indicator",
+  args: {
+    items: [
+      {
+        type: "item",
+        id: "new-action",
+        title: "New action",
+        onClick: fn(),
+        showNewIndicator: true,
+      },
+      {
+        type: "item",
+        id: "new-link",
+        title: "New link",
+        href: "/items/example",
+        showNewIndicator: true,
+      },
+      {
+        type: "item",
+        id: "existing-action",
+        title: "Existing action",
+        onClick: fn(),
+        showNewIndicator: false,
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    for (const title of ["New action", "New link"]) {
+      const item = body.getByRole("menuitem", { name: new RegExp(title) });
+      const indicator = within(item).getByLabelText("New");
+      await waitFor(async () => {
+        await expect(indicator).toBeVisible();
+        await expect(indicator.getBoundingClientRect().width).toBeGreaterThan(
+          0,
+        );
+        await expect(indicator.getBoundingClientRect().height).toBeGreaterThan(
+          0,
+        );
+      });
+    }
+    const existingItem = body.getByRole("menuitem", {
+      name: "Existing action",
+    });
+    await expect(within(existingItem).queryByLabelText("New")).toBeNull();
+  },
+});
+
 export const TestSearchBehavior = meta.story({
   name: "(Test) Search behavior",
   args: {

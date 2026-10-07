@@ -11,6 +11,7 @@ type HeaderActionMenuRowProps = Omit<
   label: string;
   icon?: React.ReactNode;
   badge?: React.ReactNode;
+  showNewIndicator?: boolean;
   variant?: "default" | "destructive";
   disabledReason?: string;
 };
@@ -20,7 +21,15 @@ export const HeaderActionMenuRow = React.forwardRef<
   HTMLButtonElement,
   HeaderActionMenuRowProps
 >(function HeaderActionMenuRow(
-  { label, icon, badge, variant = "default", disabledReason, ...props },
+  {
+    label,
+    icon,
+    badge,
+    showNewIndicator,
+    variant = "default",
+    disabledReason,
+    ...props
+  },
   ref,
 ) {
   return (
@@ -39,6 +48,12 @@ export const HeaderActionMenuRow = React.forwardRef<
       {icon}
       {label}
       {badge}
+      {showNewIndicator ? (
+        <span
+          className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
+          aria-label="New"
+        />
+      ) : null}
     </Button>
   );
 });
@@ -73,6 +88,7 @@ export function HeaderActionMenuRows({
               )
             }
             badge={item.badge}
+            showNewIndicator={item.showNewIndicator}
             variant={item.variant}
             disabled={item.disabled !== undefined}
             disabledReason={item.disabled?.reason}

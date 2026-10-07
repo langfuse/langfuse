@@ -1,16 +1,10 @@
-import { type ComponentProps, useEffect, useState } from "react";
+import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import {
-  SESSION_INTRODUCTION_STORAGE_KEY,
-  SessionIntroductionDialogController,
-} from "@/src/features/sessions/SessionIntroductionDialogController";
-import { Button } from "@/src/components/ui/button";
-import { Sparkles } from "lucide-react";
 import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import {
@@ -70,25 +64,6 @@ export function ModernSession({
   filterControlsProps,
   onFilterObservationByName,
 }: ModernSessionProps) {
-  const [hasDismissedSessionIntroduction, setHasDismissedSessionIntroduction] =
-    useState<boolean>();
-
-  useEffect(() => {
-    if (!isTimelineEnabled) return;
-
-    try {
-      setHasDismissedSessionIntroduction(
-        localStorage.getItem(SESSION_INTRODUCTION_STORAGE_KEY) === "true",
-      );
-    } catch {
-      setHasDismissedSessionIntroduction(false);
-    }
-  }, [isTimelineEnabled]);
-
-  const handleSessionIntroductionDismiss = () => {
-    setHasDismissedSessionIntroduction(true);
-  };
-
   const headerTraces =
     tracesState.type === "loaded"
       ? ({ state: "loaded", data: tracesState.traces } as const)
@@ -117,44 +92,19 @@ export function ModernSession({
       >
         {(metadataJsonPaths) => (
           <SessionReviewLeading>
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <ModernSessionHeader
-                  projectId={projectId}
-                  countTraces={session.countTraces}
-                  minTimestamp={session.minTimestamp}
-                  maxTimestamp={session.maxTimestamp}
-                  tokensIn={session.inputUsage}
-                  tokensOut={session.outputUsage}
-                  totalTokens={session.totalTokens}
-                  totalCost={session.totalCost ?? 0}
-                  users={session.users ?? []}
-                  metadataJsonPaths={metadataJsonPaths}
-                  scores={session.scores}
-                />
-              </div>
-              {isTimelineEnabled &&
-              hasDismissedSessionIntroduction !== undefined ? (
-                <SessionIntroductionDialogController
-                  initiallyDismissed={hasDismissedSessionIntroduction}
-                  onDismiss={handleSessionIntroductionDismiss}
-                >
-                  {({ hasDismissed, openDialog }) =>
-                    hasDismissed ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={openDialog}
-                      >
-                        <Sparkles className="icon-sm" />
-                        What&apos;s new
-                      </Button>
-                    ) : null
-                  }
-                </SessionIntroductionDialogController>
-              ) : null}
-            </div>
+            <ModernSessionHeader
+              projectId={projectId}
+              countTraces={session.countTraces}
+              minTimestamp={session.minTimestamp}
+              maxTimestamp={session.maxTimestamp}
+              tokensIn={session.inputUsage}
+              tokensOut={session.outputUsage}
+              totalTokens={session.totalTokens}
+              totalCost={session.totalCost ?? 0}
+              users={session.users ?? []}
+              metadataJsonPaths={metadataJsonPaths}
+              scores={session.scores}
+            />
           </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
