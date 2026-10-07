@@ -40,7 +40,7 @@ export function useSessionTraceTranscripts({
               utils.client.events.transcriptByTraceId.query(input, { signal }),
             { signal },
           ),
-        staleTime: Infinity,
+        staleTime: 5 * 60 * 1_000,
         refetchOnWindowFocus: false,
         retry: false,
         meta: { silentAllErrors: true },
