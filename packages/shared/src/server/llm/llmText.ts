@@ -10,6 +10,7 @@ import {
   type GenerateTextOnAbortCallback,
   type GenerateTextOnEndCallback,
   type GenerateTextResult,
+  type LanguageModel,
   type Experimental_DownloadFunction,
   type JSONValue,
   type LanguageModelCallOptions,
@@ -342,9 +343,12 @@ async function prepareLLMTextCall<
         generationInput: options.traceInput,
       })
     : undefined;
+  const tracedLanguageModel = capture?.recordModelAttempt
+    ? recordLanguageModelAttempts(languageModel, capture.recordModelAttempt)
+    : languageModel;
 
   return {
-    languageModel,
+    languageModel: tracedLanguageModel,
     capture,
     runInTraceContext: <T>(fn: () => T): T =>
       capture ? capture.run(fn) : fn(),
@@ -366,6 +370,50 @@ async function prepareLLMTextCall<
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
+}
+
+function recordLanguageModelAttempts(
+  model: LanguageModel,
+  record: NonNullable<AiSdkTelemetryCapture["recordModelAttempt"]>,
+): LanguageModel {
+  if (typeof model !== "object" || model === null) return model;
+
+  return new Proxy(model, {
+    get(target, property, receiver) {
+      if (property !== "doGenerate") {
+        return Reflect.get(target, property, receiver);
+      }
+      const generate = Reflect.get(target, property, receiver);
+      if (typeof generate !== "function") return generate;
+      const callGenerate = generate as (
+        this: unknown,
+        options: unknown,
+      ) => Promise<unknown>;
+
+      return async (options: unknown) => {
+        const startedAt = Date.now();
+        try {
+          const result = await callGenerate.call(target, options);
+          record({
+            outcome: "success",
+            durationMs: Math.max(0, Date.now() - startedAt),
+            usage:
+              typeof result === "object" && result !== null && "usage" in result
+                ? result.usage
+                : undefined,
+          });
+          return result;
+        } catch (error) {
+          record({
+            outcome: "error",
+            durationMs: Math.max(0, Date.now() - startedAt),
+            error,
+          });
+          throw error;
+        }
+      };
+    },
+  });
 }
 
 function addOpenRouterInternalTraceProvenance(params: {

@@ -63,6 +63,18 @@ export type AiSdkTelemetryCapture = {
    * /api/public/otel/v1/traces endpoint). Idempotent; never throws.
    */
   flush: () => Promise<void>;
+  /**
+   * Records one provider call inside an evaluator generation. The AI SDK
+   * retries that call without emitting another span.
+   */
+  recordModelAttempt?: (event: ModelCallAttemptEvent) => void;
+};
+
+type ModelCallAttemptEvent = {
+  outcome: "success" | "error";
+  durationMs: number;
+  usage?: unknown;
+  error?: unknown;
 };
 
 /**
@@ -151,47 +163,59 @@ export function createAiSdkTelemetryCapture(params: {
     ? buildEvaluationAttributes(traceSinkParams.evaluationContext)
     : undefined;
 
-  const rootSpan: Span = tracer.startSpan(
-    traceSinkParams.traceName,
-    {
-      attributes: {
-        [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
-        [LangfuseOtelSpanAttributes.ENVIRONMENT]: traceSinkParams.environment,
-        ...(traceSinkParams.userId
-          ? {
-              [LangfuseOtelSpanAttributes.TRACE_USER_ID]:
-                traceSinkParams.userId,
-            }
-          : {}),
-        ...(evaluationAttributes ?? {}),
-        ...(traceSinkParams.metadata
-          ? {
-              [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
-                traceSinkParams.metadata,
-              ),
-            }
-          : {}),
-        ...(serializedInput !== undefined
-          ? {
-              [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]: serializedInput,
-            }
-          : {}),
-      },
-    },
-    // ROOT_CONTEXT detaches from the server's own observability trace.
-    ROOT_CONTEXT,
-  );
-  const activeContext = trace.setSpan(ROOT_CONTEXT, rootSpan);
-
   const experimentContext = traceSinkParams.eventsWriter?.experimentContext;
-  const experimentAttributes = experimentContext
-    ? buildExperimentAttributes(
-        experimentContext,
-        rootSpan.spanContext().spanId,
-      )
-    : undefined;
+  // An evaluator execution is one model call. Customers use that generation to
+  // inspect input/output and cost; prompt experiments can describe more than
+  // the model call and keep the wrapper span.
+  const generationIsRoot =
+    evaluationAttributes !== undefined && experimentContext === undefined;
+  const rootSpan: Span | undefined = generationIsRoot
+    ? undefined
+    : tracer.startSpan(
+        traceSinkParams.traceName,
+        {
+          attributes: {
+            [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
+            [LangfuseOtelSpanAttributes.ENVIRONMENT]:
+              traceSinkParams.environment,
+            ...(traceSinkParams.userId
+              ? {
+                  [LangfuseOtelSpanAttributes.TRACE_USER_ID]:
+                    traceSinkParams.userId,
+                }
+              : {}),
+            ...(evaluationAttributes ?? {}),
+            ...(traceSinkParams.metadata
+              ? {
+                  [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
+                    traceSinkParams.metadata,
+                  ),
+                }
+              : {}),
+            ...(serializedInput !== undefined
+              ? {
+                  [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]:
+                    serializedInput,
+                }
+              : {}),
+          },
+        },
+        // ROOT_CONTEXT detaches from the server's own observability trace.
+        ROOT_CONTEXT,
+      );
+  const activeContext = rootSpan
+    ? trace.setSpan(ROOT_CONTEXT, rootSpan)
+    : ROOT_CONTEXT;
+
+  const experimentAttributes =
+    experimentContext && rootSpan
+      ? buildExperimentAttributes(
+          experimentContext,
+          rootSpan.spanContext().spanId,
+        )
+      : undefined;
   if (experimentAttributes) {
-    rootSpan.setAttributes(experimentAttributes);
+    rootSpan?.setAttributes(experimentAttributes);
   }
 
   const promptAttributes = traceSinkParams.prompt
@@ -212,9 +236,12 @@ export function createAiSdkTelemetryCapture(params: {
       )
     : undefined;
 
-  const otelIntegration = createGenerationSpanTelemetry({
+  const generationCapture = createGenerationSpanTelemetry({
     tracer,
     recordedInput: generationInput,
+    generationIsRoot,
+    spanName: generationIsRoot ? traceSinkParams.traceName : undefined,
+    observationMetadata: childSpanMetadata,
     attributes: {
       // Experiment linkage goes on every span so every materialized event
       // remains associated with the run item root.
@@ -223,6 +250,18 @@ export function createAiSdkTelemetryCapture(params: {
       ...(promptAttributes ?? {}),
       [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
       [LangfuseOtelSpanAttributes.ENVIRONMENT]: traceSinkParams.environment,
+      ...(generationIsRoot && traceSinkParams.metadata
+        ? {
+            [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
+              traceSinkParams.metadata,
+            ),
+          }
+        : {}),
+      ...(generationIsRoot && serializedInput !== undefined
+        ? {
+            [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]: serializedInput,
+          }
+        : {}),
       ...(traceSinkParams.userId
         ? {
             [LangfuseOtelSpanAttributes.TRACE_USER_ID]: traceSinkParams.userId,
@@ -241,11 +280,14 @@ export function createAiSdkTelemetryCapture(params: {
 
   let flushed = false;
 
+  const targetSpan = (): Span | undefined =>
+    rootSpan ?? generationCapture.getActiveSpan();
+
   const setRootOutput = (output: unknown): void => {
     if (flushed || output === undefined) return;
     const serializedOutput = stringifyValue(output);
 
-    rootSpan.setAttribute(
+    targetSpan()?.setAttribute(
       LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
       serializedOutput,
     );
@@ -253,12 +295,14 @@ export function createAiSdkTelemetryCapture(params: {
 
   const setRootError = (error: unknown): void => {
     if (flushed) return;
-    rootSpan.setAttribute("error.type", getErrorType(error));
-    rootSpan.setStatus({
+    const span = targetSpan();
+    if (!span) return;
+    span.setAttribute("error.type", getErrorType(error));
+    span.setStatus({
       code: SpanStatusCode.ERROR,
       message: error instanceof Error ? error.message : String(error),
     });
-    if (error instanceof Error) rootSpan.recordException(error);
+    if (error instanceof Error) span.recordException(error);
   };
 
   const flush = async (): Promise<void> => {
@@ -266,7 +310,9 @@ export function createAiSdkTelemetryCapture(params: {
     flushed = true;
 
     try {
-      rootSpan.end();
+      generationCapture.applyAttemptSummary();
+      rootSpan?.end();
+      generationCapture.endOpenSpans();
       await tracerProvider.forceFlush();
 
       const spans = exporter.getFinishedSpans();
@@ -309,11 +355,17 @@ export function createAiSdkTelemetryCapture(params: {
   };
 
   return {
-    telemetry: { isEnabled: true, integrations: [otelIntegration] },
+    telemetry: {
+      isEnabled: true,
+      integrations: [generationCapture.telemetry],
+    },
     run: (fn) => context.with(activeContext, fn),
     setRootOutput,
     setRootError,
     flush,
+    ...(generationIsRoot
+      ? { recordModelAttempt: generationCapture.recordModelAttempt }
+      : {}),
   };
 }
 
@@ -332,60 +384,97 @@ function createGenerationSpanTelemetry(params: {
    * may contain short-lived signed media URLs that must not enter traces.
    */
   recordedInput?: unknown;
-}): Telemetry {
-  const { tracer, attributes, recordedInput } = params;
+  /**
+   * The generation is the trace root. It stays open until flush so retries
+   * and post-call parsing attach to the same observation.
+   */
+  generationIsRoot?: boolean;
+  spanName?: string;
+  observationMetadata?: Record<string, unknown>;
+}): {
+  telemetry: Telemetry;
+  getActiveSpan: () => Span | undefined;
+  endOpenSpans: () => void;
+  applyAttemptSummary: () => void;
+  recordModelAttempt: (event: ModelCallAttemptEvent) => void;
+} {
+  const {
+    tracer,
+    attributes,
+    recordedInput,
+    generationIsRoot = false,
+    spanName,
+    observationMetadata,
+  } = params;
   const openSpans = new Map<string, Span>();
+  const attempts: ModelCallAttempt[] = [];
+  let deferredSpan: Span | undefined;
 
-  const endAllOpenSpans = (error?: unknown): void => {
-    for (const span of openSpans.values()) {
-      if (error !== undefined) {
-        span.setAttribute("error.type", getErrorType(error));
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        });
+  const markSpanFailed = (span: Span, error: unknown): void => {
+    span.setAttribute("error.type", getErrorType(error));
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (error instanceof Error) span.recordException(error);
+  };
 
-        if (error instanceof Error) span.recordException(error);
-      }
+  const endSpans = (spans: Iterable<Span>, error?: unknown): void => {
+    for (const span of new Set(spans)) {
+      if (error !== undefined) markSpanFailed(span, error);
       span.end();
     }
+  };
+
+  const endAllOpenSpans = (error?: unknown): void => {
+    if (generationIsRoot) {
+      const span = deferredSpan;
+      if (span && error !== undefined) markSpanFailed(span, error);
+      return;
+    }
+
+    endSpans(openSpans.values(), error);
     openSpans.clear();
   };
 
-  return {
+  const telemetry: Telemetry = {
     onLanguageModelCallStart(event) {
-      // Defensive: a lingering span for this call id means its end event never
-      // fired (e.g. a retried attempt) — close it before starting the next.
-      openSpans.get(event.callId)?.end();
+      let span = generationIsRoot ? deferredSpan : undefined;
+      if (!span) {
+        // A repeated start for the same call means its end event never fired.
+        // Evaluator retries reuse the deferred generation instead.
+        if (!generationIsRoot) openSpans.get(event.callId)?.end();
 
-      const span = tracer.startSpan(
-        `chat ${event.modelId}`,
-        {
-          kind: SpanKind.CLIENT,
-          attributes: {
-            "gen_ai.operation.name": "chat",
-            "gen_ai.provider.name": event.provider,
-            "gen_ai.request.model": event.modelId,
-            ...definedNumberAttributes({
-              "gen_ai.request.max_tokens": event.maxOutputTokens,
-              "gen_ai.request.temperature": event.temperature,
-              "gen_ai.request.top_p": event.topP,
-            }),
-            ...(recordedInput !== undefined || event.messages !== undefined
-              ? {
-                  "gen_ai.input.messages": safeJsonStringify(
-                    recordedInput ?? event.messages,
-                  ),
-                }
-              : {}),
-            ...(event.tools && event.tools.length > 0
-              ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }
-              : {}),
-            ...attributes,
+        span = tracer.startSpan(
+          spanName ?? `chat ${event.modelId}`,
+          {
+            kind: SpanKind.CLIENT,
+            attributes: {
+              "gen_ai.operation.name": "chat",
+              "gen_ai.provider.name": event.provider,
+              "gen_ai.request.model": event.modelId,
+              ...definedNumberAttributes({
+                "gen_ai.request.max_tokens": event.maxOutputTokens,
+                "gen_ai.request.temperature": event.temperature,
+                "gen_ai.request.top_p": event.topP,
+              }),
+              ...(recordedInput !== undefined || event.messages !== undefined
+                ? {
+                    "gen_ai.input.messages": safeJsonStringify(
+                      recordedInput ?? event.messages,
+                    ),
+                  }
+                : {}),
+              ...(event.tools && event.tools.length > 0
+                ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }
+                : {}),
+              ...attributes,
+            },
           },
-        },
-        context.active(),
-      );
+          context.active(),
+        );
+        if (generationIsRoot) deferredSpan = span;
+      }
 
       openSpans.set(event.callId, span);
     },
@@ -394,8 +483,6 @@ function createGenerationSpanTelemetry(params: {
       const span = openSpans.get(event.callId);
 
       if (!span) return;
-
-      openSpans.delete(event.callId);
 
       span.setAttributes({
         "gen_ai.response.finish_reasons": [event.finishReason],
@@ -412,7 +499,10 @@ function createGenerationSpanTelemetry(params: {
           { role: "assistant", content: event.content },
         ]),
       });
-      span.end();
+      if (!generationIsRoot) {
+        openSpans.delete(event.callId);
+        span.end();
+      }
     },
 
     onError(event) {
@@ -432,6 +522,143 @@ function createGenerationSpanTelemetry(params: {
       return context.with(trace.setSpan(context.active(), span), execute);
     },
   };
+
+  return {
+    telemetry,
+    getActiveSpan: () => deferredSpan,
+    endOpenSpans: () => {
+      if (!deferredSpan) return;
+      endSpans([deferredSpan]);
+      deferredSpan = undefined;
+      openSpans.clear();
+    },
+    applyAttemptSummary: () => {
+      if (!deferredSpan || attempts.length < 2) return;
+      deferredSpan.setAttribute(
+        LangfuseOtelSpanAttributes.OBSERVATION_METADATA,
+        JSON.stringify({
+          ...(observationMetadata ?? {}),
+          model_call_attempts: attempts,
+        }),
+      );
+      deferredSpan.setAttributes(
+        definedNumberAttributes({
+          "gen_ai.usage.input_tokens": sumAttemptTokens(
+            attempts,
+            "inputTokens",
+          ),
+          "gen_ai.usage.output_tokens": sumAttemptTokens(
+            attempts,
+            "outputTokens",
+          ),
+          "gen_ai.usage.cache_read.input_tokens": sumAttemptTokens(
+            attempts,
+            "cacheReadInputTokens",
+          ),
+          "gen_ai.usage.cache_creation.input_tokens": sumAttemptTokens(
+            attempts,
+            "cacheWriteInputTokens",
+          ),
+        }),
+      );
+    },
+    recordModelAttempt: (event) => {
+      if (!generationIsRoot) return;
+      const usage = readTokenUsage(event.usage);
+      attempts.push({
+        attempt: attempts.length + 1,
+        outcome: event.outcome,
+        durationMs: event.durationMs,
+        ...(event.outcome === "error"
+          ? { errorType: getErrorType(event.error) }
+          : {}),
+        ...usage,
+      });
+    },
+  };
+}
+
+type ModelCallAttempt = {
+  attempt: number;
+  outcome: "success" | "error";
+  durationMs: number;
+  errorType?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
+};
+
+function readTokenUsage(
+  usage: unknown,
+): Pick<
+  ModelCallAttempt,
+  | "inputTokens"
+  | "outputTokens"
+  | "cacheReadInputTokens"
+  | "cacheWriteInputTokens"
+> {
+  if (typeof usage !== "object" || usage === null) return {};
+  const record = usage as Record<string, unknown>;
+  const input = record.inputTokens;
+  const inputRecord =
+    typeof input === "object" && input !== null
+      ? (input as Record<string, unknown>)
+      : undefined;
+  const details =
+    typeof record.inputTokenDetails === "object" &&
+    record.inputTokenDetails !== null
+      ? (record.inputTokenDetails as Record<string, unknown>)
+      : undefined;
+
+  return omitUndefined({
+    inputTokens: tokenTotal(input),
+    outputTokens: tokenTotal(record.outputTokens),
+    cacheReadInputTokens:
+      tokenTotal(details?.cacheReadTokens) ??
+      tokenTotal(inputRecord?.cacheRead),
+    cacheWriteInputTokens:
+      tokenTotal(details?.cacheWriteTokens) ??
+      tokenTotal(inputRecord?.cacheWrite),
+  });
+}
+
+function tokenTotal(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "object" || value === null || !("total" in value)) {
+    return undefined;
+  }
+  const total = value.total;
+  return typeof total === "number" && Number.isFinite(total)
+    ? total
+    : undefined;
+}
+
+function sumAttemptTokens(
+  attempts: ModelCallAttempt[],
+  key:
+    | "inputTokens"
+    | "outputTokens"
+    | "cacheReadInputTokens"
+    | "cacheWriteInputTokens",
+): number | undefined {
+  let seen = false;
+  let total = 0;
+  for (const attempt of attempts) {
+    const value = attempt[key];
+    if (value === undefined) continue;
+    seen = true;
+    total += value;
+  }
+  return seen ? total : undefined;
+}
+
+function omitUndefined<T extends Record<string, number | undefined>>(
+  value: T,
+): { [K in keyof T]?: number } {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as { [K in keyof T]?: number };
 }
 
 function definedNumberAttributes(
