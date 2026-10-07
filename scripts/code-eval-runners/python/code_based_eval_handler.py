@@ -125,7 +125,19 @@ def handler(event, context):
     except Exception as error:
         return runner_error("USER_CODE_ERROR", format_error(error))
 
-    return normalize_result(result)
+    # A list or dict that contains itself recurses until RecursionError.
+    # A tuple holding such a value reaches json.dumps, which raises
+    # ValueError ("Circular reference detected") rather than TypeError.
+    # Either must stay inside the runner response: an exception escaping
+    # handler is an unhandled Lambda error, and the dispatcher retries those.
+    try:
+        return normalize_result(result)
+    except (RecursionError, ValueError) as error:
+        return runner_error(
+            "INVALID_RESULT",
+            "Evaluator returned a result that could not be serialized: "
+            f"{format_error(error)}",
+        )
 
 
 def normalize_result(result):
