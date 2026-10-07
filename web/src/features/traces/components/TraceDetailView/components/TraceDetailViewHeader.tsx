@@ -251,7 +251,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
-          <div className="flex h-full flex-wrap content-start items-center justify-start gap-0.5 @md:justify-end">
+          <div className="flex flex-wrap content-start items-center justify-start gap-0.5 @md:justify-end">
             <ConnectedTraceObservationAddToDropdownMenuController
               analyticsData={{ source: "TraceDetail", isV4 }}
               projectId={projectId}

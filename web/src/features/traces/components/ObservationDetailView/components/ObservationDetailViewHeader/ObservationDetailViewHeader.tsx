@@ -197,7 +197,7 @@ export const ObservationDetailViewHeader = memo(
     return (
       <DetailViewHeaderShell>
         {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid w-full grid-cols-1 items-center gap-2 @2xl:grid-cols-[minmax(0,1fr)_auto]">
           <div className="flex w-full min-w-0 flex-row items-center gap-2">
             <EntityTitle
               as="span"
@@ -352,7 +352,7 @@ export const ObservationDetailViewHeader = memo(
           </div>
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
-            <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+            <div className="flex flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
