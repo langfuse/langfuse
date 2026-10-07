@@ -218,15 +218,36 @@ describe(
       },
     );
 
-    it("rejects malformed UTF-8 with a structured error", async () => {
-      const bytes = Buffer.from(
-        '{"input":"data:image/png;base64,aGk=","note":"x"}',
-      );
-      bytes[bytes.indexOf('"x"') + 1] = 0xff;
-      await expect(validateOtelJson(bytes)).rejects.toMatchObject({
-        code: "ERR_OTEL_INVALID_JSON",
-        message: expect.stringContaining("invalid UTF-8"),
-      });
+    it("sanitizes malformed UTF-8 before recording media offsets", async () => {
+      for (const sequence of [
+        [0xff],
+        [0xe2, 0x82],
+        [0xed, 0xa0, 0x80],
+        [0xf0, 0x28, 0x8c, 0x28],
+      ]) {
+        const bytes = Buffer.concat([
+          Buffer.from('{"note":"'),
+          Buffer.from(sequence),
+          Buffer.from('","input":"data:image/png;base64,aGk="}'),
+        ]);
+        const validated = await validateOtelJson(bytes);
+        const normalized = Buffer.from(bytes.toString("utf8"));
+        expect(validated.normalizedBytes()).toEqual(normalized);
+        const batch = await validated.extract(true);
+        try {
+          expect(JSON.parse(batch.json()).note).toBe(
+            JSON.parse(normalized.toString("utf8")).note,
+          );
+          expect(batch.media).toHaveLength(1);
+          expect((await batch.mediaBody(0)).toString()).toBe("hi");
+          expect(await batch.originalMedia(0)).toBe(
+            "data:image/png;base64,aGk=",
+          );
+        } finally {
+          await batch.dispose();
+          await validated.dispose();
+        }
+      }
     });
 
     it("leaves a surrogate-containing string inline while scanning siblings", async () => {

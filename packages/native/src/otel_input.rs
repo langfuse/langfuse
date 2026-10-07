@@ -17,6 +17,24 @@ pub struct ValidatedOtelJson {
 
 #[napi]
 impl ValidatedOtelJson {
+    /// Return sanitized bytes only when malformed UTF-8 required replacement.
+    /// Masking must see the same source as validation and media discovery.
+    #[napi]
+    pub fn normalized_bytes(&self, env: Env) -> Result<Option<Buffer>> {
+        let (payload, _) = self.payload.as_ref().ok_or_else(|| {
+            Error::from(
+                napi::JsError::from(Error::new(
+                    "ERR_OTEL_CLOSED",
+                    "OTEL input already extracted or disposed",
+                ))
+                .into_unknown(env),
+            )
+        })?;
+        Ok(payload
+            .normalized_bytes()
+            .map(|bytes| Buffer::from(bytes.to_vec())))
+    }
+
     /// Release a superseded masking input without waiting for the JS handle to be collected.
     #[napi(ts_return_type = "Promise<void>")]
     pub fn dispose(&mut self) -> AsyncTask<OwnedTask<()>> {

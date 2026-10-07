@@ -614,14 +614,18 @@ fn leaves_lone_surrogate_strings_inline_and_extracts_siblings() {
 }
 
 #[test]
-fn malformed_utf8_is_rejected_before_discovery() {
+fn malformed_utf8_is_replaced_before_discovery() {
     let mut input = b"{\"note\":\"".to_vec();
     input.extend([0xff, 0xe2, 0x82]);
     input.extend_from_slice(b"\",\"image\":\"data:image/png;base64,YWJj\"}");
-    assert!(matches!(
-        extract_media(&input),
-        Err(EarlyMediaError::InvalidJson { offset: 9, .. })
-    ));
+    let result = extract_media(&input).unwrap();
+    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    assert_eq!(compact["note"], "��");
+    assert_eq!(result.media[0].decode().unwrap(), b"abc");
+    assert_eq!(
+        result.media[0].original_value().unwrap(),
+        "data:image/png;base64,YWJj"
+    );
 }
 
 #[test]
