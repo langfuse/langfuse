@@ -289,12 +289,7 @@ export class ScoresApiService {
     auth: AuthHeaderValidVerificationResultIngestion;
     attribution: IngestionAttribution;
   }) {
-    const scores = bodies.map((body) => ({
-      ...body,
-      id: body.id || randomUUID(),
-    }));
-
-    const events = scores.map((body) => ({
+    const events = bodies.map((body) => ({
       id: randomUUID(),
       type: eventTypes.SCORE_CREATE,
       timestamp: new Date().toISOString(),
