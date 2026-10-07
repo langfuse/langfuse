@@ -643,9 +643,9 @@ export const SessionPage: React.FC<{
                 {!router.query.peek && (
                   <DetailPageNav
                     key="nav"
-                    currentId={encodeURIComponent(sessionId)}
+                    currentId={sessionId}
                     path={(entry) =>
-                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                      `/project/${projectId}/sessions/${entry.id}`
                     }
                     listKey="sessions"
                   />
@@ -1819,9 +1819,9 @@ const LoadedSessionEventsPage: React.FC<{
                 {!router.query.peek && (
                   <DetailPageNav
                     key="nav"
-                    currentId={encodeURIComponent(sessionId)}
+                    currentId={sessionId}
                     path={(entry) =>
-                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                      `/project/${projectId}/sessions/${entry.id}`
                     }
                     listKey="sessions"
                     compact
