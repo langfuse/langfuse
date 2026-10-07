@@ -157,6 +157,7 @@ export const traceBatchQueueProcessor: Processor<
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
       maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
+      requestTimeoutMs: env.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS,
       experimentId: env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
       queryId: randomUUID(),
     };
@@ -205,20 +206,57 @@ export const traceBatchQueueProcessor: Processor<
       });
     }
 
+    // ClickHouse sockets time out when idle, so the reader never waits on
+    // transcript or Topics work unless queued payloads exceed the cap.
+    // Traces are still summarized one at a time per batch to keep at most
+    // one pending request in the tokenizer pool shared with ingestion.
+    const pendingSummaries: Promise<void>[] = [];
+    let pendingSummaryBytes = 0;
+    let summaryFailed = false;
+    let summaryError: unknown;
+    const enqueueSummary = (observations: Observation[], bytes: number) => {
+      pendingSummaryBytes += bytes;
+      const enqueuedAt = performance.now();
+      const summary = (pendingSummaries.at(-1) ?? Promise.resolve())
+        .then(async () => {
+          // Let socket reads run between traces' synchronous assembly.
+          await new Promise((resolve) => setImmediate(resolve));
+          recordDistribution(
+            "langfuse.trace_batch.summary_queue_wait_ms",
+            performance.now() - enqueuedAt,
+          );
+          if (!summaryFailed)
+            topicsOutcomes.push(await summarizeTraceBatch(observations));
+        })
+        .catch((error: unknown) => {
+          if (!summaryFailed) summaryError = error;
+          summaryFailed = true;
+        })
+        .finally(() => {
+          pendingSummaryBytes -= bytes;
+          pendingSummaries.shift();
+        });
+      pendingSummaries.push(summary);
+    };
     activeReads++;
-    let pendingTokenization: Promise<void> | undefined;
     try {
       recordTraceBatchActiveReads();
       let traceObservations: Observation[] = [];
+      let traceBytes = 0;
       for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
         observationCount++;
         foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
         foundProjects.add(event.project_id);
         // Logical UTF-8 payload size, excluding JSON transport and compression.
-        inputBytes += Buffer.byteLength(event.input);
-        outputBytes += Buffer.byteLength(event.output);
+        const eventInputBytes = Buffer.byteLength(event.input);
+        const eventOutputBytes = Buffer.byteLength(event.output);
+        let eventBytes = eventInputBytes + eventOutputBytes;
+        inputBytes += eventInputBytes;
+        outputBytes += eventOutputBytes;
         for (const [key, value] of Object.entries(event.metadata)) {
-          metadataBytes += Buffer.byteLength(key) + Buffer.byteLength(value);
+          const bytes = Buffer.byteLength(key) + Buffer.byteLength(value);
+          metadataBytes += bytes;
+          eventBytes += bytes;
         }
         const previous = traceObservations[0];
         if (
@@ -226,16 +264,25 @@ export const traceBatchQueueProcessor: Processor<
           (previous.projectId !== event.project_id ||
             previous.traceId !== event.trace_id)
         ) {
-          // Overlap tokenization with reading the next trace, but allow only
-          // one pending estimate per batch so queued payloads stay bounded.
-          await pendingTokenization;
-          pendingTokenization = summarizeTraceBatch(traceObservations).then(
-            (result) => {
-              topicsOutcomes.push(result);
-            },
-          );
+          if (summaryFailed) break;
+          enqueueSummary(traceObservations, traceBytes);
           traceObservations = [];
+          traceBytes = 0;
+          if (
+            pendingSummaryBytes >
+            env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES
+          ) {
+            recordIncrement("langfuse.trace_batch.summary_backpressure", 1);
+            // Resume as soon as completed work brings the queue below the cap.
+            while (
+              pendingSummaryBytes >
+              env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES
+            )
+              await pendingSummaries[0];
+          }
+          if (summaryFailed) break;
         }
+        traceBytes += eventBytes;
         traceObservations.push(
           convertObservation({
             ...event,
@@ -253,32 +300,18 @@ export const traceBatchQueueProcessor: Processor<
         );
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.
-      if (traceObservations.length) {
-        await pendingTokenization;
-        pendingTokenization = summarizeTraceBatch(traceObservations).then(
-          (result) => {
-            topicsOutcomes.push(result);
-          },
-        );
-      }
-    } catch (error) {
-      // Only rows consumed before the failure; never count these as successful throughput.
-      for (const [name, value] of [
-        ["observation_count", observationCount],
-        ["input_bytes", inputBytes],
-      ] as const) {
-        recordDistribution(`langfuse.trace_batch.failed_read_${name}`, value);
-      }
-      throw error;
+      if (traceObservations.length && !summaryFailed)
+        enqueueSummary(traceObservations, traceBytes);
     } finally {
       try {
-        // Drain accepted tokenization promises even when the stream fails.
-        await pendingTokenization;
+        // Drain accepted summaries even when the stream fails.
+        await pendingSummaries.at(-1);
       } finally {
         activeReads--;
         recordTraceBatchActiveReads();
       }
     }
+    if (summaryFailed) throw summaryError;
 
     recordDistribution(
       "langfuse.trace_batch.observation_count",
@@ -310,6 +343,15 @@ export const traceBatchQueueProcessor: Processor<
       ioMetadataBytes,
     };
   } finally {
+    if (queryId && outcome === "failure") {
+      // Consumed rows from failed attempts are not successful throughput.
+      for (const [name, value] of [
+        ["observation_count", observationCount],
+        ["input_bytes", inputBytes],
+      ] as const) {
+        recordDistribution(`langfuse.trace_batch.failed_read_${name}`, value);
+      }
+    }
     const durationMs = performance.now() - startedAt;
     span?.setAttributes({
       "langfuse.trace_batch.outcome": outcome,

@@ -11,8 +11,13 @@ import {
   type TopicFacetVersion,
   type TopicSummary,
 } from "@langfuse/shared/topics";
-import { recordIncrement, type Transcript } from "@langfuse/shared/src/server";
+import {
+  instrumentAsync,
+  recordIncrement,
+  type Transcript,
+} from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
+import { TopicMetrics } from "./metrics";
 import { embedTopicSummary, summarizeTopicTraceFacets } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
@@ -33,20 +38,50 @@ const NO_USAGE: TopicModelUsage = {
   costDetails: {},
 };
 
-/**
- * Summarizes one trace from the transcript the batch job already assembled,
- * with one model call for all of its pending facets. Does not load
- * observations again.
- */
-export async function summarizeAssembledTrace(input: {
+type AssembledTraceInput = {
   projectId: string;
   traceId: string;
   traceTimestamp: string;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
-}): Promise<"disabled" | "unchanged" | "summarized"> {
+};
+
+/**
+ * Summarizes one trace from the transcript the batch job already assembled,
+ * with one model call for all of its pending facets. Does not load
+ * observations again.
+ */
+export async function summarizeAssembledTrace(
+  input: AssembledTraceInput,
+): Promise<"disabled" | "unchanged" | "summarized"> {
   if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
+  return instrumentAsync(
+    { name: "topics-trace-summary", traceScope: "topics" },
+    async (span) => {
+      span.setAttributes({
+        "langfuse.project.id": input.projectId,
+        "langfuse.trace.id": input.traceId,
+      });
+      const metrics = new TopicMetrics();
+      try {
+        const outcome = await metrics.measure("trace", () =>
+          summarizeEnabledTrace(input, metrics),
+        );
+        span.setAttribute("langfuse.topics.trace_outcome", outcome);
+        return outcome;
+      } catch (error) {
+        span.setAttribute("langfuse.topics.trace_outcome", "failed");
+        throw error;
+      }
+    },
+  );
+}
+
+async function summarizeEnabledTrace(
+  input: AssembledTraceInput,
+  metrics: TopicMetrics,
+): Promise<"unchanged" | "summarized"> {
   const models = getTopicsModelConfig();
   if (!models.summaryModel || !models.embeddingModel)
     throw new TopicsProviderUnavailable(
@@ -94,11 +129,39 @@ export async function summarizeAssembledTrace(input: {
       key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
       facet: version,
     }));
-    const result = await summarizeTopicTraceFacets(
-      keyed,
-      prepared.text,
-      config,
-    );
+    const invalidFacets = new Set<string>();
+    let generated:
+      | Awaited<ReturnType<typeof summarizeTopicTraceFacets>>
+      | undefined;
+    const result = await metrics
+      .measure("summary", async () => {
+        generated = await summarizeTopicTraceFacets(
+          keyed,
+          prepared.text,
+          config,
+        );
+        const outputs = generated.output as Record<string, FacetOutput>;
+        for (const { key } of keyed) {
+          const message = outputs[key]
+            ? topicSummaryOutputError(outputs[key])
+            : "The model response is missing a facet.";
+          if (!message) continue;
+          const error = new TopicsProviderUnavailable(
+            message,
+            "invalid_output",
+          );
+          invalidFacets.add(key);
+          metrics.error("summary", error);
+          if (failure === undefined) failure = error;
+        }
+        if (failure !== undefined) throw failure;
+        return generated;
+      })
+      .catch((error: unknown) => {
+        // Valid facets can still be persisted after summary validation fails.
+        if (error !== failure || !generated) throw error;
+        return generated;
+      });
     const outputs = result.output as Record<string, FacetOutput>;
     const usage: TopicModelUsage = {
       providedUsageDetails: result.providedUsageDetails,
@@ -109,6 +172,7 @@ export async function summarizeAssembledTrace(input: {
     rows = [];
     // A failed facet (invalid output, embedding error) must not discard the others.
     for (const [index, { key }] of keyed.entries()) {
+      if (invalidFacets.has(key)) continue;
       try {
         rows.push(
           await finalizeSummary(
@@ -118,6 +182,7 @@ export async function summarizeAssembledTrace(input: {
             rows.length ? NO_USAGE : usage,
             embeddingConfig.embeddingDimensions,
             embeddingModel,
+            metrics,
           ),
         );
       } catch (error) {
@@ -125,7 +190,8 @@ export async function summarizeAssembledTrace(input: {
       }
     }
   }
-  if (rows.length) await writeTopicSummaries(rows);
+  if (rows.length)
+    await metrics.measure("storage", () => writeTopicSummaries(rows));
   for (const row of rows)
     recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
   if (failure) throw failure;
@@ -169,18 +235,12 @@ function baseSummary(
 
 async function finalizeSummary(
   base: TopicSummary,
-  output: FacetOutput | undefined,
+  output: FacetOutput,
   usage: TopicModelUsage,
   dimensions: number,
   embeddingModel: string,
+  metrics: TopicMetrics,
 ): Promise<TopicSummary> {
-  if (!output)
-    throw new TopicsProviderUnavailable(
-      "The model response is missing a facet.",
-      "invalid_output",
-    );
-  const error = topicSummaryOutputError(output);
-  if (error) throw new TopicsProviderUnavailable(error, "invalid_output");
   if (output.status !== "applicable")
     return {
       ...base,
@@ -191,7 +251,9 @@ async function finalizeSummary(
       ...usage,
     };
   const summary = output.summary.trim();
-  const embedded = await embedTopicSummary(summary, dimensions, embeddingModel);
+  const embedded = await metrics.measure("embedding", () =>
+    embedTopicSummary(summary, dimensions, embeddingModel),
+  );
   return {
     ...base,
     state: "complete",
