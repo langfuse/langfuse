@@ -1,6 +1,5 @@
 import { type Redis, type Cluster } from "ioredis";
 
-import { UnauthorizedError } from "@langfuse/shared";
 import {
   redis as defaultRedis,
   createShaHash,
@@ -9,26 +8,24 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import {
   type ApiKeyAuthResults,
   type Authenticated,
 } from "@/src/features/apiKey/authenticator";
-import {
-  unauthorizedError,
-  type AuthorizationContext,
-  type ErrorResult,
-} from "@/src/features/auth/policy/types";
+import { matchesAdminApiKey } from "@/src/features/apiKey/helpers/matchesAdminApiKey";
+import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
-/** AuthenticatorCache is the read-through context cache keyed by credential; it owns key derivation and stores the Authenticator's resolved result. */
+/** AuthenticatorCache stores authorization contexts by credential. */
 export class AuthenticatorCache {
   constructor(
     private readonly redis: Redis | Cluster | null = defaultRedis,
     private readonly salt: string = env.SALT,
+    private readonly adminApiKey: string | undefined = env.ADMIN_API_KEY,
   ) {}
 
-  /** get returns the cached result for a credential, or null on a miss — distinct from a cached 401. */
-  async get(credential: Credential): Promise<ResolveContextResult | null> {
+  /** get returns a cached context, or null on a miss. */
+  async get(credential: Credential): Promise<Authenticated | null> {
     const key = this.keyFor(credential);
     const redis = this.redis;
     if (!key || !cacheEnabled(redis)) return null;
@@ -42,42 +39,51 @@ export class AuthenticatorCache {
     }
   }
 
-  /** set persists a success context or a 401 under a fixed TTL, skips a 500 (fail open), and returns whether it wrote. */
+  /** keyFor derives credential cache keys, excluding environment admins. */
+  private keyFor(credential: Credential): string | null {
+    if (credential.kind === "basic") {
+      return createAuthzContextCacheKey(
+        "basic",
+        createShaHash(credential.secretKey, this.salt),
+      );
+    }
+    if (credential.kind === "bearer") {
+      if (matchesAdminApiKey(credential.token, this.adminApiKey)) return null;
+      return createAuthzContextCacheKey(
+        "bearer",
+        createShaHash(credential.token, this.salt),
+      );
+    }
+    return null;
+  }
+
+  /** set caches database-key successes until their TTL or expiry. */
   async set(
     credential: Credential,
     result: ApiKeyAuthResults,
+    expiresAt: Date | null = null,
   ): Promise<boolean> {
     const key = this.keyFor(credential);
-    const entry = toEntry(result);
+    if (!result.success || result.context.principal.kind === "admin") {
+      return false;
+    }
+    const ttlSeconds = ttlFor(expiresAt);
     const redis = this.redis;
-    if (!key || !entry || !cacheEnabled(redis)) return false;
+    if (!key || ttlSeconds <= 0 || !cacheEnabled(redis)) {
+      return false;
+    }
     try {
       await redis.set(
         key,
-        JSON.stringify(entry),
+        JSON.stringify({ context: result.context }),
         "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
+        ttlSeconds,
       );
       return true;
     } catch (error) {
       logger.error("authz context cache write failed", error);
       return false;
     }
-  }
-
-  /** keyFor derives the namespaced cache key from a credential's secret material, or null when uncacheable. */
-  private keyFor(credential: Credential): string | null {
-    if (credential.kind === "basic") {
-      return createAuthzContextCacheKey(
-        createShaHash(credential.secretKey, this.salt),
-      );
-    }
-    if (credential.kind === "bearer") {
-      return createAuthzContextCacheKey(
-        createShaHash(credential.token, this.salt),
-      );
-    }
-    return null;
   }
 }
 
@@ -86,25 +92,16 @@ function cacheEnabled(redis: Redis | Cluster | null): redis is Redis | Cluster {
   return Boolean(redis) && env.LANGFUSE_CACHE_API_KEY_ENABLED === "true";
 }
 
-/** toEntry maps a resolved result to its cache row, yielding null for a 500 so it is never negatively cached. */
-function toEntry(result: ApiKeyAuthResults): CachedEntry | null {
-  if (result.success) return { context: result.context };
-  if (result.error instanceof UnauthorizedError) {
-    return { unauthorized: result.error.message };
-  }
-  return null;
+/** ttlFor is the cache TTL in seconds, floored to the key's remaining lifetime so an entry never outlives its key. */
+function ttlFor(expiresAt: Date | null): number {
+  const ttl = env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS;
+  if (!expiresAt) return ttl;
+  return Math.min(ttl, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
 }
 
-/** deserialize reconstructs a cache hit from its stored row. */
-function deserialize(entry: CachedEntry): ResolveContextResult {
-  if ("context" in entry) return { success: true, context: entry.context };
-  return unauthorizedError(entry.unauthorized);
+function deserialize(entry: CachedEntry): Authenticated | null {
+  if (!entry?.context) return null;
+  return { success: true, context: entry.context };
 }
 
-/** ResolveContextResult is a cache hit: a resolved context or a replayed 401, never a 500. */
-export type ResolveContextResult =
-  | Authenticated
-  | ErrorResult<UnauthorizedError>;
-
-/** CachedEntry is the redis-serialized cache value: a materialized context, or a negative 401 body. */
-type CachedEntry = { context: AuthorizationContext } | { unauthorized: string };
+type CachedEntry = { context: AuthorizationContext };

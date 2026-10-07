@@ -5,7 +5,10 @@ import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { ApiKeyCreateDialogContent } from "@/src/features/public-api/components/ApiKeyCreateDialogContent";
+import {
+  ApiKeyCreateDialogContent,
+  type ApiKeyCreateValues,
+} from "@/src/features/public-api/components/ApiKeyCreateDialogContent";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -24,7 +27,6 @@ export function CreateApiKeyButton(props: {
   });
 
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState("");
   const [generatedKeys, setGeneratedKeys] = useState<{
     secretKey: string;
     publicKey: string;
@@ -33,40 +35,44 @@ export function CreateApiKeyButton(props: {
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (!newOpen) {
-      // Reset state when closing
-      setGeneratedKeys(null);
-      setNote("");
-    }
+    if (!newOpen) setGeneratedKeys(null);
   };
 
-  const createApiKey = () => {
+  const onCreated = (keys: { secretKey: string; publicKey: string }) => {
+    setGeneratedKeys(keys);
+  };
+
+  const createApiKey = (values: ApiKeyCreateValues) => {
     if (props.scope === "project") {
       mutCreateProjectApiKey
         .mutateAsync({
           projectId: props.entityId,
-          note: note || undefined,
+          name: values.name || undefined,
+          role: values.role,
+          expiresAt: values.expiresAt,
         })
         .then(({ secretKey, publicKey }) => {
-          setGeneratedKeys({
-            secretKey,
-            publicKey,
+          onCreated({ secretKey, publicKey });
+          capture(`${props.scope}_settings:api_key_create`, {
+            role: values.role,
+            expiresAt: values.expiresAt?.toISOString() ?? null,
           });
-          capture(`${props.scope}_settings:api_key_create`);
         })
         .catch((error) => reportNonTrpcError(error, "api-keys"));
     } else {
       mutCreateOrgApiKey
         .mutateAsync({
           orgId: props.entityId,
-          note: note || undefined,
+          name: values.name || undefined,
+          role: values.role,
+          expiresAt: values.expiresAt,
         })
         .then(({ secretKey, publicKey }) => {
-          setGeneratedKeys({
-            secretKey,
-            publicKey,
+          onCreated({ secretKey, publicKey });
+          capture(`${props.scope}_settings:api_key_create`, {
+            role: values.role,
+            expiresAt: values.expiresAt?.toISOString() ?? null,
           });
-          capture(`${props.scope}_settings:api_key_create`);
         })
         .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
@@ -92,8 +98,6 @@ export function CreateApiKeyButton(props: {
             }
           : {
               type: "form" as const,
-              note,
-              onNoteChange: setNote,
               onSubmit: createApiKey,
               isPending:
                 mutCreateProjectApiKey.isPending ||

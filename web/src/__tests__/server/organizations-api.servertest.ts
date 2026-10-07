@@ -6,9 +6,17 @@ import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import { assignRole } from "@langfuse/shared/rbac/server";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 // Schema for organization project response
 const OrganizationProjectSchema = z.object({
@@ -45,7 +53,10 @@ const ApiKeyResponseSchema = z.object({
   publicKey: z.string(),
   secretKey: z.string(),
   displaySecretKey: z.string(),
-  note: z.string().optional().nullable(),
+  name: z.string().nullable(),
+  note: z.string().nullable(),
+  expiresAt: z.iso.datetime().nullable(),
+  role: z.string(),
 });
 
 // Schema for API key list response
@@ -56,7 +67,9 @@ const ApiKeyListSchema = z.object({
       createdAt: z.iso.datetime(),
       expiresAt: z.iso.datetime().nullable(),
       lastUsedAt: z.iso.datetime().nullable(),
+      name: z.string().nullable(),
       note: z.string().nullable(),
+      role: z.string().nullable(),
       publicKey: z.string(),
       displaySecretKey: z.string(),
     }),
@@ -607,7 +620,11 @@ describe("Admin Organizations API", () => {
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body.apiKeys)).toBe(true);
       expect(response.body.apiKeys.length).toBeGreaterThan(0);
-      expect(response.body.apiKeys[0].note).toBe("Test API Key");
+      expect(response.body.apiKeys[0]).toMatchObject({
+        name: "Test API Key",
+        note: "Test API Key",
+        role: null,
+      });
     });
 
     it("should return 404 when getting API keys for a non-existent organization", async () => {
@@ -628,7 +645,6 @@ describe("Admin Organizations API", () => {
     let testOrgId: string;
 
     beforeEach(async () => {
-      // Create a test organization
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
         data: { name: uniqueOrgName, metadata: { tier: "testing", users: 5 } },
@@ -650,6 +666,112 @@ describe("Admin Organizations API", () => {
         });
     });
 
+    it.each([
+      {
+        label: "omitted",
+        role: undefined,
+        expiresAt: undefined,
+        name: "Named key",
+      },
+      { label: "null", role: null, expiresAt: null, name: "Named key" },
+      { label: "empty", role: "", expiresAt: undefined, name: "" },
+      {
+        label: "explicit legacy",
+        name: undefined,
+        role: "LEGACY_ORGANIZATION_API_KEY",
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+    ])(
+      "provisions a key with $label role and lists its expiration",
+      async ({ role, expiresAt, name }) => {
+        const response = await makeAPICall<
+          z.infer<typeof ApiKeyResponseSchema>
+        >(
+          "POST",
+          `/api/admin/organizations/${testOrgId}/apiKeys`,
+          { name, role, expiresAt },
+          `Bearer ${ADMIN_API_KEY}`,
+        );
+        expect(response.status).toBe(201);
+        expect(response.body).toMatchObject({
+          name: name ?? null,
+          note: name ?? null,
+          expiresAt: expiresAt ?? null,
+          role: "LEGACY_ORGANIZATION_API_KEY",
+        });
+
+        const stored = await prisma.apiKey.findUniqueOrThrow({
+          where: { id: response.body.id },
+          include: { roleAssignments: true },
+        });
+        expect(stored.note).toBe(name ?? null);
+        expect(stored.expiresAt?.toISOString() ?? null).toBe(expiresAt ?? null);
+        expect(stored.roleAssignments).toMatchObject([
+          { systemRole: "LEGACY_ORGANIZATION_API_KEY" },
+        ]);
+
+        const listed = await makeAPICall<z.infer<typeof ApiKeyListSchema>>(
+          "GET",
+          `/api/admin/organizations/${testOrgId}/apiKeys`,
+          undefined,
+          `Bearer ${ADMIN_API_KEY}`,
+        );
+        expect(listed.status).toBe(200);
+        ApiKeyListSchema.parse(listed.body);
+        const listedKey = listed.body.apiKeys.find(
+          (key) => key.id === stored.id,
+        );
+        expect(listedKey).toMatchObject({
+          name: name ?? null,
+          note: name ?? null,
+          expiresAt: expiresAt ?? null,
+          role: "LEGACY_ORGANIZATION_API_KEY",
+        });
+        for (const field of [
+          "secretKey",
+          "hashedSecretKey",
+          "fastHashedSecretKey",
+          "roleAssignments",
+        ]) {
+          expect(listedKey).not.toHaveProperty(field);
+        }
+      },
+    );
+
+    it.each([
+      { label: "both name and note", body: { name: "same", note: "same" } },
+      { label: "empty name and note", body: { name: "", note: "" } },
+      { label: "empty name with note", body: { name: "", note: "alias" } },
+      { label: "name with empty note", body: { name: "name", note: "" } },
+      { label: "null name", body: { name: null } },
+      { label: "past expiration", body: { expiresAt: "2000-01-01T00:00:00Z" } },
+      { label: "invalid expiration", body: { expiresAt: "not-a-date" } },
+      { label: "numeric expiration", body: { expiresAt: 4_102_444_800_000 } },
+      {
+        label: "wrong-scope legacy role",
+        body: { role: "LEGACY_PROJECT_API_KEY" },
+      },
+      { label: "admin role", body: { role: "ADMIN" } },
+      { label: "viewer role", body: { role: "VIEWER" } },
+      { label: "ingest role", body: { role: "INGEST" } },
+      { label: "scores ingest role", body: { role: "SCORES_INGEST" } },
+      { label: "gateway role", body: { role: "AI_GATEWAY" } },
+      { label: "role array", body: { role: [] } },
+    ])("rejects $label without creating a key", async ({ body }) => {
+      const before = await prisma.apiKey.count({ where: { orgId: testOrgId } });
+      const result = await makeAPICall<{ error: string }>(
+        "POST",
+        `/api/admin/organizations/${testOrgId}/apiKeys`,
+        body,
+        `Bearer ${ADMIN_API_KEY}`,
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.error).toEqual(expect.any(String));
+      expect(await prisma.apiKey.count({ where: { orgId: testOrgId } })).toBe(
+        before,
+      );
+    });
+
     it("should create a new API key for an organization with valid admin authentication", async () => {
       const response = await makeZodVerifiedAPICall(
         ApiKeyResponseSchema,
@@ -666,6 +788,9 @@ describe("Admin Organizations API", () => {
       expect(response.body.publicKey).toMatch(/^pk-lf-/);
       expect(response.body.secretKey).toMatch(/^sk-lf-/);
       expect(response.body.note).toBe("Test API Key");
+      expect(response.body.name).toBe("Test API Key");
+      expect(response.body.expiresAt).toBeNull();
+      expect(response.body.role).toBe("LEGACY_ORGANIZATION_API_KEY");
 
       // Verify the API key was actually created in the database
       const apiKey = await prisma.apiKey.findUnique({
@@ -674,6 +799,8 @@ describe("Admin Organizations API", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.orgId).toBe(testOrgId);
       expect(apiKey?.scope).toBe("ORGANIZATION");
+      expect(apiKey?.createdByUserId).toBeNull();
+      expect(apiKey?.createdByApiKeyId).toBeNull();
     });
 
     it("should return 404 when creating an API key for a non-existent organization", async () => {
@@ -859,11 +986,14 @@ describe("Public Organizations API", () => {
     testProject2Id = project2.id;
 
     // Create an organization API key
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testOrgId,
-      scope: "ORGANIZATION",
-      note: "Test API Key for Organizations API",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const apiKey = await createApiKey(prisma, {
+      owner: OrganizationId(testOrgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+      name: "Test API Key for Organizations API",
       predefinedKeys: {
         publicKey: `pk-lf-org-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-org-${randomUUID().substring(0, 8)}`,
@@ -928,11 +1058,14 @@ describe("Public Organizations API", () => {
 
       it("should return 403 when using a project-scoped API key", async () => {
         // Create a project API key
-        const projectApiKey = await createAndAddApiKeysToDb({
-          prisma,
-          entityId: testProject1Id,
-          scope: "PROJECT",
-          note: "Test Project API Key",
+        const keyCreator = await prisma.user.create({
+          data: { email: `apikey-creator-${randomUUID()}@example.com` },
+        });
+        const projectApiKey = await createApiKey(prisma, {
+          owner: ProjectId(testProject1Id),
+          role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+          createdBy: UserId(keyCreator.id),
+          name: "Test Project API Key",
           predefinedKeys: {
             publicKey: `pk-lf-project-${randomUUID().substring(0, 8)}`,
             secretKey: `sk-lf-project-${randomUUID().substring(0, 8)}`,
@@ -1032,11 +1165,14 @@ describe("Public Organizations API", () => {
         });
 
         // Create API key for empty organization
-        const emptyOrgApiKey = await createAndAddApiKeysToDb({
-          prisma,
-          entityId: emptyOrg.id,
-          scope: "ORGANIZATION",
-          note: "Test API Key for Empty Org",
+        const keyCreator = await prisma.user.create({
+          data: { email: `apikey-creator-${randomUUID()}@example.com` },
+        });
+        const emptyOrgApiKey = await createApiKey(prisma, {
+          owner: OrganizationId(emptyOrg.id),
+          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+          createdBy: UserId(keyCreator.id),
+          name: "Test API Key for Empty Org",
           predefinedKeys: {
             publicKey: `pk-lf-empty-${randomUUID().substring(0, 8)}`,
             secretKey: `sk-lf-empty-${randomUUID().substring(0, 8)}`,
@@ -1117,29 +1253,47 @@ describe("Public Organizations API", () => {
       });
       testOrgId = org.id;
 
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+
       // Create an organization API key for authentication
-      const orgApiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testOrgId,
-        note: "Org API Key for testing",
-        scope: "ORGANIZATION",
+      const orgApiKey = await createApiKey(prisma, {
+        owner: OrganizationId(testOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Org API Key for testing",
       });
       testApiKey = orgApiKey.publicKey;
       testApiSecretKey = orgApiKey.secretKey;
 
       // Create additional organization API keys to list
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testOrgId,
-        note: "First test key",
-        scope: "ORGANIZATION",
+      await createApiKey(prisma, {
+        owner: OrganizationId(testOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "First test key",
       });
 
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testOrgId,
-        note: "Second test key",
-        scope: "ORGANIZATION",
+      await createApiKey(prisma, {
+        owner: OrganizationId(testOrgId),
+        role: SystemRoleId("VIEWER"),
+        createdBy: UserId(keyCreator.id),
+        name: "Second test key",
+      });
+
+      const multiRoleKey = await createApiKey(prisma, {
+        owner: OrganizationId(testOrgId),
+        role: SystemRoleId("INGEST"),
+        createdBy: UserId(keyCreator.id),
+        name: "Multiple roles key",
+      });
+      await assignRole(prisma, {
+        tenantId: OrganizationId(testOrgId),
+        principalId: ApiKeyId(multiRoleKey.id),
+        roleId: SystemRoleId("VIEWER"),
+        ownerId: OrganizationId(testOrgId),
+        tags: [],
       });
 
       // Create second organization with its own API keys (for isolation test)
@@ -1152,11 +1306,11 @@ describe("Public Organizations API", () => {
       });
       secondOrgId = secondOrg.id;
 
-      const secondOrgKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: secondOrgId,
-        note: "Second org API key",
-        scope: "ORGANIZATION",
+      const secondOrgKey = await createApiKey(prisma, {
+        owner: OrganizationId(secondOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Second org API key",
       });
       secondOrgApiKey = secondOrgKey.publicKey;
       secondOrgApiSecretKey = secondOrgKey.secretKey;
@@ -1189,18 +1343,17 @@ describe("Public Organizations API", () => {
     });
 
     it("should successfully list organization API keys with valid org API key", async () => {
-      const response = await makeZodVerifiedAPICall(
-        ApiKeyListSchema,
+      const response = await makeAPICall<z.infer<typeof ApiKeyListSchema>>(
         "GET",
         `/api/public/organizations/apiKeys`,
         undefined,
         createBasicAuthHeader(testApiKey, testApiSecretKey),
-        200,
       );
 
       expect(response.status).toBe(200);
+      ApiKeyListSchema.parse(response.body);
       expect(Array.isArray(response.body.apiKeys)).toBe(true);
-      expect(response.body.apiKeys.length).toBe(3); // Auth key + 2 test keys
+      expect(response.body.apiKeys.length).toBe(4);
 
       // Verify the structure of returned API keys
       const apiKeys = response.body.apiKeys;
@@ -1213,6 +1366,31 @@ describe("Public Organizations API", () => {
       expect(apiKeys[0]).toHaveProperty("displaySecretKey");
 
       // Verify note values
+      for (const key of apiKeys) {
+        expect(key.name).toBe(key.note);
+        for (const field of [
+          "secretKey",
+          "hashedSecretKey",
+          "fastHashedSecretKey",
+          "roleAssignments",
+        ]) {
+          expect(key).not.toHaveProperty(field);
+        }
+      }
+      expect(apiKeys).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "Org API Key for testing",
+            role: "LEGACY_ORGANIZATION_API_KEY",
+          }),
+          expect.objectContaining({
+            name: "First test key",
+            role: "LEGACY_ORGANIZATION_API_KEY",
+          }),
+          expect.objectContaining({ name: "Second test key", role: "VIEWER" }),
+          expect.objectContaining({ name: "Multiple roles key", role: null }),
+        ]),
+      );
       const notes = apiKeys.map((key) => key.note);
       expect(notes).toContain("Org API Key for testing");
       expect(notes).toContain("First test key");
@@ -1250,11 +1428,14 @@ describe("Public Organizations API", () => {
         },
       });
 
-      const projectApiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: project.id,
-        note: "Project API key",
-        scope: "PROJECT",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      const projectApiKey = await createApiKey(prisma, {
+        owner: ProjectId(project.id),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Project API key",
       });
 
       const response = await makeAPICall<{ error: string }>(
