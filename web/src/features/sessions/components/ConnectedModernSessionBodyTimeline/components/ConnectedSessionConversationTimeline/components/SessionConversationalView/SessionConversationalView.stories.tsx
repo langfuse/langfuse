@@ -2617,8 +2617,16 @@ export const ExactMessageNavigation = meta.story({
       .getByLabelText("Session conversation timeline")
       .querySelector<HTMLElement>('[data-session-item-id="scroll-turn-2:0"]')!;
     await expect(
-      within(entry).getByRole("button", { name: "Hide tools: lookup · save" }),
-    ).toHaveAttribute("aria-expanded", "true");
+      within(entry).queryByRole("button", {
+        name: /^(Show|Hide) tools: lookup · save$/,
+      }),
+    ).not.toBeInTheDocument();
+    await expect(
+      within(entry).getByRole("button", { name: "Expand lookup" }),
+    ).toBeVisible();
+    await expect(
+      within(entry).getByRole("button", { name: "Expand save" }),
+    ).toBeVisible();
   },
 });
 
@@ -2949,6 +2957,8 @@ export const ConsecutiveToolGroups = meta.story({
       await expect(
         sidebar.getByRole("button", { name: `Tool: ${summary}` }),
       ).toBeInTheDocument();
+    }
+    for (const summary of ["5x tool_1", longNames]) {
       await expect(
         timeline.getByRole("button", { name: `Show tools: ${summary}` }),
       ).toHaveAttribute("aria-expanded", "false");
@@ -2957,16 +2967,25 @@ export const ConsecutiveToolGroups = meta.story({
       sidebar.getByRole("button", { name: "Tool: tool_a · tool_b" }),
     );
     await expect(
-      timeline.getByRole("button", { name: "Hide tools: tool_a · tool_b" }),
-    ).toHaveAttribute("aria-expanded", "true");
+      timeline.queryByRole("button", { name: "Show tools: tool_a · tool_b" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      timeline.getByRole("button", { name: "Expand tool_a" }),
+    ).toHaveAttribute("aria-expanded", "false");
     await expect(
       timeline.getByRole("button", { name: "Expand tool_b" }),
     ).toBeInTheDocument();
     await userEvent.click(
-      timeline.getByRole("button", { name: "Hide tools: tool_a · tool_b" }),
+      timeline.getByRole("button", { name: "Expand tool_a" }),
     );
     await expect(
-      timeline.getByRole("button", { name: "Show tools: tool_a · tool_b" }),
+      timeline.getByRole("button", { name: "Collapse tool_a" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(
+      timeline.getByRole("button", { name: "Collapse tool_a" }),
+    );
+    await expect(
+      timeline.getByRole("button", { name: "Expand tool_a" }),
     ).toHaveAttribute("aria-expanded", "false");
     await userEvent.type(sidebar.getByRole("textbox"), "tool_1");
     await expect(

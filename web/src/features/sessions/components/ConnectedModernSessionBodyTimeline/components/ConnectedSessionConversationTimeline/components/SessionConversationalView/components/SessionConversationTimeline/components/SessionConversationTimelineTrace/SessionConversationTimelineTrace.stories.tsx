@@ -471,15 +471,10 @@ export const KeepDifferentToolData = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", {
+      canvas.queryByRole("button", {
         name: /^Show tools:.*search_documentation.*get_customer_profile/,
       }),
-    ).toBeInTheDocument();
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: /^Show tools:.*search_documentation.*get_customer_profile/,
-      }),
-    );
+    ).not.toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Expand search_documentation" }),
     ).toBeInTheDocument();
