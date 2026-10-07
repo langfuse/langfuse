@@ -5,6 +5,11 @@ export declare class EarlyOtelBatch {
   dispose(): Promise<void>
   /** Only the compact document crosses into JS for legacy or TS direct processing. */
   json(): string
+  /**
+   * Transfer the compact document to JS and release its Rust copy immediately.
+   * Media metadata and source ranges remain owned by this batch for later reads.
+   */
+  takeJson(): string
   get media(): Array<ExtractedOtelMedia>
   /** Decode one upload at a time without keeping every decoded body alive. */
   mediaBody(index: number): Promise<Buffer>
@@ -129,4 +134,4 @@ export interface TopicClusteringSettings {
  * Snapshot bytes once on the JS thread. Only Rust-owned memory reaches the validator task;
  * retaining a mutable Node Buffer across an async read would not enforce that ownership.
  */
-export declare function validateOtelJson(bytes: Buffer, discoverMedia?: boolean | undefined | null): Promise<ValidatedOtelJson>
+export declare function validateOtelJson(bytes: Buffer): Promise<ValidatedOtelJson>

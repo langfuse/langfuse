@@ -69,17 +69,13 @@ pub enum MediaEncoding {
 #[derive(Debug, Eq, PartialEq)]
 pub struct MediaMetadata {
     pub source: MediaSource,
-    pub reference: String,
     pub content_type: String,
     pub sha256_hash: String,
 }
 
 impl MediaMetadata {
     fn retained_bytes(&self) -> usize {
-        std::mem::size_of::<Self>()
-            + self.reference.capacity()
-            + self.content_type.capacity()
-            + self.sha256_hash.capacity()
+        std::mem::size_of::<Self>() + self.content_type.capacity() + self.sha256_hash.capacity()
     }
 }
 
@@ -126,8 +122,9 @@ impl ExtractedMedia {
         super::encoding::decode_encoded_data(self.encoded_data(), self.encoding)
     }
 
-    /// Return the exact source representation for restoring one failed
-    /// occurrence after normalization.
+    /// Return the decoded media text for restoring one failed occurrence after
+    /// normalization. JSON-escaped candidates use their decoded spelling;
+    /// source-backed candidates retain the same bytes in the source document.
     pub fn original_value(&self) -> Result<String, MediaDecodeError> {
         String::from_utf8(self.encoded_data().to_vec())
             .map_err(|_| MediaDecodeError::InvalidSourceText)
@@ -181,15 +178,14 @@ pub struct EarlyMediaResult {
 #[derive(Debug, Eq, PartialEq)]
 pub struct ValidatedPayload {
     source: Arc<Vec<u8>>,
-    pub manifest: MediaManifest,
-    discovery_pending: bool,
+    pub manifest: Option<MediaManifest>,
     normalized: bool,
 }
 
 /// OTLP receivers sanitize invalid UTF-8 sequences to U+FFFD before processing:
 /// https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md#utf-8-string-handling
 /// All later offsets refer to the sanitized source. Valid UTF-8 keeps its allocation.
-pub fn validate(input: Vec<u8>, discover_media: bool) -> Result<ValidatedPayload, EarlyMediaError> {
+pub fn validate(input: Vec<u8>) -> Result<ValidatedPayload, EarlyMediaError> {
     let (input, normalized) = match String::from_utf8(input) {
         Ok(input) => (input, false),
         Err(error) => (String::from_utf8_lossy(error.as_bytes()).into_owned(), true),
@@ -197,10 +193,7 @@ pub fn validate(input: Vec<u8>, discover_media: bool) -> Result<ValidatedPayload
     super::json::validate_json(&input)?;
     Ok(ValidatedPayload {
         source: Arc::new(input.into_bytes()),
-        manifest: MediaManifest {
-            entries: Vec::new(),
-        },
-        discovery_pending: discover_media,
+        manifest: None,
         normalized,
     })
 }
@@ -211,20 +204,21 @@ impl ValidatedPayload {
     }
 
     pub(super) fn discover(&mut self) -> Result<(), EarlyMediaError> {
-        if self.discovery_pending {
-            self.manifest = super::scanner::discover(self.source.as_slice())?;
-            self.discovery_pending = false;
+        if self.manifest.is_none() {
+            self.manifest = Some(super::scanner::discover(self.source.as_slice())?);
         }
         Ok(())
     }
 
     /// Retained allocations, excluding allocator bookkeeping and shared-pointer headers.
     pub(crate) fn retained_bytes(&self) -> usize {
+        let Some(manifest) = &self.manifest else {
+            return self.source.capacity();
+        };
         let mut seen = HashSet::new();
         self.source.capacity()
-            + self.manifest.entries.capacity() * std::mem::size_of::<MediaManifestEntry>()
-            + self
-                .manifest
+            + manifest.entries.capacity() * std::mem::size_of::<MediaManifestEntry>()
+            + manifest
                 .entries
                 .iter()
                 .map(|entry| {
@@ -247,6 +241,7 @@ impl ValidatedPayload {
         let ValidatedPayload {
             source, manifest, ..
         } = self;
+        let manifest = manifest.expect("discovery initialized the manifest");
         if manifest.entries.is_empty() {
             // Discovery found no value to rewrite. Transfer
             // the one owned Vec instead of parsing and copying a large no-media
@@ -258,7 +253,7 @@ impl ValidatedPayload {
                 media: Vec::new(),
             });
         }
-        apply_edit_plan(source.as_slice(), manifest, Some(Arc::clone(&source)))
+        apply_edit_plan(source, manifest)
     }
 
     /// Consume the validation handle and transfer its original allocation to a
@@ -366,10 +361,10 @@ impl fmt::Display for MediaDecodeError {
 impl std::error::Error for MediaDecodeError {}
 
 fn apply_edit_plan(
-    input: &[u8],
+    source: Arc<Vec<u8>>,
     manifest: MediaManifest,
-    source: Option<Arc<Vec<u8>>>,
 ) -> Result<EarlyMediaResult, EarlyMediaError> {
+    let input = source.as_slice();
     validate_edit_plan(input, &manifest.entries)?;
     let mut nonce = [0; 16];
     getrandom::fill(&mut nonce).map_err(|_| EarlyMediaError::RandomnessUnavailable)?;
@@ -402,13 +397,10 @@ fn apply_edit_plan(
         cursor = entry.edit_range.end;
         let storage = match entry.storage {
             ManifestMediaStorage::Owned(bytes) => MediaStorage::Owned(bytes),
-            ManifestMediaStorage::SourceRange(range) => source
-                .as_ref()
-                .map(|source| MediaStorage::Source {
-                    bytes: Arc::clone(source),
-                    range: range.clone(),
-                })
-                .unwrap_or_else(|| MediaStorage::Owned(input[range].to_vec())),
+            ManifestMediaStorage::SourceRange(range) => MediaStorage::Source {
+                bytes: Arc::clone(&source),
+                range: range.clone(),
+            },
         };
         media.push(ExtractedMedia {
             metadata: entry.metadata,
@@ -420,9 +412,7 @@ fn apply_edit_plan(
     }
     compact_json.extend_from_slice(&input[cursor..]);
 
-    if let Some(source) = source.as_ref() {
-        detach_small_source_ranges(source, &mut media);
-    }
+    detach_small_source_ranges(&source, &mut media);
     Ok(EarlyMediaResult {
         compact_json,
         media,
@@ -433,6 +423,8 @@ pub(super) fn validate_edit_plan(
     input: &[u8],
     entries: &[MediaManifestEntry],
 ) -> Result<(), EarlyMediaError> {
+    // Compaction consumes entries in source order. Keeping this invariant here
+    // makes overlapping edits fail before any output or media handle is built.
     let mut previous_end = 0;
     for (index, entry) in entries.iter().enumerate() {
         if entry.edit_range.start < previous_end
@@ -470,9 +462,9 @@ fn write_reference(output: &mut Vec<u8>, metadata: &MediaMetadata, id: u128) {
     .expect("writing a media reference to a Vec cannot fail");
 }
 
-/// Avoid pinning a large input snapshot for a handful of small media ranges.
-/// Large source-backed media stays ranged so detaching it would create a
-/// second large copy.
+/// Detach small source-backed ranges when they account for less than half of
+/// the source snapshot. Keeping a source-backed range for a media-heavy
+/// document avoids replacing one large allocation with another large copy.
 fn detach_small_source_ranges(source: &Arc<Vec<u8>>, media: &mut [ExtractedMedia]) {
     if source.len() < SOURCE_DETACH_MIN_BYTES {
         return;

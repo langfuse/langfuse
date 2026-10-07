@@ -33,10 +33,31 @@ struct ScanState {
 
 #[derive(Default)]
 struct WalkStats {
+    #[cfg(test)]
     bytes_walked: usize,
     // Stack and candidate-index backing storage; owned keys, decoded strings,
     // and retained media are measured separately by retention tests/benchmarks.
+    #[cfg(test)]
     peak_index_bytes: usize,
+}
+
+impl WalkStats {
+    #[inline(always)]
+    fn add_bytes(&mut self, bytes: usize) {
+        #[cfg(test)]
+        {
+            self.bytes_walked = self.bytes_walked.saturating_add(bytes);
+        }
+        #[cfg(not(test))]
+        {
+            let _ = bytes;
+        }
+    }
+
+    #[cfg(test)]
+    fn update_peak(&mut self, bytes: usize) {
+        self.peak_index_bytes = self.peak_index_bytes.max(bytes);
+    }
 }
 
 /// Discover media only when extraction is requested. Validation happens in
@@ -75,7 +96,7 @@ fn discover_inner(
     // Most payloads have no media-specific markers. This packed-literal
     // prefilter avoids allocating a structural stack for those documents.
     if std::str::from_utf8(input).is_ok_and(|text| !may_contain_media_candidate(text)) {
-        stats.bytes_walked = stats.bytes_walked.saturating_add(input.len());
+        stats.add_bytes(input.len());
         return Ok(MediaManifest {
             entries: Vec::new(),
         });
@@ -181,7 +202,7 @@ impl ShapeKey {
 enum ShapeValue {
     String(Range<usize>),
     InlineObject {
-        fields: InlineFields,
+        fields: Box<InlineFields>,
         range: Range<usize>,
     },
     Other(Range<usize>),
@@ -189,15 +210,9 @@ enum ShapeValue {
 
 #[derive(Clone, Debug, Default)]
 struct InlineFields {
-    data: Option<InlineValue>,
-    mime_type: Option<InlineValue>,
-    mime_type_camel: Option<InlineValue>,
-}
-
-#[derive(Clone, Debug)]
-enum InlineValue {
-    String(Range<usize>),
-    Other(Range<usize>),
+    data: Option<ShapeValue>,
+    mime_type: Option<ShapeValue>,
+    mime_type_camel: Option<ShapeValue>,
 }
 
 impl InlineFields {
@@ -210,11 +225,11 @@ impl InlineFields {
     }
 }
 
-fn to_inline_value(value: &ShapeValue) -> InlineValue {
+fn to_inline_value(value: &ShapeValue) -> ShapeValue {
     match value {
-        ShapeValue::String(range) => InlineValue::String(range.clone()),
+        ShapeValue::String(range) => ShapeValue::String(range.clone()),
         ShapeValue::InlineObject { range, .. } | ShapeValue::Other(range) => {
-            InlineValue::Other(range.clone())
+            ShapeValue::Other(range.clone())
         }
     }
 }
@@ -280,14 +295,7 @@ struct MaskOperation {
     clear_mask: u8,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ContainerKind {
-    Object,
-    Array,
-}
-
-struct WalkFrame<'a> {
-    kind: ContainerKind,
+struct WalkFrame {
     start: usize,
     cursor: usize,
     first_child: bool,
@@ -295,6 +303,10 @@ struct WalkFrame<'a> {
     modes: [MediaScanMode; 2],
     is_envelope_decider: bool,
     is_root_array: bool,
+    kind: ContainerKind,
+}
+
+struct ObjectFrame<'a> {
     has_envelope_field: bool,
     current_shape_key: Option<ShapeKey>,
     current_key: Option<Cow<'a, str>>,
@@ -303,9 +315,15 @@ struct WalkFrame<'a> {
     last_key_candidates: HashMap<String, Range<usize>>,
 }
 
-impl<'a> WalkFrame<'a> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ContainerKind {
+    Object,
+    Array,
+}
+
+impl WalkFrame {
     fn new(
-        input: &'a [u8],
+        input: &[u8],
         start: usize,
         candidate_start: usize,
         modes: [MediaScanMode; 2],
@@ -318,7 +336,6 @@ impl<'a> WalkFrame<'a> {
             _ => unreachable!("container frame starts with an opening delimiter"),
         };
         Self {
-            kind,
             start,
             cursor: start + 1,
             first_child: true,
@@ -326,18 +343,19 @@ impl<'a> WalkFrame<'a> {
             modes,
             is_envelope_decider,
             is_root_array,
-            has_envelope_field: false,
-            current_shape_key: None,
-            current_key: None,
-            current_candidate_start: candidate_start,
-            provider_fields: None,
-            last_key_candidates: HashMap::new(),
+            kind,
         }
     }
 
-    fn adopt(&mut self, summary: ValueSummary) {
+    fn adopt<'a>(&mut self, summary: ValueSummary, object_states: &mut Vec<ObjectFrame<'a>>) {
         self.cursor = summary.end;
-        if let Some(key) = self.current_shape_key.take() {
+        if self.kind != ContainerKind::Object {
+            return;
+        }
+        let object = object_states
+            .last_mut()
+            .expect("every open object frame has object state");
+        if let Some(key) = object.current_shape_key.take() {
             let value = match summary.shape {
                 ValueShape::String(range) => ShapeValue::String(range),
                 ValueShape::Object { range, fields }
@@ -346,7 +364,7 @@ impl<'a> WalkFrame<'a> {
                     fields.map_or_else(
                         || ShapeValue::Other(range.clone()),
                         |fields| ShapeValue::InlineObject {
-                            fields: InlineFields::from_provider(&fields),
+                            fields: Box::new(InlineFields::from_provider(&fields)),
                             range: range.clone(),
                         },
                     )
@@ -355,7 +373,8 @@ impl<'a> WalkFrame<'a> {
                     ShapeValue::Other(range)
                 }
             };
-            self.provider_fields
+            object
+                .provider_fields
                 .get_or_insert_with(|| Box::new(ProviderFields::default()))
                 .set(key, value);
         }
@@ -393,7 +412,8 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
 
     fn run(&mut self) -> Result<usize, EarlyMediaError> {
         let input = self.input;
-        let mut stack: Vec<WalkFrame<'a>> = Vec::new();
+        let mut stack: Vec<WalkFrame> = Vec::new();
+        let mut object_states: Vec<ObjectFrame<'a>> = Vec::new();
         let root_start = measured_skip_whitespace(input, 0, self.stats);
         let root_is_object = self.allow_envelope && input.get(root_start) == Some(&b'{');
         let root_is_array = self.allow_envelope && input.get(root_start) == Some(&b'[');
@@ -413,25 +433,35 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
             if let Some((start, modes, is_envelope_decider, is_root_array)) = next_value.take() {
                 match input.get(start).copied() {
                     Some(b'{') | Some(b'[') => {
-                        stack.push(WalkFrame::new(
+                        let frame = WalkFrame::new(
                             input,
                             start,
                             self.candidates.len(),
                             modes,
                             is_envelope_decider,
                             is_root_array,
-                        ));
-                        self.update_peak(&stack);
+                        );
+                        if frame.kind == ContainerKind::Object {
+                            object_states.push(ObjectFrame {
+                                has_envelope_field: false,
+                                current_shape_key: None,
+                                current_key: None,
+                                current_candidate_start: frame.candidate_start,
+                                provider_fields: None,
+                                last_key_candidates: HashMap::new(),
+                            });
+                        }
+                        stack.push(frame);
+                        self.update_peak(&stack, &object_states);
                     }
                     Some(b'"') => {
                         let end = string_end(input, start);
-                        self.stats.bytes_walked =
-                            self.stats.bytes_walked.saturating_add(end - start);
+                        self.stats.add_bytes(end - start);
                         let range = start..end;
                         let raw = input
                             .get(start + 1..end.saturating_sub(1))
                             .unwrap_or_default();
-                        self.stats.bytes_walked = self.stats.bytes_walked.saturating_add(raw.len());
+                        self.stats.add_bytes(raw.len());
                         if std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate) {
                             let mask = payload_mask(modes);
                             if mask != 0 {
@@ -439,7 +469,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                                     mask,
                                     kind: PendingKind::String(range.clone()),
                                 });
-                                self.update_peak(&stack);
+                                self.update_peak(&stack, &object_states);
                             }
                         }
                         completed = Some(ValueSummary {
@@ -467,25 +497,31 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                 let mut duplicate_range = None;
                 if let Some(parent) = stack.last_mut() {
                     let child_end = self.candidates.len();
-                    if let Some(key) = parent.current_key.take() {
-                        let candidate_range = parent.current_candidate_start..child_end;
-                        if let Some(previous) = parent.last_key_candidates.remove(key.as_ref()) {
-                            duplicate_range = Some(previous);
-                        }
-                        if candidate_range.start < candidate_range.end {
-                            parent
-                                .last_key_candidates
-                                .insert(key.into_owned(), candidate_range);
+                    if parent.kind == ContainerKind::Object {
+                        let object = object_states
+                            .last_mut()
+                            .expect("every open object frame has object state");
+                        if let Some(key) = object.current_key.take() {
+                            let candidate_range = object.current_candidate_start..child_end;
+                            if let Some(previous) = object.last_key_candidates.remove(key.as_ref())
+                            {
+                                duplicate_range = Some(previous);
+                            }
+                            if candidate_range.start < candidate_range.end {
+                                object
+                                    .last_key_candidates
+                                    .insert(key.into_owned(), candidate_range);
+                            }
                         }
                     }
-                    parent.adopt(summary);
+                    parent.adopt(summary, &mut object_states);
                 } else {
                     return Ok(summary.end);
                 }
                 if let Some(previous) = duplicate_range {
                     self.add_mask_operation(previous.start, previous.end, 0b11);
                 }
-                self.update_peak(&stack);
+                self.update_peak(&stack, &object_states);
             }
 
             let Some(frame) = stack.last_mut() else {
@@ -494,7 +530,13 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                     message: "missing JSON value",
                 });
             };
-            match next_frame_value(input, frame, self.stats, self.candidates.len())? {
+            match next_frame_value(
+                input,
+                frame,
+                &mut object_states,
+                self.stats,
+                self.candidates.len(),
+            )? {
                 NextValue::Child {
                     start,
                     modes,
@@ -502,31 +544,51 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                     is_root_array,
                 } => {
                     next_value = Some((start, modes, is_envelope_decider, is_root_array));
-                    self.update_peak(&stack);
+                    self.update_peak(&stack, &object_states);
                 }
                 NextValue::Closed(end) => {
                     let frame = stack.pop().expect("the current frame is on the stack");
-                    let shape = self.close_frame(frame, end);
+                    let shape = self.close_frame(frame, end, &mut object_states);
                     completed = Some(ValueSummary { end, shape });
                 }
             }
         }
     }
 
-    fn close_frame(&mut self, frame: WalkFrame<'_>, end: usize) -> ValueShape {
-        if frame.kind != ContainerKind::Object {
-            return ValueShape::Other(frame.start..end);
+    fn close_frame(
+        &mut self,
+        frame: WalkFrame,
+        end: usize,
+        object_states: &mut Vec<ObjectFrame<'_>>,
+    ) -> ValueShape {
+        let WalkFrame {
+            start,
+            candidate_start,
+            modes,
+            is_envelope_decider,
+            kind,
+            ..
+        } = frame;
+        if kind != ContainerKind::Object {
+            return ValueShape::Other(start..end);
         }
+        let mut object = object_states
+            .pop()
+            .expect("every closed object frame has object state");
         let candidate_end = self.candidates.len();
-        let provider_fields = frame.provider_fields.as_deref();
-        if frame.is_envelope_decider {
-            let selected_bit = if frame.has_envelope_field { 0b10 } else { 0b01 };
-            self.add_mask_operation(frame.candidate_start, candidate_end, (!selected_bit) & 0b11);
+        let provider_fields = object.provider_fields.as_deref();
+        if is_envelope_decider {
+            let selected_bit = if object.has_envelope_field {
+                0b10
+            } else {
+                0b01
+            };
+            self.add_mask_operation(candidate_start, candidate_end, (!selected_bit) & 0b11);
             if selected_bit == 0b01 {
                 if let Some(shape) =
                     provider_fields.and_then(|fields| structured_shape(self.input, fields))
                 {
-                    self.add_mask_operation(frame.candidate_start, candidate_end, selected_bit);
+                    self.add_mask_operation(candidate_start, candidate_end, selected_bit);
                     self.candidates.push(PendingCandidate {
                         mask: selected_bit,
                         kind: PendingKind::Structured {
@@ -538,12 +600,12 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                 }
             }
         } else {
-            let active = payload_mask(frame.modes);
+            let active = payload_mask(modes);
             if active != 0 {
                 if let Some(shape) =
                     provider_fields.and_then(|fields| structured_shape(self.input, fields))
                 {
-                    self.add_mask_operation(frame.candidate_start, candidate_end, active);
+                    self.add_mask_operation(candidate_start, candidate_end, active);
                     self.candidates.push(PendingCandidate {
                         mask: active,
                         kind: PendingKind::Structured {
@@ -557,8 +619,8 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
         }
         self.update_peak_from_capacities(0);
         ValueShape::Object {
-            range: frame.start..end,
-            fields: frame.provider_fields,
+            range: start..end,
+            fields: object.provider_fields.take(),
         }
     }
 
@@ -572,67 +634,80 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
         }
     }
 
-    fn update_peak(&mut self, stack: &Vec<WalkFrame<'_>>) {
-        let stack_bytes = stack
-            .capacity()
-            .saturating_mul(std::mem::size_of::<WalkFrame>());
-        let candidate_bytes = self
-            .candidates
-            .capacity()
-            .saturating_mul(std::mem::size_of::<PendingCandidate>());
-        let operation_bytes = self
-            .mask_operations
-            .capacity()
-            .saturating_mul(std::mem::size_of::<MaskOperation>());
-        self.stats.peak_index_bytes = self.stats.peak_index_bytes.max(
-            stack_bytes
-                .saturating_add(candidate_bytes)
-                .saturating_add(operation_bytes),
-        );
+    fn update_peak(&mut self, stack: &Vec<WalkFrame>, object_states: &Vec<ObjectFrame<'_>>) {
+        #[cfg(not(test))]
+        let _ = (stack, object_states);
+        #[cfg(test)]
+        {
+            let stack_bytes = stack
+                .capacity()
+                .saturating_mul(std::mem::size_of::<WalkFrame>());
+            let candidate_bytes = self
+                .candidates
+                .capacity()
+                .saturating_mul(std::mem::size_of::<PendingCandidate>());
+            let operation_bytes = self
+                .mask_operations
+                .capacity()
+                .saturating_mul(std::mem::size_of::<MaskOperation>());
+            let object_state_bytes = object_states
+                .capacity()
+                .saturating_mul(std::mem::size_of::<ObjectFrame>());
+            self.stats.update_peak(
+                stack_bytes
+                    .saturating_add(candidate_bytes)
+                    .saturating_add(operation_bytes)
+                    .saturating_add(object_state_bytes),
+            );
+        }
     }
 
     fn update_peak_from_capacities(&mut self, stack_bytes: usize) {
-        let candidate_bytes = self
-            .candidates
-            .capacity()
-            .saturating_mul(std::mem::size_of::<PendingCandidate>());
-        let operation_bytes = self
-            .mask_operations
-            .capacity()
-            .saturating_mul(std::mem::size_of::<MaskOperation>());
-        self.stats.peak_index_bytes = self.stats.peak_index_bytes.max(
-            stack_bytes
-                .saturating_add(candidate_bytes)
-                .saturating_add(operation_bytes),
-        );
+        #[cfg(test)]
+        {
+            let candidate_bytes = self
+                .candidates
+                .capacity()
+                .saturating_mul(std::mem::size_of::<PendingCandidate>());
+            let operation_bytes = self
+                .mask_operations
+                .capacity()
+                .saturating_mul(std::mem::size_of::<MaskOperation>());
+            self.stats.update_peak(
+                stack_bytes
+                    .saturating_add(candidate_bytes)
+                    .saturating_add(operation_bytes),
+            );
+        }
+        #[cfg(not(test))]
+        let _ = stack_bytes;
     }
 }
 
 fn next_frame_value<'a>(
     input: &'a [u8],
-    frame: &mut WalkFrame<'a>,
+    frame: &mut WalkFrame,
+    object_states: &mut Vec<ObjectFrame<'a>>,
     stats: &mut WalkStats,
     candidate_count: usize,
 ) -> Result<NextValue, EarlyMediaError> {
     let mut cursor = measured_skip_whitespace(input, frame.cursor, stats);
-    let closing = match frame.kind {
-        ContainerKind::Object => b'}',
-        ContainerKind::Array => b']',
-    };
+    let is_array = frame.kind == ContainerKind::Array;
+    let closing = if is_array { b']' } else { b'}' };
     if frame.first_child {
         if input.get(cursor) == Some(&closing) {
-            stats.bytes_walked += 1;
+            stats.add_bytes(1);
             return Ok(NextValue::Closed(cursor + 1));
         }
     } else {
         match input.get(cursor).copied() {
             Some(b',') => {
-                stats.bytes_walked += 1;
+                stats.add_bytes(1);
                 cursor += 1;
                 cursor = measured_skip_whitespace(input, cursor, stats);
             }
             Some(byte) if byte == closing => {
-                stats.bytes_walked += 1;
+                stats.add_bytes(1);
                 return Ok(NextValue::Closed(cursor + 1));
             }
             _ => {
@@ -644,63 +719,69 @@ fn next_frame_value<'a>(
         }
     }
 
-    let (value_start, child_modes, shape_key, current_key) = match frame.kind {
-        ContainerKind::Array => (cursor, frame.modes, None, None),
-        ContainerKind::Object => {
-            if input.get(cursor) != Some(&b'"') {
-                return Err(EarlyMediaError::InvalidJson {
-                    offset: cursor,
-                    message: "expected object key",
-                });
-            }
-            let key_end = string_end(input, cursor);
-            stats.bytes_walked = stats.bytes_walked.saturating_add(key_end - cursor);
-            let key = decode_json_string(input, cursor..key_end);
-            let shape_key = key.as_deref().and_then(ShapeKey::from_name);
-            let mut child_modes = frame.modes;
-            for (index, mode) in frame.modes.iter().enumerate() {
-                child_modes[index] = match key.as_deref() {
-                    Some(key) => media_scan_mode_for_field(*mode, key),
-                    // An undecodable key cannot participate in duplicate-key
-                    // resolution; leave its value inline rather than extract
-                    // a potentially shadowed occurrence.
-                    None => MediaScanMode::Disabled,
-                };
-            }
-            if key.as_deref().is_some_and(is_otel_envelope_field) {
-                frame.has_envelope_field = true;
-            }
-            let mut colon = measured_skip_whitespace(input, key_end, stats);
-            if input.get(colon) != Some(&b':') {
-                return Err(EarlyMediaError::InvalidJson {
-                    offset: colon,
-                    message: "expected object colon",
-                });
-            }
-            stats.bytes_walked += 1;
-            colon += 1;
-            (
-                measured_skip_whitespace(input, colon, stats),
-                child_modes,
-                shape_key,
-                key,
-            )
+    let (value_start, child_modes, shape_key, current_key) = if is_array {
+        (cursor, frame.modes, None, None)
+    } else {
+        let object = object_states
+            .last_mut()
+            .expect("every open object frame has object state");
+        if input.get(cursor) != Some(&b'"') {
+            return Err(EarlyMediaError::InvalidJson {
+                offset: cursor,
+                message: "expected object key",
+            });
         }
+        let key_end = string_end(input, cursor);
+        stats.add_bytes(key_end - cursor);
+        let key = decode_json_string(input, cursor..key_end);
+        let shape_key = key.as_deref().and_then(ShapeKey::from_name);
+        let mut child_modes = frame.modes;
+        for (index, mode) in frame.modes.iter().enumerate() {
+            child_modes[index] = match key.as_deref() {
+                Some(key) => media_scan_mode_for_field(*mode, key),
+                // An undecodable key cannot participate in duplicate-key
+                // resolution; leave its value inline rather than extract
+                // a potentially shadowed occurrence.
+                None => MediaScanMode::Disabled,
+            };
+        }
+        if key.as_deref().is_some_and(is_otel_envelope_field) {
+            object.has_envelope_field = true;
+        }
+        let mut colon = measured_skip_whitespace(input, key_end, stats);
+        if input.get(colon) != Some(&b':') {
+            return Err(EarlyMediaError::InvalidJson {
+                offset: colon,
+                message: "expected object colon",
+            });
+        }
+        stats.add_bytes(1);
+        colon += 1;
+        (
+            measured_skip_whitespace(input, colon, stats),
+            child_modes,
+            shape_key,
+            key,
+        )
     };
 
     frame.first_child = false;
     frame.cursor = value_start;
-    frame.current_shape_key = shape_key;
-    frame.current_key = current_key;
-    frame.current_candidate_start = candidate_count;
-    if shape_key.is_some() {
-        frame
-            .provider_fields
-            .get_or_insert_with(|| Box::new(ProviderFields::default()));
+    if !is_array {
+        let object = object_states
+            .last_mut()
+            .expect("every open object frame has object state");
+        object.current_shape_key = shape_key;
+        object.current_key = current_key;
+        object.current_candidate_start = candidate_count;
+        if shape_key.is_some() {
+            object
+                .provider_fields
+                .get_or_insert_with(|| Box::new(ProviderFields::default()));
+        }
     }
-    let is_envelope_decider = frame.kind == ContainerKind::Array
-        && frame.is_root_array
-        && input.get(value_start) == Some(&b'{');
+    let is_envelope_decider =
+        is_array && frame.is_root_array && input.get(value_start) == Some(&b'{');
     let modes = if is_envelope_decider {
         [MediaScanMode::Payload, MediaScanMode::Envelope]
     } else {
@@ -716,7 +797,7 @@ fn next_frame_value<'a>(
 
 fn measured_skip_whitespace(input: &[u8], mut cursor: usize, stats: &mut WalkStats) -> usize {
     while matches!(input.get(cursor), Some(b' ' | b'\n' | b'\r' | b'\t')) {
-        stats.bytes_walked += 1;
+        stats.add_bytes(1);
         cursor += 1;
     }
     cursor
@@ -727,7 +808,7 @@ fn primitive_end(input: &[u8], start: usize, stats: &mut WalkStats) -> usize {
         .iter()
         .position(|byte| matches!(*byte, b',' | b']' | b'}' | b' ' | b'\n' | b'\r' | b'\t'))
         .map_or(input.len(), |length| start + length);
-    stats.bytes_walked = stats.bytes_walked.saturating_add(end - start);
+    stats.add_bytes(end - start);
     end
 }
 
@@ -836,7 +917,7 @@ fn structured_gemini_shape(input: &[u8], fields: &ProviderFields) -> Option<Stru
         let Some(ShapeValue::InlineObject { fields: inline, .. }) = fields.get(inline_key) else {
             continue;
         };
-        let Some(data_range) = inline.data.as_ref().and_then(inline_string_range) else {
+        let Some(data_range) = inline.data.as_ref().and_then(shape_string_range) else {
             continue;
         };
         let snake_is_null = inline
@@ -848,7 +929,9 @@ fn structured_gemini_shape(input: &[u8], fields: &ProviderFields) -> Option<Stru
         } else {
             inline.mime_type_camel.as_ref()
         };
-        let content_type = selected_type.and_then(|value| inline_field_string(input, value))?;
+        let Some(content_type) = selected_type.and_then(|value| field_string(input, value)) else {
+            continue;
+        };
         return Some(StructuredCandidate {
             token_range: data_range,
             content_type: content_type.into_owned(),
@@ -878,26 +961,12 @@ fn field_string<'a>(input: &'a [u8], value: &ShapeValue) -> Option<Cow<'a, str>>
     }
 }
 
-fn inline_string_range(value: &InlineValue) -> Option<Range<usize>> {
+fn value_starts_with_null(input: &[u8], value: &ShapeValue) -> bool {
     match value {
-        InlineValue::String(range) => Some(range.clone()),
-        InlineValue::Other(_) => None,
-    }
-}
-
-fn inline_field_string<'a>(input: &'a [u8], value: &InlineValue) -> Option<Cow<'a, str>> {
-    match value {
-        InlineValue::String(range) => decode_json_string(input, range.clone()),
-        InlineValue::Other(_) => None,
-    }
-}
-
-fn value_starts_with_null(input: &[u8], value: &InlineValue) -> bool {
-    match value {
-        InlineValue::Other(range) => input
+        ShapeValue::Other(range) => input
             .get(range.clone())
             .is_some_and(|bytes| bytes.starts_with(b"null")),
-        InlineValue::String(_) => false,
+        ShapeValue::String(_) | ShapeValue::InlineObject { .. } => false,
     }
 }
 
@@ -1091,7 +1160,6 @@ impl MediaDiscovery<'_, '_, '_> {
         } else {
             let metadata = Arc::new(MediaMetadata {
                 source,
-                reference: reference.clone(),
                 content_type: content_type.to_owned(),
                 sha256_hash,
             });

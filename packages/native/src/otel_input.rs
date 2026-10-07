@@ -1,9 +1,9 @@
 //! Owned raw input and extracted-media handles shared by the TS and Rust paths.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use napi::bindgen_prelude::*;
-use napi::JsString;
+use napi::{JsError, JsString};
 use napi_derive::napi;
 
 use crate::native_memory::NativeMemory;
@@ -67,9 +67,10 @@ impl ValidatedOtelJson {
                     media: Vec::new(),
                 }
             };
-            let mut batch = ExtractedBatch {
-                json: String::from_utf8(result.compact_json)
-                    .map_err(|_| Error::new("ERR_OTEL_INTERNAL", "compacted JSON is not UTF-8"))?,
+            let batch = ExtractedBatch {
+                json: Mutex::new(Some(String::from_utf8(result.compact_json).map_err(
+                    |_| Error::new("ERR_OTEL_INTERNAL", "compacted JSON is not UTF-8"),
+                )?)),
                 media: result.media,
                 _memory: memory,
             };
@@ -82,7 +83,7 @@ impl ValidatedOtelJson {
 }
 
 pub(crate) struct ExtractedBatch {
-    pub(crate) json: String,
+    pub(crate) json: Mutex<Option<String>>,
     pub(crate) media: Vec<ExtractedMedia>,
     _memory: NativeMemory,
 }
@@ -90,11 +91,23 @@ pub(crate) struct ExtractedBatch {
 impl ExtractedBatch {
     fn retained_bytes(&self) -> usize {
         let mut seen = std::collections::HashSet::new();
-        self.json.capacity()
+        self.json
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map_or(0, String::capacity)
             + self.media.capacity() * std::mem::size_of::<ExtractedMedia>()
             + self.media.iter().map(|media| media.retained_bytes(&mut seen)).sum::<usize>()
             // Source-backed entries all share the batch's one source allocation.
             + self.media.iter().find_map(ExtractedMedia::source_capacity).unwrap_or(0)
+    }
+
+    fn take_json(&self) -> std::result::Result<String, Error<&'static str>> {
+        self.json
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .ok_or_else(|| Error::new("ERR_OTEL_JSON_CONSUMED", "OTEL JSON already consumed"))
     }
 }
 
@@ -104,12 +117,16 @@ pub struct EarlyOtelBatch {
 }
 
 impl EarlyOtelBatch {
-    pub(crate) fn data(&self) -> Result<Arc<ExtractedBatch>> {
+    pub(crate) fn data(&self) -> std::result::Result<Arc<ExtractedBatch>, Error<&'static str>> {
         self.inner
             .as_ref()
             .map(Arc::clone)
-            .ok_or_else(|| Error::from_reason("OTEL input already disposed"))
+            .ok_or_else(|| Error::new("ERR_OTEL_CLOSED", "OTEL input already disposed"))
     }
+}
+
+fn to_js_error(env: Env, error: Error<&'static str>) -> Error {
+    Error::from(JsError::from(error).into_unknown(env))
 }
 
 #[napi(object)]
@@ -137,14 +154,38 @@ impl EarlyOtelBatch {
     /// Only the compact document crosses into JS for legacy or TS direct processing.
     #[napi(ts_return_type = "string")]
     pub fn json<'env>(&self, env: &'env Env) -> Result<JsString<'env>> {
-        let data = self.data()?;
-        env.create_string(&data.json)
+        let data = self.data().map_err(|error| to_js_error(*env, error))?;
+        let json = data
+            .json
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let json = json.as_ref().ok_or_else(|| {
+            to_js_error(
+                *env,
+                Error::new("ERR_OTEL_JSON_CONSUMED", "OTEL JSON already consumed"),
+            )
+        })?;
+        env.create_string(json)
+    }
+
+    /// Transfer the compact document to JS and release its Rust copy immediately.
+    /// Media metadata and source ranges remain owned by this batch for later reads.
+    #[napi(js_name = "takeJson", ts_return_type = "string")]
+    pub fn take_json<'env>(&self, env: &'env Env) -> Result<JsString<'env>> {
+        let data = self.data().map_err(|error| to_js_error(*env, error))?;
+        let json = data.take_json().map_err(|error| to_js_error(*env, error))?;
+        let retained = json.capacity();
+        let result = env.create_string(&json);
+        drop(json);
+        data._memory.release(retained);
+        result
     }
 
     #[napi(getter)]
-    pub fn media(&self) -> Result<Vec<ExtractedOtelMedia>> {
+    pub fn media(&self, env: Env) -> Result<Vec<ExtractedOtelMedia>> {
         Ok(self
-            .data()?
+            .data()
+            .map_err(|error| to_js_error(env, error))?
             .media
             .iter()
             .enumerate()
@@ -198,12 +239,11 @@ impl EarlyOtelBatch {
 pub fn validate_otel_json(
     env: Env,
     bytes: Buffer,
-    discover_media: Option<bool>,
 ) -> Result<AsyncTask<OwnedTask<ValidatedOtelJson>>> {
     let bytes = bytes.to_vec();
-    let mut memory = NativeMemory::new(&env, bytes.capacity())?;
+    let memory = NativeMemory::new(&env, bytes.capacity())?;
     Ok(OwnedTask::run("validate", move || {
-        let payload = otel_media::validate(bytes, discover_media.unwrap_or(true))
+        let payload = otel_media::validate(bytes)
             .map_err(|error| Error::new(error.code(), error.to_string()))?;
         memory.resize(payload.retained_bytes());
         Ok(ValidatedOtelJson {

@@ -10,9 +10,9 @@ use serde_json::{json, Value};
 fn validate_measured(
     input: Vec<u8>,
 ) -> Result<(super::ValidatedPayload, usize, usize, usize), EarlyMediaError> {
-    let mut validated = validate(input.clone(), false)?;
+    let mut validated = validate(input.clone())?;
     let (manifest, visited, index_bytes, unique) = discover_measured(&input)?;
-    validated.manifest = manifest;
+    validated.manifest = Some(manifest);
     Ok((validated, visited, index_bytes, unique))
 }
 
@@ -108,7 +108,15 @@ fn validates_and_extracts_beyond_the_former_parser_depth_limit() {
         let array = format!("{}\"{uri}\"{}", "[".repeat(depth), "]".repeat(depth));
         let object = format!("{}\"{uri}\"{}", "{\"x\":".repeat(depth), "}".repeat(depth));
         for input in [array, object] {
-            let result = extract_media(input.as_bytes()).expect("deep JSON remains native");
+            let (validated, _, index_bytes, _) =
+                validate_measured(input.as_bytes().to_vec()).expect("deep JSON remains native");
+            // Array frames must not reserve object-only maps and provider state.
+            assert!(
+                index_bytes <= 24 * input.len(),
+                "{index_bytes} bytes for {} input bytes",
+                input.len()
+            );
+            let result = validated.compact().unwrap();
             assert_eq!(result.media.len(), 1);
             assert_eq!(result.media[0].decode().unwrap(), b"deep");
         }
@@ -158,6 +166,16 @@ fn recognizes_provider_shapes_and_python_bytes() {
     assert_eq!(result.media[0].kind, MediaPayloadKind::Vertex);
     assert_eq!(result.media[1].kind, MediaPayloadKind::AiSdkV6);
     assert_eq!(result.media[1].decode().unwrap(), b"abcd");
+}
+
+#[test]
+fn continues_to_the_next_gemini_shape_when_one_is_not_decodable() {
+    let input = br#"{"inline_data":{"mime_type":1,"data":"aGk="},"inlineData":{"mimeType":"image/png","data":"aGk="}}"#;
+    let result = extract_media(input).expect("valid Gemini alternatives");
+
+    assert_eq!(result.media.len(), 1);
+    assert_eq!(result.media[0].kind, MediaPayloadKind::Gemini);
+    assert_eq!(result.media[0].decode().unwrap(), b"hi");
 }
 
 #[test]
@@ -222,7 +240,7 @@ fn media_prefilter_is_conservative_for_structured_and_escaped_candidates() {
 fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
     let input = br#"{"traceId":{"type":"Buffer","data":[1,2,3]},"text":"plain"}"#;
     let validated = validate_and_discover(input.to_vec()).expect("valid JSON");
-    assert!(validated.manifest.entries.is_empty());
+    assert!(validated.manifest.as_ref().unwrap().entries.is_empty());
     assert_eq!(validated.into_source(), input);
 
     let mut invalid = input.to_vec();
@@ -237,18 +255,13 @@ fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
 fn explicit_validation_skips_media_discovery() {
     let uri = data_uri(b"validation-only");
     let input = format!(r#"{{"input":"{uri}"}}"#);
-    for enabled in [false, true] {
-        let validated = validate(input.as_bytes().to_vec(), enabled).expect("valid JSON");
-        assert!(validated.manifest.entries.is_empty());
-        let result = validated.compact().unwrap();
-        if enabled {
-            assert_eq!(result.media.len(), 1);
-            assert_eq!(result.media[0].decode().unwrap(), b"validation-only");
-        } else {
-            assert!(result.media.is_empty());
-            assert_eq!(result.compact_json, input.as_bytes());
-        }
-    }
+    let validated = validate(input.as_bytes().to_vec()).expect("valid JSON");
+    assert!(validated.manifest.is_none());
+    assert_eq!(validated.into_source(), input.as_bytes());
+
+    let result = validate(input.into_bytes()).unwrap().compact().unwrap();
+    assert_eq!(result.media.len(), 1);
+    assert_eq!(result.media[0].decode().unwrap(), b"validation-only");
 }
 
 #[test]
@@ -339,7 +352,7 @@ fn preserves_large_existing_media_references_without_a_resource_fallback() {
     for text in [reference, references.join(" ")] {
         let input = format!(r#"{{"existing":"{text}"}}"#);
         let (validated, scanned, _, _) = validate_measured(input.as_bytes().to_vec()).unwrap();
-        assert!(validated.manifest.entries.is_empty());
+        assert!(validated.manifest.as_ref().unwrap().entries.is_empty());
         assert!(scanned <= 3 * input.len());
         assert!(validated.retained_bytes() <= 3 * input.len());
         let result = validated.compact().unwrap();
@@ -401,7 +414,7 @@ fn unique_and_escaped_candidates_have_input_proportional_retention() {
         assert!(scanned <= 3 * input.len());
         // Unique tiny bodies pay one descriptor each. Escaped bodies may own
         // decoded text, but must not retain a whole decoded document per entry.
-        assert!(validated.retained_bytes() <= 12 * input.len());
+        assert!(validated.retained_bytes() <= 8 * input.len());
         let result = validated.compact().unwrap();
         for (index, media) in result.media.iter().enumerate() {
             assert_eq!(media.decode().unwrap(), (index as u32).to_le_bytes());

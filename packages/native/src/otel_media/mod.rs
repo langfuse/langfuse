@@ -7,6 +7,8 @@
 //!
 //! Temporary references identify occurrences, so moving a value during normalization
 //! preserves its exact restoration target. Content hashes deduplicate uploads instead.
+//! Discovery intentionally supersets the legacy detector; the consumer resolves
+//! eligibility after normalization and restores ineligible occurrences before side effects.
 //! Direct and nested candidates retain ranges into one source allocation when
 //! escaping leaves their text unchanged; escaped candidate text needs an owned copy.
 
@@ -19,7 +21,7 @@ mod scanner;
 pub use payload::{validate, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
 #[cfg(test)]
 pub fn validate_and_discover(input: Vec<u8>) -> Result<ValidatedPayload, payload::EarlyMediaError> {
-    let mut validated = validate(input, true)?;
+    let mut validated = validate(input)?;
     validated.discover()?;
     Ok(validated)
 }
