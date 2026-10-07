@@ -66,9 +66,9 @@ const tabsTriggerVariants = cva(
         inset:
           "relative z-1 min-w-0 rounded-sm dark:data-[state=active]:text-primary",
         underline:
-          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-4 text-base",
+          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-4 text-sm",
         navigation:
-          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-3 text-base",
+          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-3 text-sm",
       },
       size: {
         sm: "px-2 text-xs",
