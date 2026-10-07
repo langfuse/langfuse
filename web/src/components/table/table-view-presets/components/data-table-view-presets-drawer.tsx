@@ -95,6 +95,7 @@ const copyPermalinkAndToast = (href: string) => {
   copyTextToClipboard(href)
     .then(() =>
       showSuccessToast({
+        operation: "saved_view.permalink_copy",
         title: "Permalink copied to clipboard",
         description: "You can now share the permalink with others",
       }),

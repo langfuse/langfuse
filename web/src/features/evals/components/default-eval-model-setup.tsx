@@ -22,6 +22,7 @@ import { Pencil } from "lucide-react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DefaultEvalModelSuccessMessage = {
+  operation: string;
   title: string;
   description: string;
 };
@@ -145,6 +146,7 @@ export function DefaultEvalModelSetup({
       onSuccess?.();
     },
     successMessage: {
+      operation: "evaluation_model.update",
       title: "Default evaluation model updated",
       description: "All running evaluators will use the new model.",
     },
@@ -261,6 +263,7 @@ export function InlineDefaultEvalModelSetup({
     projectId,
     onSuccess,
     successMessage: {
+      operation: "evaluation_model.set",
       title: "Default evaluation model set",
       description: "LLM-as-a-judge evaluators can now use this model.",
     },

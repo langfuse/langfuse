@@ -263,6 +263,7 @@ export const MonitorForm = ({
         monitorCreateAnalyticsProperties(analyticsSource, variables),
       );
       showSuccessToast({
+        operation: "monitor.create",
         title: "Alert created",
         description: `"${variables.name}" is now active.`,
       });
@@ -276,6 +277,7 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation: "monitor.update",
         title: "Alert saved",
         description: `Your changes to "${variables.name}" have been applied.`,
       });

@@ -91,6 +91,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
       setIsDialogOpen(false);
 
       showSuccessToast({
+        operation: "slack.disconnect",
         title: "Slack Disconnected",
         description: "Successfully disconnected from your Slack workspace.",
       });
