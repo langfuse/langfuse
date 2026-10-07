@@ -1,12 +1,4 @@
-import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
-import { InfoIcon } from "lucide-react";
-
 import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
 
@@ -47,27 +39,6 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
     >
       confidence {confidence.toFixed(2)}
     </span>
-  );
-}
-
-function LevelDescriptionTooltip({
-  index,
-  description,
-}: {
-  index: number;
-  description: string;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        type="button"
-        className="text-muted-foreground focus-visible:ring-ring cursor-help rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-        aria-label={`Level ${index} description`}
-      >
-        <InfoIcon className="icon-base" aria-hidden="true" />
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{description}</TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -120,74 +91,6 @@ function ProbabilityBars({
   );
 }
 
-function ScoreDistribution({
-  score,
-  levels,
-  probabilities,
-}: {
-  score: number;
-  levels: string[];
-  probabilities: Record<string, number>;
-}) {
-  const top = Math.max(levels.length - 1, 1);
-  const nearest = Math.min(Math.max(Math.round(score), 0), levels.length - 1);
-  const position = Math.min(Math.max(score / top, 0), 1) * 100;
-  const showDescriptions = levels.length < DECISION_MODEL_LIMITS.maxScoreLevels;
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="relative pt-4">
-        <div className="bg-muted h-2 rounded-full" />
-        <span
-          className="bg-primary-accent absolute top-3 h-4 w-0.5 -translate-x-1/2 rounded"
-          style={{ left: `${position}%` }}
-          aria-hidden="true"
-        />
-        <span
-          className="text-primary-accent absolute top-0 font-mono text-xs font-bold"
-          style={{
-            left: `${position}%`,
-            transform: `translateX(-${position}%)`,
-          }}
-        >
-          {score.toFixed(2)}
-        </span>
-      </div>
-      <ol
-        className="grid gap-1"
-        style={{
-          gridTemplateColumns: `repeat(${levels.length}, minmax(0, 1fr))`,
-        }}
-      >
-        {levels.map((description, index) => (
-          <li
-            key={index}
-            className={cn(
-              "flex flex-col gap-0.5 text-xs",
-              index === nearest ? "" : "text-muted-foreground",
-            )}
-          >
-            <span className="flex items-center gap-0.5 font-mono">
-              {index}
-              {!showDescriptions ? (
-                <LevelDescriptionTooltip
-                  index={index}
-                  description={description}
-                />
-              ) : null}
-              · {percent(probabilities[String(index)] ?? 0)}
-            </span>
-            {showDescriptions ? (
-              <span className="line-clamp-2" title={description}>
-                {description}
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
 function NoulGauge({ probability }: { probability: number }) {
   const leaning = probability >= 0.5 ? "yes" : "no";
   return (
@@ -235,14 +138,23 @@ function ResultVisual({ result }: { result: DecisionModelQuestionResult }) {
           highlight={result.choice}
         />
       );
-    case "score":
+    case "score": {
+      const nearest = Math.min(
+        Math.max(Math.round(result.score), 0),
+        Math.max(result.levels.length - 1, 0),
+      );
       return (
-        <ScoreDistribution
-          score={result.score}
-          levels={result.levels}
-          probabilities={result.probabilities}
+        <ProbabilityBars
+          entries={result.levels
+            .map((description, index) => ({
+              label: description || String(index),
+              value: result.probabilities[String(index)] ?? 0,
+            }))
+            .sort((left, right) => right.value - left.value)}
+          highlight={result.levels[nearest] || String(nearest)}
         />
       );
+    }
     case "noul":
       return <NoulGauge probability={result.probability} />;
   }
