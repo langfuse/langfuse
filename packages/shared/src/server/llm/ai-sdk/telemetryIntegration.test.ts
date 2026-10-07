@@ -195,17 +195,13 @@ describe("AI SDK telemetry integration", () => {
       rs.scopeSpans.flatMap((ss: any) => ss.spans),
     );
 
-    // One generation is the evaluator trace. In-process retries stay in its
-    // metadata instead of becoming another observation.
+    // The evaluator trace is the root span, with the model call written on it.
     expect(spans).toHaveLength(1);
     expect(spans[0].traceId.toLowerCase()).toBe(VALID_TRACE_ID);
     expect(spans[0].parentSpanId ?? "").toBe("");
     expect(spans[0].name).toBe("Execute evaluator: helpfulness");
 
     const generationSpan = spans[0];
-    // OTLP SpanKind 3 = CLIENT. The detached trace owns the actual GenAI
-    // client span; worker eval.* spans remain INTERNAL orchestration spans.
-    expect(generationSpan.kind).toBe(3);
     expect(
       Object.fromEntries(
         generationSpan.attributes.map((attribute: any) => [
@@ -529,11 +525,43 @@ describe("AI SDK telemetry integration", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(model.doGenerateCalls).toHaveLength(0);
-    // The model call never starts, so there is no generation to publish.
-    expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
+    expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((resourceSpan: any) =>
+      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
+    );
+    const rootSpan = spans.find((span: any) => !span.parentSpanId);
+    const attributes = Object.fromEntries(
+      rootSpan.attributes.map((attribute: any) => [
+        attribute.key,
+        attribute.value.stringValue ?? attribute.value,
+      ]),
+    );
+
+    expect(rootSpan.status).toMatchObject({ code: 2, message: errorMessage });
+    expect(attributes).toMatchObject({ "error.type": "LLMValidationError" });
+
+    const { OtelIngestionProcessor } = await vi.importActual<
+      typeof import("../../otel/OtelIngestionProcessor")
+    >("../../otel/OtelIngestionProcessor");
+    const eventInputs = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "",
+      sdkName: "langfuse-internal-ai-sdk",
+      sdkVersion: "unknown",
+      isLangfuseInternal: true,
+    }).processToEvent(resourceSpans);
+    const rootEvent = eventInputs.find((input: any) => !input.parentSpanId);
+
+    expect(rootEvent).toMatchObject({
+      level: "ERROR",
+      statusMessage: errorMessage,
+      environment: "langfuse-llm-judge",
+    });
   });
 
-  it("keeps a retried evaluator call on one generation and records the attempts", async () => {
+  it("keeps a retried evaluator call on the root span", async () => {
     let calls = 0;
     vi.mocked(createOpenAI).mockReturnValue({
       chat: () =>
@@ -600,22 +628,7 @@ describe("AI SDK telemetry integration", () => {
     );
     expect(
       JSON.parse(attributes["langfuse.observation.metadata"]),
-    ).toMatchObject({
-      job_execution_id: "job-1",
-      model_call_attempts: [
-        {
-          attempt: 1,
-          outcome: "error",
-          errorType: "AI_APICallError",
-        },
-        {
-          attempt: 2,
-          outcome: "success",
-          inputTokens: 4,
-          outputTokens: 6,
-        },
-      ],
-    });
+    ).toMatchObject({ job_execution_id: "job-1" });
     expect(attributes["gen_ai.usage.input_tokens"]).toBe(4);
     expect(attributes["gen_ai.usage.output_tokens"]).toBe(6);
   });
