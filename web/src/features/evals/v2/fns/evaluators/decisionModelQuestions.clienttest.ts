@@ -1,7 +1,10 @@
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
-import { previewOpenAIDecisionQuestions } from "./decisionModelQuestions";
+import {
+  previewOpenAIDecisionQuestions,
+  usesPlainDecisionInstructions,
+} from "./decisionModelQuestions";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
 
 const draft = (
@@ -17,6 +20,29 @@ const draft = (
   levels: [{ description: "" }, { description: "" }],
   criteria: { true: "", false: "" },
   ...overrides,
+});
+
+describe("usesPlainDecisionInstructions", () => {
+  it("drops field chips for an OpenAI connection, including before the model id matches", () => {
+    expect(
+      usesPlainDecisionInstructions({
+        model: "gpt-4.1",
+        adapter: "openai",
+      }),
+    ).toBe(true);
+    expect(
+      usesPlainDecisionInstructions({
+        model: "gpt-6-luna",
+        adapter: undefined,
+      }),
+    ).toBe(true);
+    expect(
+      usesPlainDecisionInstructions({
+        model: "jev-latest",
+        adapter: "typesafe",
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("previewOpenAIDecisionQuestions", () => {

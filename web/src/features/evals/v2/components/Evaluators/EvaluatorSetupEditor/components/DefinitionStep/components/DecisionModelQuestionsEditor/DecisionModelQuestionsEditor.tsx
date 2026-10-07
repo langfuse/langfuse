@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { isOpenAIDecisionModel } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
@@ -10,13 +9,17 @@ import {
 import {
   createEmptyQuestion,
   getQuestionDraftErrors,
+  usesPlainDecisionInstructions,
 } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { api } from "@/src/utils/api";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 export function DecisionModelQuestionsEditor({
+  projectId,
   store,
 }: {
+  projectId: string;
   store: EvaluatorSetupStore;
 }) {
   const state = useStore(
@@ -29,9 +32,17 @@ export function DecisionModelQuestionsEditor({
       actions: state.actions,
     })),
   );
-  const openaiDecision =
-    state.selectedModel != null &&
-    isOpenAIDecisionModel(state.selectedModel.model);
+  const connections = api.llmApiKey.all.useQuery({
+    projectId,
+    includeDecisionModels: true,
+  });
+  const adapter = connections.data?.data.find(
+    (connection) => connection.provider === state.selectedModel?.provider,
+  )?.adapter;
+  const openaiDecision = usesPlainDecisionInstructions({
+    model: state.selectedModel?.model,
+    adapter,
+  });
   const errorsById = useMemo(() => {
     const errors = getQuestionDraftErrors(state.questions, {
       requireLevelLabels: openaiDecision,
@@ -53,12 +64,16 @@ export function DecisionModelQuestionsEditor({
       onExpandedChange={state.actions.setExpandedQuestionId}
       onChange={state.actions.setQuestion}
       onAdd={() => state.actions.addQuestion(createEmptyQuestion())}
-      onAddExample={(type) =>
+      onAddExample={(type) => {
+        const example = QUESTION_EXAMPLES[type];
         state.actions.addQuestion({
           id: safeRandomUUID(),
-          ...QUESTION_EXAMPLES[type],
-        })
-      }
+          ...example,
+          instructions: openaiDecision
+            ? example.instructions.replace(/`/g, "")
+            : example.instructions,
+        });
+      }}
       onRemove={state.actions.removeQuestion}
       onReorder={state.actions.reorderQuestion}
       scoreLevelLabels={openaiDecision}
