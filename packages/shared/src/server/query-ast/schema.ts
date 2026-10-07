@@ -149,6 +149,13 @@ const EVENTS_COLUMNS = {
   parent_span_id: "String",
   end_time: "Nullable(DateTime64(6))",
   tags: "Array(String)",
+  input: "String",
+  output: "String",
+  tool_calls: "Array(String)",
+  tool_call_names: "Array(String)",
+  experiment_item_expected_output: "String",
+  experiment_item_metadata_names: "Array(String)",
+  experiment_item_metadata_values: "Array(String)",
 } as const satisfies Record<string, ChColumnType>;
 
 const TABLE_REGISTRY = {

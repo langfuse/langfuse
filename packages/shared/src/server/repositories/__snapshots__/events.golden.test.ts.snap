@@ -11,6 +11,7 @@ exports[`golden: events IO payload reads family > getObservationFullIOForSession
       "param4": "golden-span",
       "param5": "2025-12-31 23:59:59.000",
       "param6": "2026-01-01 00:00:01.000",
+      "param7": 1,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -19,9 +20,9 @@ exports[`golden: events IO payload reads family > getObservationFullIOForSession
     e.output AS output,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (xxHash32(e.trace_id) = xxHash32({param3:String})) AND (e.trace_id = {param3:String}) AND (e.span_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})
+WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (xxHash32(e.trace_id) = xxHash32({param3:String})) AND (e.trace_id = {param3:String}) AND (e.span_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})
 ORDER BY e.event_ts DESC
-LIMIT 1",
+LIMIT {param7:Int64}",
   },
 ]
 `;
@@ -36,13 +37,14 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
     },
     "route": "observation-io-stream-length",
     "sql": "SELECT length(e.input) AS len
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
-LIMIT 1",
+LIMIT {param6:Int64}",
   },
 ]
 `;
@@ -57,13 +59,14 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
     },
     "route": "observation-io-stream-length",
     "sql": "SELECT length(toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)))) AS len
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
-LIMIT 1",
+LIMIT {param6:Int64}",
   },
 ]
 `;
@@ -78,13 +81,14 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
     },
     "route": "observation-io-stream-length",
     "sql": "SELECT length(e.output) AS len
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
-LIMIT 1",
+LIMIT {param6:Int64}",
   },
 ]
 `;
@@ -135,7 +139,7 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     e.output AS output,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -191,7 +195,7 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     ) AS experiment_item_metadata,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -252,7 +256,7 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
         arrayReverse(arrayMap(v -> leftUTF8(v, 5000), e.metadata_values))
     ) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -303,7 +307,7 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     leftUTF8(e.output, 1000) AS output,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -359,7 +363,7 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     ) AS experiment_item_metadata,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(3)}) AND (e.start_time <= {param6:DateTime64(3)})",
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -417,7 +421,7 @@ WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)}
     WHERE (project_id = {param1:String}) AND (trace_id IN ({param3:Array(String)}))
     GROUP BY trace_id
     HAVING argMaxIf(session_id, event_ts, session_id != '') = {param5:String}
-)) AND (e.start_time >= {param6:DateTime64(3)}) AND (e.start_time <= {param7:DateTime64(3)})",
+)) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
   },
 ]
 `;
@@ -432,13 +436,14 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
     },
     "route": "observation-io-stream",
     "sql": "SELECT e.input AS field
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
-LIMIT 1
+LIMIT {param6:Int64}
 FORMAT RawBLOB",
   },
 ]
@@ -454,13 +459,14 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
     },
     "route": "observation-io-stream",
     "sql": "SELECT toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))) AS field
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
-LIMIT 1
+LIMIT {param6:Int64}
 FORMAT RawBLOB",
   },
 ]
@@ -476,13 +482,14 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
     },
     "route": "observation-io-stream",
     "sql": "SELECT e.output AS field
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
-LIMIT 1
+LIMIT {param6:Int64}
 FORMAT RawBLOB",
   },
 ]

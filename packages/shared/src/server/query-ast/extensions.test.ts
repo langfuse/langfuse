@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { TypeCompatibilityError } from "./errors";
-import { metadataValue } from "./extensions";
+import { QueryCompileError, TypeCompatibilityError } from "./errors";
+import { arrayMap, leftUTF8, metadataValue } from "./extensions";
 import { ArrayIndexNode } from "./nodes";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
@@ -144,5 +144,51 @@ describe("ArrayIndexNode identity", () => {
         ),
       ),
     ).toBe(true);
+  });
+});
+
+describe("leftUTF8", () => {
+  it("inlines a positive integer length", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core as e")
+      .select((eb) => [leftUTF8(eb.ref("e.input"), 100).as("input")]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled).toContain("leftUTF8(e.input, 100)");
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])("rejects length %s", (length) => {
+    expect(() =>
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select((eb) => [leftUTF8(eb.ref("e.input"), length).as("input")]),
+    ).toThrow(QueryCompileError);
+  });
+});
+
+describe("arrayMap", () => {
+  it("names nested lambda parameters apart so the inner one does not shadow", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core as e")
+      .select((eb) => [
+        arrayMap<string, string[]>(
+          () =>
+            arrayMap<string, string>(
+              (inner) => leftUTF8(inner, 1),
+              eb.ref("e.tags"),
+            ),
+          eb.ref("e.metadata_values"),
+        ).as("nested"),
+        arrayMap<string, string>(
+          (value) => leftUTF8(value, 2),
+          eb.ref("e.tags"),
+        ).as("sibling"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled).toContain(
+      "arrayMap(v -> arrayMap(v1 -> leftUTF8(v1, 1), e.tags), e.metadata_values)",
+    );
+    expect(compiled).toContain("arrayMap(v -> leftUTF8(v, 2), e.tags)");
   });
 });
