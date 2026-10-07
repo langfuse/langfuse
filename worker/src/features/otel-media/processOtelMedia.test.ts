@@ -710,32 +710,65 @@ describe("processOtelEventMedia", () => {
     },
   );
 
-  it("preserves a stringified provider payload when its upload fails", async () => {
-    const reference = DEFAULT_MEDIA_REFERENCE;
-    mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-    const { batch } = createFakeMediaBatch({
-      originalValue: "ORIGINAL",
-    });
-    const original =
-      '{\n  "type": "base64",\n  "media_type": "image/png",\n  "data": "ORIGINAL",\n  "large": 9007199254740993\n}';
-    const withReference = original.replace('"ORIGINAL"', `"${reference}"`);
-    const payload = {
-      traceId: "trace-id",
-      spanId: "observation-id",
-      input: withReference,
-    };
+  it.each([
+    ["generic", 1],
+    ["generic", 2],
+    ["root", 1],
+    ["root", 2],
+  ] as const)(
+    "preserves escaped nested provider text (placement=%s, layers=%s)",
+    async (placement, layers) => {
+      mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
+      const pythonLiteral =
+        "b'\\xff\\xd8\\xff\\xe0test\\nquote\\'slash\\\\\\x00'";
+      // Keep the native serialized-media prefilter active through the second
+      // stringification layer without adding another media occurrence.
+      const nestedProvider = [
+        '{\n  "type": "file",\n  "mediaType": "image/jpeg",\n  "data": ',
+        JSON.stringify(pythonLiteral),
+        ',\n  "marker": "\\u0061",\n  "large": 9007199254740993\n}',
+      ].join("");
+      const nestedContainer =
+        layers === 1
+          ? nestedProvider
+          : JSON.stringify({ child: nestedProvider });
+      const expectedInput =
+        placement === "root" ? nestedContainer : { nested: nestedContainer };
+      const source = JSON.stringify({
+        traceId: "trace-id",
+        spanId: "observation-id",
+        input: expectedInput,
+      });
+      const validated = await validateOtelJson(Buffer.from(source));
+      const batch = await validated.extract(true);
+      try {
+        expect(batch.media).toHaveLength(1);
+        expect(await batch.originalMedia(batch.media[0]!.index)).toBe(
+          pythonLiteral,
+        );
+        const target = JSON.parse(batch.json()) as {
+          input: string | { nested: string };
+        };
+        const input = target.input;
+        const serialized = typeof input === "string" ? input : input.nested;
+        expect(serialized).toContain(batch.media[0]!.reference);
 
-    await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([payload]),
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      writePath: "direct",
-    });
+        await resolveExtractedMedia({
+          batch,
+          targets: createDirectOtelMediaTargets([target]),
+          projectId: "project-id",
+          mediaBucket: "media-bucket",
+          mediaPrefix: "media/",
+          writePath: "direct",
+        });
 
-    expect(payload.input).toBe(original);
-  });
+        expect(target.input).toEqual(expectedInput);
+      } finally {
+        await batch.dispose();
+        await validated.dispose();
+      }
+    },
+  );
 
   it("leaves an untouched provider string byte-for-byte unchanged", async () => {
     const { batch, mediaBody } = createFakeMediaBatch({
