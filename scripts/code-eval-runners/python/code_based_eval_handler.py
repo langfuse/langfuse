@@ -125,11 +125,7 @@ def handler(event, context):
     except Exception as error:
         return runner_error("USER_CODE_ERROR", format_error(error))
 
-    # A list or dict that contains itself recurses until RecursionError.
-    # A tuple holding such a value reaches json.dumps, which raises
-    # ValueError ("Circular reference detected") rather than TypeError.
-    # Either must stay inside the runner response: an exception escaping
-    # handler is an unhandled Lambda error, and the dispatcher retries those.
+    # Cycles raise RecursionError, or ValueError from json.dumps.
     try:
         return normalize_result(result)
     except (RecursionError, ValueError) as error:
