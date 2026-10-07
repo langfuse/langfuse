@@ -8,9 +8,11 @@ export const SESSION_INTRODUCTION_STORAGE_KEY =
 
 export function SessionIntroductionDialogController({
   initiallyDismissed,
+  onDismiss,
   children,
 }: {
   initiallyDismissed: boolean;
+  onDismiss: () => void;
   children: (control: {
     hasDismissed: boolean;
     openDialog: () => void;
@@ -43,6 +45,7 @@ export function SessionIntroductionDialogController({
           source: source.current,
         });
         setState("dismissed");
+        onDismiss();
       }}
       renderDialog={() => (
         <SessionIntroductionDialogContent

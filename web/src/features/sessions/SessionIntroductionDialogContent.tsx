@@ -8,6 +8,14 @@ export function SessionIntroductionDialogContent({
 }: {
   onAfterButtonClick: (button: "got_it" | "provide_feedback") => void;
 }) {
+  const handleFeedbackClick = () => {
+    onAfterButtonClick("provide_feedback");
+  };
+
+  const handleGotItClick = () => {
+    onAfterButtonClick("got_it");
+  };
+
   return (
     <Dialog title="The new session view" closeOnInteractionOutside>
       <Dialog.Body>
@@ -40,13 +48,13 @@ export function SessionIntroductionDialogContent({
             href="https://github.com/langfuse/langfuse/discussions"
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => onAfterButtonClick("provide_feedback")}
+            onClick={handleFeedbackClick}
           >
             Provide feedback
           </a>
         </Button>
         <Close asChild>
-          <Button onClick={() => onAfterButtonClick("got_it")}>Got it!</Button>
+          <Button onClick={handleGotItClick}>Got it!</Button>
         </Close>
       </div>
     </Dialog>

@@ -85,6 +85,10 @@ export function ModernSession({
     }
   }, [isTimelineEnabled]);
 
+  const handleSessionIntroductionDismiss = () => {
+    setHasDismissedSessionIntroduction(true);
+  };
+
   const headerTraces =
     tracesState.type === "loaded"
       ? ({ state: "loaded", data: tracesState.traces } as const)
@@ -133,6 +137,7 @@ export function ModernSession({
               hasDismissedSessionIntroduction !== undefined ? (
                 <SessionIntroductionDialogController
                   initiallyDismissed={hasDismissedSessionIntroduction}
+                  onDismiss={handleSessionIntroductionDismiss}
                 >
                   {({ hasDismissed, openDialog }) =>
                     hasDismissed ? (
