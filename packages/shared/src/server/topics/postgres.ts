@@ -218,7 +218,7 @@ How to find it:
 - Keep the symptoms of one problem together; do not list separate problems.
 
 Before you return not_applicable, check these four points. Return not_applicable only when all of them hold:
-1. Every fact, number, or result in the final answer comes from a tool result or user input in this run, not from memory or assumption.
+1. When the request depends on data, files, tools, or current facts that the run had to look up, every such fact, number, or result in the final answer comes from a tool result or user input in this run, not from memory or assumption. General knowledge, explanations, and writing do not need a lookup.
 2. Every tool call used a tool suited to its input, such as a file tool on a local file rather than a web address, with valid arguments.
 3. The run followed the output format, tags, and steps that the system prompt or the assistant's own plan required.
 4. The final answer addresses exactly what was asked: the right quantity, unit, entity, and scope.
@@ -226,7 +226,7 @@ Before you return not_applicable, check these four points. Return not_applicable
 - Only problems in this run count. An error the user pastes for explanation, a problem in earlier conversation, or a complaint about something outside the run is not an issue here.
 - A clarifying question, a justified refusal, a short answer, and a retry that succeeds are not issues.
 - Check the end of this run before calling it unfinished: if a later assistant message delivers an answer or fallback, the run is finished.
-- Report only what the transcript shows directly. A stated fact with no supporting lookup in the run is shown directly. A problem that is only a possibility is not.
+- Report only what the transcript shows directly. A run-specific fact that needed a lookup but has none is shown directly. A problem that is only a possibility is not.
 
 Status: not_applicable when the run is complete enough to judge and shows no problem. insufficient_input when too much is missing to judge, for example only the first request survives.
 

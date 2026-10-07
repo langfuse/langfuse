@@ -150,7 +150,7 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 | `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries, naming, and embeddings.                                                                                                                                                                                                |
 | `LANGFUSE_TOPICS_SUMMARY_MODEL`               | Required internal PoC setting; Bedrock model ID used for trace summaries.                                                                                                                                                                            |
 | `LANGFUSE_TOPICS_EMBEDDING_MODEL`             | Required internal PoC setting; Bedrock embedding model ID.                                                                                                                                                                                           |
-| `LANGFUSE_AI_FEATURES_AWS_PROFILE`           | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                                                                          |
+| `LANGFUSE_AI_FEATURES_AWS_PROFILE`            | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                 |
 
 ## Run the experiment
 
@@ -514,8 +514,8 @@ without a category label, and checks four points before reporting no issue; a
 problem quoted for analysis is not itself an agent defect. Each preset prompt
 defines its facet's semantics; custom facets use their own versioned instructions.
 
-The shared extraction wrapper asks for compact English prose (normally one
-sentence, at most two and 100 words), preserves meaningful distinctions, and
+The shared extraction wrapper asks for one English sentence of at most 30 words
+(a second only for a material distinction), preserves meaningful distinctions, and
 omits incidental identifiers, source references and narration. Applicability is
 separate from task success: absent signals and insufficient evidence retain their
 distinct statuses and empty summaries, so they do not become embedded topics.
