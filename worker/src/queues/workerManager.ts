@@ -17,6 +17,7 @@ import {
 import { WORKER_HOST_ID } from "../utils/hostId";
 import { logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
+import { classifyJobFailure } from "./jobFailureReason";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -179,8 +180,10 @@ export class WorkerManager {
         job,
         attemptsIncludeCurrentFailure: true,
       });
+      const reason = classifyJobFailure(err);
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
+        reason,
         ...shardTag,
       });
       // BullMQ sets finishedOn only when it moves the job to the failed set
@@ -188,6 +191,7 @@ export class WorkerManager {
       if (job?.finishedOn) {
         recordIncrement(baseMetric + ".rate", 1, {
           type: "failed_terminal",
+          reason,
           ...shardTag,
         });
       }
