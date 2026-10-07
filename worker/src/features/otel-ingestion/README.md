@@ -89,6 +89,13 @@ The selection happens before downloading or passing the document to Rust.
 control whether media is extracted and uploaded; the selector does not enable
 uploads by itself or change the existing late TypeScript detector.
 
+Native discovery can extract more occurrences than the late TypeScript detector
+would accept, including deeply nested media. Its temporary references identify
+pending occurrences, not completed uploads. After normalization, the resolver
+uploads eligible occurrences and restores the others inline before tokenization,
+evaluation scheduling, and persistence. The late detector remains active, but
+tests also check native extraction directly so it cannot hide missed candidates.
+
 The early path replaces malformed UTF-8 sequences with U+FFFD before JSON
 validation, following [OTLP receiver guidance](https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md#utf-8-string-handling).
 Masking and media discovery use that same sanitized source. Masked responses pass

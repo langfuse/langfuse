@@ -99,7 +99,7 @@ export async function prepareOtelBatch(params: {
   }
 
   async function validate(input: Buffer): Promise<NativeInput> {
-    const validated = await validateOtelJson(input, extractMedia);
+    const validated = await validateOtelJson(input);
     validators.push(validated);
     return {
       bytes: validated.normalizedBytes() ?? input,

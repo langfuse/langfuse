@@ -45,7 +45,10 @@ import {
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
 } from "../features/otel-media/processOtelMedia";
-import { restoreInlineMedia } from "../features/otel-media/resolveExtractedMedia";
+import {
+  restoreInlineMedia,
+  restoreOtelTagAttributes,
+} from "../features/otel-media/resolveExtractedMedia";
 import { processOtelEvents } from "../features/otel-ingestion/processOtelEvents";
 import { prepareOtelBatch } from "../features/otel-ingestion/prepareOtelBatch";
 
@@ -538,7 +541,10 @@ export const otelIngestionQueueProcessorBuilder = (
           return;
         }
         earlyBatch = prepared.batch;
-        parsedSpans = JSON.parse(prepared.batch.json());
+        parsedSpans = JSON.parse(prepared.batch.takeJson());
+        if (Array.isArray(parsedSpans)) {
+          await restoreOtelTagAttributes(prepared.batch, parsedSpans);
+        }
       } else {
         // Download file from blob storage
         const resourceSpans = await getS3EventStorageClient(

@@ -582,6 +582,32 @@ describe(
           });
         });
 
+      const compactedBatches: {
+        json: string;
+        media: Array<{ reference: string; bodyBase64: string }>;
+      }[] = [];
+      const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+      const preparation = vi
+        .spyOn(otelPreparation, "prepareOtelBatch")
+        .mockImplementation(async (params) => {
+          const result = await prepareOtelBatch(params);
+          if (result?.batch) {
+            const media = result.batch.media;
+            compactedBatches.push({
+              json: result.batch.json(),
+              media: await Promise.all(
+                media.map(async ({ index, reference }) => ({
+                  reference,
+                  bodyBase64: (await result.batch!.mediaBody(index)).toString(
+                    "base64",
+                  ),
+                })),
+              ),
+            });
+          }
+          return result;
+        });
+
       try {
         const comparison = await runOtelReplayComparison({
           bytes: rawBytes,
@@ -599,6 +625,18 @@ describe(
             JSON.parse(rawBytes.toString("utf8")),
           );
         }
+        expect(compactedBatches).toHaveLength(1);
+        const earlyBatch = compactedBatches[0]!;
+        expect(earlyBatch.media).toEqual([
+          {
+            reference: expect.any(String),
+            bodyBase64: maskedMedia.toString("base64"),
+          },
+        ]);
+        expect(earlyBatch.json).toContain(earlyBatch.media[0]!.reference);
+        expect(earlyBatch.json).not.toContain(
+          `data:image/png;base64,${maskedMedia.toString("base64")}`,
+        );
         for (const result of [comparison.originalTs, comparison.earlyTs]) {
           const associations = result.sideEffects as MediaAssociation[];
           expect(associations, result.mode).toHaveLength(1);
@@ -616,9 +654,31 @@ describe(
         }
         expectRawOtelReplayParity(comparison);
       } finally {
+        preparation.mockRestore();
         fetch.mockRestore();
         configuredMasking.mockImplementation(applyMasking);
         configuredMaskingEnabled.mockImplementation(isMaskingEnabled);
+      }
+    });
+
+    it("restores tag media before scalar tag values are split", async () => {
+      const dataUri = `data:image/png;base64,${Buffer.from("tag-media").toString("base64")}`;
+      const comparison = await runOtelReplayComparison({
+        bytes: focusedReplayBytes({
+          attributes: [stringAttribute("langfuse.trace.tags", dataUri)],
+        }),
+        projectId: `${PROJECT_ID}-tag-media`,
+        fileKey: `${FILE_KEY}.tag-media`,
+        mediaUploadEnabled: true,
+      });
+
+      expectRawOtelReplayParity(comparison);
+      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+        expect(result.storedRows, result.mode).toHaveLength(1);
+        expect(result.storedRows[0]?.tags, result.mode).toEqual([
+          "data:image/png;base64",
+          Buffer.from("tag-media").toString("base64"),
+        ]);
       }
     });
 
