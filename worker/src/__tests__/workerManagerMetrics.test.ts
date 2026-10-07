@@ -172,9 +172,21 @@ describe("WorkerManager queue metrics", () => {
     );
 
     expect(mocks.recordIncrement.mock.calls).toEqual([
-      ["langfuse.queue.project_delete.rate", 1, { type: "failed" }],
-      ["langfuse.queue.project_delete.rate", 1, { type: "failed" }],
-      ["langfuse.queue.project_delete.rate", 1, { type: "failed_terminal" }],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed_terminal", reason: "other" },
+      ],
     ]);
   });
 
