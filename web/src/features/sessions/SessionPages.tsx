@@ -11,7 +11,7 @@ import {
   DetailPageNav,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages";
-import { api } from "@/src/utils/api";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
@@ -446,14 +446,7 @@ export const SessionPage: React.FC<{
     },
     {
       enabled: Boolean(projectId) && Boolean(sessionId),
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
   const webCalloutAction = useWebCalloutAction(
@@ -1003,14 +996,7 @@ export const SessionEventsPage: React.FC<{
     },
     {
       enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -1018,14 +1004,7 @@ export const SessionEventsPage: React.FC<{
     { projectId, sessionId },
     {
       enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 

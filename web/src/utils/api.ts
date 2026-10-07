@@ -690,6 +690,18 @@ export const shouldRetryQuery = (
   return failureCount < 3;
 };
 
+/**
+ * Retry policy for single-resource detail queries (trace, session): also fails
+ * fast on 401 so the page can render its access error immediately. Use this
+ * instead of a hand-written `retry` so the {@link shouldRetryQuery} rules still
+ * apply — a per-query `retry` replaces the default rather than extending it.
+ */
+export const shouldRetryResourceQuery = (
+  failureCount: number,
+  error: unknown,
+): boolean =>
+  getHttpStatus(error) !== 401 && shouldRetryQuery(failureCount, error);
+
 /** APIError is returned by api.*.*.useQuery */
 export type APIError = TRPCClientErrorLike<AppRouter>;
 

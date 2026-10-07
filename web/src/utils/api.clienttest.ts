@@ -20,6 +20,7 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
   shouldRetryQuery,
+  shouldRetryResourceQuery,
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
 
@@ -664,6 +665,28 @@ describe("shouldRetryQuery", () => {
     expect(shouldRetryQuery(0, error)).toBe(true);
     expect(shouldRetryQuery(2, error)).toBe(true);
     expect(shouldRetryQuery(3, error)).toBe(false);
+  });
+});
+
+describe("shouldRetryResourceQuery", () => {
+  it.each([
+    ["UNAUTHORIZED", 401],
+    ["UNPROCESSABLE_CONTENT", 422],
+  ])("does not retry %s", (code, httpStatus) => {
+    const error = trpcServerError({ code, httpStatus, path: "traces.byId" });
+
+    expect(shouldRetryResourceQuery(0, error)).toBe(false);
+  });
+
+  it("retries a server error up to three times", () => {
+    const error = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "traces.byId",
+    });
+
+    expect(shouldRetryResourceQuery(2, error)).toBe(true);
+    expect(shouldRetryResourceQuery(3, error)).toBe(false);
   });
 });
 
