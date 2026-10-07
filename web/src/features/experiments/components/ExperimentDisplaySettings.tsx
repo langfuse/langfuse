@@ -113,7 +113,7 @@ export function ExperimentDisplaySettings({
           selected={ioRenderMode === "text"}
           onSelect={() => onIoRenderModeChange("text")}
         >
-          Formatted
+          Compact
         </OptionItem>
 
         <DropdownMenuSeparator />
