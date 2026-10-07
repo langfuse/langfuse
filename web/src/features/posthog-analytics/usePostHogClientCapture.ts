@@ -156,7 +156,14 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
-  skills: ["new_form_open", "version_create", "version_download", "delete"],
+  skills: [
+    "new_form_open",
+    "version_create",
+    "version_download",
+    "delete",
+    "import_open",
+    "import",
+  ],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
