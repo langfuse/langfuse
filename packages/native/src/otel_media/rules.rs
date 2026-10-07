@@ -9,12 +9,11 @@ pub(super) const BASE64_MARKER: &str = ";base64,";
 pub(super) const MEDIA_REFERENCE_PREFIX: &str = "@@@langfuseMedia:";
 pub(super) const MEDIA_REFERENCE_SUFFIX: &str = "@@@";
 static MEDIA_CANDIDATE_MARKERS: LazyLock<AhoCorasick> = LazyLock::new(|| {
-    // Without a marker, independent `contains` calls repeatedly scan the body.
-    // In local ARM64 release runs (Sep 2026), 2 MiB marker-free text took
-    // 604–627 µs with `contains`, 207–223 µs with LeftmostFirst, and
-    // 2,394–2,483 µs with Standard (warm matchers, reversed-order rounds).
-    // This predicate only asks whether any marker occurs, so LeftmostFirst
-    // preserves the result and allows the packed literal prefilter.
+    // This predicate only asks whether any marker occurs. One matcher avoids
+    // rescanning marker-free input once for every literal. In local ARM64
+    // release runs (Sep 2026), 2 MiB marker-free text took 604–627 µs with
+    // `contains`, 207–223 µs with LeftmostFirst, and 2,394–2,483 µs with
+    // Standard (warm matchers, reversed-order rounds).
     AhoCorasickBuilder::new()
         .match_kind(MatchKind::LeftmostFirst)
         .build([
@@ -33,19 +32,15 @@ static MEDIA_CANDIDATE_MARKERS: LazyLock<AhoCorasick> = LazyLock::new(|| {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum MediaScanMode {
-    /// A payload value or a generic JSON document. Media candidates are
-    /// eligible in every field.
+    /// A generic payload; candidates are eligible in every field.
     Payload,
-    /// An OTLP KeyValue list. The `key` is a metadata name, while the
-    /// corresponding `value` contains the data-bearing AnyValue subtree.
+    /// An OTLP KeyValue list; keys are metadata names and values contain data.
     Attributes,
-    /// OTLP AnyValue wrappers retain their schema context until a string value
-    /// becomes an ordinary payload; nested map keys must remain structural.
+    /// An OTLP AnyValue wrapper; map keys remain structural until a value is data.
     AnyValue,
-    /// The OTLP envelope itself. Only known payload-bearing descendants enter
-    /// `Payload`; arbitrary envelope fields stay untouched.
+    /// The OTLP envelope; only known payload-bearing descendants enter `Payload`.
     Envelope,
-    /// A structural field whose strings are not eligible for media extraction.
+    /// A field whose strings are not eligible for extraction.
     Disabled,
 }
 
@@ -61,16 +56,9 @@ pub(super) fn is_otel_envelope_field(field: &str) -> bool {
     )
 }
 
-/// Select the media scanning mode for one object field.
-///
-/// Early discovery walks the raw OTLP envelope before the normalizer has
-/// projected `input`, `output`, and `metadata`. The envelope also contains
-/// structural strings such as span names, IDs, timestamps, and attribute keys.
-/// The legacy processor never treats those strings as media, so scanning them
-/// here would create references that later become metadata keys or routing
-/// fields. Unknown fields are eligible in a generic payload, while unknown
-/// envelope fields remain disabled until their semantics are established by
-/// the allowlist below.
+/// Select the scanning mode for one object field. Generic payload fields remain
+/// eligible; envelope fields are enabled only at known data-bearing boundaries.
+/// Structural fields and unknown envelope fields remain disabled.
 pub(super) fn media_scan_mode_for_field(parent: MediaScanMode, field: &str) -> MediaScanMode {
     match parent {
         MediaScanMode::Disabled => MediaScanMode::Disabled,
@@ -89,13 +77,11 @@ pub(super) fn media_scan_mode_for_field(parent: MediaScanMode, field: &str) -> M
             _ => MediaScanMode::Disabled,
         },
         MediaScanMode::Envelope => match field {
-            // These fields contain OTLP envelope objects. Their known
-            // `attributes`, `body`, and AnyValue descendants opt into payload
-            // scanning below.
+            // These fields contain envelope objects whose data-bearing children
+            // are classified by the branches below.
             "resourceSpans" | "scopeSpans" | "spans" | "resource" | "scope" | "events"
             | "links" | "resourceLogs" | "scopeLogs" | "logRecords" => MediaScanMode::Envelope,
-            // Attribute values and log bodies are the data-bearing boundary
-            // consumed by the normalizer and legacy media processor.
+            // Attribute values and bodies contain user data.
             "attributes" => MediaScanMode::Attributes,
             "body" | "value" => MediaScanMode::AnyValue,
             _ => MediaScanMode::Disabled,
@@ -176,13 +162,11 @@ pub(super) fn may_contain_serialized_media(value: &str) -> bool {
             && (has_mime_type || value.contains("\"mimeType\"")))
 }
 
-/// Return true when a document might contain a media candidate. This is a
-/// conservative prefilter for the discovery pass after syntax validation.
-/// Unicode escapes select discovery because they can spell a marker after decoding.
+/// Return true when a validated document might contain a media candidate.
+/// Unicode escapes are included because they can spell a marker after decoding.
 pub(super) fn may_contain_media_candidate(value: &str) -> bool {
-    // Every structured provider shape has one of these MIME/property
-    // markers. Broad fragments are intentional: false positives only select
-    // the full detector, while escaped nesting remains covered.
+    // Broad fragments are intentional: false positives only select the full
+    // walk, while escaped nesting remains discoverable.
     MEDIA_CANDIDATE_MARKERS.is_match(value)
 }
 

@@ -210,8 +210,7 @@ fn valid_json_values_survive_scan_and_compaction(
     let compact: Value = serde_json::from_slice(&compacted.compact_json)
         .expect("compaction preserves valid JSON");
     if compacted.media.is_empty() {
-        // With no media candidates, the scanner is only a validator and must preserve
-        // the parsed value across arbitrary strings, keys, controls, and numbers.
+        // With no candidates, compaction must preserve arbitrary valid JSON.
         prop_assert_eq!(compact, value);
     }
 }
