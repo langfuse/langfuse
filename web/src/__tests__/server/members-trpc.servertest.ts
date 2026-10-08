@@ -1,3 +1,5 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { vi } from "vitest";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -9,7 +11,6 @@ import type { Session } from "next-auth";
 // while satisfying newer required fields on the session user type.
 type SessionUser = NonNullable<Session["user"]>;
 type SessionProject = SessionUser["organizations"][number]["projects"][number];
-type SessionFeatureFlags = SessionUser["featureFlags"];
 import { v4 as uuidv4 } from "uuid";
 
 async function createTestOrg(plan: Plan) {
@@ -91,10 +92,7 @@ function createSession(
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      } as SessionFeatureFlags,
+      featureFlags: testFeatureFlags(),
       admin: false, // Not admin to test actual limits
     },
     environment: {
@@ -430,6 +428,142 @@ describe("membersRouter.allInvitesFromProject", () => {
     expect(result.totalCount).toBe(2);
     expect(result.invitations.map((invite) => invite.email).sort()).toEqual(
       [orgInviteEmail, projectInviteEmail].sort(),
+    );
+  });
+});
+
+describe("membersRouter.allFromProject / allFromOrg - role filter", () => {
+  async function addMember(params: {
+    orgId: string;
+    orgRole: Role;
+    projectRole?: { projectId: string; role: Role };
+  }) {
+    const user = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: { userId: user.id, orgId: params.orgId, role: params.orgRole },
+    });
+    if (params.projectRole) {
+      await prisma.projectMembership.create({
+        data: {
+          userId: user.id,
+          projectId: params.projectRole.projectId,
+          role: params.projectRole.role,
+          orgMembershipId: orgMembership.id,
+        },
+      });
+    }
+    return user;
+  }
+
+  async function prepareMembers() {
+    const prepared = await prepare("cloud:core");
+    const { org, project } = prepared;
+    const otherProject = await prisma.project.create({
+      data: {
+        id: uuidv4(),
+        name: `Other Project ${uuidv4().substring(0, 8)}`,
+        orgId: org.id,
+      },
+    });
+
+    const orgAdmin = await addMember({ orgId: org.id, orgRole: Role.ADMIN });
+    const orgAdminViewerInProject = await addMember({
+      orgId: org.id,
+      orgRole: Role.ADMIN,
+      projectRole: { projectId: project.id, role: Role.VIEWER },
+    });
+    const memberPromotedInProject = await addMember({
+      orgId: org.id,
+      orgRole: Role.MEMBER,
+      projectRole: { projectId: project.id, role: Role.ADMIN },
+    });
+    const memberPromotedInOtherProject = await addMember({
+      orgId: org.id,
+      orgRole: Role.MEMBER,
+      projectRole: { projectId: otherProject.id, role: Role.ADMIN },
+    });
+
+    return {
+      ...prepared,
+      orgAdmin,
+      orgAdminViewerInProject,
+      memberPromotedInProject,
+      memberPromotedInOtherProject,
+    };
+  }
+
+  it("filters project members by their effective project role", async () => {
+    const {
+      caller,
+      project,
+      orgAdmin,
+      orgAdminViewerInProject,
+      memberPromotedInProject,
+    } = await prepareMembers();
+
+    const admins = await caller.members.allFromProject({
+      projectId: project.id,
+      roles: [Role.ADMIN],
+      page: 0,
+      limit: 10,
+    });
+    expect(admins.totalCount).toBe(2);
+    expect(admins.memberships.map((m) => m.userId).sort()).toEqual(
+      [orgAdmin.id, memberPromotedInProject.id].sort(),
+    );
+
+    const viewers = await caller.members.allFromProject({
+      projectId: project.id,
+      roles: [Role.VIEWER],
+      page: 0,
+      limit: 10,
+    });
+    expect(viewers.memberships.map((m) => m.userId)).toEqual([
+      orgAdminViewerInProject.id,
+    ]);
+  });
+
+  it("matches any of several roles and combines with search", async () => {
+    const { caller, project, ownerUser, orgAdmin, memberPromotedInProject } =
+      await prepareMembers();
+
+    const ownersAndAdmins = await caller.members.allFromProject({
+      projectId: project.id,
+      roles: [Role.OWNER, Role.ADMIN],
+      page: 0,
+      limit: 10,
+    });
+    expect(ownersAndAdmins.totalCount).toBe(3);
+    expect(ownersAndAdmins.memberships.map((m) => m.userId).sort()).toEqual(
+      [ownerUser.id, orgAdmin.id, memberPromotedInProject.id].sort(),
+    );
+
+    const searched = await caller.members.allFromProject({
+      projectId: project.id,
+      roles: [Role.ADMIN],
+      searchQuery: memberPromotedInProject.email ?? undefined,
+      page: 0,
+      limit: 10,
+    });
+    expect(searched.totalCount).toBe(1);
+    expect(searched.memberships.map((m) => m.userId)).toEqual([
+      memberPromotedInProject.id,
+    ]);
+  });
+
+  it("filters organization members by their organization role", async () => {
+    const { caller, org, orgAdmin, orgAdminViewerInProject } =
+      await prepareMembers();
+
+    const admins = await caller.members.allFromOrg({
+      orgId: org.id,
+      roles: [Role.ADMIN],
+      page: 0,
+      limit: 10,
+    });
+    expect(admins.totalCount).toBe(2);
+    expect(admins.memberships.map((m) => m.userId).sort()).toEqual(
+      [orgAdmin.id, orgAdminViewerInProject.id].sort(),
     );
   });
 });
@@ -888,6 +1022,44 @@ describe("membersRouter.create - duplicate project membership", () => {
       where: { orgId: org.id, userId: user.id },
     });
     expect(orgMembership).toBeNull();
+  });
+});
+
+describe("membersRouter.create - duplicate org membership", () => {
+  it("returns BAD_REQUEST when a concurrent request already created the org membership", async () => {
+    const { org, caller } = await prepare("cloud:team");
+    const user = await createTestUser();
+
+    // Simulate the concurrent race the create path guards against: the
+    // existing-membership pre-check sees no row, but by the time the org
+    // membership is created another request has already inserted the
+    // (orgId, userId) row, so the unique constraint fires. Seed the real row
+    // and stub only the pre-check so the request reaches the create.
+    await prisma.organizationMembership.create({
+      data: {
+        userId: user.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+    const findFirstSpy = vi
+      .spyOn(prisma.organizationMembership, "findFirst")
+      .mockResolvedValueOnce(null);
+
+    try {
+      await expect(
+        caller.members.create({
+          orgId: org.id,
+          email: user.email!,
+          orgRole: Role.MEMBER,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "User is already a member of this organization",
+      });
+    } finally {
+      findFirstSpy.mockRestore();
+    }
   });
 });
 

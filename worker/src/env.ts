@@ -106,6 +106,96 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0),
+  LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(40_000),
+  LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100 * 1024 * 1024),
+  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+    .optional(),
+  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(10_000)
+    .default(60),
+  // Weight budgets use ingestion-time estimates; 0 disables a budget.
+  LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(1_500),
+  LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(64 * 1024 * 1024),
+  LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(5_000),
+  LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(50 * 1024 * 1024),
+  LANGFUSE_TRACE_BATCH_STRATEGY: z
+    .enum(["project", "locality"])
+    .default("project"),
+  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
+  LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(7_200_000),
+  LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -250,10 +340,9 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // The ambient host profile takes precedence over the agent-specific default
-  // so local developer credentials win when both are configured.
-  AWS_PROFILE: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  // Internal Topics PoC model selection; not a supported self-hosting setting.
+  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -761,7 +850,12 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 };
 
 const parseEnv = (): ParsedEnv => {
-  const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+  const source = { ...removeEmptyEnvVariables(process.env) };
+  if (source.LANGFUSE_TRACE_BATCH_IDLE_MS === undefined) {
+    source.LANGFUSE_TRACE_BATCH_IDLE_MS =
+      source.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "120000" : "600000";
+  }
+  const parsed = EnvSchema.parse(source);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;

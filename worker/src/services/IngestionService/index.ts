@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Decimal } from "decimal.js";
@@ -59,6 +60,7 @@ import {
   sanitizeSdkMetricTagValue,
   type IngestionAttribution,
   type PricingTierMatchAttributes,
+  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -67,6 +69,7 @@ import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
+  hasAiGatewayScope,
   overwriteObject,
 } from "./utils";
 import { randomUUID } from "crypto";
@@ -157,6 +160,17 @@ function withSerializedEventByteLength(
     event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
   };
 }
+
+// Models priced before TTL-split cache writes existed (e.g. custom models)
+// only carry an aggregate cache-write price; TTL-split usage falls back to it.
+const TTL_CACHE_CREATION_USAGE_TYPES = new Set([
+  "input_cache_creation_5m",
+  "input_cache_creation_1h",
+]);
+const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
+  "cache_creation_input_tokens",
+  "input_cache_creation",
+];
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -343,6 +357,8 @@ export class IngestionService {
               modelParameters,
               metadata,
             },
+            isAiGatewayGeneration:
+              eventData.scopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -350,6 +366,7 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
+              level: eventData.level,
               input,
               output,
             },
@@ -500,16 +517,17 @@ export class IngestionService {
    * supplied record is not mutated.
    *
    * @param eventRecord - The event record to write
+   * @returns The serialized byte size of the accepted event record
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
-  ): Promise<void> {
-    const persistedRecord = await applyObservationFieldOverflow(eventRecord);
-
-    this.clickHouseWriter.addToQueue(
-      TableName.EventsFull,
-      withSerializedEventByteLength(persistedRecord),
+  ): Promise<number> {
+    const persistedRecord = withSerializedEventByteLength(
+      await applyObservationFieldOverflow(eventRecord),
     );
+
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
+    return persistedRecord.event_bytes;
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -1073,6 +1091,9 @@ export class IngestionService {
     const generationUsage = await this.getGenerationUsage({
       projectId,
       pricingMatchAttributeValues,
+      isAiGatewayGeneration: timeSortedEvents.some((event) =>
+        hasAiGatewayScope(event.body?.metadata),
+      ),
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1308,6 +1329,7 @@ export class IngestionService {
   private async getGenerationUsage(params: {
     projectId: string;
     pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
+    isAiGatewayGeneration?: boolean;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1331,8 +1353,12 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord, pricingMatchAttributeValues } =
-      params;
+    const {
+      projectId,
+      observationRecord,
+      pricingMatchAttributeValues,
+      isAiGatewayGeneration = false,
+    } = params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1344,6 +1370,7 @@ export class IngestionService {
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
+      isAiGatewayGeneration,
     );
 
     // Match pricing tier based on usage_details. Skip when usage is empty
@@ -1437,6 +1464,7 @@ export class IngestionService {
       | "id"
     >,
     model: Model | null | undefined,
+    isAiGatewayGeneration: boolean,
   ): Promise<
     Pick<
       ObservationRecordInsertType,
@@ -1455,12 +1483,17 @@ export class IngestionService {
       observationRecord.provided_cost_details ?? {},
     ).some((value) => value != null);
 
+    // The AI gateway forwards provider-reported usage whenever the provider
+    // returns it. Without it (failed or cancelled upstream calls), the true
+    // usage is unknown: the request body holds tool schemas and encrypted
+    // reasoning, so tokenizing it fabricates usage and cost.
     if (
       // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
       model &&
       Object.keys(providedUsageDetails).length === 0 &&
       !hasProvidedCostDetails &&
-      observationRecord.level !== ObservationLevel.ERROR
+      observationRecord.level !== ObservationLevel.ERROR &&
+      !isAiGatewayGeneration
     ) {
       try {
         let newInputCount: number | undefined;
@@ -1704,7 +1737,13 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.usageType === key);
+      const price =
+        modelPrices?.find((price) => price.usageType === key) ??
+        (TTL_CACHE_CREATION_USAGE_TYPES.has(key)
+          ? AGGREGATE_CACHE_CREATION_USAGE_TYPES.map((usageType) =>
+              modelPrices?.find((price) => price.usageType === usageType),
+            ).find(Boolean)
+          : undefined);
 
       if (units != null && price) {
         finalCostEntries.push([key, price.price.mul(units).toNumber()]);

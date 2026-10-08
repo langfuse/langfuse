@@ -4,9 +4,8 @@
  */
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { ExternalLinkIcon, PlusCircle } from "lucide-react";
-import Link from "next/link";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { UpsertModelFormDialogController } from "@/src/features/models";
 
 export function ModelBadge({
   model,
@@ -22,19 +21,17 @@ export function ModelBadge({
   // Linked model - show link to model settings
   if (internalModelId) {
     return (
-      <Link
+      <LinkBadge
         href={`/project/${projectId}/settings/models/${internalModelId}`}
-        className="inline-flex"
+        text={model}
         title="View model details"
-      >
-        <Badge text={model} trailingIcon={ExternalLinkIcon} />
-      </Link>
+      />
     );
   }
 
   // Unlinked model - show create form dialog
   return (
-    <UpsertModelFormDialog
+    <UpsertModelFormDialogController
       action="create"
       projectId={projectId}
       prefilledModelData={{
@@ -53,9 +50,16 @@ export function ModelBadge({
             : undefined,
       }}
     >
-      <button type="button" className="inline-flex cursor-pointer">
-        <Badge text={model} trailingIcon={PlusCircle} />
-      </button>
-    </UpsertModelFormDialog>
+      {({ openDialog }) => (
+        <button
+          type="button"
+          title="Create model definition"
+          className="inline-flex cursor-pointer font-mono"
+          onClick={openDialog}
+        >
+          <Badge color="ghost" font="mono" interactive text={model} />
+        </button>
+      )}
+    </UpsertModelFormDialogController>
   );
 }

@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -48,6 +49,8 @@ export function MultiSelect({
   isCustomSelectEnabled = false,
   labelTruncateCutOff = 2,
   chipsOnly = false,
+  onOpenChange,
+  isLoading = false,
 }: {
   title?: string;
   label?: string;
@@ -60,6 +63,8 @@ export function MultiSelect({
   labelTruncateCutOff?: number;
   /** chipsOnly hides the placeholder/separator once values are selected, showing just the chips and chevron. */
   chipsOnly?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  isLoading?: boolean;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
@@ -170,14 +175,14 @@ export function MultiSelect({
     );
 
   return (
-    <Popover>
+    <Popover onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           className={cn(
             // min-w-0 + overflow-hidden: the trigger must never grow past its
             // container — wide selected values truncate instead.
-            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "border-input ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -187,12 +192,12 @@ export function MultiSelect({
               <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                 {selectedBadges}
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <DropdownIndicator />
             </>
           ) : (
             <>
               {label ?? "Select"}
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <DropdownIndicator />
               {selectedValues.size > 0 && (
                 <>
                   <Separator orientation="vertical" className="mr-auto h-4" />
@@ -211,18 +216,38 @@ export function MultiSelect({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="center">
+      <PopoverContent className="ph-no-capture w-[200px] p-0" align="center">
         <InputCommand>
-          <InputCommandInput placeholder={title} variant="bottom" />
+          <InputCommandInput
+            placeholder={title}
+            variant="bottom"
+            disabled={isLoading}
+          />
           <InputCommandList>
+            {isLoading && (
+              <div
+                role="status"
+                className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
+              >
+                <Loader2
+                  className="icon-base animate-spin"
+                  aria-hidden="true"
+                />
+                Loading…
+              </div>
+            )}
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
-            {!isCustomSelectEnabled && (
+            {!isCustomSelectEnabled && !isLoading && (
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup>
               {showSelectAll && (
                 <>
-                  <InputCommandItem key="select-all" onSelect={handleSelectAll}>
+                  <InputCommandItem
+                    key="select-all"
+                    onSelect={handleSelectAll}
+                    disabled={isLoading}
+                  >
                     <div
                       className={cn(
                         "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
@@ -231,7 +256,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="icon-base" />
                     </div>
                     <div className="font-bold">
                       {allSelectedState ? "Deselect All" : "Select All"}
@@ -253,6 +278,7 @@ export function MultiSelect({
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
+                    disabled={isLoading}
                     onSelect={() => {
                       if (isSelected) {
                         selectedValues.delete(option.value);
@@ -271,7 +297,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="icon-base" />
                     </div>
                     <div
                       className={cn(
@@ -308,6 +334,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandItem
                   key="freeTextField"
+                  disabled={isLoading}
                   onSelect={() => {
                     const freeTextInput = getFreeTextInput(
                       isCustomSelectEnabled,
@@ -339,10 +366,11 @@ export function MultiSelect({
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >
-                    <Check className="h-4 w-4" />
+                    <Check className="icon-base" />
                   </div>
                   <Input
                     type="text"
+                    disabled={isLoading}
                     value={freeText}
                     onChange={(e) => {
                       setFreeText(e.target.value);
@@ -367,6 +395,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandGroup>
                   <InputCommandItem
+                    disabled={isLoading}
                     onSelect={() => onValueChange([])}
                     className="justify-center text-center"
                   >

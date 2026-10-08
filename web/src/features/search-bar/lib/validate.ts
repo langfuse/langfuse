@@ -240,7 +240,9 @@ export function semanticDiagnostics(
       termRegistry,
     );
     if (isCompatibilityScope && searchType !== null) {
-      firstCompatibilityScope ??= node;
+      if (firstCompatibilityScope === undefined) {
+        firstCompatibilityScope = node;
+      }
     }
     const span = nodeSpan(node, textLength);
     for (const message of errors) {

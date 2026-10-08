@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import {
@@ -554,7 +555,7 @@ export function SampleObservationSelectorBase(
                   );
                 }}
               >
-                <example.icon className="h-4 w-4" />
+                <example.icon className="icon-base" />
                 <span>{example.label}</span>
               </Button>
             ))}

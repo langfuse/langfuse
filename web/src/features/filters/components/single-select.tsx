@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -134,7 +135,7 @@ export function SingleSelect({
           variant="outline"
           disabled={disabled}
           className={cn(
-            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "border-input ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
         >
@@ -164,12 +165,12 @@ export function SingleSelect({
               </span>
             ) : null}
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         className={cn(
-          "max-w-[calc(100vw-2rem)] p-0",
+          "ph-no-capture max-w-[calc(100vw-2rem)] p-0",
           showOptionValue ? "w-[400px]" : "w-[200px]",
         )}
         align="start"
@@ -216,7 +217,7 @@ export function SingleSelect({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-base mr-2",
                         isSelected ? "visible" : "invisible",
                       )}
                     />
@@ -272,7 +273,7 @@ export function SingleSelect({
                   value={search.trim()}
                   onSelect={() => commit(search.trim())}
                 >
-                  <Plus className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Plus className="icon-base mr-2 shrink-0 opacity-50" />
                   <div className="overflow-x-hidden text-ellipsis whitespace-nowrap">
                     Use &ldquo;{search.trim()}&rdquo;
                   </div>

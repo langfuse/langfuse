@@ -86,7 +86,7 @@ const SECTION_MATCHERS: Array<{
   {
     id: "surfaces",
     test: (n) =>
-      /^--(?:background|foreground|foreground-tertiary|muted|surface-code(?:-header)?|popover|card|modal|header)(?:-foreground)?$/.test(
+      /^--(?:background|foreground|foreground-secondary|foreground-tertiary|icon|muted|surface-code(?:-header)?|popover|card|modal|header)(?:-foreground)?$/.test(
         n,
       ),
   },
@@ -211,7 +211,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
           state="Hover · row"
           classes="hover:bg-muted/50"
           tokens="--muted at 50%"
-          seenIn="TableRow (ui/table.tsx)"
+          seenIn="DataTable / SimpleDataTable"
           sample={
             <div
               className="flex flex-col rounded-md border text-xs"
@@ -231,7 +231,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
           state="Selected · row"
           classes="data-[state=selected]:bg-muted"
           tokens="--muted"
-          seenIn="TableRow (ui/table.tsx)"
+          seenIn="DataTable / SimpleDataTable"
           sample={
             <div
               className="flex flex-col rounded-md border text-xs"
@@ -440,7 +440,12 @@ function renderSample(
       const isText = name.includes("foreground");
       if (isText) {
         let base = name.replace(/-foreground$/, "");
-        if (name === "--foreground" || name === "--foreground-tertiary")
+        if (
+          name === "--foreground" ||
+          name === "--foreground-secondary" ||
+          name === "--foreground-tertiary" ||
+          name === "--icon-foreground"
+        )
           base = "--background";
         if (name === "--muted-foreground") base = "--muted";
         return (
@@ -760,7 +765,7 @@ function ColorMappingsSection({ ctx }: { ctx: TokenContext }) {
       <summary className="flex cursor-pointer list-none items-start gap-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden
-          className="text-muted-foreground mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+          className="text-muted-foreground icon-base mt-1.5 shrink-0 transition-transform group-open:rotate-90"
         />
         <div className="flex flex-1 items-baseline justify-between gap-4">
           <div>

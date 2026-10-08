@@ -33,6 +33,7 @@ const ACTIVE_TRACE_DELETE_BATCH_ACTION_WHERE = {
 type ActiveTraceDeleteBatchAction = {
   id: string;
   projectId: string;
+  userId: string;
   status: string;
   processedCount: number | null;
   failedCount: number | null;
@@ -137,6 +138,7 @@ export class TraceDeleteBatchActionRunner extends PeriodicExclusiveRunner {
         logger.info(`${this.instanceName}: Processing trace delete action`, {
           batchActionId: batchAction.id,
           projectId: batchAction.projectId,
+          userId: batchAction.userId,
           status: batchAction.status,
           source,
           activeActionCount,
@@ -147,6 +149,7 @@ export class TraceDeleteBatchActionRunner extends PeriodicExclusiveRunner {
 
         const result = await processTraceDeleteBatchAction({
           batchActionId: batchAction.id,
+          projectId: batchAction.projectId,
           batchSize: this.batchSize,
           maxBatchesPerRun: this.maxBatchesPerRun,
           canCommitProgress: () => this.lock.isHeldByCurrentProcess(),
@@ -195,6 +198,7 @@ export class TraceDeleteBatchActionRunner extends PeriodicExclusiveRunner {
         select: {
           id: true,
           projectId: true,
+          userId: true,
           status: true,
           processedCount: true,
           failedCount: true,

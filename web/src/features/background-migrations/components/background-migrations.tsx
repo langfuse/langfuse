@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -73,7 +74,7 @@ export default function BackgroundMigrationsTable() {
             {({ disabled, Trigger }) => (
               <Trigger asChild>
                 <Button variant="ghost" size="xs" disabled={disabled}>
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="icon-sm text-icon-foreground" />
                 </Button>
               </Trigger>
             )}

@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 
 export function OverviewSelectionBar({
   selectedCount,
@@ -27,7 +27,7 @@ export function OverviewSelectionBar({
             aria-label="Clear selection"
             onClick={onClear}
           >
-            <X className="h-4 w-4" />
+            <X className="icon-base text-icon-foreground" />
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">{children}</div>

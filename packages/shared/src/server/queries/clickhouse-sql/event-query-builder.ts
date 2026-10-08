@@ -208,6 +208,10 @@ const EVENTS_FIELDS = {
     "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
 } as const;
 
+const EVENTS_FIELD_ORDER_INDEX = new Map(
+  Object.keys(EVENTS_FIELDS).map((key, index) => [key, index]),
+);
+
 /**
  * Predefined field sets for common query patterns
  * Maps set names to arrays of field keys from EVENTS_FIELDS
@@ -544,7 +548,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
   latency_milliseconds:
-    "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
+    "if(max(end_time) IS NULL, NULL, date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))) AS latency_milliseconds",
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
   observation_count:
@@ -595,7 +599,7 @@ const AGGREGATION_FIELD_SETS = {
  * // Use when you need to query across all projects (use with caution!)
  * const builder = new EventsQueryBuilder({ projectId: NoProjectId });
  */
-const NoProjectId = Symbol("NoProjectId");
+export const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**
@@ -1168,9 +1172,17 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       fieldsToExclude.push("metadata");
     }
 
-    const fieldsToProcess = [...this.selectFields].filter(
-      (f) => !fieldsToExclude.includes(f),
-    );
+    // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order
+    // does not follow caller field-set order. Clustered ClickHouse reads align
+    // result blocks by position; incompatible Map types (cost_details vs
+    // metadata) 500 when those columns swap places.
+    const fieldsToProcess = [...this.selectFields]
+      .filter((f) => !fieldsToExclude.includes(f))
+      .sort(
+        (a, b) =>
+          (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+          (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
+      );
 
     const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
       const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
@@ -1476,6 +1488,10 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(user_id, user_id IS NOT NULL AND user_id != '') AS user_ids",
   trace_count: "uniq(trace_id) AS trace_count",
   trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
+  tool_names: "groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names",
+  called_tool_names:
+    "groupUniqArrayArray(tool_call_names) AS called_tool_names",
+  tool_calls_count: "sum(length(tool_calls)) AS tool_calls_count",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
   metadata_names:
@@ -1508,9 +1524,13 @@ const SESSION_AGGREGATION_FIELD_SETS = {
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
   base: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS).filter(
-    (field) => field !== "metadata_names" && field !== "metadata_values",
+    (field) =>
+      field !== "metadata_names" &&
+      field !== "metadata_values" &&
+      !["tool_names", "called_tool_names", "tool_calls_count"].includes(field),
   ) as Array<keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS>,
   metadata: ["metadata_names", "metadata_values"],
+  tools: ["tool_names", "called_tool_names", "tool_calls_count"],
 } as const;
 
 /**
@@ -1951,7 +1971,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   experimentId: "e.experiment_id AS experiment_id",
   experimentName: "any(e.experiment_name) AS experiment_name",
   experimentDescription:
-    "any(e.experiment_description) AS experiment_description",
+    "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
   experimentDatasetId:
     "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
@@ -2136,10 +2156,23 @@ export function buildEventsFullTableSplitQuery(opts: {
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
     );
   }
+  // The tuple semi-join alone cannot prune events_full's primary key (raw
+  // start_time/trace_id vs the toStartOfMinute/xxHash32 key expressions), so
+  // bound start_time to base's own matched range. Derived from base (not the
+  // request filter) so it also tightens lookups that arrive without a time
+  // filter, and the values are never re-serialized as params.
+  //
+  // Both bounds read one byte-identical (min, max) scalar subquery over base,
+  // with .1/.2 applied outside. ClickHouse's scalar cache keys on subquery
+  // text, so the identical text is evaluated once and base is scanned once for
+  // both bounds.
+  const ioBounds = "(SELECT (min(start_time), max(start_time)) FROM base)";
   const ioQuery = [
     `SELECT ${ioSelectParts.join(", ")}`,
     "FROM events_full e",
     "WHERE e.project_id = {projectId: String}",
+    `AND e.start_time >= ${ioBounds}.1`,
+    `AND e.start_time <= ${ioBounds}.2`,
     'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
   ].join("\n");
 
@@ -2154,7 +2187,6 @@ export function buildEventsFullTableSplitQuery(opts: {
     });
   }
 
-  // Register base and io CTEs, set up FROM and JOIN
   cteBuilder = cteBuilder
     .withCTE("base", {
       query: baseQuery,

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -11,16 +12,11 @@ import {
   Info,
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useSupportDrawer } from "@/src/features/support-chat";
 import { Button } from "@/src/components/ui/button";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardPortal,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
 import {
@@ -54,7 +50,7 @@ import {
 import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
@@ -129,6 +125,7 @@ export function useCopyMigrationPrompt() {
     await copyTextToClipboard(V4_CODING_AGENT_PROMPT);
     capture("v4_migration:coding_agent_prompt_copied");
     showSuccessToast({
+      operation: "prompt.copy",
       title: "Prompt copied",
       description: "Paste it into Cursor, Codex, or another coding agent.",
     });
@@ -189,7 +186,7 @@ function Section({
         </span>
         <span className="flex-1" />
         {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
-        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight className="text-foreground-tertiary icon-base shrink-0 transition-transform group-data-[state=open]:rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>
@@ -331,9 +328,9 @@ function CodeBlockWithCopy({
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
         {copied ? (
-          <Check className="h-3.5 w-3.5" />
+          <Check className="icon-base text-icon-foreground" />
         ) : (
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="icon-base text-icon-foreground" />
         )}
       </Button>
     </div>
@@ -375,13 +372,18 @@ function SdkUsageSeriesRows({
                 language: usage.canonicalSdkName ?? usage.sdkName,
                 version: usage.sdkVersion,
               });
-        const publicKey = usage.publicKey
-          ? usage.publicKey.length > 18
-            ? `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`
-            : usage.publicKey
-          : hideMissingApiKey
-            ? null
-            : "No API key";
+        const publicKey = (() => {
+          if (usage.publicKey) {
+            if (usage.publicKey.length > 18) {
+              return `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`;
+            }
+            return usage.publicKey;
+          }
+          if (hideMissingApiKey) {
+            return null;
+          }
+          return "No API key";
+        })();
         const evidenceHref =
           projectId && usage.eventCount > 0
             ? `/project/${projectId}/observations?filter=${encodeURIComponent(
@@ -516,13 +518,17 @@ export function V4MigrationSdkSection({
         projectId={projectId}
         analyticsSection="sdk"
         needsAction={isActionableSdkSeries}
-        suffix={(usage) =>
-          usage.v4MigrationStatus === "upgrade_required" ? (
-            <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
-          ) : usage.v4MigrationStatus === "unknown" ? (
-            <span>· version not recognized</span>
-          ) : null
-        }
+        suffix={(usage) => {
+          if (usage.v4MigrationStatus === "upgrade_required") {
+            return (
+              <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
+            );
+          }
+          if (usage.v4MigrationStatus === "unknown") {
+            return <span>· version not recognized</span>;
+          }
+          return null;
+        }}
       />
     </Section>
   );
@@ -764,7 +770,7 @@ export function V4MigrationEvalsSection({
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
-                  <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                  <BotMessageSquare className="icon-base text-icon-foreground mr-1.5" />
                   Use Assistant
                 </>
               ) : (
@@ -977,13 +983,18 @@ export function V4MigrationApisSection({
                           caller.sdkName,
                           caller.sdkVersion,
                         );
-                        const callerName = caller.isOther
-                          ? "Unknown callers"
-                          : caller.sdkName
-                            ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
-                            : codingAgent
-                              ? codingAgent
-                              : caller.userAgent || "Unknown caller";
+                        const callerName = (() => {
+                          if (caller.isOther) {
+                            return "Unknown callers";
+                          }
+                          if (caller.sdkName) {
+                            return `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`;
+                          }
+                          if (codingAgent) {
+                            return codingAgent;
+                          }
+                          return caller.userAgent || "Unknown caller";
+                        })();
                         const callerCount = Math.max(
                           1,
                           Math.round(caller.count),
@@ -1367,7 +1378,7 @@ export function V4MigrationAgentUpgradeSection({
     mutCreateProjectApiKey
       .mutateAsync({
         projectId,
-        note: "v4-migration-key",
+        name: "v4-migration-key",
       })
       .then(({ secretKey, publicKey }) => {
         setGeneratedKeys({
@@ -1419,7 +1430,7 @@ export function V4MigrationAgentUpgradeSection({
       </div>
       <div className="flex flex-col gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="mr-1.5 h-4 w-4 shrink-0" />
+          <Copy className="icon-base mr-1.5 shrink-0" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
@@ -1441,16 +1452,24 @@ export function V4MigrationAgentUpgradeSection({
                 (missingApiKeyAccess ? (
                   // Disabled buttons swallow pointer events, so the hover
                   // reason needs a span trigger, same pattern as ActionButton.
-                  <HoverCard openDelay={200}>
-                    <HoverCardTrigger asChild>
-                      <span className="shrink-0">{createKeysButton}</span>
-                    </HoverCardTrigger>
-                    <HoverCardPortal>
-                      <HoverCardContent className="w-80 text-sm">
+                  <HoverCard
+                    openDelay={200}
+                    content={
+                      <div className="w-80 p-3 text-sm">
                         Only users with admin access can create project API
                         keys. Please contact your admins.
-                      </HoverCardContent>
-                    </HoverCardPortal>
+                      </div>
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <span
+                        className="shrink-0"
+                        tabIndex={0}
+                        {...getTriggerProps()}
+                      >
+                        {createKeysButton}
+                      </span>
+                    )}
                   </HoverCard>
                 ) : (
                   createKeysButton
@@ -1696,18 +1715,10 @@ export function V4MigrationDetailsContent({
               <V4MigrationStatusDot variant="neutral" />
               <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
                 Compare traces while you upgrade
-                <HoverCard openDelay={200}>
-                  <HoverCardTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Why compare traces?"
-                      className="shrink-0"
-                    >
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </HoverCardTrigger>
-                  <HoverCardPortal>
-                    <HoverCardContent className="w-80 text-sm">
+                <HoverCard
+                  openDelay={200}
+                  content={
+                    <div className="w-80 p-3 text-sm">
                       The latest SDK no longer sets trace input and output;{" "}
                       <ExternalLink
                         href={OBSERVATIONS_DATA_MODEL_URL}
@@ -1719,8 +1730,19 @@ export function V4MigrationDetailsContent({
                         v4 infers them from observations
                       </ExternalLink>
                       .
-                    </HoverCardContent>
-                  </HoverCardPortal>
+                    </div>
+                  }
+                >
+                  {({ getTriggerProps }) => (
+                    <button
+                      type="button"
+                      aria-label="Why compare traces?"
+                      className="shrink-0"
+                      {...getTriggerProps()}
+                    >
+                      <Info className="icon-base" />
+                    </button>
+                  )}
                 </HoverCard>
               </span>
               <span className="flex-1" />

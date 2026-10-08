@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Check, AlertCircle } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type StatusStepProps = {
   projectId: string;

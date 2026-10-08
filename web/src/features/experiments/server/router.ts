@@ -42,7 +42,7 @@ import {
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
-  singleFilter,
+  singleFilterList,
   type FilterState,
   orderBy,
   paginationZod,
@@ -55,12 +55,12 @@ import {
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
 
 const ExperimentFilterOptions = z.object({
   projectId: z.string(),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   orderBy: orderBy,
   ...paginationZod,
 });
@@ -337,7 +337,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
         limit: z.number().int().min(1).max(50),
       }),
     )
@@ -348,6 +348,10 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      // Return the server-resolved window so widgets share it without adding
+      // a render-time timestamp to the fallback query input.
+      const to = new Date();
+      const from = addDays(to, -MOST_RECENT_LOOKBACK_DAYS);
       const filter: FilterState = [
         // The selected window is the one that came back empty; every other
         // filter the user applied still holds.
@@ -356,7 +360,7 @@ export const experimentsRouter = createTRPCRouter({
           column: "startTime",
           type: "datetime",
           operator: ">=",
-          value: addDays(new Date(), -MOST_RECENT_LOOKBACK_DAYS),
+          value: from,
         },
       ];
 
@@ -368,7 +372,7 @@ export const experimentsRouter = createTRPCRouter({
         limit: input.limit,
       });
 
-      return { data: experiments };
+      return { data: experiments, dateRange: { from, to } };
     }),
 
   byId: protectedProjectProcedure
@@ -411,7 +415,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -436,7 +440,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         experimentIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -582,9 +586,18 @@ export const experimentsRouter = createTRPCRouter({
         traceNames: string[],
       ): Record<string, ("observation" | "trace")[]> => {
         const out: Record<string, ("observation" | "trace")[]> = {};
-        for (const name of observationNames)
-          (out[name] ??= []).push("observation");
-        for (const name of traceNames) (out[name] ??= []).push("trace");
+        for (const name of observationNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("observation");
+        }
+        for (const name of traceNames) {
+          if (out[name] === undefined) {
+            out[name] = [];
+          }
+          out[name].push("trace");
+        }
         return out;
       };
 
@@ -632,7 +645,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),
@@ -771,7 +784,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),

@@ -1,16 +1,33 @@
+/* eslint-disable no-nested-ternary */
 import {
   availableFlags,
+  featurePreviewFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
+  isInternalFlag,
   isFeaturePreviewFlag,
+  isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isAdminOnlyFeaturePreviewFlag,
   type FeaturePreviewAvailabilityContext,
-  type FeaturePreviewFlag,
+  type UserFeatureFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
 
-export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
+export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
+
+/**
+ * Langfuse admins and deployments with experimental features enabled see
+ * internal surfaces. Client and server gates share this rule.
+ */
+export const hasInternalAccess = ({
+  isAdmin,
+  isExperimentalFeaturesEnabled,
+}: {
+  isAdmin: boolean;
+  isExperimentalFeaturesEnabled: boolean;
+}) => isExperimentalFeaturesEnabled || isAdmin;
 
 const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
@@ -38,8 +55,22 @@ export const parseFlags = (
       return;
     }
 
+    // Stored preference does not grant internal access.
+    if (isInternalFlag(flag)) {
+      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
+      return;
+    }
+
     if (
       isFeaturePreviewFlag(flag) &&
+      isOrganizationOnlyFeaturePreviewFlag(flag)
+    ) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;
@@ -76,7 +107,13 @@ export const parseFlagsWithOrganizationDefaults = (
   const featurePreviewDefaults =
     filterFeaturePreviewFlags(organizationDefaults);
 
-  return parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  const flags = parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  for (const flag of featurePreviewFlags) {
+    if (isOrganizationOnlyFeaturePreviewFlag(flag)) {
+      flags[flag] = featurePreviewDefaults.includes(flag);
+    }
+  }
+  return flags;
 };
 
 type ContextualFeatureFlagUser = {

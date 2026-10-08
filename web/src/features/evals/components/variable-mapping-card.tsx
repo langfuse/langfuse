@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Select,
   SelectContent,
@@ -46,7 +47,7 @@ import {
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -231,7 +232,7 @@ export const VariableMappingCard = ({
                 rel="noopener noreferrer"
               >
                 Edit prompt
-                <ExternalLink className="ml-1 h-4 w-4" />
+                <ExternalLink className="icon-base text-icon-foreground ml-1" />
               </Link>
             </Button>
           ) : (
@@ -242,7 +243,7 @@ export const VariableMappingCard = ({
               title="Only user-managed templates can be edited"
             >
               Edit prompt
-              <ExternalLink className="ml-1 h-4 w-4" />
+              <ExternalLink className="icon-base text-icon-foreground ml-1" />
             </Button>
           )}
         </div>

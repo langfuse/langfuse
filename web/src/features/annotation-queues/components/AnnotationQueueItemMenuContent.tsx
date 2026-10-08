@@ -25,12 +25,14 @@ type AnnotationQueueItemMenuContentProps = {
     queueName: string,
     itemId?: string,
   ) => void;
+  onManageClick?: () => void;
 };
 
 export function AnnotationQueueItemMenuContent({
   projectId,
   queues,
   onQueueItemToggle,
+  onManageClick,
 }: AnnotationQueueItemMenuContentProps) {
   const preventMenuItemAction = (event: MouseEvent) => {
     event.preventDefault();
@@ -39,7 +41,7 @@ export function AnnotationQueueItemMenuContent({
 
   return (
     <DropdownMenuContent className="max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
-      <DropdownMenuLabel>In queue(s)</DropdownMenuLabel>
+      <DropdownMenuLabel>Add to human annotation queue</DropdownMenuLabel>
       {queues.length ? (
         queues.map((queue) => (
           <DropdownMenuCheckboxItem
@@ -68,8 +70,11 @@ export function AnnotationQueueItemMenuContent({
       <DropdownMenuSeparator />
       <DropdownMenuItem className="hover:bg-accent" asChild>
         <div>
-          <ExternalLink className="mr-2 h-4 w-4" />
-          <Link href={`/project/${projectId}/annotation-queues`}>
+          <ExternalLink className="icon-base text-icon-foreground mr-2" />
+          <Link
+            href={`/project/${projectId}/annotation-queues`}
+            onClick={onManageClick}
+          >
             Manage queues
           </Link>
         </div>

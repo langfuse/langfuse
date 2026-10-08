@@ -3,6 +3,21 @@ info:
   title: server
   version: ''
   description: >-
+    ## Real-time data
+
+
+    The only real-time path to get tracing data is to ingest via OpenTelemetry
+    (`POST /api/public/otel/v1/traces`) and retrieve via Observations API v2
+    (`GET /api/public/v2/observations`) and Metrics API v2 (`GET
+    /api/public/v2/metrics`). Other public API write and read endpoints can
+    delay data by about 10 minutes. Direct OpenTelemetry exporters must send the
+    `x-langfuse-ingestion-version: 4` header; current Python and JS SDKs already
+    do. See the [Public API
+    docs](https://langfuse.com/docs/api-and-data-platform/features/public-api)
+    and [real-time
+    ingestion](https://langfuse.com/integrations/native/opentelemetry.md#real-time-ingestion).
+
+
     ## Authentication
 
 
@@ -2464,7 +2479,11 @@ paths:
             nullable: true
         - name: fromStartTime
           in: query
-          description: Retrieve only experiments on or after this datetime.
+          description: |-
+            Required. Retrieve only experiments with events on or after this
+            datetime. A lower bound is required so the query stays fast on
+            large projects; pair it with an upper bound to select a specific
+            window.
           required: true
           schema:
             type: string
@@ -2589,7 +2608,11 @@ paths:
             nullable: true
         - name: fromStartTime
           in: query
-          description: Retrieve only experiment items started on or after this datetime.
+          description: |-
+            Required. Retrieve only experiment items started on or after this
+            datetime. A lower bound is required so the query stays fast on
+            large projects; pair it with an upper bound to select a specific
+            window.
           required: true
           schema:
             type: string
@@ -2771,31 +2794,57 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and v4-only
-        write mode begins on November 16, 2026. This endpoint is never shut
-        down; it continues to accept score events. Trace and observation events
-        fail only in v4-only write mode, not in dual or legacy mode. Always
-        prefer upgrading to the current Python and JS SDKs. If you use custom
-        auto-instrumentation, only then send data via the OpenTelemetry endpoint
-        at `POST /api/public/otel/v1/traces` (for example with curl); see the
-        [OpenTelemetry integration
-        docs](https://langfuse.com/integrations/native/opentelemetry).
-        Self-hosted deployments are unaffected by this date; they reject trace
-        and observation events only in v4-only write mode, not dual or legacy.
-        See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, this is the deprecated Langfuse v3
+        ingestion API and it is shut down on November 16, 2026, except for score
+        events: from that date it accepts only `score-create` events and rejects
+        all other event types. To write scores, prefer `POST
+        /api/public/scores`; see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs; if you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint at `POST /api/public/otel/v1/traces` (for
+        example with curl); see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`; all other
+        public APIs may have data delays of several minutes. Self-hosted
+        deployments are unaffected by the November 16 date; this behavior begins
+        only when they enable v4-only write mode. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
 
-        This endpoint is never shut down. Trace and observation events are
-        rejected only in v4-only write mode (not dual or legacy); score events
-        continue to be accepted. Always prefer upgrading to the current Python
-        and JS SDKs. If you use custom auto-instrumentation, only then send
-        traces via the OpenTelemetry endpoint (`POST
-        /api/public/otel/v1/traces`), for example with curl. Learn more:
+        This is the deprecated Langfuse v3 ingestion API. It is shut down on
+        November 16, 2026, except for score events: from that date it accepts
+        only `score-create` events and rejects all other event types.
+
+
+        To write scores, prefer `POST /api/public/scores`:
+        https://langfuse.com/docs/api-and-data-platform/features/scores-api
+
+
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl:
         https://langfuse.com/integrations/native/opentelemetry
+
+
+        To read data back, use the v4 read APIs:
+        https://langfuse.com/docs/api-and-data-platform/features/observations-api
+        and https://langfuse.com/docs/metrics/features/metrics-api
+
+
+        The only path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
 
 
         Within each batch, there can be multiple events.
@@ -2876,8 +2925,10 @@ paths:
                   items:
                     $ref: '#/components/schemas/IngestionEvent'
                   description: >-
-                    Batch of tracing events to be ingested. Discriminated by
-                    attribute `type`.
+                    Batch of events to be ingested, discriminated by attribute
+                    `type`. From November 16, 2026 on Langfuse Cloud, only
+                    `score-create` events are accepted; all other event types
+                    are rejected.
                 metadata:
                   nullable: true
                   description: >-
@@ -3022,19 +3073,6 @@ paths:
           required: true
           schema:
             type: string
-        - name: startTime
-          in: query
-          description: >-
-            The start time of the observation (ISO 8601 with offset, e.g.
-            2024-01-01T00:00:00Z). Optional performance hint - when provided,
-            Langfuse narrows the lookup to make the request substantially
-            faster. It only affects speed - an incorrect or omitted value never
-            changes the result.
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
       responses:
         '200':
           description: ''
@@ -3209,7 +3247,7 @@ paths:
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "is set", "is not set"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
@@ -3701,6 +3739,11 @@ paths:
       description: >-
         Get metrics from the Langfuse project using a query object. V2 endpoint
         with optimized performance.
+
+
+        Together with OpenTelemetry ingestion and Observations API v2, this is
+        the only real-time read path. Other public API endpoints can delay data
+        by about 10 minutes.
 
 
         ## V2 Differences
@@ -4301,6 +4344,11 @@ paths:
         field selection.
 
 
+        Together with OpenTelemetry ingestion and Metrics API v2, this is the
+        only real-time read path. Other public API endpoints can delay data by
+        about 10 minutes.
+
+
         ## Cursor-based Pagination
 
         This endpoint uses cursor-based pagination for efficient traversal of
@@ -4540,7 +4588,7 @@ paths:
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
@@ -4744,6 +4792,12 @@ paths:
         This endpoint implements the OTLP/HTTP specification for trace
         ingestion, providing native OpenTelemetry integration for Langfuse
         Observability.
+
+
+        Together with Observations API v2 and Metrics API v2, this is the only
+        real-time write path. Other public API endpoints can delay data by about
+        10 minutes. Direct exporters must send `x-langfuse-ingestion-version:
+        4`; current Python and JS SDKs already do.
 
 
         **Supported Formats:**
@@ -5512,10 +5566,27 @@ paths:
             schema:
               type: object
               properties:
+                name:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional name for the API key. Cannot be provided together
+                    with note, even if either value is an empty string.
                 note:
                   type: string
                   nullable: true
-                  description: Optional note for the API key
+                  description: >-
+                    Deprecated alias for name. Cannot be provided together with
+                    name, even if either value is an empty string.
+                  deprecated: true
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: >-
+                    Optional expiration timestamp in ISO 8601 format. Must be in
+                    the future. Omit or set to null for a key that does not
+                    expire.
                 publicKey:
                   type: string
                   nullable: true
@@ -5847,6 +5918,71 @@ paths:
           schema:
             type: string
             format: date-time
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON string containing an array of filter conditions, combined with
+            AND.
+
+            When provided, this takes precedence over name, version,
+
+            label, tag, fromUpdatedAt, and toUpdatedAt. An empty array applies
+            no
+
+            filters. Project scoping and pagination always apply.
+
+
+            Each condition requires `type`, `column`, `operator`, and `value`.
+
+            Supported types and columns:
+
+            - `string`: `id`, `name`, `type`. Operators: `=`, `contains`, `does
+            not contain`, `starts with`, `ends with`, `is not empty`.
+
+            - `stringOptions`: `id`, `name`, `type`. Operators: `any of`, `none
+            of`. Value: non-empty string array.
+
+            - `number`: `version`. Operators: `=`, `>`, `<`, `>=`, `<=`. Value:
+            number.
+
+            - `datetime`: `createdAt`, `updatedAt`. Operators: `>`, `<`, `>=`,
+            `<=`. Value: ISO 8601 timestamp.
+
+            - `arrayOptions`: `labels`, `tags`. Operators: `any of`, `all of`,
+            `none of`. Value: non-empty string array.
+
+            - `stringObject`: `config`. Requires an additional `key` field.
+            Operators: `=`, `contains`, `does not contain`, `starts with`, `ends
+            with`, `is set`, `is not set`. Value: string (use an empty string
+            for key-presence operators).
+
+
+            String equality is case-sensitive. String search operators use
+
+            case-insensitive SQL pattern matching: `%` matches any sequence and
+
+            `_` matches a single character. A backslash escapes these
+            characters;
+
+            JSON-escape the backslash in the filter value. Asterisks are
+            literal.
+
+            For config, an empty search value is treated as `is set`.
+
+
+            Filters apply to prompt versions before aggregation: returned
+            versions,
+
+            labels, and lastConfig reflect only matching versions.
+
+
+            Example: [{"type":"string","column":"name","operator":"starts
+            with","value":"tools/"},{"type":"string","column":"name","operator":"ends
+            with","value":"/description"}]
+          required: false
+          schema:
+            type: string
             nullable: true
       responses:
         '200':
@@ -6183,6 +6319,7 @@ paths:
                     disabled). No credential is created for the user;
                     provisioned users authenticate via SSO or set a password
                     themselves through the password reset flow.
+                  deprecated: true
               required:
                 - userName
                 - name
@@ -6725,8 +6862,10 @@ paths:
   /api/public/scores:
     post:
       description: >-
-        Create a score (supports trace, observation, session, and dataset run
-        scores)
+        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if
+        accepted, or 207 with accepted/rejected counts and error messages. Do
+        not automatically retry a 207 batch. The generated reference shows only
+        200; batches return 202 or 207.
       operationId: scores_create
       tags:
         - Scores
@@ -6737,7 +6876,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateScoreResponse'
+                $ref: '#/components/schemas/CreateScoresResponse'
         '400':
           description: ''
           content:
@@ -6769,7 +6908,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateScoreRequest'
+              $ref: '#/components/schemas/CreateScoresRequest'
   /api/public/v2/scores:
     get:
       description: >-
@@ -6962,7 +7101,9 @@ paths:
             Supported types: stringObject (metadata key-value filtering),
             string, number, datetime, stringOptions, arrayOptions. Supported
             operators for stringObject: =, contains, does not contain, starts
-            with, ends with.
+            with, ends with, is set, is not set. Use is set / is not set to
+            filter on metadata key presence. An empty value for contains, starts
+            with, or ends with is treated as is set (key presence).
           required: false
           schema:
             type: string
@@ -7508,7 +7649,7 @@ paths:
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "is set", "is not set"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - booleanObject: "=", "<>"
                                           // - boolean: "=", "<>"
@@ -8613,6 +8754,420 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+  /api/public/unstable/skills:
+    get:
+      description: >-
+        List skills with metadata and timestamps from their latest version,
+        shared tags, and the version assigned to production when present.
+      operationId: unstable_skills_list
+      tags:
+        - UnstableSkills
+      parameters:
+        - name: name
+          in: query
+          description: Filter by exact skill name.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: search
+          in: query
+          description: >-
+            Case-insensitive search across skill names and latest-version
+            descriptions.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: tag
+          in: query
+          description: Filter by a shared skill tag.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: fromUpdatedAt
+          in: query
+          description: >-
+            Include skills whose latest version was updated at or after this
+            timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toUpdatedAt
+          in: query
+          description: >-
+            Include skills whose latest version was updated before this
+            timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableSkillMetaListResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    post:
+      description: Create skill version
+      operationId: unstable_skills_createVersion
+      tags:
+        - UnstableSkills
+      parameters: []
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableSkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateSkillVersionRequest'
+  /api/public/unstable/skills/{skillName}:
+    get:
+      description: >-
+        Resolve a skill's metadata and file manifest by version or label.
+        Defaults to the production label. Use each file's sha256Hash with
+        getFileContents, individually or in batches across manifests.
+      operationId: unstable_skills_get
+      tags:
+        - UnstableSkills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableSkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    patch:
+      description: >-
+        Replace the shared tags across all versions of a skill. An empty tags
+        list clears all tags. Returns the latest skill version with the updated
+        tags.
+      operationId: unstable_skills_update
+      tags:
+        - UnstableSkills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableSkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateSkillRequest'
+  /api/public/unstable/skills/files/content:
+    get:
+      description: >-
+        Read a batch of text contents by canonical base64-encoded SHA-256 hashes.
+      operationId: unstable_skills_getFileContents
+      tags:
+        - UnstableSkills
+      parameters:
+        - name: sha256Hashes
+          in: query
+          description: >-
+            Comma-separated list of one to 50 canonical base64-encoded SHA-256
+            hashes from skill file manifests. URL-encode the value, including +,
+            /, and = characters.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableSkillFileContentsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/unstable/skills/{skillName}/versions/{skillVersion}:
+    patch:
+      description: >-
+        Replace the labels on a skill version and atomically move them from
+        other versions.
+      operationId: unstable_skills_setLabels
+      tags:
+        - UnstableSkills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skillVersion
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableSkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateSkillLabelsRequest'
+    delete:
+      description: >-
+        Delete one immutable skill version. Unreferenced blobs are retained for
+        asynchronous cleanup.
+      operationId: unstable_skills_deleteVersion
+      tags:
+        - UnstableSkills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skillVersion
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteSkillVersionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
 components:
   schemas:
     AnnotationQueueStatus:
@@ -8800,6 +9355,7 @@ components:
         - S3
         - S3_COMPATIBLE
         - AZURE_BLOB_STORAGE
+        - GOOGLE_CLOUD_STORAGE
     BlobStorageIntegrationFileType:
       title: BlobStorageIntegrationFileType
       type: string
@@ -8908,11 +9464,15 @@ components:
             Name of the storage bucket. For AZURE_BLOB_STORAGE, must be a valid
             Azure container name (3-63 chars, lowercase letters, numbers, and
             hyphens only, must start and end with a letter or number, no
-            consecutive hyphens).
+            consecutive hyphens). For GOOGLE_CLOUD_STORAGE with default
+            credentials, the bucket must be listed in
+            `LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS`.
         endpoint:
           type: string
           nullable: true
-          description: Custom endpoint URL (required for S3_COMPATIBLE type)
+          description: >-
+            Custom endpoint URL (required for S3_COMPATIBLE type). Ignored for
+            GOOGLE_CLOUD_STORAGE.
         region:
           type: string
           description: >-
@@ -8920,15 +9480,26 @@ components:
             R2, MinIO, Azure location IDs such as eastus, OCI). Leading and
             trailing whitespace is removed. The remaining value must be 1-63
             letters, numbers, or hyphens, and cannot start or end with a hyphen.
-            Examples: us-east-1, europe-west1, eastus, auto.
+            Examples: us-east-1, europe-west1, eastus, auto. Not used by
+            GOOGLE_CLOUD_STORAGE; pass auto.
         accessKeyId:
           type: string
           nullable: true
-          description: Access key ID for authentication
+          description: Access key ID for authentication. Not used for GOOGLE_CLOUD_STORAGE.
         secretAccessKey:
           type: string
           nullable: true
-          description: Secret access key for authentication (will be encrypted when stored)
+          description: >-
+            Secret access key for authentication (will be encrypted when
+            stored). When omitted on update, the stored secret is kept, unless
+            the type changes between GOOGLE_CLOUD_STORAGE and another type.
+
+
+            For GOOGLE_CLOUD_STORAGE, a GCP service account JSON key. On
+            self-hosted deployments, pass `__GCS_DEFAULT_CREDENTIALS__` instead
+            to use the deployment's Application Default Credentials; the bucket
+            must then be listed in `LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS`.
+            Default credentials are not available on Langfuse Cloud.
         prefix:
           type: string
           nullable: true
@@ -9234,16 +9805,6 @@ components:
             The id of the user who created the comment. Must be a member of the
             organization that owns the project, otherwise an error will be
             thrown.
-        objectStartTime:
-          type: string
-          format: date-time
-          nullable: true
-          description: >-
-            The start time of the referenced object (for observations, the
-            observation's start time). Optional performance hint - when
-            provided, Langfuse narrows the lookup to validate the reference
-            faster. It only affects speed - an incorrect or omitted value never
-            changes the result.
       required:
         - projectId
         - objectType
@@ -9340,8 +9901,13 @@ components:
           nullable: true
           description: The user identifier associated with the trace
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
-          description: The metadata associated with the trace. Can be any JSON.
+          description: >-
+            The metadata associated with the trace. Values can be any JSON;
+            non-object metadata sent at ingestion is returned under the
+            `metadata` key.
         tags:
           type: array
           items:
@@ -9515,6 +10081,9 @@ components:
           nullable: true
           description: The version of the observation
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Additional metadata of the observation
         output:
           description: The output data of the observation
@@ -9573,7 +10142,6 @@ components:
         - modelParameters
         - input
         - version
-        - metadata
         - output
         - usage
         - level
@@ -9773,6 +10341,8 @@ components:
           nullable: true
           description: The output data of the observation
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Additional metadata of the observation
         model:
@@ -10029,6 +10599,9 @@ components:
           nullable: true
           description: Comment on the score
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10059,7 +10632,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -10220,6 +10792,9 @@ components:
           nullable: true
           description: Comment on the score
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10249,7 +10824,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -10456,9 +11030,13 @@ components:
         metadata:
           description: Metadata associated with the dataset
         inputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item inputs
         expectedOutputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item expected outputs
         projectId:
@@ -11668,6 +12246,17 @@ components:
         - does not contain
         - starts with
         - ends with
+    EvaluationRuleStringObjectFilterOperator:
+      title: EvaluationRuleStringObjectFilterOperator
+      type: string
+      enum:
+        - '='
+        - contains
+        - does not contain
+        - starts with
+        - ends with
+        - is set
+        - is not set
     EvaluationRuleNumberFilterOperator:
       title: EvaluationRuleNumberFilterOperator
       type: string
@@ -11800,9 +12389,13 @@ components:
           type: string
           description: Top-level key inside the object-valued column to filter on.
         operator:
-          $ref: '#/components/schemas/EvaluationRuleStringFilterOperator'
+          $ref: '#/components/schemas/EvaluationRuleStringObjectFilterOperator'
+          description: Use `is set` / `is not set` to filter on key presence.
         value:
           type: string
+          description: >-
+            Value to compare against. Ignored for `is set` / `is not set`; send
+            `""`.
       required:
         - column
         - key
@@ -12195,7 +12788,10 @@ components:
 
         - `arrayOptions`: `any of`, `none of`, `all of`
 
-        - `stringObject`: same operators as `string`
+        - `stringObject`: `"="`, `contains`, `does not contain`, `starts with`,
+        `ends with`, `is set`, `is not set` (use `is set` / `is not set` for key
+        presence; an empty value for `contains`, `starts with`, or `ends with`
+        is treated as `is set`)
 
         - `boolean`: `"="`, `"<>"`
 
@@ -13237,11 +13833,10 @@ components:
     CursorMeta:
       title: CursorMeta
       type: object
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: Opaque cursor for the next page. Omitted when there is no next page.
+      description: Cursor pagination metadata.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     DeletedEvaluator:
       title: DeletedEvaluator
       type: object
@@ -13268,13 +13863,10 @@ components:
     ExperimentsResponseMeta:
       title: ExperimentsResponseMeta
       type: object
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            Versioned base64url cursor for retrieving the next page. Absent when
-            there are no more results.
+      description: Metadata for cursor-based pagination.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     Experiment:
       title: Experiment
       type: object
@@ -13575,18 +14167,6 @@ components:
           required:
             - type
           title: CreateEventEvent
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - sdk-log
-            - $ref: '#/components/schemas/SDKLogEvent'
-          required:
-            - type
-          title: SDKLogEvent
         - type: object
           allOf:
             - type: object
@@ -13895,13 +14475,6 @@ components:
           type: boolean
           nullable: true
           description: Make trace publicly accessible via url
-    SDKLogBody:
-      title: SDKLogBody
-      type: object
-      properties:
-        log: {}
-      required:
-        - log
     ScoreBody:
       title: ScoreBody
       type: object
@@ -13988,6 +14561,25 @@ components:
     TraceEvent:
       title: TraceEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/TraceBody'
@@ -13998,6 +14590,25 @@ components:
     CreateObservationEvent:
       title: CreateObservationEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/ObservationBody'
@@ -14008,6 +14619,25 @@ components:
     UpdateObservationEvent:
       title: UpdateObservationEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/ObservationBody'
@@ -14025,19 +14655,28 @@ components:
         - body
       allOf:
         - $ref: '#/components/schemas/BaseEvent'
-    SDKLogEvent:
-      title: SDKLogEvent
-      type: object
-      properties:
-        body:
-          $ref: '#/components/schemas/SDKLogBody'
-      required:
-        - body
-      allOf:
-        - $ref: '#/components/schemas/BaseEvent'
     CreateGenerationEvent:
       title: CreateGenerationEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14048,6 +14687,25 @@ components:
     UpdateGenerationEvent:
       title: UpdateGenerationEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/UpdateGenerationBody'
@@ -14058,6 +14716,25 @@ components:
     CreateSpanEvent:
       title: CreateSpanEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/CreateSpanBody'
@@ -14068,6 +14745,25 @@ components:
     UpdateSpanEvent:
       title: UpdateSpanEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/UpdateSpanBody'
@@ -14078,6 +14774,25 @@ components:
     CreateEventEvent:
       title: CreateEventEvent
       type: object
+      description: >-
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/CreateEventBody'
@@ -14732,14 +15447,10 @@ components:
     ObservationsV2Meta:
       title: ObservationsV2Meta
       type: object
-      description: Metadata for cursor-based pagination
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            Base64-encoded cursor to use for retrieving the next page. If not
-            present, there are no more results.
+      description: Metadata for cursor-based pagination.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     OtelResourceSpan:
       title: OtelResourceSpan
       type: object
@@ -14992,13 +15703,22 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         lastUsedAt:
           type: string
           format: date-time
           nullable: true
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
         publicKey:
           type: string
         displaySecretKey:
@@ -15103,13 +15823,22 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         lastUsedAt:
           type: string
           format: date-time
           nullable: true
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
         publicKey:
           type: string
         displaySecretKey:
@@ -15129,15 +15858,28 @@ components:
         createdAt:
           type: string
           format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         publicKey:
           type: string
         secretKey:
           type: string
         displaySecretKey:
           type: string
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
       required:
         - id
         - createdAt
@@ -16102,14 +16844,10 @@ components:
       properties:
         limit:
           type: integer
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            URL-safe base64 (base64url) cursor for the next page. Absent when
-            there are no more results.
       required:
         - limit
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     GetScoresV3Response:
       title: GetScoresV3Response
       type: object
@@ -16123,6 +16861,16 @@ components:
       required:
         - data
         - meta
+    CreateScoresRequest:
+      title: CreateScoresRequest
+      oneOf:
+        - $ref: '#/components/schemas/CreateScoreRequest'
+        - $ref: '#/components/schemas/CreateScoreBatchRequest'
+    CreateScoreBatchRequest:
+      title: CreateScoreBatchRequest
+      type: array
+      items:
+        $ref: '#/components/schemas/CreateScoreRequest'
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -16207,6 +16955,22 @@ components:
         Source values accepted when creating a score via the public REST API.
         EVAL is reserved for internal evaluator outputs and is intentionally not
         exposed here — use commons.ScoreSource when reading scores.
+    CreateScoresResponse:
+      title: CreateScoresResponse
+      oneOf:
+        - $ref: '#/components/schemas/CreateScoreResponse'
+        - $ref: '#/components/schemas/CreateScoreBatchResponse'
+        - $ref: '#/components/schemas/CreateScoreBatchResults'
+    CreateScoreBatchResponse:
+      title: CreateScoreBatchResponse
+      type: object
+      description: Batch accepted (HTTP 202).
+      properties:
+        message:
+          type: string
+          const: Accepted
+      required:
+        - message
     CreateScoreResponse:
       title: CreateScoreResponse
       type: object
@@ -16362,6 +17126,31 @@ components:
       required:
         - data
         - meta
+    CreateScoreBatchResults:
+      title: CreateScoreBatchResults
+      type: object
+      description: Acceptance counts and errors (HTTP 207).
+      properties:
+        accepted:
+          type: integer
+        rejected:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateScoreBatchError'
+      required:
+        - accepted
+        - rejected
+        - errors
+    CreateScoreBatchError:
+      title: CreateScoreBatchError
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     PaginatedSessions:
       title: PaginatedSessions
       type: object
@@ -17117,6 +17906,236 @@ components:
       required:
         - message
         - code
+    unstableSkillMetaListResponse:
+      title: unstableSkillMetaListResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableSkillMeta'
+        meta:
+          $ref: '#/components/schemas/unstableSkillListPagination'
+      required:
+        - data
+        - meta
+    unstableSkillListPagination:
+      title: unstableSkillListPagination
+      type: object
+      properties:
+        hasNextPage:
+          type: boolean
+      required:
+        - hasNextPage
+      allOf:
+        - $ref: '#/components/schemas/utilsMetaResponse'
+    unstableSkillMeta:
+      title: unstableSkillMeta
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        latestVersion:
+          type: integer
+        latestVersionCreatedAt:
+          type: string
+          format: date-time
+        latestVersionLastUpdatedAt:
+          type: string
+          format: date-time
+        productionVersion:
+          type: integer
+          nullable: true
+          description: >-
+            Version assigned the production label, or null when no version is
+            assigned.
+      required:
+        - name
+        - description
+        - tags
+        - latestVersion
+        - latestVersionCreatedAt
+        - latestVersionLastUpdatedAt
+        - productionVersion
+    unstableSkillVersionFileInput:
+      title: unstableSkillVersionFileInput
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+          description: UTF-8 text content. The server computes the hash and byte length.
+      required:
+        - path
+        - content
+    unstableSkillVersionFileReference:
+      title: unstableSkillVersionFileReference
+      type: object
+      properties:
+        path:
+          type: string
+        sha256Hash:
+          type: string
+          description: >-
+            Canonical base64-encoded SHA-256 from a skill file manifest. The
+            content must already exist in this project.
+      required:
+        - path
+        - sha256Hash
+    unstableSkillVersionFileCreateInput:
+      title: unstableSkillVersionFileCreateInput
+      oneOf:
+        - $ref: '#/components/schemas/unstableSkillVersionFileInput'
+        - $ref: '#/components/schemas/unstableSkillVersionFileReference'
+      description: Provide exactly one of content or sha256Hash for each path.
+    unstableCreateSkillVersionRequest:
+      title: unstableCreateSkillVersionRequest
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableSkillVersionFileCreateInput'
+        commitMessage:
+          type: string
+          nullable: true
+      required:
+        - files
+    unstableSkillFile:
+      title: unstableSkillFile
+      type: object
+      properties:
+        id:
+          type: string
+        path:
+          type: string
+        blobId:
+          type: string
+        sha256Hash:
+          type: string
+        contentType:
+          type: string
+        contentLength:
+          type: integer
+          format: int64
+      required:
+        - id
+        - path
+        - blobId
+        - sha256Hash
+        - contentType
+        - contentLength
+    unstableSkillFileContentsResponse:
+      title: unstableSkillFileContentsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableSkillFileContent'
+      required:
+        - data
+    unstableSkillFileContent:
+      title: unstableSkillFileContent
+      type: object
+      properties:
+        sha256Hash:
+          type: string
+        content:
+          type: string
+      required:
+        - sha256Hash
+        - content
+    unstableSkillVersion:
+      title: unstableSkillVersion
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        projectId:
+          type: string
+        createdBy:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        frontmatter: {}
+        version:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        labels:
+          type: array
+          items:
+            type: string
+        commitMessage:
+          type: string
+          nullable: true
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableSkillFile'
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - projectId
+        - createdBy
+        - name
+        - description
+        - frontmatter
+        - version
+        - tags
+        - labels
+        - commitMessage
+        - files
+    unstableUpdateSkillRequest:
+      title: unstableUpdateSkillRequest
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+          description: >-
+            The complete set of tags to apply to every version of the skill.
+            Pass an empty list to clear all tags.
+      required:
+        - tags
+    unstableUpdateSkillLabelsRequest:
+      title: unstableUpdateSkillLabelsRequest
+      type: object
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+      required:
+        - labels
+    unstableDeleteSkillVersionResponse:
+      title: unstableDeleteSkillVersionResponse
+      type: object
+      properties:
+        deleted:
+          type: boolean
+      required:
+        - deleted
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object
@@ -17138,6 +18157,15 @@ components:
         - limit
         - totalItems
         - totalPages
+    utilsCursorMetaResponse:
+      title: utilsCursorMetaResponse
+      type: object
+      description: Metadata for cursor-based pagination.
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for the next page. Omitted when there is no next page.
   securitySchemes:
     BasicAuth:
       type: http

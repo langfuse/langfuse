@@ -8,6 +8,8 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* Session metrics bar is open above a stacked annotation column. */
+@custom-variant session-review-stack (&:is([data-trace-review-open][data-review-orientation=vertical] *));
 
 /* App font tokens. The typeface is deliberately DEFERRED: the app ships the
    system stacks while the token system (families here, weight roles below,
@@ -26,8 +28,8 @@
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+    var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
      Both are font-relative, so components never hardcode numbers.
@@ -58,6 +60,7 @@
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
   --color-primary-accent: hsl(var(--primary-accent));
+  --color-primary-accent-fill: var(--primary-accent-fill);
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
   --color-preview-banner: hsl(var(--preview-banner));
@@ -69,12 +72,52 @@
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
+  --color-foreground-secondary: hsl(var(--foreground-secondary));
+  --color-icon-foreground: hsl(var(--icon-foreground));
   --color-surface-code: hsl(var(--surface-code));
   --color-surface-code-header: hsl(var(--surface-code-header));
+  --color-surface-sunken: hsl(var(--surface-sunken));
+  --color-surface-output: hsl(var(--surface-output));
+  /* Sticky table chrome; hosts on another surface set --surface-context. */
+  --color-surface: var(--surface-context, hsl(var(--background)));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
   --color-muted-gray: hsl(var(--muted-gray));
+
+  --color-observation-trace: var(--observation-trace);
+  --color-observation-trace-line: var(--observation-trace-line);
+  --color-observation-trace-fill: var(--observation-trace-fill);
+  --color-observation-span: var(--observation-span);
+  --color-observation-span-line: var(--observation-span-line);
+  --color-observation-span-fill: var(--observation-span-fill);
+  --color-observation-generation: var(--observation-generation);
+  --color-observation-generation-line: var(--observation-generation-line);
+  --color-observation-generation-fill: var(--observation-generation-fill);
+  --color-observation-event: var(--observation-event);
+  --color-observation-event-line: var(--observation-event-line);
+  --color-observation-event-fill: var(--observation-event-fill);
+  --color-observation-agent: var(--observation-agent);
+  --color-observation-agent-line: var(--observation-agent-line);
+  --color-observation-agent-fill: var(--observation-agent-fill);
+  --color-observation-evaluator: var(--observation-evaluator);
+  --color-observation-evaluator-line: var(--observation-evaluator-line);
+  --color-observation-evaluator-fill: var(--observation-evaluator-fill);
+  --color-observation-tool: var(--observation-tool);
+  --color-observation-tool-line: var(--observation-tool-line);
+  --color-observation-tool-fill: var(--observation-tool-fill);
+  --color-observation-chain: var(--observation-chain);
+  --color-observation-chain-line: var(--observation-chain-line);
+  --color-observation-chain-fill: var(--observation-chain-fill);
+  --color-observation-retriever: var(--observation-retriever);
+  --color-observation-retriever-line: var(--observation-retriever-line);
+  --color-observation-retriever-fill: var(--observation-retriever-fill);
+  --color-observation-embedding: var(--observation-embedding);
+  --color-observation-embedding-line: var(--observation-embedding-line);
+  --color-observation-embedding-fill: var(--observation-embedding-fill);
+  --color-observation-guardrail: var(--observation-guardrail);
+  --color-observation-guardrail-line: var(--observation-guardrail-line);
+  --color-observation-guardrail-fill: var(--observation-guardrail-fill);
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
   /* These six status tokens hold complete oklch colors (tints carry baked
@@ -101,8 +144,14 @@
   --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
+  --color-json-value-string: var(--json-value-string);
+  --color-json-value-number: var(--json-value-number);
+  --color-json-value-boolean: var(--json-value-boolean);
+  --color-json-value-nullish: var(--json-value-nullish);
+
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
+  --color-line-dotted: hsl(var(--line-dotted));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
@@ -148,31 +197,36 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 
-  /* Text styles: each size token carries its canonical weight, so `text-*`
-     alone yields a complete style (one weight per token — the design-system
-     rule). Weights reference the font-relative weight roles above; heavier
-     text opts in via `font-bold` (the bold role) — never a raw number.
-     Any other weight utility is drift (the theme-lab tool samples drift
-     per token). */
-  --text-xs: 0.7rem;
+  /* Text styles: each size token carries its size (whole pixels at a 16px
+     root), line-height and canonical weight, so `text-*` alone yields a
+     complete style. Heavier text opts in via `font-bold`, never a raw number. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(18 / 12);
   --text-xs--font-weight: var(--font-weight-regular);
-  --text-sm: 0.825rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(20 / 13);
   --text-sm--font-weight: var(--font-weight-regular);
-  --text-base: 0.9rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.5;
   --text-base--font-weight: var(--font-weight-regular);
-  --text-lg: 1.1rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.35;
   --text-lg--font-weight: var(--font-weight-regular);
-  --text-xl: 1.2rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.3;
   --text-xl--font-weight: var(--font-weight-regular);
-  --text-2xl: 1.3rem;
+  --text-2xl: 1.375rem;
+  --text-2xl--line-height: 1.25;
   --text-2xl--font-weight: var(--font-weight-regular);
   --text-3xl: 1.5rem;
+  --text-3xl--line-height: 1.25;
   --text-3xl--font-weight: var(--font-weight-regular);
 
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
+  --animate-appear-delayed: appear 0s linear 150ms forwards;
   /* Cycle length comes from REFETCH_SWEEP_MS in components/table/data-table.tsx,
      which sets --table-refetch-cycle on the element: the same number also
      releases the busy flag on a whole sweep, so the two must not drift. */
@@ -267,18 +321,24 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 240 3.7% 15.9%; /* zinc-800 */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 240 4.8% 95.9%; /* zinc-100 */
+    --muted-foreground: 240 3.8% 46.1%; /* zinc-500 */
+    /* Text between body and muted: content that is not a heading or label. */
+    --foreground-secondary: 240 5.2% 33.9%; /* zinc-600 */
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
-    --foreground-tertiary: 215 12% 62%;
+    --foreground-tertiary: 240 5% 64.9%; /* zinc-400 */
+    /* Icon glyphs next to text: same tier as muted-foreground. */
+    --icon-foreground: 240 3.8% 46.1%; /* zinc-500 */
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
+    --surface-sunken: 0 0% 99%; /* between white and zinc-50 */
+    --surface-output: 240 4.8% 95.9%; /* zinc-100 */
 
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
@@ -292,33 +352,35 @@
     --modal: 0 0% 100%;
     --modal-foreground: var(--foreground);
 
-    --header: 210 40% 98%;
+    --header: 0 0% 98%; /* zinc-50 */
     --header-foreground: var(--foreground);
 
-    --border: 214.3 31.8% 91.4%;
+    --border: 240 5.9% 90%; /* zinc-200 */
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
-    --border-contrast: 214.3 20% 80%;
-    --input: 214.3 31.8% 91.4%;
+    --border-contrast: 240 4.9% 83.9%; /* zinc-300 */
+    --line-dotted: 240 5.2% 33.9%; /* zinc-600 */
+    --input: 240 5.9% 90%; /* zinc-200 */
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 240 5.9% 10%; /* zinc-900 */
+    --primary-foreground: 0 0% 98%; /* zinc-50 */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 240 4.8% 95.9%; /* zinc-100 */
+    --secondary-foreground: 240 5.9% 10%; /* zinc-900 */
 
-    --tertiary: 214 32% 91%;
-    --tertiary-foreground: 222.2 47.4% 11.2%;
+    --tertiary: 240 5.9% 90%; /* zinc-200 */
+    --tertiary-foreground: 240 5.9% 10%; /* zinc-900 */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 220 8.9% 46.1%;
+    --accent: 240 4.8% 95.9%; /* zinc-100 */
+    --accent-foreground: 240 3.7% 15.9%; /* zinc-800 */
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%; /* zinc-50 */
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 240 5% 64.9%; /* zinc-400 */
 
     --primary-accent: 243 75.4% 58.6%;
+    --primary-accent-fill: hsl(var(--primary-accent));
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
        same lavender family as dark, but muted — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
@@ -337,18 +399,54 @@
        glyph in dark. Deliberately dimmer than --primary in dark so checked
        controls don't outshine content (fills read louder than text).
        --control-track is the switch's off-state track. */
-    --control-fill: 222.2 47.4% 11.2%;
-    --control-track: 214.3 31.8% 91.4%;
+    --control-fill: 240 5.9% 10%; /* zinc-900 */
+    --control-track: 240 5.9% 90%; /* zinc-200 */
     /* Unchecked control boundary — quieter than the near-black fill in light,
        a touch above --input in dark so the box still reads on the canvas. */
-    --control-border: 215 12% 60%;
+    --control-border: 240 5% 64.9%; /* zinc-400 */
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
     --muted-blue: 239 84% 67%;
-    --muted-gray: 210 50% 91.1%;
+    --muted-gray: 240 5.9% 90%; /* zinc-200 */
 
-    --accent-light-green: 138 76.5% 96.7%;
+    /* Observation type hues: one lightness and chroma so no type outweighs another */
+    /* -line: stroked icons and borders. -fill: tiles and bars under white icons. */
+    --observation-trace: oklch(68% 0.18 163);
+    --observation-trace-line: oklch(55% 0.21 163);
+    --observation-trace-fill: oklch(61% 0.2 163);
+    --observation-span: oklch(68% 0.18 265);
+    --observation-span-line: oklch(55% 0.21 265);
+    --observation-span-fill: oklch(61% 0.2 265);
+    --observation-generation: oklch(68% 0.18 335);
+    --observation-generation-line: oklch(55% 0.21 335);
+    --observation-generation-fill: oklch(61% 0.2 335);
+    --observation-event: oklch(68% 0.18 115);
+    --observation-event-line: oklch(55% 0.21 115);
+    --observation-event-fill: oklch(61% 0.2 115);
+    --observation-agent: oklch(68% 0.18 310);
+    --observation-agent-line: oklch(55% 0.21 310);
+    --observation-agent-fill: oklch(61% 0.2 310);
+    --observation-evaluator: oklch(68% 0.18 285);
+    --observation-evaluator-line: oklch(55% 0.21 285);
+    --observation-evaluator-fill: oklch(61% 0.2 285);
+    --observation-tool: oklch(68% 0.18 55);
+    --observation-tool-line: oklch(55% 0.21 55);
+    --observation-tool-fill: oklch(61% 0.2 55);
+    --observation-chain: oklch(68% 0.18 0);
+    --observation-chain-line: oklch(55% 0.21 0);
+    --observation-chain-fill: oklch(61% 0.2 0);
+    --observation-retriever: oklch(68% 0.18 145);
+    --observation-retriever-line: oklch(55% 0.21 145);
+    --observation-retriever-fill: oklch(61% 0.2 145);
+    --observation-embedding: oklch(68% 0.18 85);
+    --observation-embedding-line: oklch(55% 0.21 85);
+    --observation-embedding-fill: oklch(61% 0.2 85);
+    --observation-guardrail: oklch(68% 0.18 25);
+    --observation-guardrail-line: oklch(55% 0.21 25);
+    --observation-guardrail-fill: oklch(61% 0.2 25);
+
+    --accent-light-green: 138 76.5% 98%;
     --accent-dark-green: 112 100% 32%;
 
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
@@ -384,33 +482,38 @@
        keyword=blue. Scoped to the filter grammar (key:value pills); retune
        freely, a designer can own these later. Operators reuse muted-foreground.
        Values from the langfuse-search-bar prototype. */
-    --qlang-field: 262 60% 47%;
-    --qlang-value: 152 60% 30%;
-    --qlang-number: 24 75% 42%;
-    --qlang-keyword: 221 83% 53%;
+    --qlang-field: 263.4 69.3% 42.2%; /* violet-800 */
+    --qlang-value: 162.9 93.5% 24.3%; /* emerald-700 */
+    --qlang-number: 17.5 88.3% 40.4%; /* orange-700 */
+    --qlang-keyword: 224.3 76.3% 48%; /* blue-700 */
+
+    --json-value-string: var(--color-green-800);
+    --json-value-number: var(--color-blue-800);
+    --json-value-boolean: var(--color-orange-800);
+    --json-value-nullish: var(--color-gray-500);
 
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 100%;
+    --sidebar-background: var(--surface-sunken);
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 96.9%;
+    --sidebar-accent: 240 4.8% 95.9%; /* zinc-100 */
     --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
+    --sidebar-border: 240 5.9% 90%; /* zinc-200 */
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     --find-match-background: 60 60% 85%;
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
-    --chart-2: 188 94% 43%;
-    --chart-3: 240 4% 46%;
-    --chart-4: 271 91% 65%;
-    --chart-5: 48 96% 47%;
-    --chart-6: 0 84% 60%;
-    --chart-7: 84 81% 44%;
-    --chart-8: 330 81% 60%;
+    --chart-1: 239 84% 66%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
@@ -459,9 +562,13 @@
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
+    --foreground-secondary: 0 0% 62%;
     --foreground-tertiary: 0 0% 40%;
+    --icon-foreground: 0 0% 54%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
+    --surface-sunken: 0 0% 8%; /* one step below the modal */
+    --surface-output: var(--popover);
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);
@@ -476,8 +583,9 @@
     --header-foreground: var(--foreground);
 
     /* Hairline must read on EVERY surface tier, including popover (12%). */
-    --border: 0 0% 15%;
+    --border: 0 0% 20%;
     --border-contrast: 0 0% 26%;
+    --line-dotted: 0 0% 42%;
     --input: 0 0% 18%;
 
     --primary: 0 0% 90%;
@@ -492,7 +600,7 @@
     /* One clear step above --popover (12%) — focus:bg-accent is the only
        focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
     --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 91%;
+    --accent-foreground: 0 0% 70%;
 
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 100%;
@@ -500,6 +608,7 @@
     --ring: 246 55% 70%;
 
     --primary-accent: 246 55% 70%;
+    --primary-accent-fill: oklch(50% 0.11 287);
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
     /* Preview-deployment strip: fill is blue-500/25 precomposed over the 6%
@@ -520,6 +629,40 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
+
+    --observation-trace: oklch(75% 0.12 163);
+    --observation-trace-line: oklch(76% 0.11 163);
+    --observation-trace-fill: oklch(50% 0.11 163);
+    --observation-span: oklch(75% 0.12 265);
+    --observation-span-line: oklch(76% 0.11 265);
+    --observation-span-fill: oklch(50% 0.11 265);
+    --observation-generation: oklch(75% 0.12 335);
+    --observation-generation-line: oklch(76% 0.11 335);
+    --observation-generation-fill: oklch(50% 0.11 335);
+    --observation-event: oklch(75% 0.12 115);
+    --observation-event-line: oklch(76% 0.11 115);
+    --observation-event-fill: oklch(50% 0.11 115);
+    --observation-agent: oklch(75% 0.12 310);
+    --observation-agent-line: oklch(76% 0.11 310);
+    --observation-agent-fill: oklch(50% 0.11 310);
+    --observation-evaluator: oklch(75% 0.12 285);
+    --observation-evaluator-line: oklch(76% 0.11 285);
+    --observation-evaluator-fill: oklch(50% 0.11 285);
+    --observation-tool: oklch(75% 0.12 55);
+    --observation-tool-line: oklch(76% 0.11 55);
+    --observation-tool-fill: oklch(50% 0.11 55);
+    --observation-chain: oklch(75% 0.12 0);
+    --observation-chain-line: oklch(76% 0.11 0);
+    --observation-chain-fill: oklch(50% 0.11 0);
+    --observation-retriever: oklch(75% 0.12 145);
+    --observation-retriever-line: oklch(76% 0.11 145);
+    --observation-retriever-fill: oklch(50% 0.11 145);
+    --observation-embedding: oklch(75% 0.12 85);
+    --observation-embedding-line: oklch(76% 0.11 85);
+    --observation-embedding-fill: oklch(50% 0.11 85);
+    --observation-guardrail: oklch(75% 0.12 25);
+    --observation-guardrail-line: oklch(76% 0.11 25);
+    --observation-guardrail-fill: oklch(50% 0.11 25);
     /* Stays clearly above --card so chart grids (--chart-grid) and disabled
        badge fills stay discernible on elevated surfaces, without the harshness
        of --border-contrast (26%). */
@@ -564,9 +707,14 @@
     --qlang-number: 27 96% 61%;
     --qlang-keyword: 213 94% 68%;
 
+    --json-value-string: hsl(142 40% 60%);
+    --json-value-number: hsl(213 50% 68%);
+    --json-value-boolean: hsl(27 50% 61%);
+    --json-value-nullish: var(--color-gray-400);
+
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 2%;
+    --sidebar-background: 0 0% 4%; /* one step below the page */
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
@@ -579,14 +727,14 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
-    --chart-2: 188 94% 43%;
-    --chart-3: 240 4% 46%;
-    --chart-4: 271 91% 65%;
-    --chart-5: 48 96% 47%;
-    --chart-6: 0 84% 60%;
-    --chart-7: 84 81% 44%;
-    --chart-8: 330 81% 60%;
+    --chart-1: 239 96% 69%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
@@ -630,6 +778,8 @@
 
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
@@ -644,16 +794,16 @@
 
   /* The whole app renders inside #__next. Isolating it into its own stacking
      context caps every z-index in the app (page header, modals, popovers, …)
-     so none can escape it. The overlay layer containers (declared in
-     _document.tsx) are <body> siblings AFTER #__next and paint on top purely by
-     DOM order — see components/ui/layer.tsx. This is what lets layers carry no
+     so none can escape it. LayerProvider appends the overlay layer containers
+     as <body> siblings AFTER #__next, so they paint on top purely by
+     DOM order — see context/LayerContext/LayerContext.tsx. This is what lets layers carry no
      z-index of their own; z-index stays a LOCAL tool for ordering within a
      single layer. */
   div#__next {
     isolation: isolate;
   }
 
-  /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
+  /* Overlay layer roots (see context/LayerContext/LayerContext.tsx). The
      stack is click-through; each layer is its own isolated stacking context and
      they order by DOM order (later = on top). The layer containers are
      `pointer-events: none` so the EMPTY regions around an overlay pass clicks
@@ -729,6 +879,27 @@
   }
 }
 
+/* Icon size scale: icon-sm 12px, icon-base 14px (default), icon-lg 20px, icon-xl 28px. */
+@utility icon-sm {
+  width: calc(var(--spacing) * 3);
+  height: calc(var(--spacing) * 3);
+}
+
+@utility icon-base {
+  width: calc(var(--spacing) * 3.5);
+  height: calc(var(--spacing) * 3.5);
+}
+
+@utility icon-lg {
+  width: calc(var(--spacing) * 5);
+  height: calc(var(--spacing) * 5);
+}
+
+@utility icon-xl {
+  width: calc(var(--spacing) * 7);
+  height: calc(var(--spacing) * 7);
+}
+
 /* A scrollport that says so. Overlay scrollbars — the platform default on
    macOS, and Chrome's default everywhere — paint nothing until a scroll is
    already under way, so a region holding more than it shows is
@@ -736,6 +907,54 @@
    reason to try the wheel. This paints a thin scrollbar whenever the content
    overflows, and still nothing when it fits. `scrollbar-color` also opts
    Firefox out of overlay scrollbars, which it uses by default too. */
+/* Spaced dotted underline for values with a hover breakdown; drawn below the
+   box so it never changes layout. */
+@utility underline-dotted {
+  position: relative;
+  overflow-clip-margin: var(--spacing);
+  &::after {
+    content: "";
+    position: absolute;
+    right: calc(var(--spacing) * -1);
+    bottom: -1px;
+    left: calc(var(--spacing) * -1);
+    height: 1px;
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--foreground-secondary)) 1px,
+      transparent 1px
+    );
+    background-repeat: repeat-x;
+    background-size: 4px 1px;
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black calc(var(--spacing) * 2),
+      black calc(100% - var(--spacing) * 2),
+      transparent
+    );
+    pointer-events: none;
+  }
+}
+
+/* Vertical twin of underline-dotted, e.g. timeline connectors. */
+@utility dotted-line-y {
+  background-image: linear-gradient(
+    to bottom,
+    hsl(var(--line-dotted)) 1px,
+    transparent 1px
+  );
+  background-repeat: repeat-y;
+  background-size: 1px 4px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black calc(var(--spacing) * 3),
+    black calc(100% - var(--spacing) * 3),
+    transparent
+  );
+}
+
 @utility scrollbar-visible {
   &::-webkit-scrollbar {
     width: 8px;

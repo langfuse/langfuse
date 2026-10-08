@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Input } from "@/src/components/ui/input";
 import {
   FormControl,
@@ -57,7 +58,7 @@ export const GitHubDispatchActionForm: React.FC<
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Learn more <ExternalLink className="ml-1 h-3 w-3" />
+                Learn more <ExternalLink className="icon-sm ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />
@@ -125,7 +126,7 @@ export const GitHubDispatchActionForm: React.FC<
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Create token <ExternalLink className="ml-1 h-3 w-3" />
+                Create token <ExternalLink className="icon-sm ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />

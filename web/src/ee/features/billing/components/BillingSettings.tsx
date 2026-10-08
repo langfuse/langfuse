@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable no-nested-ternary */
 // Langfuse Cloud only
 
 import { useHasOrganizationAccess } from "@/src/features/rbac";
@@ -10,13 +10,14 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
-import { BillingInvoiceTable } from "./BillingInvoiceTable";
+import { ConnectedBillingInvoiceTable } from "./ConnectedBillingInvoiceTable";
 import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
@@ -59,16 +60,6 @@ export const BillingSettings = () => {
     billingProvider !== "clickhouse",
   );
 
-  // Don't render billing settings if cloud billing is not available
-  if (!isCloudBillingAvailable) {
-    return null;
-  }
-
-  // Handle conditional rendering without early returns
-  if (!isCloudBillingEntitled) {
-    return null;
-  }
-
   if (!hasAccess) {
     return (
       <Alert>
@@ -109,6 +100,7 @@ export const BillingSettings = () => {
             plan={organization?.plan ?? "cloud:hobby"}
           />
         )}
+        {organization && <OrganizationUsageBreakdown orgId={organization.id} />}
         <BillingPlanPeriodView />
         {showBillingDiscount && organization && (
           <BillingDiscountView
@@ -119,7 +111,12 @@ export const BillingSettings = () => {
           />
         )}
         <BillingActionButtons />
-        <BillingInvoiceTable />
+        {isCloudBillingAvailable &&
+          organization &&
+          Boolean(
+            organization.cloudConfig?.stripe?.customerId ??
+            organization.cloudConfig?.clickhouse?.organizationId,
+          ) && <ConnectedBillingInvoiceTable key={organization.id} />}
         {isSpendAlertEntitled && orgId && hasActiveSubscription && (
           <SpendAlertsSection orgId={orgId} />
         )}

@@ -728,7 +728,8 @@ export class ByteJsonIndexEngine {
     if (sliceEnd < node.valueEnd) {
       while (
         sliceEnd > node.valueStart &&
-        (this.bytes[sliceEnd]! & 0xc0) === 0x80
+        this.bytes[sliceEnd]! >= 0x80 &&
+        this.bytes[sliceEnd]! <= 0xbf
       ) {
         sliceEnd--;
       }

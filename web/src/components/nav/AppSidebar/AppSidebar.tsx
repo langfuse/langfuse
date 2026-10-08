@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
@@ -23,8 +24,6 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
-  ChevronsUpDown,
-  ChevronDownIcon,
   ExternalLink,
   Grid2X2,
   HardDriveDownload,
@@ -33,6 +32,7 @@ import {
   Newspaper,
   X,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SiGithub } from "react-icons/si";
 import { VERSION } from "@/src/constants";
 import {
@@ -62,7 +62,7 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
@@ -211,7 +211,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-2 pr-3 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -276,56 +276,58 @@ function MobileNavSwitcher({
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton>
+            <OrganizationDropdownMenu
+              {...(organizations
+                ? { state: "loaded", organizations }
+                : { state: "loading" })}
+              canCreateOrganizations={canCreateOrganizations}
+              getOrgPath={getOrgPath}
+            >
+              {({ getTriggerProps }) => (
+                <SidebarMenuButton {...getTriggerProps()}>
                   <span
                     className="min-w-0 flex-1 truncate text-left"
                     title={organization.name}
                   >
                     {organization.name}
                   </span>
-                  <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                  <span className="ml-auto flex shrink-0">
+                    <DropdownIndicator />
+                  </span>
                 </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <OrganizationDropdownMenu
-                {...(organizations
-                  ? { state: "loaded", organizations }
-                  : { state: "loading" })}
-                canCreateOrganizations={canCreateOrganizations}
-                getOrgPath={getOrgPath}
-              />
-            </DropdownMenu>
+              )}
+            </OrganizationDropdownMenu>
           </SidebarMenuItem>
           {project && (
             <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton>
+              <ProjectDropdownMenu
+                organizationId={organization.id}
+                {...(organizations
+                  ? {
+                      state: "loaded",
+                      projects:
+                        organizations.find(
+                          (item) => item.id === organization.id,
+                        )?.projects ?? [],
+                    }
+                  : { state: "loading" })}
+                canCreateProjects={canCreateProjects}
+                getProjectPath={getProjectPath}
+              >
+                {({ getTriggerProps }) => (
+                  <SidebarMenuButton {...getTriggerProps()}>
                     <span
                       className="min-w-0 flex-1 truncate text-left"
                       title={project.name}
                     >
                       {project.name}
                     </span>
-                    <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                    <span className="ml-auto flex shrink-0">
+                      <DropdownIndicator />
+                    </span>
                   </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <ProjectDropdownMenu
-                  organizationId={organization.id}
-                  {...(organizations
-                    ? {
-                        state: "loaded",
-                        projects:
-                          organizations.find(
-                            (item) => item.id === organization.id,
-                          )?.projects ?? [],
-                      }
-                    : { state: "loading" })}
-                  canCreateProjects={canCreateProjects}
-                  getProjectPath={getProjectPath}
-                />
-              </DropdownMenu>
+                )}
+              </ProjectDropdownMenu>
             </SidebarMenuItem>
           )}
         </SidebarMenu>
@@ -382,7 +384,7 @@ function SidebarNotifications({
             onClick={() => state.onDismiss(frontNotification.id)}
             title="Dismiss"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="icon-base text-icon-foreground" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
             <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
@@ -479,10 +481,11 @@ function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar
-                size="lg"
+                size="md"
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
+                email={user.email}
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
@@ -492,7 +495,6 @@ function NavUser({
                   {user.email}
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -504,10 +506,11 @@ function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar
-                  size="lg"
+                  size="md"
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
+                  email={user.email}
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
@@ -545,7 +548,7 @@ const DemoBadge = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="icon-base" />
                 <span>Use Demo App</span>
               </Link>
             </SidebarMenuButton>
@@ -553,7 +556,7 @@ const DemoBadge = () => {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
               <Link href="/">
-                <Grid2X2 className="h-4 w-4" />
+                <Grid2X2 className="icon-base" />
                 <span>Your Langfuse Orgs</span>
               </Link>
             </SidebarMenuButton>
@@ -590,13 +593,33 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     return assertUnreachable(update.updateType);
   }, [update]);
 
+  // Radix returns focus to the trigger when the menu closes, and the browser
+  // treats that programmatic focus as `:focus-visible`, so the Button's
+  // `focus-visible:ring-2` ring is left showing on the badge after a
+  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
+  // restore is suppressed only for an interaction that never used the keyboard.
+  //
+  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
+  // interaction, not only on the trigger: the menu is portalled, so once it is
+  // open every key event lands on the content instead. A mouse-opened menu
+  // closed with Escape or Enter is a keyboard interaction and must get focus
+  // back on the trigger.
+  const pointerOnly = React.useRef(false);
+  const noteKeyboardUse = () => {
+    pointerOnly.current = false;
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="xs"
-          className="h-5 max-w-full min-w-0 translate-y-0.5 py-0 text-[0.625rem] leading-none"
+          className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
+          onPointerDown={() => {
+            pointerOnly.current = true;
+          }}
+          onKeyDown={noteKeyboardUse}
         >
           <span className="truncate" title={versionText}>
             {versionText}
@@ -609,11 +632,25 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             />
           )}
           {update && !backgroundMigrationStatus && (
-            <ArrowUp className={`h-3 w-3 ${color}`} />
+            <ArrowUp
+              className={cn("icon-sm", color ?? "text-icon-foreground")}
+            />
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuContent
+        onClick={(e) => e.stopPropagation()}
+        // Both hooks are needed: Radix's DismissableLayer handles Escape before
+        // it reaches the content's own onKeyDown, while onKeyDown covers the
+        // arrow/Enter/typeahead keys used to pick an item.
+        onKeyDown={noteKeyboardUse}
+        onEscapeKeyDown={noteKeyboardUse}
+        onCloseAutoFocus={(event) => {
+          if (!pointerOnly.current) return;
+          pointerOnly.current = false;
+          event.preventDefault();
+        }}
+      >
         {update ? (
           <>
             <DropdownMenuLabel>
@@ -630,7 +667,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         {selfHostedPlanLabel && (
           <>
             <DropdownMenuLabel className="flex items-center font-normal">
-              <BadgeCheck size={16} className="mr-2" />
+              <BadgeCheck className="icon-base mr-2" />
               {selfHostedPlanLabel.long}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -641,14 +678,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             href="https://github.com/langfuse/langfuse/releases"
             target="_blank"
           >
-            <SiGithub size={16} className="mr-2" />
+            <SiGithub className="icon-base text-icon-foreground mr-2" />
             Releases
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
-              <ArrowUp10 size={16} className="mr-2" />
+              <ArrowUp10 className="icon-base text-icon-foreground mr-2" />
               Background Migrations
               {backgroundMigrationStatus && (
                 <StatusBadge
@@ -662,20 +699,20 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper size={16} className="mr-2" />
+            <Newspaper className="icon-base text-icon-foreground mr-2" />
             Changelog
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map size={16} className="mr-2" />
+            <Map className="icon-base text-icon-foreground mr-2" />
             Roadmap
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info size={16} className="mr-2" />
+              <Info className="icon-base text-icon-foreground mr-2" />
               Compare Versions
             </Link>
           </DropdownMenuItem>
@@ -688,7 +725,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                 href="https://langfuse.com/docs/deployment/self-host#update"
                 target="_blank"
               >
-                <HardDriveDownload size={16} className="mr-2" />
+                <HardDriveDownload className="icon-base text-icon-foreground mr-2" />
                 Update
               </Link>
             </DropdownMenuItem>

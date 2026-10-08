@@ -15,7 +15,7 @@ import {
   MessageSearchToolbar,
 } from "@/src/components/ChatMessages/MessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * PlaygroundPage Component
@@ -181,7 +181,7 @@ export default function PlaygroundPage() {
                 {globalIsExecutingAll ? (
                   <Spinner size="xxs" />
                 ) : (
-                  <Play className="h-3 w-3" />
+                  <Play className="icon-base text-icon-foreground" />
                 )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
                   <span>Run All</span>

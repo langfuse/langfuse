@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Field registry — the single source of truth for autocomplete, validation,
 // operator choice, and lowering into the flat Langfuse `FilterState`.
 //
@@ -94,6 +95,7 @@ export type FieldRegistry = {
     | "legacyEvaluators"
     | "evalLogs"
     | "prompts"
+    | "skills"
     | "monitors"
     | "gatewayModels"
     | "experimentItems"

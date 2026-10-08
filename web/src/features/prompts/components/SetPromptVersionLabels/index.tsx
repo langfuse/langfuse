@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
@@ -24,8 +25,11 @@ import {
 } from "@langfuse/shared";
 import { LabelCommandItem } from "./LabelCommandItem";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { isReservedPromptLabel } from "@/src/features/prompts/utils";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import {
+  isReservedPromptLabel,
+  toPromptLabelListItems,
+} from "@/src/features/prompts/utils";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
@@ -179,9 +183,9 @@ export function SetPromptVersionLabels({
         >
           {title && title}
           {promptLabels.length > 0 && (
-            <TruncatedLabels
-              labels={promptLabels}
-              maxVisibleLabels={maxVisibleLabels}
+            <LabelList
+              labels={toPromptLabelListItems(promptLabels)}
+              maxVisible={maxVisibleLabels}
             />
           )}
           <Button
@@ -193,7 +197,7 @@ export function SetPromptVersionLabels({
               !hasAccess && "cursor-not-allowed group-hover:opacity-50",
             )}
           >
-            <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
+            <CircleFadingArrowUp className="icon-base text-icon-foreground shrink-0" />
           </Button>
         </div>
       </PopoverTrigger>

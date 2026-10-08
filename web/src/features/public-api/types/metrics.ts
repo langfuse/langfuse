@@ -3,7 +3,7 @@ import {
   InvalidRequestError,
   paginationMetaResponseZod,
   publicApiPaginationZod,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod";
@@ -38,7 +38,7 @@ const MetricsQueryObject = z
     view: views,
     dimensions: z.array(dimension).optional().default([]),
     metrics: z.array(metric),
-    filters: z.array(singleFilter).optional().default([]),
+    filters: singleFilterList.optional().default([]),
     timeDimension: z
       .object({
         granularity: publicGranularities,
@@ -106,7 +106,7 @@ export const MetricsQueryObjectV2 = z
     view: viewsV2,
     dimensions: z.array(dimension).optional().default([]),
     metrics: z.array(metric),
-    filters: z.array(singleFilter).optional().default([]),
+    filters: singleFilterList.optional().default([]),
     timeDimension: z
       .object({
         granularity: publicGranularities,
