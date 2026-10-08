@@ -10,7 +10,7 @@ export type ComposerSize = "default" | "large";
 export function composerSurfaceClasses(size: ComposerSize = "default") {
   return size === "large"
     ? "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.25"
-    : "border-input bg-background relative min-h-8 rounded-md border px-2 py-0.5";
+    : "border-input bg-background relative min-h-8 rounded-md border px-2 py-0.75";
 }
 
 /** The query text metrics: mono font, pill-matched line height, wrapping. */
