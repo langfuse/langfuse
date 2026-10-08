@@ -128,7 +128,10 @@ export default async function handler(
     addUserToSpan({
       apiKeyId: scope.apiKeyId,
       publicKey: scope.publicKey,
-      projectId: scope.accessLevel === "project" ? scope.projectId : undefined,
+      projectId:
+        scope.accessLevel === "project"
+          ? (scope.projectId ?? undefined)
+          : undefined,
       orgId: scope.orgId,
       plan: scope.plan,
     });
@@ -157,7 +160,7 @@ export default async function handler(
     const context: ServerContext =
       scope.accessLevel === "project"
         ? {
-            projectId: scope.projectId,
+            projectId: scope.projectId!,
             orgId: scope.orgId,
             userId: undefined,
             apiKeyId: scope.apiKeyId,

@@ -10,7 +10,7 @@
  * - Server queries registry instead of hardcoding tool lists
  */
 
-import type { ToolDefinition, ToolHandler } from "../core/define-tool";
+import type { ToolDefinition } from "../core/define-tool";
 import type { ServerContext } from "../types";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -25,7 +25,7 @@ interface RegisteredTool<TName extends string = string> {
 
   /** Tool handler function - accepts any input type */
 
-  handler: ToolHandler<any>;
+  handler: (...args: any[]) => Promise<unknown>;
 }
 
 /**

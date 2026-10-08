@@ -136,7 +136,10 @@ export function defineTool<
   const TAccessLevel extends McpAccessLevel = "project",
 >(
   options: DefineToolOptions<TInput, TName, TAccessLevel>,
-): [ToolDefinition<TName, TAccessLevel>, ToolHandler<TInput>] {
+): [
+  ToolDefinition<TName, TAccessLevel>,
+  ScopedToolHandler<TInput, TAccessLevel>,
+] {
   const {
     name,
     description,
@@ -178,7 +181,7 @@ export function defineTool<
   }
 
   // Build tool definition
-  const toolDefinition: ToolDefinition<TName> = {
+  const toolDefinition: ToolDefinition<TName, TAccessLevel> = {
     name,
     description,
     action,
@@ -212,5 +215,8 @@ export function defineTool<
     },
   );
 
-  return [toolDefinition, wrappedHandler];
+  return [
+    toolDefinition,
+    wrappedHandler as ScopedToolHandler<TInput, TAccessLevel>,
+  ];
 }
