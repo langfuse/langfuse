@@ -45,10 +45,7 @@ const EnvSchema = z.object({
     .transform((date) => (date ? new Date(date) : null)),
 
   // CHB REST credentials, mirroring web/src/env.mjs. The worker needs them for
-  // one read: the spend-alert job asks GET /attachedplan for the open period's
-  // accrued usage, which is a CHB org's equivalent of the Stripe preview
-  // invoice. Any missing value makes the client refuse to construct, so no
-  // half-configured calls go out.
+  // one read: the spend-alert job asks for the open period's accrued usage.
   CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
   CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
   CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
