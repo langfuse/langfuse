@@ -1053,10 +1053,11 @@ jobs:
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS deployment would: on the
-    # Alpine toolchain from worker/Dockerfile with
-    # OPENSSL_CONF=/etc/ssl/openssl-fips.cnf, the config the image entrypoints
-    # select for LANGFUSE_REQUIRE_FIPS=true. Code paths that need an algorithm
-    # FIPS refuses (md5, ...) fail with ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
+    # Alpine toolchain from worker/Dockerfile, where scripts/ci/fips-tests.sh
+    # starts Langfuse and the tests with OPENSSL_CONF=/etc/ssl/openssl-fips.cnf,
+    # the config the image entrypoints select for LANGFUSE_REQUIRE_FIPS=true.
+    # Code paths that need an algorithm FIPS refuses (md5, ...) fail with
+    # ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
     # in tests-web/tests-worker; install, build, the web and worker processes
     # and the tests run in the container (scripts/ci/fips-tests.sh).
     # Not part of all-ci-passed yet.
@@ -1166,7 +1167,6 @@ jobs:
           SUITE: ${{ matrix.suite }}
         run: |
           docker run --rm --network host \
-            -e OPENSSL_CONF=/etc/ssl/openssl-fips.cnf \
             -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT \
             -e PNPM_STORE_DIR=/pnpm-store \
             -v "$(pnpm store path --silent):/pnpm-store" \
