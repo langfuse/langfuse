@@ -151,7 +151,6 @@
 
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
-  --color-badge-border: hsl(var(--badge-border));
   --color-line-dotted: hsl(var(--line-dotted));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -359,7 +358,6 @@
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
     --border-contrast: 240 4.9% 83.9%; /* zinc-300 */
-    --badge-border: 240 5.9% 90%; /* zinc-200 */
     --line-dotted: 240 5.2% 33.9%; /* zinc-600 */
     --input: 240 5.9% 90%; /* zinc-200 */
 
@@ -586,7 +584,6 @@
     /* Hairline must read on EVERY surface tier, including popover (12%). */
     --border: 0 0% 15%;
     --border-contrast: 0 0% 26%;
-    --badge-border: 0 0% 20%;
     --line-dotted: 0 0% 42%;
     --input: 0 0% 18%;
 
