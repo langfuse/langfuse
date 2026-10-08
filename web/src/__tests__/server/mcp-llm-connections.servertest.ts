@@ -162,7 +162,7 @@ describe("MCP LLM connection tools", () => {
           },
           restrictedContext,
         ),
-      ).rejects.toThrow("does not have access");
+      ).rejects.toThrow("Access forbidden");
     } finally {
       (env as any).API_AUTH_MIGRATION = previousMigration;
       await prisma.llmApiKeys.deleteMany({
