@@ -1,6 +1,8 @@
 import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
-import { authenticateOrganizationLlmConnectionApiRequest } from "@/src/features/public-api/server/authenticateOrganizationApiRequest";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  authenticateOrganizationApiRequest,
+  withMiddlewares,
+} from "@/src/features/public-api/server";
 import {
   GetLlmConnectionsV1Query,
   GetLlmConnectionsV1Response,
@@ -11,7 +13,7 @@ import {
 
 export default withMiddlewares({
   GET: async (req, res) => {
-    const scope = await authenticateOrganizationLlmConnectionApiRequest(
+    const scope = await authenticateOrganizationApiRequest(
       req,
       res,
       "organizationLlmApiKeys:read",
@@ -38,7 +40,7 @@ export default withMiddlewares({
   },
 
   PUT: async (req, res) => {
-    const scope = await authenticateOrganizationLlmConnectionApiRequest(
+    const scope = await authenticateOrganizationApiRequest(
       req,
       res,
       "organizationLlmApiKeys:CUD",

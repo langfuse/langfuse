@@ -1,6 +1,8 @@
 import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
-import { authenticateOrganizationLlmConnectionApiRequest } from "@/src/features/public-api/server/authenticateOrganizationApiRequest";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  authenticateOrganizationApiRequest,
+  withMiddlewares,
+} from "@/src/features/public-api/server";
 import {
   DeleteLlmConnectionV1Query,
   DeleteLlmConnectionV1Response,
@@ -8,7 +10,7 @@ import {
 
 export default withMiddlewares({
   DELETE: async (req, res) => {
-    const scope = await authenticateOrganizationLlmConnectionApiRequest(
+    const scope = await authenticateOrganizationApiRequest(
       req,
       res,
       "organizationLlmApiKeys:CUD",
