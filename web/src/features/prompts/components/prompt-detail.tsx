@@ -319,7 +319,7 @@ export const PromptDetail = ({
       <div
         className={cn(
           "flex shrink-0 items-center justify-between",
-          mobile ? "mb-1" : "mt-3",
+          mobile ? "mb-1" : "-mx-3 mt-3 border-b px-3 pb-3",
         )}
       >
         <CommandInput
