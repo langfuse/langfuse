@@ -16,51 +16,52 @@ import type {
   ToolDefinitionSource,
 } from "../../io-convention";
 
-/** Pydantic's agent state carries native request/response history. A request
- * can combine system prompts, user prompts, and tool returns. */
+type PydanticMessage = {
+  kind: "request" | "response";
+  parts: unknown[];
+};
+
+function isPydanticMessage(value: unknown): value is PydanticMessage {
+  const message = asRecord(value);
+  return (
+    (message?.kind === "request" || message?.kind === "response") &&
+    Array.isArray(message.parts)
+  );
+}
+
+/** Extract native history without claiming unrelated application state. */
 function pydanticAiMessages(
   root: Record<string, unknown>,
   kind: "input" | "output",
 ): MessageSource[] {
-  const state = parseRecord(root._state);
-  const history = parseArray(state?.message_history);
-  if (
-    !history?.length ||
-    !history.every((item) => {
-      const message = asRecord(item);
-      return (
-        (message?.kind === "request" || message?.kind === "response") &&
-        Array.isArray(message.parts)
-      );
-    })
-  )
-    return [];
+  const history = parseArray(parseRecord(root._state)?.message_history);
+  if (!history?.length || !history.every(isPydanticMessage)) return [];
 
-  const values = history.flatMap((item) => {
-    const message = item as Record<string, unknown>;
-    const parts = message.parts as unknown[];
-    if (message.kind === "response") {
-      return [{ role: "assistant", parts: parts.map(pydanticAiPart) }];
-    }
-    return parts.map((part) => {
-      const record = asRecord(part);
-      const role =
-        record?.part_kind === "system-prompt"
-          ? "system"
-          : record?.part_kind === "tool-return"
-            ? "tool"
-            : "user";
-      return { role, parts: [pydanticAiPart(part)] };
-    });
-  });
   recordKeyAsParsed(root, "_state", "message_history");
   return [
     {
       kind: "sequence",
-      values,
+      values: history.flatMap(pydanticAiMessage),
       fallbackRole: kind === "input" ? "user" : "assistant",
     },
   ];
+}
+
+/** A request can contain system prompts, user prompts, and tool returns. */
+function pydanticAiMessage(message: PydanticMessage) {
+  if (message.kind === "response") {
+    return [{ role: "assistant", parts: message.parts.map(pydanticAiPart) }];
+  }
+  return message.parts.map((part) => {
+    const kind = asRecord(part)?.part_kind;
+    const role =
+      kind === "system-prompt"
+        ? "system"
+        : kind === "tool-return"
+          ? "tool"
+          : "user";
+    return { role, parts: [pydanticAiPart(part)] };
+  });
 }
 
 function pydanticAiPart(value: unknown): unknown {
@@ -94,6 +95,14 @@ function pydanticAiPart(value: unknown): unknown {
   }
 }
 
+/** Builtin tools use `kind` where the common tool parser expects `type`. */
+function pydanticAiBuiltinTool(value: unknown): unknown {
+  const tool = asRecord(value);
+  if (!tool || typeof tool.kind !== "string") return value;
+  const { kind, ...rest } = tool;
+  return { ...rest, type: kind };
+}
+
 function pydanticAiToolDefinitionSources(
   carrier: ToolDefinitionCarrier,
 ): ToolDefinitionSource[] {
@@ -116,12 +125,7 @@ function pydanticAiToolDefinitionSources(
         sourceKey: `${sourceKey}.${key}`,
         value:
           key === "builtin_tools"
-            ? (parseArray(parameters[key]) ?? []).map((tool) => {
-                const record = asRecord(tool);
-                if (!record || typeof record.kind !== "string") return tool;
-                const { kind, ...rest } = record;
-                return { ...rest, type: kind };
-              })
+            ? (parseArray(parameters[key]) ?? []).map(pydanticAiBuiltinTool)
             : parameters[key],
         options: {
           allowProviderToolWithoutName: key === "builtin_tools",
