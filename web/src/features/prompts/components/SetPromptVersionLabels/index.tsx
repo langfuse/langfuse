@@ -26,7 +26,7 @@ import {
 import { LabelCommandItem } from "./LabelCommandItem";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
@@ -180,10 +180,7 @@ export function SetPromptVersionLabels({
         >
           {title && title}
           {promptLabels.length > 0 && (
-            <TruncatedLabels
-              labels={promptLabels}
-              maxVisibleLabels={maxVisibleLabels}
-            />
+            <LabelList labels={promptLabels} maxVisible={maxVisibleLabels} />
           )}
           <Button
             variant="outline"

@@ -21,7 +21,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type ScoreAggregate } from "@langfuse/shared";
 import Page from "@/src/components/layouts/page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
 import {
   useScoreColumns,
@@ -194,18 +194,13 @@ export default function PromptMetricsPage({
       id: "labels",
       header: "Labels",
       isPinnedLeft: true,
-      size: 160,
+      size: 240,
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
         return (
           values &&
           values.length > 0 && (
-            <TruncatedLabels
-              labels={values}
-              maxVisibleLabels={3}
-              className="-mr-8 flex max-h-full flex-wrap gap-1"
-              showSimpleBadges={true}
-            />
+            <LabelList labels={values} maxVisible={2} shouldWrap={false} />
           )
         );
       },

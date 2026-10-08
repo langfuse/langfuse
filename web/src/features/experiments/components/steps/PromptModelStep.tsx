@@ -35,7 +35,7 @@ import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 
 export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   projectId,
@@ -235,11 +235,12 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                   Version {prompt.version}
                                 </span>
                                 {prompt.labels.length > 0 && (
-                                  <TruncatedLabels
-                                    labels={prompt.labels}
-                                    maxVisibleLabels={2}
-                                    className="min-w-0"
-                                  />
+                                  <div className="min-w-0">
+                                    <LabelList
+                                      labels={prompt.labels}
+                                      maxVisible={2}
+                                    />
+                                  </div>
                                 )}
                               </div>
                               <CheckIcon
