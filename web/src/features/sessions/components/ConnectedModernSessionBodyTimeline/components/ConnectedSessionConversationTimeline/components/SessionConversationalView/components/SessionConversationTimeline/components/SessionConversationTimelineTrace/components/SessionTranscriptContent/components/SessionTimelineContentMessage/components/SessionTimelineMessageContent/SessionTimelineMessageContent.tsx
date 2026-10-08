@@ -44,7 +44,7 @@ export function SessionTimelineMessageContent({
           <div className="bg-border h-px flex-1" aria-hidden="true" />
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors hover:bg-[var(--session-message-toggle-hover,var(--color-muted))]"
+            className="text-muted-foreground hover:text-foreground shrink-0 rounded-md px-3 py-1 text-xs transition-colors hover:bg-[var(--session-message-toggle-hover,var(--color-muted))]"
             aria-expanded={isExpanded}
             aria-controls={contentId}
             onClick={() => setIsExpanded((expanded) => !expanded)}

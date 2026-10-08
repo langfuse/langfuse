@@ -12,6 +12,7 @@ const meta = preview.meta({
 export default meta;
 
 export const TallPlainText = meta.story({
+  name: "(Test) Tall Plain Text",
   args: {
     role: "assistant",
     parts: [
@@ -46,6 +47,7 @@ export const TallPlainText = meta.story({
 });
 
 export const TallMarkdown = meta.story({
+  name: "(Test) Tall Markdown",
   args: {
     role: "assistant",
     parts: [
@@ -117,6 +119,7 @@ export const ResponsiveMessage = meta.story({
 });
 
 export const NamedUser = meta.story({
+  name: "(Test) Named User",
   args: {
     role: "user",
     senderName: "Customer",

@@ -1,5 +1,5 @@
 import preview from "../../../.storybook/preview";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { MarkdownView } from "./MarkdownViewer";
 
 const meta = preview.meta({
