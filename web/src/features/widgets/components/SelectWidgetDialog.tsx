@@ -224,7 +224,7 @@ export function SelectWidgetDialog({
                   capture("dashboard:add_widget_tab_switch", { tab })
                 }
               >
-                <Tabs.List>
+                <Tabs.List variant="inset" size="md">
                   <Tabs.Trigger
                     value="project"
                     label={`Your widgets (${projectWidgets.length})`}

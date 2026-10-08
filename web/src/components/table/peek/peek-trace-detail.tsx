@@ -41,36 +41,38 @@ export const TablePeekViewTraceDetail = (
     timestamp,
   });
 
-  const actionProps = trace.data
-    ? {
-        trace: trace.data,
-        traceContext: "peek" as const,
-        shareUrl: buildTracePath({
-          projectId: trace.data.projectId,
-          traceId: trace.data.id,
-          timestamp,
-        }),
-        timestamp,
-        onAfterDelete: (deletedTraceId: string) => {
-          if (shouldClosePeekAfterDelete(peekIdRef.current, deletedTraceId)) {
-            tablePeekViewProps.closePeek();
-          }
-        },
+  const actionProps = {
+    trace: trace.data,
+    traceContext: "peek" as const,
+    shareUrl: traceId
+      ? buildTracePath({ projectId, traceId, timestamp })
+      : undefined,
+    timestamp,
+    onAfterDelete: (deletedTraceId: string) => {
+      if (shouldClosePeekAfterDelete(peekIdRef.current, deletedTraceId)) {
+        tablePeekViewProps.closePeek();
       }
-    : null;
+    },
+  };
 
   return (
     <TablePeekView
       {...tablePeekViewProps}
       title={traceId}
       hideExpandToggle
+      preserveContentAcrossItems
       actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+        />
       }
       actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
-        ) : undefined
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+          layout="menu"
+        />
       }
     >
       <TraceDetailBody
@@ -78,6 +80,7 @@ export const TablePeekViewTraceDetail = (
         context="peek"
         layout={layout}
         truncatedAtObservations={trace.truncatedAtObservations}
+        isPlaceholderData={trace.isPlaceholderData}
       />
     </TablePeekView>
   );

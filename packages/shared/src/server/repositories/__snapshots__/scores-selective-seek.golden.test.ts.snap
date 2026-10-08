@@ -199,15 +199,14 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "seek-project",
-      "param2": [
+      "param1": [
         "NUMERIC",
         "BOOLEAN",
         "CATEGORICAL",
         "TEXT",
       ],
-      "param3": "seek-project",
-      "param4": "0.5",
+      "param2": "seek-project",
+      "param3": "0.5",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -242,32 +241,11 @@ FROM
 (
     SELECT s.*
     FROM scores AS s
-    INNER JOIN
-    (
-        SELECT
-            s.project_id AS latest_project_id,
-            toDate(s.timestamp) AS latest_date,
-            s.name AS latest_name,
-            s.id AS latest_id,
-            max(s.event_ts) AS latest_event_ts
-        FROM scores AS s
-        WHERE s.project_id = {param1:String}
-        GROUP BY
-            s.project_id,
-            toDate(s.timestamp),
-            s.name,
-            s.id
-    ) AS latest ON (
-        s.project_id = latest.latest_project_id
-    ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
-    WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
-    LIMIT 1 BY
-        s.project_id,
-        toDate(s.timestamp),
-        s.name,
-        s.id
+    FINAL
+    WHERE (s.data_type IN ({param1:Array(String)})) AND (project_id = {param2:String}) AND (s.value > {param3:Decimal64(12)})
 ) AS s
-ORDER BY s.timestamp DESC",
+ORDER BY s.timestamp DESC
+SETTINGS do_not_merge_across_partitions_select_final = 1",
   },
 ]
 `;

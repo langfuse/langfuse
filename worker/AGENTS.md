@@ -18,6 +18,27 @@
 - Automation action dispatch: `src/queues/automationExecutionQueue.ts` and
   `src/features/automations/executeAutomationAction.ts`
 - Feature processors: `src/features/*`
+- Topics pipeline: `src/features/topics/processTopicsExecution.ts`, registered by
+  `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md` before changing
+  storage, numerical fitting, model configuration or retry behavior.
+  `topics` processes traces; `topics-update` fits stored summaries;
+  `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
+  registration. Processors also enforce `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`;
+  trace and project cleanup run independently of both gates.
+  Paid results are staged before retryable
+  persistence, and unchanged embedding waits must read only Redis queue state.
+  Summary references use source fields; preserve `summaryProcessedAt` checks
+  when resolving assignments after reprocessing.
+  Transcript assembly is shared with web through `loadTopicTranscript`, returning
+  `Transcript | null`; serialize it for inference and skip inference on null.
+  Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
+  Model calls use `generateTopicText` and `generateTopicEmbedding` from
+  `@langfuse/shared/topics/server` to keep Bedrock transport on shared's AI SDK
+  version. Internal PoC model selection uses required, default-free
+  `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` values
+  shared by web and worker; topic naming still uses the fixed Terra profile.
+  Local AWS auth uses shared `LANGFUSE_AI_FEATURES_AWS_PROFILE`; region/setup
+  details live in the Topics README.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
@@ -25,8 +46,8 @@
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
-  independently default-off and cloud-gated. Do not expose these PoC controls in
-  local or production env templates. Reader query controls are independent of
+  independently default-off and cloud-gated. Leave the enablement flags commented
+  in env templates. The local dev template may set the idle time. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
   and Redis snapshots independently of dispatch/consumption when either role is
@@ -37,8 +58,12 @@
   previous generic text as a comparison, then renders Topics text and its block
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
+  Allowlisted projects are then summarized from that assembled transcript.
   Allow one pending tokenization promise per batch while
-  buffering the next trace, and drain it even on read failure. Never flush a failed
+  buffering completed traces behind the serial summary chain. Pause reads only
+  above the configured queued-payload threshold, then resume as soon as completed
+  summaries reduce it to that threshold or below. The client idle timeout must
+  account for these pauses. Drain accepted summaries even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
@@ -47,11 +72,13 @@
   both singletons.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
-  records its own metrics and logs; see `../packages/native/AGENTS.md`.
+  records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
+  its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
-- Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
-  production OTEL event phase with isolated ClickHouse tables. Setup and scope:
-  `src/features/otel-ingestion/README.md`.
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` feeds raw S3
+  JSON through the production OTEL queue and JSON writer into isolated
+  ClickHouse tables, including retained legacy writes in dual-write mode. Setup
+  and scope: `src/features/otel-ingestion/README.md`.
 - Native codec checks: `pnpm --filter worker run test:native-codec` selects
   `nativeCodec` suites. Build the addon first; the command requires ClickHouse
   whenever the live parity suite is present.
@@ -105,9 +132,11 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
-- Worker env owns queue concurrency, sandbox configuration, and the
-  development-only in-app-agent AWS profile. Enablement is
-  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
+- Worker env owns queue concurrency and sandbox configuration. Shared env owns
+  the local AI profile (`LANGFUSE_AI_FEATURES_AWS_PROFILE`, with the legacy
+  `LANGFUSE_IN_APP_AGENT_AWS_PROFILE` fallback); `AWS_PROFILE` takes precedence.
+  Enablement is `LANGFUSE_IN_APP_AGENT_ENABLED` via
+  `isInAppAgentInstanceEnabled()`. Optional
   `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
   `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role
   worker out of the queue consumer (and nested DLQ retry) or integrity runner.

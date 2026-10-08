@@ -233,7 +233,7 @@ const MonitorAutomationsListRow = ({
     <RowCheckbox checked={isSelected} />
     <ActionIcon
       type={automation.action.type as ActionTypes}
-      className="h-3.5 w-3.5 shrink-0"
+      className="icon-base shrink-0"
     />
     <span className="truncate" title={automation.name}>
       {automation.name}
@@ -250,7 +250,7 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
       checked && "bg-primary text-primary-foreground",
     )}
   >
-    {checked && <Check className="h-3.5 w-3.5" />}
+    {checked && <Check className="icon-base" />}
   </span>
 );
 
@@ -317,7 +317,7 @@ const AddAutomationDropdown = ({
             className={fullWidth ? "w-full" : undefined}
             {...getTriggerProps()}
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-base text-icon-foreground mr-2" />
             Automation
           </Button>
         )}

@@ -17,6 +17,7 @@ export default function DashboardsPage() {
   return (
     <Page
       headerProps={{
+        className: "border-b-0",
         title: "Dashboards",
         help: {
           description: "Manage and create dashboards for your project.",
@@ -28,7 +29,12 @@ export default function DashboardsPage() {
         },
         actionButtonsRight: (
           <ActionButton
-            icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+            icon={
+              <PlusIcon
+                className="icon-base text-icon-foreground"
+                aria-hidden="true"
+              />
+            }
             hasAccess={hasCUDAccess}
             href={`/project/${projectId}/dashboards/new`}
             trackingEventName="dashboard:new_dashboard_form_open"

@@ -131,7 +131,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 className="h-auto min-h-24 w-full justify-start gap-3 px-4 py-4 text-left whitespace-normal sm:w-[360px]"
                 onClick={() => handleOpenCreateEvaluator(EvalTemplateType.CODE)}
               >
-                <Code2 className="h-5 w-5 shrink-0" />
+                <Code2 className="icon-base text-icon-foreground shrink-0" />
                 <span className="flex flex-col gap-1">
                   <span className="font-bold">Code evaluator</span>
                   <span className="text-muted-foreground text-sm font-normal">
@@ -148,7 +148,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
               }
             >
-              <Bot className="h-5 w-5 shrink-0" />
+              <Bot className="icon-base text-icon-foreground shrink-0" />
               <span className="flex flex-col gap-1">
                 <span className="font-bold">LLM as a judge evaluator</span>
                 <span className="text-muted-foreground text-sm font-normal">
@@ -318,7 +318,7 @@ function CreateLlmEvaluatorWizard({
                   {isActive ? (
                     <BreadcrumbPage className="flex items-center font-bold">
                       {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                        <Check className="text-dark-green icon-base mr-1.5" />
                       ) : null}
                       {index + 1}. {step.label}
                     </BreadcrumbPage>
@@ -332,7 +332,7 @@ function CreateLlmEvaluatorWizard({
                       className="flex cursor-pointer items-center"
                     >
                       {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                        <Check className="text-dark-green icon-base mr-1.5" />
                       ) : null}
                       {index + 1}. {step.label}
                     </BreadcrumbLink>
@@ -408,6 +408,7 @@ function CreateEvaluatorTemplateForm({
       onFormSuccess={(newTemplate) => {
         onSuccess(newTemplate);
         showSuccessToast({
+          operation: "evaluator.create",
           title: "Evaluator created successfully",
           description: "You can now use this evaluator.",
         });

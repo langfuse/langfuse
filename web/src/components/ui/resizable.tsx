@@ -51,7 +51,27 @@ function ResizableHandle({
 }
 
 const usePanelRef = ResizablePrimitive.usePanelRef;
-const useDefaultLayout = ResizablePrimitive.useDefaultLayout;
+const NOOP_LAYOUT_STORAGE = { getItem: () => null, setItem: () => {} };
+
+function useDefaultLayout({
+  storage,
+  ...options
+}: Pick<
+  Parameters<typeof ResizablePrimitive.useDefaultLayout>[0],
+  "debounceSaveMs" | "panelIds"
+> & {
+  id: string;
+  storage: "local" | "session" | false;
+}) {
+  const browserStorage = (() => {
+    if (!storage || typeof window === "undefined") return NOOP_LAYOUT_STORAGE;
+    return storage === "local" ? localStorage : sessionStorage;
+  })();
+  return ResizablePrimitive.useDefaultLayout({
+    ...options,
+    storage: browserStorage,
+  });
+}
 
 export {
   ResizableHandle,

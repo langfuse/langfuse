@@ -62,7 +62,7 @@ export function Stepper({
         >
           <ChevronDown
             className={cn(
-              "text-foreground-tertiary size-3.5 shrink-0 translate-y-px transition-transform",
+              "text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform",
               !expanded && "-rotate-90",
             )}
           />

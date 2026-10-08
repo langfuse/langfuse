@@ -1,10 +1,13 @@
 import {
   assembleTranscript,
+  getObservationByIdFromEventsTable,
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
   orderObservations,
+  normalizeIO,
   type Transcript,
 } from "@langfuse/shared/src/server";
+import type { ToolCallPart } from "@langfuse/shared/src/utils/normalized-io";
 
 /** Generations and tools whose I/O one transcript reads at most. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
@@ -20,6 +23,14 @@ export async function loadTraceTranscript(trace: {
   traceId: string;
   /** Trace timestamp; observations from one hour before it onwards are read. */
   timestamp: Date;
+  /**
+   * For session rendering, convert text-only TOOL responses into ID-bearing
+   * tool results when observation names uniquely identify their calls.
+   * Ambiguous responses remain unchanged. Disabled by default.
+   */
+  pairTextToolResponses?: boolean;
+  /** Use root observation I/O when no generation/tool transcript exists. */
+  fallbackToRootIO?: boolean;
 }): Promise<{
   transcript: Transcript | null;
   /** The trace has more observations than the transcript could read. */
@@ -44,8 +55,158 @@ export async function loadTraceTranscript(trace: {
     if (withContent) return [withContent];
     return TRANSCRIPT_OBSERVATION_TYPES.has(o.type) ? [] : [o];
   });
+  let transcript = assembleTranscript(orderObservations(observations));
+  if (!transcript && trace.fallbackToRootIO) {
+    const root = structure.observations.find(
+      (observation) =>
+        observation.isRootObservation === true ||
+        !observation.parentObservationId,
+    );
+    if (root) {
+      const rootWithContent = await getObservationByIdFromEventsTable({
+        projectId: trace.projectId,
+        traceId: trace.traceId,
+        id: root.id,
+        startTime: root.startTime,
+        fetchWithInputOutput: true,
+      });
+      if (rootWithContent) {
+        const { messages } = normalizeIO({
+          kind: "io",
+          io: {
+            input: rootWithContent.input,
+            output: rootWithContent.output,
+            metadata: rootWithContent.metadata,
+          },
+        });
+        if (messages.length > 0) {
+          transcript = {
+            threads: [
+              {
+                conversationHistory: [],
+                currentTurn: {
+                  nestingLevel: 0,
+                  observations: [{ id: root.id, traceId: trace.traceId }],
+                  messages: messages.map((message) => ({
+                    ...message,
+                    observationId: root.id,
+                    traceId: trace.traceId,
+                    startTime: rootWithContent.startTime,
+                    endTime: rootWithContent.endTime,
+                  })),
+                },
+              },
+            ],
+          };
+        }
+      }
+    }
+  }
+  // TODO: Evaluate moving general pairing into shared transcript assembly once
+  // it preserves resolved call identity for text-only tool responses.
+  if (trace.pairTextToolResponses && transcript) {
+    const observationsByTraceAndId = new Map<
+      (typeof observations)[number]["traceId"],
+      Map<string, (typeof observations)[number]>
+    >();
+    for (const observation of observations) {
+      let byId = observationsByTraceAndId.get(observation.traceId);
+      if (!byId) {
+        byId = new Map();
+        observationsByTraceAndId.set(observation.traceId, byId);
+      }
+      // Preserve the first match, as the previous array lookup did.
+      if (!byId.has(observation.id)) byId.set(observation.id, observation);
+    }
+    transcript = {
+      ...transcript,
+      threads: transcript.threads.map((thread) => {
+        const messages = thread.currentTurn.messages;
+        const calls = messages.flatMap((message) =>
+          message.parts.filter(
+            (part): part is ToolCallPart => part.type === "tool-call",
+          ),
+        );
+        const explicitIds = new Set(
+          messages.flatMap((message) =>
+            message.parts.flatMap((part) =>
+              part.type === "tool-result" && part.toolCallId
+                ? [part.toolCallId]
+                : [],
+            ),
+          ),
+        );
+        const candidates = new Map<number, ToolCallPart>();
+        let anchor: (typeof messages)[number] | undefined;
+        for (const [index, message] of messages.entries()) {
+          if (message.role !== "tool") {
+            anchor =
+              message.role === "assistant" && message.source === "output"
+                ? message
+                : undefined;
+            continue;
+          }
+          if (
+            message.source !== "output" ||
+            !message.parts.length ||
+            !message.parts.every((part) => part.type === "text")
+          )
+            continue;
+          const observation = observationsByTraceAndId
+            .get(message.traceId)
+            ?.get(message.observationId);
+          // Provenance must identify a TOOL; positional guessing cannot override it.
+          if (observation?.type !== "TOOL" || !observation.name || !anchor)
+            continue;
+          const matches = anchor.parts.filter(
+            (part): part is ToolCallPart =>
+              part.type === "tool-call" && part.toolName === observation.name,
+          );
+          if (matches.length !== 1) continue;
+          const call = matches[0]!;
+          if (
+            !call.toolCallId ||
+            explicitIds.has(call.toolCallId) ||
+            calls.filter((other) => other.toolCallId === call.toolCallId)
+              .length !== 1
+          )
+            continue;
+          candidates.set(index, call);
+        }
+        return {
+          ...thread,
+          currentTurn: {
+            ...thread.currentTurn,
+            messages: messages.map((message, index) => {
+              const call = candidates.get(index);
+              if (
+                !call ||
+                [...candidates.values()].filter(
+                  (other) => other.toolCallId === call.toolCallId,
+                ).length !== 1
+              )
+                return message;
+              return {
+                ...message,
+                parts: [
+                  {
+                    type: "tool-result" as const,
+                    toolCallId: call.toolCallId,
+                    toolName: call.toolName,
+                    output: message.parts
+                      .map((part) => (part.type === "text" ? part.text : ""))
+                      .join("\n"),
+                  },
+                ],
+              };
+            }),
+          },
+        };
+      }),
+    };
+  }
   return {
-    transcript: assembleTranscript(orderObservations(observations)),
+    transcript,
     cutoff:
       structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
       content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,

@@ -985,6 +985,7 @@ export const AutomationForm = ({
       });
 
       showSuccessToast({
+        operation: "automation.update",
         title: "Automation Updated",
         description: `Successfully updated automation "${resolvedName}".`,
       });
@@ -1009,6 +1010,7 @@ export const AutomationForm = ({
       });
 
       showSuccessToast({
+        operation: "automation.create",
         title: "Automation Created",
         description: `Successfully created automation "${resolvedName}".`,
       });

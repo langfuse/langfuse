@@ -169,10 +169,12 @@ statuses remain separate project concerns.
 
 Environment ownership:
 
-- Worker: queue concurrency, sandbox provider and Lambda MicroVM values,
-  and development-only `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`. Enablement is
-  `LANGFUSE_IN_APP_AGENT_ENABLED` (shared with web); optional `"false"`
+- Worker: queue concurrency, sandbox provider and Lambda MicroVM values.
+  Enablement is `LANGFUSE_IN_APP_AGENT_ENABLED` (shared with web); optional `"false"`
   queue and integrity flags opt a split-role worker out.
+- Shared: local `LANGFUSE_AI_FEATURES_AWS_PROFILE` for Topics, Assistant, and
+  Ask AI. `AWS_PROFILE` takes precedence; `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`
+  remains a fallback for existing local setups. Production uses IAM roles.
 - Fixed lifecycle policy: queue timeout (300000 ms), maximum run duration
   (900000 ms), and approval TTL (86400000 ms). These are shared constants, so
   web and worker cannot diverge.

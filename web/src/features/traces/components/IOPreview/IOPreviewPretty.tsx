@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
+import { cn } from "@/src/utils/tailwind";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
@@ -19,6 +20,7 @@ import {
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -57,7 +59,7 @@ function JsonInputOutputView({
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="space-y-2 [&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="space-y-2">
       {showInput && (
         <PrettyJsonView
           title="Input"
@@ -273,7 +275,7 @@ export function IOPreviewPretty({
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
-    <div className="space-y-2 pt-1">
+    <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
@@ -288,7 +290,7 @@ export function IOPreviewPretty({
       ) : null}
 
       {shouldRenderMessages ? (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+        <div>
           <ChatMessageList
             messages={allMessages}
             shouldRenderMarkdown={shouldRenderMarkdown}
@@ -314,36 +316,32 @@ export function IOPreviewPretty({
       ) : showData ? (
         <div>
           <JsonInputOutputView {...jsonViewProps} />
-          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-            {showCorrections && (
-              <CorrectedOutputField
-                actualOutput={parsedOutput}
-                existingCorrection={outputCorrection}
-                observationId={observationId}
-                projectId={projectId}
-                traceId={traceId}
-                environment={environment}
-              />
-            )}
-          </div>
+          {showCorrections && (
+            <CorrectedOutputField
+              actualOutput={parsedOutput}
+              existingCorrection={outputCorrection}
+              observationId={observationId}
+              projectId={projectId}
+              traceId={traceId}
+              environment={environment}
+            />
+          )}
         </div>
       ) : null}
 
       {/* Metadata Section */}
       {showData && shouldShowMetadata && (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-          <PrettyJsonView
-            title="Metadata"
-            json={parsedMetadata}
-            isLoading={isLoading}
-            isParsing={isParsing}
-            media={media?.filter((m) => m.field === "metadata") ?? []}
-            currentView="pretty"
-            externalExpansionState={metadataExpansionState}
-            onExternalExpansionChange={onMetadataExpansionChange}
-            metadataActions={metadataActions}
-          />
-        </div>
+        <PrettyJsonView
+          title="Metadata"
+          json={parsedMetadata}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          media={media?.filter((m) => m.field === "metadata") ?? []}
+          currentView="pretty"
+          externalExpansionState={metadataExpansionState}
+          onExternalExpansionChange={onMetadataExpansionChange}
+          metadataActions={metadataActions}
+        />
       )}
     </div>
   );

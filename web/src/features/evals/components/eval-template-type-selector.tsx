@@ -106,7 +106,7 @@ export function EvalTemplateTypeSelector({
                 )
               }
             >
-              <Tabs.List layout="packed" gap="lg">
+              <Tabs.List variant="inset" size="md" layout="packed" gap="lg">
                 {mode === "all" ? (
                   <span className="min-w-[100px]">
                     <Tabs.Trigger

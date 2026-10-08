@@ -30,6 +30,7 @@ export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
       if (!callout?.enabled) return;
 
       showSuccessToast({
+        operation: "web_callout.invoke",
         title: callout.toastMessage,
         description: callout.name,
       });
@@ -92,7 +93,7 @@ export function WebCalloutButton({
           action.invokeCallout().catch(() => undefined);
         }}
       >
-        <Webhook className="h-4 w-4 shrink-0" />
+        <Webhook className="icon-base text-icon-foreground shrink-0" />
         <span className="min-w-0 truncate text-sm" title={label}>
           {label}
         </span>
@@ -113,7 +114,7 @@ export function WebCalloutButton({
             action.invokeCallout().catch(() => undefined);
           }}
         >
-          <Webhook className="h-4 w-4" />
+          <Webhook className="icon-base text-icon-foreground" />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

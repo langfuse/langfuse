@@ -103,7 +103,7 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         LogFormat::Json => tracing_subscriber::fmt::layer()
             .json()
             .flatten_event(true)
-            .map_event_format(logs::WithRequestId)
+            .map_event_format(logs::WithCorrelationFields)
             .with_filter(log_filter)
             .boxed(),
         LogFormat::Text => tracing_subscriber::fmt::layer()
@@ -124,7 +124,7 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
     tracing_subscriber::registry()
         .with(logger)
         .with(spans)
-        .with(logs::RequestIdSpans)
+        .with(logs::CorrelationSpans)
         .try_init()
         .map_err(|_| "failed to initialize gateway logging")?;
     Ok(Observability { traces, metrics })

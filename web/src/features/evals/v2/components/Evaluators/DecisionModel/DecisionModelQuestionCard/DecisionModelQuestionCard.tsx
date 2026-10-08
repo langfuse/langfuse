@@ -10,6 +10,7 @@ import { Label } from "@/src/components/ui/label";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
 import { ChoiceOptionsEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/ChoiceOptionsEditor/ChoiceOptionsEditor";
 import { NoulCriteriaEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/NoulCriteriaEditor/NoulCriteriaEditor";
+import { OpenAIQuestionInstructions } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/OpenAIQuestionInstructions/OpenAIQuestionInstructions";
 import { QuestionInstructionsField } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionInstructionsField/QuestionInstructionsField";
 import {
   QUESTION_TYPE_COPY,
@@ -32,6 +33,8 @@ export type DecisionModelQuestionCardProps = {
   onChange: (question: DecisionModelQuestionDraft) => void;
   onRemove: (() => void) | null;
   errors?: DecisionModelQuestionDraftErrors;
+  /** OpenAI questions are plain text. Jev questions name state fields in backticks. */
+  plainInstructions?: boolean;
 };
 
 function writesLine(question: DecisionModelQuestionDraft) {
@@ -95,6 +98,7 @@ export function DecisionModelQuestionCard({
   onChange,
   onRemove,
   errors = {},
+  plainInstructions = false,
 }: DecisionModelQuestionCardProps) {
   const id = useId();
   const copy = QUESTION_TYPE_COPY[question.type];
@@ -109,14 +113,14 @@ export function DecisionModelQuestionCard({
       triggerTitle={expanded ? "Collapse question" : "Expand question"}
       header={
         <span className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground shrink-0 font-mono text-xs">
+          <span className="text-muted-foreground shrink-0 font-mono text-xs leading-none">
             {index + 1}
           </span>
-          <copy.icon className="h-4 w-4 shrink-0" aria-label={copy.label} />
+          <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
           <Badge
             variant="secondary"
             className={cn(
-              "shrink-0 font-mono",
+              "shrink-0 pb-0 font-mono",
               !question.scoreName.trim() && "text-dark-yellow",
             )}
           >
@@ -124,7 +128,7 @@ export function DecisionModelQuestionCard({
           </Badge>
           <span
             className={cn(
-              "truncate",
+              "truncate leading-none",
               !question.instructions.trim() && "text-muted-foreground italic",
             )}
             title={summary}
@@ -151,7 +155,7 @@ export function DecisionModelQuestionCard({
               onRemove ? "Remove question" : "At least one question is required"
             }
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="icon-sm" />
           </Button>
         </span>
       }
@@ -172,23 +176,42 @@ export function DecisionModelQuestionCard({
           />
         </div>
 
-        <QuestionInstructionsField
-          value={question.instructions}
-          onChange={(instructions) =>
-            onChange({
-              ...question,
-              instructions,
-              scoreName:
-                question.scoreName === "" ||
-                question.scoreName === suggestScoreName(question.instructions)
-                  ? suggestScoreName(instructions)
-                  : question.scoreName,
-            })
-          }
-          stateKeys={stateKeys}
-          placeholder={copy.example}
-          error={errors.instructions}
-        />
+        {plainInstructions ? (
+          <OpenAIQuestionInstructions
+            value={question.instructions}
+            onChange={(instructions) =>
+              onChange({
+                ...question,
+                instructions,
+                scoreName:
+                  question.scoreName === "" ||
+                  question.scoreName === suggestScoreName(question.instructions)
+                    ? suggestScoreName(instructions)
+                    : question.scoreName,
+              })
+            }
+            placeholder={copy.example}
+            error={errors.instructions}
+          />
+        ) : (
+          <QuestionInstructionsField
+            value={question.instructions}
+            onChange={(instructions) =>
+              onChange({
+                ...question,
+                instructions,
+                scoreName:
+                  question.scoreName === "" ||
+                  question.scoreName === suggestScoreName(question.instructions)
+                    ? suggestScoreName(instructions)
+                    : question.scoreName,
+              })
+            }
+            stateKeys={stateKeys}
+            placeholder={copy.example}
+            error={errors.instructions}
+          />
+        )}
 
         <CriteriaEditor
           question={question}

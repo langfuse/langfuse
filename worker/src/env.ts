@@ -44,6 +44,16 @@ const EnvSchema = z.object({
     .optional()
     .transform((date) => (date ? new Date(date) : null)),
 
+  // CHB REST credentials, mirroring web/src/env.mjs. The worker needs them for
+  // one read: the spend-alert job asks for the open period's accrued usage.
+  CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+  CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+  // CHB's resource-server identifier. Defaulted because it is the same value
+  // in every CHB tenant, and overridable in case that stops being true.
+  CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -113,7 +123,7 @@ const EnvSchema = z.object({
     .number()
     .min(0)
     .max(1)
-    .default(1),
+    .default(0),
   LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -134,6 +144,16 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(2),
+  LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(40_000),
+  LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
@@ -151,14 +171,31 @@ const EnvSchema = z.object({
     .positive()
     .max(10_000)
     .default(60),
+  // Weight budgets use ingestion-time estimates; 0 disables a budget.
+  LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(1_500),
+  LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(64 * 1024 * 1024),
+  LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(5_000),
+  LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(50 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_STRATEGY: z
     .enum(["project", "locality"])
     .default("project"),
-  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(600_000),
+  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
     .number()
     .int()
@@ -313,10 +350,9 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // The ambient host profile takes precedence over the agent-specific default
-  // so local developer credentials win when both are configured.
-  AWS_PROFILE: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  // Internal Topics PoC model selection; not a supported self-hosting setting.
+  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -831,7 +867,12 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 };
 
 const parseEnv = (): ParsedEnv => {
-  const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+  const source = { ...removeEmptyEnvVariables(process.env) };
+  if (source.LANGFUSE_TRACE_BATCH_IDLE_MS === undefined) {
+    source.LANGFUSE_TRACE_BATCH_IDLE_MS =
+      source.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "120000" : "600000";
+  }
+  const parsed = EnvSchema.parse(source);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;

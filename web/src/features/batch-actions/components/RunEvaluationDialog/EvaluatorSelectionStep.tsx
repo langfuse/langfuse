@@ -129,7 +129,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   onClick={() => onSearchQueryChange("")}
                   aria-label="Clear evaluator search"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="icon-base text-icon-foreground" />
                 </Button>
               ) : null}
             </div>
@@ -141,8 +141,8 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                     <EvaluatorPromptPreview
                       key={evaluator.id}
                       previewContent={getPromptPreview(evaluator)}
-                      trigger={
-                        <div>
+                      trigger={({ getTriggerProps }) => (
+                        <div tabIndex={0} {...getTriggerProps()}>
                           <Badge
                             variant="secondary"
                             className="flex items-center gap-1 pr-1"
@@ -154,11 +154,11 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                               className="hover:bg-muted rounded p-0.5"
                               onClick={() => onToggleEvaluator(evaluator.id)}
                             >
-                              <X className="h-3 w-3" />
+                              <X className="icon-sm" />
                             </button>
                           </Badge>
                         </div>
-                      }
+                      )}
                     />
                   ))
                 ) : (
@@ -191,21 +191,23 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       </p>
                       <EvaluatorPromptPreview
                         previewContent={getPromptPreview(item)}
-                        trigger={
+                        trigger={({ getTriggerProps }) => (
                           <Button
                             variant="ghost"
                             size="icon-sm"
                             className="h-7 w-7"
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                            }}
-                            onClick={(event) => event.stopPropagation()}
+                            {...getTriggerProps({
+                              onMouseDown: (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              },
+                              onClick: (event) => event.stopPropagation(),
+                            })}
                             aria-label={`Preview ${item.scoreName}`}
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="icon-base text-icon-foreground" />
                           </Button>
-                        }
+                        )}
                       />
                       <span className="mr-1">
                         <Checkbox
