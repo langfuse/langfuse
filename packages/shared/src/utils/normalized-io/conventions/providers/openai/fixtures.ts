@@ -17,6 +17,7 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
           metadata: undefined,
         },
         expected: {
+          additionalInput: { model: "gpt-4.1" },
           messages: [
             {
               source: "input",
@@ -54,8 +55,138 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
   },
 ];
 
+const structuredReviewOutput = {
+  hypotheses: [
+    {
+      hypothesis: "Normal account activity with misleading userId.",
+      confidence: 0.99,
+      evidence: "Some evidence.",
+    },
+  ],
+  facts: [
+    {
+      fact: "Fact 1.",
+      evidence: "search_fact_by_key, get_records_by_ids identity and human.",
+    },
+    {
+      fact: "Fact 2",
+      evidence:
+        "answer_access_event_question acting-identity two-window lookup and trigger.",
+    },
+  ],
+  dead_ends: [
+    { hypothesis: "A.", evidence: "Evidence A." },
+    { hypothesis: "B", evidence: "Evidence B" },
+  ],
+  next_step: {
+    hypothesis:
+      "No outstanding discriminator-changing test; record the benign account-compromise verdict.",
+    evidence: "All five required checks attempted or not applicable",
+    verdict: "Benign; the account-compromise match requirement is not met.",
+    severity: "Not applicable",
+    confidence: 0.99,
+  },
+};
+
 // Anonymized customer payload; prose, names, IDs, and preview content replaced.
 export const customerFixtures: NormalizedIOFixture[] = [
+  {
+    name: "anonymized customer Responses structured output text with tool call",
+    spanIO: {
+      input: undefined,
+      metadata: undefined,
+      output: {
+        output: [
+          {
+            id: "rs_sample_review",
+            summary: [],
+            type: "reasoning",
+            content: [],
+            encrypted_content: "gAAAAAB",
+          },
+          {
+            id: "msg_sample_review",
+            content: [
+              {
+                annotations: [],
+                text: structuredReviewOutput,
+                type: "output_text",
+                logprobs: [],
+              },
+            ],
+            role: "assistant",
+            status: "completed",
+            type: "message",
+            phase: "commentary",
+          },
+          {
+            arguments: {
+              label: "Benign",
+              scenario: "account_compromise",
+              summary: "## Summary",
+            },
+            call_id: "call_sample_review",
+            name: "conclude_benign_review",
+            type: "function_call",
+            id: "fc_sample_review",
+            caller: null,
+            namespace: null,
+            status: "completed",
+          },
+        ],
+      },
+    },
+    expected: {
+      messages: [
+        {
+          source: "output",
+          role: "assistant",
+          id: "rs_sample_review",
+          parts: [
+            {
+              type: "reasoning",
+              content: { kind: "encrypted", data: "gAAAAAB" },
+            },
+          ],
+        },
+        {
+          source: "output",
+          role: "assistant",
+          id: "msg_sample_review",
+          parts: [
+            {
+              type: "data",
+              value: structuredReviewOutput,
+              providerMetadata: { annotations: [], logprobs: [] },
+            },
+          ],
+        },
+        {
+          source: "output",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_sample_review",
+              toolName: "conclude_benign_review",
+              input: {
+                label: "Benign",
+                scenario: "account_compromise",
+                summary: "## Summary",
+              },
+              toolType: "function_call",
+              providerMetadata: {
+                caller: null,
+                namespace: null,
+                status: "completed",
+              },
+            },
+          ],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  },
   {
     name: "anonymized customer Responses tool history",
     spanIO: {

@@ -69,7 +69,7 @@ export const WidgetImporter = ({
         size="sm"
         onClick={() => importInputRef.current?.click()}
       >
-        <Upload className="mr-2 h-4 w-4" />
+        <Upload className="icon-base text-icon-foreground mr-2" />
         Import
       </Button>
     </>
@@ -188,6 +188,7 @@ async function runImport(params: {
     params.onImport(result.snapshot);
 
     showSuccessToast({
+      operation: "widget.import",
       title: "Widget uploaded successfully",
       description: "Widget configuration has been loaded.",
     });

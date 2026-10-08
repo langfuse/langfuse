@@ -16,6 +16,29 @@ export const Default = meta.story({
   },
 });
 
+export const CollapsedPlainTextFallback = meta.story({
+  name: "(Test) Collapsed Plain Text Fallback",
+  args: {
+    markdown: `${"> ".repeat(101)}Deeply nested content`,
+    fallbackDisplay: "collapsed",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const content = canvas.getByText(
+      `${"> ".repeat(101)}Deeply nested content`,
+      {
+        exact: false,
+        selector: "pre",
+      },
+    );
+    await expect(content).not.toBeVisible();
+    await userEvent.click(canvas.getByText("Expand content"));
+    await expect(content).toBeVisible();
+    await userEvent.click(canvas.getByText("Collapse content"));
+    await expect(content).not.toBeVisible();
+  },
+});
+
 export const NestedLists = meta.story({
   args: {
     markdown: `In practical terms, it helps you:
@@ -154,8 +177,8 @@ trace.generation({ name: "answer" });
   },
 });
 
-export const HeaderControlsOnHover = meta.story({
-  name: "(Test) Reveals Header Controls On Hover",
+export const HeaderControlsOnFocus = meta.story({
+  name: "(Test) Reveals Header Controls On Focus",
   args: {
     markdown: "Hover this message to reveal its header controls.",
     title: "assistant",
@@ -163,14 +186,9 @@ export const HeaderControlsOnHover = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const copyButton = canvas.getByTitle("Copy to clipboard");
-    const message = copyButton.closest<HTMLElement>(".group\\/iosection");
-
-    if (!message) throw new Error("no markdown message");
-
-    await userEvent.unhover(message);
     await waitFor(() => expect(copyButton).not.toBeVisible());
 
-    await userEvent.hover(message);
+    copyButton.focus();
     await waitFor(() => expect(copyButton).toBeVisible());
   },
 });

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   validateExportSource,
@@ -21,7 +20,7 @@ import {
   getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-} from "@/src/features/analytics-integrations/exportSource";
+} from "@/src/features/analytics-integrations";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 
 type PostHogIntegrationFormInput = z.input<typeof posthogIntegrationFormSchema>;
@@ -193,7 +192,7 @@ export function PostHogIntegrationForm({
                       className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                     >
                       For further information see
-                      <ExternalLink className="size-3" />
+                      <ExternalLink className="icon-sm" />
                     </a>
                   </div>
                 </div>

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
 import Link from "next/link";
@@ -8,7 +9,7 @@ import { useMediaQuery } from "react-responsive";
 import { DeleteMonitorButton } from "@/src/components/deleteButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -23,9 +24,9 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
@@ -47,8 +48,8 @@ import {
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
@@ -82,6 +83,8 @@ export function MonitorsTable() {
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation:
+          variables.status === "PAUSED" ? "monitor.pause" : "monitor.resume",
         title: variables.status === "PAUSED" ? "Alert paused" : "Alert resumed",
         description:
           variables.status === "PAUSED"
@@ -304,33 +307,41 @@ export function MonitorsTable() {
 
   return (
     <div className="flex h-full w-full flex-col">
-      <TableSearchBar
-        key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-        projectId={projectId}
-        tableName="monitors"
-        registry={monitorsFieldRegistry(monitorFilterConfig)}
-        filterState={queryFilter.searchBarFilterState}
-        setFilterState={queryFilter.setFilterState}
-        observed={toObservedOptions(newFilterOptions, filterOptions.isPending)}
-        isV4={false}
-      />
-      <DataTableToolbar
-        tableName="monitors"
-        columns={columns}
-        filterState={queryFilter.explicitFilterState}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={handleColumnVisibilityChange}
-        columnOrder={columnOrder}
-        setColumnOrder={handleColumnOrderChange}
-        orderByState={orderByState}
-        isV4={false}
-        viewConfig={{
-          tableName: TableViewPresetTableName.Monitors,
-          projectId,
-          controllers: viewControllers,
-        }}
-      />
-      <ResizableFilterLayout>
+      <SearchableTableFilterLayout
+        search={
+          <TableSearchBar
+            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+            projectId={projectId}
+            tableName="monitors"
+            registry={monitorsFieldRegistry(monitorFilterConfig)}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={queryFilter.setFilterState}
+            observed={toObservedOptions(
+              newFilterOptions,
+              filterOptions.isPending,
+            )}
+            isV4={false}
+          />
+        }
+        toolbar={
+          <DataTableToolbar
+            tableName="monitors"
+            columns={columns}
+            filterState={queryFilter.explicitFilterState}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={handleColumnVisibilityChange}
+            columnOrder={columnOrder}
+            setColumnOrder={handleColumnOrderChange}
+            orderByState={orderByState}
+            isV4={false}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Monitors,
+              projectId,
+              controllers: viewControllers,
+            }}
+          />
+        }
+      >
         <DataTableControls
           key={viewControllers.filterEditorResetKey}
           queryFilter={queryFilter}
@@ -375,7 +386,7 @@ export function MonitorsTable() {
             cellPadding="comfortable"
           />
         </div>
-      </ResizableFilterLayout>
+      </SearchableTableFilterLayout>
     </div>
   );
 }
@@ -413,7 +424,10 @@ function MonitorRowActions({
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <SquarePen className="h-4 w-4" aria-hidden="true" />
+        <SquarePen
+          className="icon-base text-icon-foreground"
+          aria-hidden="true"
+        />
         {collapsed ? <span className="ml-2">Edit</span> : null}
       </Link>
     </Button>
@@ -433,9 +447,15 @@ function MonitorRowActions({
       }}
     >
       {isPaused ? (
-        <PlayCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PlayCircle
+          className="icon-lg text-icon-foreground"
+          aria-hidden="true"
+        />
       ) : (
-        <PauseCircle className="h-4.5 w-4.5" aria-hidden="true" />
+        <PauseCircle
+          className="icon-lg text-icon-foreground"
+          aria-hidden="true"
+        />
       )}
       {collapsed ? (
         <span className="ml-2">{isPaused ? "Resume" : "Pause"}</span>
@@ -461,7 +481,7 @@ function MonitorRowActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="xs" variant="ghost" aria-label="Alert actions">
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical className="icon-sm text-icon-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">

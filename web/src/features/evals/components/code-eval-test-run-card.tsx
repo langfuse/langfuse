@@ -12,7 +12,7 @@ import {
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
 import { useReadPath } from "@/src/features/events";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   deepParseJson,
@@ -116,7 +116,7 @@ export function CodeEvalTestRunCard({
                   rel="noopener noreferrer"
                 >
                   Source code
-                  <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                  <ExternalLink className="icon-base text-icon-foreground ml-1" />
                 </Link>
               </Button>
             ) : (
@@ -126,7 +126,7 @@ export function CodeEvalTestRunCard({
                 title="Only user-managed templates can be edited"
               >
                 Source code
-                <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                <ExternalLink className="icon-base text-icon-foreground ml-1" />
               </Button>
             )}
             <Button
@@ -151,9 +151,9 @@ export function CodeEvalTestRunCard({
               }}
             >
               {testRunMutation.data ? (
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                <RotateCcw className="icon-base text-icon-foreground mr-1.5" />
               ) : (
-                <Play className="mr-1.5 h-3.5 w-3.5" />
+                <Play className="icon-base text-icon-foreground mr-1.5" />
               )}
               Test
             </Button>
@@ -307,7 +307,7 @@ function CodeEvalTestRunResultView({
             size="sm"
             onClick={() => onShowExecutionTrace(result.executionTraceId)}
           >
-            <ListTree className="mr-1.5 h-3.5 w-3.5" />
+            <ListTree className="icon-base text-icon-foreground mr-1.5" />
             Show execution trace
           </Button>
         ) : null}

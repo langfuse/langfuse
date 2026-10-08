@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { randomUUID } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,7 +5,9 @@ import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME } from "@langfuse/shared/in-app-agent";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
 
@@ -18,11 +19,21 @@ vi.hoisted(() => {
   // provider. Keep its provider selection explicit rather than inheriting the
   // developer's root .env.
   delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
-  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ??= "DEV";
-  process.env.NEXTAUTH_URL ??= "http://localhost:3000";
-  process.env.LANGFUSE_AI_PROVIDER ??= "bedrock";
-  process.env.LANGFUSE_AI_AWS_BEDROCK_REGION ??= "eu-central-1";
-  process.env.LANGFUSE_AI_MODEL ??= "test-bedrock-model";
+  if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
+    process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+  }
+  if (process.env.NEXTAUTH_URL === undefined) {
+    process.env.NEXTAUTH_URL = "http://localhost:3000";
+  }
+  if (process.env.LANGFUSE_AI_PROVIDER === undefined) {
+    process.env.LANGFUSE_AI_PROVIDER = "bedrock";
+  }
+  if (process.env.LANGFUSE_AI_AWS_BEDROCK_REGION === undefined) {
+    process.env.LANGFUSE_AI_AWS_BEDROCK_REGION = "eu-central-1";
+  }
+  if (process.env.LANGFUSE_AI_MODEL === undefined) {
+    process.env.LANGFUSE_AI_MODEL = "test-bedrock-model";
+  }
 });
 
 /**
@@ -352,32 +363,6 @@ describe("executeInAppAgentRun", () => {
     expect(scenarioRef.titleInferenceCalls).toBe(0);
   });
 
-  it("prefers the ambient AWS profile over the configured agent profile", async () => {
-    const workerEnv = env as {
-      AWS_PROFILE?: string;
-      LANGFUSE_IN_APP_AGENT_AWS_PROFILE?: string;
-    };
-    const originalAwsProfile = workerEnv.AWS_PROFILE;
-    const originalConfiguredProfile =
-      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
-    workerEnv.AWS_PROFILE = "developer-profile";
-    workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "playground";
-
-    const { projectId, run } = await seedBackgroundRun();
-    scenarioRef.current = async ({ options }) => {
-      expect(options.awsProfile).toBe("developer-profile");
-      await options.onComplete();
-      await options.onFinish();
-    };
-
-    try {
-      await executeInAppAgentRun({ projectId, runId: run.id });
-    } finally {
-      workerEnv.AWS_PROFILE = originalAwsProfile;
-      workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = originalConfiguredProfile;
-    }
-  });
-
   it("uses the bundled prompt in self-hosted production", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -471,8 +456,11 @@ describe("executeInAppAgentRun", () => {
     const { projectId, conversation, run } = await seedBackgroundRun();
 
     let keysDuringRun = -1;
+    let keyExpiresAt: Date | null | undefined;
     scenarioRef.current = async ({ options }) => {
-      keysDuringRun = (await getInAppAgentApiKeys(projectId)).length;
+      const keys = await getInAppAgentApiKeys(projectId);
+      keysDuringRun = keys.length;
+      keyExpiresAt = keys[0]?.expiresAt;
       await options.onEvent({
         type: "RUN_STARTED",
         threadId: conversation.id,
@@ -494,6 +482,11 @@ describe("executeInAppAgentRun", () => {
     expect(finished.errorCode).toBeNull();
     // Key was minted and linked during the run, deleted and unlinked after.
     expect(keysDuringRun).toBe(1);
+    expect(keyExpiresAt).toEqual(
+      new Date(
+        finished.claimedAt!.getTime() + IN_APP_AGENT_RUN_MAX_DURATION_MS,
+      ),
+    );
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
     expect(finished.mcpApiKeyId).toBeNull();
 
@@ -895,13 +888,12 @@ describe("executeInAppAgentRun", () => {
       status: "RUNNING",
     });
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "stale-run mcp key",
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      name: "stale-run mcp key",
       isInAppAgentKey: true,
-      createdByUserId: user.id,
     });
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: run.id, projectId } },
@@ -935,13 +927,12 @@ describe("executeInAppAgentRun", () => {
       status: "RUNNING",
     });
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
-    const key = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "already-deleted mcp key",
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      name: "already-deleted mcp key",
       isInAppAgentKey: true,
-      createdByUserId: user.id,
     });
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: run.id, projectId } },
@@ -986,13 +977,12 @@ describe("executeInAppAgentRun", () => {
       status: "RUNNING",
     });
     const twoMinutesAgo = new Date(Date.now() - 2 * 60_000);
-    const userKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "user project key",
+    const userKey = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      name: "user project key",
       isInAppAgentKey: false,
-      createdByUserId: user.id,
     });
     await prisma.inAppAgentRun.update({
       where: { id_projectId: { id: run.id, projectId } },

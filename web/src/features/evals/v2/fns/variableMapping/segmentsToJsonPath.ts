@@ -84,13 +84,16 @@ export function jsonPathToSegments(path: string): PathSegment[] | null {
 }
 
 export function crumbLabel(segment: PathSegment): string {
-  return segment === WILDCARD
-    ? "[*]"
-    : segment === LAST
-      ? "[last]"
-      : typeof segment === "number"
-        ? `[${segment}]`
-        : segment;
+  if (segment === WILDCARD) {
+    return "[*]";
+  }
+  if (segment === LAST) {
+    return "[last]";
+  }
+  if (typeof segment === "number") {
+    return `[${segment}]`;
+  }
+  return segment;
 }
 
 export function truncateEnd(label: string, max: number): string {

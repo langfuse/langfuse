@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { cn } from "@/src/utils/tailwind";
+import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { AttributeRowActions } from "./AttributeRowActions";
 import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
@@ -10,9 +12,6 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
-
-const SECTION_CLASS =
-  "[&_.io-message-content]:px-3 [&_.io-message-header]:px-3";
 
 export function ObservationAttributesTab({
   attributes,
@@ -48,39 +47,33 @@ export function ObservationAttributesTab({
   const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-4">
-      <div className="space-y-2 pt-1">
+    <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto px-4 pb-4">
+      <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
         {hasAttributes ? (
-          <div className={SECTION_CLASS}>
-            <PrettyJsonView
-              title="Attributes"
-              showHeader={false}
-              json={attributes}
-              currentView={currentView}
-              rowActions={(row) => (
-                <AttributeRowActions
-                  row={row}
-                  projectId={projectId}
-                  filterTarget="observations"
-                  anchorTime={attributesAnchorTime}
-                  analyticsTable="attributes"
-                />
-              )}
-            />
-          </div>
+          <PrettyJsonView
+            title="Attributes"
+            json={attributes}
+            currentView={currentView}
+            rowActions={(row) => (
+              <AttributeRowActions
+                row={row}
+                projectId={projectId}
+                filterTarget="observations"
+                anchorTime={attributesAnchorTime}
+                analyticsTable="attributes"
+              />
+            )}
+          />
         ) : null}
         {modelParameters ? (
-          <div className={SECTION_CLASS}>
-            <PrettyJsonView
-              title="Model parameters"
-              showHeader={false}
-              json={modelParameters}
-              currentView={currentView}
-            />
-          </div>
+          <PrettyJsonView
+            title="Model parameters"
+            json={modelParameters}
+            currentView={currentView}
+          />
         ) : null}
         {hasMetadata ? (
-          <div className={SECTION_CLASS}>
+          <div>
             {metadataTooLarge ? (
               <LargeJsonFieldFallback
                 title="Metadata"
@@ -92,7 +85,6 @@ export function ObservationAttributesTab({
             ) : (
               <PrettyJsonView
                 title="Metadata"
-                showHeader={false}
                 json={metadata}
                 parsedJson={parsedMetadata}
                 currentView={currentView}
@@ -102,7 +94,7 @@ export function ObservationAttributesTab({
           </div>
         ) : null}
         {!hasAttributes && !modelParameters && !hasMetadata ? (
-          <p className="text-muted-foreground px-3 text-sm">
+          <p className="text-muted-foreground text-base">
             No attributes, model parameters or metadata on this observation.
           </p>
         ) : null}

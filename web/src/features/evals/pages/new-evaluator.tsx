@@ -143,13 +143,18 @@ export default function NewEvaluatorPage() {
     !hasDefaultModel &&
     !isCheckingDefaultModel,
   );
-  const step = !evaluatorId
-    ? "select"
-    : isCheckingDefaultModel
-      ? "loading"
-      : shouldSetupDefaultModel
-        ? "defaultModel"
-        : "run";
+  const step = (() => {
+    if (!evaluatorId) {
+      return "select";
+    }
+    if (isCheckingDefaultModel) {
+      return "loading";
+    }
+    if (shouldSetupDefaultModel) {
+      return "defaultModel";
+    }
+    return "run";
+  })();
   const selectedTemplateIsLlm = Boolean(
     currentTemplate && !isCodeEvalTemplate(currentTemplate),
   );
@@ -191,7 +196,7 @@ export default function NewEvaluatorPage() {
             >
               1. Select Evaluator
               {step !== "select" && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check className="icon-sm ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -206,7 +211,7 @@ export default function NewEvaluatorPage() {
             >
               2. Set up LLM connection
               {isProviderStepComplete && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check className="icon-sm ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>

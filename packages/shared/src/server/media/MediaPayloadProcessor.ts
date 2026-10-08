@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
 
 const MAX_RECURSION_DEPTH = 10;
@@ -282,7 +281,9 @@ function findDataUris(value: string): DataUriOccurrence[] {
       const code = value.charCodeAt(headerCursor);
       if (code === 44) break;
       if (code === 59) {
-        contentTypeEnd ??= headerCursor;
+        if (contentTypeEnd === undefined) {
+          contentTypeEnd = headerCursor;
+        }
         if (value.startsWith(BASE64_MARKER, headerCursor)) {
           markerStart = headerCursor;
           break;
@@ -579,12 +580,15 @@ function matchStructuredMedia(
   }
 
   if (value.type === "file" && typeof value.mediaType === "string") {
-    const property =
-      typeof value.data === "string"
-        ? "data"
-        : typeof value.image === "string"
-          ? "image"
-          : undefined;
+    const property = (() => {
+      if (typeof value.data === "string") {
+        return "data";
+      }
+      if (typeof value.image === "string") {
+        return "image";
+      }
+      return undefined;
+    })();
     if (property) {
       return {
         target: value,

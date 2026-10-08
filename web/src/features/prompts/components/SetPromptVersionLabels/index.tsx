@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
@@ -193,7 +194,7 @@ export function SetPromptVersionLabels({
               !hasAccess && "cursor-not-allowed group-hover:opacity-50",
             )}
           >
-            <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
+            <CircleFadingArrowUp className="icon-base text-icon-foreground shrink-0" />
           </Button>
         </div>
       </PopoverTrigger>

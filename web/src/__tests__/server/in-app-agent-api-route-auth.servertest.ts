@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -12,10 +13,11 @@ import {
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 const authMocks = vi.hoisted(() => ({
   getServerAuthSessionForRequest: vi.fn(),
@@ -29,9 +31,13 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
-vi.mock("@/src/features/entitlements/server/hasEntitlement", () => ({
-  hasEntitlement: entitlementMocks.hasEntitlement,
-}));
+vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    hasEntitlement: entitlementMocks.hasEntitlement,
+  };
+});
 
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
@@ -41,10 +47,13 @@ describe("in-app agent public API route auth", () => {
 
   async function createInAppAgentAuthHeader() {
     const { projectId } = await createOrgProjectAndApiKey();
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const apiKey = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,
     });
 
@@ -82,6 +91,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 
@@ -92,6 +102,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 
@@ -350,7 +361,7 @@ function createInAppAgentSession(params: {
       email: "test@example.com",
       image: null,
       admin: false,
-      featureFlags: {},
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations:
         (params.includeProjectMembership ?? true)
           ? [

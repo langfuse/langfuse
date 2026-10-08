@@ -1,4 +1,5 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
 import { ActionButton } from "@/src/components/ActionButton";
 import { planLabels } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import { showSuccessToast } from "@/src/features/notifications";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
 
@@ -27,7 +29,7 @@ export const StripeSwitchPlanButton = ({
   onProcessing,
   processing,
 }: {
-  orgId: string | undefined;
+  orgId: string;
   currentPlan: keyof typeof planLabels | undefined;
   newPlanTitle: string | undefined;
   isLegacySubscription: boolean;
@@ -41,7 +43,11 @@ export const StripeSwitchPlanButton = ({
   const mutChangePlan =
     api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
       onSuccess: () => {
-        toast.success("Plan changed successfully");
+        showSuccessToast({
+          operation: "billing_plan.change",
+          title: "Plan changed successfully",
+          description: "",
+        });
         onProcessing(null);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
@@ -52,8 +58,6 @@ export const StripeSwitchPlanButton = ({
         toast.error("Failed to change plan");
       },
     });
-
-  if (!orgId) return null;
 
   return (
     <Dialog>

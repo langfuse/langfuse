@@ -1,3 +1,4 @@
+import { type PeekOpenOptions } from "./peek/hooks/usePeekNavigation";
 /* eslint-disable @repo/no-null-render */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
@@ -5,7 +6,7 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
 import { type LayerName } from "@/src/context/LayerContext/layers";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
-import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { type ListEntry } from "@/src/features/navigate-detail-pages";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -16,7 +17,7 @@ import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/Pee
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
@@ -52,7 +53,7 @@ export type DataTablePeekViewProps = {
 
   // Event handlers
   /** Called to open the peek view. If undefined, row clicks won't trigger peek view opening */
-  openPeek?: (id?: string, row?: any) => void;
+  openPeek?: (id?: string, row?: any, options?: PeekOpenOptions) => void;
   /** Called to close the peek view*/
   closePeek: () => void;
   /** Called when the peek view is expanded to full view */
@@ -91,6 +92,7 @@ type TablePeekViewProps = Pick<
    * overflow "…" menu when the peek is too narrow for the inline icon row.
    */
   actionsMenu?: React.ReactNode;
+  hideExpandToggle?: boolean;
   // Content
   /**
    * The content to display in the peek view.
@@ -273,7 +275,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
-        isHandheld
+        isHandheld || props.hideExpandToggle
           ? undefined
           : {
               isExpanded: panel.isExpanded,
@@ -313,20 +315,26 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           open={!!itemId}
           onOpenChange={handleOpenChange}
           forceDirection="bottom"
+          modal={false}
         >
-          <DrawerContent
-            size="full"
-            className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
-            onPointerDownOutside={preventDismissOnKeptOpen}
-            onInteractOutside={preventDismissOnKeptOpen}
-          >
-            <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
-            <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
-              <div className="bg-muted h-1.5 w-12 rounded-full" />
-            </div>
-            {header}
-            {content}
-          </DrawerContent>
+          {/* Vaul does not forward modal to its Radix root. Keep its gestures,
+              but give portaled child dialogs the same non-modal host as desktop. */}
+          <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
+            <DrawerContent
+              portalLayer="modal"
+              size="full"
+              className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
+              onPointerDownOutside={preventDismissOnKeptOpen}
+              onInteractOutside={preventDismissOnKeptOpen}
+            >
+              <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
+              <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
+                <div className="bg-muted h-1.5 w-12 rounded-full" />
+              </div>
+              {header}
+              {content}
+            </DrawerContent>
+          </Sheet>
         </Drawer>
       ) : (
         // Desktop: a docked-right, resizable panel that stays on top of the
@@ -355,6 +363,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // would flip to a white glow).
                 "shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]",
                 "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
+                "has-[[data-peek-layout=review-navigation]]:min-w-[min(1120px,var(--peek-max-width))] has-[[data-peek-layout=review]]:min-w-[min(800px,var(--peek-max-width))]",
                 panel.isResizing && "select-none",
               )}
             >

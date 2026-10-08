@@ -4,17 +4,18 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
+  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
-import { ChevronDownIcon, Slash } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects/hooks";
+} from "@/src/features/projects";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
@@ -60,22 +61,19 @@ const BreadcrumbComponent = ({
                 {organization?.name ?? "Organization"}
                 {isCloudPlan(organization?.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                    <Badge
-                      className="ml-1 px-1 py-0 text-xs font-normal"
-                      variant="secondary"
-                    >
+                    <Badge variant="secondary">
                       {planLabels[organization.plan]}
                     </Badge>
                   )}
-                <ChevronDownIcon className="h-4 w-4" />
+                <DropdownIndicator size="sm" nudge />
               </button>
             )}
           </OrganizationDropdownMenu>
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator>
-              <Slash />
+            <BreadcrumbSeparator className="text-foreground-tertiary">
+              /
             </BreadcrumbSeparator>
             <ProjectDropdownMenu
               organizationId={organization.id}
@@ -97,28 +95,34 @@ const BreadcrumbComponent = ({
                   {...getTriggerProps()}
                 >
                   {project.name}
-                  <ChevronDownIcon className="h-4 w-4" />
+                  <DropdownIndicator size="sm" nudge />
                 </button>
               )}
             </ProjectDropdownMenu>
           </>
         )}
-        {items?.map((item, index) => (
-          <Fragment key={index}>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem key={index}>
-              {item.href ? (
-                <BreadcrumbLink asChild>
-                  <Link href={item.href}>{item.name}</Link>
-                </BreadcrumbLink>
-              ) : (
-                <span>{item.name}</span>
-              )}
-            </BreadcrumbItem>
-          </Fragment>
-        ))}
+        {items?.map((item, index) => {
+          const isCurrentPage = index === items.length - 1;
+          const name = item.href ? (
+            <Link href={item.href}>{item.name}</Link>
+          ) : (
+            item.name
+          );
+          return (
+            <Fragment key={index}>
+              <BreadcrumbSeparator className="text-foreground-tertiary">
+                /
+              </BreadcrumbSeparator>
+              <BreadcrumbItem key={index}>
+                {isCurrentPage && <BreadcrumbPage>{name}</BreadcrumbPage>}
+                {!isCurrentPage && item.href && (
+                  <BreadcrumbLink asChild>{name}</BreadcrumbLink>
+                )}
+                {!isCurrentPage && !item.href && <span>{name}</span>}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
       </BreadcrumbList>
     </Breadcrumb>
   );

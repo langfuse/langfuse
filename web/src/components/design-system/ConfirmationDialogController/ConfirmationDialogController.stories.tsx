@@ -1,7 +1,7 @@
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 
 import { ConfirmationDialogController } from "./ConfirmationDialogController";
 
@@ -21,7 +21,7 @@ export const StandardExample = meta.story({
     variant: "destructive",
     onConfirm,
     children: ({ openDialog }) => (
-      <Button onClick={openDialog}>Archive score config</Button>
+      <Button onClick={openDialog} text="Archive score config" />
     ),
   },
 });
@@ -36,7 +36,7 @@ export const TypeToConfirmExample = meta.story({
     variant: "destructive",
     onConfirm,
     children: ({ openDialog }) => (
-      <Button onClick={openDialog}>Delete project</Button>
+      <Button onClick={openDialog} text="Delete project" />
     ),
   },
 });
@@ -50,7 +50,7 @@ export const Standard = meta.story({
     variant: "destructive",
     onConfirm,
     children: ({ openDialog }) => (
-      <Button onClick={openDialog}>Archive score config</Button>
+      <Button onClick={openDialog} text="Archive score config" />
     ),
   },
   play: async ({ canvasElement }) => {
@@ -80,7 +80,7 @@ export const TypeToConfirm = meta.story({
     variant: "destructive",
     onConfirm,
     children: ({ openDialog }) => (
-      <Button onClick={openDialog}>Delete project</Button>
+      <Button onClick={openDialog} text="Delete project" />
     ),
   },
   play: async ({ canvasElement }) => {

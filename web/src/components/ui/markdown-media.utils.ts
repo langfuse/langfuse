@@ -8,7 +8,7 @@ import {
   type OpenAIOutputAudioType,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type z } from "zod";
 
 const getMediaReferenceId = (

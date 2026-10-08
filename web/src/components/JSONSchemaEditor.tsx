@@ -3,7 +3,7 @@ import React from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { assertUnreachable } from "@langfuse/shared";
 
 type JSONSchemaEditorMode = "json"; // Future: "json" | "builder"
@@ -76,7 +76,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
               className="hover:text-foreground inline-flex items-center underline"
             >
               See JSON Schema examples
-              <ArrowUpRight className="ml-0.5 h-3 w-3" />
+              <ArrowUpRight className="icon-sm ml-0.5" />
             </a>
           </p>
         )}

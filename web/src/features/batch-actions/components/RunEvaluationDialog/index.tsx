@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "zustand";
@@ -52,6 +53,7 @@ type RunEvaluationDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  onSuccess: () => void;
   experimentCount?: number;
   exampleObservation?: {
     id: string;
@@ -228,12 +230,15 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     displayCount,
     sourceTable,
   });
-  const mappingRunDisabledReason =
-    selectedCount === 0
-      ? "Attach at least one evaluator."
-      : mappingsComplete
-        ? null
-        : "Map every evaluator variable to a source column before running.";
+  const mappingRunDisabledReason = (() => {
+    if (selectedCount === 0) {
+      return "Select at least one evaluator.";
+    }
+    if (mappingsComplete) {
+      return null;
+    }
+    return "Map every evaluator variable to a source column before running.";
+  })();
 
   const toggleEvaluatorSelection = (evaluatorId: string) => {
     setSelectedEvaluators((previous) => {
@@ -295,6 +300,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     });
 
     showSuccessToast({
+      operation: "evaluation.queue",
       title: "Evaluation queued",
       description: isExperimentsSource
         ? `Scheduled evaluation for items from ${displayCount} selected experiment${displayCount === 1 ? "" : "s"} with ${evaluatorIds.length} ${evaluatorIds.length === 1 ? "evaluator" : "evaluators"}.`
@@ -307,6 +313,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       },
     });
 
+    props.onSuccess();
     props.onClose();
   };
 
@@ -317,7 +324,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && props.onClose()}>
+      <Dialog
+        open
+        onOpenChange={(open) =>
+          !open && !runEvaluationMutation.isPending && props.onClose()
+        }
+      >
         <DialogContent
           {...(showMappingEditor ? { size: "lg" as const } : {})}
           className={
@@ -405,7 +417,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 onClick={() => setStep("select-evaluator")}
                 disabled={runEvaluationMutation.isPending}
               >
-                <ChevronLeft className="mr-1 h-4 w-4" />
+                <ChevronLeft className="icon-base text-icon-foreground mr-1" />
                 Back
               </Button>
             ) : (
@@ -414,7 +426,16 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
             <div className="flex items-center gap-2">
               {step !== "confirm" ? (
-                <CreateEvaluatorButton href={createEvaluatorHref} />
+                <CreateEvaluatorButton
+                  href={createEvaluatorHref}
+                  onClick={() => {
+                    // The legacy (v3) editor is not part of the onboarding funnel.
+                    if (forceV3Experience) return;
+                    capture("eval:onboarding_started", {
+                      entryPoint: "batch_evaluation",
+                    });
+                  }}
+                />
               ) : null}
               {showMappingEditor ? (
                 <MappingRunButton
@@ -449,18 +470,25 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   );
 }
 
-function CreateEvaluatorButton({ href }: { href: string }) {
+function CreateEvaluatorButton({
+  href,
+  onClick,
+}: {
+  href: string;
+  onClick: () => void;
+}) {
   return (
     <Button variant="secondary" className="gap-1.5" asChild>
       <Link
         href={href}
+        onClick={onClick}
         target="_blank"
         rel="noreferrer"
         aria-label="Create new Evaluator (opens in a new tab)"
       >
-        <Plus className="size-4 shrink-0" aria-hidden="true" />
+        <Plus className="icon-base shrink-0" aria-hidden="true" />
         Create new Evaluator
-        <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+        <ExternalLink className="icon-base shrink-0" aria-hidden="true" />
       </Link>
     </Button>
   );

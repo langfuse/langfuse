@@ -90,7 +90,7 @@ const Chevron = ({
   orientation?: keyof typeof chevronIcons;
 }) => {
   const Icon = chevronIcons[orientation];
-  return <Icon className="h-4 w-4" />;
+  return <Icon className="icon-base" />;
 };
 
 export { Calendar };

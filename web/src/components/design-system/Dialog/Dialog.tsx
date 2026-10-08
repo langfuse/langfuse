@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies */
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -6,21 +5,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { X, type LucideIcon } from "lucide-react";
 import * as React from "react";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { cn } from "@/src/utils/tailwind";
 
 import motionStyles from "./Dialog.module.css";
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] flex max-h-[85vh] w-full translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden bg-modal shadow-lg sm:rounded-lg",
+  "fixed top-0 left-0 flex h-dvh w-full flex-col overflow-hidden bg-modal shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg",
   {
     variants: {
       size: {
-        sm: "max-w-md",
-        default: "max-w-lg",
-        lg: "max-w-4xl",
-        xxl: "h-[90vh] max-w-[95vw]",
+        sm: "sm:max-w-md",
+        default: "sm:max-w-lg",
+        lg: "sm:max-w-4xl",
+        xxl: "sm:h-[90vh] sm:max-w-[95vw]",
       },
     },
     defaultVariants: {
@@ -116,7 +115,7 @@ function DialogRoot({
         }}
       >
         <header className="bg-modal sticky top-0 z-30 flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
-          <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
+          <div className="flex w-full items-center justify-between gap-4 text-left">
             <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
               {title}
             </DialogPrimitive.Title>
@@ -124,7 +123,7 @@ function DialogRoot({
               className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
               tabIndex={-1}
             >
-              <X className="size-4" />
+              <X className="icon-base" />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
           </div>
@@ -133,26 +132,24 @@ function DialogRoot({
         {actions?.length ? (
           <DialogFooter>
             <DialogPrimitive.Close asChild>
-              <Button ref={cancelButtonRef} variant="outline">
-                Cancel
-              </Button>
+              <Button ref={cancelButtonRef} variant="secondary" text="Cancel" />
             </DialogPrimitive.Close>
-            {actions.map(({ icon: Icon, label, ...buttonProps }, index) => (
-              <Button
-                key={label}
-                ref={(button) => {
-                  actionButtonRefs.current[index] = button;
-                }}
-                {...buttonProps}
-              >
-                <span className="flex items-center gap-1.5">
-                  {label}
-                  {Icon ? (
-                    <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-                  ) : null}
-                </span>
-              </Button>
-            ))}
+            {actions.map(
+              ({ icon: Icon, label, variant, ...buttonProps }, index) => (
+                <Button
+                  key={label}
+                  icon={Icon}
+                  ref={(button) => {
+                    actionButtonRefs.current[index] = button;
+                  }}
+                  text={label}
+                  {...buttonProps}
+                  variant={
+                    variant === "destructive" ? "destructive" : "primary"
+                  }
+                />
+              ),
+            )}
           </DialogFooter>
         ) : null}
       </DialogPrimitive.Content>

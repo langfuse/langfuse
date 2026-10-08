@@ -3,18 +3,19 @@
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
-import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { InputControl } from "../internal/InputControl/InputControl";
+import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 
 type MultiSelectOption<V> = {
   value: V;
   label: string;
   secondaryLabel?: string;
+  disabled?: boolean;
 };
 
 type MultiSelectInputProps<V> = {
@@ -25,10 +26,12 @@ type MultiSelectInputProps<V> = {
   selectedLabel: string;
   searchPlaceholder: string;
   emptyMessage: string;
+  selectAllLabel?: string;
   error?: boolean;
+  disabled?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<"button">,
-  "id" | "aria-describedby" | "aria-invalid"
+  "id" | "aria-describedby" | "aria-invalid" | "aria-label"
 >;
 
 function MultiSelectInputInner<V extends string>(
@@ -40,26 +43,37 @@ function MultiSelectInputInner<V extends string>(
     selectedLabel,
     searchPlaceholder,
     emptyMessage,
+    selectAllLabel,
     error,
+    disabled,
     ...triggerProps
   }: MultiSelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
   const listId = React.useId();
-  const { register, recompute, top, bottom } =
-    useScrollGradients<HTMLDivElement>(true);
+  const allSelected =
+    options.length > 0 &&
+    options.every((option) => option.disabled || value.includes(option.value));
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <InputControl contentLayout="spread" error={error}>
+    <PopoverPrimitive.Root
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
+      <InputControl contentLayout="spread" error={error} disabled={disabled}>
         <PopoverPrimitive.Trigger
           ref={ref}
           type="button"
           role="combobox"
           aria-controls={listId}
           aria-expanded={open}
+          disabled={disabled}
           {...triggerProps}
         >
           <span
@@ -71,87 +85,122 @@ function MultiSelectInputInner<V extends string>(
           >
             {value.length > 0 ? selectedLabel : placeholder}
           </span>
-          <ChevronDown className="size-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         </PopoverPrimitive.Trigger>
       </InputControl>
       <PopoverPrimitive.Portal container={container}>
-        <PopoverPrimitive.Content
-          align="start"
-          sideOffset={4}
-          onWheel={stopScrollPropagation()}
-          onTouchMove={stopScrollPropagation()}
-          className="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative w-(--radix-popover-trigger-width) min-w-32 overflow-hidden rounded-md border shadow-md outline-hidden"
-        >
-          <CommandPrimitive className="bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md">
-            <div className="flex items-center border-b px-2">
-              <Search className="size-4 shrink-0 opacity-50" />
-              <CommandPrimitive.Input
-                placeholder={searchPlaceholder}
-                className="placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent px-2 py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
-            <CommandPrimitive.Empty className="py-6 text-center text-sm">
-              {emptyMessage}
-            </CommandPrimitive.Empty>
-            <CommandPrimitive.List
-              id={listId}
-              ref={register}
-              onScroll={recompute}
-              className={cn(
-                "before:from-popover after:from-popover max-h-96 overflow-auto p-1.5 before:pointer-events-none before:sticky before:-top-1.5 before:z-2 before:-mx-1.5 before:-mb-6 before:block before:h-6 before:bg-linear-to-b before:to-transparent before:content-[''] after:pointer-events-none after:sticky after:-bottom-1.5 after:z-2 after:-mx-1.5 after:-mt-6 after:block after:h-6 after:bg-linear-to-t after:to-transparent after:content-['']",
-                top ? "before:opacity-100" : "before:opacity-0",
-                bottom ? "after:opacity-100" : "after:opacity-0",
-              )}
-            >
-              <CommandPrimitive.Group className="text-foreground overflow-hidden">
-                {options.map((option) => {
-                  const isSelected = value.includes(option.value);
-
-                  return (
-                    <CommandPrimitive.Item
-                      value={option.value}
-                      keywords={[option.label]}
-                      key={option.value}
-                      className="aria-selected:bg-accent aria-selected:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none"
-                      onSelect={() => {
-                        if (isSelected) {
-                          onValueChange(
-                            value.filter(
-                              (selectedValue) => selectedValue !== option.value,
-                            ),
-                          );
-                          return;
-                        }
-
-                        onValueChange([...value, option.value]);
-                      }}
+        <InputDropdown.Content width="popover-trigger">
+          <PopoverPrimitive.Content
+            align="start"
+            sideOffset={4}
+            onWheel={stopScrollPropagation()}
+            onTouchMove={stopScrollPropagation()}
+          >
+            <InputDropdown.Root>
+              <CommandPrimitive>
+                <InputDropdown.Search>
+                  <CommandPrimitive.Input
+                    placeholder={searchPlaceholder}
+                    value={search}
+                    onValueChange={setSearch}
+                  />
+                </InputDropdown.Search>
+                {selectAllLabel &&
+                  !search.trim() &&
+                  options.some((option) => !option.disabled) && (
+                    <InputDropdown.Option
+                      highlight="focus"
+                      checked={allSelected}
                     >
-                      <span
-                        className="min-w-0 flex-1 truncate"
-                        title={option.label}
+                      <button
+                        type="button"
+                        aria-pressed={allSelected}
+                        onClick={() =>
+                          onValueChange(
+                            allSelected
+                              ? value.filter((selectedValue) =>
+                                  options.every(
+                                    (option) =>
+                                      option.value !== selectedValue ||
+                                      option.disabled,
+                                  ),
+                                )
+                              : [
+                                  ...value,
+                                  ...options
+                                    .filter(
+                                      (option) =>
+                                        !option.disabled &&
+                                        !value.includes(option.value),
+                                    )
+                                    .map((option) => option.value),
+                                ],
+                          )
+                        }
                       >
-                        {option.label}
-                        {option.secondaryLabel && (
-                          <span className="text-muted-foreground ml-1">
-                            {option.secondaryLabel}
-                          </span>
-                        )}
-                      </span>
-                      <span className="ml-auto flex size-3.5 shrink-0 items-center justify-center">
-                        <Check
-                          className={cn(
-                            "size-4",
-                            isSelected ? "opacity-100" : "opacity-0",
-                          )}
+                        <InputDropdown.OptionContent
+                          label={selectAllLabel}
+                          title={selectAllLabel}
+                          type="checkbox"
+                          checked={allSelected}
                         />
-                      </span>
-                    </CommandPrimitive.Item>
-                  );
-                })}
-              </CommandPrimitive.Group>
-            </CommandPrimitive.List>
-          </CommandPrimitive>
-        </PopoverPrimitive.Content>
+                      </button>
+                    </InputDropdown.Option>
+                  )}
+                <InputDropdown.Empty>
+                  <CommandPrimitive.Empty>
+                    {emptyMessage}
+                  </CommandPrimitive.Empty>
+                </InputDropdown.Empty>
+                <InputDropdown.List>
+                  <CommandPrimitive.List id={listId}>
+                    <CommandPrimitive.Group className="text-foreground overflow-hidden">
+                      {options.map((option) => {
+                        const isSelected = value.includes(option.value);
+
+                        return (
+                          <InputDropdown.Option
+                            key={option.value}
+                            highlight="aria-selected"
+                            checked={isSelected}
+                          >
+                            <CommandPrimitive.Item
+                              value={option.value}
+                              keywords={[option.label]}
+                              disabled={option.disabled}
+                              aria-checked={isSelected}
+                              onSelect={() => {
+                                if (isSelected) {
+                                  onValueChange(
+                                    value.filter(
+                                      (selectedValue) =>
+                                        selectedValue !== option.value,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                onValueChange([...value, option.value]);
+                              }}
+                            >
+                              <InputDropdown.OptionContent
+                                label={option.label}
+                                title={option.label}
+                                secondaryLabel={option.secondaryLabel}
+                                type="checkbox"
+                                checked={isSelected}
+                              />
+                            </CommandPrimitive.Item>
+                          </InputDropdown.Option>
+                        );
+                      })}
+                    </CommandPrimitive.Group>
+                  </CommandPrimitive.List>
+                </InputDropdown.List>
+              </CommandPrimitive>
+            </InputDropdown.Root>
+          </PopoverPrimitive.Content>
+        </InputDropdown.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
   );

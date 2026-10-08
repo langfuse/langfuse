@@ -64,7 +64,11 @@ describe("trace batch query controls", () => {
   });
 
   it("passes controls through chunked and single-project reads without changing membership or buffering rows", async () => {
-    const row = { project_id: "one", trace_id: "trace-1" };
+    const row = {
+      project_id: "one",
+      trace_id: "trace-1",
+      environment: "production",
+    };
     const failure = new Error("stream failed");
     let requestedSecondRow = false;
     vi.mocked(queryClickhouseStream).mockImplementation(async function* () {
@@ -77,18 +81,30 @@ describe("trace batch query controls", () => {
       const baselineStream = getTraceBatchEventStream({ traces: members });
       await baselineStream.next();
       const baseline = vi.mocked(queryClickhouseStream).mock.lastCall![0];
+      expect(baseline.query).toContain("e.environment");
       await baselineStream.return(undefined);
       for (const maxBlockSize of [undefined, 512]) {
         requestedSecondRow = false;
         const stream = getTraceBatchEventStream(
           { traces: members },
-          { maxThreads: 1, maxBlockSize, experimentId: "arm-b" },
+          {
+            maxThreads: 1,
+            maxBlockSize,
+            experimentId: "arm-b",
+            queryId: "read-attempt",
+            requestTimeoutMs: 40_000,
+          },
         );
         expect(await stream.next()).toEqual({ value: row, done: false });
         expect(requestedSecondRow).toBe(false);
         const sent = vi.mocked(queryClickhouseStream).mock.lastCall![0];
         expect(sent).toEqual({
           ...baseline,
+          queryId: "read-attempt",
+          clickhouseConfigs: {
+            ...baseline.clickhouseConfigs,
+            request_timeout: 40_000,
+          },
           tags: { ...baseline.tags, experimentId: "arm-b" },
           clickhouseSettings: {
             ...baseline.clickhouseSettings,

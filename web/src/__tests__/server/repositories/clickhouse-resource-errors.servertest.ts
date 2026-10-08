@@ -7,6 +7,7 @@ import {
   ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
+import { randomUUID } from "node:crypto";
 
 const QUERY_ID_PATTERN =
   /\[query_id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/;
@@ -124,8 +125,11 @@ describe("ClickHouse Resource Error Handling", () => {
       });
 
       it("should stream successful queries", async () => {
+        const queryId = randomUUID();
         const generator = queryClickhouseStream({
-          query: "SELECT number FROM system.numbers LIMIT 3",
+          query:
+            "SELECT number, queryID() AS query_id FROM system.numbers LIMIT 3",
+          queryId,
         });
 
         const results = [];
@@ -137,6 +141,7 @@ describe("ClickHouse Resource Error Handling", () => {
         expect(Array.isArray(results)).toBe(true);
         expect(results.length).toBe(3);
         expect(results[0]).toHaveProperty("number");
+        expect(results[0]).toHaveProperty("query_id", queryId);
       });
     });
 

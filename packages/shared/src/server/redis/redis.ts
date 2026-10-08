@@ -1,5 +1,5 @@
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
-import type { QueueBaseOptions } from "bullmq";
+import type { QueueBaseOptions, QueueOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
@@ -34,17 +34,34 @@ const defaultRedisOptions: Partial<RedisOptions> = {
 
 const REDIS_SCAN_COUNT = 1000;
 
+// Both reconnect strategies below randomize their delay within [base/2, base]
+// so that clients which failed at the same moment do not all reconnect at the
+// same moment. Each caller clamps its own base delay, so that clamp is also
+// the upper bound of the delay returned here.
+const jitteredBackoffMs = (baseDelayMs: number): number =>
+  Math.floor(baseDelayMs / 2 + Math.random() * (baseDelayMs / 2));
+
+// Delay before an ioredis Cluster client reconnects after a failed topology
+// refresh or after losing its last node. The ioredis default retries every
+// 100–300ms without jitter, and one process holds a separate Cluster client
+// per queue and per BullMQ worker, so a single failed refresh sends all of
+// them back to the configuration endpoint together. Doubles from 200ms to a
+// 5s cap and retries forever: a cluster that fails over is reachable again
+// within seconds, so the cap stays low.
+export const redisClusterRetryStrategy = (times: number): number =>
+  jitteredBackoffMs(Math.min(200 * 2 ** Math.max(times - 1, 0), 5000));
+
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
     if (times >= 5) {
       // A few retries are expected and no cause for action.
       logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
     }
-    // Retries forever. Exponential base delay clamped to 1s–20s, plus up to
-    // 50% random jitter (so at most 30s), so the per-queue connections do not
-    // reconnect in lockstep when Redis becomes unreachable.
-    const delay = Math.max(Math.min(Math.exp(times), 20000), 1000);
-    return delay + Math.random() * delay * 0.5;
+    // Retries forever, between 1s and 20s apart. The base delay holds at 2s
+    // for the first several attempts, so a connection dropped by a Redis
+    // restart is re-established promptly, then ramps to a 20s cap once the
+    // outage outlives those attempts.
+    return jitteredBackoffMs(Math.max(Math.min(Math.exp(times), 20000), 2000));
   },
   reconnectOnError: (err) => {
     // MOVED/ASK are normal cluster redirections handled by ioredis — not real errors.
@@ -59,10 +76,13 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
   },
 };
 
+// "settings" comes from QueueOptions (not QueueBaseOptions); the same
+// AdvancedRepeatOptions shape is accepted by WorkerOptions["settings"].
 type BullMQOptionsWithRedis = Pick<
   QueueBaseOptions,
   "connection" | "prefix" | "skipVersionCheck"
->;
+> &
+  Pick<QueueOptions, "settings">;
 
 /**
  * Parse Redis node definitions from environment variable
@@ -158,6 +178,7 @@ const createRedisClusterInstance = (
       ...tlsOptions,
     },
     // Retry configuration for cluster
+    clusterRetryStrategy: redisClusterRetryStrategy,
     retryDelayOnFailover: 100,
   };
 
@@ -295,23 +316,27 @@ export const createNewRedisInstance = (
 
   const tlsOptions = buildTlsOptions();
 
-  const instance = env.REDIS_CONNECTION_STRING
-    ? new Redis(env.REDIS_CONNECTION_STRING, {
+  const instance = (() => {
+    if (env.REDIS_CONNECTION_STRING) {
+      return new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
-      })
-    : env.REDIS_HOST
-      ? new Redis({
-          host: String(env.REDIS_HOST),
-          port: Number(env.REDIS_PORT),
-          username: env.REDIS_USERNAME || undefined,
-          password: env.REDIS_AUTH || undefined,
-          ...defaultRedisOptions,
-          ...additionalOptions,
-          ...tlsOptions,
-        })
-      : null;
+      });
+    }
+    if (env.REDIS_HOST) {
+      return new Redis({
+        host: String(env.REDIS_HOST),
+        port: Number(env.REDIS_PORT),
+        username: env.REDIS_USERNAME || undefined,
+        password: env.REDIS_AUTH || undefined,
+        ...defaultRedisOptions,
+        ...additionalOptions,
+        ...tlsOptions,
+      });
+    }
+    return null;
+  })();
 
   instance?.on("error", (error) => {
     logRedisError("Redis error", error);
@@ -347,6 +372,15 @@ const getBullMQOptionsForRedisConnection = (
 ): BullMQOptionsWithRedis => ({
   connection,
   prefix: getQueuePrefix(queueName),
+  // bullmq hashes with md5 by default, and an OpenSSL FIPS provider refuses
+  // md5, so any call into the legacy repeat API throws
+  // ERR_OSSL_EVP_UNSUPPORTED on a FIPS image. Job scheduler registration does
+  // not hash and is unaffected, but the legacy-schedule cleanup in
+  // scheduleRecurringJob calls removeRepeatableByKey, which hashes before it
+  // reaches Redis. sha256 is FIPS-approved and keeps that call working; the
+  // digest itself is only used to build an identifier the removal script
+  // never reads.
+  settings: { repeatKeyHashAlgorithm: "sha256" },
   ...(env.LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK === "true"
     ? { skipVersionCheck: true }
     : {}),

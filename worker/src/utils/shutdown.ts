@@ -25,6 +25,7 @@ import {
   monitorRunners,
   inAppAgentDlqRetryRunner,
   traceBatchDispatcher,
+  traceBatchMetricsRunner,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
@@ -86,6 +87,7 @@ const runDrainAndClose = async () => {
 
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
+  traceBatchMetricsRunner?.stop();
 
   // Stop monitor runners
   for (const runner of monitorRunners) {
@@ -109,7 +111,7 @@ const runDrainAndClose = async () => {
   await BackgroundMigrationManager.close();
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
-  await ClickhouseWriter.getInstance().shutdown();
+  await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
 
   // Closes the shared client and every per-queue client in one pass. Each

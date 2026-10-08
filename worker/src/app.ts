@@ -62,6 +62,7 @@ import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
+import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -109,6 +110,9 @@ import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
+import { isTopicsEnabled } from "@langfuse/shared/topics/server";
+import { topicsQueueProcessor } from "./queues/topicsQueue";
+import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 
 const app = express();
 
@@ -156,6 +160,16 @@ if (
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
+}
+
+export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
+    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
+) {
+  traceBatchMetricsRunner = new TraceBatchMetricsRunner();
+  traceBatchMetricsRunner.start();
 }
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
@@ -452,6 +466,22 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 }
 
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+
+if (isTopicsEnabled()) {
+  WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
+    concurrency: 1,
+  });
+  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+    concurrency: 1,
+  });
+  WorkerManager.register(
+    QueueName.TopicsEmbedding,
+    topicsEmbeddingQueueProcessor,
+    {
+      concurrency: 2,
+    },
+  );
+}
 
 if (
   isInAppAgentWorkerSurfaceEnabled(

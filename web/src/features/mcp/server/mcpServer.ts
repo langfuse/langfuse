@@ -17,11 +17,8 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
-import { env } from "@/src/env.mjs";
-import { authorize } from "@/src/features/auth/policy/authorize";
-import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
+import { shadowAuthorize } from "@/src/features/public-api/server";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
@@ -131,7 +128,10 @@ export function createMcpServer(context: ServerContext): Server {
       content: [
         {
           type: "text",
-          text: JSON.stringify(result, null, 2),
+          text:
+            typeof result === "string"
+              ? result
+              : JSON.stringify(result, null, 2),
         },
       ],
     };
@@ -140,24 +140,20 @@ export function createMcpServer(context: ServerContext): Server {
   return server;
 }
 
-/** assertToolAuthorized checks the resolved context against a tool's action: enforce throws on deny, shadow only diffs, ungated tools and unresolved contexts (legacy) pass. */
+/** assertToolAuthorized reports enforce-mode denials as MCP errors. */
 function assertToolAuthorized(
   definition: ToolDefinition,
   context: ServerContext,
-  diff = shadowAuthDiff,
 ): void {
-  if (definition.action === __dangerouslySkipAuthz || !context.auth) return;
-  const decision = authorize(context.auth, definition.action, {
-    projectId: context.projectId,
+  const decision = shadowAuthorize({
+    ctx: context.auth,
+    action: definition.action,
+    resource: { projectId: context.projectId },
+    legacyDecision: {
+      success: true,
+      scope: { accessLevel: context.accessLevel },
+    },
   });
-  if (env.API_AUTH_MIGRATION === "shadow") {
-    diff(
-      decision,
-      { success: true, scope: { accessLevel: context.accessLevel } },
-      definition.action,
-    );
-    return;
-  }
   if (!decision.success) throw formatErrorForUser(decision.error);
 }
 

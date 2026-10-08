@@ -24,7 +24,7 @@ import {
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   shouldHideExportSourceSelector,
-} from "@/src/features/analytics-integrations/exportSource";
+} from "@/src/features/analytics-integrations";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Export source selector plus the blocked-save alert for a persisted source
@@ -65,7 +65,7 @@ export const ExportSourceField = ({
                 Export Source
                 <Tooltip>
                   <TooltipTrigger>
-                    <Info className="text-muted-foreground h-3.5 w-3.5" />
+                    <Info className="text-muted-foreground icon-base" />
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
@@ -87,7 +87,7 @@ export const ExportSourceField = ({
                         className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                       >
                         For further information see
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="icon-sm" />
                       </a>
                     </div>
                   </TooltipContent>

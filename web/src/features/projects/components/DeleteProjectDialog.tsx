@@ -54,6 +54,11 @@ export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
       <Form {...form}>
         <form id={formId} onSubmit={form.handleSubmit(props.onSubmit)}>
           <Dialog.Body>
+            <p>
+              Deletion takes time and scales with project size. For very large
+              projects, it can take multiple days. If deletion is slower than
+              you expect, please reach out to support.
+            </p>
             <p>{`To confirm, type "${props.confirmMessage}" in the input box`}</p>
             <FormField
               control={form.control}

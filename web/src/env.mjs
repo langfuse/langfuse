@@ -96,6 +96,9 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    // Internal Topics PoC model selection; not a supported self-hosting setting.
+    LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+    LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -383,7 +386,10 @@ export const env = createEnv({
 
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
+    // Bounds how long a revoked API key can still authenticate. Entries are
+    // not refreshed on read, so a key stops working at most one TTL after its
+    // last cache write. Shared with the policy-core authz context cache.
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(60),
 
     // The gateway data plane calls /resolve on every LLM request, so the
     // lookup is cached. The TTL bounds how long a revoked key or a disabled
@@ -395,10 +401,11 @@ export const env = createEnv({
       .number()
       .default(60),
 
-    // auth migration; self-host and default stay legacy
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
       .default("legacy"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+    API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -530,7 +537,12 @@ export const env = createEnv({
     // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
     // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
     // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
-    LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+    // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+    // authenticates through the instance credential chain (GCP application
+    // default credentials) and takes no key.
+    LANGFUSE_AI_PROVIDER: z
+      .enum(["bedrock", "anthropic", "openai", "vertex"])
+      .optional(),
     LANGFUSE_AI_MODEL: z.string().optional(),
     LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
     LANGFUSE_AI_API_KEY: z.string().optional(),
@@ -558,6 +570,7 @@ export const env = createEnv({
         },
       ),
     LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
       .enum(["url", "inline", "disabled"])
@@ -580,6 +593,10 @@ export const env = createEnv({
     // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
     // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
+      .enum(["true", "false"])
+      .default("false"),
+    // Simulate worker admission without changing OTLP request processing.
+    LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
     // Maximum encoded and decompressed OTLP request body size in bytes.
@@ -779,6 +796,9 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_TOPICS_SUMMARY_MODEL: process.env.LANGFUSE_TOPICS_SUMMARY_MODEL,
+    LANGFUSE_TOPICS_EMBEDDING_MODEL:
+      process.env.LANGFUSE_TOPICS_EMBEDDING_MODEL,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
@@ -1104,6 +1124,8 @@ export const env = createEnv({
     LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:
       process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
+    API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
+    API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
@@ -1159,6 +1181,7 @@ export const env = createEnv({
     LANGFUSE_AI_USE_RESPONSES_API: process.env.LANGFUSE_AI_USE_RESPONSES_API,
     LANGFUSE_AI_EXTRA_HEADERS: process.env.LANGFUSE_AI_EXTRA_HEADERS,
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+    LANGFUSE_AI_VERTEX_LOCATION: process.env.LANGFUSE_AI_VERTEX_LOCATION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
       process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
@@ -1171,6 +1194,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
+    LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED:
+      process.env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED,
     LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES:
       process.env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES,
 

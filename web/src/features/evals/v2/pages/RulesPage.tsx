@@ -3,14 +3,11 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { RulesTable } from "@/src/features/evals/v2/components/Rules/RulesTable/RulesTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  EVALS_V2_TABS,
-  getEvalsV2Tabs,
-} from "@/src/features/navigation/utils/evals-v2-tabs";
+import { EVALS_V2_TABS, getEvalsV2Tabs } from "@/src/features/navigation";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export function RulesPage() {
@@ -42,7 +39,7 @@ export function RulesPage() {
             disabled={!hasWriteAccess}
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="mr-2 h-4 w-4" /> New rule
+            <Plus className="icon-base text-icon-foreground mr-2" /> New rule
           </Button>
         ),
         tabsProps: {

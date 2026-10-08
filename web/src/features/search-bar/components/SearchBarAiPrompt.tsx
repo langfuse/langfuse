@@ -215,7 +215,7 @@ export function SearchBarAiPrompt({
     <div className="relative w-full">
       <div
         className={cn(
-          "border-input bg-background rounded-md border px-2 py-1.5",
+          "border-input bg-background rounded-md border px-2 py-0.5",
           "focus-within:ring-ring focus-within:ring-1",
           error && "border-destructive focus-within:ring-destructive/40",
         )}
@@ -249,7 +249,7 @@ export function SearchBarAiPrompt({
             onClick={onExit}
             className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <ArrowLeft className="icon-base" aria-hidden="true" />
           </button>
           <input
             ref={inputRef}
@@ -265,7 +265,7 @@ export function SearchBarAiPrompt({
             // ring box-shadow (the "blue box"). border-0 + focus:ring-0 drop both
             // (it's `:focus`, not `:focus-visible`), so the only focus indicator
             // is the container's subtle focus-within ring, matching the grammar bar.
-            className="placeholder:text-foreground-tertiary min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
+            className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
             onChange={(event) => {
               setValue(event.target.value);
               if (error) setError(null);
@@ -290,10 +290,7 @@ export function SearchBarAiPrompt({
           />
           {pending ? (
             <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 pr-1 text-xs">
-              <Loader2
-                className="h-3.5 w-3.5 animate-spin"
-                aria-hidden="true"
-              />
+              <Loader2 className="icon-base animate-spin" aria-hidden="true" />
               Generating…
             </span>
           ) : (
@@ -322,7 +319,7 @@ export function SearchBarAiPrompt({
                   "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
                 )}
               >
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight className="icon-base" aria-hidden="true" />
               </button>
             </div>
           )}

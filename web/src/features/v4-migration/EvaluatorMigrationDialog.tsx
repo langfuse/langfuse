@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { BotMessageSquare, Wrench } from "lucide-react";
 import { useState } from "react";
 import {
@@ -13,9 +14,9 @@ import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 type EvaluatorMigrationScope = { type: "all" } | { type: "single" };
@@ -144,7 +145,7 @@ export function EvaluatorMigrationDialog({
                     className="h-auto justify-start gap-3 p-4 text-left"
                     onClick={handleAssistantClick}
                   >
-                    <BotMessageSquare className="h-5 w-5 shrink-0" />
+                    <BotMessageSquare className="icon-base text-icon-foreground shrink-0" />
                     <span className="flex flex-col gap-1">
                       <span className="font-bold">Use Assistant</span>
                       <span className="text-muted-foreground text-sm font-normal">
@@ -159,7 +160,7 @@ export function EvaluatorMigrationDialog({
                   className="h-auto justify-start gap-3 p-4 text-left"
                   onClick={handleManualClick}
                 >
-                  <Wrench className="h-5 w-5 shrink-0" />
+                  <Wrench className="icon-base text-icon-foreground shrink-0" />
                   <span className="flex flex-col gap-1">
                     <span className="font-bold">
                       {isSingleEvaluator

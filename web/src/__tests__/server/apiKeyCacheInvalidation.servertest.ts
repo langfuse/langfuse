@@ -1,7 +1,9 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKeyCacheKey,
+  AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createAuthzContextCacheKey,
   createShaHash,
 } from "@langfuse/shared/src/server";
@@ -19,10 +21,16 @@ import {
 
 // organizations.delete cancels Stripe before deleting; the test env has a cloud
 // region but no Stripe, so force the self-hosted path to reach the eviction.
-vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
+vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
-  useIsCloudBillingAvailable: () => false,
 }));
+vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isCloudBillingEnabled: () => false,
+  };
+});
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -73,8 +81,11 @@ function cacheKeysFor({
 }) {
   return [
     createApiKeyCacheKey(fastHash),
-    createAuthzContextCacheKey(fastHash),
-    createAuthzContextCacheKey(createShaHash(publicKey, env.SALT!)),
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${fastHash}`,
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash(publicKey, env.SALT!)}`,
+    createAuthzContextCacheKey("basic", fastHash),
+    createAuthzContextCacheKey("bearer", fastHash),
+    createAuthzContextCacheKey("bearer", createShaHash(publicKey, env.SALT!)),
   ];
 }
 
@@ -167,14 +178,7 @@ function makeCaller({
             ]
           : [],
       })),
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as any,
@@ -268,10 +272,20 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     ).resolves.toMatchObject({ deletedAt: null });
   });
 
-  it("admin handleDeleteProject evicts the org's cached keys", async () => {
+  it("admin project soft deletion preserves user permissions and evicts cached keys", async () => {
     const orgId = await createOrg();
     const projectId = await createProject(orgId);
     const keys = await seedOrgScopedKey(orgId);
+
+    const user = await createUserInOrgs([orgId]);
+    const assignment = await prisma.roleAssignment.create({
+      data: {
+        orgId,
+        principalUserId: user.id,
+        ownerProjectId: projectId,
+        systemRole: "VIEWER",
+      },
+    });
 
     const res = makeRes();
     await handleDeleteProject({} as any, res, projectId, {
@@ -281,6 +295,12 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
 
     expect(res.statusCode).toBe(202);
     expect(await survivingKeys(keys)).toEqual([]);
+    await expect(
+      prisma.roleAssignment.findUnique({ where: { id: assignment.id } }),
+    ).resolves.toEqual(assignment);
+    await expect(
+      prisma.project.findUnique({ where: { id: projectId } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
   });
 
   it("admin handleDeleteOrganization evicts cached keys before the cascade removes the rows", async () => {

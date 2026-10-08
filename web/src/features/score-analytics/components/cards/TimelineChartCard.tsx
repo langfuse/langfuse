@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, useMemo } from "react";
 import {
   Card,
@@ -235,13 +236,7 @@ export function TimelineChartCard() {
 
   const { metadata } = data;
   const { mode, dataType } = metadata;
-  const { score1, score2, interval, fromTimestamp, toTimestamp } = params;
-
-  // Construct TimeRange from params timestamps
-  const timeRange = {
-    from: fromTimestamp,
-    to: toTimestamp,
-  };
+  const { score1, score2 } = params;
 
   const hasData = chartData.length > 0;
   const showTabs = mode === "two";
@@ -252,11 +247,15 @@ export function TimelineChartCard() {
       ? `${score1.source} · ${score1.name}`
       : score1.name;
 
-  const score2FullLabel = score2
-    ? score2.name === score1.name
-      ? `${score2.source} · ${score2.name}`
-      : score2.name
-    : "Score 2";
+  const score2FullLabel = (() => {
+    if (score2) {
+      if (score2.name === score1.name) {
+        return `${score2.source} · ${score2.name}`;
+      }
+      return score2.name;
+    }
+    return "Score 2";
+  })();
 
   return (
     <Card>
@@ -281,19 +280,11 @@ export function TimelineChartCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as TimelineTab)}
             >
-              <Tabs.List size="md">
-                <Tabs.Trigger
-                  value="score1"
-                  size="sm"
-                  label={score1FullLabel}
-                />
-                <Tabs.Trigger
-                  value="score2"
-                  size="sm"
-                  label={score2FullLabel}
-                />
-                <Tabs.Trigger value="all" size="sm" label="all" />
-                <Tabs.Trigger value="matched" size="sm" label="matched" />
+              <Tabs.List variant="inset" size="md">
+                <Tabs.Trigger value="score1" label={score1FullLabel} />
+                <Tabs.Trigger value="score2" label={score2FullLabel} />
+                <Tabs.Trigger value="all" label="all" />
+                <Tabs.Trigger value="matched" label="matched" />
               </Tabs.List>
             </Tabs>
           )}
@@ -318,8 +309,6 @@ export function TimelineChartCard() {
                   ? `${score2.name} (${score2.source})`
                   : undefined
             }
-            interval={interval}
-            timeRange={timeRange}
             colors={chartColors}
           />
         ) : (

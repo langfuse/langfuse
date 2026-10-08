@@ -1,4 +1,4 @@
-import { deleteAnnotationQueueAssignment } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { deleteAnnotationQueueAssignment } from "@/src/features/annotation-queues/server";
 import { DeleteAnnotationQueueAssignmentResponse } from "@/src/features/public-api/server";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import { defineTool } from "../../../core/define-tool";

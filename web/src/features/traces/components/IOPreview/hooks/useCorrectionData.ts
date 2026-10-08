@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useCorrectionCache } from "@/src/features/corrections/contexts/CorrectionCacheContext";
+import { useCorrectionCache } from "@/src/features/corrections";
 import { type ScoreDomain } from "@langfuse/shared";
 
 /**

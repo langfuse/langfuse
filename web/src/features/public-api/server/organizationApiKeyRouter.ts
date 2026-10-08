@@ -8,7 +8,10 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { LangfuseNotFoundError } from "@langfuse/shared";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -43,6 +46,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
               id: true,
               name: true,
               email: true,
+              image: true,
             },
           },
           createdByApiKey: {
@@ -61,7 +65,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        note: z.string().optional(),
+        name: z.string().optional(),
+        role: apiKeyCreationRoleSchema("organization"),
+        expiresAt: z
+          .date()
+          .nullish()
+          .refine((date) => date == null || date.getTime() > Date.now(), {
+            message: "Expiration date must be in the future",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -79,12 +90,12 @@ export const organizationApiKeysRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma: ctx.prisma,
-        entityId: input.orgId,
-        note: input.note,
-        scope: "ORGANIZATION",
-        createdByUserId: ctx.session.user.id,
+      const apiKeyMeta = await createApiKey(ctx.prisma, {
+        owner: OrganizationId(input.orgId),
+        role: SystemRoleId(input.role),
+        createdBy: UserId(ctx.session.user.id),
+        name: input.name,
+        expiresAt: input.expiresAt,
       });
 
       await auditLog({
@@ -92,16 +103,20 @@ export const organizationApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: apiKeyMeta.id,
         action: "create",
+        after: {
+          role: input.role,
+          expiresAt: input.expiresAt ?? null,
+        },
       });
 
       return apiKeyMeta;
     }),
-  updateNote: protectedOrganizationProcedure
+  updateName: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
         keyId: z.string(),
-        note: z.string(),
+        name: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -111,13 +126,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         scope: "organization:CRUD_apiKeys",
       });
 
-      await ctx.prisma.apiKey.findFirstOrThrow({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.keyId,
           orgId: input.orgId,
           isInAppAgentKey: false,
         },
       });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       await auditLog({
         session: ctx.session,
@@ -133,7 +152,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
           isInAppAgentKey: false,
         },
         data: {
-          note: input.note,
+          note: input.name,
         },
       });
 
@@ -153,13 +172,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.id,
           orgId: input.orgId,
           scope: "ORGANIZATION",
         },
       });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       if (apiKey.isInAppAgentKey) return false;
 

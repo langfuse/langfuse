@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { type FilterState } from "@langfuse/shared";
 import {
   hashKey,
@@ -96,13 +95,21 @@ const getFirstCachedObservation = ({
   queryHashes.forEach((queryHash, index) => {
     const queryState = queryCache.get(queryHash)?.state;
     const response = queryState?.data as ObservationResponse | undefined;
-    hasResolvedQuery ||= response !== undefined;
-    isFetching ||= queryState?.fetchStatus === "fetching";
-    isError ||= queryState?.status === "error";
-    firstObservation ??= getVisibleSessionObservations(
-      response,
-      traceIds[index] ?? "",
-    ).visibleObservations?.[0];
+    if (response !== undefined) {
+      hasResolvedQuery = true;
+    }
+    if (queryState?.fetchStatus === "fetching") {
+      isFetching = true;
+    }
+    if (queryState?.status === "error") {
+      isError = true;
+    }
+    if (firstObservation === undefined) {
+      firstObservation = getVisibleSessionObservations(
+        response,
+        traceIds[index] ?? "",
+      ).visibleObservations?.[0];
+    }
   });
 
   return { firstObservation, hasResolvedQuery, isFetching, isError };
@@ -145,23 +152,54 @@ export function SessionMetadataJsonPathControl({
       queryHashes: observationQueryHashes,
       traceIds: loadedTraces.map((trace) => trace.id),
     });
-  const source = !shouldObserveMetadata
-    ? ({ state: "idle" } as const)
-    : traces.state === "loading"
-      ? ({ state: "loading" } as const)
-      : firstObservation
-        ? ({
-            state: "ready",
-            metadata: firstObservation.metadata,
-            metadataTruncated: firstObservation.metadataTruncated,
-          } as const)
-        : isFetching
-          ? ({ state: "loading" } as const)
-          : isError && !hasResolvedQuery
-            ? ({ state: "error" } as const)
-            : hasResolvedQuery || loadedTraces.length === 0
-              ? ({ state: "empty" } as const)
-              : ({ state: "loading" } as const);
+  // The timeline body loads observations through a different query, so traces
+  // are fetched here one at a time, in order, until one has a visible
+  // observation. The legacy body shares these cache entries.
+  const nextObservationInput = firstObservation
+    ? undefined
+    : observationInputs.find((_, index) => {
+        const status = queryCache.get(observationQueryHashes[index] ?? "")
+          ?.state.status;
+        return status !== "success" && status !== "error";
+      });
+  api.sessions.observationsForTraceFromEvents.useQuery(
+    nextObservationInput ?? {
+      projectId,
+      sessionId,
+      traceId: "",
+      filter: filterState,
+    },
+    {
+      enabled: nextObservationInput !== undefined,
+      trpc: { context: { skipBatch: true } },
+      staleTime: 60 * 1000,
+    },
+  );
+  const source = (() => {
+    if (!shouldObserveMetadata) {
+      return { state: "idle" } as const;
+    }
+    if (traces.state === "loading") {
+      return { state: "loading" } as const;
+    }
+    if (firstObservation) {
+      return {
+        state: "ready",
+        metadata: firstObservation.metadata,
+        metadataTruncated: firstObservation.metadataTruncated,
+      } as const;
+    }
+    if (isFetching || nextObservationInput) {
+      return { state: "loading" } as const;
+    }
+    if (isError && !hasResolvedQuery) {
+      return { state: "error" } as const;
+    }
+    if (hasResolvedQuery || loadedTraces.length === 0) {
+      return { state: "empty" } as const;
+    }
+    return { state: "loading" } as const;
+  })();
 
   return children({
     paths,

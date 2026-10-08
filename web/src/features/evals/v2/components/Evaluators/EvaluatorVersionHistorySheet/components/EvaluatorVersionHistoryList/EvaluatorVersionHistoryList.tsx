@@ -1,4 +1,7 @@
-import { EvalTemplateTypeEnum } from "@langfuse/shared";
+import {
+  EvalTemplateTypeEnum,
+  observationVariableMappingList,
+} from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
 import { RotateCcw } from "lucide-react";
 
@@ -22,6 +25,21 @@ function toEvaluatorDefinition(
       type: EvalTemplateTypeEnum.CODE,
       sourceCode: version.sourceCode,
       sourceCodeLanguage: version.sourceCodeLanguage,
+    };
+  }
+
+  if (version.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+    const variableMapping = observationVariableMappingList.safeParse(
+      version.variableMapping,
+    );
+    return {
+      type: EvalTemplateTypeEnum.DECISION_MODEL,
+      questions: version.questions,
+      selectedModel:
+        version.provider && version.model
+          ? { provider: version.provider, model: version.model }
+          : null,
+      variableMapping: variableMapping.success ? variableMapping.data : [],
     };
   }
 
@@ -133,7 +151,7 @@ export function EvaluatorVersionHistoryList({
                     title={`Restore version ${version.version}`}
                     onClick={() => onRestoreVersion(version)}
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw className="icon-sm text-icon-foreground" />
                   </Button>
                 </span>
               )

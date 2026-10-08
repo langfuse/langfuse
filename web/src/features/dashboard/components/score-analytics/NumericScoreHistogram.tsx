@@ -72,7 +72,7 @@ export function NumericScoreHistogram(props: {
         chartType="HISTOGRAM"
         data={scoreHistogramToDataPoints(chartData, chartLabels)}
         rowLimit={100}
-        chartConfig={{ type: "HISTOGRAM", subtle_fill: true }}
+        chartConfig={{ type: "HISTOGRAM" }}
       />
     </div>
   );

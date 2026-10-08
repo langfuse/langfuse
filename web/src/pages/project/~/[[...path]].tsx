@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import {
   type GetServerSideProps,
   type GetServerSidePropsContext,
@@ -39,8 +38,12 @@ const parseSentinelRequest = (
     cookie: readProjectCookie(ctx.req.cookies ?? {}),
     origin: getRequestOrigin(ctx.req),
     resolvedUrl: ctx.resolvedUrl,
-    getSession: () =>
-      (session ??= getServerAuthSession({ req: ctx.req, res: ctx.res })),
+    getSession: () => {
+      if (session === undefined) {
+        session = getServerAuthSession({ req: ctx.req, res: ctx.res });
+      }
+      return session;
+    },
   };
 };
 

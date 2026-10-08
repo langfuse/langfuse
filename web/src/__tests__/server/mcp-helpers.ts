@@ -8,8 +8,10 @@
 import { randomUUID } from "crypto";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
+import { authenticator } from "@/src/features/apiKey/server";
 
 /**
  * Creates a complete MCP test setup including:
@@ -38,6 +40,11 @@ export async function createMcpTestSetup(): Promise<{
     throw new Error("Failed to create API key for test setup");
   }
 
+  const authenticated = await authenticator.authenticate({
+    headers: { authorization: auth },
+  });
+  if (!authenticated.success) throw authenticated.error;
+
   const context: ServerContext = {
     projectId,
     orgId,
@@ -46,6 +53,7 @@ export async function createMcpTestSetup(): Promise<{
     publicKey: result.publicKey,
     plan: "oss",
     rateLimitOverrides: [],
+    auth: authenticated.context,
   };
 
   return {
@@ -92,14 +100,27 @@ export async function createInAppAgentMcpContext(params: {
   orgId: string;
   createdByUserId?: string;
 }): Promise<{ apiKeyId: string; context: ServerContext }> {
-  const apiKey = await createAndAddApiKeysToDb({
-    prisma,
-    entityId: params.projectId,
-    scope: "PROJECT",
-    note: "In-app agent MCP session",
+  const creatorUserId =
+    params.createdByUserId ??
+    (
+      await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      })
+    ).id;
+  const apiKey = await createApiKey(prisma, {
+    owner: ProjectId(params.projectId),
+    role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+    createdBy: UserId(creatorUserId),
+    name: "In-app agent MCP session",
     isInAppAgentKey: true,
-    createdByUserId: params.createdByUserId,
   });
+  const authenticated = await authenticator.authenticate({
+    headers: {
+      authorization: `Basic ${Buffer.from(`${apiKey.publicKey}:${apiKey.secretKey}`).toString("base64")}`,
+    },
+    allowInAppAgentKey: true,
+  });
+  if (!authenticated.success) throw authenticated.error;
 
   return {
     apiKeyId: apiKey.id,
@@ -111,6 +132,7 @@ export async function createInAppAgentMcpContext(params: {
       publicKey: apiKey.publicKey,
       plan: "oss",
       rateLimitOverrides: [],
+      auth: authenticated.context,
     },
   };
 }

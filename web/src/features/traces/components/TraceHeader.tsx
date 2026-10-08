@@ -1,0 +1,120 @@
+/** Trace totals, session/user links and tags, above the panels. */
+
+import { useMemo, useState } from "react";
+
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { Button } from "@/src/components/ui/button";
+import { TagButton } from "@/src/features/tag";
+import {
+  SessionBadge,
+  UserIdBadge,
+} from "@/src/features/traces/components/TraceMetadataBadges";
+import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import {
+  CostBadge,
+  UsageBadge,
+  hasBreakdown,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import { cn } from "@/src/utils/tailwind";
+
+const MAX_VISIBLE_TAGS = 3;
+
+export function TraceHeader() {
+  const { trace, observations, mergedScores } = useTraceData();
+  const { traceContext } = useViewPreferences();
+  const [showAllTags, setShowAllTags] = useState(false);
+
+  const aggregatedMetrics = useMemo(
+    () => aggregateTraceMetrics(observations),
+    [observations],
+  );
+
+  const traceScores = useMemo(
+    () => mergedScores.filter((score) => score.observationId === null),
+    [mergedScores],
+  );
+
+  const visibleTags = showAllTags
+    ? trace.tags
+    : trace.tags.slice(0, MAX_VISIBLE_TAGS);
+  const hiddenTagCount = trace.tags.length - visibleTags.length;
+
+  return (
+    <div
+      className={cn(
+        "shrink-0 border-b",
+        traceContext === "fullscreen" && "px-4 pt-1 pb-1.5",
+        // Peek's title bar already pads above, so no top padding here.
+        traceContext === "peek" && "pt-0 pr-2 pb-2 pl-4",
+        traceContext !== "fullscreen" && traceContext !== "peek" && "px-2 py-2",
+      )}
+    >
+      <CollapsibleBadgeRow>
+        {trace.latency != null && (
+          <LatencyBadge latencySeconds={trace.latency} />
+        )}
+        {aggregatedMetrics.totalCost != null &&
+          aggregatedMetrics.costDetails && (
+            <CostBadge
+              totalCost={aggregatedMetrics.totalCost}
+              costDetails={aggregatedMetrics.costDetails}
+            />
+          )}
+        {aggregatedMetrics.hasGenerationLike &&
+          aggregatedMetrics.totalUsage > 0 &&
+          aggregatedMetrics.usageDetails &&
+          hasBreakdown(aggregatedMetrics.usageDetails) && (
+            <UsageBadge
+              totalUsage={aggregatedMetrics.totalUsage}
+              usageDetails={aggregatedMetrics.usageDetails}
+            />
+          )}
+        {trace.sessionId && (
+          <SessionBadge
+            sessionId={trace.sessionId}
+            projectId={trace.projectId}
+          />
+        )}
+        {trace.userId && (
+          <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
+        )}
+        {(traceScores.length > 0 || trace.tags.length > 0) && (
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            {traceScores.length > 0 && (
+              <GroupedScoreBadges scores={traceScores} />
+            )}
+            {visibleTags.map((tag) => (
+              <TagButton key={tag} tag={tag} loading={false} viewOnly />
+            ))}
+            {hiddenTagCount > 0 && (
+              <Button
+                variant="tertiary"
+                size="icon-sm"
+                className="w-fit"
+                aria-label={`Show ${hiddenTagCount} more tags`}
+                onClick={() => setShowAllTags(true)}
+              >
+                +{hiddenTagCount}
+              </Button>
+            )}
+            {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
+              <Button
+                variant="tertiary"
+                size="icon-sm"
+                className="w-fit"
+                aria-label="Show fewer tags"
+                onClick={() => setShowAllTags(false)}
+              >
+                Show fewer
+              </Button>
+            )}
+          </div>
+        )}
+      </CollapsibleBadgeRow>
+    </div>
+  );
+}

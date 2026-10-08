@@ -54,7 +54,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
@@ -399,6 +399,20 @@ describe("chbWebhookHandler", () => {
       message: "Webhook error: invalid payload",
     });
     expect(mocks.findOrg).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Unix milliseconds", 1_782_000_000_000],
+    ["an ISO-8601 string", "2026-07-01T00:00:00.000Z"],
+    ["a numeric string", "1782000000000"],
+  ])("accepts the event bus timestamps as %s", async (_, value) => {
+    const event = attachedPlanCreated({ createdAt: value });
+    const response = await chbWebhookHandler(
+      post({ ...event, data: { ...event.data, timestamp: value } }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateOrg).toHaveBeenCalledTimes(1);
   });
 
   it("reads the attached plan back from CHB and persists it with the event's organization and occurredAt", async () => {

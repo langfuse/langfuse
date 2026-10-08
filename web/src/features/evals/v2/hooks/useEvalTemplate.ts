@@ -21,11 +21,15 @@ export function useEvalTemplate({
   const managedTemplate = templateKey
     ? managedEvaluatorTemplateService.get(templateKey)
     : null;
-  const draft = managedTemplate
-    ? managedTemplateToEvaluatorSetupDraft(managedTemplate)
-    : projectEvaluator.data
-      ? evaluatorToEvaluatorSetupDraft(projectEvaluator.data)
-      : null;
+  const draft = (() => {
+    if (managedTemplate) {
+      return managedTemplateToEvaluatorSetupDraft(managedTemplate);
+    }
+    if (projectEvaluator.data) {
+      return evaluatorToEvaluatorSetupDraft(projectEvaluator.data);
+    }
+    return null;
+  })();
 
   return {
     draft:

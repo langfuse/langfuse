@@ -317,11 +317,16 @@ export class ChbApiClient {
 
   async createCheckoutSession(params: {
     organizationId?: string;
+    /** Names the CH organization when checkout creates it. */
+    name?: string;
     email: string;
     planCode: string;
     returnUrl: string;
     idempotencyKey?: string;
   }): Promise<ChbCheckoutSession> {
+    // CHB rejects a blank name (400) but defaults one when the field is
+    // absent, so a whitespace-only name is dropped rather than sent.
+    const name = params.name?.trim();
     const body = await this.request({
       operation: "chb.checkout_session.create",
       method: "POST",
@@ -330,6 +335,7 @@ export class ChbApiClient {
         ...(params.organizationId
           ? { organizationId: params.organizationId }
           : {}),
+        ...(name ? { name } : {}),
         email: params.email,
         planCode: params.planCode,
         returnUrl: params.returnUrl,

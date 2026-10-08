@@ -11,6 +11,7 @@ import {
   assertValidFtsMatchFilter,
   bareFtsField,
   FTS_OPERATOR_DESCRIPTORS,
+  hasFtsSearchToken,
   isFtsEventsTable,
   isFtsMetadataField,
   isFtsTextField,
@@ -133,6 +134,7 @@ export class StringFilter implements Filter {
             fieldWithPrefix,
             `{${varName}: String}`,
             query,
+            hasFtsSearchToken(this.value),
           );
         } else if (ngramTarget) {
           query = `(lower(${fieldWithPrefix}) = lower({${varName}: String}) AND ${query})`;
@@ -173,8 +175,10 @@ export class StringFilter implements Filter {
           fieldWithPrefix,
           `{${varName}: String}`,
           // `matches` shares the descriptor signature with exact filters but
-          // does not need a base exact predicate.
+          // does not need a base exact predicate, and always has a token
+          // (guaranteed by assertValidFtsMatchFilter above).
           "",
+          true,
         );
         break;
       default:
@@ -319,12 +323,15 @@ export class StringOptionsFilter implements Filter {
       ngramConjunct = `lower(${fieldWithPrefix}) IN ({${loweredVar}: Array(String)}) AND `;
     }
 
-    let query =
-      this.operator === "any of"
-        ? ngramConjunct
-          ? `(${ngramConjunct}${fieldWithPrefix} IN ({${varName}: Array(String)}))`
-          : `${fieldWithPrefix} IN ({${varName}: Array(String)})`
-        : `${fieldWithPrefix} NOT IN ({${varName}: Array(String)})`;
+    let query = (() => {
+      if (this.operator === "any of") {
+        if (ngramConjunct) {
+          return `(${ngramConjunct}${fieldWithPrefix} IN ({${varName}: Array(String)}))`;
+        }
+        return `${fieldWithPrefix} IN ({${varName}: Array(String)})`;
+      }
+      return `${fieldWithPrefix} NOT IN ({${varName}: Array(String)})`;
+    })();
 
     if (hasEmpty && this.operator === "any of") {
       // '' ≡ NULL: also match NULL when '' is in the list
@@ -478,6 +485,7 @@ export class StringObjectFilter implements Filter {
             valuesColumn,
             valueAccessor,
             valueParam,
+            hasToken: hasFtsSearchToken(this.value),
           });
           break;
         case "contains":
@@ -512,6 +520,7 @@ export class StringObjectFilter implements Filter {
             valuesColumn,
             valueAccessor,
             valueParam,
+            hasToken: true,
           });
           break;
         default:

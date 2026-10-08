@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, assert, vi } from "vitest";
 import { eventTypes } from "../../../packages/shared/src/server/ingestion/types";
 import { processEventBatch } from "../../../packages/shared/src/server/ingestion/processEventBatch";
+import { ServiceUnavailableError } from "../../../packages/shared/src/errors";
 import {
   createUnknownSdkIngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -146,5 +147,66 @@ describe("processEventBatch", () => {
       ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
       ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
     });
+  });
+  it("rejects with a retryable 503 when S3 throttles the upload", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+    uploadJsonMock.mockRejectedValue(
+      new Error("Failed to upload JSON", {
+        cause: Object.assign(new Error("Please reduce your request rate."), {
+          name: "SlowDown",
+        }),
+      }),
+    );
+
+    const error = await processEventBatch(
+      [createTraceCreateEvent()],
+      authCheck,
+      {
+        delay: 0,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+      },
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ServiceUnavailableError);
+    expect(error).toMatchObject({ httpCode: 503, retryAfterSeconds: 2 });
+    expect(queueAddMock).not.toHaveBeenCalled();
+  });
+
+  it("does not report a retryable 503 when another upload failed for a different reason", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+    const otherTrace = createTraceCreateEvent();
+    otherTrace.id = "other-event-id";
+    otherTrace.body.id = "other-trace-id";
+    uploadJsonMock
+      .mockRejectedValueOnce(
+        Object.assign(new Error("throttled"), { name: "SlowDown" }),
+      )
+      .mockRejectedValueOnce(new Error("Access Denied"));
+
+    const error = await processEventBatch(
+      [createTraceCreateEvent(), otherTrace],
+      authCheck,
+      {
+        delay: 0,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+      },
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(ServiceUnavailableError);
   });
 });

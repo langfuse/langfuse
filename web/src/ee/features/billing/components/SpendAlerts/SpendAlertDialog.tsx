@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +21,7 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showSuccessToast } from "@/src/features/notifications";
 import { toast } from "sonner";
 import { Info } from "lucide-react";
 
@@ -86,7 +88,11 @@ export function SpendAlertDialog({
           alertId: alert.id,
           limit: data.limit,
         });
-        toast.success("Spend alert updated successfully");
+        showSuccessToast({
+          operation: "spend_alert.update",
+          title: "Spend alert updated successfully",
+          description: "",
+        });
       } else {
         // Create new alert
         await createMutation.mutateAsync({
@@ -98,7 +104,11 @@ export function SpendAlertDialog({
           orgId,
           limit: data.limit,
         });
-        toast.success("Spend alert created successfully");
+        showSuccessToast({
+          operation: "spend_alert.create",
+          title: "Spend alert created successfully",
+          description: "",
+        });
       }
       onSuccess();
     } catch (error) {
@@ -166,7 +176,7 @@ export function SpendAlertDialog({
             />
             <div className="text-muted-foreground text-xs">
               <div className="flex flex-row items-center">
-                <Info className="mr-2 h-3 w-3" />
+                <Info className="icon-sm mr-2" />
                 <span className="font-bold">How it works</span>
               </div>
               <ul className="list-disc pl-5">

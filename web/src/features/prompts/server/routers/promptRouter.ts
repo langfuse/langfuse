@@ -48,7 +48,7 @@ import {
   getAggregatedScoresForPromptsFromEvents,
   postgresSearchCondition,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
@@ -637,7 +637,15 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        promptService.invalidateCache({ projectId });
+        // The deletion has committed; a cache failure must not skip webhooks.
+        try {
+          await promptService.invalidateCache({ projectId });
+        } catch (error) {
+          logger.error(
+            `Failed to invalidate prompt cache after deleting prompts in project ${projectId}`,
+            error,
+          );
+        }
 
         // Trigger webhooks for prompt deletion
         await Promise.all(

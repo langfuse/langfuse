@@ -1,7 +1,8 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
   createEvent,
   createEventsCh,
@@ -12,6 +13,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const mocks = vi.hoisted(() => ({
   getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
+  getActivationCostEstimates: vi.fn(async () => []),
 }));
 
 vi.mock(
@@ -24,12 +26,37 @@ vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
     mocks.getEvaluatorDefinitionPreflightError,
 }));
 
+vi.mock(
+  "@/src/features/evals/v2/server/evaluators/activationCostService",
+  () => ({
+    getActivationCostEstimates: mocks.getActivationCostEstimates,
+  }),
+);
+
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
 let userId = "";
 let caller: ReturnType<typeof appRouter.createCaller>;
 let session: Session & { user: NonNullable<Session["user"]> };
+
+function createCallerWithProjectRole(role: Role) {
+  const roleSession = {
+    ...session,
+    user: {
+      ...session.user,
+      organizations: session.user.organizations.map((organization) => ({
+        ...organization,
+        projects: organization.projects.map((project) => ({
+          ...project,
+          role,
+        })),
+      })),
+    },
+  };
+  const ctx = createInnerTRPCContext({ session: roleSession, headers: {} });
+  return appRouter.createCaller({ ...ctx, prisma });
+}
 
 const definition = {
   type: "LLM_AS_JUDGE" as const,
@@ -87,14 +114,7 @@ beforeAll(async () => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       v4BetaEnabled: false,
     },
     environment: {
@@ -112,6 +132,41 @@ afterAll(async () => {
 });
 
 describe("evalsV2 tRPC", () => {
+  it("allows viewers to estimate costs without running a missing-cost test", async () => {
+    const viewerCaller = createCallerWithProjectRole("VIEWER");
+    const memberCaller = createCallerWithProjectRole("MEMBER");
+    const input = {
+      projectId,
+      evaluatorIds: ["evaluator-id"],
+      filter: [],
+      sampling: 1,
+      shouldRunMissingTest: true,
+    };
+
+    await viewerCaller.evalsV2.activationCostEstimates(input);
+    expect(mocks.getActivationCostEstimates).toHaveBeenLastCalledWith(
+      expect.objectContaining({ missingCostMode: "skip" }),
+    );
+
+    await memberCaller.evalsV2.activationCostEstimates(input);
+    expect(mocks.getActivationCostEstimates).toHaveBeenLastCalledWith(
+      expect.objectContaining({ missingCostMode: "probe" }),
+    );
+  });
+
+  it("rejects cost estimates without execution read access", async () => {
+    const noAccessCaller = createCallerWithProjectRole("NONE");
+
+    await expect(
+      noAccessCaller.evalsV2.activationCostEstimates({
+        projectId,
+        evaluatorIds: ["evaluator-id"],
+        filter: [],
+        sampling: 1,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("supports the evaluator management flow", async () => {
     const created = await caller.evalsV2.create({
       projectId,

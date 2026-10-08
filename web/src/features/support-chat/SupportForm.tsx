@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable no-nested-ternary */
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,6 +49,7 @@ export type SupportFormSubmitStatus = "success" | "kept";
 export type SupportFormProps = {
   canSelectHighSeverity: boolean;
   initialTopic: Topic | "";
+  initialMessage?: string;
   showV4MigrationTopic: boolean;
   onCancel: () => void;
   onSuccess: () => void;
@@ -175,6 +176,7 @@ function isSeveritySelectable(
 export function SupportForm({
   canSelectHighSeverity,
   initialTopic,
+  initialMessage = "",
   showV4MigrationTopic,
   onCancel,
   onSuccess,
@@ -200,7 +202,7 @@ export function SupportForm({
       messageType: "Question" as MessageType,
       severity: SEVERITY_3,
       topic: initialTopic,
-      message: "",
+      message: initialMessage,
       integrationType: "",
     },
     mode: "onSubmit",
@@ -529,7 +531,7 @@ export function SupportForm({
                             className="p-0"
                           >
                             <span className="sr-only">Remove file</span>
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="icon-sm text-icon-foreground" />
                           </Button>
                           {file.name}
                         </div>

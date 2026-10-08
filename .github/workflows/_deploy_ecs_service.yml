@@ -19,6 +19,10 @@ on:
         required: true
       SENTRY_AUTH_TOKEN:
         required: false
+      IRONBANK_USER:
+        required: true
+      IRONBANK_PASS:
+        required: true
 jobs:
   ecs-deploy:
     if: ${{ inputs.service != 'ai-gateway' || inputs.environment == 'staging' }}
@@ -26,6 +30,10 @@ jobs:
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
+    env:
+      # Iron Bank UBI 9 bases, the same ones pipeline.yml uses for release images.
+      BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
+      MICRO_BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
     steps:
       - name: Get app name
         uses: winterjung/split@a211a1c46e35fcdc4097d59dd6282d4a9859651b # v2
@@ -48,6 +56,12 @@ jobs:
       - name: Login to AWS ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+      - name: Log in to Iron Bank
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: registry1.dso.mil
+          username: ${{ secrets.IRONBANK_USER }}
+          password: ${{ secrets.IRONBANK_PASS }}
       - name: Build, tag, and push AI Gateway image
         if: ${{ inputs.service == 'ai-gateway' }}
         env:
@@ -55,9 +69,12 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
+            --pull \
             --platform linux/amd64 \
             --target runtime \
             --build-arg BUILD_ID="$IMAGE_TAG" \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" \
+            --build-arg MICRO_BASE_IMAGE="$MICRO_BASE_IMAGE" \
             -t "$REGISTRY/ai-gateway:$IMAGE_TAG" \
             ./ai-gateway
           docker push "$REGISTRY/ai-gateway:$IMAGE_TAG"
@@ -86,6 +103,8 @@ jobs:
           docker build \
             -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
             -f ./${STEPS_SPLIT_OUTPUTS__0}/Dockerfile \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" \
+            --build-arg MICRO_BASE_IMAGE="$MICRO_BASE_IMAGE" \
             --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${VARS_NEXT_PUBLIC_LANGFUSE_CLOUD_REGION} \
             --build-arg NEXT_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_LANGFUSE_TRACING_SAMPLE_RATE} \
             --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=${VARS_NEXT_PUBLIC_SENTRY_ENVIRONMENT} \

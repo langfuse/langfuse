@@ -26,8 +26,8 @@ Use this skill when changing the shared agent setup for the repository.
 ## Workflow
 
 1. Edit the canonical files under `.agents/`, not generated provider outputs.
-2. Keep root `AGENTS.md` and `CLAUDE.md` as discovery symlinks; do not turn
-   them back into manually maintained copies.
+2. Keep root `AGENTS.md` as a symlink to `.agents/AGENTS.md`. Write folder
+   instructions in `AGENTS.md` directly; do not generate `CLAUDE.md` companions.
 3. Treat tool-specific directories such as `.claude/`, `.cursor/`, `.codex/`,
    `.vscode/`, and `.mcp.json` as generated discovery surfaces unless the tool
    requires a truly tool-specific feature.
@@ -56,6 +56,7 @@ Run after changing shared agent setup:
 
 - `pnpm run agents:sync`
 - `pnpm run agents:check`
+- `node --test scripts/agents/sync-agent-shims.test.mjs` when sync behavior changes
 
 Run additional verification when relevant:
 

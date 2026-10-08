@@ -1,12 +1,13 @@
+/* eslint-disable no-nested-ternary */
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   Plug,
   Settings2,
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { forwardRef, type ReactNode } from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
@@ -34,8 +35,6 @@ type JudgeModelPickerCommonProps = {
   onOpenChange: (open: boolean) => void;
   providerGroups: Array<[string, string[]]>;
   onConfigureProviders: () => void;
-  onConfigureModel: () => void;
-  hasModelConfiguration?: boolean;
 };
 
 type EvaluatorJudgeModelPickerProps = JudgeModelPickerCommonProps & {
@@ -45,19 +44,30 @@ type EvaluatorJudgeModelPickerProps = JudgeModelPickerCommonProps & {
   selectedModel: JudgeModel | null;
   onModeChange: (mode: JudgeModelMode) => void;
   onSelectCustom: (model: JudgeModel) => void;
+  onConfigureModel: () => void;
+  hasModelConfiguration?: boolean;
   canSetProjectDefault: boolean;
   onSetProjectDefault: () => void;
+};
+
+type DecisionJudgeModelPickerProps = JudgeModelPickerCommonProps & {
+  purpose: "decision";
+  selectedModel: JudgeModel | null;
+  onSelect: (model: JudgeModel) => void;
 };
 
 type ProjectDefaultJudgeModelPickerProps = JudgeModelPickerCommonProps & {
   purpose: "projectDefault";
   defaultModel: JudgeModel | null;
   onSelectProjectDefault: (model: JudgeModel) => void;
+  onConfigureModel: () => void;
+  hasModelConfiguration?: boolean;
 };
 
 export type JudgeModelPickerProps =
   | EvaluatorJudgeModelPickerProps
-  | ProjectDefaultJudgeModelPickerProps;
+  | ProjectDefaultJudgeModelPickerProps
+  | DecisionJudgeModelPickerProps;
 
 type JudgeModelPickerTriggerProps = Omit<
   ButtonProps,
@@ -68,6 +78,7 @@ type JudgeModelPickerTriggerProps = Omit<
   selectedModel: JudgeModel | null;
   disabled: boolean;
   missingDefaultLabel?: string;
+  modelAvailability?: "available" | "missing";
   borderVariant?: "default" | "contrast";
 };
 
@@ -81,6 +92,7 @@ export const JudgeModelPickerTrigger = forwardRef<
       defaultModel,
       selectedModel,
       missingDefaultLabel,
+      modelAvailability = "available",
       // Handled here rather than by `Button`, which swaps its children for the
       // spinner. That would drop the model label mid-mutation and collapse this
       // content-width trigger, shifting everything next to it in the header.
@@ -101,6 +113,18 @@ export const JudgeModelPickerTrigger = forwardRef<
       defaultModel != null &&
       selectedModel.provider === defaultModel.provider &&
       selectedModel.model === defaultModel.model;
+    const modelConnectionMissing =
+      modelAvailability === "missing" &&
+      Boolean(mode === "default" ? defaultModel : selectedModel);
+    const connectionWarning = modelConnectionMissing ? (
+      <>
+        <TriangleAlert
+          aria-hidden="true"
+          className="text-dark-yellow icon-base shrink-0"
+        />
+        <span className="sr-only">Model connection missing.</span>
+      </>
+    ) : null;
 
     return (
       <Button
@@ -122,19 +146,20 @@ export const JudgeModelPickerTrigger = forwardRef<
         {mode === "default" ? (
           defaultModel ? (
             <span className="flex min-w-0 items-center gap-2">
+              {connectionWarning}
               <span
                 className="truncate"
                 title={`${defaultModel.provider} / ${defaultModel.model}`}
               >
                 {defaultModel.provider} / {defaultModel.model}
               </span>
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
-              <TriangleAlert className="text-dark-yellow h-3.5 w-3.5 shrink-0" />
+              <TriangleAlert className="icon-base text-dark-yellow shrink-0" />
               <span className="text-muted-foreground">
                 {missingDefaultLabel ?? "Select a model"}
               </span>
@@ -142,11 +167,12 @@ export const JudgeModelPickerTrigger = forwardRef<
           )
         ) : (
           <span className="flex min-w-0 items-center gap-2">
+            {connectionWarning}
             <span className="truncate" title={customSelectionLabel}>
               {customSelectionLabel}
             </span>
             {customSelectionIsDefault ? (
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             ) : null}
@@ -155,7 +181,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         {loading ? (
           <Spinner size="sm" variant="muted" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <DropdownIndicator />
         )}
       </Button>
     );
@@ -163,22 +189,28 @@ export const JudgeModelPickerTrigger = forwardRef<
 );
 JudgeModelPickerTrigger.displayName = "JudgeModelPickerTrigger";
 
+function selectionShowsCheck(props: JudgeModelPickerProps) {
+  if (props.purpose === "decision" || props.purpose === "projectDefault") {
+    return true;
+  }
+  return props.mode === "custom";
+}
+
 /** A controlled model selection menu for evaluators and the project default. */
 export function JudgeModelPicker(props: JudgeModelPickerProps) {
-  const {
-    children,
-    open,
-    onOpenChange,
-    defaultModel,
-    providerGroups,
-    onConfigureProviders,
-    onConfigureModel,
-    hasModelConfiguration = false,
-  } = props;
+  const { children, open, onOpenChange, providerGroups, onConfigureProviders } =
+    props;
   const selectsProjectDefault = props.purpose === "projectDefault";
-  const selectedModel = selectsProjectDefault
-    ? (defaultModel ?? null)
-    : props.selectedModel;
+  const selectsDecision = props.purpose === "decision";
+  const defaultModel = selectsDecision ? null : props.defaultModel;
+  const hasModelConfiguration = selectsDecision
+    ? false
+    : (props.hasModelConfiguration ?? false);
+  const selectedModel = selectsDecision
+    ? props.selectedModel
+    : selectsProjectDefault
+      ? (defaultModel ?? null)
+      : props.selectedModel;
   const selectedModelIsDefault =
     !selectsProjectDefault &&
     selectedModel !== null &&
@@ -203,33 +235,31 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
           <CommandInput placeholder="Find a model..." />
           <CommandList>
             <CommandEmpty>No model found.</CommandEmpty>
-            {!selectsProjectDefault && defaultModel ? (
+            {props.purpose !== "decision" &&
+            props.purpose !== "projectDefault" &&
+            props.defaultModel ? (
               <>
                 <CommandGroup>
                   <CommandItem
-                    value={`project-default ${defaultModel.provider} ${defaultModel.model}`}
+                    value={`project-default ${props.defaultModel.provider} ${props.defaultModel.model}`}
                     onSelect={() =>
                       selectAndClose(() => props.onModeChange("default"))
                     }
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4 shrink-0",
+                        "icon-base mr-2 shrink-0",
                         props.mode === "default" ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    <Sparkles className="text-muted-foreground mr-2 h-4 w-4 shrink-0" />
+                    <Sparkles className="text-muted-foreground icon-base mr-2 shrink-0" />
                     <span
                       className="truncate"
-                      title={`${defaultModel.provider} / ${defaultModel.model}`}
+                      title={`${props.defaultModel.provider} / ${props.defaultModel.model}`}
                     >
-                      {defaultModel.provider} / {defaultModel.model}
+                      {props.defaultModel.provider} / {props.defaultModel.model}
                     </span>
-                    <Badge
-                      variant="secondary"
-                      size="sm"
-                      className="ml-auto shrink-0"
-                    >
+                    <Badge variant="secondary" className="ml-auto shrink-0">
                       Project default
                     </Badge>
                   </CommandItem>
@@ -243,7 +273,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                   const isSelected =
                     selectedModel?.provider === provider &&
                     selectedModel.model === model &&
-                    (selectsProjectDefault || props.mode === "custom");
+                    selectionShowsCheck(props);
                   const isProjectDefault =
                     defaultModel?.provider === provider &&
                     defaultModel.model === model;
@@ -256,6 +286,8 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                         selectAndClose(() => {
                           if (selectsProjectDefault) {
                             props.onSelectProjectDefault({ provider, model });
+                          } else if (selectsDecision) {
+                            props.onSelect({ provider, model });
                           } else {
                             props.onSelectCustom({ provider, model });
                           }
@@ -264,7 +296,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4 shrink-0",
+                          "icon-base mr-2 shrink-0",
                           isSelected ? "opacity-100" : "opacity-0",
                         )}
                       />
@@ -274,7 +306,6 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                       {isProjectDefault ? (
                         <Badge
                           variant="outline"
-                          size="sm"
                           className="text-muted-foreground font-regular ml-auto shrink-0"
                         >
                           default
@@ -293,37 +324,40 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               className="font-regular justify-start"
               onClick={() => selectAndClose(onConfigureProviders)}
             >
-              <Plug className="text-muted-foreground mr-2 h-3.5 w-3.5" />
+              <Plug className="icon-base text-muted-foreground mr-2" />
               Configure AI providers
-              <ExternalLink className="text-muted-foreground ml-auto h-3.5 w-3.5" />
+              <ExternalLink className="icon-base text-muted-foreground ml-auto" />
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="font-regular justify-start"
-              disabled={
-                selectsProjectDefault
-                  ? !defaultModel
-                  : props.mode !== "custom" || !selectedModel
-              }
-              onClick={() => selectAndClose(onConfigureModel)}
-            >
-              <Settings2 className="text-muted-foreground mr-2 h-3.5 w-3.5" />
-              Model configuration
-              {hasModelConfiguration ? (
-                <>
-                  <span className="sr-only">Customized</span>
-                  <span
-                    aria-hidden="true"
-                    className="relative ml-auto inline-flex h-2.5 w-2.5"
-                  >
-                    <span className="bg-dark-yellow absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
-                    <span className="bg-dark-yellow relative inline-flex h-2.5 w-2.5 rounded-full" />
-                  </span>
-                </>
-              ) : null}
-            </Button>
-            {!selectsProjectDefault ? (
+            {props.purpose === "decision" ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="font-regular justify-start"
+                disabled={
+                  props.purpose === "projectDefault"
+                    ? !props.defaultModel
+                    : props.mode !== "custom" || !selectedModel
+                }
+                onClick={() => selectAndClose(props.onConfigureModel)}
+              >
+                <Settings2 className="icon-base text-muted-foreground mr-2" />
+                Model configuration
+                {hasModelConfiguration ? (
+                  <>
+                    <span className="sr-only">Customized</span>
+                    <span
+                      aria-hidden="true"
+                      className="relative ml-auto inline-flex h-2.5 w-2.5"
+                    >
+                      <span className="bg-dark-yellow absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
+                      <span className="bg-dark-yellow relative inline-flex h-2.5 w-2.5 rounded-full" />
+                    </span>
+                  </>
+                ) : null}
+              </Button>
+            )}
+            {props.purpose !== "projectDefault" &&
+            props.purpose !== "decision" ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -336,7 +370,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                 }
                 onClick={() => selectAndClose(props.onSetProjectDefault)}
               >
-                <Sparkles className="text-muted-foreground mr-2 h-3.5 w-3.5" />
+                <Sparkles className="icon-base text-muted-foreground mr-2" />
                 Set selected model as project default
               </Button>
             ) : null}
