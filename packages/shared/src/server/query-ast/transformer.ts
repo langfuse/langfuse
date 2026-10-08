@@ -8,6 +8,7 @@ import {
 import {
   ArrayJoinNode,
   ArrayIndexNode,
+  FinalTableNode,
   LimitByNode,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
@@ -33,6 +34,9 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       // runtime that `T` is ArrayIndexNode here, so the cast is sound.
       return this.transformArrayIndex(node) as unknown as T;
     }
+    if (FinalTableNode.is(node)) {
+      return this.transformFinalTable(node) as unknown as T;
+    }
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -41,6 +45,10 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       this.transformNode(node.array),
       this.transformNode(node.index),
     );
+  }
+
+  protected transformFinalTable(node: FinalTableNode): FinalTableNode {
+    return FinalTableNode.create(this.transformNode(node.table));
   }
 
   protected override transformSelectQuery(

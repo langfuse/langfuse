@@ -11,7 +11,6 @@ import {
   Copy,
   GripVertical,
   MoreVertical,
-  Plus,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
@@ -38,6 +37,7 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { Badge } from "@/src/components/ui/badge";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
@@ -284,11 +284,9 @@ export function PromptEditorContent({
           </SortableContext>
         </div>
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="text-foreground hover:text-foreground mt-2 h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+      <TextActionButton
+        text="Add message"
+        width="fill"
         onClick={() => {
           state.actions.setPromptPreviewEnabled(false);
           state.actions.addPromptMessage();
@@ -296,10 +294,7 @@ export function PromptEditorContent({
             modification: "message_added",
           });
         }}
-      >
-        <Plus className="icon-base text-icon-foreground shrink-0" />
-        Add message
-      </Button>
+      />
       <DragOverlay dropAnimation={null}>
         {activeMessage ? (
           <div

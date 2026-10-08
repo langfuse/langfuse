@@ -2482,7 +2482,7 @@ paths:
           description: |-
             Required. Retrieve only experiments with events on or after this
             datetime. A lower bound is required so the query stays fast on
-            large projects; pair it with `toStartTime` to select a specific
+            large projects; pair it with an upper bound to select a specific
             window.
           required: true
           schema:
@@ -2611,7 +2611,7 @@ paths:
           description: |-
             Required. Retrieve only experiment items started on or after this
             datetime. A lower bound is required so the query stays fast on
-            large projects; pair it with `toStartTime` to select a specific
+            large projects; pair it with an upper bound to select a specific
             window.
           required: true
           schema:
@@ -3073,19 +3073,6 @@ paths:
           required: true
           schema:
             type: string
-        - name: startTime
-          in: query
-          description: >-
-            The start time of the observation (ISO 8601 with offset, e.g.
-            2024-01-01T00:00:00Z). Optional performance hint - when provided,
-            Langfuse narrows the lookup to make the request substantially
-            faster. It only affects speed - an incorrect or omitted value never
-            changes the result.
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
       responses:
         '200':
           description: ''
@@ -5559,10 +5546,27 @@ paths:
             schema:
               type: object
               properties:
+                name:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional name for the API key. Cannot be provided together
+                    with note, even if either value is an empty string.
                 note:
                   type: string
                   nullable: true
-                  description: Optional note for the API key
+                  description: >-
+                    Deprecated alias for name. Cannot be provided together with
+                    name, even if either value is an empty string.
+                  deprecated: true
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: >-
+                    Optional expiration timestamp in ISO 8601 format. Must be in
+                    the future. Omit or set to null for a key that does not
+                    expire.
                 publicKey:
                   type: string
                   nullable: true
@@ -6295,6 +6299,7 @@ paths:
                     disabled). No credential is created for the user;
                     provisioned users authenticate via SSO or set a password
                     themselves through the password reset flow.
+                  deprecated: true
               required:
                 - userName
                 - name
@@ -6837,8 +6842,10 @@ paths:
   /api/public/scores:
     post:
       description: >-
-        Create a score (supports trace, observation, session, and dataset run
-        scores)
+        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if
+        accepted, or 207 with accepted/rejected counts and error messages. Do
+        not automatically retry a 207 batch. The generated reference shows only
+        200; batches return 202 or 207.
       operationId: scores_create
       tags:
         - Scores
@@ -6849,7 +6856,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateScoreResponse'
+                $ref: '#/components/schemas/CreateScoresResponse'
         '400':
           description: ''
           content:
@@ -6881,7 +6888,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateScoreRequest'
+              $ref: '#/components/schemas/CreateScoresRequest'
   /api/public/v2/scores:
     get:
       description: >-
@@ -9762,16 +9769,6 @@ components:
             The id of the user who created the comment. Must be a member of the
             organization that owns the project, otherwise an error will be
             thrown.
-        objectStartTime:
-          type: string
-          format: date-time
-          nullable: true
-          description: >-
-            The start time of the referenced object (for observations, the
-            observation's start time). Optional performance hint - when
-            provided, Langfuse narrows the lookup to validate the reference
-            faster. It only affects speed - an incorrect or omitted value never
-            changes the result.
       required:
         - projectId
         - objectType
@@ -10050,6 +10047,7 @@ components:
         metadata:
           type: object
           additionalProperties: true
+          nullable: true
           description: Additional metadata of the observation
         output:
           description: The output data of the observation
@@ -10108,7 +10106,6 @@ components:
         - modelParameters
         - input
         - version
-        - metadata
         - output
         - usage
         - level
@@ -10568,6 +10565,7 @@ components:
         metadata:
           type: object
           additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10598,7 +10596,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -10761,6 +10758,7 @@ components:
         metadata:
           type: object
           additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10790,7 +10788,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -11923,15 +11920,11 @@ components:
         metadata:
           nullable: true
         inputSchema:
-          type: object
-          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item inputs. When set, all new
             and existing dataset items will be validated against this schema.
         expectedOutputSchema:
-          type: object
-          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item expected outputs. When set,
@@ -12217,6 +12210,17 @@ components:
         - does not contain
         - starts with
         - ends with
+    EvaluationRuleStringObjectFilterOperator:
+      title: EvaluationRuleStringObjectFilterOperator
+      type: string
+      enum:
+        - '='
+        - contains
+        - does not contain
+        - starts with
+        - ends with
+        - is set
+        - is not set
     EvaluationRuleNumberFilterOperator:
       title: EvaluationRuleNumberFilterOperator
       type: string
@@ -12349,9 +12353,13 @@ components:
           type: string
           description: Top-level key inside the object-valued column to filter on.
         operator:
-          $ref: '#/components/schemas/EvaluationRuleStringFilterOperator'
+          $ref: '#/components/schemas/EvaluationRuleStringObjectFilterOperator'
+          description: Use `is set` / `is not set` to filter on key presence.
         value:
           type: string
+          description: >-
+            Value to compare against. Ignored for `is set` / `is not set`; send
+            `""`.
       required:
         - column
         - key
@@ -15506,8 +15514,6 @@ components:
             Span attributes including Langfuse-specific attributes
             (langfuse.observation.*)
         status:
-          type: object
-          additionalProperties: true
           nullable: true
           description: Span status object
     OtelAttribute:
@@ -15661,13 +15667,22 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         lastUsedAt:
           type: string
           format: date-time
           nullable: true
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
         publicKey:
           type: string
         displaySecretKey:
@@ -15772,13 +15787,22 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         lastUsedAt:
           type: string
           format: date-time
           nullable: true
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
         publicKey:
           type: string
         displaySecretKey:
@@ -15798,15 +15822,28 @@ components:
         createdAt:
           type: string
           format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         publicKey:
           type: string
         secretKey:
           type: string
         displaySecretKey:
           type: string
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
       required:
         - id
         - createdAt
@@ -16788,6 +16825,16 @@ components:
       required:
         - data
         - meta
+    CreateScoresRequest:
+      title: CreateScoresRequest
+      oneOf:
+        - $ref: '#/components/schemas/CreateScoreRequest'
+        - $ref: '#/components/schemas/CreateScoreBatchRequest'
+    CreateScoreBatchRequest:
+      title: CreateScoreBatchRequest
+      type: array
+      items:
+        $ref: '#/components/schemas/CreateScoreRequest'
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -16872,6 +16919,22 @@ components:
         Source values accepted when creating a score via the public REST API.
         EVAL is reserved for internal evaluator outputs and is intentionally not
         exposed here — use commons.ScoreSource when reading scores.
+    CreateScoresResponse:
+      title: CreateScoresResponse
+      oneOf:
+        - $ref: '#/components/schemas/CreateScoreResponse'
+        - $ref: '#/components/schemas/CreateScoreBatchResponse'
+        - $ref: '#/components/schemas/CreateScoreBatchResults'
+    CreateScoreBatchResponse:
+      title: CreateScoreBatchResponse
+      type: object
+      description: Batch accepted (HTTP 202).
+      properties:
+        message:
+          type: string
+          const: Accepted
+      required:
+        - message
     CreateScoreResponse:
       title: CreateScoreResponse
       type: object
@@ -17027,6 +17090,31 @@ components:
       required:
         - data
         - meta
+    CreateScoreBatchResults:
+      title: CreateScoreBatchResults
+      type: object
+      description: Acceptance counts and errors (HTTP 207).
+      properties:
+        accepted:
+          type: integer
+        rejected:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateScoreBatchError'
+      required:
+        - accepted
+        - rejected
+        - errors
+    CreateScoreBatchError:
+      title: CreateScoreBatchError
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     PaginatedSessions:
       title: PaginatedSessions
       type: object

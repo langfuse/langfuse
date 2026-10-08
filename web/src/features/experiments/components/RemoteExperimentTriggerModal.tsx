@@ -71,6 +71,7 @@ export const RemoteExperimentTriggerModal = ({
           );
         } else if (data.success) {
           showSuccessToast({
+            operation: "remote_experiment.trigger",
             title: "Remote experiment triggered",
             description:
               "Your remote experiment may take a few minutes to complete.",

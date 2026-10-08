@@ -533,6 +533,24 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -676,6 +694,10 @@ const EnvSchema = z.object({
 
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+
+  // FIPS mode (EE feature): refuse to start without an enterprise license or
+  // an active OpenSSL FIPS provider. See server/ee/fips.
+  LANGFUSE_REQUIRE_FIPS: z.enum(["true", "false"]).default("false"),
 
   // Ingestion Masking (EE feature)
   LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),

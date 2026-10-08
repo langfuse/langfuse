@@ -1,5 +1,20 @@
 #!/bin/sh
 
+# Fail closed when FIPS mode is required but the OpenSSL FIPS provider is not
+# active for Node (e.g. an OPENSSL_CONF that does not load it, or an image
+# rebuilt on a base without the provider). This runs before the migrations
+# below open database connections. The app additionally requires an enterprise
+# license for FIPS mode at startup (packages/shared/src/server/ee/fips).
+if [ "$LANGFUSE_REQUIRE_FIPS" = "true" ]; then
+    # Opt into the FIPS provider config for OpenSSL (see the Dockerfile). An
+    # OPENSSL_CONF set by the deployment takes precedence.
+    export OPENSSL_CONF="${OPENSSL_CONF:-/etc/ssl/openssl-fips.cnf}"
+    if ! node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then
+        echo "Error: LANGFUSE_REQUIRE_FIPS=true but Node's OpenSSL FIPS provider is not active (crypto.getFips() != 1). Exiting..."
+        exit 1
+    fi
+fi
+
 # Run cleanup script before running migrations
 # Check if DATABASE_URL is not set
 if [ -z "$DATABASE_URL" ]; then

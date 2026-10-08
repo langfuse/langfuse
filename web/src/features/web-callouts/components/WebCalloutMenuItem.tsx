@@ -30,6 +30,7 @@ export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
       if (!callout?.enabled) return;
 
       showSuccessToast({
+        operation: "web_callout.invoke",
         title: callout.toastMessage,
         description: callout.name,
       });

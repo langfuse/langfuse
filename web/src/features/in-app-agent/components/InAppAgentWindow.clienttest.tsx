@@ -149,12 +149,12 @@ describe("InAppAgentWindow quick actions", () => {
       screen.queryByRole("button", { name: /stop run/i }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Observability",
+      "Observe",
       "Prompts",
       "Evaluation",
       "Dashboard",
     ]);
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -171,7 +171,7 @@ describe("InAppAgentWindow quick actions", () => {
         quickActionResetKey: "/project/project-1/observations",
       }),
     );
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );

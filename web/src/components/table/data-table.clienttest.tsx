@@ -59,8 +59,8 @@ describe("DataTable column sorting affordances", () => {
     );
 
     expect(screen.getByText("Status")).toBeInTheDocument();
-    expect(screen.queryByText("▲")).not.toBeInTheDocument();
-    expect(screen.queryByText("▼")).not.toBeInTheDocument();
+    expect(screen.queryByText("sorted ascending")).not.toBeInTheDocument();
+    expect(screen.queryByText("sorted descending")).not.toBeInTheDocument();
   });
 
   it("shows a sort indicator on a sortable column and toggles order on click", () => {
@@ -69,14 +69,14 @@ describe("DataTable column sorting affordances", () => {
     );
 
     const nameHeader = screen.getByText("Generated Score Name").closest("th");
-    expect(nameHeader).toHaveTextContent("▲");
+    expect(nameHeader).toHaveTextContent("sorted ascending");
 
     fireEvent.click(nameHeader!);
-    expect(nameHeader).not.toHaveTextContent("▲");
-    expect(nameHeader).not.toHaveTextContent("▼");
+    expect(nameHeader).not.toHaveTextContent("sorted ascending");
+    expect(nameHeader).not.toHaveTextContent("sorted descending");
 
     fireEvent.click(nameHeader!);
-    expect(nameHeader).toHaveTextContent("▼");
+    expect(nameHeader).toHaveTextContent("sorted descending");
   });
 
   it("does not change orderBy when a non-sortable header is clicked", () => {
@@ -89,8 +89,8 @@ describe("DataTable column sorting affordances", () => {
 
     fireEvent.click(statusHeader!);
 
-    expect(nameHeader).toHaveTextContent("▲");
-    expect(statusHeader).not.toHaveTextContent("▲");
-    expect(statusHeader).not.toHaveTextContent("▼");
+    expect(nameHeader).toHaveTextContent("sorted ascending");
+    expect(statusHeader).not.toHaveTextContent("sorted ascending");
+    expect(statusHeader).not.toHaveTextContent("sorted descending");
   });
 });

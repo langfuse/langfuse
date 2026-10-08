@@ -325,6 +325,7 @@ const RegenerateWebhookSecretButton = ({
     api.automations.regenerateWebhookSecret.useMutation({
       onSuccess: (data) => {
         showSuccessToast({
+          operation: "webhook_secret.regenerate",
           title: "Webhook Secret Regenerated",
           description: "Your webhook secret has been successfully regenerated.",
         });

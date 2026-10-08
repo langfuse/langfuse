@@ -46,11 +46,17 @@ export const BlobStorageIntegrationForm = ({
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
   isSaving: boolean;
-  onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
+  // Call `onSaved` once the values are persisted; a failed save never calls
+  // it, so the draft stays dirty.
+  onSubmit: (
+    values: BlobStorageIntegrationFormSchema,
+    onSaved: () => void,
+  ) => void;
   // Entity-scoped action buttons (Validate / Run Now / Reset) rendered by
   // the container next to Save — they act on the persisted entity, not on
-  // this draft.
-  children?: ReactNode;
+  // this draft. `isDirty` lets them refuse to act while the draft has
+  // unsaved edits that the persisted entity does not reflect.
+  children?: (state: { isDirty: boolean }) => ReactNode;
 }) => {
   // Block the save when the persisted source is no longer selectable rather
   // than silently rewriting it (LFE-10296). The policy context is fixed for
@@ -78,13 +84,21 @@ export const BlobStorageIntegrationForm = ({
 
   const control = blobStorageForm.control;
   const fileType = useWatch({ control, name: "fileType" });
+  const { isDirty } = blobStorageForm.formState;
+
+  // After a successful save, the submitted values become the clean baseline.
+  // Same-entity saves do not remount (see container key), so without this the
+  // draft would stay dirty. keepValues preserves anything typed mid-save.
+  const submit = blobStorageForm.handleSubmit((values) => {
+    const submitted = blobStorageForm.getValues();
+    onSubmit(values, () =>
+      blobStorageForm.reset(submitted, { keepValues: true }),
+    );
+  });
 
   return (
     <Form {...blobStorageForm}>
-      <form
-        className="space-y-3"
-        onSubmit={blobStorageForm.handleSubmit(onSubmit)}
-      >
+      <form className="space-y-3" onSubmit={submit}>
         <StorageProviderFields control={control} />
         <ExportScheduleFields control={control} />
         <ExportSourceField
@@ -123,7 +137,7 @@ export const BlobStorageIntegrationForm = ({
           name="enabled"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Enabled</FormLabel>
+              <FormLabel>Export enabled</FormLabel>
               <FormControl>
                 <div className="mt-1 ml-4">
                   <Switch
@@ -138,13 +152,10 @@ export const BlobStorageIntegrationForm = ({
         />
       </form>
       <div className="mt-8 flex gap-2">
-        <Button
-          loading={isSaving}
-          onClick={blobStorageForm.handleSubmit(onSubmit)}
-        >
+        <Button loading={isSaving} onClick={submit}>
           Save
         </Button>
-        {children}
+        {children?.({ isDirty })}
       </div>
     </Form>
   );

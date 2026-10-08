@@ -1,27 +1,131 @@
-# The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
+# FIPS 140-3 base: Alpine with the distribution's nodejs package instead of
+# node:24-alpine. Alpine's Node dynamically links the system libcrypto.so.3, so
+# node:crypto routes through the OpenSSL 3.1.2 FIPS provider
+# (/usr/lib/ossl-modules/fips.so, CMVP certificate #4985). Upstream node images
+# statically bundle their own non-validated OpenSSL and bypass the platform
+# module entirely.
+# The default is the public Alpine image, so the build needs no credentials.
+# Iron Bank's Alpine compiles the FIPS provider from the validated source and
+# serves it from an authenticated registry with DoD provenance and scan
+# attestations. Release builds opt in after `docker login registry1.dso.mil`
+# (free P1 account plus a CLI secret):
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/opensource/alpinelinux/alpine:3.24
+ARG BASE_IMAGE=alpine:3.24
 
-# It's important to update the index before installing packages to ensure you're getting the latest versions.
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
+# The FIPS provider plus its self-test record (fipsmodule.cnf) and the opt-in
+# config that activates it. Iron Bank's Alpine already carries the provider; on
+# any other base it is compiled here from the checksum-pinned OpenSSL 3.1.2
+# source with the configure flags Iron Bank uses
+# (repo1.dso.mil/dsop/opensource/alpinelinux/alpine), so both bases ship the
+# same module. Only these files leave the stage; libcrypto and libssl stay
+# Alpine's packages, which load the 3.1.2 provider like any other.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS fips-provider
+RUN set -eux; \
+    if [ ! -f /usr/lib/ossl-modules/fips.so ]; then \
+    apk add --no-cache gcc linux-headers make musl-dev perl; \
+    wget -qO /tmp/openssl.tar.gz https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz; \
+    echo "a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539  /tmp/openssl.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/openssl; \
+    tar -xzf /tmp/openssl.tar.gz -C /tmp/openssl --strip-components=1; \
+    cd /tmp/openssl; \
+    perl ./Configure --prefix=/usr --libdir=lib --openssldir=/etc/ssl \
+    enable-ktls shared no-zlib no-async no-comp no-idea no-mdc2 no-rc5 \
+    no-ec2m no-sm2 no-sm4 no-ssl3 no-seed no-weak-ssl-ciphers enable-fips \
+    enable-ec_nistp_64_gcc_128 -Wa,--noexecstack; \
+    make -j"$(nproc)" build_sw; \
+    make install_sw install_fips; \
+    openssl fipsinstall -pedantic -out /etc/ssl/fipsmodule.cnf -module /usr/lib/ossl-modules/fips.so; \
+    fi; \
+    mkdir -p /out/usr/lib/ossl-modules /out/etc/ssl; \
+    cp /usr/lib/ossl-modules/fips.so /out/usr/lib/ossl-modules/fips.so; \
+    cp /etc/ssl/fipsmodule.cnf /out/etc/ssl/fipsmodule.cnf
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
+# FIPS mode is opt-in, so installs without it keep OpenSSL's default policy:
+# entrypoint.sh points OPENSSL_CONF here when LANGFUSE_REQUIRE_FIPS=true, and
+# deployments that override the entrypoint set
+# OPENSSL_CONF=/etc/ssl/openssl-fips.cnf themselves. Node reads the nodejs_conf
+# section and every other OpenSSL user (e.g. the Prisma engines) openssl_conf,
+# so both select it. Only the fips and base providers load, and fips=yes keeps
+# every algorithm fetch on the validated module. With
+# LANGFUSE_REQUIRE_FIPS=true, startup fails unless it is active and an
+# enterprise license is configured.
+COPY <<EOF /out/etc/ssl/openssl-fips.cnf
+nodejs_conf = fips_init
+openssl_conf = fips_init
+
+.include /etc/ssl/fipsmodule.cnf
+
+[fips_init]
+providers = provider_sect
+alg_section = algorithm_sect
+
+[provider_sect]
+fips = fips_sect
+base = base_sect
+
+[base_sect]
+activate = 1
+
+[algorithm_sect]
+default_properties = fips=yes
+EOF
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
+
+COPY --from=fips-provider /out/ /
+
+# Iron Bank's Alpine activates the FIPS provider in the system openssl.cnf;
+# restore the stock file so FIPS stays opt-in on either base (see
+# fips-provider above).
+# icu-data-full is required: Alpine's Node uses the system ICU, whose default
+# data package only covers English, and V8 segfaults in Intl.Segmenter (used
+# e.g. by the prisma CLI's output formatting) without the full ICU data.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache nodejs npm icu-data-full && \
+    cp /etc/ssl/openssl.cnf.dist /etc/ssl/openssl.cnf && \
+    rm -f /etc/ssl/*.apk-new
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.11.6 --global
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
+# pnpm is installed pinned via npm instead of corepack: the corepack shim would
+# fetch pnpm from an unpinned CDN on first use.
+RUN npm install -g turbo@2.11.6 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
-RUN npm install --global corepack@0.36.0 \
-    && corepack enable \
-    && corepack prepare pnpm@12.8.2 --activate
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
-# Remove build-only package managers. npm stays here because the runner stage
-# uses it to install prisma and optional dd-trace before removing it.
-RUN rm -rf /usr/local/lib/node_modules/corepack \
-            /root/.cache/node/corepack && \
-    rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
+# The runtime image carries no package manager, python, or curl: apk-tools is
+# removed after the install below, and its database stays for scanners.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS runtime-base
+
+ARG UID=1001
+ARG GID=1001
+
+COPY --from=fips-provider /out/ /
+
+# icu-data-full: see the base stage. tzdata provides the zoneinfo for TZ.
+# dumb-init preserves the semver-covered ENTRYPOINT contract. busybox (in the
+# base) provides the shell and the sed used by entrypoint.sh, and its wget
+# keeps exec-style container health checks working (e.g. `wget --spider
+# http://127.0.0.1:<port>/...` in ECS task definitions). Probe 127.0.0.1, not
+# localhost: busybox wget only tries the first address localhost resolves to,
+# which is ::1, and the server listens on IPv4.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache nodejs icu-data-full tzdata ca-certificates dumb-init && \
+    cp /etc/ssl/openssl.cnf.dist /etc/ssl/openssl.cnf && \
+    rm -f /etc/ssl/*.apk-new && \
+    addgroup -S -g "${GID}" nodejs && \
+    adduser -S -D -H -u "${UID}" -G nodejs -h /home/nextjs -s /sbin/nologin nextjs && \
+    apk del --no-cache apk-tools
+
+# prisma CLI + optional dd-trace are npm-installed here and copied into the
+# package-manager-less runtime image.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS web-tools
+RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6.19.3
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+RUN mkdir -p /opt/dd/node_modules && \
+    if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
+    cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.109.0; \
+    fi
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
@@ -30,6 +134,10 @@ ENV CGO_ENABLED=0 \
     GOBIN=/out \
     GOOS=${TARGETOS} \
     GOARCH=${TARGETARCH}
+# Build against the validated Go Cryptographic Module snapshot (Go >= 1.24) so
+# the migrate CLI's ClickHouse TLS uses FIPS-approved crypto; GOFIPS140 also
+# defaults GODEBUG=fips140=on at runtime.
+ENV GOFIPS140=v1.0.0
 # Build only the ClickHouse migrate CLI Langfuse uses at runtime.
 # compile this ourselves instead of downloading the upstream release
 # because prebuilt bins bundle many unused drivers and thus inherit CVEs
@@ -164,25 +272,16 @@ ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
 ENV NEXT_MANUAL_SIG_HANDLE true
 
-RUN apk add --no-cache dumb-init tzdata
+# The non-root user (nextjs, uid 1001) is created in the runtime-base stage.
 
-# Don't run production as root
-ARG UID=1001
-ARG GID=1001
-RUN addgroup --system --gid ${GID} nodejs
-RUN adduser --system --uid ${UID} nextjs
+# prisma CLI from the tools stage (bin/prisma symlink + lib/node_modules
+# structure lands under /usr/local); the runtime image has no npm.
+COPY --from=web-tools /opt/prisma-cli /usr/local
 
-RUN npm install -g --no-package-lock --no-save prisma@6.19.3
-
-# Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
-ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    npm install --no-package-lock --no-save dd-trace@5.109.0; \
-    fi
-
-# npm is only used for the installs above; remove it from the final runtime image.
-RUN rm -rf /usr/local/lib/node_modules/npm && \
-    rm -f /usr/local/bin/npm /usr/local/bin/npx
+# dd-trace, npm-installed in the tools stage (node_modules is empty unless
+# NEXT_PUBLIC_LANGFUSE_CLOUD_REGION was set); the standalone output copied
+# below merges on top of it.
+COPY --from=web-tools --chown=nextjs:nodejs /opt/dd/node_modules ./node_modules
 
 COPY --from=migrate-builder /out/migrate /usr/bin/migrate
 
@@ -202,7 +301,10 @@ COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
 RUN chmod +x ./web/entrypoint.sh
 
-USER nextjs
+# Numeric USER (uid of nextjs) so runAsNonRoot checks and Iron Bank hardening
+# validation can verify the user without resolving names.
+ARG UID=1001
+USER ${UID}
 
 # Default port to 3000
 ENV PORT 3000

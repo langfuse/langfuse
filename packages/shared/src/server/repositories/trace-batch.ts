@@ -20,6 +20,8 @@ type TraceBatchEventRow = {
   tool_definitions: Record<string, string>;
   tool_calls: string[];
   tool_call_names: string[];
+  level: string;
+  status_message: string | null;
 };
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
@@ -144,6 +146,9 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       "e.event_ts",
       "e.type",
       "e.name",
+      // The Topics renderer turns ERROR/WARNING levels into transcript error signals.
+      "e.level",
+      "e.status_message",
     )
     // Load full input/output (false = no truncation) and every metadata key.
     .selectIO(false)
@@ -205,6 +210,7 @@ export async function* getTraceBatchEventStream(
   options: {
     maxThreads?: number;
     maxBlockSize?: number;
+    requestTimeoutMs?: number;
     experimentId?: string;
     queryId?: string;
   } = {},
@@ -224,6 +230,9 @@ export async function* getTraceBatchEventStream(
     preferredClickhouseService: "EventsReadOnly",
     clickhouseConfigs: {
       compression: { response: true },
+      ...(options.requestTimeoutMs === undefined
+        ? {}
+        : { request_timeout: options.requestTimeoutMs }),
     },
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
     clickhouseSettings: {

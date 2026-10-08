@@ -41,7 +41,7 @@
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / metadata indexOf nodes,
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata indexOf nodes,
   `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
   catalog parity). Compile only through `compileClickhouseQuery` in
   `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
@@ -50,6 +50,7 @@
   `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
   baseline next to the call site (e.g.
   `src/server/repositories/environments.golden.test.ts`,
+  `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
@@ -136,6 +137,10 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe tagged IDs,
+  role assignments, role catalog, and permission vocabulary.
+- `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
+  role-assignment reads and writes, mapping database foreign keys to tagged IDs.
 - `@langfuse/shared/instrumentation/bootstrap` via
   `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
@@ -151,6 +156,9 @@
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/ee/fips` (startup FIPS-mode enforcement; it
+  loads only env and the license check, so it can run before anything
+  connects),
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The
   `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the

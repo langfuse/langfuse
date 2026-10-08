@@ -12,7 +12,7 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
   name: "createEvaluator",
   description: [
     "Create a new evaluator with a stable id. Names do not act as identity and may be reused.",
-    "For `LLM_AS_JUDGE`, provide either prompt or structured promptMessages, plus outputDefinition. Omit modelConfig to use the project default, or provide modelConfig with provider, model, and optional modelParams. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, an explicit TypeSafe modelConfig, and variableMapping entries defining its state.",
+    "For `LLM_AS_JUDGE`, provide either prompt or structured promptMessages, plus outputDefinition. Omit modelConfig to use the project default, or provide modelConfig with provider, model, and optional modelParams. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, a modelConfig with provider and model only, and variableMapping entries defining its state. Use an OpenAI connection with an allowlisted decision model (currently `gpt-6-luna`), or a TypeSafe connection.",
     "Use updateEvaluator with the returned evaluatorId to update it or append a new immutable definition version.",
   ].join(" "),
   action: "evaluator:CUD",

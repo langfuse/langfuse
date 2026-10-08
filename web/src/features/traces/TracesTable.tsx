@@ -604,6 +604,7 @@ function TracesTableInternal({
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "trace.bulk_delete",
         title: "Traces deleted",
         description:
           "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
@@ -628,6 +629,7 @@ function TracesTableInternal({
         });
       }
       showSuccessToast({
+        operation: "trace.add_to_annotation_queue",
         title: "Traces added to queue",
         description: `Selected traces will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
@@ -1677,6 +1679,7 @@ export default function TracesTable(props: TracesTableProps) {
     onSuccess: () => {
       capture("trace:delete", { source: "table-single-row" });
       showSuccessToast({
+        operation: "trace.delete",
         title: "Trace deleted",
         description:
           "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
