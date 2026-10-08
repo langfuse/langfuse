@@ -10,7 +10,11 @@ const meta = preview.meta({ component: LLMApiKeySettingsTable });
 
 export const Default = meta.story({
   args: {
-    createAction: { hasAccess: true, onClick: fn() },
+    createAction: {
+      hasAccess: true,
+      label: "Project Connection",
+      onClick: fn(),
+    },
     deleteAction: { hasAccess: true, onClick: fn() },
     updateAction: { hasAccess: true, onClick: fn() },
     data: {
@@ -57,7 +61,11 @@ export const Default = meta.story({
 
 export const Loading = meta.story({
   args: {
-    createAction: { hasAccess: true, onClick: fn() },
+    createAction: {
+      hasAccess: true,
+      label: "Project Connection",
+      onClick: fn(),
+    },
     deleteAction: { hasAccess: true, onClick: fn() },
     updateAction: { hasAccess: true, onClick: fn() },
     data: { status: "loading" },

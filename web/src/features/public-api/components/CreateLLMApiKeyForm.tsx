@@ -331,11 +331,21 @@ export function CreateLLMApiKeyForm({
   const mutTestUpdateLLMApiKey = api.llmApiKey.testUpdate.useMutation();
   const mutCreateOrganizationLlmApiKey =
     api.organizationLlmApiKey.create.useMutation({
-      onSuccess: () => utils.organizationLlmApiKey.invalidate(),
+      onSuccess: async () => {
+        await Promise.all([
+          utils.organizationLlmApiKey.invalidate(),
+          utils.llmApiKey.invalidate(),
+        ]);
+      },
     });
   const mutUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.update.useMutation({
-      onSuccess: () => utils.organizationLlmApiKey.invalidate(),
+      onSuccess: async () => {
+        await Promise.all([
+          utils.organizationLlmApiKey.invalidate(),
+          utils.llmApiKey.invalidate(),
+        ]);
+      },
     });
   const mutTestOrganizationLlmApiKey =
     api.organizationLlmApiKey.test.useMutation();

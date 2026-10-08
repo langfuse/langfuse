@@ -1,8 +1,11 @@
 import { useCallback, useMemo } from "react";
-import { Pencil, PlusIcon, Trash } from "lucide-react";
+import { Pencil, PlusIcon, Route, Trash } from "lucide-react";
+import { SiAnthropic, SiOpenai } from "react-icons/si";
+import { LLMAdapter } from "@langfuse/shared";
 
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type TableProps } from "@/src/components/design-system/table/Table";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
   SettingsTable,
@@ -25,7 +28,7 @@ export function LLMApiKeySettingsTable({
   TableProps<LLMApiKeySettingsTableRow>,
   "data" | "loadingRowCount" | "noResultsMessage"
 > & {
-  createAction: { hasAccess: boolean; onClick: () => void };
+  createAction: { hasAccess: boolean; label: string; onClick: () => void };
   deleteAction: {
     hasAccess: boolean;
     onClick: (apiKey: LLMApiKeySettingsTableRow) => void;
@@ -39,35 +42,34 @@ export function LLMApiKeySettingsTable({
   const showExtraHeaderKeys =
     tableProps.data.status === "success" &&
     tableProps.data.data.some((apiKey) => apiKey.extraHeaderKeys.length > 0);
-  const showInheritanceStatus =
-    tableProps.data.status === "success" &&
-    tableProps.data.data.some(
-      (apiKey) => apiKey.overriddenByProject !== undefined,
-    );
 
   const columns = useMemo<LangfuseColumnDef<LLMApiKeySettingsTableRow>[]>(
     () => [
-      createTextTableColumn<LLMApiKeySettingsTableRow>({
+      {
         accessorKey: "provider",
         header: "Provider",
         enableResizing: false,
-      }),
-      ...(showInheritanceStatus
-        ? [
-            createTextTableColumn<LLMApiKeySettingsTableRow, boolean>({
-              accessorKey: "overriddenByProject",
-              header: "Status",
-              mapValue: (value) =>
-                value ? "Overridden in this project" : "Inherited",
-              enableResizing: false,
-            }),
-          ]
-        : []),
-      createBadgeTableColumn<LLMApiKeySettingsTableRow>({
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <span>{row.original.provider}</span>
+            {row.original.overriddenByProject ? (
+              <Tooltip label="This project connection overrides the organization secret with the same name.">
+                {({ getTriggerProps }) => (
+                  <span {...getTriggerProps()}>
+                    <Badge text="Override" size="sm" color="filled" />
+                  </span>
+                )}
+              </Tooltip>
+            ) : null}
+          </div>
+        ),
+      },
+      {
         accessorKey: "adapter",
         header: "Adapter",
         enableResizing: false,
-      }),
+        cell: ({ row }) => <AdapterName adapter={row.original.adapter} />,
+      },
       createTextTableColumn<LLMApiKeySettingsTableRow>({
         accessorKey: "baseURL",
         header: "Base URL",
@@ -90,7 +92,7 @@ export function LLMApiKeySettingsTable({
           ]
         : []),
     ],
-    [showExtraHeaderKeys, showInheritanceStatus],
+    [showExtraHeaderKeys],
   );
 
   const actions = useCallback<
@@ -134,7 +136,7 @@ export function LLMApiKeySettingsTable({
       ? [
           {
             id: "add-connection",
-            label: "Add LLM Connection",
+            label: createAction.label,
             variant: "secondary",
             icon: <PlusIcon className="icon-base" aria-hidden="true" />,
             onClick: createAction.onClick,
@@ -151,5 +153,33 @@ export function LLMApiKeySettingsTable({
       onRowClick={updateAction.hasAccess ? updateAction.onClick : undefined}
       {...tableProps}
     />
+  );
+}
+
+const adapterLabels: Record<LLMAdapter, string> = {
+  [LLMAdapter.Anthropic]: "Anthropic",
+  [LLMAdapter.OpenAI]: "OpenAI",
+  [LLMAdapter.Azure]: "Azure OpenAI",
+  [LLMAdapter.Bedrock]: "Amazon Bedrock",
+  [LLMAdapter.VertexAI]: "Vertex AI",
+  [LLMAdapter.GoogleAIStudio]: "Google AI Studio",
+  [LLMAdapter.TypeSafe]: "Type-safe",
+};
+
+function AdapterName({ adapter }: { adapter: LLMAdapter }) {
+  let Icon = Route;
+  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure) {
+    Icon = SiOpenai;
+  } else if (adapter === LLMAdapter.Anthropic) {
+    Icon = SiAnthropic;
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="bg-muted flex size-7 items-center justify-center rounded-md border">
+        <Icon className="icon-base" aria-hidden="true" />
+      </span>
+      <span>{adapterLabels[adapter]}</span>
+    </div>
   );
 }

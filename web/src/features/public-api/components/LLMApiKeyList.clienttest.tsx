@@ -89,9 +89,12 @@ describe("LLM connection editing", () => {
       query as ReturnType<typeof api.llmApiKey.all.useQuery>,
     );
 
-    const { rerender } = render(<LlmApiKeyList projectId="project" />, {
-      wrapper: LayerProvider,
-    });
+    const { rerender } = render(
+      <LlmApiKeyList projectId="project" organizationId="organization" />,
+      {
+        wrapper: LayerProvider,
+      },
+    );
     fireEvent.click(screen.getByText("First").closest("tr")!);
     const dialog = screen.getByRole("dialog");
     fireEvent.change(screen.getByRole("textbox", { name: "API key" }), {
@@ -101,7 +104,9 @@ describe("LLM connection editing", () => {
     query.data = {
       data: keys.map((key) => ({ ...key, extraHeaderKeys: ["X-Test"] })),
     };
-    rerender(<LlmApiKeyList projectId="project" />);
+    rerender(
+      <LlmApiKeyList projectId="project" organizationId="organization" />,
+    );
 
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(screen.getByRole("textbox", { name: "API key" })).toHaveValue(
@@ -125,15 +130,18 @@ describe("LLM connection editing", () => {
       isError: false,
     } as ReturnType<typeof api.llmApiKey.all.useQuery>);
 
-    render(<LlmApiKeyList projectId="project" />, {
-      wrapper: LayerProvider,
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Add LLM Connection" }));
+    render(
+      <LlmApiKeyList projectId="project" organizationId="organization" />,
+      {
+        wrapper: LayerProvider,
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Project Connection" }));
     fireEvent.change(screen.getByRole("textbox", { name: "API key" }), {
       target: { value: "Unsaved draft" },
     });
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    fireEvent.click(screen.getByRole("button", { name: "Add LLM Connection" }));
+    fireEvent.click(screen.getByRole("button", { name: "Project Connection" }));
 
     expect(screen.getByRole("textbox", { name: "API key" })).toHaveValue("");
   });
@@ -153,9 +161,12 @@ describe("LLM connection editing", () => {
       isError: false,
     } as ReturnType<typeof api.llmApiKey.all.useQuery>);
 
-    render(<LlmApiKeyList projectId="project" />, {
-      wrapper: LayerProvider,
-    });
+    render(
+      <LlmApiKeyList projectId="project" organizationId="organization" />,
+      {
+        wrapper: LayerProvider,
+      },
+    );
 
     expect(screen.getByText("Provider 0")).toBeInTheDocument();
     expect(screen.getByText("Provider 10")).toBeInTheDocument();

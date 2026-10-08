@@ -17,9 +17,13 @@ import {
 } from "./LLMApiKeySettingsTable";
 
 export function ConnectedLLMApiKeySettingsTable({
+  data,
   owner,
+  overriddenProviders,
 }: {
+  data?: AsyncTableData<LLMApiKeySettingsTableRow[]>;
   owner: LlmConnectionFormOwner;
+  overriddenProviders?: ReadonlySet<string>;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -47,14 +51,14 @@ export function ConnectedLLMApiKeySettingsTable({
       projectId: owner.scope === "project" ? owner.projectId : "",
       includeDecisionModels: true,
     },
-    { enabled: owner.scope === "project" },
+    { enabled: owner.scope === "project" && data === undefined },
   );
   const organizationApiKeys = api.organizationLlmApiKey.all.useQuery(
     {
       orgId: owner.scope === "organization" ? owner.organizationId : "",
       includeDecisionModels: true,
     },
-    { enabled: owner.scope === "organization" },
+    { enabled: owner.scope === "organization" && data === undefined },
   );
   const apiKeys =
     owner.scope === "project" ? projectApiKeys : organizationApiKeys;
@@ -63,11 +67,18 @@ export function ConnectedLLMApiKeySettingsTable({
   });
   const deleteOrganizationApiKey = api.organizationLlmApiKey.delete.useMutation(
     {
-      onSuccess: () => utils.organizationLlmApiKey.invalidate(),
+      onSuccess: async () => {
+        await Promise.all([
+          utils.organizationLlmApiKey.invalidate(),
+          utils.llmApiKey.invalidate(),
+        ]);
+      },
     },
   );
 
-  const tableData = useMemo<AsyncTableData<LLMApiKeySettingsTableRow[]>>(() => {
+  const queriedTableData = useMemo<
+    AsyncTableData<LLMApiKeySettingsTableRow[]>
+  >(() => {
     if (apiKeys.isLoading) return { status: "loading" };
     if (apiKeys.isError) {
       return { status: "error", error: "Failed to load LLM connections" };
@@ -78,6 +89,21 @@ export function ConnectedLLMApiKeySettingsTable({
       data: apiKeys.data?.data ?? [],
     };
   }, [apiKeys.data?.data, apiKeys.isError, apiKeys.isLoading]);
+  const tableData = data ?? queriedTableData;
+  const tableDataWithOverrides = useMemo<
+    AsyncTableData<LLMApiKeySettingsTableRow[]>
+  >(() => {
+    if (tableData.status !== "success" || !overriddenProviders) {
+      return tableData;
+    }
+    return {
+      status: "success",
+      data: tableData.data.map((apiKey) => ({
+        ...apiKey,
+        overriddenByProject: overriddenProviders.has(apiKey.provider),
+      })),
+    };
+  }, [overriddenProviders, tableData]);
 
   return (
     <CreateLLMApiKeyDialogController owner={owner}>
@@ -126,6 +152,10 @@ export function ConnectedLLMApiKeySettingsTable({
                 <LLMApiKeySettingsTable
                   createAction={{
                     hasAccess: hasCreateAccess,
+                    label:
+                      owner.scope === "project"
+                        ? "Project Connection"
+                        : "Organization Connection",
                     onClick: openCreateDialog,
                   }}
                   deleteAction={{
@@ -136,7 +166,7 @@ export function ConnectedLLMApiKeySettingsTable({
                     hasAccess: canUpdate,
                     onClick: openUpdateDialog,
                   }}
-                  data={tableData}
+                  data={tableDataWithOverrides}
                   noResultsMessage="None"
                 />
               )}
