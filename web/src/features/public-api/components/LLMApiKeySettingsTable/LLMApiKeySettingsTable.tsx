@@ -9,10 +9,11 @@ import {
   type SettingsTableProps,
 } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type RouterOutput } from "@/src/utils/types";
+import type { LlmApiKeyListItem } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
-export type LLMApiKeySettingsTableRow =
-  RouterOutput["llmApiKey"]["all"]["data"][number];
+export type LLMApiKeySettingsTableRow = LlmApiKeyListItem & {
+  overriddenByProject?: boolean;
+};
 
 export function LLMApiKeySettingsTable({
   createAction,
@@ -36,6 +37,11 @@ export function LLMApiKeySettingsTable({
   const showExtraHeaderKeys =
     tableProps.data.status === "success" &&
     tableProps.data.data.some((apiKey) => apiKey.extraHeaderKeys.length > 0);
+  const showInheritanceStatus =
+    tableProps.data.status === "success" &&
+    tableProps.data.data.some(
+      (apiKey) => apiKey.overriddenByProject !== undefined,
+    );
 
   const columns = useMemo<LangfuseColumnDef<LLMApiKeySettingsTableRow>[]>(
     () => [
@@ -44,6 +50,17 @@ export function LLMApiKeySettingsTable({
         header: "Provider",
         enableResizing: false,
       }),
+      ...(showInheritanceStatus
+        ? [
+            createTextTableColumn<LLMApiKeySettingsTableRow, boolean>({
+              accessorKey: "overriddenByProject",
+              header: "Status",
+              mapValue: (value) =>
+                value ? "Overridden in this project" : "Inherited",
+              enableResizing: false,
+            }),
+          ]
+        : []),
       createBadgeTableColumn<LLMApiKeySettingsTableRow>({
         accessorKey: "adapter",
         header: "Adapter",
@@ -71,35 +88,42 @@ export function LLMApiKeySettingsTable({
           ]
         : []),
     ],
-    [showExtraHeaderKeys],
+    [showExtraHeaderKeys, showInheritanceStatus],
   );
 
   const actions = useCallback<
     NonNullable<TableProps<LLMApiKeySettingsTableRow>["actions"]>
   >(
-    (apiKey) => [
-      {
-        id: "edit",
-        type: "item",
-        title: "Edit connection",
-        icon: Pencil,
-        disabled: updateAction.hasAccess
-          ? undefined
-          : { reason: "You do not have permission to edit this connection" },
-        onClick: () => updateAction.onClick(apiKey),
-      },
-      {
-        id: "delete",
-        type: "item",
-        title: "Delete connection",
-        icon: Trash,
-        variant: "destructive",
-        disabled: deleteAction.hasAccess
-          ? undefined
-          : { reason: "You do not have permission to delete this connection" },
-        onClick: () => deleteAction.onClick(apiKey),
-      },
-    ],
+    (apiKey) => {
+      if (!updateAction.hasAccess && !deleteAction.hasAccess) {
+        return [];
+      }
+      return [
+        {
+          id: "edit",
+          type: "item",
+          title: "Edit connection",
+          icon: Pencil,
+          disabled: updateAction.hasAccess
+            ? undefined
+            : { reason: "You do not have permission to edit this connection" },
+          onClick: () => updateAction.onClick(apiKey),
+        },
+        {
+          id: "delete",
+          type: "item",
+          title: "Delete connection",
+          icon: Trash,
+          variant: "destructive",
+          disabled: deleteAction.hasAccess
+            ? undefined
+            : {
+                reason: "You do not have permission to delete this connection",
+              },
+          onClick: () => deleteAction.onClick(apiKey),
+        },
+      ];
+    },
     [deleteAction, updateAction],
   );
 

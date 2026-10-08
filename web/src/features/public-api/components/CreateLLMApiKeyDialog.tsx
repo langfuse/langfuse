@@ -59,7 +59,7 @@ export function CreateLLMApiKeyDialog({
         </DialogHeader>
         {open && (
           <CreateLLMApiKeyForm
-            projectId={projectId}
+            owner={{ scope: "project", projectId }}
             onSuccess={() => setOpen(false)}
             customization={uiCustomization}
           />

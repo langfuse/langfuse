@@ -7,15 +7,16 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
 import { useUiCustomization } from "@/src/ee/features/ui-customization";
-import { type RouterOutputs } from "@/src/utils/api";
-
-type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];
+import {
+  type LlmApiKeyListItem,
+  type LlmConnectionFormOwner,
+} from "./CreateLLMApiKeyForm";
 
 export function UpdateLLMApiKeyDialog({
-  projectId,
+  owner,
   children,
 }: {
-  projectId: string;
+  owner: LlmConnectionFormOwner;
   children: ComponentProps<
     typeof DialogController<LlmApiKeyListItem>
   >["children"];
@@ -31,7 +32,7 @@ export function UpdateLLMApiKeyDialog({
           </DialogHeader>
           <CreateLLMApiKeyForm
             key={apiKey.id}
-            projectId={projectId}
+            owner={owner}
             onSuccess={closeDialog}
             customization={uiCustomization}
             mode="update"

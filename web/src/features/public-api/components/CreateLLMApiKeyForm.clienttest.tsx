@@ -51,7 +51,7 @@ describe("CreateLLMApiKeyForm", () => {
 
     render(
       <CreateLLMApiKeyForm
-        projectId="project"
+        owner={{ scope: "project", projectId: "project" }}
         onSuccess={vi.fn()}
         customization={null}
         mode="update"
