@@ -585,6 +585,39 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.body.status).toBe(AnnotationQueueStatus.PENDING);
     });
 
+    it("should return the existing item when it is added again", async () => {
+      const objectId = uuidv4();
+      const createItem = (status?: AnnotationQueueStatus) =>
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId,
+            objectType: AnnotationQueueObjectType.TRACE,
+            status,
+          },
+          auth,
+        );
+
+      const firstResponse = await createItem(AnnotationQueueStatus.COMPLETED);
+      const secondResponse = await createItem();
+
+      expect(firstResponse.status).toBe(200);
+      expect(secondResponse.status).toBe(200);
+      expect(secondResponse.body).toEqual(firstResponse.body);
+      await expect(
+        prisma.annotationQueueItem.count({
+          where: {
+            projectId,
+            queueId,
+            objectId,
+            objectType: AnnotationQueueObjectType.TRACE,
+          },
+        }),
+      ).resolves.toBe(1);
+    });
+
     it("should create queue items with different object types and statuses", async () => {
       const traceObjectId = uuidv4();
       const observationObjectId = uuidv4();
