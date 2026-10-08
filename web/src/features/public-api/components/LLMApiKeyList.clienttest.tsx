@@ -15,7 +15,7 @@ vi.mock("@/src/components/layouts/header", () => ({
 }));
 vi.mock("@/src/features/rbac", () => ({
   useHasProjectAccess: () => true,
-  useHasOrganizationAccess: () => false,
+  useHasOrganizationAccess: () => true,
 }));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -45,13 +45,7 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     llmApiKey: {
       all: { useQuery: vi.fn() },
-      inherited: {
-        useQuery: vi.fn(() => ({
-          data: [],
-          isLoading: false,
-          isError: false,
-        })),
-      },
+      inherited: { useQuery: vi.fn() },
       delete: { useMutation: () => ({ isPending: false }) },
     },
     organizationLlmApiKey: {
@@ -69,6 +63,14 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 describe("LLM connection editing", () => {
+  beforeEach(() => {
+    vi.mocked(api.llmApiKey.inherited.useQuery).mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof api.llmApiKey.inherited.useQuery>);
+  });
+
   it("preserves the dialog and draft across list updates, then opens a fresh form for another connection", () => {
     const keys = ["First", "Second"].map((provider) => ({
       id: provider,
@@ -160,5 +162,64 @@ describe("LLM connection editing", () => {
     expect(
       screen.queryByRole("button", { name: "Go to next page" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("identifies project overrides and explains organization inheritance", async () => {
+    const organizationConnection = {
+      id: "organization-openai",
+      provider: "openai-tobi",
+      adapter: "openai",
+      baseURL: null,
+      displaySecretKey: "...TSEA",
+      extraHeaderKeys: [] as string[],
+      overriddenByProject: true,
+    };
+    vi.mocked(api.llmApiKey.inherited.useQuery).mockReturnValue({
+      data: [organizationConnection],
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof api.llmApiKey.inherited.useQuery>);
+    vi.mocked(api.llmApiKey.all.useQuery).mockReturnValue({
+      data: {
+        data: [
+          {
+            ...organizationConnection,
+            id: "project-openai",
+            overriddenByProject: undefined,
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof api.llmApiKey.all.useQuery>);
+
+    render(
+      <LlmApiKeyList projectId="project" organizationId="organization" />,
+      { wrapper: LayerProvider },
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Organization Connection" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Project Connection" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Override")).toHaveLength(1);
+
+    fireEvent.mouseEnter(screen.getByText("Override"));
+    expect(
+      await screen.findByText(
+        "This project connection overrides the organization secret with the same name.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseEnter(
+      screen.getByLabelText("About organization connections"),
+    );
+    expect(
+      await screen.findByText(
+        "Organization connections are inherited by this project. Project connections with the same provider name take precedence.",
+      ),
+    ).toBeInTheDocument();
   });
 });
