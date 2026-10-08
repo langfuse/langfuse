@@ -393,14 +393,6 @@ fn data_uri_provider_fields_use_the_uri_metadata() {
 }
 
 #[test]
-fn leaves_small_structured_media_inline() {
-    let input = br#"{"type":"media","mime_type":"image/png","data":"aGk="}"#;
-    let result = extract_media(input).expect("valid provider JSON");
-    assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input);
-}
-
-#[test]
 fn nested_provider_original_value_preserves_inner_json_escapes() {
     let (base64, base64_body) = large_base64(b"escaped");
     let escaped_base64 = format!(
@@ -555,32 +547,6 @@ fn classifies_each_root_array_object_before_discovery() {
 }
 
 #[test]
-fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
-    let input = br#"{"traceId":{"type":"Buffer","data":[1,2,3]},"text":"plain"}"#;
-    let validated = validate(input.to_vec()).expect("valid JSON");
-    assert_eq!(validated.into_source(), input);
-
-    let mut invalid = input.to_vec();
-    invalid.push(b'x');
-    assert!(matches!(
-        validate(invalid),
-        Err(EarlyMediaError::TrailingBytes { .. })
-    ));
-}
-
-#[test]
-fn validation_preserves_inline_media_until_compaction() {
-    let (uri, body) = large_data_uri(b"validation-only");
-    let input = format!(r#"{{"input":"{uri}"}}"#);
-    let validated = validate(input.as_bytes().to_vec()).expect("valid JSON");
-    assert_eq!(validated.into_source(), input.as_bytes());
-
-    let result = validate(input.into_bytes()).unwrap().compact().unwrap();
-    assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].decode().unwrap(), body);
-}
-
-#[test]
 fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
     let (uri, body) = large_data_uri(b"deep");
     let chain = (0..120).fold(format!("\"{uri}\""), |value, _| {
@@ -664,7 +630,7 @@ fn indexed_subtrees_survive_mixed_siblings_and_provider_lookahead() {
 }
 
 #[test]
-fn preserves_large_existing_media_references_without_a_resource_fallback() {
+fn existing_references_and_tiny_candidates_stay_inline_with_bounded_retention() {
     let reference = format!(
         "@@@langfuseMedia:type=image/png|id={}@@@",
         "x".repeat(8 * 1024)
@@ -672,35 +638,29 @@ fn preserves_large_existing_media_references_without_a_resource_fallback() {
     let references = (0..16_385)
         .map(|index| format!("@@@langfuseMedia:type=image/png|id={index}@@@"))
         .collect::<Vec<_>>();
-    for text in [reference, references.join(" ")] {
+    let tiny_uri = data_uri(b"candidate");
+    let tiny_candidates = std::iter::repeat_n(tiny_uri.as_str(), 16 * 1024 + 1)
+        .collect::<Vec<_>>()
+        .join(" ");
+    for (text, retained_multiplier) in [
+        (reference, 3),
+        (references.join(" "), 3),
+        (tiny_candidates, 4),
+    ] {
         let input = format!(r#"{{"existing":"{text}"}}"#);
-        let (validated, scanned, _, _, retained_bytes) =
+        let (validated, scanned, _, unique, retained_bytes) =
             validate_measured(input.as_bytes().to_vec()).unwrap();
+        assert_eq!(unique, 0);
         assert!(scanned <= 3 * input.len());
-        assert!(retained_bytes <= 3 * input.len());
+        assert!(
+            retained_bytes <= retained_multiplier * input.len(),
+            "retained {retained_bytes} bytes for {} source bytes",
+            input.len()
+        );
         let result = validated.compact().unwrap();
+        assert!(result.media.is_empty());
         assert_eq!(result.compact_json, input.as_bytes());
     }
-}
-
-#[test]
-fn leaves_many_tiny_candidates_inline_without_a_resource_fallback() {
-    let uri = data_uri(b"candidate");
-    let values = std::iter::repeat_n(uri.as_str(), 16 * 1024 + 1).collect::<Vec<_>>();
-    let input = format!(r#"{{"text":"{}"}}"#, values.join(" "));
-    let (validated, scanned, _, unique, retained_bytes) =
-        validate_measured(input.as_bytes().to_vec()).expect("many candidates stay native");
-    assert_eq!(unique, 0, "tiny candidates do not allocate descriptors");
-    assert!(scanned <= 3 * input.len());
-    assert!(
-        retained_bytes <= 4 * input.len(),
-        "retained {} for {} source bytes",
-        retained_bytes,
-        input.len()
-    );
-    let result = validated.compact().unwrap();
-    assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input.as_bytes());
 }
 
 #[test]
@@ -1047,46 +1007,6 @@ fn malformed_envelope_takes_precedence_over_nested_media_ambiguity() {
 }
 
 #[test]
-fn duplicate_occurrences_have_distinct_references_and_shared_content_identity() {
-    let (_, body) = large_base64(b"duplicate");
-    let python_literal = format!("b'{}'", String::from_utf8(body.clone()).unwrap());
-    let input = format!(
-        r#"[{{"type":"file","mediaType":"image/png","data":"{python_literal}"}},{{"type":"file","mediaType":"image/png","data":"{python_literal}"}}]"#
-    );
-    let result = extract_media(input.as_bytes()).expect("duplicate representations");
-    assert_eq!(result.media.len(), 2);
-    assert_ne!(result.media[0].reference(), result.media[1].reference());
-    assert_eq!(
-        result.media[0].metadata.sha256_hash,
-        result.media[1].metadata.sha256_hash
-    );
-    assert_eq!(result.media[0].original_value().unwrap(), python_literal);
-    assert_eq!(result.media[1].original_value().unwrap(), python_literal);
-    assert_eq!(result.media[0].decode().unwrap(), body);
-    assert_eq!(result.media[1].decode().unwrap(), body);
-}
-
-#[test]
-fn same_content_with_different_spellings_keeps_each_original() {
-    let (encoded, body) = large_base64(b"same-content");
-    let python_literal = format!("b'{}'", String::from_utf8(body.clone()).unwrap());
-    let input = format!(
-        r#"[{{"type":"file","mediaType":"image/png","data":"{encoded}"}},{{"type":"file","mediaType":"image/png","data":"{python_literal}"}}]"#
-    );
-    let result = extract_media(input.as_bytes()).unwrap();
-    assert_eq!(result.media.len(), 2);
-    assert_ne!(result.media[0].reference(), result.media[1].reference());
-    assert_eq!(
-        result.media[0].metadata.sha256_hash,
-        result.media[1].metadata.sha256_hash
-    );
-    assert_eq!(result.media[0].original_value().unwrap(), encoded);
-    assert_eq!(result.media[1].original_value().unwrap(), python_literal);
-    assert_eq!(result.media[0].decode().unwrap(), body);
-    assert_eq!(result.media[1].decode().unwrap(), body);
-}
-
-#[test]
 fn existing_public_references_are_preserved_beside_new_occurrences() {
     let (uri, _) = large_data_uri(b"collision");
     let (reference, _) = media_identity_from_encoded(
@@ -1140,6 +1060,46 @@ fn existing_public_references_are_preserved_beside_new_occurrences() {
 }
 
 proptest! {
+    #[test]
+    fn same_content_occurrences_keep_unique_references_and_each_spelling(
+        body in prop::collection::vec(
+            prop::sample::select(b"abcdefghijklmnopqrstuvwxyz0123456789".to_vec()),
+            MIN_EARLY_MEDIA_BYTES..=MIN_EARLY_MEDIA_BYTES + 32,
+        ),
+    ) {
+        let encoded = BASE64.encode(&body);
+        let python_literal = format!("b'{}'", String::from_utf8(body.clone()).unwrap());
+        for (first, second) in [
+            (python_literal.as_str(), python_literal.as_str()),
+            (encoded.as_str(), python_literal.as_str()),
+        ] {
+            let input = format!(
+                r#"[{{"type":"file","mediaType":"image/png","data":"{first}"}},{{"type":"file","mediaType":"image/png","data":"{second}"}}]"#
+            );
+            let result = extract_media(input.as_bytes()).expect("valid duplicate providers");
+            prop_assert_eq!(result.media.len(), 2);
+            let first_media = &result.media[0];
+            let second_media = &result.media[1];
+            let first_reference = first_media.reference();
+            let second_reference = second_media.reference();
+            prop_assert_ne!(first_reference.as_str(), second_reference.as_str());
+            prop_assert_eq!(
+                &first_media.metadata.sha256_hash,
+                &second_media.metadata.sha256_hash
+            );
+            prop_assert_eq!(first_media.original_value().unwrap(), first);
+            prop_assert_eq!(second_media.original_value().unwrap(), second);
+            let first_decoded = first_media.decode().unwrap();
+            let second_decoded = second_media.decode().unwrap();
+            prop_assert_eq!(first_decoded.as_slice(), body.as_slice());
+            prop_assert_eq!(second_decoded.as_slice(), body.as_slice());
+            let expected = input
+                .replacen(first, &first_reference, 1)
+                .replacen(second, &second_reference, 1);
+            prop_assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
+        }
+    }
+
     #[test]
     fn structural_work_stays_proportional_across_depth_width_and_embedded_json(
         depth in 0usize..120,
@@ -1200,7 +1160,22 @@ proptest! {
         value in json_value_strategy(6),
     ) {
         let mut source = serde_json::to_vec(&value).expect("serialize generated JSON");
+        let validated = validate(source.clone()).expect("generated JSON validates");
+        prop_assert_eq!(validated.into_source(), source.as_slice());
         source.push(b'x');
+        let mut directed = br#"{"traceId":{"type":"Buffer","data":[1,2,3]},"text":"plain"}"#.to_vec();
+        directed.push(b'x');
+        let directed_rejected = matches!(
+            validate(directed),
+            Err(EarlyMediaError::TrailingBytes { .. })
+        );
+        prop_assert!(directed_rejected);
+        let validation_rejected = matches!(
+            validate(source.clone()),
+            Err(EarlyMediaError::TrailingBytes { .. })
+                | Err(EarlyMediaError::InvalidJson { .. })
+        );
+        prop_assert!(validation_rejected);
         let rejected = matches!(
             extract_media(&source),
             Err(EarlyMediaError::TrailingBytes { .. })
