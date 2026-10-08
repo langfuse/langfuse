@@ -561,13 +561,7 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       ([stat]) => stat === "langfuse.ingestion.metadata_undecoded",
     );
     expect(undecodedCalls).toHaveLength(1);
-    expect(undecodedCalls[0][2]).toEqual(
-      expect.objectContaining({
-        domain: "observation",
-        attributeKey: "langfuse.observation.metadata",
-        kind: "truncated_json",
-      }),
-    );
+    expect(undecodedCalls[0][2]).toEqual({ kind: "truncated_json" });
   });
 
   it.each([
