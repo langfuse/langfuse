@@ -166,7 +166,7 @@ export class LlmConnectionRepository {
       where: {
         orgId: params.organizationId,
         deletedAt: null,
-        llmApiKeys: {
+        LlmApiKeys: {
           none: {
             provider: params.provider,
           },
