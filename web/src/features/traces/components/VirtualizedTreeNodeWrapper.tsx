@@ -120,13 +120,13 @@ export function VirtualizedTreeNodeWrapper({
                 <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
               )}
               {/* Rounded elbow into the icon */}
-              <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
+              <div className="border-border-contrast absolute top-0 left-3 z-20 h-4.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
             </>
           </div>
         )}
 
         {/* 3. Icon + child connector: fixed width container */}
-        <div className="relative flex w-6 shrink-0 flex-col py-1.5">
+        <div className="relative flex w-6 shrink-0 flex-col py-2.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
             <ItemTypeIcon type={nodeType} className="icon-base" />
           </div>
@@ -134,20 +134,20 @@ export function VirtualizedTreeNodeWrapper({
               when children render capped at this same indent — the spine
               would point at nothing) */}
           {hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
+            <div className="bg-border-contrast absolute top-6.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
           )}
           {/* Root node downward connector */}
           {depth === 0 && hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
+            <div className="bg-border-contrast absolute top-6.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
           )}
         </div>
 
         {/* 4. Content area (passed as children - completely decoupled) */}
-        <div className="flex min-w-0 flex-1">{children}</div>
+        <div className="flex min-w-0 flex-1 py-1">{children}</div>
 
         {/* 5. Expand/Collapse button. Leaf rows keep the slot so right-aligned
             content lines up across rows. */}
-        <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
+        <div className="flex w-7 shrink-0 items-start justify-end py-1.5 pr-1">
           {hasChildren && (
             <Button
               aria-expanded={!isCollapsed}
