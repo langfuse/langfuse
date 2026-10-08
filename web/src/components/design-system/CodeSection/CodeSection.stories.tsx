@@ -3,7 +3,6 @@ import { ExternalLink, RefreshCw } from "lucide-react";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { IconButton } from "../IconButton/IconButton";
 import { CodeSection } from "./CodeSection";
 
 type Variant = NonNullable<React.ComponentProps<typeof CodeSection>["variant"]>;
@@ -34,8 +33,7 @@ const meta = preview.meta({
 export const Default = meta.story({
   args: {
     title: ".env",
-    children: envCode,
-    copyValue: envCode,
+    content: envCode,
   },
 });
 
@@ -43,8 +41,7 @@ export const Outline = meta.story({
   args: {
     title: "HF Space Host",
     variant: "outline",
-    children: "https://huggingface.co/spaces/org/langfuse",
-    copyValue: "https://huggingface.co/spaces/org/langfuse",
+    content: "https://huggingface.co/spaces/org/langfuse",
   },
 });
 
@@ -52,16 +49,14 @@ export const Plain = meta.story({
   args: {
     title: "Python",
     variant: "plain",
-    children: 'prompt = langfuse.get_prompt("movie-critic")',
-    copyValue: 'prompt = langfuse.get_prompt("movie-critic")',
+    content: 'prompt = langfuse.get_prompt("movie-critic")',
   },
 });
 
 export const WithoutTitle = meta.story({
   args: {
     variant: "outline",
-    children: "sk-lf-00000000-0000-0000-0000-000000000000",
-    copyValue: "sk-lf-00000000-0000-0000-0000-000000000000",
+    content: "sk-lf-00000000-0000-0000-0000-000000000000",
   },
 });
 
@@ -69,12 +64,22 @@ export const WithActions = meta.story({
   args: {
     title: "Webhook Secret",
     variant: "outline",
-    children: "whsec_0000000000000000000000000000",
-    copyValue: "whsec_0000000000000000000000000000",
-    actions: (
+    content: "whsec_0000000000000000000000000000",
+    actions: [
+      { icon: RefreshCw, label: "Regenerate", onClick: () => {} },
+      { icon: ExternalLink, label: "Open docs", onClick: () => {} },
+    ],
+  },
+});
+
+export const RenderedContent = meta.story({
+  args: {
+    title: "Text Prompt",
+    content: "Answer {{question}} using {{context}}.",
+    renderedContent: (
       <>
-        <IconButton icon={RefreshCw} label="Regenerate" size="sm" />
-        <IconButton icon={ExternalLink} label="Open docs" size="sm" />
+        Answer <span className="text-primary-accent">{"{{question}}"}</span>{" "}
+        using <span className="text-primary-accent">{"{{context}}"}</span>.
       </>
     ),
   },
@@ -85,16 +90,14 @@ export const Collapsible = meta.story({
     title: "Text Prompt",
     isCollapsible: true,
     defaultCollapsed: true,
-    children: longCode,
-    copyValue: longCode,
+    content: longCode,
   },
 });
 
 export const WithCopiedMessage = meta.story({
   args: {
     title: ".env",
-    children: envCode,
-    copyValue: envCode,
+    content: envCode,
     copiedMessage: "Secrets are not included, create a new key to copy them.",
   },
 });
@@ -103,8 +106,7 @@ export const LongLineWithoutWrap = meta.story({
   args: {
     variant: "outline",
     shouldWrapLines: false,
-    children: longLine,
-    copyValue: longLine,
+    content: longLine,
   },
 });
 
@@ -116,14 +118,10 @@ export const VariantMatrix = meta.story({
           <CodeSection
             title={variant}
             variant={variant}
-            copyValue={envCode}
+            content={envCode}
             isCollapsible
-          >
-            {envCode}
-          </CodeSection>
-          <CodeSection variant={variant} copyValue={envCode}>
-            {envCode}
-          </CodeSection>
+          />
+          <CodeSection variant={variant} content={envCode} />
         </div>
       ))}
     </div>
@@ -136,7 +134,7 @@ export const TogglesCollapse = meta.story({
     title: "Text Prompt",
     isCollapsible: true,
     defaultCollapsed: true,
-    children: longCode,
+    content: longCode,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

@@ -15,9 +15,7 @@ export const WebhookSecretRender = ({
           automation settings if needed. Use this secret to verify webhook
           signatures in your endpoint.
         </div>
-        <CodeSection variant="outline" copyValue={webhookSecret}>
-          {webhookSecret}
-        </CodeSection>
+        <CodeSection variant="outline" content={webhookSecret} />
       </div>
     </>
   );

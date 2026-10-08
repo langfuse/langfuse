@@ -75,11 +75,9 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
       <CodeSection
         title=".env"
         variant="outline"
-        copyValue={envCode}
         copiedMessage="Secrets are not included, create a new key to copy them."
-      >
-        {envCode}
-      </CodeSection>
+        content={envCode}
+      />
       <ConnectedApiKeySettingsTable
         entityId={entityId}
         scope={scope}

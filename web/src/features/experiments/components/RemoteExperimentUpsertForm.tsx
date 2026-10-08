@@ -236,9 +236,7 @@ export const RemoteExperimentUpsertForm = ({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <CodeSection variant="outline" copyValue={oneTimeSecret}>
-            {oneTimeSecret}
-          </CodeSection>
+          <CodeSection variant="outline" content={oneTimeSecret} />
         </DialogBody>
         <DialogFooter>
           <Button
@@ -362,14 +360,10 @@ export const RemoteExperimentUpsertForm = ({
                         <div className="pt-2">
                           <CodeSection
                             variant="outline"
-                            copyValue={
-                              existingRemoteExperiment.displaySecretKey
-                            }
                             isCollapsible
                             defaultCollapsed
-                          >
-                            {existingRemoteExperiment.displaySecretKey}
-                          </CodeSection>
+                            content={existingRemoteExperiment.displaySecretKey}
+                          />
                           <div className="text-muted-foreground mt-1 text-xs">
                             Secret is encrypted and can only be viewed when
                             generated

@@ -14,9 +14,7 @@ export function GeneratedKeyContent({
           the organization settings.
         </p>
         <div className="mt-2">
-          <CodeSection variant="outline" copyValue={generatedKeys.secretKey}>
-            {generatedKeys.secretKey}
-          </CodeSection>
+          <CodeSection variant="outline" content={generatedKeys.secretKey} />
         </div>
       </div>
     </DialogBody>

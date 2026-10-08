@@ -279,12 +279,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
               <div className="flex-1">
                 <CodeSection
                   variant="outline"
-                  copyValue={
+                  content={
                     (action.config as SafeWebhookActionConfig).displaySecretKey
                   }
-                >
-                  {(action.config as SafeWebhookActionConfig).displaySecretKey}
-                </CodeSection>
+                />
               </div>
               <div className="flex gap-2">
                 <RegenerateWebhookSecretButton

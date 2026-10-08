@@ -43,10 +43,8 @@ export default function HfSpacesPage({ deploymentDomain }: PageProps) {
             <CodeSection
               title="HF Space Host"
               variant="outline"
-              copyValue={deploymentDomain}
-            >
-              {deploymentDomain}
-            </CodeSection>
+              content={deploymentDomain}
+            />
 
             <Button className="w-full" asChild>
               <Link

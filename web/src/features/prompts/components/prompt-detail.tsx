@@ -726,17 +726,14 @@ export const PromptDetail = ({
                     promptGraph.data?.resolvedPrompt ? (
                       <CodeSection
                         title="Text Prompt (resolved)"
-                        copyValue={String(promptGraph.data.resolvedPrompt)}
-                      >
-                        {String(promptGraph.data.resolvedPrompt)}
-                      </CodeSection>
+                        content={String(promptGraph.data.resolvedPrompt)}
+                      />
                     ) : (
                       <CodeSection
                         title="Text Prompt"
-                        copyValue={prompt.prompt}
-                      >
-                        {renderRichPromptContent(prompt.prompt)}
-                      </CodeSection>
+                        content={prompt.prompt}
+                        renderedContent={renderRichPromptContent(prompt.prompt)}
+                      />
                     )
                   ) : (
                     <JSONView json={prompt.prompt} title="Prompt" />
@@ -759,15 +756,9 @@ export const PromptDetail = ({
             <Tabs.Content value="use-prompt" layout="fill">
               <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-y-auto pb-4">
                 {pythonCode && (
-                  <CodeSection title="Python" copyValue={pythonCode}>
-                    {pythonCode}
-                  </CodeSection>
+                  <CodeSection title="Python" content={pythonCode} />
                 )}
-                {jsCode && (
-                  <CodeSection title="JS/TS" copyValue={jsCode}>
-                    {jsCode}
-                  </CodeSection>
-                )}
+                {jsCode && <CodeSection title="JS/TS" content={jsCode} />}
                 <p className="text-muted-foreground pl-1 text-xs">
                   See{" "}
                   <a

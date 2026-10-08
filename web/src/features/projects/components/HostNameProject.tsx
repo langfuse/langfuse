@@ -15,9 +15,7 @@ export function HostNameProject() {
           <div className="mb-2 text-sm">
             When connecting to Langfuse, use this hostname / baseurl.
           </div>
-          <CodeSection variant="outline" copyValue={hostName}>
-            {hostName}
-          </CodeSection>
+          <CodeSection variant="outline" content={hostName} />
         </div>
       </Card>
     </div>

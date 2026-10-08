@@ -41,25 +41,19 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           the {scope} settings.
         </div>
         <div className="mt-2">
-          <CodeSection variant="outline" copyValue={secretKey}>
-            {secretKey}
-          </CodeSection>
+          <CodeSection variant="outline" content={secretKey} />
         </div>
       </div>
       <div>
         <SubHeader title="Public Key" />
         <div className="mt-2">
-          <CodeSection variant="outline" copyValue={publicKey}>
-            {publicKey}
-          </CodeSection>
+          <CodeSection variant="outline" content={publicKey} />
         </div>
       </div>
       <div>
         <SubHeader title=".env" />
         <div className="mt-2">
-          <CodeSection variant="outline" copyValue={envCode}>
-            {envCode}
-          </CodeSection>
+          <CodeSection variant="outline" content={envCode} />
         </div>
       </div>
       {showMcpSection ? (
@@ -85,11 +79,9 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
               <div className="mt-2">
                 <CodeSection
                   variant="outline"
-                  copyValue={`Authorization: Basic ${mcpCredential}`}
                   shouldWrapLines={false}
-                >
-                  {`Authorization: Basic ${mcpCredential}`}
-                </CodeSection>
+                  content={`Authorization: Basic ${mcpCredential}`}
+                />
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Copy as CopyIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
@@ -64,15 +65,22 @@ const actionGroupVariants = cva(
   },
 );
 
+type CodeSectionAction = {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+};
+
 type CodeSectionProps = {
-  children: ReactNode;
+  /** Text shown in the body and copied by the built-in copy button. */
+  content: string;
+  /** Display override for `content`, e.g. highlighted variables; copy still uses `content`. */
+  renderedContent?: ReactNode;
   /** Omitted = no header row; actions move into the body's top-right corner. */
   title?: string;
   variant?: "filled" | "outline" | "plain";
-  /** Extra controls rendered in the action group, before expand/collapse and copy. */
-  actions?: ReactNode;
-  /** Text copied by the built-in copy button; the button is hidden when omitted. */
-  copyValue?: string;
+  /** Extra icon actions rendered before expand/collapse and copy. */
+  actions?: CodeSectionAction[];
   /** Shown next to the check icon after copying. */
   copiedMessage?: string;
   /** Clamps the body to six lines and adds an expand/collapse control. */
@@ -82,11 +90,11 @@ type CodeSectionProps = {
 };
 
 export function CodeSection({
-  children,
+  content,
+  renderedContent,
   title,
   variant = "filled",
-  actions,
-  copyValue,
+  actions = [],
   copiedMessage,
   isCollapsible = false,
   defaultCollapsed = false,
@@ -100,18 +108,14 @@ export function CodeSection({
   });
 
   const handleCopy = async () => {
-    if (copyValue === undefined) return;
     try {
-      await copy(copyValue);
+      await copy(content);
     } catch {
       // Clipboard writes can be rejected when the browser denies permission.
     }
   };
 
-  const hasActions =
-    actions !== undefined || isCollapsible || copyValue !== undefined;
-
-  const actionGroup = hasActions ? (
+  const actionGroup = (
     <div
       className={actionGroupVariants({
         placement: title ? "header" : "body",
@@ -126,7 +130,20 @@ export function CodeSection({
           {copiedMessage}
         </span>
       ) : null}
-      {actions}
+      {actions.map((action) => (
+        <Tooltip key={action.label} label={action.label}>
+          {({ getTriggerProps }) => (
+            <IconButton
+              {...getTriggerProps()}
+              icon={action.icon}
+              label={action.label}
+              size="sm"
+              variant="ghost"
+              onClick={action.onClick}
+            />
+          )}
+        </Tooltip>
+      ))}
       {isCollapsible ? (
         <Tooltip label={isCollapsed ? "Expand" : "Collapse"}>
           {({ getTriggerProps }) => (
@@ -142,22 +159,20 @@ export function CodeSection({
           )}
         </Tooltip>
       ) : null}
-      {copyValue !== undefined ? (
-        <Tooltip label={isCopied ? "Copied" : "Copy"}>
-          {({ getTriggerProps }) => (
-            <IconButton
-              {...getTriggerProps()}
-              icon={isCopied ? Check : CopyIcon}
-              label="Copy to clipboard"
-              size="sm"
-              variant="ghost"
-              onClick={handleCopy}
-            />
-          )}
-        </Tooltip>
-      ) : null}
+      <Tooltip label={isCopied ? "Copied" : "Copy"}>
+        {({ getTriggerProps }) => (
+          <IconButton
+            {...getTriggerProps()}
+            icon={isCopied ? Check : CopyIcon}
+            label="Copy to clipboard"
+            size="sm"
+            variant="ghost"
+            onClick={handleCopy}
+          />
+        )}
+      </Tooltip>
     </div>
-  ) : null;
+  );
 
   return (
     <div className="group/codesection flex max-w-full min-w-0 flex-col gap-1">
@@ -178,7 +193,7 @@ export function CodeSection({
           dir="auto"
           style={{ unicodeBidi: "plaintext" }}
         >
-          {children}
+          {renderedContent ?? content}
         </code>
         {title ? null : actionGroup}
       </div>
