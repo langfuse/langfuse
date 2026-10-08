@@ -21,6 +21,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import {
   exceedsNonSlowDownAttemptBudget,
+  jobIdentityFields,
   logRetryableJobFailure,
 } from "./jobFailureLog";
 
@@ -99,6 +100,56 @@ describe("logRetryableJobFailure", () => {
     expect(mocks.error).toHaveBeenCalledOnce();
     expect(mocks.traceException).toHaveBeenCalledOnce();
     expect(mocks.warn).not.toHaveBeenCalled();
+  });
+
+  it("keeps the error's message and stack next to extra fields", () => {
+    const error = new Error("NoSuchKey");
+    logRetryableJobFailure({
+      message: "ingestion failed",
+      error,
+      job: { attemptsMade: 0, opts: { attempts: 6 } },
+      fields: { projectId: "project-1" },
+    });
+
+    // Winston's JSON format serialises an Error nested under a key as `{}`.
+    const payload = mocks.error.mock.calls[0][1];
+    expect(payload).not.toHaveProperty("error");
+    expect(payload).toMatchObject({
+      message: "NoSuchKey",
+      stack: error.stack,
+      projectId: "project-1",
+    });
+  });
+});
+
+describe("jobIdentityFields", () => {
+  it("reads project and entity from an ingestion job", () => {
+    expect(
+      jobIdentityFields({
+        payload: {
+          authCheck: { scope: { projectId: "project-1" } },
+          data: { type: "trace-create", eventBodyId: "trace-1" },
+        },
+      }),
+    ).toEqual({ projectId: "project-1", eventBodyId: "trace-1" });
+  });
+
+  it("reads the batch file of an OTel ingestion job", () => {
+    expect(
+      jobIdentityFields({
+        payload: {
+          authCheck: { scope: { projectId: "project-1" } },
+          data: { fileKey: "otel/project-1/batch.json" },
+        },
+      }),
+    ).toEqual({ projectId: "project-1", fileKey: "otel/project-1/batch.json" });
+  });
+
+  it("reads a top-level projectId and ignores missing payloads", () => {
+    expect(jobIdentityFields({ payload: { projectId: "project-1" } })).toEqual({
+      projectId: "project-1",
+    });
+    expect(jobIdentityFields(undefined)).toEqual({});
   });
 });
 

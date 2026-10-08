@@ -15,7 +15,7 @@ import {
   markQueueWorkerRegistered,
 } from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
-import { logRetryableJobFailure } from "./jobFailureLog";
+import { jobIdentityFields, logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
 import { classifyJobFailure } from "./jobFailureReason";
 
@@ -174,13 +174,19 @@ export class WorkerManager {
 
     // Add error handling
     worker.on("failed", (job: Job | undefined, err: Error) => {
+      const reason = classifyJobFailure(err);
       logRetryableJobFailure({
         message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         error: err,
         job,
         attemptsIncludeCurrentFailure: true,
+        fields: {
+          ...jobIdentityFields(job?.data),
+          failureReason: reason,
+          // true once BullMQ stops retrying: the job's events are dropped.
+          terminal: Boolean(job?.finishedOn),
+        },
       });
-      const reason = classifyJobFailure(err);
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
         reason,
