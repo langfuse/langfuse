@@ -59,7 +59,7 @@ const prepareProjectsAndApiKeys = async (
       where: { id: apiKeyId },
     });
     if (!apiKeyExists) {
-      const sk = `sk-${Math.random().toString(36).slice(2, 11)}`;
+      const sk = `sk-lf-${randomUUID()}`;
       await prisma.$transaction(async (tx) => {
         await tx.apiKey.create({
           data: {
