@@ -227,7 +227,11 @@ export default function ScoresTable({
     "scores",
     "s",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility

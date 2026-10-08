@@ -47,6 +47,7 @@ import { useOrderByState } from "@/src/features/orderBy";
 import {
   customRowHeightMenu,
   getRowHeightIOCharLimit,
+  mediumRowHeightPx,
   useAdjustableRowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import {
@@ -58,7 +59,10 @@ import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { ExperimentGridView } from "./ExperimentGridView";
+import {
+  ExperimentGridView,
+  GRID_VIEW_ROW_HEIGHTS,
+} from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
@@ -90,7 +94,10 @@ import {
   withPresentScoreKeys,
 } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ExperimentCompareTable } from "./ExperimentCompareTable";
+import {
+  ExperimentCompareTable,
+  LIST_VIEW_ROW_HEIGHTS,
+} from "./ExperimentCompareTable";
 import { useExperimentItemsScoreCache } from "@/src/features/experiments/hooks/useExperimentItemsScoreCache";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import {
@@ -791,12 +798,16 @@ export default function ExperimentItemsTable({
     [filterTargets, defaultFilterTargetExperimentId],
   );
 
-  // Small stays on the short preview. Medium, Large, and a custom height have
-  // room for the longer text, so ask for the expanded read.
-  const ioCharLimit =
-    adjustableRowHeight.mode === "custom"
-      ? getRowHeightIOCharLimit("l")
-      : getRowHeightIOCharLimit(rowHeight);
+  // A compact row stays on the short preview. Medium, Large, and a dragged
+  // height at or above this layout's Medium preset ask for the expanded read.
+  const ioCharLimit = getRowHeightIOCharLimit(
+    rowHeight,
+    adjustableRowHeight.mode,
+    activeHeightPx,
+    mediumRowHeightPx(
+      layout === "grid" ? GRID_VIEW_ROW_HEIGHTS : LIST_VIEW_ROW_HEIGHTS,
+    ),
+  );
 
   // Use the custom hook for experiment items data fetching
   const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =

@@ -23,6 +23,7 @@ import {
   MIN_CUSTOM_ROW_HEIGHT_PX,
   clampCustomRowHeightPx,
   getRowHeightTailwindClass,
+  mediumRowHeightPx,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -277,6 +278,7 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
+  const mediumRowPx = mediumRowHeightPx(customRowHeights);
   const rowHeightPx = customRowHeightPx ?? undefined;
   const rowResizeEnabled = onCustomRowHeightChange != null;
   const onCustomRowHeightChangeRef = useRef(onCustomRowHeightChange);
@@ -673,6 +675,7 @@ export function DataTable<TData extends object, TValue>({
                 rowheighttw={rowheighttw}
                 rowHeight={rowHeight}
                 rowHeightPx={rowHeightPx}
+                mediumRowPx={mediumRowPx}
                 rowResizeEnabled={rowResizeEnabled}
                 onCommitRowHeight={commitCustomRowHeight}
                 columns={columns}
@@ -698,6 +701,7 @@ export function DataTable<TData extends object, TValue>({
                 rowheighttw={rowheighttw}
                 rowHeight={rowHeight}
                 rowHeightPx={rowHeightPx}
+                mediumRowPx={mediumRowPx}
                 rowResizeEnabled={rowResizeEnabled}
                 onCommitRowHeight={commitCustomRowHeight}
                 columns={columns}
@@ -838,6 +842,7 @@ interface TableBodyComponentProps<TData> {
   rowheighttw?: string;
   rowHeight?: RowHeight;
   rowHeightPx?: number;
+  mediumRowPx: number;
   rowResizeEnabled?: boolean;
   onCommitRowHeight?: (heightPx: number) => void;
   columns: LangfuseColumnDef<TData, any>[];
@@ -868,7 +873,6 @@ function TableRowComponent<TData>({
   getRowClassName,
   highlightAllRows = false,
   selectionStore,
-  rowResizeEnabled = false,
   children,
 }: {
   row: Row<TData>;
@@ -876,7 +880,6 @@ function TableRowComponent<TData>({
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
   selectionStore?: TableSelectionStoreLike;
-  rowResizeEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -906,7 +909,6 @@ function TableRowComponent<TData>({
       }}
       className={cn(
         "hover:bg-accent",
-        rowResizeEnabled && "group/row",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         selectedRowId && selectedRowId === row.id
           ? "bg-accent dark:bg-accent"
@@ -920,16 +922,28 @@ function TableRowComponent<TData>({
   );
 }
 
+/** Preset Small, or a dragged height still below this table's Medium line. */
+function rowUsesCompactHeight(
+  rowHeight: RowHeight | undefined,
+  rowHeightPx: number | undefined,
+  mediumPx: number,
+) {
+  if (rowHeightPx != null) return rowHeightPx < mediumPx;
+  return (rowHeight ?? "s") === "s";
+}
+
 function rowHeightFrameProps({
   rowHeight,
   rowheighttw,
   rowHeightPx,
+  mediumPx,
   topAlignCells,
   measure,
 }: {
   rowHeight?: RowHeight;
   rowheighttw?: string;
   rowHeightPx?: number;
+  mediumPx: number;
   topAlignCells: boolean;
   measure: boolean;
 }): {
@@ -937,7 +951,11 @@ function rowHeightFrameProps({
   style?: CSSProperties;
   "data-row-height"?: string;
 } {
-  const isSmallRowHeight = rowHeightPx == null && (rowHeight ?? "s") === "s";
+  const isSmallRowHeight = rowUsesCompactHeight(
+    rowHeight,
+    rowHeightPx,
+    mediumPx,
+  );
   return {
     className: cn(
       "flex",
@@ -945,7 +963,10 @@ function rowHeightFrameProps({
       !isSmallRowHeight && "py-1",
       rowHeightPx == null ? rowheighttw : "min-h-0 overflow-hidden",
     ),
-    style: rowHeightPx != null ? { height: rowHeightPx } : undefined,
+    style:
+      rowHeightPx != null
+        ? { height: rowHeightPx, maxHeight: rowHeightPx }
+        : undefined,
     ...(measure ? { "data-row-height": "" } : {}),
   };
 }
@@ -955,6 +976,7 @@ function TableBodyComponent<TData>({
   rowheighttw,
   rowHeight,
   rowHeightPx,
+  mediumRowPx,
   rowResizeEnabled = false,
   onCommitRowHeight,
   columns,
@@ -1095,7 +1117,11 @@ function TableBodyComponent<TData>({
                     getCellPaddingClassName(
                       columnDef.cellPadding ?? cellPadding,
                     ),
-                    (rowHeight ?? "s") === "s" && "whitespace-nowrap",
+                    rowUsesCompactHeight(
+                      rowHeight,
+                      effectiveRowHeightPx,
+                      mediumRowPx,
+                    ) && "whitespace-nowrap",
                     getPinningClasses(column),
                     getCellBackgroundClassName(columnDef.cellBackground),
                     columnDef.cellClassName,
@@ -1113,6 +1139,7 @@ function TableBodyComponent<TData>({
                       rowHeight,
                       rowheighttw,
                       rowHeightPx: effectiveRowHeightPx,
+                      mediumPx: mediumRowPx,
                       topAlignCells,
                       measure: false,
                     })}
@@ -1152,8 +1179,11 @@ function TableBodyComponent<TData>({
           const cells = row.getVisibleCells().map((cell, cellIndex) => {
             const cellValue = cell.getValue();
             const isStringCell = typeof cellValue === "string";
-            const isSmallRowHeight =
-              effectiveRowHeightPx == null && (rowHeight ?? "s") === "s";
+            const isSmallRowHeight = rowUsesCompactHeight(
+              rowHeight,
+              effectiveRowHeightPx,
+              mediumRowPx,
+            );
             const columnDef = cell.column.columnDef as LangfuseColumnDef<TData>;
             const isPrimaryHandle = row.index === 0 && cellIndex === 0;
 
@@ -1182,6 +1212,7 @@ function TableBodyComponent<TData>({
                     rowHeight,
                     rowheighttw,
                     rowHeightPx: effectiveRowHeightPx,
+                    mediumPx: mediumRowPx,
                     topAlignCells,
                     measure: rowResizeEnabled,
                   })}
@@ -1243,8 +1274,11 @@ function TableBodyComponent<TData>({
                       event.stopPropagation();
                     }}
                     className={cn(
-                      "bg-secondary absolute inset-x-0 bottom-0 h-1.5 cursor-row-resize touch-none opacity-0 select-none group-hover/row:opacity-100",
-                      "focus-visible:ring-ring focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none",
+                      // Invisible strip along the bottom edge. The row-resize
+                      // cursor is the pointer affordance; keyboard focus keeps
+                      // a hairline ring.
+                      "absolute inset-x-0 bottom-0 h-2 cursor-row-resize touch-none bg-transparent select-none",
+                      "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
                     )}
                   />
                 )}
@@ -1264,7 +1298,6 @@ function TableBodyComponent<TData>({
               getRowClassName={getRowClassName}
               highlightAllRows={highlightAllRows}
               selectionStore={selectionStore}
-              rowResizeEnabled={rowResizeEnabled}
             >
               {cells}
             </TableRowComponent>
@@ -1321,6 +1354,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
   if (prev.rowHeightPx !== next.rowHeightPx) return false;
+  if (prev.mediumRowPx !== next.mediumRowPx) return false;
   if (prev.rowResizeEnabled !== next.rowResizeEnabled) return false;
   if (prev.highlightAllRows !== next.highlightAllRows) return false;
   if (prev.selectionStore !== next.selectionStore) return false;

@@ -370,7 +370,11 @@ export default function ObservationsEventsTable({
     "observations",
     "s",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
@@ -953,10 +957,11 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
-    ioCharLimit:
-      rowHeights.mode === "custom"
-        ? getRowHeightIOCharLimit("l")
-        : getRowHeightIOCharLimit(rowHeight),
+    ioCharLimit: getRowHeightIOCharLimit(
+      rowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    ),
   });
 
   useApplyAppRootFallback({

@@ -586,7 +586,12 @@ function TracesTableInternal({
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
   const compactRows =
-    hideControls || isCompactRowHeight(storedRowHeight, rowHeights.mode);
+    hideControls ||
+    isCompactRowHeight(
+      storedRowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    );
 
   // Trace rows render trace-scoped aggregates: direct trace scores plus
   // observation scores that belong to the same trace.

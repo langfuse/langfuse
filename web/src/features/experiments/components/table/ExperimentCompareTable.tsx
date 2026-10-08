@@ -14,7 +14,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ExperimentItemsTableRow } from "./types";
 import { type ReactNode } from "react";
 
-const LIST_VIEW_ROW_HEIGHTS = {
+export const LIST_VIEW_ROW_HEIGHTS = {
   s: "h-24", // 96px - increased density
   m: "h-48", // 192px
   l: "h-96", // 384px

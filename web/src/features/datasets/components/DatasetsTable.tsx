@@ -283,7 +283,11 @@ export function DatasetsTable(props: { projectId: string }) {
     "datasets",
     "s",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
   const [datasetsTableStore] = useState(() => createDatasetsTableStore());
 
   const {

@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import {
   clampCustomRowHeightPx,
+  getRowHeightIOCharLimit,
+  isCompactRowHeight,
+  mediumRowHeightPx,
   resolveStoredRowHeight,
   useAdjustableRowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
@@ -67,6 +70,35 @@ function HeightHarness() {
     </div>
   );
 }
+
+describe("isCompactRowHeight", () => {
+  it("keeps preset Small on one line and Medium and Large expanded", () => {
+    expect(isCompactRowHeight("s", "preset")).toBe(true);
+    expect(isCompactRowHeight("m", "preset")).toBe(false);
+    expect(isCompactRowHeight("l", "preset")).toBe(false);
+  });
+
+  it("returns a dragged height to one line once it drops below Medium", () => {
+    expect(mediumRowHeightPx()).toBe(96);
+    expect(isCompactRowHeight("s", "custom", 48)).toBe(true);
+    expect(isCompactRowHeight("l", "custom", 95)).toBe(true);
+    expect(isCompactRowHeight("s", "custom", 96)).toBe(false);
+    expect(isCompactRowHeight("m", "custom", 208)).toBe(false);
+    expect(getRowHeightIOCharLimit("s", "custom", 48)).toBeUndefined();
+    expect(getRowHeightIOCharLimit("s", "custom", 96)).toBe(2000);
+  });
+
+  it("uses the table's own Medium height when that preset is taller", () => {
+    const heights = { s: "h-48", m: "h-64", l: "h-96" } as const;
+    expect(mediumRowHeightPx(heights)).toBe(256);
+    expect(
+      isCompactRowHeight("s", "custom", 192, mediumRowHeightPx(heights)),
+    ).toBe(true);
+    expect(
+      isCompactRowHeight("s", "custom", 256, mediumRowHeightPx(heights)),
+    ).toBe(false);
+  });
+});
 
 describe("useAdjustableRowHeight", () => {
   afterEach(() => {

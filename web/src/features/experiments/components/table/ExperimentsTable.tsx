@@ -309,7 +309,11 @@ export default function ExperimentsTable({
     "experiments",
     "s",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   const [inputFilterState] = useQueryFilterState([], "experiments", projectId);
 

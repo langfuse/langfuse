@@ -102,22 +102,55 @@ export function resolveStoredRowHeight(
 }
 
 /**
- * Chars of Input/Output a taller row needs to fill its cells. Small shows a
- * single truncated line, so it stays on the cheap pre-truncated read; Medium
- * and Large have room for far more text than that (LFE-14586). Sized to fill a
- * Large row even at a generously widened column.
+ * Chars of Input/Output a taller row needs to fill its cells. A compact row
+ * shows a single truncated line, so it stays on the cheap pre-truncated read.
+ * Taller rows have room for far more text than that. Sized to fill a Large
+ * row even at a generously widened column.
  */
 const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
 
-/** Undefined for Small, which keeps the default truncated read. */
-export const getRowHeightIOCharLimit = (rowHeight: RowHeight) =>
-  rowHeight === "s" ? undefined : EXPANDED_ROW_IO_CHAR_LIMIT;
+/** Pixel height of a Tailwind `h-*` step at the default 16px root. */
+const TAILWIND_HEIGHT_STEP_PX = 4;
 
-/** Small preset, and not a dragged height. Custom rows have room to wrap. */
-export const isCompactRowHeight = (
+/**
+ * Pixel height of this table's Medium preset. A dragged height uses that
+ * line to decide between a truncated line and a wrapped preview.
+ */
+export function mediumRowHeightPx(customHeights?: CustomHeights): number {
+  const heightClass = customHeights?.m ?? defaultHeights.m;
+  const steps = /^h-(\d+(?:\.\d+)?)$/.exec(heightClass)?.[1];
+  if (steps == null) return 96;
+  return Number(steps) * TAILWIND_HEIGHT_STEP_PX;
+}
+
+/**
+ * One truncated line, or room to wrap.
+ * Preset Small is the truncated line. Medium and Large wrap.
+ * A dragged height uses the same line: below this table's Medium height it
+ * stays truncated, and at Medium or taller it wraps. Growing and shrinking
+ * cross that line the same way.
+ */
+export function isCompactRowHeight(
   rowHeight: RowHeight,
   mode: "preset" | "custom",
-) => mode !== "custom" && rowHeight === "s";
+  heightPx?: number | null,
+  mediumPx?: number,
+): boolean {
+  if (mode !== "custom") return rowHeight === "s";
+  if (heightPx == null) return false;
+  return heightPx < (mediumPx ?? mediumRowHeightPx());
+}
+
+/** Undefined while the row shows one truncated line; otherwise the expanded read. */
+export const getRowHeightIOCharLimit = (
+  rowHeight: RowHeight,
+  mode: "preset" | "custom" = "preset",
+  heightPx?: number | null,
+  mediumPx?: number,
+) =>
+  isCompactRowHeight(rowHeight, mode, heightPx, mediumPx)
+    ? undefined
+    : EXPANDED_ROW_IO_CHAR_LIMIT;
 
 export const getRowHeightTailwindClass = (
   rowHeight?: RowHeight,

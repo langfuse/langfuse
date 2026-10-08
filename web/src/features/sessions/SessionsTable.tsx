@@ -204,7 +204,11 @@ export default function SessionsTable({
     "sessions",
     "s",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",

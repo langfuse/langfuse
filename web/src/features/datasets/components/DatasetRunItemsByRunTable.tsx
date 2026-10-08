@@ -50,7 +50,11 @@ export function DatasetRunItemsByRunTable(props: {
     "traces",
     "m",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],

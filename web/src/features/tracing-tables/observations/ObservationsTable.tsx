@@ -303,7 +303,12 @@ export default function ObservationsTable({
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
   const compactRows =
-    hideControls || isCompactRowHeight(storedRowHeight, rowHeights.mode);
+    hideControls ||
+    isCompactRowHeight(
+      storedRowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    );
 
   const [inputFilterState] = useQueryFilterState(
     // If the user loads saved table view presets, we should not apply the default type filter

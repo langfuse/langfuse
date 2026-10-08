@@ -29,7 +29,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
-const GRID_VIEW_ROW_HEIGHTS = {
+export const GRID_VIEW_ROW_HEIGHTS = {
   s: "h-48", // 192px
   m: "h-64", // 256px
   l: "h-96", // 384px

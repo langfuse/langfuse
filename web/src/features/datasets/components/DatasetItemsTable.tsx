@@ -84,7 +84,11 @@ export function DatasetItemsTable({
     "datasetItems",
     "m",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   const [filterState, setFilterState] = useQueryFilterState(
     [],

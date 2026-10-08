@@ -190,7 +190,11 @@ function DatasetRunsTableInternal(
     "datasetRuns",
     "s",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   // Add panel size state with default size of 30%
   const [chartsPanelSize, setChartsPanelSize] = useSessionStorage<number>(

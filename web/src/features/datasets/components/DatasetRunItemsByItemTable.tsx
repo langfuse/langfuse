@@ -52,7 +52,11 @@ export function DatasetRunItemsByItemTable(props: {
     "traces",
     "m",
   );
-  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   useEffect(() => {
     if (runItems.isSuccess) {

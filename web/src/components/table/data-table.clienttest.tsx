@@ -148,6 +148,7 @@ describe("DataTable custom row height", () => {
 
   function renderResizableTable(
     onCustomRowHeightChange: (heightPx: number) => void = vi.fn(),
+    customRowHeightPx?: number,
   ) {
     render(
       <DataTable
@@ -155,6 +156,7 @@ describe("DataTable custom row height", () => {
         columns={columns}
         hidePagination
         rowHeight="m"
+        customRowHeightPx={customRowHeightPx}
         onCustomRowHeightChange={onCustomRowHeightChange}
         data={{ isLoading: false, isError: false, data: rows }}
       />,
@@ -195,6 +197,34 @@ describe("DataTable custom row height", () => {
       pointAt(handle, "pointerup", 220);
     });
     expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(216);
+  });
+
+  it("shrinks a custom height back below Medium and returns string cells to one line", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(208),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    renderResizableTable(onCustomRowHeightChange, 208);
+
+    expect(screen.getByText("zeta-score")).not.toHaveClass("truncate");
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 400);
+      pointAt(handle, "pointermove", 240);
+    });
+
+    const boxes = document.querySelectorAll("[data-row-height]");
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const box of boxes) {
+      expect(box).toHaveStyle({ height: "48px", maxHeight: "48px" });
+    }
+    expect(screen.getByText("zeta-score")).toHaveClass("truncate");
+
+    act(() => {
+      pointAt(handle, "pointerup", 240);
+    });
+    expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(48);
   });
 
   it("leaves the preset in place when the row edge is pressed without moving", () => {
