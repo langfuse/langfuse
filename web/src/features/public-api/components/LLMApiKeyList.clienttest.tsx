@@ -227,7 +227,7 @@ describe("LLM connection editing", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Override")).toHaveLength(1);
 
-    fireEvent.mouseEnter(screen.getByText("Override"));
+    fireEvent.focus(screen.getByText("Override").parentElement!);
     expect(
       await screen.findByText(
         "This project connection overrides the organization secret with the same name.",
