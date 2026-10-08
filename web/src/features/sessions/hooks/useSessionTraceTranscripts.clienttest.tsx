@@ -76,6 +76,9 @@ it("bounds concurrent requests and releases slots after success and failure", as
   expect(
     query.mock.calls.every(([input]) => input.pairTextToolResponses === true),
   ).toBe(true);
+  expect(
+    query.mock.calls.every(([input]) => input.fallbackToRootIO === true),
+  ).toBe(true);
   expect(result.current.get("trace-4")).toEqual({ state: "loading" });
   expect(result.current.has("trace-6")).toBe(false);
 
