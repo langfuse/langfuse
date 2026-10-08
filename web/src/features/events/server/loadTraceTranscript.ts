@@ -1,4 +1,4 @@
-import { isEqual } from "lodash";
+import { isEqual, partition } from "lodash";
 import {
   assembleTranscript,
   getObservationByIdFromEventsTable,
@@ -13,7 +13,15 @@ import {
   type NormalizedMessage,
   type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
-import { assembleSessionTraceTranscript } from "./assembleSessionTraceTranscript";
+import {
+  append,
+  createThread,
+  findThread,
+  messageKey,
+  splitTurn,
+  type ThreadState,
+} from "@langfuse/shared/src/server/transcript/threads";
+import { createToolCallRegistry } from "@langfuse/shared/src/server/transcript/tool-calls";
 
 /** Generations and tools whose I/O one transcript reads at most. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
@@ -131,6 +139,54 @@ export async function loadTraceTranscript(trace: {
     transcript,
     cutoff,
   };
+}
+
+// TODO: Look into moving session tool recovery into shared transcript assembly
+// so normalized-output recovery does not need separate assembly orchestration.
+function assembleSessionTraceTranscript(
+  observations: Array<Observation & { nestingLevel: number }>,
+  transformOutput: (
+    observation: Observation,
+    messages: NormalizedMessage[],
+  ) => NormalizedMessage[],
+): Transcript | null {
+  const threads: ThreadState[] = [];
+  const toolCalls = createToolCallRegistry();
+  for (const observation of observations.filter(
+    (
+      observation,
+    ): observation is Observation & { nestingLevel: number; traceId: string } =>
+      (observation.type === "GENERATION" || observation.type === "TOOL") &&
+      observation.traceId !== null,
+  )) {
+    const { messages } = normalizeSpanIO({
+      input: observation.type === "TOOL" ? undefined : observation.input,
+      output: observation.output,
+      metadata: observation.metadata,
+    });
+    const [inputMessages, outputMessages] = partition(
+      messages,
+      (message) => message.source === "input",
+    );
+    const [input, output] = partition(
+      [...inputMessages, ...transformOutput(observation, outputMessages)].map(
+        (message) => ({ message, key: messageKey(message) }),
+      ),
+      ({ message }) => message.source === "input",
+    );
+    if (observation.type === "TOOL") {
+      toolCalls.attachToolOutput(observation, output);
+      continue;
+    }
+    if (input.length === 0 && output.length === 0) continue;
+    let thread = findThread(threads, input);
+    if (!thread) {
+      thread = createThread();
+      threads.push(thread);
+    }
+    append(thread, observation, input, output, toolCalls);
+  }
+  return threads.length ? { threads: threads.map(splitTurn) } : null;
 }
 
 function recoverToolCalls(observations: Observation[]) {

@@ -3,25 +3,21 @@ import type { Transcript } from "@langfuse/shared/src/server";
 import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
 import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
+import type * as TranscriptThreads from "@langfuse/shared/src/server/transcript/threads";
 
 const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),
-  recover: vi.fn(),
-  recoverActual: vi.fn(),
+  splitTurn: vi.fn(),
+  splitTurnActual: vi.fn(),
   observations: vi.fn(),
   root: vi.fn(),
 }));
 vi.mock(
-  "@/src/features/events/server/assembleSessionTraceTranscript",
+  "@langfuse/shared/src/server/transcript/threads",
   async (importOriginal) => {
-    const actual =
-      await importOriginal<
-        typeof import("@/src/features/events/server/assembleSessionTraceTranscript")
-      >();
-    mocks.recoverActual.mockImplementation(
-      actual.assembleSessionTraceTranscript,
-    );
-    return { assembleSessionTraceTranscript: mocks.recover };
+    const actual = await importOriginal<typeof TranscriptThreads>();
+    mocks.splitTurnActual.mockImplementation(actual.splitTurn);
+    return { ...actual, splitTurn: mocks.splitTurn };
   },
 );
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -84,19 +80,34 @@ function fixture(
     ],
   };
   mocks.assemble.mockReturnValue(transcript);
-  mocks.recover.mockReturnValue(transcript);
+  mocks.splitTurn.mockReturnValue(transcript.threads[0]);
   mocks.observations.mockResolvedValue({
-    observations: responses.map((name, index) => ({
-      ...provenance,
-      id: `tool-${index}`,
-      type: "TOOL",
-      name,
-      parentObservationId: null,
-      input: null,
-      output: name,
-      metadata: {},
-    })),
-    totalCount: responses.length,
+    observations: [
+      {
+        ...provenance,
+        id: "generation",
+        type: "GENERATION",
+        input: [{ role: "user", content: "Run a tool" }],
+        output: [
+          {
+            role: "assistant",
+            parts: transcript.threads[0]!.currentTurn.messages[0]!.parts,
+          },
+        ],
+        metadata: {},
+      },
+      ...responses.map((name, index) => ({
+        ...provenance,
+        id: `tool-${index}`,
+        type: "TOOL",
+        name,
+        parentObservationId: null,
+        input: null,
+        output: name,
+        metadata: {},
+      })),
+    ],
+    totalCount: responses.length + 1,
   });
   return transcript;
 }
@@ -105,7 +116,7 @@ beforeEach(() => {
   mocks.assemble.mockReset();
   mocks.observations.mockReset();
   mocks.root.mockReset();
-  mocks.recover.mockReset().mockImplementation(mocks.recoverActual);
+  mocks.splitTurn.mockReset().mockImplementation(mocks.splitTurnActual);
 });
 
 it.each(
@@ -611,10 +622,6 @@ it("preserves explicit results that conflict with TOOL metadata", async () => {
     recoverToolResponses: true,
   });
 
-  expect(mocks.recover).toHaveBeenCalledWith(
-    observations,
-    expect.any(Function),
-  );
   const parts = result.transcript!.threads[0]!.currentTurn.messages.flatMap(
     (message) => message.parts,
   );
@@ -774,10 +781,6 @@ it.each(["duplicate-call-id", "different-trace", "non-generation-parent"])(
       totalCount: observations.length,
     });
     await loadTraceTranscript({ ...trace, recoverToolResponses: true });
-    expect(mocks.recover).toHaveBeenCalledWith(
-      observations,
-      expect.any(Function),
-    );
     expect(original.threads[0]!.currentTurn.messages[1]!.parts[0]?.type).toBe(
       "text",
     );
@@ -887,7 +890,13 @@ it.each([
   if (scenario === "wrong-observation-type") {
     mocks.observations.mockResolvedValue({
       observations: [
-        { id: "tool-0", traceId: "trace", type: "GENERATION", name: "search" },
+        {
+          id: "tool-0",
+          traceId: "trace",
+          type: "GENERATION",
+          name: "search",
+          input: [{ role: "user", content: "Run a tool" }],
+        },
       ],
       totalCount: 1,
     });
