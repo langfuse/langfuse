@@ -19,4 +19,9 @@ describe("costFormatter", () => {
     expect(costFormatter(0.00999)).toBe("$0.00999");
     expect(costFormatter(undefined)).toBe("$0.00");
   });
+
+  it("shows a nonzero bound for dust below display precision", () => {
+    expect(costFormatter(0.00000000001)).toBe("<$0.0000000001");
+    expect(costFormatter(0.00000000006)).toBe("$0.0000000001");
+  });
 });
