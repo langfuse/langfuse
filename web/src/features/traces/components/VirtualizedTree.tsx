@@ -143,7 +143,8 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   return (
     // `scrollbar-visible` is load-bearing, not decoration. Rows are `w-full`
     // and carry their own background (selected, hover), so under an overlay
-    // scrollbar — Chrome's default, and macOS's — they paint across the full
+    // scrollbar — which reserves no layout width, and is the default on macOS
+    // and in Chrome on macOS/Android/ChromeOS — they paint across the full
     // scrollport width and chop the thumb into segments. Sizing
     // `::-webkit-scrollbar` opts the scrollport out of overlay mode, so the
     // bar takes layout width and rows stop short of it. There is no scrollbar
