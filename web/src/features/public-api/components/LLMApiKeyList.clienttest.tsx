@@ -234,7 +234,7 @@ describe("LLM connection editing", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.mouseEnter(
+    fireEvent.pointerMove(
       screen.getByLabelText("About organization connections"),
     );
     expect(
