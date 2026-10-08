@@ -12,6 +12,7 @@ import type {
   EvalTargetObject,
   FilterState,
   ObservationVariableMapping,
+  ScoreResultTrigger,
 } from "@langfuse/shared";
 
 /**
@@ -83,6 +84,10 @@ export type ObservationEvalRule =
   | EvaluationRuleWithAssignments
   | LegacyObservationEvalConfig;
 
+export type ScoreResultEvalRule = EvaluationRuleWithAssignments & {
+  scoreResultTrigger: ScoreResultTrigger;
+};
+
 /**
  * Dependencies for scheduling observation evals.
  * The scheduler receives pre-fetched rules and creates job executions.
@@ -97,7 +102,7 @@ export interface ObservationEvalSchedulerDeps {
     jobInputObservationId: string;
     jobTemplateId: string | null;
     status: JobExecutionStatus;
-  }) => Promise<{ id: string }>;
+  }) => Promise<{ id: string; status: JobExecutionStatus }>;
 
   /** Upload observation data to S3 for later retrieval */
   uploadObservationToS3: (params: {

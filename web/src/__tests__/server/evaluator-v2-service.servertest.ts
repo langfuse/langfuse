@@ -801,10 +801,31 @@ describe("EvaluatorService", () => {
     });
   });
 
-  it("updates metadata without a version and appends a version for definition changes", async () => {
+  it("updates metadata without invalidating result rules and invalidates them on definition changes", async () => {
     const service = createService();
     const input = llmInput("Version decisions");
     const created = await service.create(input, null);
+    const dependentRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Dependent rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        triggerKind: "SCORE_RESULT",
+        triggerEvaluatorId: created.id,
+        scoreResultPredicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">=",
+            value: 0.8,
+          },
+        ],
+      },
+    });
 
     const metadataUpdate = await service.update(
       {
@@ -819,6 +840,15 @@ describe("EvaluatorService", () => {
     expect(metadataUpdate).toMatchObject({
       name: "Renamed evaluator",
       description: "Changed only metadata",
+    });
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, triggerInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "ACTIVE",
+      triggerInvalidReason: null,
     });
 
     const definitionUpdate = await service.update(
@@ -842,6 +872,16 @@ describe("EvaluatorService", () => {
     expect(definitionUpdate.versions.map((version) => version.version)).toEqual(
       [2],
     );
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, triggerInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "INACTIVE",
+      triggerInvalidReason:
+        "The trigger evaluator changed. Review the score conditions.",
+    });
     const firstPage = await service.listVersions({
       projectId,
       evaluatorId: created.id,

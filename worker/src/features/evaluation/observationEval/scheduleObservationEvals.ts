@@ -270,7 +270,7 @@ async function processMatchingConfig(
   const jobExecutionId = createW3CTraceId(JSON.stringify(jobIdentity));
 
   // Create job execution
-  await schedulerDeps.upsertJobExecution({
+  const jobExecution = await schedulerDeps.upsertJobExecution({
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
@@ -282,6 +282,15 @@ async function processMatchingConfig(
     jobTemplateId: assignment.evalTemplateId,
     status: JobExecutionStatus.PENDING,
   });
+
+  if (jobExecution.status === JobExecutionStatus.COMPLETED) {
+    logger.debug("Skipping completed observation eval job", {
+      configId: matchingConfig.id,
+      observationId: observation.span_id,
+      jobExecutionId,
+    });
+    return;
+  }
 
   // Enqueue eval job. The evaluator identity travels with the payload so the
   // executor never has to re-derive it from ids the legacy backfill reuses.

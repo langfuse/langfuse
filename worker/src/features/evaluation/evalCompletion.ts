@@ -28,6 +28,7 @@ export async function completeEvalExecution({
   observationId,
   environment,
   deps,
+  onEvaluatorCompleted,
 }: {
   projectId: string;
   jobExecutionId: string;
@@ -36,6 +37,7 @@ export async function completeEvalExecution({
   observationId: string | null;
   environment: string;
   deps: EvalExecutionDeps;
+  onEvaluatorCompleted?: (result: EvalExecutionResult) => Promise<void>;
 }): Promise<{ scoreCount: number }> {
   const scoreWritePayloads = buildEvalScoreWritePayloads({
     scores: result.scores,
@@ -82,6 +84,13 @@ export async function completeEvalExecution({
   logger.debug(
     `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
   );
+
+  if (
+    !result.evaluationContext.evaluatorExecutionIsTest &&
+    onEvaluatorCompleted
+  ) {
+    await onEvaluatorCompleted(result);
+  }
 
   await deps.updateJobExecution({
     id: jobExecutionId,

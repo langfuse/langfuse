@@ -46,6 +46,10 @@ import {
   reconcileEvaluatorPromptMessages,
   toEvaluatorDefinition,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import {
+  invalidateEvaluatorResultRules,
+  lockEvaluatorResultRuleGraph,
+} from "@/src/features/evals/v2/server/rules/ruleRepository";
 
 const MANAGED_TEMPLATE_ID_PREFIX = "managed:";
 
@@ -1284,12 +1288,22 @@ export class LegacyEvalCompatibilityService {
           }),
         });
 
+        await lockEvaluatorResultRuleGraph({
+          prisma: tx,
+          projectId: params.projectId,
+        });
         const version = await tx.evaluatorVersion.create({
           data: {
             evaluatorId: source.evaluatorId,
             version: (evaluator.versions[0]?.version ?? 0) + 1,
             ...evaluatorVersionData(params.definition, params.createdByUserId),
           },
+        });
+        await invalidateEvaluatorResultRules({
+          prisma: tx,
+          projectId: params.projectId,
+          evaluatorId: source.evaluatorId,
+          reason: "The trigger evaluator changed. Review the score conditions.",
         });
         await Promise.all(
           upgradedAssignments.map((assignment) =>

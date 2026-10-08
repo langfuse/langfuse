@@ -461,6 +461,99 @@ describe("RuleService", () => {
       ).resolves.toMatchObject({ enabled: false });
     });
 
+    it("creates evaluator result rules and rejects evaluator cycles", async () => {
+      const [sourceEvaluator, targetEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const scoreResultTrigger = {
+        evaluatorId: sourceEvaluator.id,
+        predicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC" as const,
+            operator: ">=" as const,
+            value: 0.8,
+          },
+        ],
+      };
+
+      await expect(
+        service.create(
+          {
+            ...createInput(targetEvaluator.id),
+            filter: [],
+            sampling: 1,
+            triggerKind: "SCORE_RESULT",
+            scoreResultTrigger,
+          },
+          null,
+        ),
+      ).resolves.toMatchObject({
+        triggerKind: "SCORE_RESULT",
+        scoreResultTrigger,
+        filter: [],
+        sampling: 1,
+      });
+
+      await expect(
+        service.create(
+          {
+            ...createInput(sourceEvaluator.id),
+            filter: [],
+            sampling: 1,
+            triggerKind: "SCORE_RESULT",
+            scoreResultTrigger: {
+              ...scoreResultTrigger,
+              evaluatorId: targetEvaluator.id,
+            },
+          },
+          null,
+        ),
+      ).rejects.toThrow("cycle");
+    });
+
+    it("serializes concurrent evaluator result rule cycle checks", async () => {
+      const [firstEvaluator, secondEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const resultRule = (
+        sourceEvaluatorId: string,
+        targetEvaluatorId: string,
+      ) => ({
+        ...createInput(targetEvaluatorId),
+        filter: [],
+        sampling: 1,
+        triggerKind: "SCORE_RESULT" as const,
+        scoreResultTrigger: {
+          evaluatorId: sourceEvaluatorId,
+          predicates: [
+            {
+              scoreName: "quality",
+              dataType: "NUMERIC" as const,
+              operator: ">=" as const,
+              value: 0.8,
+            },
+          ],
+        },
+      });
+
+      const results = await Promise.allSettled([
+        service.create(resultRule(firstEvaluator.id, secondEvaluator.id), null),
+        service.create(resultRule(secondEvaluator.id, firstEvaluator.id), null),
+      ]);
+
+      expect(
+        results.filter(({ status }) => status === "fulfilled"),
+      ).toHaveLength(1);
+      expect(
+        results.filter(({ status }) => status === "rejected"),
+      ).toHaveLength(1);
+    });
+
     it("creates an experiment rule with experiment filters and mappings", async () => {
       const evaluator = await createEvaluator();
 
@@ -1264,6 +1357,61 @@ describe("RuleService", () => {
       ).rejects.toThrow(
         "An enabled evaluation rule requires at least one evaluator assignment",
       );
+    });
+
+    it("requires invalid evaluator result rules to be reviewed before enabling", async () => {
+      const [sourceEvaluator, targetEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const scoreResultTrigger = {
+        evaluatorId: sourceEvaluator.id,
+        predicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC" as const,
+            operator: ">=" as const,
+            value: 0.8,
+          },
+        ],
+      };
+      const rule = await service.create(
+        {
+          ...createInput(targetEvaluator.id),
+          filter: [],
+          sampling: 1,
+          triggerKind: "SCORE_RESULT",
+          scoreResultTrigger,
+        },
+        null,
+      );
+      await prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: {
+          status: "INACTIVE",
+          triggerInvalidReason: "The trigger evaluator changed.",
+        },
+      });
+
+      await expect(
+        service.setEnabled({ projectId, ruleId: rule.id, enabled: true }),
+      ).rejects.toThrow("must be reviewed");
+      await expect(
+        service.update({ projectId, ruleId: rule.id, enabled: true }),
+      ).rejects.toThrow("must be reviewed");
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          enabled: true,
+          scoreResultTrigger,
+        }),
+      ).resolves.toMatchObject({
+        enabled: true,
+        triggerInvalidReason: null,
+      });
     });
 
     it("rejects an unavailable rule", async () => {

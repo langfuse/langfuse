@@ -9,12 +9,22 @@ import type {
 } from "@/src/features/evals/v2/types/rules";
 
 export function prepareRuleCloneDraft(
-  rule: Pick<RuleTableRow, "name" | "filter" | "sampling" | "assignments">,
+  rule: Pick<
+    RuleTableRow,
+    | "name"
+    | "filter"
+    | "sampling"
+    | "assignments"
+    | "triggerKind"
+    | "scoreResultTrigger"
+  >,
 ): RuleDraft {
   return {
     name: `${rule.name} copy`,
     filter: rule.filter,
     sampling: rule.sampling,
+    triggerKind: rule.triggerKind,
+    scoreResultTrigger: rule.scoreResultTrigger,
     assignments: rule.assignments.map((assignment) => {
       const preparedDefault = prepareModernRuleVariableMapping(
         assignment.evaluator.latestVersion?.variableMapping,

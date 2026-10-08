@@ -9,6 +9,7 @@ import {
 import {
   type createRuleSetupStore,
   isRuleDraftDirty,
+  isRuleDraftValid,
 } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 
 export function RuleDialogFooter({
@@ -32,6 +33,7 @@ export function RuleDialogFooter({
 }) {
   const name = useStore(ruleSetupStore, (state) => state.name);
   const dirty = useStore(ruleSetupStore, isRuleDraftDirty);
+  const valid = useStore(ruleSetupStore, isRuleDraftValid);
   const nameMissing = !name.trim();
   const saveButton = (
     <Button
@@ -42,6 +44,7 @@ export function RuleDialogFooter({
       }
       disabled={
         !canEdit ||
+        !valid ||
         (isEditing && !dirty) ||
         (nameMissing && !nameAIAssistanceAvailable) ||
         mutationPending ||

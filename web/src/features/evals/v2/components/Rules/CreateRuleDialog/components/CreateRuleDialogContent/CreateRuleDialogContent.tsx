@@ -64,6 +64,8 @@ export function CreateRuleDialogContent({
       name: initialDraft?.name ?? "",
       filter: initialDraft?.filter ?? resolveInitialRuleFilters(initialFilter),
       sampling: initialDraft?.sampling ?? 1,
+      triggerKind: initialDraft?.triggerKind ?? "OBSERVATION",
+      scoreResultTrigger: initialDraft?.scoreResultTrigger ?? null,
       assignments:
         initialDraft?.assignments ??
         (initialEvaluator
@@ -109,7 +111,13 @@ export function CreateRuleDialogContent({
       filter: draft.filter,
       sampling: draft.sampling,
       enabled: true,
-      ...(targetObject ? { targetObject } : {}),
+      triggerKind: draft.triggerKind,
+      scoreResultTrigger: draft.scoreResultTrigger,
+      ...(draft.triggerKind === "SCORE_RESULT"
+        ? { targetObject: "event" as const }
+        : targetObject
+          ? { targetObject }
+          : {}),
       evaluatorAssignments: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -120,6 +128,7 @@ export function CreateRuleDialogContent({
       ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
+      triggerKind: draft.triggerKind,
     });
     onCreated?.();
     if (successNotification === "toast") {
@@ -160,7 +169,7 @@ export function CreateRuleDialogContent({
         <DialogHeader>
           <DialogTitle>New rule</DialogTitle>
           <DialogDescription>
-            Select which incoming observations should trigger evaluators.
+            Select what should trigger evaluators.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>

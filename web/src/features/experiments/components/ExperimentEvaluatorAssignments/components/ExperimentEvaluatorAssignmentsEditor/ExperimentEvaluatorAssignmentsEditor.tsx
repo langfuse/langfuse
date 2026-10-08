@@ -43,6 +43,8 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
       name: "Experiment evaluators",
       filter: [],
       sampling: 1,
+      triggerKind: "OBSERVATION",
+      scoreResultTrigger: null,
       assignments: initialAssignments,
     }),
   );
@@ -58,6 +60,8 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
         name: state.name,
         filter: state.filter,
         sampling: state.sampling,
+        triggerKind: state.triggerKind,
+        scoreResultTrigger: state.scoreResultTrigger,
         assignments: state.assignments,
       },
     });

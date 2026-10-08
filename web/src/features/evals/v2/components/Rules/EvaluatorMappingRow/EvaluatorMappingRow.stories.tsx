@@ -20,6 +20,8 @@ const store = createRuleSetupStore({
   name: "Rule",
   filter: [],
   sampling: 1,
+  triggerKind: "OBSERVATION",
+  scoreResultTrigger: null,
   assignments: [
     {
       evaluatorId,
@@ -35,6 +37,8 @@ const codeEvaluatorStore = createRuleSetupStore({
   name: "Experiment evaluators",
   filter: [],
   sampling: 1,
+  triggerKind: "OBSERVATION",
+  scoreResultTrigger: null,
   assignments: [
     {
       evaluatorId: codeEvaluatorId,

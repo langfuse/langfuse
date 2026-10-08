@@ -5,6 +5,8 @@ describe("rule setup store", () => {
     name: "Initial",
     filter: [],
     sampling: 1,
+    triggerKind: "OBSERVATION" as const,
+    scoreResultTrigger: null,
     assignments: [
       {
         evaluatorId: "first",

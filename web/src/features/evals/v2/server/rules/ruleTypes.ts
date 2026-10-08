@@ -1,7 +1,9 @@
 import {
+  EvaluationRuleTriggerKindSchema,
   EvalTargetObject,
   observationVariableMappingList,
   paginationLimitZod,
+  ScoreResultTriggerSchema,
   singleFilterList,
 } from "@langfuse/shared";
 import { z } from "zod";
@@ -75,6 +77,48 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
     ),
   enabled: z.boolean(),
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
+  triggerKind: EvaluationRuleTriggerKindSchema.default("OBSERVATION"),
+  scoreResultTrigger: ScoreResultTriggerSchema.nullable().default(null),
+}).superRefine((rule, ctx) => {
+  if (rule.triggerKind === "OBSERVATION") {
+    if (rule.scoreResultTrigger !== null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scoreResultTrigger"],
+        message: "Observation rules cannot define an evaluator result trigger",
+      });
+    }
+    return;
+  }
+
+  if (rule.scoreResultTrigger === null) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["scoreResultTrigger"],
+      message: "Evaluator result rules require a trigger evaluator and scores",
+    });
+  }
+  if (rule.filter.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["filter"],
+      message: "Evaluator result rules cannot define observation filters",
+    });
+  }
+  if (rule.targetObject !== EvalTargetObject.EVENT) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["targetObject"],
+      message: "Evaluator result rules must target observations",
+    });
+  }
+  if (rule.sampling !== 1) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sampling"],
+      message: "Evaluator result rules run for every matching result",
+    });
+  }
 });
 
 export const UpdateRuleSchema = RuleIdSchema.extend({
@@ -83,6 +127,8 @@ export const UpdateRuleSchema = RuleIdSchema.extend({
   sampling: RuleMetadataSchema.shape.sampling.optional(),
   enabled: z.boolean().optional(),
   evaluatorMappings: z.array(RuleAssignmentInputSchema).max(100).optional(),
+  triggerKind: EvaluationRuleTriggerKindSchema.optional(),
+  scoreResultTrigger: ScoreResultTriggerSchema.nullable().optional(),
 });
 
 export const SetRuleEnabledSchema = RuleIdSchema.extend({
@@ -149,7 +195,8 @@ export const CreateOrAttachFromEvaluatorFiltersSchema = z.object({
 });
 
 export type RuleAssignmentInput = z.infer<typeof RuleAssignmentInputSchema>;
-export type CreateRuleInput = z.infer<typeof CreateRuleSchema>;
+export type CreateRuleInput = z.input<typeof CreateRuleSchema>;
+export type ParsedCreateRuleInput = z.output<typeof CreateRuleSchema>;
 export type CreateOrAttachFromEvaluatorFiltersInput = z.infer<
   typeof CreateOrAttachFromEvaluatorFiltersSchema
 >;

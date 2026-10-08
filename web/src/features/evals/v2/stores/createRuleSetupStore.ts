@@ -1,4 +1,5 @@
 import { createStore } from "zustand/vanilla";
+import { ScoreResultTriggerSchema } from "@langfuse/shared";
 
 import type {
   RuleDraft,
@@ -10,6 +11,8 @@ export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
     ...initialDraft,
     initialDraft,
     selectedObservation: null,
+    previewSourceRuleId: null,
+    previewFilter: [],
     actions: {
       setName: (name) => set({ name }),
       setFilter: (filter) => set({ filter }),
@@ -32,6 +35,18 @@ export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
         })),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
+      setTriggerKind: (triggerKind) =>
+        set({
+          triggerKind,
+          ...(triggerKind === "SCORE_RESULT"
+            ? { filter: [], sampling: 1 }
+            : { scoreResultTrigger: null }),
+        }),
+      setScoreResultTrigger: (scoreResultTrigger) =>
+        set({ scoreResultTrigger }),
+      setPreviewSourceRuleId: (previewSourceRuleId) =>
+        set({ previewSourceRuleId }),
+      setPreviewFilter: (previewFilter) => set({ previewFilter }),
     },
   }));
 }
@@ -44,7 +59,17 @@ export function isRuleDraftDirty(
       name: state.name,
       filter: state.filter,
       sampling: state.sampling,
+      triggerKind: state.triggerKind,
+      scoreResultTrigger: state.scoreResultTrigger,
       assignments: state.assignments,
     }) !== JSON.stringify(state.initialDraft)
   );
+}
+
+export function isRuleDraftValid(
+  state: ReturnType<RuleSetupStore["getState"]>,
+) {
+  if (state.assignments.length === 0) return false;
+  if (state.triggerKind === "OBSERVATION") return true;
+  return ScoreResultTriggerSchema.safeParse(state.scoreResultTrigger).success;
 }

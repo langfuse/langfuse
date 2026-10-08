@@ -43,6 +43,10 @@ import {
 import { testEvaluator as executeEvaluatorTest } from "./testEvaluator";
 import * as repository from "./evaluatorRepository";
 import {
+  invalidateEvaluatorResultRules,
+  lockEvaluatorResultRuleGraph,
+} from "@/src/features/evals/v2/server/rules/ruleRepository";
+import {
   EvaluatorConfigurationError,
   EvaluatorModelConfigurationError,
   EvaluatorVersionConflictError,
@@ -734,6 +738,10 @@ async function deleteEvaluator(params: {
   projectId: string;
   evaluatorId: string;
 }) {
+  await lockEvaluatorResultRuleGraph({
+    prisma: params.prisma,
+    projectId: params.projectId,
+  });
   const evaluator = await repository.findEvaluator({
     prisma: params.prisma,
     projectId: params.projectId,
@@ -789,12 +797,22 @@ async function patchEvaluator(params: {
       input.definition,
     );
     if (definitionChanged) {
+      await lockEvaluatorResultRuleGraph({
+        prisma: tx,
+        projectId: input.projectId,
+      });
       await repository.appendEvaluatorVersion({
         tx,
         evaluatorId: input.evaluatorId,
         version: latest.version + 1,
         definition: prepareEvaluatorDefinitionForPersistence(input.definition),
         createdByUserId,
+      });
+      await invalidateEvaluatorResultRules({
+        prisma: tx,
+        projectId: input.projectId,
+        evaluatorId: input.evaluatorId,
+        reason: "The trigger evaluator changed. Review the score conditions.",
       });
     }
     await reconcileEvaluatorBlock({
@@ -853,12 +871,22 @@ async function updateEvaluator(params: {
   // Name-based upserts from the unstable API preserve every write as a new
   // version. Stable ID-based updates only version actual definition changes.
   if (params.forceNewVersion || definitionChanged) {
+    await lockEvaluatorResultRuleGraph({
+      prisma: tx,
+      projectId: input.projectId,
+    });
     await repository.appendEvaluatorVersion({
       tx,
       evaluatorId: input.evaluatorId,
       version: latest.version + 1,
       definition: prepareEvaluatorDefinitionForPersistence(input.definition),
       createdByUserId,
+    });
+    await invalidateEvaluatorResultRules({
+      prisma: tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      reason: "The trigger evaluator changed. Review the score conditions.",
     });
   }
 

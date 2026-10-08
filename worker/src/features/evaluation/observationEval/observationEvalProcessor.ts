@@ -38,6 +38,9 @@ import { executeCodeBasedEvaluation } from "../codeBased";
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
+import { fetchScoreResultEvalRules } from "./fetchScoreResultEvalRules";
+import { scheduleScoreResultEvals } from "./scheduleScoreResultEvals";
+import { createObservationEvalSchedulerDeps } from "./createSchedulerDeps";
 
 /**
  * Dependencies for processing observation evals.
@@ -305,6 +308,23 @@ export async function processObservationEval(
     environment: executionParams.environment,
     deps: executionParams.deps,
     result: executionResult,
+    ...(resolved.type === "v2"
+      ? {
+          onEvaluatorCompleted: async (result: EvalExecutionResult) => {
+            const rules = await fetchScoreResultEvalRules({
+              projectId: executionParams.projectId,
+              evaluatorId: resolved.evaluatorId,
+            });
+            await scheduleScoreResultEvals({
+              observation: observationData,
+              scores: result.scores,
+              rules,
+              upstreamJobExecutionId: executionParams.jobExecutionId,
+              schedulerDeps: createObservationEvalSchedulerDeps(),
+            });
+          },
+        }
+      : {}),
   });
 
   return "completed";

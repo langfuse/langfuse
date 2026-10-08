@@ -70,6 +70,8 @@ export const CreateEvaluationRuleBaseSchema = CreateRuleSchema.omit({
   targetObject: true,
   filter: true,
   evaluatorAssignments: true,
+  triggerKind: true,
+  scoreResultTrigger: true,
 }).extend({
   evaluatorAssignments: z
     .array(EvaluationRuleAssignmentInputSchema)
@@ -84,6 +86,8 @@ export const CreateEvaluationRuleBaseSchema = CreateRuleSchema.omit({
 export const CreateEvaluationRuleInputSchema = CreateRuleSchema.omit({
   projectId: true,
   targetObject: true,
+  triggerKind: true,
+  scoreResultTrigger: true,
 }).extend({
   evaluatorAssignments: z
     .array(EvaluationRuleAssignmentInputSchema)
@@ -118,6 +122,8 @@ export const UpdateEvaluationRuleBaseSchema = UpdateRuleSchema.omit({
   ruleId: true,
   filter: true,
   evaluatorMappings: true,
+  triggerKind: true,
+  scoreResultTrigger: true,
 }).extend({
   evaluationRuleId: RuleIdSchema.shape.ruleId,
   filter: z.array(RuleFilterBaseSchema).optional(),
@@ -132,6 +138,8 @@ export const UpdateEvaluationRuleInputSchema = UpdateRuleSchema.omit({
   projectId: true,
   ruleId: true,
   evaluatorMappings: true,
+  triggerKind: true,
+  scoreResultTrigger: true,
 })
   .extend({
     evaluationRuleId: RuleIdSchema.shape.ruleId,

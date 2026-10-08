@@ -4,6 +4,7 @@ import { type Prisma } from "@langfuse/shared/src/db";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
+  JobExecutionStatus,
   type ObservationForEval,
   EvalTargetObject,
 } from "@langfuse/shared";
@@ -147,7 +148,10 @@ export function createMockSchedulerDeps(
       overrides.upsertJobExecution ??
       vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-        .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+        .mockResolvedValue({
+          id: `job-exec-${randomUUID()}`,
+          status: JobExecutionStatus.PENDING,
+        }),
     uploadObservationToS3:
       overrides.uploadObservationToS3 ??
       vi
@@ -352,7 +356,10 @@ export function createFullyMockedEvalPipeline(
   const schedulerDeps: MockSchedulerDeps = {
     upsertJobExecution: vi
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-      .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+      .mockResolvedValue({
+        id: `job-exec-${randomUUID()}`,
+        status: JobExecutionStatus.PENDING,
+      }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
       .mockImplementation(async (params) => {

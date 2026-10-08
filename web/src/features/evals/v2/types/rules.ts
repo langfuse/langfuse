@@ -1,8 +1,11 @@
 import type {
+  EvaluationRuleTriggerKindSchema,
   EvalTemplateType,
   FilterState,
   ObservationVariableMapping,
+  ScoreResultTrigger,
 } from "@langfuse/shared";
+import type { z } from "zod";
 import type { StoreApi } from "zustand/vanilla";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { RouterOutputs } from "@/src/utils/api";
@@ -22,6 +25,8 @@ export type RuleDraft = {
   filter: FilterState;
   sampling: number;
   assignments: RuleDraftAssignment[];
+  triggerKind: z.infer<typeof EvaluationRuleTriggerKindSchema>;
+  scoreResultTrigger: ScoreResultTrigger | null;
 };
 
 export type RuleEvaluatorOption = {
@@ -59,11 +64,19 @@ type RuleSetupStoreActions = {
     variableMapping: ObservationVariableMapping[],
   ) => void;
   setSelectedObservation: (observation: SampleObservation | null) => void;
+  setTriggerKind: (
+    triggerKind: z.infer<typeof EvaluationRuleTriggerKindSchema>,
+  ) => void;
+  setScoreResultTrigger: (trigger: ScoreResultTrigger | null) => void;
+  setPreviewSourceRuleId: (ruleId: string | null) => void;
+  setPreviewFilter: (filter: FilterState) => void;
 };
 
 type RuleSetupStoreState = RuleDraft & {
   initialDraft: RuleDraft;
   selectedObservation: SampleObservation | null;
+  previewSourceRuleId: string | null;
+  previewFilter: FilterState;
   actions: RuleSetupStoreActions;
 };
 

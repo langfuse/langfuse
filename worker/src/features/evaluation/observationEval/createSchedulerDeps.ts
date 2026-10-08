@@ -43,12 +43,10 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           status,
           startTime: new Date(),
         },
-        update: {
-          status,
-        },
+        update: {},
       });
 
-      return { id: jobExecution.id };
+      return { id: jobExecution.id, status: jobExecution.status };
     },
 
     uploadObservationToS3: async (params) => {
@@ -101,7 +99,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
             timestamp: new Date(),
             payload,
           },
-          { delay: params.delay },
+          { delay: params.delay, jobId: params.jobExecutionId },
         );
         return;
       }
@@ -126,7 +124,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           timestamp: new Date(),
           payload,
         },
-        { delay: params.delay },
+        { delay: params.delay, jobId: params.jobExecutionId },
       );
     },
   };

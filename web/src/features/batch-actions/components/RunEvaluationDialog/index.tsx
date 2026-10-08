@@ -89,6 +89,8 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       name: "Batch evaluation",
       filter: [],
       sampling: 1,
+      triggerKind: "OBSERVATION",
+      scoreResultTrigger: null,
       assignments: [],
     }),
   );

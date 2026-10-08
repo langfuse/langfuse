@@ -47,7 +47,7 @@ describe("createObservationEvalSchedulerDeps", () => {
         id: "job-1",
         payload: expect.objectContaining({ projectId: "project-1" }),
       }),
-      { delay: 10 },
+      { delay: 10, jobId: "job-1" },
     );
     expect(getCodeQueueInstance).not.toHaveBeenCalled();
   });
@@ -74,7 +74,7 @@ describe("createObservationEvalSchedulerDeps", () => {
         id: "job-2",
         payload: expect.objectContaining({ projectId: "project-1" }),
       }),
-      { delay: 20 },
+      { delay: 20, jobId: "job-2" },
     );
     expect(getLLMQueueInstance).not.toHaveBeenCalled();
   });
@@ -104,7 +104,7 @@ describe("createObservationEvalSchedulerDeps", () => {
           variableMapping,
         }),
       }),
-      { delay: 0 },
+      { delay: 0, jobId: "job-3" },
     );
   });
 });

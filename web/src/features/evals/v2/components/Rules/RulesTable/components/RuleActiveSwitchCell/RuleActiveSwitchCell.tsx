@@ -40,13 +40,14 @@ export function RuleActiveSwitchCell({
     isLegacy && !rule.enabled
       ? "Legacy rules cannot be re-enabled because trace- and dataset-level evaluations are deprecated. Create an observation-based rule instead."
       : null;
+  const disabledReason = rule.triggerInvalidReason ?? legacyDisabledReason;
 
   const switchControl = (
     <Switch
       color="green"
       checked={rule.enabled}
       disabled={
-        !hasWriteAccess || Boolean(legacyDisabledReason) || setEnabled.isPending
+        !hasWriteAccess || Boolean(disabledReason) || setEnabled.isPending
       }
       aria-label={`${rule.enabled ? "Disable" : "Enable"} ${rule.name}`}
       onCheckedChange={(enabled) => {
@@ -58,8 +59,8 @@ export function RuleActiveSwitchCell({
 
   return (
     <div onClick={(event) => event.stopPropagation()}>
-      {legacyDisabledReason ? (
-        <Tooltip label={legacyDisabledReason} hoverableContent={false}>
+      {disabledReason ? (
+        <Tooltip label={disabledReason} hoverableContent={false}>
           {({ getTriggerProps }) => (
             <span
               {...getTriggerProps()}

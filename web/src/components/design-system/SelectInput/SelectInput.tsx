@@ -29,7 +29,11 @@ type SelectInputProps<V extends string> = Pick<
   | "disabled"
 > & {
   placeholder: string;
-  search?: { placeholder: string };
+  search?: {
+    placeholder: string;
+    value?: string;
+    onValueChange?: (value: string) => void;
+  };
   error?: boolean;
 };
 
@@ -96,7 +100,11 @@ function SelectInputInner<V extends string>(
               <InputDropdown.Root>
                 <CommandPrimitive>
                   <InputDropdown.Search>
-                    <CommandPrimitive.Input placeholder={search.placeholder} />
+                    <CommandPrimitive.Input
+                      placeholder={search.placeholder}
+                      value={search.value}
+                      onValueChange={search.onValueChange}
+                    />
                   </InputDropdown.Search>
                   <InputDropdown.Empty>
                     <CommandPrimitive.Empty>

@@ -321,7 +321,6 @@ describe("legacy evaluator compatibility service", () => {
       timeScope: ["NEW"],
       createdByUserId: null,
     });
-
     expect(rule).not.toBeNull();
     const config = await service.getConfig(project.id, rule!.id);
     expect(config?.scoreName).toBe("Production score");
@@ -964,6 +963,27 @@ describe("legacy evaluator compatibility service", () => {
       timeScope: ["NEW"],
       createdByUserId: null,
     });
+    const dependentRule = await prisma.evaluationRule.create({
+      data: {
+        projectId: project.id,
+        name: "Dependent result rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        triggerKind: "SCORE_RESULT",
+        triggerEvaluatorId: library.id,
+        scoreResultPredicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">=",
+            value: 0.8,
+          },
+        ],
+      },
+    });
 
     const result = await service.saveTemplate({
       projectId: project.id,
@@ -987,6 +1007,16 @@ describe("legacy evaluator compatibility service", () => {
 
     expect(result?.template.version).toBe(2);
     expect(result?.updatedConfigCount).toBe(1);
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, triggerInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "INACTIVE",
+      triggerInvalidReason:
+        "The trigger evaluator changed. Review the score conditions.",
+    });
     const config = await service.getConfig(project.id, rule!.id);
     expect(config?.variableMapping).toEqual([
       {

@@ -42,6 +42,8 @@ export function EditRuleDialogContent({
       name: rule.name,
       filter: singleFilterList.catch([]).parse(rule.filter),
       sampling: rule.sampling,
+      triggerKind: rule.triggerKind,
+      scoreResultTrigger: rule.scoreResultTrigger,
       assignments: rule.assignments.map((assignment) => {
         const preparedDefault = prepareModernRuleVariableMapping(
           assignment.evaluator.latestVersion?.variableMapping,
@@ -87,6 +89,8 @@ export function EditRuleDialogContent({
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
+      triggerKind: draft.triggerKind,
+      scoreResultTrigger: draft.scoreResultTrigger,
       evaluatorMappings: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -97,6 +101,7 @@ export function EditRuleDialogContent({
       ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: rule.enabled,
+      triggerKind: draft.triggerKind,
     });
     if (attachedCount > 0) {
       capture("evaluation_rules:attach_evaluator", {

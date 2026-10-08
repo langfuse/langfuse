@@ -10,6 +10,8 @@ describe("RuleNameStep", () => {
       name: "",
       filter: [],
       sampling: 1,
+      triggerKind: "OBSERVATION",
+      scoreResultTrigger: null,
       assignments: [],
     });
 
