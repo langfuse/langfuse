@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva } from "class-variance-authority";
-import { Ellipsis, type LucideIcon } from "lucide-react";
+import { EllipsisVertical, type LucideIcon } from "lucide-react";
 import Link, { type LinkProps } from "next/link";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -418,7 +418,7 @@ function TabsOverflowTrigger(
   return (
     <IconButton
       {...props}
-      icon={Ellipsis}
+      icon={EllipsisVertical}
       label={overflowTriggerLabel}
       size="md"
       variant="ghost"
