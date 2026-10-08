@@ -196,8 +196,9 @@ function TracePanelNavigationHeaderExpanded({
     >
       <CommandInput
         showBorder={false}
+        variant="toolbar"
         placeholder="Search"
-        className="@max-[299px]/navheader:placeholder:text-muted-foreground placeholder:text-muted-foreground h-7 min-w-0 border-0 pr-0 text-xs placeholder:font-mono focus:ring-0 @max-[299px]/navheader:h-[1.625rem]"
+        className="@max-[299px]/navheader:placeholder:text-muted-foreground min-w-0 border-0 pr-0 focus:ring-0 @max-[299px]/navheader:h-[1.625rem]"
         value={searchInputValue}
         onValueChange={setSearchInputValue}
         onKeyDown={handleSearchKeyDown}

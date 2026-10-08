@@ -319,22 +319,26 @@ export const PromptDetail = ({
       <div
         className={cn(
           "flex shrink-0 items-center justify-between",
-          mobile ? "mb-1" : "-mx-3 mt-3 border-b px-3 pb-3",
+          mobile ? "mb-1" : "-mx-3 border-b py-1 pr-3 pl-1",
         )}
       >
         <CommandInput
           showBorder={false}
+          variant="toolbar"
           placeholder="Search..."
-          className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
+          className="border-none py-0 focus:ring-0"
         />
 
         <Button
+          variant="secondary"
           onClick={() => {
             capture("prompts:update_form_open");
           }}
           className={cn(
             "shrink-0",
-            mobile ? "h-8 w-fit px-3" : "h-6 w-6 px-1 lg:h-8 lg:w-fit lg:px-3",
+            mobile
+              ? "h-8 w-fit px-3"
+              : "h-6 w-6 px-1 lg:h-7 lg:w-fit lg:px-2.5",
           )}
         >
           <Link
