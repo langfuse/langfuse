@@ -1,5 +1,5 @@
-import { authenticateOrganizationLlmConnectionApiRequest } from "@/src/features/llm-api-key/server/organizationLlmConnectionApiAuth";
 import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { authenticateOrganizationLlmConnectionApiRequest } from "@/src/features/public-api/server/authenticateOrganizationApiRequest";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   DeleteLlmConnectionV1Query,
