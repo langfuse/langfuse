@@ -48,12 +48,17 @@ const codeVariants = cva(
 
 const actionGroupVariants = cva(
   // Revealed on hover/focus only; touch devices have no hover, so the controls stay visible there.
-  "relative flex shrink-0 items-center gap-1 opacity-0 group-hover/codesection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
+  "flex min-w-0 shrink-0 items-center gap-1 group-hover/codesection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
   {
     variants: {
       placement: {
         header: null,
         body: "pt-2 pr-2",
+      },
+      // Copy feedback stays visible even when the pointer has already left.
+      isPinned: {
+        true: "opacity-100",
+        false: "opacity-0",
       },
     },
   },
@@ -108,11 +113,14 @@ export function CodeSection({
 
   const actionGroup = hasActions ? (
     <div
-      className={actionGroupVariants({ placement: title ? "header" : "body" })}
+      className={actionGroupVariants({
+        placement: title ? "header" : "body",
+        isPinned: isCopied,
+      })}
     >
       {isCopied && copiedMessage ? (
         <span
-          className="text-muted-foreground absolute top-0 right-full mr-1 flex h-full max-w-sm items-center truncate text-xs whitespace-nowrap"
+          className="text-muted-foreground min-w-0 truncate text-xs"
           title={copiedMessage}
         >
           {copiedMessage}
