@@ -11,7 +11,10 @@ import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 import { createMcpTestSetup } from "@/src/__tests__/server/mcp-helpers";
 import { env } from "@/src/env.mjs";
-import type { OrganizationServerContext } from "@/src/features/mcp/types";
+import type {
+  OrganizationServerContext,
+  ProjectServerContext,
+} from "@/src/features/mcp/types";
 import { authenticator } from "@/src/features/apiKey/server";
 import "@/src/features/mcp/server/bootstrap";
 import {
@@ -127,7 +130,10 @@ describe("MCP LLM connection tools", () => {
     const fixture = await createMcpTestSetup();
     const provider = `mcp-project-auth-${randomUUID()}`;
     const previousMigration = (env as any).API_AUTH_MIGRATION;
-    const restrictedContext = {
+    if (!fixture.context.auth) {
+      throw new Error("Expected authorization context");
+    }
+    const restrictedContext: ProjectServerContext = {
       ...fixture.context,
       auth: {
         ...fixture.context.auth,
