@@ -18,8 +18,8 @@ export function ObservationLevelBadge({
   size,
 }: {
   level: DisplayedObservationLevel;
-  /** Compact rows such as the trace tree use "sm". */
-  size?: "sm" | "default";
+  /** Tree rows use "md" to match the score chips beside them. */
+  size?: "md" | "default";
 }) {
   return (
     <Badge
