@@ -237,8 +237,8 @@ export function validateOtelSpanIds(
  * All values are converted to strings for consistent storage.
  *
  * Each path is emitted once. A literal dotted key and a nested object can
- * produce the same path ({"a.b": 1, a: {b: 2}}); the last value written wins,
- * at the position of the path's first occurrence.
+ * produce the same path ({"a.b": 1, a: {b: 2}}); the first value wins, which
+ * is the value metadata reads return for a duplicated path.
  */
 export function flattenJsonToPathArrays(
   obj: Record<string, unknown>,
@@ -267,6 +267,8 @@ function collectJsonPaths(
       !Array.isArray(value)
     ) {
       collectJsonPaths(value as Record<string, unknown>, path, flattened);
+    } else if (flattened.has(path)) {
+      continue;
     } else if (
       value === null ||
       value === undefined ||
