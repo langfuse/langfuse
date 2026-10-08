@@ -235,7 +235,7 @@ async function validateBaseUrl(params: {
     await validateLlmConnectionBaseURL(params.baseURL);
   } catch (error) {
     throw new InvalidRequestError(
-      `Invalid baseURL: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
