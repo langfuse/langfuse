@@ -60,6 +60,7 @@ function UpdateDisplayName() {
       await utils.invalidate();
       form.reset();
       showSuccessToast({
+        operation: "account.display_name_update",
         title: "Display Name Updated",
         description: "Your display name has been successfully updated.",
       });
@@ -151,6 +152,7 @@ function DeleteAccountButton() {
     try {
       await deleteAccount.mutateAsync();
       showSuccessToast({
+        operation: "account.delete",
         title: "Account Deleted",
         description: "Your account has been successfully deleted.",
       });
@@ -247,6 +249,7 @@ function SignOutAllSessionsButton() {
     try {
       await signOutAllSessions.mutateAsync();
       showSuccessToast({
+        operation: "account.revoke_sessions",
         title: "Signed Out of All Sessions",
         description: "All sessions have been invalidated.",
       });

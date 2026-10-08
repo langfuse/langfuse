@@ -83,6 +83,8 @@ export function MonitorsTable() {
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation:
+          variables.status === "PAUSED" ? "monitor.pause" : "monitor.resume",
         title: variables.status === "PAUSED" ? "Alert paused" : "Alert resumed",
         description:
           variables.status === "PAUSED"

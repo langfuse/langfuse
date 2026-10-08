@@ -181,6 +181,7 @@ export function ImportSkillsDialog({
         });
         utils.skills.invalidate();
         showSuccessToast({
+          operation: "skills.import",
           title: `Imported ${importedCount} ${importedCount === 1 ? "skill" : "skills"}`,
           description: "The imported copies are available in your skills list.",
         });

@@ -40,7 +40,7 @@ export function GraphViewModeSwitch({
         value={value}
         onValueChange={(mode) => onChange(mode as GraphViewMode)}
       >
-        <Tabs.List size="md" aria-label="Graph mode">
+        <Tabs.List variant="inset" size="md" aria-label="Graph mode">
           {MODES.map(({ mode, icon: Icon, label, title }) => (
             <Tabs.Trigger key={mode} value={mode} title={title}>
               <Icon aria-hidden="true" className="icon-base shrink-0" />

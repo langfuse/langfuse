@@ -117,6 +117,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.upsertRemoteExperiment.useMutation({
       onSuccess: (data) => {
         showSuccessToast({
+          operation: "remote_experiment.configure",
           title: "Setup successfully",
           description: "Your changes have been saved.",
         });
@@ -142,6 +143,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.deleteRemoteExperiment.useMutation({
       onSuccess: () => {
         showSuccessToast({
+          operation: "remote_experiment.delete",
           title: "Deleted successfully",
           description:
             "The remote dataset run trigger has been removed from this dataset.",

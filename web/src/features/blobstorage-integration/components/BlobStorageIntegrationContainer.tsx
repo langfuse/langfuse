@@ -79,6 +79,7 @@ export const BlobStorageIntegrationContainer = ({
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
+        operation: "blob_storage.validate",
         title: data.message,
         description: `Test file: ${data.testFileName}`,
       });

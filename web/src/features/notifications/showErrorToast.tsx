@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
+import { type ToastErrorAnalytics } from "@/src/features/notifications/toastAnalytics";
 
 const toastErrorStyleProps = {
   border: "1px solid hsl(var(--destructive))",
@@ -23,6 +24,7 @@ export const showErrorToast = (
   path?: string,
   traceId?: string,
   source: "application" | "trpc" = "application",
+  analytics?: ToastErrorAnalytics,
 ) => {
   toast.custom(
     (t) => (
@@ -33,6 +35,7 @@ export const showErrorToast = (
         source={source}
         path={path}
         traceId={traceId}
+        analytics={analytics}
         dismissToast={toast.dismiss}
         toast={t}
       />

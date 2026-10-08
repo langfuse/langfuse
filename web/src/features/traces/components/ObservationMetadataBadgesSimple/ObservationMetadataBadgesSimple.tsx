@@ -2,7 +2,13 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function LatencyBadge({ latencySeconds }: { latencySeconds: number }) {
-  return <Badge color="ghost" text={formatIntervalSeconds(latencySeconds)} />;
+  return (
+    <Badge
+      font="mono"
+      color="ghost"
+      text={formatIntervalSeconds(latencySeconds)}
+    />
+  );
 }
 
 export function TimeToFirstTokenBadge({
@@ -12,6 +18,7 @@ export function TimeToFirstTokenBadge({
 }) {
   return (
     <Badge
+      font="mono"
       color="ghost"
       label="ttft"
       text={formatIntervalSeconds(timeToFirstToken)}

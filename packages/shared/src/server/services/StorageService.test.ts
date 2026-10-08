@@ -87,6 +87,58 @@ describe("S3StorageService region normalization", () => {
       await expect(client.config.region()).resolves.toBe(region);
     },
   );
+
+  it("follows S3's region redirect when region is auto on AWS", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "auto",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+    const hostnames: string[] = [];
+
+    // Answer the first request like S3 does for a bucket in another region,
+    // then succeed. No network I/O happens.
+    const fakeS3 = () => async (args: { request: unknown }) => {
+      hostnames.push((args.request as { hostname: string }).hostname);
+      const redirect = hostnames.length === 1;
+      return {
+        response: {
+          statusCode: redirect ? 301 : 200,
+          headers: {
+            "content-type": "application/xml",
+            ...(redirect ? { "x-amz-bucket-region": "eu-west-1" } : {}),
+          },
+          body: Readable.from([
+            Buffer.from(
+              redirect
+                ? "<Error><Code>PermanentRedirect</Code></Error>"
+                : "<ListBucketResult></ListBucketResult>",
+            ),
+          ]),
+        },
+      };
+    };
+    client.middlewareStack.add(
+      fakeS3 as unknown as Parameters<typeof client.middlewareStack.add>[0],
+      { step: "deserialize", priority: "low", name: "fakeS3", override: true },
+    );
+
+    await service.listFiles("exports/");
+
+    expect(hostnames).toEqual([
+      "test-bucket.s3.us-east-1.amazonaws.com",
+      "test-bucket.s3.eu-west-1.amazonaws.com",
+    ]);
+  });
 });
 
 describe("resolveMediaStorageEndpoints", () => {

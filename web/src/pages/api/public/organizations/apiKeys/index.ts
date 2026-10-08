@@ -52,7 +52,7 @@ export default async function handler(
 
   // Route to the handler
   try {
-    return handleGetApiKeys(req, res, authCheck.scope.orgId);
+    return await handleGetApiKeys(req, res, authCheck.scope.orgId);
   } catch (error) {
     logger.error(
       `Error handling organization API keys for ${req.method}`,

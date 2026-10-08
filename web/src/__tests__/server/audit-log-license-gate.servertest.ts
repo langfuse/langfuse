@@ -26,8 +26,9 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 /**
  * Audit log records are an enterprise feature, so they are only persisted when
@@ -48,11 +49,11 @@ describe("audit log license gate", () => {
     orgId = org.orgId;
     projectId = org.projectId;
     apiKeyId = (
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: org.projectId,
-        scope: "PROJECT",
-        note: "License gate test key",
+      await createApiKey(prisma, {
+        owner: ProjectId(org.projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: "system",
+        name: "License gate test key",
       })
     ).id;
   });

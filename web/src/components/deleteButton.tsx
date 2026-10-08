@@ -251,6 +251,7 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
   const monitorMutation = api.monitors.delete.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "monitor.delete",
         title: "Alert deleted",
         description: "The alert has been deleted successfully",
       });
@@ -302,6 +303,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Running evaluator deleted",
         description: "The running evaluator has been deleted successfully",
       });
@@ -358,6 +360,7 @@ export function DeleteEvaluationModelButton(
     api.defaultLlmModel.deleteDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
+          operation: "evaluation_model.delete",
           title: "Default evaluation model deleted",
           description:
             "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",

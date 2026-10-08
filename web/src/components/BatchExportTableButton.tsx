@@ -41,6 +41,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     },
     onSuccess: () => {
       showSuccessToast({
+        operation: "export.queue",
         title: "Export queued",
         description: "You will receive an email when the export is ready.",
         duration: 10000,

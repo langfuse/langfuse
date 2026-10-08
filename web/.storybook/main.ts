@@ -179,6 +179,13 @@ const config: StorybookConfig = {
         find: /^@langfuse\/shared\/query$/,
         replacement: `${sharedSrc}/features/query`,
       },
+      // Client-safe role catalog, imported by the RBAC role-select UI and its
+      // stories. No `/rbac/server` rule: a story pulling server-only code
+      // should fail the build, not silently resolve.
+      {
+        find: /^@langfuse\/shared\/rbac$/,
+        replacement: `${sharedSrc}/features/rbac`,
+      },
       // Client-safe entry of the in-app-agent module (imported by the agent
       // window components and their stories). Deliberately no rule for the
       // `/server` subpaths: a story that pulls server code should fail the

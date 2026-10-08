@@ -16,18 +16,18 @@ import {
  * type's badge in the tree/timeline all read as one color across light/dark.
  */
 const TYPE_BORDER_CLASS: Record<string, string> = {
-  AGENT: "border-observation-agent",
-  TOOL: "border-observation-tool",
-  GENERATION: "border-observation-generation",
-  SPAN: "border-observation-span",
-  CHAIN: "border-observation-chain",
-  RETRIEVER: "border-observation-retriever",
-  EVALUATOR: "border-observation-evaluator",
-  EVENT: "border-observation-event",
-  EMBEDDING: "border-observation-embedding",
-  GUARDRAIL: "border-observation-guardrail",
+  AGENT: "border-observation-agent-line",
+  TOOL: "border-observation-tool-line",
+  GENERATION: "border-observation-generation-line",
+  SPAN: "border-observation-span-line",
+  CHAIN: "border-observation-chain-line",
+  RETRIEVER: "border-observation-retriever-line",
+  EVALUATOR: "border-observation-evaluator-line",
+  EVENT: "border-observation-event-line",
+  EMBEDDING: "border-observation-embedding-line",
+  GUARDRAIL: "border-observation-guardrail-line",
 };
-const DEFAULT_BORDER_CLASS = "border-observation-span";
+const DEFAULT_BORDER_CLASS = "border-observation-span-line";
 
 /**
  * How far a search miss drops — the same value the timeline dims its rows by,
