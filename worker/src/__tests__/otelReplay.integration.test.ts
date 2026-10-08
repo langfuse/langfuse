@@ -658,7 +658,7 @@ describe(
             if (prepared?.batch) {
               // Snapshot native output before queue parsing and the TS media detector.
               compactedBatches.push({
-                json: prepared.batch.json(),
+                json: (await prepared.batch.copyJsonBuffer()).toString("utf8"),
                 references: prepared.batch.media.map(
                   (media) => media.reference,
                 ),
@@ -898,7 +898,7 @@ describe(
           if (result?.batch) {
             const media = result.batch.media;
             compactedBatches.push({
-              json: result.batch.json(),
+              json: (await result.batch.copyJsonBuffer()).toString("utf8"),
               media: await Promise.all(
                 media.map(async ({ index, reference }) => ({
                   reference,
@@ -1203,7 +1203,7 @@ describe(
             const result = await prepareOtelBatch(params);
             if (result?.batch) {
               compactedBatches.push({
-                json: result.batch.json(),
+                json: (await result.batch.copyJsonBuffer()).toString("utf8"),
                 references: result.batch.media.map((media) => media.reference),
               });
             }
