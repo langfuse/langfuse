@@ -58,7 +58,9 @@ export async function loadTraceTranscript(trace: {
   let transcript = assembleTranscript(orderObservations(observations));
   if (!transcript && trace.fallbackToRootIO) {
     const root = structure.observations.find(
-      (observation) => observation.parentObservationId === null,
+      (observation) =>
+        observation.isRootObservation === true ||
+        !observation.parentObservationId,
     );
     if (root) {
       const rootWithContent = await getObservationByIdFromEventsTable({

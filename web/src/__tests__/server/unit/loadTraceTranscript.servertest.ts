@@ -84,18 +84,97 @@ function fixture(
 }
 beforeEach(() => vi.resetAllMocks());
 
-it("falls back to normalized root input/output with root provenance", async () => {
+it.each([
+  { parentObservationId: null, isRootObservation: true },
+  { parentObservationId: "", isRootObservation: undefined },
+  { parentObservationId: "external-parent", isRootObservation: true },
+])(
+  "falls back to normalized root input/output with root provenance: %j",
+  async ({ parentObservationId, isRootObservation }) => {
+    const root = {
+      id: "root",
+      traceId: "trace",
+      parentObservationId,
+      isRootObservation,
+      type: "SPAN",
+      name: "Root",
+      startTime: new Date(0),
+      endTime: new Date(1000),
+      input: "Question",
+      output: "Answer",
+      metadata: {},
+    };
+    mocks.assemble.mockReturnValue(null);
+    mocks.observations.mockResolvedValue({
+      observations: [root],
+      totalCount: 1,
+    });
+    mocks.root.mockResolvedValue(root);
+
+    const result = await loadTraceTranscript({
+      ...trace,
+      fallbackToRootIO: true,
+    });
+
+    expect(mocks.root).toHaveBeenCalledWith({
+      projectId: "project",
+      traceId: "trace",
+      id: "root",
+      startTime: new Date(0),
+      fetchWithInputOutput: true,
+    });
+    expect(result.cutoff).toBe(false);
+    expect(result.transcript?.threads).toHaveLength(1);
+    expect(result.transcript?.threads[0]?.currentTurn).toMatchObject({
+      nestingLevel: 0,
+      observations: [{ id: "root", traceId: "trace" }],
+      messages: [
+        {
+          role: "user",
+          source: "input",
+          parts: [{ type: "text", text: "Question" }],
+          observationId: "root",
+          traceId: "trace",
+          startTime: root.startTime,
+          endTime: root.endTime,
+        },
+        {
+          role: "assistant",
+          source: "output",
+          parts: [{ type: "text", text: "Answer" }],
+          observationId: "root",
+          traceId: "trace",
+          startTime: root.startTime,
+          endTime: root.endTime,
+        },
+      ],
+    });
+  },
+);
+
+it("falls back to seeded JSON chat messages with an empty-string root parent", async () => {
   const root = {
-    id: "root",
-    traceId: "trace",
-    parentObservationId: null,
-    type: "SPAN",
-    name: "Root",
+    id: "t-seed-media-image-only",
+    traceId: "seed-media-image-only",
+    parentObservationId: "",
     startTime: new Date(0),
-    endTime: new Date(1000),
-    input: "Question",
-    output: "Answer",
-    metadata: {},
+    endTime: null,
+    input: JSON.stringify([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Please analyze the seeded image attachment." },
+          {
+            type: "image_url",
+            image_url: {
+              url: "@@@langfuseMedia:type=image/png|id=seed-image|source=base64_data_uri@@@",
+            },
+          },
+        ],
+      },
+    ]),
+    output: JSON.stringify([{ role: "assistant", content: "Image analysis" }]),
+    metadata: "{}",
   };
   mocks.assemble.mockReturnValue(null);
   mocks.observations.mockResolvedValue({ observations: [root], totalCount: 1 });
@@ -103,42 +182,23 @@ it("falls back to normalized root input/output with root provenance", async () =
 
   const result = await loadTraceTranscript({
     ...trace,
+    traceId: root.traceId,
     fallbackToRootIO: true,
   });
-
-  expect(mocks.root).toHaveBeenCalledWith({
-    projectId: "project",
-    traceId: "trace",
-    id: "root",
-    startTime: new Date(0),
-    fetchWithInputOutput: true,
-  });
-  expect(result.cutoff).toBe(false);
-  expect(result.transcript?.threads).toHaveLength(1);
-  expect(result.transcript?.threads[0]?.currentTurn).toMatchObject({
-    nestingLevel: 0,
-    observations: [{ id: "root", traceId: "trace" }],
-    messages: [
-      {
-        role: "user",
-        source: "input",
-        parts: [{ type: "text", text: "Question" }],
-        observationId: "root",
-        traceId: "trace",
-        startTime: root.startTime,
-        endTime: root.endTime,
-      },
-      {
-        role: "assistant",
-        source: "output",
-        parts: [{ type: "text", text: "Answer" }],
-        observationId: "root",
-        traceId: "trace",
-        startTime: root.startTime,
-        endTime: root.endTime,
-      },
-    ],
-  });
+  expect(result.transcript?.threads[0]?.currentTurn.messages).toMatchObject([
+    {
+      observationId: root.id,
+      role: "user",
+      parts: expect.arrayContaining([
+        { type: "text", text: "Please analyze the seeded image attachment." },
+      ]),
+    },
+    {
+      observationId: root.id,
+      role: "assistant",
+      parts: [{ type: "text", text: "Image analysis" }],
+    },
+  ]);
 });
 
 it("does not fetch root I/O when an existing transcript is available", async () => {
