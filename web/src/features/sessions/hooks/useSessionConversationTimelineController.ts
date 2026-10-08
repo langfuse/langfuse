@@ -208,7 +208,7 @@ export function useSessionConversationTimelineController(
       if (previousTarget === undefined || Math.abs(previousTarget - top) > 1) {
         previousTarget = top;
         stableSince = performance.now();
-        feed.scrollTo({ top, behavior: "smooth" });
+        feed.scrollTo({ top, behavior: "auto" });
       }
       if (
         virtualizer.isScrolling ||

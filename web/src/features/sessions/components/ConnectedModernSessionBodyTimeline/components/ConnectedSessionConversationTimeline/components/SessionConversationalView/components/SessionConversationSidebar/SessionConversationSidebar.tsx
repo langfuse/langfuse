@@ -9,7 +9,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
   formatIdleGap,
@@ -291,7 +290,7 @@ export function SessionConversationSidebar(
         ref={setListElement}
         role="region"
         aria-label="Session turns"
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
@@ -351,13 +350,17 @@ export function SessionConversationSidebar(
                 !sidebarTrace.itemId &&
                 (sidebarTrace.threadCount ?? threads.size) > 1;
               return (
-                <SessionVirtualizedRow
+                <div
                   key={item.key}
-                  itemKey={String(item.key)}
-                  measurementKey={`${String(item.key)}:${isCollapsed}:${props.search}`}
-                  source="modern"
-                  virtualItem={item}
-                  virtualizer={virtualizer}
+                  ref={virtualizer.measureElement}
+                  data-index={item.index}
+                  data-session-virtualizer-row="modern"
+                  style={{
+                    position: "absolute",
+                    top: item.start,
+                    left: 0,
+                    width: "100%",
+                  }}
                 >
                   {props.search.trim() === "" &&
                     idleGapSeconds !== null &&
@@ -649,7 +652,7 @@ export function SessionConversationSidebar(
                       )}
                     </div>
                   </div>
-                </SessionVirtualizedRow>
+                </div>
               );
             })}
           </div>
