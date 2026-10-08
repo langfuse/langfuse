@@ -107,14 +107,15 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                       options={props.buildIntentOptions}
                       value={field.value}
                       onChange={field.onChange}
-                    >
-                      <DesignSystemInput
-                        {...form.register("buildIntentOther")}
-                        aria-label="What else will you use Langfuse for?"
-                        maxLength={BUILD_INTENT_OTHER_MAX_LENGTH}
-                        placeholder="Tell us briefly"
-                      />
-                    </BuildIntentFieldset>
+                      otherInput={
+                        <DesignSystemInput
+                          {...form.register("buildIntentOther")}
+                          aria-label="What else will you use Langfuse for?"
+                          maxLength={BUILD_INTENT_OTHER_MAX_LENGTH}
+                          placeholder="Tell us briefly"
+                        />
+                      }
+                    />
                   </div>
                 )}
               />

@@ -13,14 +13,14 @@ type BuildIntentFieldsetProps = {
   options: BuildIntentOption[];
   value: BuildIntentId[];
   onChange: (value: BuildIntentId[]) => void;
-  children: ReactNode;
+  otherInput: ReactNode;
 };
 
 export function BuildIntentFieldset({
   options,
   value,
   onChange,
-  children,
+  otherInput,
 }: BuildIntentFieldsetProps) {
   const isAtLimit = value.length >= BUILD_INTENT_MAX_SELECTIONS;
 
@@ -48,7 +48,7 @@ export function BuildIntentFieldset({
             }
             onToggle={handleOptionToggle}
           >
-            {option.id === OTHER_BUILD_INTENT ? children : null}
+            {option.id === OTHER_BUILD_INTENT ? otherInput : null}
           </BuildIntentOptionRow>
         ))}
       </div>
