@@ -29,6 +29,8 @@ const SAMPLES = {
 
 const WOFF2_SIGNATURE = 0x774f4632;
 const WOFF2_HEADER_BYTES = 48;
+/** Header field holding the byte length of the Brotli-compressed table block. */
+const WOFF2_COMPRESSED_LENGTH_OFFSET = 20;
 /** Table directory flag meaning "a four-byte tag follows" instead of a known-table index. */
 const CUSTOM_TAG_INDEX = 0x3f;
 /** The known-table indices this reader needs to recognise by name. */
@@ -86,13 +88,13 @@ function readCmapTable(file: Buffer): Buffer {
       tag = KNOWN_TAGS.get(knownTagIndex);
     }
 
-    // `glyf` and `loca` are transformed unless the version says otherwise;
-    // every other table is the other way round. A transformed table carries a
-    // second length, which is the one it occupies in the compressed block.
+    // `glyf` and `loca` are transformed at version 0 and stored as they are at
+    // version 3; every other table is the other way round. A transformed table
+    // carries a second length, which is the one it takes up in the block.
     const originalLength = readUIntBase128(view, cursor);
     const transformed =
       tag === "glyf" || tag === "loca"
-        ? transformVersion !== 3
+        ? transformVersion === 0
         : transformVersion !== 0;
     const storedLength = transformed
       ? readUIntBase128(view, cursor)
@@ -103,7 +105,12 @@ function readCmapTable(file: Buffer): Buffer {
   }
 
   if (!cmap) throw new Error("woff2 file has no cmap table");
-  const tables = brotliDecompressSync(file.subarray(cursor.offset));
+  // Bounded by the header's compressed size: anything after the block is
+  // padding, extended metadata or private data, none of it Brotli.
+  const blockLength = view.getUint32(WOFF2_COMPRESSED_LENGTH_OFFSET);
+  const tables = brotliDecompressSync(
+    file.subarray(cursor.offset, cursor.offset + blockLength),
+  );
   return tables.subarray(cmap.offset, cmap.offset + cmap.length);
 }
 
