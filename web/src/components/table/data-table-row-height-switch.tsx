@@ -40,7 +40,7 @@ export type CustomHeights = Record<RowHeight, string>;
  * so a drag can land on Small. A table with a taller Small uses that height
  * as its own floor.
  */
-export const MIN_CUSTOM_ROW_HEIGHT_PX = 28;
+const MIN_CUSTOM_ROW_HEIGHT_PX = 28;
 export const MAX_CUSTOM_ROW_HEIGHT_PX = 4_000;
 
 const ROW_HEIGHT_IDS = new Set<string>(
