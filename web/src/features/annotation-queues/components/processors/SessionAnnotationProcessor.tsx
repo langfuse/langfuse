@@ -19,7 +19,7 @@ import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
 import { useReadPath } from "@/src/features/events";
-import { api } from "@/src/utils/api";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -55,14 +55,7 @@ export const SessionAnnotationProcessor: React.FC<
     { projectId, sessionId: item.objectId },
     {
       enabled: isV4,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 

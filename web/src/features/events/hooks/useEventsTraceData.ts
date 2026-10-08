@@ -1,5 +1,9 @@
 import { useMemo } from "react";
-import { api, sendAsPostOption } from "@/src/utils/api";
+import {
+  api,
+  sendAsPostOption,
+  shouldRetryResourceQuery,
+} from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
@@ -67,10 +71,7 @@ export function useEventsTraceData(
     },
     {
       enabled: enabled && !!traceId,
-      retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
       staleTime: 60 * 1000, // 1 minute
     },
   );

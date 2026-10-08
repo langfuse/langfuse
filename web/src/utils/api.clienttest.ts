@@ -19,6 +19,8 @@ import {
   MAX_TRPC_GET_URL_BYTES,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  shouldRetryQuery,
+  shouldRetryResourceQuery,
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
 
@@ -610,6 +612,81 @@ describe("isExpectedTrpcClientError", () => {
     );
     expect(isExpectedTrpcClientError(null)).toBe(false);
     expect(isExpectedTrpcClientError(undefined)).toBe(false);
+  });
+});
+
+describe("shouldRetryQuery", () => {
+  it("does not retry a query rejected by the ClickHouse resource guardrail", () => {
+    // Production shape minted by `withErrorHandling` (web/src/server/api/
+    // trpc.ts) when a query times out or exceeds ClickHouse memory. A retry
+    // re-runs the same over-budget query while ClickHouse is still busy with
+    // the abandoned attempt.
+    const error = TRPCClientError.from({
+      error: {
+        code: -32600,
+        message:
+          "Your query could not be completed. Please narrow your request by adding more specific filters (e.g., a shorter date range).",
+        data: {
+          code: "UNPROCESSABLE_CONTENT",
+          httpStatus: 422,
+          path: "sessions.allFromEvents",
+          errorName: "ClickHouseResourceError",
+        },
+      },
+    });
+
+    expect(shouldRetryQuery(0, error)).toBe(false);
+  });
+
+  it("does not retry a missing resource (404)", () => {
+    const error = trpcServerError({
+      code: "NOT_FOUND",
+      httpStatus: 404,
+      path: "traces.byId",
+    });
+
+    expect(shouldRetryQuery(0, error)).toBe(false);
+  });
+
+  it.each([
+    [
+      "a server error",
+      trpcServerError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: "sessions.allFromEvents",
+      }),
+    ],
+    [
+      "a network connectivity failure",
+      TRPCClientError.from(new TypeError("Failed to fetch")),
+    ],
+  ])("retries %s up to three times", (_label, error) => {
+    expect(shouldRetryQuery(0, error)).toBe(true);
+    expect(shouldRetryQuery(2, error)).toBe(true);
+    expect(shouldRetryQuery(3, error)).toBe(false);
+  });
+});
+
+describe("shouldRetryResourceQuery", () => {
+  it.each([
+    ["UNAUTHORIZED", 401],
+    ["UNPROCESSABLE_CONTENT", 422],
+  ])("does not retry %s", (code, httpStatus) => {
+    const error = trpcServerError({ code, httpStatus, path: "traces.byId" });
+
+    expect(shouldRetryResourceQuery(0, error)).toBe(false);
+  });
+
+  it("retries a server error up to three times", () => {
+    const error = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "traces.byId",
+    });
+
+    expect(shouldRetryResourceQuery(2, error)).toBe(true);
+    expect(shouldRetryResourceQuery(3, error)).toBe(false);
   });
 });
 

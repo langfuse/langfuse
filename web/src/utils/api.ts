@@ -647,6 +647,47 @@ const shouldSilenceError = (
   return false;
 };
 
+/**
+ * Default retry policy for tRPC queries.
+ *
+ * Don't retry on 404s: a deleted/missing resource never appears via retry, so
+ * failing fast avoids piling up pointless refetches (and ClickHouse load for
+ * resources backed by it).
+ *
+ * Don't retry on 422s either: the server mints UNPROCESSABLE_CONTENT only for
+ * query resource guardrails (`ClickHouseResourceError`) and oversized payloads
+ * (see {@link EXPECTED_TRPC_ERROR_CODES}). A retry re-runs the same over-budget
+ * query while ClickHouse is still saturated — self-hosted ClickHouse keeps
+ * executing the abandoned attempt (`cancel_http_readonly_queries_on_client_close`
+ * defaults to 0 outside ClickHouse Cloud) — so each rejection would multiply
+ * the load that caused it.
+ *
+ * Every other 4xx keeps the default retry/backoff — some (e.g. a route param
+ * that hasn't hydrated yet, a proxy-level 429) are transient and self-heal.
+ */
+export const shouldRetryQuery = (
+  failureCount: number,
+  error: unknown,
+): boolean => {
+  const httpStatus = getHttpStatus(error);
+  if (httpStatus === 404 || httpStatus === 422) {
+    return false;
+  }
+  return failureCount < 3;
+};
+
+/**
+ * Retry policy for single-resource detail queries (trace, session): also fails
+ * fast on 401 so the page can render its access error immediately. Use this
+ * instead of a hand-written `retry` so the {@link shouldRetryQuery} rules still
+ * apply — a per-query `retry` replaces the default rather than extending it.
+ */
+export const shouldRetryResourceQuery = (
+  failureCount: number,
+  error: unknown,
+): boolean =>
+  getHttpStatus(error) !== 401 && shouldRetryQuery(failureCount, error);
+
 /** APIError is returned by api.*.*.useQuery */
 export type APIError = TRPCClientErrorLike<AppRouter>;
 
@@ -704,17 +745,7 @@ export const api = createTRPCNext<AppRouter>({
           queries: {
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
-            // Don't retry on 404s: a deleted/missing resource never appears via
-            // retry, so failing fast avoids piling up pointless refetches (and
-            // ClickHouse load for resources backed by it). Every other 4xx keeps
-            // the default retry/backoff — some (e.g. a route param that hasn't
-            // hydrated yet, a proxy-level 429) are transient and self-heal.
-            retry: (failureCount, error) => {
-              if (getHttpStatus(error) === 404) {
-                return false;
-              }
-              return failureCount < 3;
-            },
+            retry: shouldRetryQuery,
           },
           mutations: {
             onError: (error) => handleTrpcError(error),
