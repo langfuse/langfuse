@@ -448,6 +448,7 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 300,
       getCell: (value) => value || undefined,
+      followRowHeight: true,
       singleLine: compactRows,
     }),
     {

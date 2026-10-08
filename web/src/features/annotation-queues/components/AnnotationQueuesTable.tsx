@@ -13,6 +13,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
+  useCompactRows,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
@@ -40,6 +41,30 @@ type RowData = {
   createdAt: string;
   isAssigned: boolean;
 };
+
+function AnnotationQueueScoreConfigs({
+  fallbackCompact,
+  scoreConfigs,
+}: {
+  fallbackCompact: boolean;
+  scoreConfigs: RowData["scoreConfigs"];
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <span
+      className={cn(
+        "grid h-full items-center overflow-auto",
+        compact && "leading-3",
+      )}
+    >
+      {scoreConfigs
+        .map(
+          (config) => `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+        )
+        .join(", ")}
+    </span>
+  );
+}
 
 export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
@@ -120,19 +145,10 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
           row.getValue("scoreConfigs");
 
         return (
-          <span
-            className={cn(
-              "grid h-full items-center overflow-auto",
-              compactRows && "leading-3",
-            )}
-          >
-            {scoreConfigs
-              .map(
-                (config) =>
-                  `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-              )
-              .join(", ")}
-          </span>
+          <AnnotationQueueScoreConfigs
+            fallbackCompact={compactRows}
+            scoreConfigs={scoreConfigs}
+          />
         );
       },
     },

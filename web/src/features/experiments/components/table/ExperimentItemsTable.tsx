@@ -47,7 +47,6 @@ import { useOrderByState } from "@/src/features/orderBy";
 import {
   customRowHeightMenu,
   getRowHeightIOCharLimit,
-  mediumRowHeightPx,
   useAdjustableRowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import {
@@ -804,9 +803,7 @@ export default function ExperimentItemsTable({
     rowHeight,
     adjustableRowHeight.mode,
     activeHeightPx,
-    mediumRowHeightPx(
-      layout === "grid" ? GRID_VIEW_ROW_HEIGHTS : LIST_VIEW_ROW_HEIGHTS,
-    ),
+    layout === "grid" ? GRID_VIEW_ROW_HEIGHTS : LIST_VIEW_ROW_HEIGHTS,
   );
 
   // Use the custom hook for experiment items data fetching

@@ -18,7 +18,10 @@ import { createIOTableColumn } from "@/src/components/design-system/table/column
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  resolveRowHeightRendering,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -431,8 +434,9 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.input;
         },
-        singleLine: rowHeight === "s",
-        enableExpandOnHover: rowHeight === "s",
+        followRowHeight: true,
+        singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
+        enableExpandOnHover: true,
         variant: "input",
       }),
       createIOTableColumn<SampleObservation>({
@@ -445,8 +449,9 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.output;
         },
-        singleLine: rowHeight === "s",
-        enableExpandOnHover: rowHeight === "s",
+        followRowHeight: true,
+        singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
+        enableExpandOnHover: true,
         variant: "output",
       }),
       createIOTableColumn<SampleObservation>({
@@ -459,8 +464,9 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.metadata;
         },
-        singleLine: rowHeight === "s",
-        enableExpandOnHover: rowHeight === "s",
+        followRowHeight: true,
+        singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
+        enableExpandOnHover: true,
       }),
       createTextTableColumn<SampleObservation>({
         accessorKey: "environment",

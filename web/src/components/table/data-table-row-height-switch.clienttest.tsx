@@ -4,6 +4,7 @@ import {
   getRowHeightIOCharLimit,
   isCompactRowHeight,
   mediumRowHeightPx,
+  resolveRowHeightRendering,
   resolveStoredRowHeight,
   useAdjustableRowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
@@ -91,12 +92,78 @@ describe("isCompactRowHeight", () => {
   it("uses the table's own Medium height when that preset is taller", () => {
     const heights = { s: "h-48", m: "h-64", l: "h-96" } as const;
     expect(mediumRowHeightPx(heights)).toBe(256);
+    expect(isCompactRowHeight("s", "custom", 192, heights)).toBe(true);
+    expect(isCompactRowHeight("s", "custom", 256, heights)).toBe(false);
+    expect(isCompactRowHeight("s", "preset", null, heights)).toBe(true);
+    expect(isCompactRowHeight("m", "preset", null, heights)).toBe(false);
+  });
+});
+
+describe("resolveRowHeightRendering", () => {
+  it("maps each preset through its pixel height", () => {
+    expect(resolveRowHeightRendering({ preset: "s" })).toEqual({
+      heightPx: 28,
+      compact: true,
+      expandedRead: false,
+    });
+    expect(resolveRowHeightRendering({ preset: "m" })).toEqual({
+      heightPx: 96,
+      compact: false,
+      expandedRead: true,
+    });
+    expect(resolveRowHeightRendering({ preset: "l" })).toEqual({
+      heightPx: 256,
+      compact: false,
+      expandedRead: true,
+    });
+  });
+
+  it("renders a dragged height the same as the preset of that height", () => {
+    const medium = resolveRowHeightRendering({ preset: "m" });
+    const draggedToMedium = resolveRowHeightRendering({
+      preset: "s",
+      previewPx: medium.heightPx,
+    });
+    expect(draggedToMedium).toEqual(medium);
+
+    const small = resolveRowHeightRendering({ preset: "s" });
+    const draggedToSmall = resolveRowHeightRendering({
+      preset: "l",
+      customPx: 256,
+      previewPx: small.heightPx,
+    });
+    expect(draggedToSmall).toEqual(small);
+  });
+
+  it("crosses Medium the same way while growing and shrinking", () => {
     expect(
-      isCompactRowHeight("s", "custom", 192, mediumRowHeightPx(heights)),
+      resolveRowHeightRendering({ preset: "s", previewPx: 95 }).compact,
     ).toBe(true);
     expect(
-      isCompactRowHeight("s", "custom", 256, mediumRowHeightPx(heights)),
+      resolveRowHeightRendering({ preset: "s", previewPx: 96 }).compact,
     ).toBe(false);
+    expect(
+      resolveRowHeightRendering({ preset: "l", customPx: 256, previewPx: 95 })
+        .compact,
+    ).toBe(true);
+    expect(getRowHeightIOCharLimit("m", "preset")).toBe(2000);
+    expect(getRowHeightIOCharLimit("s", "preset")).toBeUndefined();
+  });
+
+  it("uses a table whose Medium preset is not the default 96px", () => {
+    const list = { s: "h-24", m: "h-48", l: "h-96" } as const;
+    const medium = resolveRowHeightRendering({ preset: "m" }, list);
+    expect(medium).toEqual({
+      heightPx: 192,
+      compact: false,
+      expandedRead: true,
+    });
+    expect(
+      resolveRowHeightRendering({ preset: "s", previewPx: 192 }, list),
+    ).toEqual(medium);
+    expect(
+      resolveRowHeightRendering({ preset: "l", previewPx: 191 }, list).compact,
+    ).toBe(true);
   });
 });
 

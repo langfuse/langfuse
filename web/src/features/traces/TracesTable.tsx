@@ -770,7 +770,11 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "gray",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={compactRows} />
+        <ConnectedIOTableCell
+          isLoading
+          followRowHeight
+          singleLine={compactRows}
+        />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -795,7 +799,11 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "green",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={compactRows} />
+        <ConnectedIOTableCell
+          isLoading
+          followRowHeight
+          singleLine={compactRows}
+        />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -934,6 +942,7 @@ function TracesTableInternal({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
+      followRowHeight: true,
       shouldWrap: !compactRows,
       enableHiding: true,
     }),
@@ -942,7 +951,11 @@ function TracesTableInternal({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={compactRows} />
+        <ConnectedIOTableCell
+          isLoading
+          followRowHeight
+          singleLine={compactRows}
+        />
       ),
       headerTooltip: {
         description: (
@@ -1677,14 +1690,22 @@ const TracesDynamicCell = ({
   })();
 
   if (trace.isPending) {
-    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+    return (
+      <ConnectedIOTableCell
+        isLoading
+        followRowHeight
+        singleLine={singleLine}
+        enableExpandOnHover
+      />
+    );
   }
 
   return (
     <ConnectedIOTableCell
       data={data}
+      followRowHeight
       singleLine={singleLine}
-      enableExpandOnHover={singleLine}
+      enableExpandOnHover
     />
   );
 };

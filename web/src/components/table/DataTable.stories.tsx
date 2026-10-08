@@ -15,7 +15,11 @@ import {
   type AsyncTableData,
 } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import {
+  resolveRowHeightRendering,
+  useRowHeightRendering,
+  type RowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -231,13 +235,40 @@ function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
 // -----------------------------------------------------------------------------
 // Mirrors the visible-by-default Traces columns. The action/selection
 // cells use the standalone visual components (see FIDELITY GOAL note). The IO
-// cells use the same IOTableCell variants + the
-// `singleLine = rowHeight === "s"` rule the real table applies.
+// cells use the same IOTableCell variants. Single-line text versus the JSON
+// preview comes from the row's resolved height: below Medium it is one line,
+// at Medium and above it is the preview. A drag uses that same height.
+
+function StoryTraceInputCell({
+  data,
+  loading = false,
+}: {
+  data?: TraceRow["input"];
+  loading?: boolean;
+}) {
+  const live = useRowHeightRendering();
+  const singleLine = live?.compact ?? false;
+  return loading ? (
+    <IOTableCell
+      isLoading
+      singleLine={singleLine}
+      renderMediaReference={renderMediaReference}
+    />
+  ) : (
+    <IOTableCell
+      data={data}
+      singleLine={singleLine}
+      enableExpandOnHover={singleLine}
+      renderMediaReference={renderMediaReference}
+    />
+  );
+}
 
 function buildTraceColumns(
   rowHeight: RowHeight,
 ): LangfuseColumnDef<TraceRow>[] {
-  const singleLine = rowHeight === "s";
+  const rendering = resolveRowHeightRendering({ preset: rowHeight });
+  const singleLine = rendering.compact;
   return [
     {
       // Row-selection checkbox column (each real table authors its own; the
@@ -286,28 +317,16 @@ function buildTraceColumns(
       id: "input",
       size: 400,
       cellBackground: "gray",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          singleLine={singleLine}
-          renderMediaReference={renderMediaReference}
-        />
-      ),
-      cell: ({ row }) => (
-        <IOTableCell
-          data={row.original.input}
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-          renderMediaReference={renderMediaReference}
-        />
-      ),
+      loadingCell: () => <StoryTraceInputCell loading />,
+      cell: ({ row }) => <StoryTraceInputCell data={row.original.input} />,
     },
     createIOTableColumn<TraceRow>({
       accessorKey: "output",
       header: "Output",
       size: 400,
+      followRowHeight: true,
       singleLine,
-      enableExpandOnHover: singleLine,
+      enableExpandOnHover: true,
       variant: "output",
     }),
     {
@@ -411,14 +430,16 @@ function buildTraceColumns(
         description: "Group traces with tags.",
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      shouldWrap: rowHeight !== "s",
+      followRowHeight: true,
+      shouldWrap: !singleLine,
     }),
     createIOTableColumn<TraceRow>({
       accessorKey: "metadata",
       header: "Metadata",
       size: 400,
+      followRowHeight: true,
       singleLine,
-      enableExpandOnHover: singleLine,
+      enableExpandOnHover: true,
     }),
     createIdTableColumn<TraceRow>({
       accessorKey: "userId",

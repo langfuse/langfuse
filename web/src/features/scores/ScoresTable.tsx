@@ -4,6 +4,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
+  useCompactRows,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import {
@@ -177,6 +178,21 @@ function createFilterState(
       },
     ]);
   }, userFilterState);
+}
+
+function ScoreTraceTags({
+  tags,
+  fallbackCompact,
+}: {
+  tags: string[];
+  fallbackCompact: boolean;
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <div className={cn("flex gap-x-2 gap-y-1", !compact && "flex-wrap")}>
+      <TagList selectedTags={tags} isLoading={false} viewOnly />
+    </div>
+  );
 }
 
 export default function ScoresTable({
@@ -708,6 +724,7 @@ export default function ScoresTable({
       enableHiding: true,
       size: 400,
       getCell: (value) => value || undefined,
+      followRowHeight: true,
       singleLine: compactRows,
     }),
     createBadgeTableColumn<ScoresTableRow>({
@@ -733,14 +750,7 @@ export default function ScoresTable({
         return (
           traceTags &&
           traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                !compactRows && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
-            </div>
+            <ScoreTraceTags tags={traceTags} fallbackCompact={compactRows} />
           )
         );
       },
@@ -751,7 +761,11 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={compactRows} />
+        <ConnectedIOTableCell
+          isLoading
+          followRowHeight
+          singleLine={compactRows}
+        />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -1415,10 +1429,16 @@ const ScoresMetadataCell = ({
     },
   );
   if (score.isPending) {
-    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+    return (
+      <ConnectedIOTableCell isLoading followRowHeight singleLine={singleLine} />
+    );
   }
 
   return (
-    <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
+    <ConnectedIOTableCell
+      data={score.data?.metadata}
+      followRowHeight
+      singleLine={singleLine}
+    />
   );
 };

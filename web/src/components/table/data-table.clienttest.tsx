@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { DataTable } from "@/src/components/table/data-table";
+import { useRowHeightRendering } from "@/src/components/table/data-table-row-height-switch";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type OrderByState } from "@langfuse/shared";
 
@@ -12,7 +13,7 @@ vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({ capture: vi.fn() }),
 }));
 
-type Row = { scoreName: string; status: string };
+type Row = { scoreName: string; status: string; mode: number };
 
 const columns: LangfuseColumnDef<Row>[] = [
   {
@@ -29,8 +30,8 @@ const columns: LangfuseColumnDef<Row>[] = [
 ];
 
 const rows: Row[] = [
-  { scoreName: "zeta-score", status: "ACTIVE" },
-  { scoreName: "alpha-score", status: "ACTIVE" },
+  { scoreName: "zeta-score", status: "ACTIVE", mode: 0 },
+  { scoreName: "alpha-score", status: "ACTIVE", mode: 1 },
 ];
 
 function SortableTable({ initialOrderBy }: { initialOrderBy: OrderByState }) {
@@ -301,5 +302,105 @@ describe("DataTable custom row height", () => {
       fireEvent.keyUp(handle, { key: "ArrowDown" });
     });
     expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(128);
+  });
+
+  function ModeProbe() {
+    const rendering = useRowHeightRendering();
+    return (
+      <span data-testid="row-mode">
+        {rendering?.compact ? "compact" : "expanded"}
+      </span>
+    );
+  }
+
+  const modeColumns: LangfuseColumnDef<Row>[] = [
+    ...columns,
+    {
+      accessorKey: "mode",
+      id: "mode",
+      header: "Mode",
+      cell: () => <ModeProbe />,
+    },
+  ];
+
+  it("switches the cell mode at Medium while the drag is still in progress", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(28),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    render(
+      <DataTable
+        tableName="experiment-items"
+        columns={modeColumns}
+        hidePagination
+        rowHeight="s"
+        onCustomRowHeightChange={onCustomRowHeightChange}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("compact");
+    expect(screen.getByText("zeta-score")).toHaveClass("truncate");
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 0);
+      pointAt(handle, "pointermove", 68);
+    });
+
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("expanded");
+    expect(screen.getByText("zeta-score")).not.toHaveClass("truncate");
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveStyle({ height: "96px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointermove", 20);
+    });
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("compact");
+    expect(screen.getByText("zeta-score")).toHaveClass("truncate");
+  });
+
+  it("paints a committed custom height of Medium the same as the Medium preset", () => {
+    const { rerender } = render(
+      <DataTable
+        tableName="experiment-items"
+        columns={modeColumns}
+        hidePagination
+        rowHeight="m"
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("expanded");
+
+    rerender(
+      <DataTable
+        tableName="experiment-items"
+        columns={modeColumns}
+        hidePagination
+        rowHeight="s"
+        customRowHeightPx={96}
+        onCustomRowHeightChange={vi.fn()}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("expanded");
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveStyle({ height: "96px" });
+    }
+
+    rerender(
+      <DataTable
+        tableName="experiment-items"
+        columns={modeColumns}
+        hidePagination
+        rowHeight="l"
+        customRowHeightPx={95}
+        onCustomRowHeightChange={vi.fn()}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("compact");
   });
 });

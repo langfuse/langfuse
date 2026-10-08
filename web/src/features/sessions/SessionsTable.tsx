@@ -61,6 +61,7 @@ import { TagList } from "@/src/features/tag";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
+  useCompactRows,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
@@ -113,6 +114,21 @@ export type SessionTableProps = {
    */
   showControlsInPageHeader?: boolean;
 };
+
+function SessionTraceTags({
+  tags,
+  fallbackCompact,
+}: {
+  tags: string[];
+  fallbackCompact: boolean;
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <div className={cn("flex gap-x-2 gap-y-1", !compact && "flex-wrap")}>
+      <TagList selectedTags={tags} isLoading={false} viewOnly />
+    </div>
+  );
+}
 
 export default function SessionsTable({
   projectId,
@@ -769,14 +785,7 @@ export default function SessionsTable({
         return (
           value &&
           value.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                !compactRows && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={value} isLoading={false} viewOnly />
-            </div>
+            <SessionTraceTags tags={value} fallbackCompact={compactRows} />
           )
         );
       },

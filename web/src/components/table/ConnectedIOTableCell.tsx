@@ -1,6 +1,7 @@
 import { memo } from "react";
 
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { useBoundRowHeightIO } from "@/src/components/table/data-table-row-height-switch";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 
@@ -10,7 +11,15 @@ type WithoutMediaRenderer<Props> = Props extends unknown
 
 type ConnectedIOTableCellProps = WithoutMediaRenderer<
   Parameters<typeof IOTableCell>[0]
->;
+> & {
+  /**
+   * Follow the table's row height. Presets and a drag in progress resolve
+   * through the same height, so the cell switches as the pointer moves.
+   * `enableExpandOnHover` stays the column's opt-in and applies only while
+   * the row is compact.
+   */
+  followRowHeight?: boolean;
+};
 
 const renderMediaReference = (descriptor: MediaDescriptor) => (
   <MediaReferenceTag descriptor={descriptor} />
@@ -25,9 +34,14 @@ const renderMediaReference = (descriptor: MediaDescriptor) => (
 export const ConnectedIOTableCell = memo(function ConnectedIOTableCell(
   props: ConnectedIOTableCellProps,
 ) {
+  const bound = useBoundRowHeightIO(
+    props.followRowHeight,
+    props.singleLine,
+    props.enableExpandOnHover,
+  );
   const presentationProps = {
-    enableExpandOnHover: props.enableExpandOnHover,
-    singleLine: props.singleLine,
+    enableExpandOnHover: bound.enableExpandOnHover,
+    singleLine: bound.singleLine,
     size: props.size,
     variant: props.variant,
   };

@@ -12,7 +12,13 @@ import {
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Rows3, Rows2, Rows4 } from "lucide-react";
-import { useCallback } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
 
 const ROW_HEIGHT_OPTIONS = [
   { id: "s", label: "Small", icon: <Rows4 className="icon-base" /> },
@@ -112,33 +118,178 @@ const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
 /** Pixel height of a Tailwind `h-*` step at the default 16px root. */
 const TAILWIND_HEIGHT_STEP_PX = 4;
 
+const PRESET_HEIGHT_FALLBACK_PX: Record<RowHeight, number> = {
+  s: 28,
+  m: 96,
+  l: 256,
+};
+
+function tailwindHeightClassToPx(
+  heightClass: string | undefined,
+  fallback: number,
+): number {
+  const steps = heightClass
+    ? /^h-(\d+(?:\.\d+)?)$/.exec(heightClass)?.[1]
+    : undefined;
+  if (steps == null) return fallback;
+  return Number(steps) * TAILWIND_HEIGHT_STEP_PX;
+}
+
+/** Pixel height of one preset on this table. */
+function rowHeightPresetPx(
+  preset: RowHeight,
+  customHeights?: CustomHeights,
+): number {
+  return tailwindHeightClassToPx(
+    customHeights?.[preset] ?? defaultHeights[preset],
+    PRESET_HEIGHT_FALLBACK_PX[preset],
+  );
+}
+
 /**
  * Pixel height of this table's Medium preset. A dragged height uses that
  * line to decide between a truncated line and a wrapped preview.
  */
 export function mediumRowHeightPx(customHeights?: CustomHeights): number {
-  const heightClass = customHeights?.m ?? defaultHeights.m;
-  const steps = /^h-(\d+(?:\.\d+)?)$/.exec(heightClass)?.[1];
-  if (steps == null) return 96;
-  return Number(steps) * TAILWIND_HEIGHT_STEP_PX;
+  return rowHeightPresetPx("m", customHeights);
 }
 
 /**
- * One truncated line, or room to wrap.
- * Preset Small is the truncated line. Medium and Large wrap.
- * A dragged height uses the same line: below this table's Medium height it
- * stays truncated, and at Medium or taller it wraps. Growing and shrinking
- * cross that line the same way.
+ * How a row paints input and output, derived only from a pixel height.
+ * Below this table's Medium preset the cell is one truncated line and the
+ * table keeps the short read. At Medium and above it is the scrollable JSON
+ * preview and the table asks for the longer read.
+ */
+export type RowHeightRendering = {
+  heightPx: number;
+  compact: boolean;
+  expandedRead: boolean;
+};
+
+/**
+ * One height in, one rendering out. A preset contributes its pixel height.
+ * A free height contributes its pixels. A drag preview replaces both, so a
+ * preview sitting on Medium's pixel height renders as Medium, and shrinking
+ * back below that line returns to the truncated line.
+ */
+function heightOnScreen(
+  state: {
+    preset: RowHeight;
+    customPx?: number | null;
+    previewPx?: number | null;
+  },
+  customHeights?: CustomHeights,
+): number {
+  if (state.previewPx != null) return state.previewPx;
+  if (state.customPx != null) return state.customPx;
+  return rowHeightPresetPx(state.preset, customHeights);
+}
+
+export function resolveRowHeightRendering(
+  state: {
+    preset: RowHeight;
+    /** Free height currently shown. Omit while a preset is showing. */
+    customPx?: number | null;
+    /** Live drag or keyboard preview. Replaces the committed height. */
+    previewPx?: number | null;
+  },
+  customHeights?: CustomHeights,
+): RowHeightRendering {
+  const heightPx = heightOnScreen(state, customHeights);
+  const compact = heightPx < rowHeightPresetPx("m", customHeights);
+  return {
+    heightPx,
+    compact,
+    expandedRead: !compact,
+  };
+}
+
+const RowHeightRenderingContext = createContext<Pick<
+  RowHeightRendering,
+  "compact" | "expandedRead"
+> | null>(null);
+
+/**
+ * Publishes the rendering of the height on screen, including a drag still
+ * in progress. The value changes only when the row crosses Medium, so cells
+ * do not re-render on every pixel.
+ */
+export function RowHeightRenderingProvider({
+  compact,
+  expandedRead,
+  children,
+}: {
+  compact: boolean;
+  expandedRead: boolean;
+  children: ReactNode;
+}) {
+  const value = useMemo(
+    () => ({ compact, expandedRead }),
+    [compact, expandedRead],
+  );
+  return (
+    <RowHeightRenderingContext.Provider value={value}>
+      {children}
+    </RowHeightRenderingContext.Provider>
+  );
+}
+
+/** Null outside a data table. Inside one, the height on screen, drag included. */
+export function useRowHeightRendering() {
+  return useContext(RowHeightRenderingContext);
+}
+
+/**
+ * Compact flag for cells that are not input/output. A drag still in
+ * progress wins over the committed fallback.
+ */
+export function useCompactRows(fallback: boolean): boolean {
+  const live = useRowHeightRendering();
+  return live ? live.compact : fallback;
+}
+
+/**
+ * Input/output props after applying the live row height. `enableExpandOnHover`
+ * is the column's opt-in; it is on only while the row is compact.
+ */
+export function useBoundRowHeightIO(
+  followRowHeight: boolean | undefined,
+  singleLine: boolean | undefined,
+  enableExpandOnHover: boolean | undefined,
+): {
+  singleLine: boolean | undefined;
+  enableExpandOnHover: boolean | undefined;
+} {
+  const live = useRowHeightRendering();
+  if (!followRowHeight || !live) {
+    return { singleLine, enableExpandOnHover };
+  }
+  return {
+    singleLine: live.compact,
+    enableExpandOnHover: Boolean(enableExpandOnHover) && live.compact,
+  };
+}
+
+/**
+ * One truncated line, or the JSON preview.
+ * Presets and free heights both resolve to pixels, then use the same line:
+ * below this table's Medium height the row stays truncated, and at Medium
+ * or taller it shows the preview. Growing and shrinking cross that line the
+ * same way.
  */
 export function isCompactRowHeight(
   rowHeight: RowHeight,
   mode: "preset" | "custom",
   heightPx?: number | null,
-  mediumPx?: number,
+  customHeights?: CustomHeights,
 ): boolean {
-  if (mode !== "custom") return rowHeight === "s";
-  if (heightPx == null) return false;
-  return heightPx < (mediumPx ?? mediumRowHeightPx());
+  return resolveRowHeightRendering(
+    {
+      preset: rowHeight,
+      customPx: mode === "custom" ? (heightPx ?? null) : null,
+    },
+    customHeights,
+  ).compact;
 }
 
 /** Undefined while the row shows one truncated line; otherwise the expanded read. */
@@ -146,11 +297,17 @@ export const getRowHeightIOCharLimit = (
   rowHeight: RowHeight,
   mode: "preset" | "custom" = "preset",
   heightPx?: number | null,
-  mediumPx?: number,
+  customHeights?: CustomHeights,
 ) =>
-  isCompactRowHeight(rowHeight, mode, heightPx, mediumPx)
-    ? undefined
-    : EXPANDED_ROW_IO_CHAR_LIMIT;
+  resolveRowHeightRendering(
+    {
+      preset: rowHeight,
+      customPx: mode === "custom" ? (heightPx ?? null) : null,
+    },
+    customHeights,
+  ).expandedRead
+    ? EXPANDED_ROW_IO_CHAR_LIMIT
+    : undefined;
 
 export const getRowHeightTailwindClass = (
   rowHeight?: RowHeight,

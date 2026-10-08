@@ -5,7 +5,6 @@ import {
   type CustomHeights,
   customRowHeightMenu,
   isCompactRowHeight,
-  mediumRowHeightPx,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -79,7 +78,7 @@ export default function EvalLogTable({
     rowHeight,
     rowHeights.mode,
     rowHeights.activeHeightPx,
-    mediumRowHeightPx(evalLogRowHeights),
+    evalLogRowHeights,
   );
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -154,6 +153,7 @@ export default function EvalLogTable({
       enableHiding: true,
       cellPadding: "none",
       compact: true,
+      followRowHeight: true,
       singleLine: compactRows,
     }),
     createIOTableColumn<JobExecutionRow>({
@@ -162,6 +162,7 @@ export default function EvalLogTable({
       enableHiding: true,
       cellPadding: "none",
       compact: true,
+      followRowHeight: true,
       singleLine: compactRows,
     }),
     createLinkTableColumn<JobExecutionRow>({

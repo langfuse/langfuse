@@ -40,6 +40,7 @@ import { useOrderByState } from "@/src/features/orderBy";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
+  useCompactRows,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -286,6 +287,44 @@ function ExperimentsMultiSelectActionMenu({
         />
       )}
     </>
+  );
+}
+
+function ExperimentPromptBadges({
+  fallbackCompact,
+  projectId,
+  prompts,
+}: {
+  fallbackCompact: boolean;
+  projectId: string;
+  prompts: Array<[string, number | null]>;
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <div
+      className={
+        compact
+          ? "flex max-w-full flex-nowrap gap-1 overflow-x-auto py-0.5 whitespace-nowrap"
+          : "flex flex-wrap gap-1"
+      }
+    >
+      {prompts.map(([name, version]) => (
+        <Link
+          key={`${name}-${version}`}
+          href={`/project/${projectId}/prompts/${encodeURIComponent(name)}?version=${version}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0"
+        >
+          <Badge
+            variant="secondary"
+            className="hover:bg-secondary/80 cursor-pointer"
+          >
+            {name}
+          </Badge>
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -603,6 +642,7 @@ export default function ExperimentsTable({
       // Off by default: 300px of mostly boilerplate ahead of the score columns.
       defaultHidden: true,
       getCell: (value) => value || undefined,
+      followRowHeight: true,
       singleLine: compactRows,
     }),
     createIOTableColumn<ExperimentsTableRow>({
@@ -615,6 +655,7 @@ export default function ExperimentsTable({
       size: 100,
       enableHiding: true,
       defaultHidden: true,
+      followRowHeight: true,
       singleLine: compactRows,
     }),
     createNumberTableColumn<ExperimentsTableRow>({
@@ -717,30 +758,11 @@ export default function ExperimentsTable({
       cell: ({ row }) => {
         const value: Array<[string, number | null]> = row.getValue("prompts");
         return (
-          <div
-            className={
-              compactRows
-                ? "flex max-w-full flex-nowrap gap-1 overflow-x-auto py-0.5 whitespace-nowrap"
-                : "flex flex-wrap gap-1"
-            }
-          >
-            {value.map(([name, version]) => (
-              <Link
-                key={`${name}-${version}`}
-                href={`/project/${projectId}/prompts/${encodeURIComponent(name)}?version=${version}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0"
-              >
-                <Badge
-                  variant="secondary"
-                  className="hover:bg-secondary/80 cursor-pointer"
-                >
-                  {name}
-                </Badge>
-              </Link>
-            ))}
-          </div>
+          <ExperimentPromptBadges
+            fallbackCompact={compactRows}
+            projectId={projectId}
+            prompts={value}
+          />
         );
       },
     },
