@@ -82,6 +82,7 @@ export async function loadTraceTranscript(trace: {
       assembleSessionTraceTranscript(
         orderObservations(recovered.observations),
         recovered.transformOutput,
+        recovered.mediaCallIds,
       ),
       recovered.observationsByTraceAndId,
     );
@@ -149,6 +150,7 @@ function assembleSessionTraceTranscript(
     observation: Observation,
     messages: NormalizedMessage[],
   ) => NormalizedMessage[],
+  mediaCallIds: Map<string, string>,
 ): Transcript | null {
   const threads: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
@@ -175,6 +177,37 @@ function assembleSessionTraceTranscript(
       ({ message }) => message.source === "input",
     );
     if (observation.type === "TOOL") {
+      const callId = mediaCallIds.get(
+        JSON.stringify([observation.traceId, observation.id]),
+      );
+      if (callId) {
+        const marker: NormalizedMessage = {
+          role: "tool",
+          source: "output",
+          parts: [{ type: "tool-result", toolCallId: callId, output: null }],
+        };
+        // Let the registry resolve identity and placement, then retain the
+        // original media parts instead of exposing a JSON-only result marker.
+        toolCalls.attachToolOutput(observation, [
+          { message: marker, key: messageKey(marker) },
+        ]);
+        for (const thread of threads) {
+          const response = thread.messages.find(
+            (message) =>
+              message.observationId === observation.id &&
+              message.traceId === observation.traceId &&
+              message.parts.some(
+                (part) =>
+                  part.type === "tool-result" && part.toolCallId === callId,
+              ),
+          );
+          if (response) {
+            response.parts = output.flatMap(({ message }) => message.parts);
+            break;
+          }
+        }
+        continue;
+      }
       toolCalls.attachToolOutput(observation, output);
       continue;
     }
@@ -195,6 +228,7 @@ function recoverToolCalls(observations: Observation[]) {
     Map<string, Observation>
   >();
   const callsByParent = new Map<string, ToolCallPart[]>();
+  const uniqueObservations: Observation[] = [];
   const toolsByObservation = new Map<string, string>();
   const callCountsByTrace = new Map<
     Observation["traceId"],
@@ -207,7 +241,9 @@ function recoverToolCalls(observations: Observation[]) {
       observationsByTraceAndId.set(observation.traceId, byId);
     }
     // Preserve the first match, as the previous array lookup did.
-    if (!byId.has(observation.id)) byId.set(observation.id, observation);
+    if (byId.has(observation.id)) continue;
+    byId.set(observation.id, observation);
+    uniqueObservations.push(observation);
 
     if (observation.type !== "TOOL") continue;
     const callId = observation.metadata?.callID;
@@ -222,7 +258,7 @@ function recoverToolCalls(observations: Observation[]) {
 
   // Some plugins omit calls from generation output. A TOOL's unique call ID
   // and same-trace generation parent recover that anchor without name guessing.
-  for (const observation of observations) {
+  for (const observation of uniqueObservations) {
     if (
       observation.type !== "TOOL" ||
       !observation.name ||
@@ -272,6 +308,7 @@ function recoverToolCalls(observations: Observation[]) {
   }
 
   const resolvedCallIds = new Set<string>();
+  const mediaCallIds = new Map<string, string>();
   const transformOutput = (
     observation: Observation,
     messages: NormalizedMessage[],
@@ -288,12 +325,17 @@ function recoverToolCalls(observations: Observation[]) {
       const parts = messages.flatMap((message) => message.parts);
       // Tool-result payloads are JSON; wrapping media would discard the file
       // parts the session renderer needs for previews.
+      if (!parts.length) return messages;
       if (
-        !parts.length ||
-        (!parts.every((part) => part.type === "text") &&
-          !parts.every((part) => part.type === "data"))
-      )
+        !parts.every((part) => part.type === "text") &&
+        !parts.every((part) => part.type === "data")
+      ) {
+        mediaCallIds.set(
+          JSON.stringify([observation.traceId, observation.id]),
+          callId,
+        );
         return messages;
+      }
       return normalizeSpanIO({
         input: undefined,
         metadata: undefined,
@@ -375,9 +417,10 @@ function recoverToolCalls(observations: Observation[]) {
       : recoveredMessages;
   };
   return {
-    observations,
+    observations: uniqueObservations,
     observationsByTraceAndId,
     transformOutput,
+    mediaCallIds,
   };
 }
 

@@ -119,6 +119,159 @@ beforeEach(() => {
   mocks.splitTurn.mockReset().mockImplementation(mocks.splitTurnActual);
 });
 
+it.each(["image", "media-token"])(
+  "attaches reversed nested %s results by recovered call ID",
+  async (scenario) => {
+    const outer = {
+      id: "outer",
+      traceId: "trace",
+      type: "GENERATION" as const,
+      name: "generation",
+      parentObservationId: null,
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: [{ role: "user", content: "Run tools" }],
+      output: null,
+      metadata: {},
+    };
+    const inner = {
+      ...outer,
+      id: "inner",
+      parentObservationId: outer.id,
+      startTime: new Date(1),
+      input: [
+        ...outer.input,
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "call-a",
+              toolName: "search",
+              input: { query: "outer" },
+            },
+          ],
+        },
+      ],
+    };
+    const tools = [inner, outer].map((parent, index) => ({
+      ...outer,
+      id: `tool-${parent.id}`,
+      type: "TOOL" as const,
+      name: "search",
+      parentObservationId: parent.id,
+      startTime: new Date(index + 2),
+      input: { query: parent.id },
+      output:
+        scenario === "image"
+          ? [
+              {
+                type: "image_url",
+                image_url: { url: `https://example.com/${parent.id}.png` },
+              },
+            ]
+          : `@@@langfuseMedia:type=image/jpeg|id=media-${parent.id}|source=base64@@@`,
+      metadata: { callID: parent.id === "outer" ? "call-a" : "call-b" },
+    }));
+    const observations = [outer, inner, ...tools];
+    const snapshot = structuredClone(observations);
+    mocks.observations.mockResolvedValue({
+      observations,
+      totalCount: observations.length,
+    });
+    const result = await loadTraceTranscript({
+      ...trace,
+      recoverToolResponses: true,
+    });
+    expect(result.transcript!.threads).toHaveLength(1);
+    const messages = result.transcript!.threads[0]!.currentTurn.messages;
+    for (const tool of tools) {
+      const callIndex = messages.findIndex(
+        (message) =>
+          message.source === "output" &&
+          message.parts.some(
+            (part) =>
+              part.type === "tool-call" &&
+              part.toolCallId === tool.metadata.callID,
+          ),
+      );
+      expect(callIndex).toBeGreaterThanOrEqual(0);
+      const response = messages[callIndex + 1];
+      expect(response).toMatchObject({ observationId: tool.id, role: "tool" });
+      expect(response!.parts).toEqual(
+        normalizeSpanIO({
+          input: undefined,
+          output: tool.output,
+          metadata: {},
+        }).messages.flatMap((message) => message.parts),
+      );
+      expect(response!.parts.some((part) => part.type === "file")).toBe(true);
+      expect(response!.parts.some((part) => part.type === "tool-result")).toBe(
+        false,
+      );
+    }
+    expect(observations).toEqual(snapshot);
+  },
+);
+
+it.each(["missing", "idless"])(
+  "recovers a %s call despite duplicate observation rows",
+  async (scenario) => {
+    const input = { query: "search" };
+    const generation = {
+      id: "generation",
+      traceId: "trace",
+      type: "GENERATION" as const,
+      name: "generation",
+      parentObservationId: null,
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: [{ role: "user", content: "Run a tool" }],
+      output:
+        scenario === "idless"
+          ? [
+              {
+                role: "assistant",
+                parts: [{ type: "tool-call", toolName: "search", input }],
+              },
+            ]
+          : null,
+      metadata: {},
+    };
+    const tool = {
+      ...generation,
+      id: "tool",
+      type: "TOOL" as const,
+      name: "search",
+      parentObservationId: generation.id,
+      startTime: new Date(2),
+      input,
+      output: { answer: 42 },
+      metadata: { callID: "call-1" },
+    };
+    const observations = [generation, { ...generation }, tool, { ...tool }];
+    const snapshot = structuredClone(observations);
+    mocks.observations.mockResolvedValue({
+      observations,
+      totalCount: observations.length,
+    });
+    const result = await loadTraceTranscript({
+      ...trace,
+      recoverToolResponses: true,
+    });
+    const parts = result
+      .transcript!.threads.flatMap((thread) => thread.currentTurn.messages)
+      .flatMap((message) => message.parts);
+    expect(parts.filter((part) => part.type === "tool-call")).toMatchObject([
+      { toolCallId: "call-1" },
+    ]);
+    expect(parts.filter((part) => part.type === "tool-result")).toMatchObject([
+      { toolCallId: "call-1", output: { answer: 42 } },
+    ]);
+    expect(observations).toEqual(snapshot);
+  },
+);
+
 it.each(
   [
     {
