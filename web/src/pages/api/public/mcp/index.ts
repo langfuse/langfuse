@@ -92,7 +92,7 @@ export default async function handler(
     if (!projectAuthResult.success) {
       const organizationAuthResult = await shadowAuth({
         req,
-        action: "organizationLlmApiKeys:read",
+        action: __dangerouslySkipAuthz,
         allowedAccessLevels: ["organization"],
       });
       authResult =

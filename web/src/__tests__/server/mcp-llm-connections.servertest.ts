@@ -20,6 +20,7 @@ import {
   handleListOrganizationLlmConnections,
   handleUpsertLlmConnection,
   handleUpsertOrganizationLlmConnection,
+  upsertLlmConnectionTool,
 } from "@/src/features/mcp/server/llmConnections/tools";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 
@@ -60,6 +61,10 @@ async function createOrganizationContext(): Promise<{
 }
 
 describe("MCP LLM connection tools", () => {
+  it("requires update access for project upserts", () => {
+    expect(upsertLlmConnectionTool.action).toBe("llmApiKeys:update");
+  });
+
   it("only advertises tools matching the API key scope", async () => {
     const project = await createMcpTestSetup();
     const organization = await createOrganizationContext();
@@ -149,5 +154,30 @@ describe("MCP LLM connection tools", () => {
     expect(
       await prisma.llmApiKeys.findUnique({ where: { id: connection!.id } }),
     ).toBeNull();
+  });
+
+  it("handles concurrent organization upserts without a unique constraint error", async () => {
+    const fixture = await createOrganizationContext();
+    const provider = `mcp-organization-concurrent-${randomUUID()}`;
+
+    await Promise.all(
+      Array.from({ length: 5 }, (_, index) =>
+        handleUpsertOrganizationLlmConnection(
+          {
+            provider,
+            adapter: LLMAdapter.OpenAI,
+            secretKey: `sk-organization-mcp-secret-${index}`,
+            withDefaultModels: true,
+          },
+          fixture.context,
+        ),
+      ),
+    );
+
+    expect(
+      await prisma.llmApiKeys.count({
+        where: { organizationId: fixture.orgId, provider },
+      }),
+    ).toBe(1);
   });
 });

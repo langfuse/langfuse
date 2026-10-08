@@ -485,49 +485,66 @@ export class LlmConnectionService {
     input: LlmConnectionWriteInput;
     actor: AuditLogActor;
   }): Promise<{ connection: SafeLlmConnection; created: boolean }> {
+    await validateBaseUrl(params.input);
+    validateSecret(params.input);
+
     const existing = await this.repository.findByProvider({
       owner: params.owner,
       provider: params.input.provider,
     });
-    if (!existing) {
-      return {
-        connection: await this.create(params),
-        created: true,
-      };
-    }
-
-    await validateBaseUrl(params.input);
-    validateSecret(params.input);
-    const updated = await this.repository.update({
+    const encryptedSecretKey = encrypt(params.input.secretKey);
+    const displaySecretKey = getDisplaySecretKey(params.input.secretKey);
+    const encryptedExtraHeaders = params.input.extraHeaders
+      ? encrypt(JSON.stringify(params.input.extraHeaders))
+      : undefined;
+    const extraHeaderKeys = params.input.extraHeaders
+      ? Object.keys(params.input.extraHeaders)
+      : undefined;
+    const connection = await this.repository.upsert({
       owner: params.owner,
-      id: existing.id,
-      data: {
+      provider: params.input.provider,
+      create: {
+        provider: params.input.provider,
         adapter: params.input.adapter,
-        secretKey: encrypt(params.input.secretKey),
-        displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+        secretKey: encryptedSecretKey,
+        displaySecretKey,
+        baseURL: params.input.baseURL,
+        withDefaultModels: params.input.withDefaultModels,
+        customModels: params.input.customModels,
+        config: params.input.config,
+        extraHeaders: encryptedExtraHeaders,
+        extraHeaderKeys,
+      },
+      update: {
+        adapter: params.input.adapter,
+        secretKey: encryptedSecretKey,
+        displaySecretKey,
         baseURL: params.input.baseURL ?? null,
         withDefaultModels: params.input.withDefaultModels,
         customModels: params.input.customModels ?? [],
         config: params.input.config ?? Prisma.DbNull,
-        extraHeaders: params.input.extraHeaders
-          ? encrypt(JSON.stringify(params.input.extraHeaders))
-          : null,
-        extraHeaderKeys: params.input.extraHeaders
-          ? Object.keys(params.input.extraHeaders)
-          : [],
+        extraHeaders: encryptedExtraHeaders ?? null,
+        extraHeaderKeys: extraHeaderKeys ?? [],
       },
     });
 
     await auditLog({
       ...params.actor,
       resourceType: "llmApiKey",
-      resourceId: updated.id,
-      action: "update",
-      before: toSafeConnection(existing),
-      after: toSafeConnection(updated),
+      resourceId: connection.id,
+      action: existing ? "update" : "create",
+      ...(existing
+        ? {
+            before: toSafeConnection(existing),
+            after: toSafeConnection(connection),
+          }
+        : {}),
     });
 
-    return { connection: toSafeConnection(updated), created: false };
+    return {
+      connection: toSafeConnection(connection),
+      created: existing === null,
+    };
   }
 
   async update(params: {

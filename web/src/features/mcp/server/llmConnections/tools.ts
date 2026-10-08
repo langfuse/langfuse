@@ -60,7 +60,7 @@ export const [upsertLlmConnectionTool, handleUpsertLlmConnection] = defineTool({
   name: "upsertLlmConnection",
   description:
     "Create or replace a project LLM connection by provider. The secret is encrypted and never returned.",
-  action: "llmApiKeys:create",
+  action: "llmApiKeys:update",
   baseSchema: PutLlmConnectionMcpBase,
   inputSchema: PutLlmConnectionV1Body,
   handler: async (input, context) =>

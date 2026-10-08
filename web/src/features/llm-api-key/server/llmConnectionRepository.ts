@@ -132,6 +132,46 @@ export class LlmConnectionRepository {
     });
   }
 
+  upsert(params: {
+    owner: LlmConnectionOwner;
+    provider: string;
+    create: Omit<
+      Prisma.LlmApiKeysUncheckedCreateInput,
+      "projectId" | "organizationId"
+    >;
+    update: Prisma.LlmApiKeysUpdateInput;
+  }): Promise<LlmApiKeys> {
+    if (params.owner.type === "project") {
+      return this.db.llmApiKeys.upsert({
+        where: {
+          projectId_provider: {
+            projectId: params.owner.projectId,
+            provider: params.provider,
+          },
+        },
+        create: {
+          ...params.create,
+          projectId: params.owner.projectId,
+        },
+        update: params.update,
+      });
+    }
+
+    return this.db.llmApiKeys.upsert({
+      where: {
+        organizationId_provider: {
+          organizationId: params.owner.organizationId,
+          provider: params.provider,
+        },
+      },
+      create: {
+        ...params.create,
+        organizationId: params.owner.organizationId,
+      },
+      update: params.update,
+    });
+  }
+
   update(params: {
     owner: LlmConnectionOwner;
     id: string;
