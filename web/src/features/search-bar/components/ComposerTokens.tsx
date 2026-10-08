@@ -43,7 +43,7 @@ const composerTokenVariants = cva("max-w-full", {
     kind: {
       filter: "",
       freeText:
-        "mr-1 inline rounded-sm border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border",
+        "mr-1 inline rounded-sm border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:bg-tertiary",
       operator: "font-bold uppercase text-qlang-keyword",
       paren: "text-muted-foreground",
       invalid:
