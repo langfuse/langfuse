@@ -607,6 +607,22 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
+  describe("stored secret reuse", () => {
+    it("never reuses a stored S3 secret as an Azure key", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          type: "AZURE_BLOB_STORAGE",
+          secretAccessKey: null,
+        }),
+      ).rejects.toThrow(/Secret access key is required/);
+    });
+  });
+
   describe("region normalization", () => {
     it("persists a trimmed region", async () => {
       const { caller, project } = await prepare();

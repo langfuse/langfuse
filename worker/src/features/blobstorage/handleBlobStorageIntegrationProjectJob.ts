@@ -821,7 +821,8 @@ const processBlobStorageExport = async (config: {
           partFailures: 0,
         };
         const producesUploadStats =
-          config.type !== BlobStorageIntegrationType.AZURE_BLOB_STORAGE &&
+          (config.type === BlobStorageIntegrationType.S3 ||
+            config.type === BlobStorageIntegrationType.S3_COMPATIBLE) &&
           sharedEnv.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED === "true";
         let uploadStartMs: number | undefined;
         let uploadDurationMsFinal: number | undefined;

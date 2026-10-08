@@ -55,6 +55,25 @@ function assertValidGcsServiceAccountKey(secret: string): void {
   }
 }
 
+// Which providers can read each other's stored secret. S3 and S3-compatible
+// share the access key shape; an Azure account key and a GCS JSON key do not.
+function secretFamily(type: BlobStorageIntegrationType) {
+  switch (type) {
+    case BlobStorageIntegrationType.S3:
+    case BlobStorageIntegrationType.S3_COMPATIBLE:
+      return "s3";
+    case BlobStorageIntegrationType.AZURE_BLOB_STORAGE:
+      return "azure";
+    case BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE:
+      return "gcs";
+    default: {
+      const _exhaustive: never = type;
+      _exhaustive;
+      return null;
+    }
+  }
+}
+
 function resolveExportStartDate(params: {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
@@ -159,7 +178,7 @@ export async function upsertBlobStorageIntegration(params: {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
       // createdAt/exportSource feed the post-upsert backstop below;
-      // type/secretAccessKey decide whether a GCS update keeps a stored key.
+      // type/secretAccessKey decide whether an update keeps a stored secret.
       select: {
         enabled: true,
         exportMode: true,
@@ -172,12 +191,10 @@ export async function upsertBlobStorageIntegration(params: {
       },
     });
 
-    // A stored secret is only reusable within the same credential family: a GCS
-    // JSON key is never an S3/Azure secret, and vice versa.
+    // A stored secret is only reusable within the same credential family.
     const canKeepStoredSecret =
-      Boolean(existing?.secretAccessKey) &&
-      (existing?.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE) ===
-        isGcs;
+      !!existing?.secretAccessKey &&
+      secretFamily(existing.type) === secretFamily(data.type);
     // A GCS integration that will run keyless: explicitly requested, or an
     // update that sends no secret and has no stored GCS key to keep. Keyless
     // runs as the deployment identity, so it is gated by the bucket allowlist.
@@ -217,8 +234,8 @@ export async function upsertBlobStorageIntegration(params: {
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
     // Only overwrite secretAccessKey when a new value is provided, so partial
     // updates don't wipe the existing encrypted secret. Keyless GCS, or a switch
-    // across the GCS boundary, clears it, so a secret is never reused by the
-    // wrong provider.
+    // to another credential family, clears it, so a secret is never reused by
+    // the wrong provider.
     let secretAccessKeyUpdate: { secretAccessKey: string | null } | object = {};
     if (encryptedSecret) {
       secretAccessKeyUpdate = { secretAccessKey: encryptedSecret };
