@@ -93,8 +93,11 @@
     connections (`generateLLMText` / `embedLLMText`); worker model calls own
     usage, cost and vector validation.
   - `model-config.ts`: per-project `topics_model_configs` (three connection +
-    model slots and the automatic-processing switch). Anthropic connections are
-    rejected; the embedding model and dimensions are locked once embeddings exist.
+    model slots and the automatic-processing switch). Saving tests every slot
+    with a real call; Anthropic works for summaries and clustering but fails the
+    embedding test. The embedding model and dimensions are locked once embeddings
+    exist. `setup.ts` tests the models, saves the single Topics rule, then commits
+    the models.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
