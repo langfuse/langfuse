@@ -16,18 +16,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Configure AWS Credentials
         id: aws-creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ secrets.CLICKBOM_GITHUB_OIDC_ROLE }}
           role-session-name: clickbom-github
           aws-region: us-east-1
 
       - name: Upload SBOM
-        uses: ClickHouse/ClickBOM@v2.2.0
+        uses: ClickHouse/ClickBOM@8f56974c32ee4468671b39117ae01ae8c9c5946f # v2.2.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           s3-bucket: ch-sbom-langfuse
