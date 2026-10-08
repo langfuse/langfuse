@@ -132,7 +132,7 @@ export function SkillVersionHistory(
                         !props.isDraft && version === props.selectedVersion
                       }
                     >
-                      <div className="group/skill-version flex w-full flex-col gap-1">
+                      <div className="flex w-full flex-col gap-1">
                         <div className="flex flex-wrap items-center gap-1">
                           <button
                             type="button"
@@ -204,7 +204,7 @@ export function SkillVersionHistory(
                                   openComparison(version);
                                 }
                                 return (
-                                  <div className="shrink-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:hover)]:opacity-0">
+                                  <div className="shrink-0 group-focus-within/timeline-item:opacity-100 group-hover/timeline-item:opacity-100 [@media(hover:hover)]:opacity-0">
                                     <IconButton
                                       icon={FileDiffIcon}
                                       label={`Compare version ${version} with selected version ${props.selectedVersion}`}

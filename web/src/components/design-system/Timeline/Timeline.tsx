@@ -17,7 +17,7 @@ function TimelineRoot({ children }: TimelineProps) {
 }
 
 const timelineItemVariants = cva(
-  "group relative flex w-full cursor-pointer flex-col gap-1 rounded-sm p-2",
+  "group group/timeline-item relative flex w-full cursor-pointer flex-col gap-1 rounded-sm p-2",
   {
     variants: {
       isActive: {
