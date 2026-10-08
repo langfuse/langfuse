@@ -188,7 +188,8 @@ model Project {
   PromptProtectedLabels             PromptProtectedLabels[]
   Dashboard                         Dashboard[]
   DashboardWidget                   DashboardWidget[]
-  TableViewPreset                   TableViewPreset[]
+    TableViewPreset                   TableViewPreset[]
+    sessionViews                      SessionView[]
   actions                           Action[]
   triggers                          Trigger[]
   automationExecutions              AutomationExecution[]
@@ -1791,6 +1792,19 @@ model DashboardWidget {
   minVersion  Int                      @default(1) @map("min_version")
 
   @@map("dashboard_widgets")
+}
+
+model SessionView {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  filters   Json
+
+  @@unique([projectId, name])
+  @@map("session_views")
 }
 
 model TableViewPreset {

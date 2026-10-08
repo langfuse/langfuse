@@ -25,6 +25,14 @@ import {
 import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import {
+  sessionTraceFilterSchema,
+  sessionTraceFilterColumns,
+} from "../../features/filters/sessionTraceFilters";
+import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
+import { eventsTableNativeUiColumnDefinitions } from "../tableMappings/mapEventsTable";
+import { eventsTableIsRootObservationSql } from "../../eventsTable";
+import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 
 type SessionEventsBaseReturnType = {
   session_id: string;
@@ -59,7 +67,9 @@ export type SessionTraceFromEvents = {
 export const getSessionTracesFromEvents = async (props: {
   projectId: string;
   sessionId: string;
+  filter: FilterState;
 }) => {
+  const filters = sessionTraceFilterSchema.parse(props.filter);
   const tracesBuilder = eventsTracesAggregation({
     projectId: props.projectId,
   })
@@ -70,14 +80,65 @@ export const getSessionTracesFromEvents = async (props: {
     .orderByColumns([{ column: "timestamp", direction: "ASC" }]);
 
   const tracesCte = tracesBuilder.buildWithParams();
-
+  const traceFilters = new FilterList(
+    createFilterFromFilterState(
+      filters.filter((filter) => !filter.column.startsWith("root")),
+      tracesTableUiColumnDefinitions,
+      sessionTraceFilterColumns,
+    ),
+  ).apply();
+  const rootFilters = filters.filter((filter) =>
+    filter.column.startsWith("root"),
+  );
+  const rootColumnMapping: Record<string, string> = {
+    rootName: "name",
+    rootType: "type",
+    rootLevel: "level",
+    rootMetadata: "metadata",
+  };
+  const rootQuery =
+    rootFilters.length > 0
+      ? new EventsQueryBuilder({ projectId: props.projectId })
+          .selectRaw("e.trace_id")
+          .when(
+            rootFilters.some((filter) => filter.column === "rootMetadata"),
+            (builder) => builder.forceFullTable(),
+          )
+          .whereRaw(eventsTableIsRootObservationSql)
+          .whereRaw("e.is_deleted = 0")
+          .whereRaw("e.trace_id IN (SELECT id FROM session_traces)")
+          .where(
+            new FilterList(
+              createFilterFromFilterState(
+                rootFilters.map((filter) => ({
+                  ...filter,
+                  column: rootColumnMapping[filter.column],
+                })),
+                eventsTableNativeUiColumnDefinitions,
+                sessionTraceFilterColumns
+                  .filter((column) => column.id.startsWith("root"))
+                  .map((column) => ({
+                    ...column,
+                    id: rootColumnMapping[column.id],
+                  })),
+              ),
+            ).apply(),
+          )
+          .buildWithParams()
+      : null;
   const query = `
-    ${tracesCte.query}
+    WITH session_traces AS (${tracesCte.query})
+    SELECT t.* FROM session_traces t
+    WHERE 1 = 1 ${traceFilters.query ? `AND ${traceFilters.query}` : ""}
+    ${rootQuery ? `AND t.id IN (${rootQuery.query})` : ""}
+    ORDER BY t.timestamp ASC
   `;
 
   const input = {
     params: {
       ...tracesCte.params,
+      ...traceFilters.params,
+      ...rootQuery?.params,
       projectId: props.projectId,
       sessionId: props.sessionId,
     },

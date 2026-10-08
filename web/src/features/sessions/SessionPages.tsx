@@ -62,6 +62,9 @@ import {
   type ScoreDomain,
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
+  sessionTraceFilterSchema,
+  decodeFiltersGeneric,
+  encodeFiltersGeneric,
 } from "@langfuse/shared";
 import {
   AnnotationQueueItemDropdownMenuController,
@@ -113,6 +116,7 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
+import { ConnectedSessionTraceViewControls } from "@/src/features/sessions/ConnectedSessionTraceViewControls";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
@@ -997,6 +1001,30 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const [traceFilterQuery, setTraceFilterQuery] = useQueryParam(
+    "traceFilter",
+    StringParam,
+  );
+  const traceFilters = React.useMemo(() => {
+    try {
+      const parsed = sessionTraceFilterSchema.safeParse(
+        decodeFiltersGeneric(traceFilterQuery ?? ""),
+      );
+      return parsed.success ? parsed.data : [];
+    } catch {
+      return [];
+    }
+  }, [traceFilterQuery]);
+  const setTraceFilters = (filters: FilterState) =>
+    setTraceFilterQuery(encodeFiltersGeneric(filters) || undefined);
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -1016,7 +1044,14 @@ export const SessionEventsPage: React.FC<{
   );
 
   const tracesQuery = api.sessions.tracesFromEvents.useQuery(
-    { projectId, sessionId },
+    {
+      projectId,
+      sessionId,
+      filter:
+        isModernSessionEnabled && isSessionTimelineEnabled
+          ? traceFilters
+          : undefined,
+    },
     {
       enabled: !!projectId && !!sessionId,
       retry(failureCount, error) {
@@ -1075,6 +1110,8 @@ export const SessionEventsPage: React.FC<{
       session={session.data}
       traces={tracesQuery.data}
       isTracesSuccess={tracesQuery.isSuccess}
+      traceFilters={traceFilters}
+      setTraceFilters={setTraceFilters}
     />
   );
 };
@@ -1085,7 +1122,17 @@ const LoadedSessionEventsPage: React.FC<{
   session: EventSession;
   traces: EventSessionTrace[] | undefined;
   isTracesSuccess: boolean;
-}> = ({ sessionId, projectId, session, traces, isTracesSuccess }) => {
+  traceFilters: FilterState;
+  setTraceFilters: (filters: FilterState) => void;
+}> = ({
+  sessionId,
+  projectId,
+  session,
+  traces,
+  isTracesSuccess,
+  traceFilters,
+  setTraceFilters,
+}) => {
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
@@ -2081,6 +2128,14 @@ const LoadedSessionEventsPage: React.FC<{
                   {/* Scores */}
                   <SessionScores scores={session.scores} />
                 </SessionControlsBar>
+              ) : null}
+              {isModernSessionEnabled && isSessionTimelineEnabled ? (
+                <ConnectedSessionTraceViewControls
+                  key={projectId}
+                  projectId={projectId}
+                  filters={traceFilters}
+                  onChange={setTraceFilters}
+                />
               ) : null}
               {!isModernSessionEnabled ? (
                 <div ref={parentRef} className="flex-1 overflow-auto p-4">
