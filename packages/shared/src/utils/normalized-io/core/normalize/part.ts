@@ -30,9 +30,10 @@ const rawToolCallKeys = new WeakMap<object, string>();
  * up in the convention registry.
  */
 
-// `image` and `file` are contested type names: Anthropic/AI-SDK and
-// OpenAI/AI-SDK register guarded handlers for them in their own conventions;
-// a handler returning `unmatched` falls through to the next provider.
+// `image` and `file` are contested type names: Anthropic/LangChain/AI-SDK and
+// OpenAI/LangChain/AI-SDK register guarded handlers for them in their own
+// conventions; a handler returning `unmatched` falls through to the next
+// provider.
 const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> = {
   text: (value) => claimed(normalizeTextPart(value)),
   input_text: (value) => claimed(normalizeTextPart(value)),
@@ -146,6 +147,7 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "data",
     "encrypted_content",
     "summary",
+    "reasoning",
     "thought",
     "thoughtSignature",
     "thought_signature",
@@ -174,6 +176,7 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "call_id",
     "toolCallId",
     "tool_use_id",
+    "tool_call_id",
     "name",
     "toolName",
     "tool_name",
@@ -194,6 +197,7 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     ...COMMON_CONSUMED_PART_KEYS,
     "image",
     "data",
+    "base64",
     "url",
     "mediaType",
     "mimeType",
