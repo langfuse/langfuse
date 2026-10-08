@@ -23,6 +23,7 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import { setRetryAfterHeader } from "@/src/features/public-api/server/writeError";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
@@ -113,6 +114,8 @@ export function withMiddlewares(
 
         return await finalHandlers[method](req, res);
       } catch (error) {
+        setRetryAfterHeader(res, error);
+
         if (error instanceof ClickHouseResourceError) {
           const errorMessage =
             options?.clickHouseResourceErrorMessage ??

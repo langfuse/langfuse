@@ -4,6 +4,10 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["views", "relationJoins", "metrics"]
+  // native resolves to linux-musl(-arm64)-openssl-3.0.x in the Alpine image
+  // builds; those engines link the system libcrypto.so.3, so Postgres TLS can
+  // run inside the image's FIPS-validated OpenSSL provider.
+  binaryTargets   = ["native"]
 }
 
 datasource db {
@@ -81,6 +85,7 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  roleAssignments           RoleAssignment[]
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
@@ -125,6 +130,8 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
+  ownedRoleAssignments             RoleAssignment[]         @relation("RoleAssignmentOwnerOrganization")
 
   @@map("organizations")
 }
@@ -146,6 +153,7 @@ model Project {
   projectMembers                    ProjectMembership[]
   organization                      Organization                        @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   apiKeys                           ApiKey[]
+  roleAssignments                   RoleAssignment[]
   dataset                           Dataset[]
   invitations                       MembershipInvitation[]
   sessions                          TraceSession[]
@@ -231,6 +239,7 @@ model ApiKey {
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
+  roleAssignments     RoleAssignment[]
 
   @@index(orgId)
   @@index(projectId)
@@ -239,6 +248,45 @@ model ApiKey {
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
   @@map("api_keys")
+}
+
+enum SystemRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+  NONE
+  LEGACY_PROJECT_API_KEY
+  LEGACY_ORGANIZATION_API_KEY
+  SCORES_INGEST
+  INGEST
+  AI_GATEWAY
+}
+
+model RoleAssignment {
+  id                String        @id @default(cuid())
+  orgId             String        @map("org_id")
+  organization      Organization  @relation("RoleAssignmentTenant", fields: [orgId], references: [id], onDelete: Cascade)
+  principalUserId   String?       @map("principal_user_id")
+  principalUser     User?         @relation(fields: [principalUserId], references: [id], onDelete: Cascade)
+  principalApiKeyId String?       @map("principal_api_key_id")
+  principalApiKey   ApiKey?       @relation(fields: [principalApiKeyId], references: [id], onDelete: Cascade)
+  systemRole        SystemRole    @map("system_role")
+  ownerOrgId        String?       @map("owner_org_id")
+  ownerOrg          Organization? @relation("RoleAssignmentOwnerOrganization", fields: [ownerOrgId], references: [id], onDelete: Cascade)
+  ownerProjectId    String?       @map("owner_project_id")
+  ownerProject      Project?      @relation(fields: [ownerProjectId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([principalUserId, ownerOrgId, systemRole], map: "role_assignments_user_org_role_key")
+  @@unique([principalUserId, ownerProjectId, systemRole], map: "role_assignments_user_project_role_key")
+  @@unique([principalApiKeyId, ownerOrgId, systemRole], map: "role_assignments_api_key_org_role_key")
+  @@unique([principalApiKeyId, ownerProjectId, systemRole], map: "role_assignments_api_key_project_role_key")
+  @@index([orgId])
+  @@index([ownerOrgId])
+  @@index([ownerProjectId])
+  @@map("role_assignments")
 }
 
 enum GatewayIngestionMode {

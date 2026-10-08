@@ -1,26 +1,15 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import {
-  getItemTypeLabels,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { EntityTitle } from "@/src/components/EntityTitle";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import {
   PageTabs,
   type PageTabsProps,
@@ -37,9 +26,6 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
-  /** Rich title rendering (e.g. inline-editable); replaces the plain title
-   * span inside the heading. `title` stays the canonical string. */
-  titleContent?: ReactNode;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
@@ -76,7 +62,6 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
-  titleContent,
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
@@ -129,7 +114,7 @@ const PageHeader = ({
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
@@ -143,15 +128,13 @@ const PageHeader = ({
                   <div className="flex items-center">{leadingControl}</div>
                 )
               )}
-              <div>
+              <div className="flex flex-wrap items-center gap-1.5">
                 {envLabel.visible && (
                   <EnvLabelBadge
                     region={envLabel.region}
                     onClick={envLabel.dismiss}
                   />
                 )}
-              </div>
-              <div className="flex translate-y-px items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
@@ -170,62 +153,23 @@ const PageHeader = ({
         <div>
           <div
             className={cn(
-              "flex w-full flex-wrap items-center justify-between gap-1 px-3 md:flex-nowrap",
-              divider ? "min-h-11 py-1" : "min-h-0 pt-2 pb-0",
+              "flex w-full flex-wrap items-center justify-between gap-1 px-4 md:flex-nowrap",
+              divider ? "min-h-11 py-1" : "min-h-0 pt-3 pb-0",
               container && containerLayoutClassName,
             )}
           >
             {/* Left side content */}
-            <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-center gap-1.5">
-                {itemType && (
-                  <Badge text={getItemTypeLabels(itemType).displayLabel} />
-                )}
-                <div className="relative inline-block max-w-md md:max-w-none">
-                  {/* Explicit color: the SidebarProvider shell sets
-                      text-sidebar-foreground (60% grey in dark) on the whole
-                      app, so unstyled text here would inherit the dimmed
-                      sidebar tint. text-primary is the emphasis tier —
-                      brighter than body text-foreground in dark. */}
-                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
-                    {titleContent ? (
-                      titleContent
-                    ) : titleTooltip ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              className="cursor-help wrap-break-word"
-                              data-testid="page-header-title"
-                            >
-                              {title}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            {titleTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span
-                        className="wrap-break-word"
-                        title={title}
-                        data-testid="page-header-title"
-                      >
-                        {title}
-                      </span>
-                    )}
-                    {help && (
-                      <span className="whitespace-nowrap">
-                        &nbsp;
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          className={help.className}
-                        />
-                      </span>
-                    )}
-                  </h2>
+            <div className="flex min-w-0 grow flex-wrap items-center md:grow-0">
+              <div className="mr-2 flex min-w-0 items-center gap-2">
+                <div className="max-w-md min-w-0 md:max-w-none">
+                  <EntityTitle
+                    as="h2"
+                    type={itemType}
+                    title={title}
+                    tooltip={titleTooltip}
+                    help={help}
+                    data-testid="page-header-title"
+                  />
                 </div>
                 {titleBadges && (
                   <div className="ml-1 flex items-center gap-1">
@@ -252,12 +196,7 @@ const PageHeader = ({
             </div>
           </div>
 
-          {tabsProps && (
-            <PageTabs
-              {...tabsProps}
-              className={cn("ml-2", tabsProps.className)}
-            />
-          )}
+          {tabsProps && <PageTabs {...tabsProps} />}
         </div>
       </div>
     </div>

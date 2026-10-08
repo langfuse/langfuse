@@ -24,7 +24,7 @@ export function EvaluatorCodeLanguageSelector({
         onValueChange(language as EvalTemplateSourceCodeLanguage)
       }
     >
-      <Tabs.List variant="outline">
+      <Tabs.List variant="inset" size="md">
         <Tabs.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
           disabled={disabled}

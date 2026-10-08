@@ -32,6 +32,7 @@ export const DeleteAutomationDialogController = ({
     {
       onSuccess: () => {
         showSuccessToast({
+          operation: "automation.delete",
           title: "Automation deleted",
           description: "The automation has been deleted successfully.",
         });

@@ -65,7 +65,7 @@ export const LowConfidence = meta.story({
   },
 });
 
-/** Expected values at both ends of the scale keep their labels inside the track. */
+/** Scores at the ends of the scale highlight that level's bar. */
 export const ScoreAtEdges = meta.story({
   args: {
     results: [
@@ -97,7 +97,7 @@ export const ScoreAtEdges = meta.story({
   },
 });
 
-/** Maximum-length scales keep descriptions available without rendering them inline. */
+/** A long scale lists every level as its own bar. */
 export const TenLevels = meta.story({
   name: "(Test) Ten Levels",
   args: {
@@ -138,15 +138,9 @@ export const TenLevels = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-    const levelDescription = canvas.getByRole("button", {
-      name: "Level 0 description",
-    });
-
-    levelDescription.focus();
-
-    await expect(await page.findByRole("tooltip")).toHaveTextContent(
-      "No technical detail",
-    );
+    await expect(canvas.getByText("No technical detail")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("Explains system behavior"),
+    ).toBeInTheDocument();
   },
 });

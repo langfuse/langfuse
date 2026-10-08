@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, getFips } from "crypto";
 import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -87,6 +87,58 @@ describe("S3StorageService region normalization", () => {
       await expect(client.config.region()).resolves.toBe(region);
     },
   );
+
+  it("follows S3's region redirect when region is auto on AWS", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "auto",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+    const hostnames: string[] = [];
+
+    // Answer the first request like S3 does for a bucket in another region,
+    // then succeed. No network I/O happens.
+    const fakeS3 = () => async (args: { request: unknown }) => {
+      hostnames.push((args.request as { hostname: string }).hostname);
+      const redirect = hostnames.length === 1;
+      return {
+        response: {
+          statusCode: redirect ? 301 : 200,
+          headers: {
+            "content-type": "application/xml",
+            ...(redirect ? { "x-amz-bucket-region": "eu-west-1" } : {}),
+          },
+          body: Readable.from([
+            Buffer.from(
+              redirect
+                ? "<Error><Code>PermanentRedirect</Code></Error>"
+                : "<ListBucketResult></ListBucketResult>",
+            ),
+          ]),
+        },
+      };
+    };
+    client.middlewareStack.add(
+      fakeS3 as unknown as Parameters<typeof client.middlewareStack.add>[0],
+      { step: "deserialize", priority: "low", name: "fakeS3", override: true },
+    );
+
+    await service.listFiles("exports/");
+
+    expect(hostnames).toEqual([
+      "test-bucket.s3.us-east-1.amazonaws.com",
+      "test-bucket.s3.eu-west-1.amazonaws.com",
+    ]);
+  });
 });
 
 describe("resolveMediaStorageEndpoints", () => {
@@ -525,27 +577,31 @@ describe("S3StorageService DeleteObjects checksum", () => {
     expect(findHeader(request, "content-md5")).toBeUndefined();
   });
 
-  it("sends Content-MD5 on DeleteObjects when the algorithm is set to MD5", async () => {
-    setChecksumAlgorithm("MD5");
-    const { service, captured } = makeServiceWithCapture(
-      EMPTY_DELETE_RESULT_XML,
-    );
+  // MD5 checksums are unavailable when OpenSSL runs in FIPS mode.
+  it.skipIf(getFips() === 1)(
+    "sends Content-MD5 on DeleteObjects when the algorithm is set to MD5",
+    async () => {
+      setChecksumAlgorithm("MD5");
+      const { service, captured } = makeServiceWithCapture(
+        EMPTY_DELETE_RESULT_XML,
+      );
 
-    await service.deleteFiles([
-      "events/project-1/file-1.json",
-      "media/project-1/file-2.png",
-    ]);
+      await service.deleteFiles([
+        "events/project-1/file-1.json",
+        "media/project-1/file-2.png",
+      ]);
 
-    expect(captured).toHaveLength(1);
-    const request = captured[0];
-    expect(typeof request.body).toBe("string");
+      expect(captured).toHaveLength(1);
+      const request = captured[0];
+      expect(typeof request.body).toBe("string");
 
-    const expectedMd5 = createHash("md5")
-      .update(request.body as string)
-      .digest("base64");
-    expect(findHeader(request, "content-md5")).toBe(expectedMd5);
-    expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
-  });
+      const expectedMd5 = createHash("md5")
+        .update(request.body as string)
+        .digest("base64");
+      expect(findHeader(request, "content-md5")).toBe(expectedMd5);
+      expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
+    },
+  );
 });
 
 describe("S3StorageService non-buffered upload part size", () => {

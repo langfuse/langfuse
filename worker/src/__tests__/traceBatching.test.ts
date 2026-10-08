@@ -964,6 +964,7 @@ describe("trace micro-batch scheduling with Redis", () => {
                       kind: 1,
                       startTimeUnixNano: timestamp,
                       endTimeUnixNano: timestamp,
+                      status: { code: 2, message: "tool call failed" },
                       attributes: Object.entries({
                         "langfuse.observation.type": "span",
                         "langfuse.observation.input": input,
@@ -1047,7 +1048,11 @@ describe("trace micro-batch scheduling with Redis", () => {
           },
         ],
       })) {
-        expect(observation.trace_id).toBe(excludedTraceId);
+        expect(observation).toMatchObject({
+          trace_id: excludedTraceId,
+          level: "ERROR",
+          status_message: "tool call failed",
+        });
         excludedObservations++;
       }
       expect(excludedObservations).toBe(2);

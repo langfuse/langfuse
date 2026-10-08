@@ -130,7 +130,11 @@ describe("WorkerManager queue metrics", () => {
     mocks.handlers.get("stalled")?.("job-id");
 
     expect(mocks.recordIncrement.mock.calls).toEqual([
-      ["langfuse.queue.trace_delete.rate", 1, { type: "failed" }],
+      [
+        "langfuse.queue.trace_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
       ["langfuse.queue.trace_delete.rate", 1, { type: "error" }],
       ["langfuse.queue.trace_delete.rate", 1, { type: "stalled" }],
     ]);
@@ -145,6 +149,44 @@ describe("WorkerManager queue metrics", () => {
 
     expect(mocks.recordIncrement.mock.calls).toEqual([
       ["langfuse.queue.trace_upsert.rate", 1, { type: "completed" }],
+    ]);
+  });
+
+  it("counts failed_terminal only once BullMQ moved the job to the failed set", () => {
+    WorkerManager.register("project-delete" as never, async () => undefined);
+
+    // BullMQ sets finishedOn only when it stops retrying.
+    mocks.handlers.get("failed")?.(
+      { id: "job-id", name: "job", attemptsMade: 1, opts: { attempts: 5 } },
+      new Error("retrying"),
+    );
+    mocks.handlers.get("failed")?.(
+      {
+        id: "job-id",
+        name: "job",
+        attemptsMade: 5,
+        opts: { attempts: 5 },
+        finishedOn: Date.now(),
+      },
+      new Error("exhausted"),
+    );
+
+    expect(mocks.recordIncrement.mock.calls).toEqual([
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed_terminal", reason: "other" },
+      ],
     ]);
   });
 
@@ -173,7 +215,7 @@ describe("WorkerManager queue metrics", () => {
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.score_delete.rate",
       1,
-      { type: "failed" },
+      { type: "failed", reason: "s3_slowdown" },
     );
 
     mocks.handlers.get("failed")?.(

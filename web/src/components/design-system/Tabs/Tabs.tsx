@@ -2,30 +2,38 @@
 
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
+import Link, { type LinkProps } from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
 
+type TabsVariant = "inset" | "underline";
+type TabsInsetSize = "sm" | "md";
+/** `navigation` is the underline look for link tabs: the page header owns the divider. */
+type TabsLook = TabsVariant | "navigation";
+
+const rootFillClassName =
+  "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden";
+
 const tabsListVariants = cva(
-  "text-foreground-tertiary items-center justify-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
+  "items-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
   {
     variants: {
-      variant: {
-        default: "bg-control-track/60 rounded-md",
-        underline: "rounded-none border-b bg-transparent",
-        outline: "bg-background rounded-md border",
+      look: {
+        inset:
+          "bg-control-track/60 dark:bg-muted text-foreground-tertiary relative isolate justify-center rounded-md p-0.5",
+        underline: "h-9 shrink-0 justify-start border-b",
+        navigation: "h-9 shrink-0 justify-start",
       },
       size: {
-        default: "",
-        md: "",
         sm: "",
-        auto: "",
+        md: "",
       },
       layout: {
-        default: "inline-flex",
+        default: "",
         full: "grid w-full auto-cols-fr grid-flow-col",
-        packed: "inline-flex",
+        packed: "",
       },
       gap: {
         none: "",
@@ -34,22 +42,16 @@ const tabsListVariants = cva(
       },
     },
     compoundVariants: [
-      { variant: "default", size: "default", class: "h-8 p-0.5" },
-      { variant: "default", size: "md", class: "h-7 p-0.5" },
-      { variant: "default", size: "sm", class: "h-6 p-0.5" },
-      { variant: "default", size: "auto", class: "h-auto p-0.5" },
-      { variant: "outline", size: "default", class: "h-8 p-0.5" },
-      { variant: "outline", size: "md", class: "h-7 p-0.5" },
-      { variant: "outline", size: "sm", class: "h-6 p-0.5" },
-      { variant: "outline", size: "auto", class: "h-auto p-0.5" },
-      { variant: "underline", size: "default", class: "h-auto p-0" },
-      { variant: "underline", size: "md", class: "h-auto p-0" },
-      { variant: "underline", size: "sm", class: "h-auto p-0" },
-      { variant: "underline", size: "auto", class: "h-auto p-0" },
+      { look: "inset", size: "sm", class: "h-6" },
+      { look: "inset", size: "md", class: "h-7" },
+      { look: "inset", layout: ["default", "packed"], class: "inline-flex" },
+      {
+        look: ["underline", "navigation"],
+        layout: ["default", "packed"],
+        class: "flex w-full",
+      },
     ],
     defaultVariants: {
-      variant: "default",
-      size: "default",
       layout: "default",
       gap: "none",
     },
@@ -57,44 +59,29 @@ const tabsListVariants = cva(
 );
 
 const tabsTriggerVariants = cva(
-  "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex min-w-0 items-center justify-center gap-1.5 font-bold leading-none whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+  "ring-offset-background focus-visible:ring-ring data-[state=active]:text-foreground inline-flex h-full items-center justify-center gap-1.5 font-bold leading-none whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50",
   {
     variants: {
-      variant: {
-        default:
-          "rounded-sm data-[state=active]:bg-background data-[state=active]:shadow-sm",
+      look: {
+        inset:
+          "relative z-1 min-w-0 rounded-sm dark:data-[state=active]:text-primary",
         underline:
-          "rounded-none border-b-2 border-transparent bg-transparent text-muted-foreground shadow-none data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-4 text-sm",
+        navigation:
+          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-3 text-sm",
       },
       size: {
-        default: "h-6 px-4 py-0.5 text-sm",
-        lg: "h-7 px-1 text-xs",
-        sm: "h-5 px-2 text-xs",
+        sm: "px-2 text-xs",
+        md: "px-4 text-sm",
       },
-    },
-    compoundVariants: [
-      // Inside a boxed list the trigger fills the list's inner height, so the
-      // list's padding is the inset on every side and the smaller radius
-      // nests inside the list's. A fixed height overflowed once the list had
-      // a border (outline) and left uneven top/bottom vs side spacing.
-      { variant: "default", class: "h-full" },
-    ],
-    defaultVariants: {
-      variant: "default",
-      size: "default",
     },
   },
 );
 
-type TabsListProps = {
-  "aria-label"?: string;
-  children: React.ReactNode;
-} & Pick<
-  VariantProps<typeof tabsListVariants>,
-  "gap" | "layout" | "size" | "variant"
->;
 type TabsRootProps = {
   children: React.ReactNode;
+  /** `fill`: a column that takes its flex parent's remaining height, for `Tabs.Content layout="fill"`. */
+  layout?: "fill";
   onValueChange?: (value: string) => void;
   ref?: React.Ref<HTMLDivElement>;
 } & (
@@ -102,27 +89,47 @@ type TabsRootProps = {
   | { defaultValue?: never; value: string }
 );
 
+const TabsRootContext = React.createContext(false);
+
 function TabsRoot({
   children,
   defaultValue,
+  layout,
   onValueChange,
   ref,
   value,
 }: TabsRootProps) {
   return (
-    <TabsPrimitive.Root
-      defaultValue={defaultValue}
-      onValueChange={onValueChange}
-      ref={ref}
-      value={value}
-    >
-      {children}
-    </TabsPrimitive.Root>
+    <TabsRootContext value={true}>
+      <TabsPrimitive.Root
+        className={layout === "fill" ? rootFillClassName : undefined}
+        defaultValue={defaultValue}
+        onValueChange={onValueChange}
+        ref={ref}
+        value={value}
+      >
+        {children}
+      </TabsPrimitive.Root>
+    </TabsRootContext>
   );
 }
 
-const TabsIndicatorContext = React.createContext(false);
+type TabsListProps = {
+  "aria-label"?: string;
+  children: React.ReactNode;
+  gap?: "none" | "sm" | "lg";
+  layout?: "default" | "full" | "packed";
+} & (
+  | { variant: "inset"; size: TabsInsetSize }
+  | { variant: "underline"; size?: never }
+);
 
+const TabsListContext = React.createContext<{
+  look: TabsLook;
+  size?: TabsInsetSize;
+} | null>(null);
+
+/** Outside a `Tabs` root the list is page navigation: a `<nav>` of link triggers, not a tablist. */
 function TabsList({
   "aria-label": ariaLabel,
   children,
@@ -131,9 +138,12 @@ function TabsList({
   size,
   variant,
 }: TabsListProps) {
+  const inRoot = React.use(TabsRootContext);
+  const look: TabsLook =
+    variant === "underline" && !inRoot ? "navigation" : variant;
   const listRef = React.useRef<HTMLDivElement>(null);
   const indicatorRef = React.useRef<HTMLSpanElement>(null);
-  const hasSlidingIndicator = variant !== "underline";
+  const hasSlidingIndicator = look === "inset";
 
   React.useLayoutEffect(() => {
     if (!hasSlidingIndicator) return;
@@ -220,76 +230,74 @@ function TabsList({
     };
   }, [hasSlidingIndicator]);
 
+  const className = tabsListVariants({ gap, layout, look, size });
+
+  if (look === "navigation") {
+    return (
+      <TabsListContext value={{ look }}>
+        <nav aria-label={ariaLabel} className={className}>
+          {children}
+        </nav>
+      </TabsListContext>
+    );
+  }
+
   return (
-    <TabsIndicatorContext value={hasSlidingIndicator}>
+    <TabsListContext value={{ look, size }}>
       <TabsPrimitive.List
         ref={listRef}
         aria-label={ariaLabel}
-        className={cn(
-          tabsListVariants({ gap, layout, size, variant }),
-          hasSlidingIndicator && "relative isolate",
-        )}
+        className={className}
       >
         {hasSlidingIndicator ? (
           <span
             ref={indicatorRef}
             data-tabs-indicator=""
             aria-hidden="true"
-            className={cn(
-              "pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
-              variant === "outline" ? "bg-muted" : "bg-background shadow-sm",
-            )}
+            className="bg-background dark:bg-control-track pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 shadow-sm data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none dark:shadow-none"
           />
         ) : null}
         {children}
       </TabsPrimitive.List>
-    </TabsIndicatorContext>
+    </TabsListContext>
   );
 }
 
 type TabsTriggerProps = {
   disabled?: boolean;
   icon?: LucideIcon;
-  value: string;
-} & Pick<VariantProps<typeof tabsTriggerVariants>, "size" | "variant"> &
+} & (
+  | {
+      /** Preferred for plain-text trigger content. */
+      label: string;
+      children?: never;
+      title?: never;
+    }
+  | {
+      label?: never;
+      /** Rich-content escape hatch. */
+      children: React.ReactNode;
+      title?: string;
+    }
+) &
   (
+    | { value: string; href?: never; active?: never; onClick?: never }
     | {
-        /** Preferred for plain-text trigger content. */
-        label: string;
-        children?: never;
-        title?: never;
-      }
-    | {
-        label?: never;
-        /** Rich-content escape hatch. */
-        children: React.ReactNode;
-        title?: string;
+        /** Renders a Next.js link with `aria-current` instead of a tab. */
+        href: LinkProps["href"];
+        active: boolean;
+        onClick?: () => void;
+        value?: never;
       }
   );
 
-function TabsTrigger({
-  children,
-  disabled,
-  icon: Icon,
-  label,
-  size,
-  title,
-  value,
-  variant,
-}: TabsTriggerProps) {
-  const slidingIndicator = React.use(TabsIndicatorContext);
-
-  return (
-    <TabsPrimitive.Trigger
-      value={value}
-      disabled={disabled}
-      title={label ?? title}
-      className={cn(
-        tabsTriggerVariants({ size, variant }),
-        slidingIndicator &&
-          "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none",
-      )}
-    >
+function TabsTrigger(props: TabsTriggerProps) {
+  // Outside a Tabs.List, fall back to the underline look instead of crashing.
+  const list = React.use(TabsListContext) ?? { look: "underline" as const };
+  const { children, disabled, icon: Icon, label, title } = props;
+  const className = tabsTriggerVariants({ look: list.look, size: list.size });
+  const content = (
+    <>
       {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
       {label !== undefined ? (
         <span className="min-w-0 truncate" title={label}>
@@ -298,20 +306,54 @@ function TabsTrigger({
       ) : (
         children
       )}
+    </>
+  );
+
+  if (props.href !== undefined) {
+    return (
+      <Link
+        href={props.href}
+        onClick={props.onClick}
+        aria-current={props.active ? "page" : undefined}
+        aria-disabled={disabled || undefined}
+        tabIndex={disabled ? -1 : undefined}
+        data-state={props.active ? "active" : "inactive"}
+        title={label ?? title}
+        className={className}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <TabsPrimitive.Trigger
+      value={props.value}
+      disabled={disabled}
+      title={label ?? title}
+      className={className}
+    >
+      {content}
     </TabsPrimitive.Trigger>
   );
 }
 
 type TabsContentProps = {
   children: React.ReactNode;
+  /** `fill`: a column that takes the remaining height of a `layout="fill"` root. */
+  layout?: "fill";
   value: string;
 };
 
-function TabsContent({ children, value }: TabsContentProps) {
+function TabsContent({ children, layout, value }: TabsContentProps) {
   return (
     <TabsPrimitive.Content
       value={value}
-      className="ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+      className={cn(
+        "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+        layout === "fill" &&
+          "flex min-h-0 w-full flex-1 flex-col overflow-hidden",
+      )}
     >
       {children}
     </TabsPrimitive.Content>

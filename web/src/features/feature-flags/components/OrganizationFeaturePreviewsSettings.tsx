@@ -57,6 +57,7 @@ export function OrganizationFeaturePreviewsSettings({
         session.update(),
       ]);
       showSuccessToast({
+        operation: "organization_feature_preview.update",
         title: "Feature preview default updated",
         description: `${featurePreviewLabels[variables.flag]} was ${
           variables.enabled ? "enabled" : "disabled"
