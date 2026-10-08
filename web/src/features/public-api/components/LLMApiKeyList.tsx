@@ -68,9 +68,7 @@ export function LlmApiKeyList(props: {
           data={organizationTableData}
           toolbarContent={
             <div className="flex items-center gap-1">
-              <h3 className="text-base font-semibold">
-                Organization connections
-              </h3>
+              <h3 className="text-base font-bold">Organization connections</h3>
               <InfoTooltip label="About organization connections">
                 Organization connections are inherited by this project. Project
                 connections with the same provider name take precedence.
@@ -84,7 +82,7 @@ export function LlmApiKeyList(props: {
           owner={{ scope: "project", projectId: props.projectId }}
           overriddenProviders={organizationProviders}
           toolbarContent={
-            <h3 className="text-base font-semibold">Project connections</h3>
+            <h3 className="text-base font-bold">Project connections</h3>
           }
         />
       </section>
