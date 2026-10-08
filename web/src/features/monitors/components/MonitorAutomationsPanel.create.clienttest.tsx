@@ -77,6 +77,27 @@ describe("MonitorAutomationsPanel automation creation", () => {
     gateFetch = undefined;
   });
 
+  it("only offers actions that can run from a monitor", async () => {
+    automations = [existingRow];
+    render(
+      <MonitorAutomationsPanel
+        projectId="p1"
+        triggerIds={[]}
+        onTriggerIdsChange={vi.fn()}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^automation$/i }));
+
+    expect(
+      await screen.findByRole("menuitem", { name: /^webhook$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /annotation queue/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("creates in place and selects the new trigger, never linking away from the monitor form", async () => {
     automations = [existingRow];
     stubSave = (onSuccess) => {

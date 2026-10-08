@@ -1,5 +1,6 @@
 import { ActionExecutionStatus } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { UnrecoverableError } from "bullmq";
 import {
   getActionById,
   logger,
@@ -51,8 +52,35 @@ export const executeAutomationAction = async (
       );
     }
 
+    const existingQueues = await prisma.annotationQueue.findMany({
+      where: {
+        projectId: event.projectId,
+        id: { in: action.config.queueIds },
+      },
+      select: { id: true },
+    });
+    const existingQueueIds = new Set(existingQueues.map((queue) => queue.id));
+    const queueIds = action.config.queueIds.filter((queueId) =>
+      existingQueueIds.has(queueId),
+    );
+    const missingQueueIds = action.config.queueIds.filter(
+      (queueId) => !existingQueueIds.has(queueId),
+    );
+
+    if (queueIds.length === 0) {
+      throw new UnrecoverableError(
+        `Automation ${event.automationId} has no existing annotation queue destinations`,
+      );
+    }
+    if (missingQueueIds.length > 0) {
+      logger.warn(
+        `Skipping missing annotation queues for automation ${event.automationId}`,
+        { projectId: event.projectId, missingQueueIds },
+      );
+    }
+
     await Promise.all(
-      action.config.queueIds.map((queueId) =>
+      queueIds.map((queueId) =>
         processAddObservationsToQueue(
           event.projectId,
           [event.input.score.observationId],
@@ -66,7 +94,8 @@ export const executeAutomationAction = async (
       data: {
         status: ActionExecutionStatus.COMPLETED,
         output: {
-          queueIds: action.config.queueIds,
+          queueIds,
+          missingQueueIds,
           observationId: event.input.score.observationId,
         },
         finishedAt: new Date(),

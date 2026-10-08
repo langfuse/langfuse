@@ -750,6 +750,8 @@ const ScoreTriggerFields = ({
               </div>
               <FormDescription>
                 Choose the score values that should trigger this automation.
+                Only scores attached to observations can add items to annotation
+                queues.
               </FormDescription>
               <FormMessage />
             </FormItem>

@@ -65,6 +65,7 @@ import {
   getTracesIdentifierForSession,
   validateConfigAgainstBody,
   scoreChangeEventSourcing,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
@@ -127,6 +128,7 @@ const sourceAnnotationScoreChange = async ({
       `Failed to source annotation score change for score ${score.id}`,
       error,
     );
+    traceException(error);
   }
 };
 

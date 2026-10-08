@@ -300,13 +300,15 @@ const AddAutomationDropdown = ({
             icon: Plus,
             onClick: () => setDraft({}),
           },
-          ...ActionTypeSchema.options.map((actionType) => ({
-            type: "item" as const,
-            id: actionType,
-            title: actionLabel[actionType],
-            icon: actionIcon[actionType],
-            onClick: () => setDraft({ actionType }),
-          })),
+          ...ActionTypeSchema.options
+            .filter((actionType) => actionType !== "ANNOTATION_QUEUE")
+            .map((actionType) => ({
+              type: "item" as const,
+              id: actionType,
+              title: actionLabel[actionType],
+              icon: actionIcon[actionType],
+              onClick: () => setDraft({ actionType }),
+            })),
         ]}
       >
         {({ getTriggerProps }) => (
