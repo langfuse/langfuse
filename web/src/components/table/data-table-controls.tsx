@@ -51,7 +51,6 @@ import {
   WandSparkles,
   InfoIcon,
 } from "lucide-react";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,6 +90,7 @@ import type {
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
+import { FacetHeader } from "@/src/components/table/FacetHeader";
 import {
   Popover,
   PopoverContent,
@@ -1361,35 +1361,6 @@ interface StringKeyValueFacetProps extends BaseFacetProps {
 // Non-animated accordion components for filters
 const FilterAccordionItemPrimitive = AccordionPrimitive.Item;
 
-const FilterAccordionTrigger = ({
-  className,
-  children,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>) => (
-  // top-0: the panel header row sits outside the scroll container
-  // (ScrollArea wraps only the facet list), so triggers stick to its top.
-  // The expand chevron leads the row (> closed, v open); the clear button
-  // sits at the row's right edge and stays visible whenever a value is set.
-  // pt-1.5/pb-0.5 rather than an even py: the 8px between two rows is split so
-  // that 6px of it sits INSIDE this sticky box, which is what keeps a pinned
-  // header the same distance from whatever is above it as it was at rest.
-  <AccordionPrimitive.Header className="bg-surface sticky top-0 z-[1] flex px-3 pt-1.5 pb-0.5">
-    <AccordionPrimitive.Trigger
-      className={cn(
-        // min-w-0: without it the trigger's automatic min width equals the
-        // nowrap chip's full text width, so long chips push the row past the
-        // panel edge (clipped) instead of ellipsing.
-        "group/facet relative flex min-w-0 flex-1 items-center gap-1.5 text-left font-bold hover:underline [&[data-state=open]>svg:first-child]:rotate-90",
-        className,
-      )}
-      {...props}
-    >
-      <DropdownIndicator direction="right" nudge />
-      {children}
-    </AccordionPrimitive.Trigger>
-  </AccordionPrimitive.Header>
-);
-
 const FilterAccordionContent = ({
   className,
   children,
@@ -1440,111 +1411,64 @@ function FilterAccordionItem({
       // on this wrapper scrolls away with it and the gap would shift.
       data-facet-column={filterKey}
     >
-      <FilterAccordionTrigger
-        className={cn(
-          // Fill means open: collapsed facets read as a plain line.
-          "text-foreground-secondary hover:bg-accent data-[state=open]:bg-muted min-h-6 rounded-md px-2 py-1 text-xs font-bold transition-colors hover:no-underline",
-          isDisabled &&
-            "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent data-[state=open]:bg-transparent",
-        )}
-      >
-        <div className="flex min-w-0 grow items-center gap-1.5">
-          {isDisabled && disabledReason ? (
-            <Tooltip delayDuration={80}>
-              <TooltipTrigger asChild>
-                <span className="flex min-w-0 items-center gap-1">
-                  <span className="min-w-0 truncate" title={label}>
-                    {label}
-                  </span>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-80 text-xs">
-                {disabledReason}
-              </TooltipContent>
-            </Tooltip>
-          ) : help ? (
-            <div className="flex min-w-0 items-center gap-1">
-              <span className="min-w-0 truncate" title={label}>
-                {label}
-              </span>
-              <DocPopup description={help.description} href={help.href} />
-            </div>
-          ) : tooltip ? (
-            // The tooltip triggers on the ⓘ icon only — hovering the label
-            // itself must not pop explanatory text.
-            <span className="flex min-w-0 items-center gap-1">
-              <span className="min-w-0 truncate" title={label}>
-                {label}
-              </span>
+      {/* The sticky header owns the spacing above each facet, so scrolling
+          does not change the gap around a pinned header. */}
+      <AccordionPrimitive.Header className="bg-surface sticky top-0 z-[1] flex px-3 pt-1.5 pb-0.5">
+        <AccordionPrimitive.Trigger asChild>
+          <FacetHeader
+            label={label}
+            summary={summary}
+            summaryIcon={summaryIcon}
+            isActive={Boolean(isActive)}
+            isDisabled={Boolean(isDisabled)}
+            onReset={onReset}
+          >
+            {isDisabled && disabledReason ? (
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
-                  <InfoIcon className="text-muted-foreground icon-sm shrink-0" />
+                  <span className="flex min-w-0 items-center gap-1">
+                    <span className="min-w-0 truncate" title={label}>
+                      {label}
+                    </span>
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-80 text-xs">
-                  {tooltip}
+                  {disabledReason}
                 </TooltipContent>
               </Tooltip>
-            </span>
-          ) : (
-            <span className="flex min-w-0 items-center gap-1">
-              <span className="min-w-0 truncate" title={label}>
-                {label}
-              </span>
-            </span>
-          )}
-          {summary && (
-            // Collapsed only: the open facet shows the selection itself.
-            <span
-              className={cn(
-                // h-4 = the label line, so the row height never jitters.
-                "ml-auto h-4 max-w-1/2 min-w-0 shrink-0 truncate text-[11px] leading-4",
-                "group-data-[state=open]/facet:hidden",
-                isActive
-                  ? "bg-background text-foreground rounded px-1 font-bold"
-                  : "text-muted-foreground/60 font-normal",
-              )}
-              title={summary}
-            >
-              {summaryIcon && (
-                <span className="mr-1 inline-flex align-text-bottom">
-                  {summaryIcon}
+            ) : help ? (
+              <div className="flex min-w-0 items-center gap-1">
+                <span className="min-w-0 truncate" title={label}>
+                  {label}
                 </span>
-              )}
-              {summary}
-            </span>
-          )}
-        </div>
-        {isActive && onReset && (
-          <Tooltip delayDuration={80}>
-            <TooltipTrigger asChild>
-              {/* div[role=button]: the accordion trigger is already a <button>. */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReset();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    onReset();
-                  }
-                }}
-                className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
-                aria-label={`Clear ${label} filter`}
-              >
-                <IconX className="icon-sm shrink-0" />
-                Clear
+                <DocPopup description={help.description} href={help.href} />
               </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">
-              Clear {label.toLowerCase()} filter
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </FilterAccordionTrigger>
+            ) : tooltip ? (
+              // The tooltip triggers on the ⓘ icon only — hovering the label
+              // itself must not pop explanatory text.
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="min-w-0 truncate" title={label}>
+                  {label}
+                </span>
+                <Tooltip delayDuration={80}>
+                  <TooltipTrigger asChild>
+                    <InfoIcon className="text-muted-foreground icon-sm shrink-0" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-80 text-xs">
+                    {tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              </span>
+            ) : (
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="min-w-0 truncate" title={label}>
+                  {label}
+                </span>
+              </span>
+            )}
+          </FacetHeader>
+        </AccordionPrimitive.Trigger>
+      </AccordionPrimitive.Header>
       <FilterAccordionContent className="pb-2">
         <fieldset
           disabled={isDisabled}
