@@ -74,6 +74,7 @@ const tool = (action: ApiAction): ToolDefinition => ({
   name: "someTool",
   description: "",
   action,
+  accessLevel: "project",
   inputSchema: { type: "object" },
 });
 

@@ -1,7 +1,7 @@
 import { CloudConfigSchema, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
-import type { ServerContext } from "../types";
+import type { ProjectServerContext } from "../types";
 
 export type McpPublicApiAuth = {
   validKey: true;
@@ -19,7 +19,7 @@ export type McpPublicApiAuth = {
 };
 
 export const getMcpPublicApiAuth = async (
-  context: ServerContext,
+  context: ProjectServerContext,
 ): Promise<McpPublicApiAuth> => {
   const org = await prisma.organization.findUnique({
     where: { id: context.orgId },

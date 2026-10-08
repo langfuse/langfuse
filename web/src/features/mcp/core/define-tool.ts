@@ -65,11 +65,14 @@ export interface DefineToolOptions<
 /**
  * MCP Tool definition
  */
-export interface ToolDefinition<TName extends string = string> {
+export interface ToolDefinition<
+  TName extends string = string,
+  TAccessLevel extends McpAccessLevel = McpAccessLevel,
+> {
   name: TName;
   description: string;
   action: ApiAction;
-  accessLevel: McpAccessLevel;
+  accessLevel: TAccessLevel;
   inputSchema: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
@@ -133,7 +136,7 @@ export function defineTool<
   const TAccessLevel extends McpAccessLevel = "project",
 >(
   options: DefineToolOptions<TInput, TName, TAccessLevel>,
-): [ToolDefinition<TName>, ToolHandler<TInput>] {
+): [ToolDefinition<TName, TAccessLevel>, ToolHandler<TInput>] {
   const {
     name,
     description,

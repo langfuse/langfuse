@@ -110,6 +110,9 @@ export default async function handler(
         "Access denied: MCP requires project- or organization-scoped API keys with BasicAuth",
       );
     }
+    if (scope.accessLevel === "project" && !scope.projectId) {
+      throw new ForbiddenError("Access denied: project ID is required");
+    }
     if (
       scope.accessLevel === "organization" &&
       !hasEntitlementBasedOnPlan({

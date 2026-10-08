@@ -37,6 +37,7 @@ export const externalMediaStorageFeature = {
     },
   ],
   isEnabled: (context) =>
+    context.accessLevel === "project" &&
     createExternalMediaStorageService(prisma).isFeatureEnabled(
       context.projectId,
     ),
