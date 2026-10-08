@@ -10,6 +10,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import * as auditLogs from "@/src/features/audit-logs/server";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -1774,6 +1775,32 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].extraHeaderKeys).toContain("Authorization");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-Another-Header");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-New-Header");
+  });
+
+  it("rolls back connection deletion when audit logging fails", async () => {
+    const connection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        secretKey: encrypt("project-secret"),
+        displaySecretKey: "...cret",
+        provider: `audit-rollback-${randomUUID()}`,
+        adapter: LLMAdapter.OpenAI,
+      },
+    });
+    const auditLogSpy = vi
+      .spyOn(auditLogs, "auditLog")
+      .mockRejectedValueOnce(new Error("audit unavailable"));
+
+    try {
+      await expect(
+        caller.llmApiKey.delete({ projectId, id: connection.id }),
+      ).rejects.toThrow();
+      await expect(
+        prisma.llmApiKeys.findUniqueOrThrow({ where: { id: connection.id } }),
+      ).resolves.toBeDefined();
+    } finally {
+      auditLogSpy.mockRestore();
+    }
   });
 
   describe("deleting a connection pauses the evaluators that ran on it", () => {

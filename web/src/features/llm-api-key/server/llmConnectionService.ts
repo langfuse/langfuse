@@ -846,15 +846,18 @@ export class LlmConnectionService {
         throw error;
       }
 
-      return results;
-    });
+      await auditLog(
+        {
+          ...params.actor,
+          resourceType: "llmApiKey",
+          resourceId: connection.id,
+          action: "delete",
+          before: toSafeConnection(connection),
+        },
+        tx,
+      );
 
-    await auditLog({
-      ...params.actor,
-      resourceType: "llmApiKey",
-      resourceId: connection.id,
-      action: "delete",
-      before: toSafeConnection(connection),
+      return results;
     });
 
     await Promise.all(
