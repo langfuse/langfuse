@@ -284,7 +284,6 @@ export function SessionConversationalView(
         <SessionConversationTimeline
           traces={timelineItems}
           controller={props.controller}
-          filterMeasurementKey="transcript"
         />
       </div>
     </div>
