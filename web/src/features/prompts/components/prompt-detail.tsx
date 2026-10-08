@@ -309,7 +309,7 @@ export const PromptDetail = ({
   } = {}) => (
     <Command
       className={cn(
-        "flex min-h-0 flex-col gap-2 overflow-hidden font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
+        "flex min-h-0 flex-col gap-2 overflow-hidden bg-transparent font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
         mobile ? "rounded-none" : "rounded-none border-r pr-3",
       )}
     >
