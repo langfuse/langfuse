@@ -30,7 +30,7 @@ import type {
  * LangChain / LangGraph convention: this module owns the `lc`/`kwargs`
  * serialization envelope, the `tool_calls`/`invalid_tool_calls`/
  * `additional_kwargs` sibling fields, and the v1 standard content blocks
- * (multimodal, server-side tool and invalid tool call blocks). LangChain has
+ * (multimodal and server-side tool blocks). LangChain has
  * no finish-reason vocabulary of its own — it surfaces the underlying
  * provider's value under `response_metadata` (picked up generically in
  * `normalize/message.ts`).
@@ -89,7 +89,13 @@ function langchainBase64OrFileIdContent(
  */
 function langchainMediaBlock(fallbackMediaType?: string): PartHandler {
   return (value) => {
-    if (value.mediaType !== undefined) return unmatched;
+    // Preserve native Anthropic/OpenAI wrappers and AI SDK payload fields.
+    if (
+      ["source", "file", "mediaType", "data", "image", "filename"].some(
+        (key) => value[key] !== undefined,
+      )
+    )
+      return unmatched;
 
     const mediaType = optionalString(value.mime_type);
     const url = optionalString(value.url);
@@ -129,8 +135,7 @@ const normalizeLangchainServerToolResult: PartHandler = (value) =>
     toolResultPart({ toolCallId: value.tool_call_id, output: value.output }),
   );
 
-// LangChain invalid tool calls, `{ name, args, id, error }`, both as
-// `invalid_tool_calls` entries and as v1 `invalid_tool_call` content blocks.
+// LangChain invalid_tool_calls entries: { name, args, id, error }.
 function langchainInvalidToolCall(
   record: Record<string, unknown>,
 ): ToolCallPart | null {
@@ -157,11 +162,6 @@ const LANGCHAIN_PART_HANDLERS = {
   file: langchainMediaBlock(),
   server_tool_call: normalizeLangchainServerToolCall,
   server_tool_result: normalizeLangchainServerToolResult,
-  // `name` is optional on invalid calls; without one the block stays custom.
-  invalid_tool_call: (value) => {
-    const part = langchainInvalidToolCall(value);
-    return part ? claimed(part) : unmatched;
-  },
 } satisfies Readonly<Record<string, PartHandler>>;
 
 /**

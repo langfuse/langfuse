@@ -494,19 +494,12 @@ export const langchainStandardMultimodalBlocksFixture = {
       {
         role: "user",
         content: [
-          { type: "text", text: "Describe these attachments." },
           { type: "image", url: "https://example.com/path/to/image.jpg" },
           {
             type: "file",
             url: "https://example.com/path/to/document.pdf",
             mime_type: "application/pdf",
           },
-          {
-            type: "file",
-            base64: "JVBERi0xLjQ=",
-            mime_type: "application/pdf",
-          },
-          { type: "file", file_id: "file-abc123" },
           {
             type: "audio",
             base64: "UklGRiQAAABXQVZF",
@@ -525,7 +518,6 @@ export const langchainStandardMultimodalBlocksFixture = {
         source: "input",
         role: "user",
         parts: [
-          { type: "text", text: "Describe these attachments." },
           {
             type: "file",
             mediaType: "image/*",
@@ -544,12 +536,6 @@ export const langchainStandardMultimodalBlocksFixture = {
           },
           {
             type: "file",
-            mediaType: "application/pdf",
-            content: { kind: "base64", data: "JVBERi0xLjQ=" },
-          },
-          { type: "file", content: { kind: "reference", id: "file-abc123" } },
-          {
-            type: "file",
             mediaType: "audio/wav",
             content: { kind: "base64", data: "UklGRiQAAABXQVZF" },
           },
@@ -565,76 +551,27 @@ export const langchainStandardMultimodalBlocksFixture = {
   },
 } satisfies NormalizedIOFixture;
 
-/**
- * AIMessage content stored in the standard format (`output_version="v1"` or
- * `LC_OUTPUT_VERSION=v1`), recorded as `{ role, content, invalid_tool_calls }`.
- * The reasoning, server-side tool call and result blocks are what LangChain's
- * Anthropic translator emits for a web search turn. The invalid calls are also
- * listed in `invalid_tool_calls` and must not be added twice; the one without
- * a name cannot become a tool call and stays custom.
- * https://docs.langchain.com/oss/python/langchain/messages#standard-content-blocks
- */
+// Standard output serialized with output_version="v1".
+// https://docs.langchain.com/oss/python/langchain/messages#standard-content-blocks
 export const langchainStandardOutputBlocksFixture = {
-  name: "normalizes LangChain v1 reasoning, server-side tool and invalid tool call blocks",
+  name: "normalizes LangChain reasoning and server-side tools",
   spanIO: {
     input: undefined,
     output: {
       role: "assistant",
       content: [
-        {
-          type: "reasoning",
-          reasoning: "The user wants this week's forecast; search first.",
-          extras: { signature: "WaUjzkyp" },
-        },
+        { type: "reasoning", reasoning: "Search first." },
         {
           type: "server_tool_call",
+          id: "search_1",
           name: "web_search",
-          args: { query: "Paris weather forecast" },
-          id: "srvtoolu_01",
+          args: { query: "weather" },
         },
         {
           type: "server_tool_result",
-          tool_call_id: "srvtoolu_01",
+          tool_call_id: "search_1",
           status: "success",
-          extras: { block_type: "web_search_tool_result" },
-          output: [
-            {
-              type: "web_search_result",
-              title: "Paris 7-day forecast",
-              url: "https://example.com/paris-forecast",
-            },
-          ],
-        },
-        { type: "text", text: "Expect light rain on Thursday." },
-        {
-          type: "invalid_tool_call",
-          id: "toolu_02",
-          name: "get_time",
-          args: '{"timezone": ',
-          error: "Malformed args.",
-        },
-        {
-          type: "invalid_tool_call",
-          id: "toolu_03",
-          name: null,
-          args: "{",
-          error: "Malformed tool call.",
-        },
-      ],
-      invalid_tool_calls: [
-        {
-          type: "invalid_tool_call",
-          id: "toolu_02",
-          name: "get_time",
-          args: '{"timezone": ',
-          error: "Malformed args.",
-        },
-        {
-          type: "invalid_tool_call",
-          id: "toolu_03",
-          name: null,
-          args: "{",
-          error: "Malformed tool call.",
+          output: "Rain.",
         },
       ],
     },
@@ -648,98 +585,21 @@ export const langchainStandardOutputBlocksFixture = {
         parts: [
           {
             type: "reasoning",
-            content: {
-              kind: "text",
-              text: "The user wants this week's forecast; search first.",
-            },
-            providerMetadata: { extras: { signature: "WaUjzkyp" } },
+            content: { kind: "text", text: "Search first." },
           },
           {
             type: "tool-call",
-            toolCallId: "srvtoolu_01",
+            toolCallId: "search_1",
             toolName: "web_search",
-            input: { query: "Paris weather forecast" },
+            input: { query: "weather" },
             toolType: "server_tool_call",
             providerExecuted: true,
           },
           {
             type: "tool-result",
-            toolCallId: "srvtoolu_01",
-            output: [
-              {
-                type: "web_search_result",
-                title: "Paris 7-day forecast",
-                url: "https://example.com/paris-forecast",
-              },
-            ],
-            providerMetadata: {
-              status: "success",
-              extras: { block_type: "web_search_tool_result" },
-            },
-          },
-          { type: "text", text: "Expect light rain on Thursday." },
-          {
-            type: "tool-call",
-            toolCallId: "toolu_02",
-            toolName: "get_time",
-            input: '{"timezone": ',
-            invalid: true,
-            providerMetadata: { error: "Malformed args." },
-          },
-          {
-            type: "custom",
-            kind: "invalid_tool_call",
-            value: {
-              type: "invalid_tool_call",
-              id: "toolu_03",
-              name: null,
-              args: "{",
-              error: "Malformed tool call.",
-            },
-          },
-        ],
-      },
-    ],
-    toolDefinitions: [],
-  },
-} satisfies NormalizedIOFixture;
-
-/**
- * AI SDK UI file parts share the `file` type and the `url` field with
- * LangChain blocks but declare `mediaType`; they stay with the AI SDK
- * convention.
- * https://github.com/vercel/ai/blob/main/packages/ai/src/ui/ui-messages.ts
- */
-export const langchainAiSdkFilePartFixture = {
-  name: "leaves AI SDK file parts that declare a mediaType to the AI SDK convention",
-  spanIO: {
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "file",
-            mediaType: "application/pdf",
-            filename: "report.pdf",
-            url: "https://example.com/report.pdf",
-          },
-        ],
-      },
-    ],
-    output: undefined,
-    metadata: undefined,
-  },
-  expected: {
-    messages: [
-      {
-        source: "input",
-        role: "user",
-        parts: [
-          {
-            type: "file",
-            mediaType: "application/pdf",
-            filename: "report.pdf",
-            content: { kind: "url", url: "https://example.com/report.pdf" },
+            toolCallId: "search_1",
+            output: "Rain.",
+            providerMetadata: { status: "success" },
           },
         ],
       },

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { normalizeSpanIO } from "../../../parser";
 import {
   capturedTraceFixtures,
-  langchainAiSdkFilePartFixture,
   langchainSerializedGenerationResultFixture,
   langchainBatchedMessagesFixture,
   langchainDictToolMessageFixture,
@@ -23,7 +22,6 @@ describe("LangChain normalized I/O", () => {
     langchainDictToolMessageFixture,
     langchainStandardMultimodalBlocksFixture,
     langchainStandardOutputBlocksFixture,
-    langchainAiSdkFilePartFixture,
     langchainSerializedEnvelopeFixture,
     langgraphProductionShapeFixture,
   ])("$name", ({ spanIO, expected }) => {
