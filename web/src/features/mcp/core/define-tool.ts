@@ -8,29 +8,20 @@
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
 import type { ApiAction } from "@/src/features/public-api/server";
-import type { McpAccessLevel, ServerContext, ServerContextFor } from "../types";
+import type { ServerContext } from "../types";
 
 /**
  * Tool handler function type
  */
-type ToolHandler<TInput> = (
+export type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
-) => Promise<unknown>;
-
-type ScopedToolHandler<TInput, TAccessLevel extends McpAccessLevel> = (
-  input: TInput,
-  context: ServerContextFor<TAccessLevel>,
 ) => Promise<unknown>;
 
 /**
  * Tool definition options
  */
-export interface DefineToolOptions<
-  TInput,
-  TName extends string = string,
-  TAccessLevel extends McpAccessLevel = "project",
-> {
+export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Tool name (must be unique across all tools) */
   name: TName;
 
@@ -44,13 +35,10 @@ export interface DefineToolOptions<
   inputSchema: z.ZodType<TInput>;
 
   /** Handler function that executes the tool logic */
-  handler: ScopedToolHandler<TInput, TAccessLevel>;
+  handler: ToolHandler<TInput>;
 
   /** Action the caller must hold to run this tool. */
   action: ApiAction;
-
-  /** API-key scope this tool is available to. Defaults to project. */
-  accessLevel?: TAccessLevel;
 
   /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
@@ -65,14 +53,10 @@ export interface DefineToolOptions<
 /**
  * MCP Tool definition
  */
-export interface ToolDefinition<
-  TName extends string = string,
-  TAccessLevel extends McpAccessLevel = McpAccessLevel,
-> {
+export interface ToolDefinition<TName extends string = string> {
   name: TName;
   description: string;
   action: ApiAction;
-  accessLevel: TAccessLevel;
   inputSchema: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
@@ -130,21 +114,13 @@ function hasJsonSchemaUnion(value: unknown): boolean {
  *   readOnly: true,
  * });
  */
-export function defineTool<
-  TInput,
-  const TName extends string,
-  const TAccessLevel extends McpAccessLevel = "project",
->(
-  options: DefineToolOptions<TInput, TName, TAccessLevel>,
-): [
-  ToolDefinition<TName, TAccessLevel>,
-  ScopedToolHandler<TInput, TAccessLevel>,
-] {
+export function defineTool<TInput, const TName extends string>(
+  options: DefineToolOptions<TInput, TName>,
+): [ToolDefinition<TName>, ToolHandler<TInput>] {
   const {
     name,
     description,
     action,
-    accessLevel = "project" as TAccessLevel,
     baseSchema,
     inputSchema,
     handler,
@@ -181,11 +157,10 @@ export function defineTool<
   }
 
   // Build tool definition
-  const toolDefinition: ToolDefinition<TName, TAccessLevel> = {
+  const toolDefinition: ToolDefinition<TName> = {
     name,
     description,
     action,
-    accessLevel,
     inputSchema: jsonSchemaObject,
   };
 
@@ -201,22 +176,11 @@ export function defineTool<
   // Wrap handler with validation and error handling
   const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
     async (rawInput: unknown, context: ServerContext) => {
-      if (context.accessLevel !== accessLevel) {
-        throw new Error(
-          `Tool "${name}" requires ${accessLevel}-scoped authentication`,
-        );
-      }
       // Validate input with the full schema (including refinements)
       const validatedInput = inputSchema.parse(rawInput);
-      return await handler(
-        validatedInput,
-        context as ServerContextFor<TAccessLevel>,
-      );
+      return await handler(validatedInput, context);
     },
   );
 
-  return [
-    toolDefinition,
-    wrappedHandler as ScopedToolHandler<TInput, TAccessLevel>,
-  ];
+  return [toolDefinition, wrappedHandler];
 }

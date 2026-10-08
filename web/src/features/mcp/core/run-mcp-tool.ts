@@ -26,8 +26,7 @@ export const runMcpTool = async <TResult>({
     async (span) => {
       addUserToSpan(
         {
-          projectId:
-            context.accessLevel === "project" ? context.projectId : undefined,
+          projectId: context.projectId,
           orgId: context.orgId,
           apiKeyId: context.apiKeyId,
         },

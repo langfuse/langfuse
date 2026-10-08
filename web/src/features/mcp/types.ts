@@ -29,7 +29,13 @@ import type { McpToolName } from "./server/bootstrap";
  * @see /web/src/features/audit-logs/auditLog.ts - Audit logging
  * @see /web/src/features/rbac/README.md - RBAC patterns
  */
-interface BaseServerContext {
+export interface ServerContext {
+  /**
+   * Project ID from authenticated API key
+   * MCP requires project-scoped access only (never null)
+   */
+  projectId: string;
+
   /** Organization ID from authenticated API key */
   orgId: string;
 
@@ -38,6 +44,12 @@ interface BaseServerContext {
 
   /** API Key ID for audit logging */
   apiKeyId: string;
+
+  /**
+   * Access level from API key
+   * MCP enforces "project" level access only
+   */
+  accessLevel: "project";
 
   /** Public key used for authentication */
   publicKey: string;
@@ -51,30 +63,12 @@ interface BaseServerContext {
   /** User agent from the MCP client's HTTP request */
   userAgent?: string;
 
+  /** In-app-agent-specific MCP authorization state. */
+  inAppAgent?: InAppAgentContext;
+
   /** Resolved policy-core context, present only once the new authz path resolves the connection (enforce). */
   auth?: AuthorizationContext;
 }
-
-export interface ProjectServerContext extends BaseServerContext {
-  projectId: string;
-  accessLevel: "project";
-  inAppAgent?: InAppAgentContext;
-}
-
-export interface OrganizationServerContext extends BaseServerContext {
-  accessLevel: "organization";
-  projectId?: never;
-  inAppAgent?: never;
-}
-
-export type ServerContext = ProjectServerContext | OrganizationServerContext;
-
-export type McpAccessLevel = ServerContext["accessLevel"];
-
-export type ServerContextFor<TAccessLevel extends McpAccessLevel> = Extract<
-  ServerContext,
-  { accessLevel: TAccessLevel }
->;
 
 /** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */
 type InAppAgentContext =

@@ -10,7 +10,7 @@
  * - Server queries registry instead of hardcoding tool lists
  */
 
-import type { ToolDefinition } from "../core/define-tool";
+import type { ToolDefinition, ToolHandler } from "../core/define-tool";
 import type { ServerContext } from "../types";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -25,7 +25,7 @@ interface RegisteredTool<TName extends string = string> {
 
   /** Tool handler function - accepts any input type */
 
-  handler: (...args: any[]) => Promise<unknown>;
+  handler: ToolHandler<any>;
 }
 
 /**
@@ -125,9 +125,7 @@ class ToolRegistry {
 
       // Add all tools from enabled feature
       for (const tool of feature.tools) {
-        if (tool.definition.accessLevel === context.accessLevel) {
-          definitions.push(tool.definition);
-        }
+        definitions.push(tool.definition);
       }
     }
 
@@ -154,7 +152,6 @@ class ToolRegistry {
   ): Promise<RegisteredTool | undefined> {
     const tool = this.tools.get(name);
     if (!tool) return undefined;
-    if (tool.definition.accessLevel !== context.accessLevel) return undefined;
 
     const feature = this.getFeatureForTool(name);
     if (!feature) return undefined;

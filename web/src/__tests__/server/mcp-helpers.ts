@@ -10,7 +10,7 @@ import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
-import type { ProjectServerContext } from "@/src/features/mcp/types";
+import type { ServerContext } from "@/src/features/mcp/types";
 import { authenticator } from "@/src/features/apiKey/server";
 
 /**
@@ -25,7 +25,7 @@ export async function createMcpTestSetup(): Promise<{
   orgId: string;
   apiKeyId: string;
   auth: string;
-  context: ProjectServerContext;
+  context: ServerContext;
 }> {
   const result = await createOrgProjectAndApiKey();
   const { projectId, orgId, auth } = result;
@@ -45,7 +45,7 @@ export async function createMcpTestSetup(): Promise<{
   });
   if (!authenticated.success) throw authenticated.error;
 
-  const context: ProjectServerContext = {
+  const context: ServerContext = {
     projectId,
     orgId,
     apiKeyId: apiKey.id,
@@ -99,7 +99,7 @@ export async function createInAppAgentMcpContext(params: {
   projectId: string;
   orgId: string;
   createdByUserId?: string;
-}): Promise<{ apiKeyId: string; context: ProjectServerContext }> {
+}): Promise<{ apiKeyId: string; context: ServerContext }> {
   const creatorUserId =
     params.createdByUserId ??
     (
@@ -154,8 +154,8 @@ export async function protectPromptLabel(params: {
  * Use this when you need a context but don't want to create actual DB records.
  */
 export function mockServerContext(
-  overrides?: Partial<ProjectServerContext>,
-): ProjectServerContext {
+  overrides?: Partial<ServerContext>,
+): ServerContext {
   return {
     projectId: overrides?.projectId ?? "test-project-id",
     orgId: overrides?.orgId ?? "test-org-id",

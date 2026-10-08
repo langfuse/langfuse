@@ -52,12 +52,7 @@ const MCP_FEATURES = [
 ] as const satisfies readonly McpFeatureModule[];
 
 type McpFeature = (typeof MCP_FEATURES)[number];
-type RegisteredToolDefinition = McpFeature["tools"][number]["definition"];
-export type McpToolName = RegisteredToolDefinition extends infer TDefinition
-  ? TDefinition extends { accessLevel: "project"; name: infer TName }
-    ? TName
-    : never
-  : never;
+export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
 
 /**
  * Bootstrap all MCP features
