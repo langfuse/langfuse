@@ -153,6 +153,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
 }) {
   return (
     <Tabs
+      activationMode="manual"
       value={value}
       onValueChange={(v) => onChange(v as DashboardWidgetChartType)}
     >

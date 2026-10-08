@@ -585,6 +585,19 @@ describe("unified annotation targets", () => {
     );
   });
 
+  it("moves between categories with arrow keys and saves only on Enter", async () => {
+    mocks.create.mockResolvedValue({});
+    renderContent();
+    const trueTab = screen.getByRole("tab", { name: /True/ });
+    const falseTab = screen.getByRole("tab", { name: /False/ });
+    act(() => trueTab.focus());
+    fireEvent.keyDown(trueTab, { key: "ArrowRight" });
+    await waitFor(() => expect(falseTab).toHaveFocus());
+    expect(mocks.create).not.toHaveBeenCalled();
+    fireEvent.keyDown(falseTab, { key: "Enter" });
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+  });
+
   it("hides the score comment portal without losing its unsaved draft", async () => {
     mocks.create.mockResolvedValue({});
     const rendered = renderContent();

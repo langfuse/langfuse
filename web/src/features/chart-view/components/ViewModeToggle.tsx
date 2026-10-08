@@ -17,7 +17,11 @@ export const ViewModeToggle = React.memo(function ViewModeToggle({
   return (
     // Offset from the filter-preset cluster to its left.
     <div className="ml-1">
-      <Tabs value={mode} onValueChange={(v) => onModeChange(v as ViewMode)}>
+      <Tabs
+        activationMode="manual"
+        value={mode}
+        onValueChange={(v) => onModeChange(v as ViewMode)}
+      >
         <Tabs.List variant="inset" size="md" aria-label="View mode">
           <Tabs.Trigger value="table" icon={Table} label="Table" />
           <Tabs.Trigger value="chart" icon={BarChart3} label="Chart" />
