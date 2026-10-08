@@ -1169,22 +1169,6 @@ function compileHasAnyFromEventsTable(opts: {
   return compileClickhouseQuery(query, ctx);
 }
 
-function compileLastTraceTimestampsByProjectsFromEventsTable(opts: {
-  projectIds: readonly string[];
-}) {
-  const db = getClickhouseKysely();
-  const ctx: ExecutionContext = { projectIds: opts.projectIds };
-
-  const query = db
-    .selectFrom("events_core")
-    .select(["project_id", sql`max(start_time)`.as("last_trace_at")])
-    .where(lit<SqlBool>(sql`start_time >= now() - INTERVAL 30 DAY`))
-    .where(lit<SqlBool>(sql`is_deleted = 0`))
-    .groupBy("project_id");
-
-  return compileClickhouseQuery(query, ctx);
-}
-
 function compileAgentGraphDataFromEventsTable(opts: {
   projectId: string;
   traceId: string;
@@ -1642,15 +1626,25 @@ export const getLastTraceTimestampsByProjectsFromEventsTable = async ({
 }) => {
   if (projectIds.length === 0) return [];
 
-  const { sql: query, params } =
-    compileLastTraceTimestampsByProjectsFromEventsTable({ projectIds });
+  // Spans several projects, so it cannot go through compileClickhouseQuery,
+  // whose tenancy scope is always a single project.
+  const query = `
+    SELECT
+      project_id,
+      max(start_time) as last_trace_at
+    FROM events_core
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND start_time >= now() - INTERVAL 30 DAY
+    AND is_deleted = 0
+    GROUP BY project_id
+  `;
 
   const rows = await queryClickhouse<{
     project_id: string;
     last_trace_at: string;
   }>({
     query,
-    params,
+    params: { projectIds },
     preferredClickhouseService: "EventsReadOnly",
   });
 
