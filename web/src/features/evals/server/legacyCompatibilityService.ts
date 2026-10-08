@@ -66,6 +66,7 @@ const LEGACY_TARGET_OBJECTS = [
 ];
 
 const visibleRuleWhere = {
+  triggerKind: "OBSERVATION",
   assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
 } satisfies Prisma.EvaluationRuleWhereInput;
 
@@ -661,6 +662,7 @@ const legacyConfigIdsQuery = (params: {
     ) a ON a."evaluation_rule_id" = r."id"
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
+      AND r."trigger_kind"::text = ${"OBSERVATION"}
       AND e."type"::text <> ${EvalTemplateType.FACET}
   ) jc
   WHERE TRUE
@@ -1634,6 +1636,7 @@ export class LegacyEvalCompatibilityService {
       });
       if (!version) throw new LangfuseNotFoundError("Evaluator not found");
 
+      await lockEvaluatorResultRuleGraph({ prisma: tx, projectId });
       // Lock the evaluator so a rule cannot be assigned to it between the
       // usage check and the delete.
       await tx.$executeRaw`SELECT "id" FROM "evaluators" WHERE "id" = ${version.evaluatorId} AND "project_id" = ${projectId} FOR UPDATE`;
@@ -1641,7 +1644,10 @@ export class LegacyEvalCompatibilityService {
       const referencingRules = await tx.evaluationRule.findMany({
         where: {
           projectId,
-          assignments: { some: { evaluatorId: version.evaluatorId } },
+          OR: [
+            { assignments: { some: { evaluatorId: version.evaluatorId } } },
+            { triggerEvaluatorId: version.evaluatorId },
+          ],
         },
         select: { name: true },
       });

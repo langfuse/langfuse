@@ -1031,6 +1031,13 @@ describe("processObservationEval", () => {
           executionTraceId: mockEvalExecutionResult.executionTraceId,
         }),
       });
+      expect(deps.scheduleEvaluatorResultRules).toHaveBeenCalledWith({
+        projectId,
+        evaluatorId: expect.any(String),
+        observation,
+        scores: mockEvalExecutionResult.scores,
+        upstreamJobExecutionId: jobExecutionId,
+      });
     });
 
     it("should call the code executor for code templates", async () => {

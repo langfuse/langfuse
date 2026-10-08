@@ -149,6 +149,7 @@ export function EditRuleDialogContent({
         mutationPending={update.isPending}
         nameGenerationPending={false}
         isEditing
+        allowUnchangedSave={Boolean(rule.triggerInvalidReason)}
         canEdit={hasWriteAccess}
         nameAIAssistanceAvailable={false}
         onCancel={onClose}

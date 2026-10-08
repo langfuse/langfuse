@@ -69,7 +69,10 @@ function matchesPredicate(
   predicate: z.infer<typeof ScoreResultPredicateSchema>,
   score: EvaluatorScore,
 ) {
-  if (score.dataType !== predicate.dataType) return false;
+  const scoreDataType =
+    score.dataType ??
+    (typeof score.value === "number" ? "NUMERIC" : "CATEGORICAL");
+  if (scoreDataType !== predicate.dataType) return false;
 
   switch (predicate.dataType) {
     case "BOOLEAN":

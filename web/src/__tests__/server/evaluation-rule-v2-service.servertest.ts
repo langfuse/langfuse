@@ -1114,6 +1114,27 @@ describe("RuleService", () => {
         ).rejects.toThrow(
           "Legacy evaluation rules can only be deactivated or deleted",
         );
+        await expect(
+          service.update({
+            projectId,
+            ruleId: legacyRule.id,
+            enabled: false,
+            triggerKind: "SCORE_RESULT",
+            scoreResultTrigger: {
+              evaluatorId: otherEvaluator.id,
+              predicates: [
+                {
+                  scoreName: "quality",
+                  dataType: "NUMERIC",
+                  operator: ">",
+                  value: 0.5,
+                },
+              ],
+            },
+          }),
+        ).rejects.toThrow(
+          "Legacy evaluation rules can only be deactivated or deleted",
+        );
         await service.setEnabled({
           projectId,
           ruleId: legacyRule.id,

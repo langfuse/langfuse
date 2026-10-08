@@ -377,6 +377,10 @@ export class RuleService {
       this.assertUniqueAssignments(input.evaluatorMappings);
     }
     const rule = await this.prisma.$transaction(async (prisma) => {
+      await repository.lockEvaluatorResultRuleGraph({
+        prisma,
+        projectId: input.projectId,
+      });
       const current = await this.requireRule(
         prisma,
         input.projectId,
@@ -740,6 +744,10 @@ export class RuleService {
     enableRule?: boolean;
   }) {
     await this.prisma.$transaction(async (prisma) => {
+      await repository.lockEvaluatorResultRuleGraph({
+        prisma,
+        projectId: params.projectId,
+      });
       const rule = await this.requireRule(
         prisma,
         params.projectId,
@@ -877,7 +885,9 @@ export class RuleService {
       input.name !== undefined ||
       input.filter !== undefined ||
       input.sampling !== undefined ||
-      input.targetObject !== undefined
+      input.targetObject !== undefined ||
+      input.triggerKind !== undefined ||
+      input.scoreResultTrigger !== undefined
     ) {
       throw new InvalidRequestError(
         "Legacy evaluation rules can only be deactivated or deleted",

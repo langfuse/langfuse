@@ -95,4 +95,40 @@ describe("score result triggers", () => {
       ]),
     ).toBe(true);
   });
+
+  it("infers omitted code evaluator score types from their values", () => {
+    expect(
+      matchesScoreResultTrigger(
+        ScoreResultTriggerSchema.parse({
+          evaluatorId: "evaluator-1",
+          predicates: [
+            {
+              scoreName: "quality",
+              dataType: "NUMERIC",
+              operator: ">=",
+              value: 0.8,
+            },
+          ],
+        }),
+        [{ name: "quality", value: 0.9 }],
+      ),
+    ).toBe(true);
+
+    expect(
+      matchesScoreResultTrigger(
+        ScoreResultTriggerSchema.parse({
+          evaluatorId: "evaluator-1",
+          predicates: [
+            {
+              scoreName: "label",
+              dataType: "CATEGORICAL",
+              operator: "=",
+              value: "safe",
+            },
+          ],
+        }),
+        [{ name: "label", value: "safe" }],
+      ),
+    ).toBe(true);
+  });
 });

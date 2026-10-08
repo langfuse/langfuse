@@ -5,6 +5,7 @@ import {
   extractObservationVariables,
   logger,
   recordIncrement,
+  type CodeEvalScoreWithName,
 } from "@langfuse/shared/src/server";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
@@ -49,6 +50,13 @@ import { createObservationEvalSchedulerDeps } from "./createSchedulerDeps";
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
   evalExecutionDeps: EvalExecutionDeps;
+  scheduleEvaluatorResultRules?: (params: {
+    projectId: string;
+    evaluatorId: string;
+    observation: ObservationForEval;
+    scores: CodeEvalScoreWithName[];
+    upstreamJobExecutionId: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -62,6 +70,19 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
       return s3Client.download(path);
     },
     evalExecutionDeps: createProductionEvalExecutionDeps(),
+    scheduleEvaluatorResultRules: async (params) => {
+      const rules = await fetchScoreResultEvalRules({
+        projectId: params.projectId,
+        evaluatorId: params.evaluatorId,
+      });
+      await scheduleScoreResultEvals({
+        observation: params.observation,
+        scores: params.scores,
+        rules,
+        upstreamJobExecutionId: params.upstreamJobExecutionId,
+        schedulerDeps: createObservationEvalSchedulerDeps(),
+      });
+    },
   };
 }
 
@@ -308,19 +329,15 @@ export async function processObservationEval(
     environment: executionParams.environment,
     deps: executionParams.deps,
     result: executionResult,
-    ...(resolved.type === "v2"
+    ...(resolved.type === "v2" && deps.scheduleEvaluatorResultRules
       ? {
           onEvaluatorCompleted: async (result: EvalExecutionResult) => {
-            const rules = await fetchScoreResultEvalRules({
+            await deps.scheduleEvaluatorResultRules?.({
               projectId: executionParams.projectId,
               evaluatorId: resolved.evaluatorId,
-            });
-            await scheduleScoreResultEvals({
               observation: observationData,
               scores: result.scores,
-              rules,
               upstreamJobExecutionId: executionParams.jobExecutionId,
-              schedulerDeps: createObservationEvalSchedulerDeps(),
             });
           },
         }

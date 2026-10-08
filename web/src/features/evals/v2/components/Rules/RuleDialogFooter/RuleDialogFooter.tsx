@@ -17,6 +17,7 @@ export function RuleDialogFooter({
   mutationPending,
   nameGenerationPending,
   isEditing,
+  allowUnchangedSave = false,
   canEdit,
   nameAIAssistanceAvailable,
   onCancel,
@@ -26,6 +27,7 @@ export function RuleDialogFooter({
   mutationPending: boolean;
   nameGenerationPending: boolean;
   isEditing: boolean;
+  allowUnchangedSave?: boolean;
   canEdit: boolean;
   nameAIAssistanceAvailable: boolean;
   onCancel: () => void;
@@ -45,7 +47,7 @@ export function RuleDialogFooter({
       disabled={
         !canEdit ||
         !valid ||
-        (isEditing && !dirty) ||
+        (isEditing && !dirty && !allowUnchangedSave) ||
         (nameMissing && !nameAIAssistanceAvailable) ||
         mutationPending ||
         nameGenerationPending

@@ -31,6 +31,9 @@ type MockProcessorDeps = ObservationEvalProcessorDeps & {
     ObservationEvalProcessorDeps["downloadObservationFromS3"]
   >;
   evalExecutionDeps: EvalExecutionDeps;
+  scheduleEvaluatorResultRules: Mock<
+    NonNullable<ObservationEvalProcessorDeps["scheduleEvaluatorResultRules"]>
+  >;
 };
 
 /**
@@ -174,6 +177,9 @@ export function createMockProcessorDeps(
       ObservationEvalProcessorDeps["downloadObservationFromS3"]
     >;
     evalExecutionDeps: EvalExecutionDeps;
+    scheduleEvaluatorResultRules: Mock<
+      NonNullable<ObservationEvalProcessorDeps["scheduleEvaluatorResultRules"]>
+    >;
   }> = {},
 ): MockProcessorDeps {
   const defaultObservation = createTestObservation();
@@ -186,6 +192,15 @@ export function createMockProcessorDeps(
         .mockResolvedValue(JSON.stringify(defaultObservation)),
     evalExecutionDeps:
       overrides.evalExecutionDeps ?? createMockEvalExecutionDeps(),
+    scheduleEvaluatorResultRules:
+      overrides.scheduleEvaluatorResultRules ??
+      vi
+        .fn<
+          NonNullable<
+            ObservationEvalProcessorDeps["scheduleEvaluatorResultRules"]
+          >
+        >()
+        .mockResolvedValue(undefined),
   };
 }
 
@@ -405,6 +420,7 @@ export function createFullyMockedEvalPipeline(
         return JSON.stringify(observation);
       }),
     evalExecutionDeps: executionDeps,
+    scheduleEvaluatorResultRules: vi.fn().mockResolvedValue(undefined),
   };
 
   return {

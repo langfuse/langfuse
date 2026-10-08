@@ -150,6 +150,37 @@ describe("legacy evaluator compatibility service", () => {
     );
   });
 
+  it("keeps evaluator-result rules out of legacy evaluator reads", async () => {
+    const { project, service } = await prepare();
+    const rule = await createLegacyRule(project.id, {
+      targetObject: EvalTargetObject.EVENT,
+    });
+    const assignment =
+      await prisma.evaluationRuleEvaluatorAssignment.findFirstOrThrow({
+        where: { evaluationRuleId: rule.id },
+      });
+    await prisma.evaluationRule.update({
+      where: { id: rule.id },
+      data: {
+        triggerKind: "SCORE_RESULT",
+        triggerEvaluatorId: assignment.evaluatorId,
+        scoreResultPredicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">",
+            value: 0.5,
+          },
+        ],
+      },
+    });
+
+    await expect(service.getConfig(project.id, rule.id)).resolves.toBeNull();
+    await expect(
+      service.listConfigs({ projectId: project.id }),
+    ).resolves.toMatchObject({ configs: [], totalCount: 0 });
+  });
+
   it("rejects activation when a built-in evaluator remains blocked", async () => {
     const { project, service } = await prepare();
     const rule = await createLegacyRule(project.id);
@@ -1174,6 +1205,41 @@ describe("legacy evaluator compatibility service", () => {
     await expect(
       service.getTemplateUsage(project.id, config!.evalTemplateId),
     ).resolves.toHaveLength(1);
+  });
+
+  it("refuses to delete an evaluator used by an evaluator-result rule", async () => {
+    const { project, service } = await prepare();
+    const evaluator = await createLibraryEvaluator(project.id, {
+      name: "Trigger source",
+    });
+    await prisma.evaluationRule.create({
+      data: {
+        projectId: project.id,
+        name: "Dependent result rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        triggerKind: "SCORE_RESULT",
+        triggerEvaluatorId: evaluator.id,
+        scoreResultPredicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">=",
+            value: 0.8,
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.deleteTemplate(project.id, evaluator.versions[0]!.id),
+    ).rejects.toBeInstanceOf(LangfuseConflictError);
+    await expect(
+      prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
+    ).resolves.not.toBeNull();
   });
 
   it("refuses to delete a Langfuse managed evaluator", async () => {
