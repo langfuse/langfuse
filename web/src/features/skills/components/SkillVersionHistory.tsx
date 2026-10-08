@@ -3,10 +3,7 @@ import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Timeline,
-  TimelineItem,
-} from "@/src/features/prompts/components/timeline";
+import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { cn } from "@/src/utils/tailwind";
 import { SkillLabelsSelect } from "./SkillMetadataSelect";
 import { SkillVersionComparisonController } from "./SkillVersionComparison";
@@ -101,7 +98,7 @@ export function SkillVersionHistory(
         <div className="overflow-y-auto p-2">
           <Timeline>
             {showDraft ? (
-              <TimelineItem isActive>
+              <Timeline.Item isActive>
                 <div
                   className="flex w-full flex-col gap-1 text-left"
                   aria-current="page"
@@ -117,7 +114,7 @@ export function SkillVersionHistory(
                     Unreleased local changes
                   </Badge>
                 </div>
-              </TimelineItem>
+              </Timeline.Item>
             ) : null}
             {props.kind === "versions"
               ? sortedVersions.map(
@@ -129,98 +126,101 @@ export function SkillVersionHistory(
                     createdBy,
                     creator,
                   }) => (
-                    <TimelineItem
+                    <Timeline.Item
                       key={version}
-                      className="group/skill-version"
                       isActive={
                         !props.isDraft && version === props.selectedVersion
                       }
                     >
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button
-                          type="button"
-                          aria-label={`Open version ${version}`}
-                          aria-current={
-                            !props.isDraft && version === props.selectedVersion
-                              ? "page"
-                              : undefined
-                          }
-                          onClick={() => selectVersion(version)}
-                        >
-                          <Badge
-                            variant="outline"
-                            className="bg-background/50 h-6 shrink-0"
+                      <div className="group/skill-version flex w-full flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Open version ${version}`}
+                            aria-current={
+                              !props.isDraft &&
+                              version === props.selectedVersion
+                                ? "page"
+                                : undefined
+                            }
+                            onClick={() => selectVersion(version)}
                           >
-                            # {version}
-                          </Badge>
-                        </button>
-                        <SkillLabelsSelect
-                          showOnlyOnHover
-                          value={labels}
-                          options={props.labelOptions}
-                          disabled={!props.canEdit || props.isSavingLabels}
-                          isSaving={props.isSavingLabels}
-                          onSave={(nextLabels) =>
-                            props.onSaveLabels(version, nextLabels)
-                          }
-                        />
-                      </div>
-                      <div className="flex items-start gap-1">
-                        <button
-                          type="button"
-                          className="flex min-w-0 flex-1 flex-col gap-1 text-left"
-                          aria-current={
-                            !props.isDraft && version === props.selectedVersion
-                              ? "page"
-                              : undefined
-                          }
-                          onClick={() => selectVersion(version)}
-                        >
-                          {commitMessage ? (
-                            <span
-                              className="text-muted-foreground max-w-full truncate text-xs"
-                              title={commitMessage}
+                            <Badge
+                              variant="outline"
+                              className="bg-background/50 h-6 shrink-0"
                             >
-                              {commitMessage}
+                              # {version}
+                            </Badge>
+                          </button>
+                          <SkillLabelsSelect
+                            showOnlyOnHover
+                            value={labels}
+                            options={props.labelOptions}
+                            disabled={!props.canEdit || props.isSavingLabels}
+                            isSaving={props.isSavingLabels}
+                            onSave={(nextLabels) =>
+                              props.onSaveLabels(version, nextLabels)
+                            }
+                          />
+                        </div>
+                        <div className="flex items-start gap-1">
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 flex-col gap-1 text-left"
+                            aria-current={
+                              !props.isDraft &&
+                              version === props.selectedVersion
+                                ? "page"
+                                : undefined
+                            }
+                            onClick={() => selectVersion(version)}
+                          >
+                            {commitMessage ? (
+                              <span
+                                className="text-muted-foreground max-w-full truncate text-xs"
+                                title={commitMessage}
+                              >
+                                {commitMessage}
+                              </span>
+                            ) : null}
+                            <span
+                              className="text-muted-foreground flex flex-wrap gap-1 text-xs break-words"
+                              title={`Created ${createdAt.toLocaleString()}`}
+                            >
+                              {createdAt.toLocaleString()} by{" "}
+                              {creator || createdBy}
                             </span>
+                          </button>
+                          {version !== props.selectedVersion ? (
+                            <SkillVersionComparisonController
+                              {...props}
+                              versions={sortedVersions}
+                            >
+                              {({ openComparison }) => {
+                                function handleCompareClick(
+                                  event: MouseEvent<HTMLButtonElement>,
+                                ) {
+                                  event.stopPropagation();
+                                  openComparison(version);
+                                }
+                                return (
+                                  <div className="shrink-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:hover)]:opacity-0">
+                                    <IconButton
+                                      icon={FileDiffIcon}
+                                      label={`Compare version ${version} with selected version ${props.selectedVersion}`}
+                                      title="Compare with selected version"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={handleCompareClick}
+                                    />
+                                  </div>
+                                );
+                              }}
+                            </SkillVersionComparisonController>
                           ) : null}
-                          <span
-                            className="text-muted-foreground flex flex-wrap gap-1 text-xs break-words"
-                            title={`Created ${createdAt.toLocaleString()}`}
-                          >
-                            {createdAt.toLocaleString()} by{" "}
-                            {creator || createdBy}
-                          </span>
-                        </button>
-                        {version !== props.selectedVersion ? (
-                          <SkillVersionComparisonController
-                            {...props}
-                            versions={sortedVersions}
-                          >
-                            {({ openComparison }) => {
-                              function handleCompareClick(
-                                event: MouseEvent<HTMLButtonElement>,
-                              ) {
-                                event.stopPropagation();
-                                openComparison(version);
-                              }
-                              return (
-                                <div className="shrink-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:hover)]:opacity-0">
-                                  <IconButton
-                                    icon={FileDiffIcon}
-                                    label={`Compare version ${version} with selected version ${props.selectedVersion}`}
-                                    title="Compare with selected version"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleCompareClick}
-                                  />
-                                </div>
-                              );
-                            }}
-                          </SkillVersionComparisonController>
-                        ) : null}
+                        </div>
                       </div>
-                    </TimelineItem>
+                    </Timeline.Item>
                   ),
                 )
               : null}
