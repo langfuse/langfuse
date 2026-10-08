@@ -304,17 +304,26 @@ type RawOtelAttribute = {
   value: Record<string, unknown>;
 };
 
-function buildFocusedResourceSpans(params: {
+type FocusedReplayParams = {
   attributes?: RawOtelAttribute[];
+  resourceAttributes?: RawOtelAttribute[];
   scopeName?: string;
+  scopeVersion?: string;
   spanName?: string;
-}): ResourceSpan[] {
+};
+
+function buildFocusedResourceSpans(
+  params: FocusedReplayParams,
+): ResourceSpan[] {
   return [
     {
-      resource: { attributes: [] },
+      resource: { attributes: params.resourceAttributes ?? [] },
       scopeSpans: [
         {
-          scope: { name: params.scopeName ?? "otel-replay" },
+          scope: {
+            name: params.scopeName ?? "otel-replay",
+            ...(params.scopeVersion ? { version: params.scopeVersion } : {}),
+          },
           spans: [
             {
               traceId: createBufferId(TRACE_ID),
@@ -333,12 +342,68 @@ function buildFocusedResourceSpans(params: {
   ];
 }
 
-function focusedReplayBytes(params: {
-  attributes?: RawOtelAttribute[];
-  scopeName?: string;
-  spanName?: string;
-}): Buffer {
+function focusedReplayBytes(params: FocusedReplayParams): Buffer {
   return Buffer.from(JSON.stringify(buildFocusedResourceSpans(params)));
+}
+
+function structuredMetadataReplayBytes(params: {
+  scopeVersion: string;
+  telemetrySdkLanguage: "python" | "nodejs";
+  dataUri: string;
+}): {
+  bytes: Buffer;
+  jsonString: string;
+  escapedJsonString: string;
+  providerJson: string;
+} {
+  // A string-valued SDK metadata field can itself contain serialized JSON. The
+  // SDK then JSON-encodes that value again for the per-key OTLP attribute.
+  const jsonString = JSON.stringify({ image: params.dataUri });
+  // A second spelling checks that escaped source text remains eligible for
+  // restoration even when the later detector does not accept it for upload.
+  const escapedJsonString = JSON.stringify({ image: params.dataUri }).replace(
+    "data:image/",
+    "data:image\\/",
+  );
+  const providerJson = JSON.stringify({
+    type: "file",
+    mediaType: "image/png",
+    data: params.dataUri.slice(params.dataUri.indexOf(",") + 1),
+  });
+  const metadata = {
+    "": JSON.stringify({ collision: { key: "blob wins" } }),
+    ".quoted": JSON.stringify("quoted value"),
+    ".asset": JSON.stringify({ attachment: { image: params.dataUri } }),
+    ".json_string": JSON.stringify(jsonString),
+    ".escaped_json_string": JSON.stringify(escapedJsonString),
+    ".quoted_provider": JSON.stringify(providerJson),
+    ".truncated": '{"value":"cut',
+    ".collision.key": JSON.stringify("dotted loses"),
+  };
+
+  return {
+    bytes: focusedReplayBytes({
+      scopeName: "langfuse-sdk",
+      scopeVersion: params.scopeVersion,
+      resourceAttributes: [
+        stringAttribute("telemetry.sdk.language", params.telemetrySdkLanguage),
+      ],
+      attributes: Object.entries(metadata).map(([path, value]) =>
+        stringAttribute(`langfuse.observation.metadata${path}`, value),
+      ),
+    }),
+    jsonString,
+    escapedJsonString,
+    providerJson,
+  };
+}
+
+function eventMetadataByPath(
+  row: Record<string, unknown>,
+): Map<string, string> {
+  const names = row.metadata_names as string[];
+  const values = row.metadata_values as string[];
+  return new Map(names.map((name, index) => [name, values[index]]));
 }
 
 // Vitest retries can overlap unfinished ClickHouse I/O and shared replay mocks.
@@ -519,6 +584,245 @@ describe(
         );
       }
     });
+
+    it.each([
+      ...[
+        {
+          sdkLabel: "Python 5.0",
+          sdkName: "python",
+          sdkVersion: "5.0.0",
+          telemetrySdkLanguage: "python",
+          scopeVersion: "5.0.0",
+        },
+        {
+          sdkLabel: "JavaScript 6.0 fallback",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          telemetrySdkLanguage: "nodejs",
+          scopeVersion: "6.0.0",
+        },
+      ].flatMap((sdk) =>
+        (["events_only", "dual"] as const).map((writeMode) => ({
+          ...sdk,
+          writeMode,
+          uploadOutcome: "success" as const,
+        })),
+      ),
+      {
+        sdkLabel: "Python 5.0 failure",
+        sdkName: "python",
+        sdkVersion: "5.0.0",
+        telemetrySdkLanguage: "python",
+        scopeVersion: "5.0.0",
+        writeMode: "events_only",
+        uploadOutcome: "failure",
+      },
+      {
+        sdkLabel: "JavaScript 6.0 fallback failure",
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        telemetrySdkLanguage: "nodejs",
+        scopeVersion: "6.0.0",
+        writeMode: "dual",
+        uploadOutcome: "failure",
+      },
+    ] as const)(
+      "processes structured metadata for $sdkLabel",
+      async ({
+        sdkName,
+        sdkVersion,
+        telemetrySdkLanguage,
+        scopeVersion,
+        writeMode,
+        uploadOutcome,
+      }) => {
+        const imageBytes = Buffer.alloc(1024, 42);
+        const dataUri = `data:image/png;base64,${imageBytes.toString("base64")}`;
+        const structuredMetadata = structuredMetadataReplayBytes({
+          scopeVersion,
+          telemetrySdkLanguage,
+          dataUri,
+        });
+        const createdProject =
+          writeMode === "dual" ? await createOrgProjectAndApiKey() : undefined;
+        const projectId =
+          createdProject?.projectId ??
+          `${PROJECT_ID}-${sdkName}-${uploadOutcome}`;
+        const fileKey = `${FILE_KEY}.structured-${sdkName}-${writeMode}-${uploadOutcome}`;
+        const compactedBatches: { json: string; references: string[] }[] = [];
+        const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+        const preparation = vi
+          .spyOn(otelPreparation, "prepareOtelBatch")
+          .mockImplementation(async (params) => {
+            const prepared = await prepareOtelBatch(params);
+            if (prepared?.batch) {
+              // Snapshot native output before queue parsing and the TS media detector.
+              compactedBatches.push({
+                json: prepared.batch.json(),
+                references: prepared.batch.media.map(
+                  (media) => media.reference,
+                ),
+              });
+            }
+            return prepared;
+          });
+        if (uploadOutcome === "failure") {
+          otelReplayMocks.uploadMediaForTrace.mockRejectedValue(
+            new Error("simulated structured media upload failure"),
+          );
+        }
+
+        try {
+          const replayParams = {
+            bytes: structuredMetadata.bytes,
+            projectId,
+            orgId: createdProject?.orgId,
+            fileKey,
+            mediaUploadEnabled: true,
+            writeMode,
+            sdkName,
+            sdkVersion,
+          } as const;
+          const comparison = await runOtelReplayComparison(replayParams);
+          expectRawOtelReplayParity(comparison);
+          expectLegacyReplayParity(comparison);
+          const replayResults = [comparison.originalTs, comparison.earlyTs];
+
+          expect(compactedBatches).toHaveLength(1);
+          expect(compactedBatches[0].references).toHaveLength(4);
+          for (const reference of compactedBatches[0].references) {
+            expect(compactedBatches[0].json).toContain(reference);
+          }
+          expect(compactedBatches[0].json).not.toContain("data:image");
+          const uploadedBodies =
+            otelReplayMocks.uploadMediaForTrace.mock.calls.map(([params]) =>
+              Buffer.from(params.contentBytes),
+            );
+          expect(uploadedBodies.length).toBeGreaterThan(0);
+          expect(uploadedBodies.every((body) => body.equals(imageBytes))).toBe(
+            true,
+          );
+
+          const expectedImage =
+            uploadOutcome === "success"
+              ? "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@"
+              : dataUri;
+          const expectedJsonString =
+            uploadOutcome === "success"
+              ? JSON.stringify({ image: expectedImage })
+              : structuredMetadata.jsonString;
+          const expectedEscapedJsonString =
+            structuredMetadata.escapedJsonString;
+          const expectedMetadata = {
+            quoted: "quoted value",
+            "asset.attachment.image": expectedImage,
+            json_string: expectedJsonString,
+            escaped_json_string: expectedEscapedJsonString,
+            quoted_provider: structuredMetadata.providerJson,
+            truncated: '{"value":"cut',
+            "collision.key": "blob wins",
+          };
+          for (const result of replayResults) {
+            expect(result.storedRows, result.mode).toHaveLength(1);
+            expect(
+              Object.fromEntries(eventMetadataByPath(result.storedRows[0])),
+              result.mode,
+            ).toMatchObject(expectedMetadata);
+            if (writeMode === "dual") {
+              expect(result.legacyRows?.observations, result.mode).toHaveLength(
+                1,
+              );
+              expect(
+                result.legacyRows!.observations![0].metadata,
+                result.mode,
+              ).toMatchObject({
+                quoted: "quoted value",
+                asset: JSON.stringify({
+                  attachment: { image: expectedImage },
+                }),
+                json_string: expectedJsonString,
+                escaped_json_string: expectedEscapedJsonString,
+                quoted_provider: structuredMetadata.providerJson,
+                truncated: '{"value":"cut',
+                collision: JSON.stringify({ key: "blob wins" }),
+                "collision.key": "dotted loses",
+              });
+            }
+          }
+        } finally {
+          preparation.mockRestore();
+          if (createdProject) {
+            await prisma.project.delete({
+              where: { id: createdProject.projectId },
+            });
+            await prisma.organization.delete({
+              where: { id: createdProject.orgId },
+            });
+          }
+        }
+      },
+    );
+
+    it.each([
+      {
+        sdkLabel: "Python 4.15",
+        sdkName: "python",
+        sdkVersion: "4.15.6",
+        telemetrySdkLanguage: "python",
+        scopeVersion: "4.15.6",
+      },
+      {
+        sdkLabel: "JavaScript 5.11",
+        sdkName: "javascript",
+        sdkVersion: "5.11.1",
+        telemetrySdkLanguage: "nodejs",
+        scopeVersion: "5.11.1",
+      },
+    ] as const)(
+      "keeps per-key values encoded for older $sdkLabel scope versions",
+      async ({ sdkName, sdkVersion, telemetrySdkLanguage, scopeVersion }) => {
+        const dataUri = `data:image/png;base64,${Buffer.alloc(1024, 42).toString("base64")}`;
+        const structuredMetadata = structuredMetadataReplayBytes({
+          scopeVersion,
+          telemetrySdkLanguage,
+          dataUri,
+        });
+        const comparison = await runOtelReplayComparison({
+          bytes: structuredMetadata.bytes,
+          projectId: `${PROJECT_ID}-old-${sdkName}`,
+          fileKey: `${FILE_KEY}.old-${sdkName}`,
+          mediaUploadEnabled: true,
+          sdkName,
+          sdkVersion,
+        });
+
+        expectRawOtelReplayParity(comparison);
+        for (const result of [comparison.originalTs, comparison.earlyTs]) {
+          expect(result.storedRows).toHaveLength(1);
+          const metadata = eventMetadataByPath(result.storedRows[0]);
+          expect(metadata.get("quoted")).toBe(JSON.stringify("quoted value"));
+          expect(metadata.get("asset")).toBe(
+            JSON.stringify({
+              attachment: {
+                image:
+                  "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@",
+              },
+            }),
+          );
+          expect(metadata.get("json_string")).toBe(
+            JSON.stringify(structuredMetadata.jsonString),
+          );
+          expect(metadata.get("escaped_json_string")).toBe(
+            JSON.stringify(structuredMetadata.escapedJsonString),
+          );
+          expect(metadata.get("quoted_provider")).toBe(
+            JSON.stringify(structuredMetadata.providerJson),
+          );
+          expect(metadata.get("truncated")).toBe('{"value":"cut');
+          expect(metadata.get("collision.key")).toBe("blob wins");
+        }
+      },
+    );
 
     it("extracts only media accepted by masking", async () => {
       const originalMedia = Buffer.from("original-media".repeat(512));

@@ -56,6 +56,8 @@ type RunOtelReplayParams = {
   overflowEnabled?: boolean;
   overflowSizeLimitBytes?: number;
   writeMode?: "events_only" | "dual";
+  sdkName?: string;
+  sdkVersion?: string;
   failLegacyQueueProcessing?: boolean;
   captureSideEffects?: () => unknown;
 };
@@ -256,8 +258,8 @@ export async function runOneOtelReplay(
             },
           },
           ingestionVersion: "4",
-          sdkName: "otel-replay",
-          sdkVersion: "test",
+          sdkName: params.sdkName ?? "otel-replay",
+          sdkVersion: params.sdkVersion ?? "test",
         },
       },
     } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
