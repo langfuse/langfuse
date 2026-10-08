@@ -136,6 +136,7 @@ export function ConnectedMembersSettingsTable({
       utils.members.invalidate();
       if (data.userId === session.data?.user?.id) session.update();
       showSuccessToast({
+        operation: "organization_role.update",
         title: "Saved",
         description: "Organization role updated successfully",
         duration: 2000,
@@ -148,6 +149,7 @@ export function ConnectedMembersSettingsTable({
       utils.members.invalidate();
       if (data.userId === session.data?.user?.id) session.update();
       showSuccessToast({
+        operation: "project_role.update",
         title: "Saved",
         description: "Project role updated successfully",
         duration: 2000,
@@ -314,7 +316,7 @@ export function ConnectedMembersSettingsTable({
               loading: isSubmitting,
               hasAccess,
               usageLimit,
-              icon: <PlusIcon className="size-4" aria-hidden="true" />,
+              icon: <PlusIcon className="icon-base" aria-hidden="true" />,
               onClick: openDialog,
             },
           ]}

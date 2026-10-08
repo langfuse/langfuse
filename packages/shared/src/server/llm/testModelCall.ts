@@ -43,7 +43,7 @@ export const testModelCall = async ({
         {
           role: ChatMessageRole.User,
           content:
-            'Extract a score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
+            "Generate one example response that conforms to the provided JSON schema. Respect the type, allowed values, and bounds of every field. Keep any reasoning brief.",
           type: ChatMessageType.User,
         },
       ],

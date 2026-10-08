@@ -1,5 +1,6 @@
 import { TRPCClientError } from "@trpc/client";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
 // Catch network level errors, e.g. by proxy rate-limiting
@@ -89,6 +90,10 @@ export const trpcErrorToast = (error: unknown) => {
         "Unexpected Response",
         "The request could not be completed. Please try again or contact support if this persists.",
         "WARNING",
+        undefined,
+        undefined,
+        "trpc",
+        classifyTrpcToastError(error),
       );
       return;
     }
@@ -111,12 +116,18 @@ export const trpcErrorToast = (error: unknown) => {
       httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
       path,
       traceId,
+      "trpc",
+      classifyTrpcToastError(error),
     );
   } else {
     showErrorToast(
       "Unexpected Error",
       "An unexpected error occurred.",
       "ERROR",
+      undefined,
+      undefined,
+      "trpc",
+      classifyTrpcToastError(error),
     );
   }
 };

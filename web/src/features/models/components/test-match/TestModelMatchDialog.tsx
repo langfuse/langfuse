@@ -199,7 +199,7 @@ export function TestModelMatchDialogContent({
                         {data.matched ? (
                           <>
                             <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
-                              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              <CheckCircle className="icon-base text-green-600 dark:text-green-400" />
                               <span className="text-sm font-bold text-green-900 dark:text-green-100">
                                 Match Found
                               </span>
@@ -225,7 +225,7 @@ export function TestModelMatchDialogContent({
                       target="_blank"
                     >
                       View Model Details
-                      <SquareArrowOutUpRight className="ml-2 h-4 w-4" />
+                      <SquareArrowOutUpRight className="icon-base text-icon-foreground ml-2" />
                     </Link>
                   </Button>
                 </div>

@@ -260,22 +260,31 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
 
 fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     match api_format {
-        "openai.responses" => openai_usage(usage),
+        "openai.responses" => openai_usage(
+            usage,
+            ["input_tokens", "output_tokens", "total_tokens"],
+            ["input_tokens_details", "output_tokens_details"],
+        ),
+        "openai.chat-completions" => openai_usage(
+            usage,
+            ["prompt_tokens", "completion_tokens", "total_tokens"],
+            ["prompt_tokens_details", "completion_tokens_details"],
+        ),
         "anthropic.messages" => usage.is_object().then(|| usage.clone()),
         _ => None,
     }
 }
 
-/// The receiver's native `OpenAI` usage schema is strict at the top level, but
-/// accepts new numeric detail counters.
-fn openai_usage(usage: &Value) -> Option<Value> {
+/// The receiver's native `OpenAI` usage schemas are strict at the top level, but
+/// accept new numeric detail counters.
+fn openai_usage(usage: &Value, counters: [&str; 3], details: [&str; 2]) -> Option<Value> {
     let usage = usage.as_object()?;
     let mut projected = Map::new();
-    for key in ["input_tokens", "output_tokens", "total_tokens"] {
+    for key in counters {
         let value = usage.get(key).filter(|value| value.as_u64().is_some())?;
         projected.insert(key.into(), value.clone());
     }
-    for key in ["input_tokens_details", "output_tokens_details"] {
+    for key in details {
         match usage.get(key) {
             Some(Value::Null) => {
                 projected.insert(key.into(), Value::Null);
@@ -604,6 +613,39 @@ mod tests {
             projected_usage(
                 "openai.responses",
                 json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn chat_completions_usage_projects_into_the_receivers_completion_schema() {
+        let native = json!({
+            "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+            "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+            "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null, "future_object": {}},
+            "future_usage": {"cost": 123},
+        });
+        assert_eq!(
+            projected_usage("openai.chat-completions", native),
+            Some(json!({
+                "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+                "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+                "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null},
+            }))
+        );
+        // Each OpenAI contract projects only its own counter names.
+        assert_eq!(
+            projected_usage(
+                "openai.chat-completions",
+                json!({"input_tokens": 2, "output_tokens": 1, "total_tokens": 3})
+            ),
+            None
+        );
+        assert_eq!(
+            projected_usage(
+                "openai.responses",
+                json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
             ),
             None
         );

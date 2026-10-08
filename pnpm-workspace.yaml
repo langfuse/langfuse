@@ -201,6 +201,12 @@ minimumReleaseAgeExclude:
   - "@next/swc-linux-x64-musl@16.3.8"
   - "@next/swc-win32-arm64-msvc@16.3.8"
   - "@next/swc-win32-x64-msvc@16.3.8"
+  # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
+  - ai@7.0.130
+  - "@ai-sdk/openai@4.0.86"
+  - "@ai-sdk/gateway@4.0.106"
+  - "@ai-sdk/provider@4.0.24"
+  - "@ai-sdk/provider-utils@5.0.56"
   # Turbo and lint companions; eligible after 2026-10-06 04:01 UTC.
   - turbo@2.11.6
   - eslint-config-turbo@2.11.6

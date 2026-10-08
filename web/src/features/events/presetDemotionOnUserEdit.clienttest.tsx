@@ -733,7 +733,7 @@ describe("saved-view demotion on user filter edits", () => {
     expect(screen.queryByDisplayValue("draft-region")).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("eu")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByText("Add condition"));
     fireEvent.change(screen.getAllByPlaceholderText("Key")[1], {
       target: { value: "pending-key" },
     });

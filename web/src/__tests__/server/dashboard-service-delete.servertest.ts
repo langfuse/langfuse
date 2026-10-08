@@ -60,6 +60,7 @@ async function createOwnerCaller() {
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,
+        langfuseTopics: false,
       },
       admin: true,
     },

@@ -259,7 +259,7 @@ export function MultiSelectTagInput<V extends string>({
                           removeValue(option.value);
                         }}
                       >
-                        <X className="size-3.5" />
+                        <X className="icon-base" />
                       </button>
                     </span>
                   ))
@@ -294,7 +294,7 @@ export function MultiSelectTagInput<V extends string>({
                     changeValue([]);
                   }}
                 >
-                  <X className="size-4" />
+                  <X className="icon-base" />
                 </button>
               )}
             </div>

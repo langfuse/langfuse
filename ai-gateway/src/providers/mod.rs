@@ -1,3 +1,5 @@
+mod chat_completions;
+
 use std::{sync::Arc, time::Duration};
 
 use axum::{
@@ -15,7 +17,7 @@ use tokio::{
 pub use crate::transport::ProviderError;
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
-    correlation::RequestCorrelation,
+    correlation::{RequestCorrelation, UpstreamTarget},
     resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
@@ -24,6 +26,7 @@ use crate::{
 pub(crate) enum Route {
     OpenAiResponses,
     OpenAiResponsesCompact,
+    OpenAiChatCompletions,
     OpenAiModels,
     AnthropicMessages,
     AnthropicCountTokens,
@@ -33,9 +36,10 @@ pub(crate) enum Route {
 impl Route {
     pub(crate) fn provider(self) -> Provider {
         match self {
-            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::OpenAiModels => {
-                Provider::OpenAi
-            }
+            Self::OpenAiResponses
+            | Self::OpenAiResponsesCompact
+            | Self::OpenAiChatCompletions
+            | Self::OpenAiModels => Provider::OpenAi,
             Self::AnthropicMessages | Self::AnthropicCountTokens | Self::AnthropicModels => {
                 Provider::Anthropic
             }
@@ -43,9 +47,12 @@ impl Route {
     }
 
     pub(crate) fn api_format(self) -> ApiFormat {
-        match self.provider() {
-            Provider::OpenAi => ApiFormat::OpenAiResponses,
-            Provider::Anthropic => ApiFormat::AnthropicMessages,
+        match self {
+            Self::OpenAiChatCompletions => ApiFormat::OpenAiChatCompletions,
+            _ => match self.provider() {
+                Provider::OpenAi => ApiFormat::OpenAiResponses,
+                Provider::Anthropic => ApiFormat::AnthropicMessages,
+            },
         }
     }
 
@@ -60,6 +67,7 @@ impl Route {
         match self {
             Self::OpenAiResponses => "/responses",
             Self::OpenAiResponsesCompact => "/responses/compact",
+            Self::OpenAiChatCompletions => "/chat/completions",
             Self::OpenAiModels | Self::AnthropicModels => "/models",
             Self::AnthropicMessages => "/messages",
             Self::AnthropicCountTokens => "/messages/count_tokens",
@@ -69,7 +77,10 @@ impl Route {
     pub(crate) fn captures_generation(self) -> bool {
         matches!(
             self,
-            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::AnthropicMessages
+            Self::OpenAiResponses
+                | Self::OpenAiResponsesCompact
+                | Self::OpenAiChatCompletions
+                | Self::AnthropicMessages
         )
     }
 
@@ -215,6 +226,16 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
+        // The capture keeps the caller's own request; only the upstream copy asks for usage.
+        let body = match route {
+            Route::OpenAiChatCompletions => {
+                chat_completions::request_stream_usage(headers, &body).unwrap_or(body)
+            }
+            _ => body,
+        };
+        // The relay forwards the caller's `model` unchanged; only a captured route has parsed it.
+        let model = capture.requested_model().map(str::to_owned);
+        correlation.record_upstream(UpstreamTarget::for_connection(context.connection(), model));
         let mut upstream = self
             .client
             .request(route.method(), self.request_url(route, query))

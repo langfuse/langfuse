@@ -32,6 +32,7 @@ import {
   FolderOpen,
   FolderPlus,
   Plus,
+  RotateCcw,
   Trash2,
   Upload,
   X,
@@ -86,8 +87,12 @@ export function SkillFileExplorer({
 }) {
   const filePaths = useStore(
     store,
-    useShallow((state) => Object.keys(state.files)),
+    useShallow((state) => [
+      ...Object.keys(state.files),
+      ...Object.keys(state.deletedFiles),
+    ]),
   );
+  const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
   const actions = useStore(store, (state) => state.actions);
@@ -190,7 +195,7 @@ export function SkillFileExplorer({
       return;
     }
 
-    if (pendingEntry.kind === "file" && filePaths.length >= MAX_SKILL_FILES) {
+    if (pendingEntry.kind === "file" && fileCount >= MAX_SKILL_FILES) {
       showErrorToast(
         "Could not add file",
         `A skill can contain at most ${MAX_SKILL_FILES} files.`,
@@ -237,9 +242,9 @@ export function SkillFileExplorer({
         }}
       >
         {pendingEntry.kind === "folder" ? (
-          <Folder className="text-muted-foreground h-4 w-4 shrink-0" />
+          <Folder className="text-muted-foreground icon-base shrink-0" />
         ) : (
-          <FileCode2 className="text-muted-foreground h-4 w-4 shrink-0" />
+          <FileCode2 className="text-muted-foreground icon-base shrink-0" />
         )}
         <Input
           autoFocus
@@ -264,7 +269,7 @@ export function SkillFileExplorer({
           aria-label={`Create new ${label}`}
           disabled={moveDisabled}
         >
-          <Check className="h-3.5 w-3.5" />
+          <Check className="icon-base text-icon-foreground" />
         </Button>
         <Button
           type="button"
@@ -273,7 +278,7 @@ export function SkillFileExplorer({
           aria-label={`Cancel new ${label}`}
           onClick={() => setPendingEntry(null)}
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="icon-base text-icon-foreground" />
         </Button>
       </form>
     );
@@ -300,6 +305,16 @@ export function SkillFileExplorer({
                 setSelectedFolder(parentFolder(node.path));
               }}
               onDelete={() => actions.deleteFile(node.path)}
+              onRestore={() => {
+                if (actions.restoreFile(node.path)) {
+                  setSelectedFolder(parentFolder(node.path));
+                } else {
+                  showErrorToast(
+                    "Could not restore file",
+                    `A skill can contain at most ${MAX_SKILL_FILES} files. Delete another file before restoring this one.`,
+                  );
+                }
+              }}
             />
           );
         }
@@ -353,7 +368,7 @@ export function SkillFileExplorer({
                 onClick={() => setSelectedFolder("")}
                 className="flex items-center gap-2 rounded px-1 py-2 text-sm font-bold"
               >
-                <FolderOpen className="h-4 w-4" /> Files
+                <FolderOpen className="icon-base" /> Files
               </button>
             </SkillFolderDropTarget>
             {!readOnly ? (
@@ -374,7 +389,7 @@ export function SkillFileExplorer({
                   disabled={moveDisabled}
                   onClick={() => startEntry("file")}
                 >
-                  <FilePlus2 className="h-4 w-4" />
+                  <FilePlus2 className="icon-base text-icon-foreground" />
                 </Button>
                 <Button
                   type="button"
@@ -385,7 +400,7 @@ export function SkillFileExplorer({
                   disabled={moveDisabled}
                   onClick={() => startEntry("folder")}
                 >
-                  <FolderPlus className="h-4 w-4" />
+                  <FolderPlus className="icon-base text-icon-foreground" />
                 </Button>
               </div>
             ) : null}
@@ -450,6 +465,7 @@ function DraggableSkillFile({
   active,
   onSelect,
   onDelete,
+  onRestore,
 }: {
   store: SkillEditorStore;
   path: string;
@@ -458,9 +474,12 @@ function DraggableSkillFile({
   active: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onRestore: () => void;
 }) {
   const changeStatusId = useId();
+  const deleted = useStore(store, (state) => Boolean(state.deletedFiles[path]));
   const changeStatus = useStore(store, (state) => {
+    if (state.deletedFiles[path]) return null;
     const file = state.files[path];
     if (!file) return null;
     if (file.sourceSha === null) return "new";
@@ -470,7 +489,7 @@ function DraggableSkillFile({
   const indicator = changeStatus ? fileChangeIndicators[changeStatus] : null;
   const IndicatorIcon = indicator?.icon;
   const movable = path !== "SKILL.md";
-  const draggable = movable && !disabled;
+  const draggable = movable && !disabled && !deleted;
   const {
     attributes,
     listeners,
@@ -503,25 +522,37 @@ function DraggableSkillFile({
         aria-describedby={
           [
             draggable ? attributes["aria-describedby"] : undefined,
-            indicator ? changeStatusId : undefined,
+            indicator || deleted ? changeStatusId : undefined,
           ]
             .filter(Boolean)
             .join(" ") || undefined
         }
         onClick={onSelect}
+        disabled={deleted}
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-left",
           draggable && "cursor-grab touch-none active:cursor-grabbing",
         )}
       >
         {path.endsWith(".md") ? (
-          <FileCode2 className="h-4 w-4 shrink-0" />
+          <FileCode2 className="icon-base shrink-0" />
         ) : (
-          <File className="h-4 w-4 shrink-0" />
+          <File className="icon-base shrink-0" />
         )}
-        <span className="min-w-0 flex-1 truncate" title={path}>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            deleted && "text-muted-foreground line-through",
+          )}
+          title={path}
+        >
           {name}
         </span>
+        {deleted ? (
+          <span id={changeStatusId} className="sr-only">
+            Deleted file
+          </span>
+        ) : null}
         {indicator && IndicatorIcon ? (
           <Tooltip label={indicator.label}>
             {({ getTriggerProps }) => (
@@ -547,11 +578,20 @@ function DraggableSkillFile({
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label={`Delete ${path}`}
-          onClick={onDelete}
-          className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+          aria-label={`${deleted ? "Restore" : "Delete"} ${path}`}
+          title={deleted ? "Restore file" : "Delete file"}
+          onClick={deleted ? onRestore : onDelete}
+          className={cn(
+            "mr-1",
+            !deleted &&
+              "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100",
+          )}
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          {deleted ? (
+            <RotateCcw className="icon-base text-icon-foreground" />
+          ) : (
+            <Trash2 className="icon-base text-icon-foreground" />
+          )}
         </Button>
       ) : null}
     </div>
@@ -616,14 +656,14 @@ function DraggableSkillFolder({
         >
           <ChevronRight
             className={cn(
-              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+              "text-muted-foreground icon-base shrink-0 transition-transform",
               expanded && "rotate-90",
             )}
           />
           {expanded ? (
-            <FolderOpen className="h-4 w-4 shrink-0" />
+            <FolderOpen className="icon-base shrink-0" />
           ) : (
-            <Folder className="h-4 w-4 shrink-0" />
+            <Folder className="icon-base shrink-0" />
           )}
           <span className="min-w-0 flex-1 truncate" title={path}>
             {name}
@@ -638,7 +678,7 @@ function DraggableSkillFolder({
             onClick={onDelete}
             className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="icon-base text-icon-foreground" />
           </Button>
         ) : null}
       </div>

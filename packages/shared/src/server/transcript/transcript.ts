@@ -1,9 +1,11 @@
 import { partition } from "lodash";
 import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
-import type { Transcript } from "./types";
+import type { Transcript, TranscriptOptions } from "./types";
+import { limitTranscript } from "./limit";
 import {
   append,
+  createThread,
   findThread,
   messageKey,
   splitTurn,
@@ -41,18 +43,21 @@ function normalize(observation: OrderedObservation) {
  * history, and retain first-seen provenance. The caller supplies the
  * observations in transcript order, see `orderObservations`; they are consumed
  * as given. Optional timings separate normalization (including initial message
- * keys) from remaining assembly work, excluding caller-owned observation ordering.
+ * keys) from remaining assembly work, excluding ordering and optional truncation.
  */
 export function assembleTranscript(
   orderedObservations: OrderedObservation[],
-  onTimings?: (timings: {
-    normalizationMs: number;
-    matchingMs: number;
-  }) => void,
+  { maxCharacters, onTimings }: TranscriptOptions = {},
 ): Transcript | null {
+  if (
+    maxCharacters !== undefined &&
+    (!Number.isSafeInteger(maxCharacters) || maxCharacters < 4)
+  ) {
+    throw new RangeError("maxCharacters must be a safe integer of at least 4");
+  }
   const startedAt = onTimings ? performance.now() : 0;
   let normalizationMs = 0;
-  const states: ThreadState[] = [];
+  const threads: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
 
   for (const observation of orderedObservations.filter(isRelevantObservation)) {
@@ -65,29 +70,22 @@ export function assembleTranscript(
     }
     if (input.length === 0 && output.length === 0) continue;
 
-    // Registered responses do not participate in thread selection.
-    let state = findThread(states, input);
-    const isNewThread = !state;
-    if (!state) {
-      // Open new thread
-      state = {
-        thread: { messages: [], observations: [] },
-        messages: [],
-        shownCounts: new Map(),
-      };
-      states.push(state);
+    let thread = findThread(threads, input);
+    if (!thread) {
+      thread = createThread();
+      threads.push(thread);
     }
-    append(state, observation, input, output, isNewThread, toolCalls);
+    append(thread, observation, input, output, toolCalls);
   }
 
-  const transcript = states.length
-    ? {
-        threads: states.map(({ thread }) => splitTurn(thread)),
-      }
+  const transcript = threads.length
+    ? { threads: threads.map(splitTurn) }
     : null;
   onTimings?.({
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,
   });
-  return transcript;
+  return transcript && maxCharacters !== undefined
+    ? limitTranscript(transcript, maxCharacters)
+    : transcript;
 }
