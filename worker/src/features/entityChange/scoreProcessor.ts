@@ -67,7 +67,7 @@ export const scoreProcessor = async (event: ScoreChangeEventType) => {
           id: v4(),
           name: QueueJobs.AutomationExecutionJob,
           payload: {
-            executionId: v4(),
+            executionId: jobId,
             projectId: event.projectId,
             automationId: automation.id,
             triggerId: trigger.id,

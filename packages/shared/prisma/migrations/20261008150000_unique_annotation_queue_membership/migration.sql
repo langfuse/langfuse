@@ -1,10 +1,16 @@
--- Delete duplicate annotation queue memberships, keeping the oldest item.
+-- Delete duplicate annotation queue memberships, keeping the most progressed item.
 WITH ranked_items AS (
   SELECT
     id,
     ROW_NUMBER() OVER (
       PARTITION BY project_id, queue_id, object_id, object_type
-      ORDER BY created_at ASC, id ASC
+      ORDER BY
+        (status = 'COMPLETED') DESC,
+        completed_at DESC NULLS LAST,
+        (annotator_user_id IS NOT NULL) DESC,
+        (locked_by_user_id IS NOT NULL) DESC,
+        updated_at DESC,
+        id ASC
     ) AS rn
   FROM annotation_queue_items
 )

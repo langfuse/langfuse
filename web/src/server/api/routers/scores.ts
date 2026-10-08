@@ -106,21 +106,29 @@ const sourceAnnotationScoreChange = async ({
 }: {
   score: ScoreDomain;
   action: "created" | "updated";
-}) =>
-  scoreChangeEventSourcing({
-    projectId: score.projectId,
-    eventId: v4(),
-    action,
-    score: {
-      id: score.id,
-      name: score.name,
-      dataType: score.dataType,
-      value: score.value,
-      stringValue: score.stringValue,
-      longStringValue: score.longStringValue,
-      observationId: score.observationId,
-    },
-  });
+}) => {
+  try {
+    await scoreChangeEventSourcing({
+      projectId: score.projectId,
+      eventId: v4(),
+      action,
+      score: {
+        id: score.id,
+        name: score.name,
+        dataType: score.dataType,
+        value: score.value,
+        stringValue: score.stringValue,
+        longStringValue: score.longStringValue,
+        observationId: score.observationId,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      `Failed to source annotation score change for score ${score.id}`,
+      error,
+    );
+  }
+};
 
 const BOOLEAN_SCORE_VALUE_OPTIONS = [{ value: "true" }, { value: "false" }];
 

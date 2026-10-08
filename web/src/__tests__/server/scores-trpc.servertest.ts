@@ -2,10 +2,12 @@ const {
   mockAddScoreDelete,
   mockAddBatchAction,
   mockGetEventsExactFilterOptionsForColumns,
+  mockScoreChangeEventSourcing,
 } = vi.hoisted(() => ({
   mockAddScoreDelete: vi.fn(),
   mockAddBatchAction: vi.fn(),
   mockGetEventsExactFilterOptionsForColumns: vi.fn(async () => []),
+  mockScoreChangeEventSourcing: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -24,6 +26,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     },
     getEventsExactFilterOptionsForColumns:
       mockGetEventsExactFilterOptionsForColumns,
+    scoreChangeEventSourcing: mockScoreChangeEventSourcing,
   };
 });
 
@@ -71,6 +74,8 @@ describe("scores trpc", () => {
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
     mockGetEventsExactFilterOptionsForColumns.mockClear();
+    mockScoreChangeEventSourcing.mockReset();
+    mockScoreChangeEventSourcing.mockResolvedValue(undefined);
 
     const session: Session = {
       expires: "1",
@@ -743,6 +748,43 @@ describe("scores trpc", () => {
   });
 
   describe("scores.createAnnotationScore", () => {
+    it("returns the persisted score when automation dispatch fails", async () => {
+      const traceId = randomUUID();
+      const configId = randomUUID();
+      const scoreName = `dispatch-failure-${configId.slice(0, 8)}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+        }),
+      ]);
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          projectId,
+          name: scoreName,
+          dataType: ScoreConfigDataType.NUMERIC,
+        },
+      });
+      mockScoreChangeEventSourcing.mockRejectedValueOnce(
+        new Error("Redis unavailable"),
+      );
+
+      await expect(
+        caller.scores.createAnnotationScore({
+          projectId,
+          name: scoreName,
+          value: 1,
+          dataType: "NUMERIC",
+          scoreTarget: { type: "trace", traceId },
+          configId,
+          environment: "default",
+        }),
+      ).resolves.toMatchObject({ name: scoreName, value: 1 });
+      expect(mockScoreChangeEventSourcing).toHaveBeenCalledOnce();
+    });
+
     it("rejects empty stringValue for boolean annotation scores", async () => {
       const configId = randomUUID();
       const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;

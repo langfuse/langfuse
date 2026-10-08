@@ -111,7 +111,7 @@ describe("scoreProcessor", () => {
       QueueName.AutomationExecutionQueue,
       expect.objectContaining({
         payload: expect.objectContaining({
-          executionId: expect.any(String),
+          executionId: jobId,
           projectId,
           automationId: automation.id,
           triggerId: trigger.id,
@@ -121,6 +121,7 @@ describe("scoreProcessor", () => {
       }),
       { jobId },
     );
+    expect(add.mock.calls[1][1].payload.executionId).toBe(jobId);
     expect(add.mock.calls[1][2]).toEqual({ jobId });
   });
 
