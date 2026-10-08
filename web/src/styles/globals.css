@@ -933,6 +933,24 @@
   }
 }
 
+/* Vertical twin of underline-dotted, e.g. timeline connectors. */
+@utility dotted-line-y {
+  background-image: linear-gradient(
+    to bottom,
+    hsl(var(--foreground-secondary)) 1px,
+    transparent 1px
+  );
+  background-repeat: repeat-y;
+  background-size: 1px 4px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black calc(var(--spacing) * 3),
+    black calc(100% - var(--spacing) * 3),
+    transparent
+  );
+}
+
 @utility scrollbar-visible {
   &::-webkit-scrollbar {
     width: 8px;

@@ -1,9 +1,8 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import React, { useEffect, useState, useRef, type ReactNode } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Input } from "@/src/components/ui/input";
 import {
   InputCommand,
@@ -13,7 +12,6 @@ import {
 } from "@/src/components/ui/input-command";
 import {
   Popover,
-  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
@@ -36,20 +34,13 @@ export function SetPromptVersionLabels({
   prompt,
   isOpen,
   setIsOpen,
-  title,
-  showOnlyOnHover = false,
   maxVisibleLabels = 8,
-  trailingActions,
 }: {
   promptLabels: string[];
   prompt: Prompt;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
-  title?: ReactNode;
-  showOnlyOnHover?: boolean;
   maxVisibleLabels?: number;
-  /** Rendered beside the add-label button, sharing its hover visibility. */
-  trailingActions?: ReactNode;
 }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
@@ -176,39 +167,27 @@ export function SetPromptVersionLabels({
 
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
-      <PopoverAnchor asChild>
-        <div className="flex w-fit max-w-full min-w-0 flex-wrap items-center gap-1">
-          {title && title}
-          {promptLabels.length > 0 && (
-            <TruncatedLabels
-              labels={promptLabels}
-              maxVisibleLabels={maxVisibleLabels}
-              className="contents"
-            />
-          )}
-          <span
-            className={cn(
-              "inline-flex items-center gap-2",
-              showOnlyOnHover && "opacity-0 group-hover:opacity-100",
-              !hasAccess && "cursor-not-allowed group-hover:opacity-50",
-            )}
+      {/* Contents: labels wrap one by one inside the host's row. */}
+      <div className="contents">
+        {promptLabels.length > 0 && (
+          <TruncatedLabels
+            labels={promptLabels}
+            maxVisibleLabels={maxVisibleLabels}
+            className="contents"
+          />
+        )}
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!hasAccess}
+            className="gap-1"
           >
-            <PopoverTrigger asChild data-version-trigger="true">
-              <BadgeShell asChild color="ghost" size="md">
-                <button
-                  type="button"
-                  disabled={!hasAccess}
-                  className="hover:text-foreground cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <Plus className="icon-sm shrink-0" aria-hidden />
-                  Add label
-                </button>
-              </BadgeShell>
-            </PopoverTrigger>
-            {trailingActions}
-          </span>
-        </div>
-      </PopoverAnchor>
+            <Plus className="icon-sm text-icon-foreground" aria-hidden />
+            Add label
+          </Button>
+        </PopoverTrigger>
+      </div>
       <PopoverContent
         className="max-w-[90vw] sm:max-w-md"
         align="start"

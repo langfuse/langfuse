@@ -1,14 +1,16 @@
 import { type RouterOutputs } from "@/src/utils/api";
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
 import {
   Timeline,
   TimelineItem,
 } from "@/src/features/prompts/components/timeline";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 import { CommandItem } from "@/src/components/ui/command";
 import { DialogController } from "@/src/components/ui/dialog";
-import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { FileDiffIcon } from "lucide-react";
 
@@ -21,7 +23,6 @@ const PromptHistoryTraceNode = (props: {
   openCommentDrawer: (promptId: string, promptVersion: number) => void;
   commentCounts?: Map<string, number>;
 }) => {
-  const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const { prompt } = props;
   const commentCount = props.commentCounts?.get(prompt.id);
 
@@ -76,101 +77,99 @@ const PromptHistoryTraceNode = (props: {
         }}
       >
         <div
-          className="flex flex-col gap-1 rounded-none"
+          className="flex items-center gap-2 rounded-none"
           style={{
             cursor: "pointer",
           }}
         >
-          <div className="flex flex-wrap items-start gap-1">
-            <SetPromptVersionLabels
-              title={
-                <BadgeShell
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    props.index === 0
-                      ? props.setCurrentPromptVersion(undefined)
-                      : props.setCurrentPromptVersion(prompt.version);
-                  }}
-                  font="mono"
-                  size="md"
-                  data-version-trigger="false"
-                >
-                  # {prompt.version}
-                </BadgeShell>
-              }
-              promptLabels={prompt.labels}
-              prompt={prompt}
-              isOpen={isLabelPopoverOpen}
-              setIsOpen={setIsLabelPopoverOpen}
-              showOnlyOnHover
-              trailingActions={
-                props.currentPrompt &&
-                props.currentPromptVersion !== prompt.version ? (
-                  <DialogController
-                    size="xl"
-                    closeOnInteractionOutside
-                    renderContent={({ closeDialog }) => (
-                      <PromptVersionDiffDialogContent
-                        leftPrompt={prompt}
-                        rightPrompt={props.currentPrompt!}
-                        closeDialog={closeDialog}
-                      />
-                    )}
-                  >
-                    {({ openDialog }) => (
-                      <BadgeShell asChild color="ghost" size="md">
-                        <button
-                          type="button"
-                          role="button"
-                          title="Compare with selected prompt"
-                          className="hover:text-foreground cursor-pointer"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openDialog();
-                          }}
-                        >
-                          <FileDiffIcon
-                            className="icon-sm shrink-0"
-                            aria-hidden
-                          />
-                          Compare
-                        </button>
-                      </BadgeShell>
-                    )}
-                  </DialogController>
-                ) : null
-              }
-            />
-            {commentCount ? (
-              <span
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-1">
+              <BadgeShell
                 onClick={(e) => {
                   e.stopPropagation();
-                  props.openCommentDrawer(prompt.id, prompt.version);
+                  props.index === 0
+                    ? props.setCurrentPromptVersion(undefined)
+                    : props.setCurrentPromptVersion(prompt.version);
                 }}
-                className="cursor-pointer"
-                role="button"
+                font="mono"
+                size="md"
               >
-                <CommentCountIcon count={commentCount} />
-              </span>
-            ) : null}
-          </div>
-
-          <div className="min-w-0">
-            {prompt.commitMessage && (
-              <div className="flex flex-1 flex-nowrap gap-2">
+                # {prompt.version}
+              </BadgeShell>
+              {prompt.labels.length > 0 && (
+                <TruncatedLabels
+                  labels={prompt.labels}
+                  maxVisibleLabels={8}
+                  className="contents"
+                />
+              )}
+              {commentCount ? (
                 <span
-                  className="text-muted-foreground max-w-full min-w-0 truncate text-xs"
-                  title={prompt.commitMessage}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    props.openCommentDrawer(prompt.id, prompt.version);
+                  }}
+                  className="cursor-pointer"
+                  role="button"
                 >
-                  {prompt.commitMessage}
+                  <CommentCountIcon count={commentCount} />
                 </span>
+              ) : null}
+            </div>
+
+            <div className="min-w-0">
+              {prompt.commitMessage && (
+                <div className="flex flex-1 flex-nowrap gap-2">
+                  <span
+                    className="text-muted-foreground max-w-full min-w-0 truncate text-xs"
+                    title={prompt.commitMessage}
+                  >
+                    {prompt.commitMessage}
+                  </span>
+                </div>
+              )}
+              <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
+                {prompt.createdAt.toLocaleString()} by{" "}
+                {prompt.creator || prompt.createdBy}
               </div>
-            )}
-            <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
-              {prompt.createdAt.toLocaleString()} by{" "}
-              {prompt.creator || prompt.createdBy}
             </div>
           </div>
+          {props.currentPrompt &&
+          props.currentPromptVersion !== prompt.version ? (
+            <DialogController
+              size="xl"
+              closeOnInteractionOutside
+              renderContent={({ closeDialog }) => (
+                <PromptVersionDiffDialogContent
+                  leftPrompt={prompt}
+                  rightPrompt={props.currentPrompt!}
+                  closeDialog={closeDialog}
+                />
+              )}
+            >
+              {({ openDialog }) => (
+                <span className="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+                  <Tooltip
+                    label="Compare with selected prompt"
+                    hoverableContent={false}
+                  >
+                    {({ getTriggerProps }) => (
+                      <IconButton
+                        {...getTriggerProps()}
+                        icon={FileDiffIcon}
+                        label="Compare with selected prompt"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openDialog();
+                        }}
+                      />
+                    )}
+                  </Tooltip>
+                </span>
+              )}
+            </DialogController>
+          ) : null}
         </div>
       </TimelineItem>
     </CommandItem>

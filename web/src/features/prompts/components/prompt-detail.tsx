@@ -503,19 +503,27 @@ export const PromptDetail = ({
             </div>
           ) : null}
           <DetailViewHeaderShell>
-            <div className="grid w-full grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="flex min-w-0 items-center gap-2">
-                <BadgeShell color="inverted" font="mono" size="lg">
-                  # {prompt.version}
-                </BadgeShell>
-                <span
-                  className="text-primary min-w-0 truncate text-lg leading-6 font-bold"
-                  title={prompt.commitMessage ?? prompt.name}
-                >
-                  {prompt.commitMessage ?? prompt.name}
+            <div className="grid w-full grid-cols-1 items-start gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1.5">
+                <span className="mr-1 inline-flex max-w-full min-w-0 items-center gap-2">
+                  <BadgeShell color="inverted" font="mono" size="lg">
+                    # {prompt.version}
+                  </BadgeShell>
+                  <span
+                    className="text-primary min-w-0 truncate text-lg leading-6 font-bold"
+                    title={prompt.commitMessage ?? prompt.name}
+                  >
+                    {prompt.commitMessage ?? prompt.name}
+                  </span>
                 </span>
+                <SetPromptVersionLabels
+                  promptLabels={prompt.labels}
+                  prompt={prompt}
+                  isOpen={isLabelPopoverOpen}
+                  setIsOpen={setIsLabelPopoverOpen}
+                />
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-1 lg:flex-nowrap">
+              <div className="flex flex-wrap items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundDropdownMenuController
                   source="prompt"
                   prompt={{
@@ -646,12 +654,6 @@ export const PromptDetail = ({
                 </DropdownMenu>
               </div>
             </div>
-            <SetPromptVersionLabels
-              promptLabels={prompt.labels}
-              prompt={prompt}
-              isOpen={isLabelPopoverOpen}
-              setIsOpen={setIsLabelPopoverOpen}
-            />
           </DetailViewHeaderShell>
           <Tabs
             value={currentTab}
