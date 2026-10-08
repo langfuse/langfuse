@@ -15,16 +15,13 @@ const observationLevelBadgeColors: Record<
 
 export function ObservationLevelBadge({
   level,
-  size,
 }: {
   level: DisplayedObservationLevel;
-  /** Tree rows use "md" to match the score chips beside them. */
-  size?: "md" | "default";
 }) {
   return (
     <Badge
       color={observationLevelBadgeColors[level]}
-      size={size}
+      size="md"
       text={level.charAt(0) + level.slice(1).toLowerCase()}
     />
   );

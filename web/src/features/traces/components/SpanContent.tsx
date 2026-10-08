@@ -123,7 +123,7 @@ export function SpanContent({
             {node.type !== "TRACE" &&
               node.level &&
               node.level !== "DEFAULT" && (
-                <ObservationLevelBadge level={node.level} size="md" />
+                <ObservationLevelBadge level={node.level} />
               )}
           </div>
         </div>
