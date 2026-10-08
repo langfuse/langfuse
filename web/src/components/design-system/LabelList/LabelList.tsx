@@ -13,7 +13,7 @@ const labelListVariants = cva("", {
     },
     wrap: {
       true: "flex-wrap",
-      false: "flex-nowrap overflow-hidden",
+      false: "min-w-0 flex-nowrap items-center",
     },
   },
   defaultVariants: {
@@ -21,6 +21,39 @@ const labelListVariants = cva("", {
     wrap: true,
   },
 });
+
+export function LabelList({
+  labels,
+  maxVisible = 5,
+  layout = "contained",
+  shouldWrap = true,
+}: LabelListProps) {
+  const sortedLabels = sortLabels(labels);
+  const visibleLabels = sortedLabels.slice(0, maxVisible);
+  const hiddenLabels = sortedLabels.slice(maxVisible);
+  const chips = visibleLabels.map((label) => (
+    <LabelChip key={label} label={label} />
+  ));
+  const overflow =
+    hiddenLabels.length > 0 ? (
+      <LabelOverflow
+        allLabels={sortedLabels}
+        hiddenCount={hiddenLabels.length}
+      />
+    ) : null;
+
+  return (
+    <div className={labelListVariants({ layout, wrap: shouldWrap })}>
+      {shouldWrap ? (
+        chips
+      ) : (
+        // Single line: chips clip, the overflow pill stays visible.
+        <div className="flex min-w-0 gap-1 overflow-hidden">{chips}</div>
+      )}
+      {overflow}
+    </div>
+  );
+}
 
 type LabelListProps = {
   labels: string[];
@@ -48,52 +81,42 @@ function sortLabels(labels: string[]): string[] {
   });
 }
 
-export function LabelList({
-  labels,
-  maxVisible = 5,
-  layout = "contained",
-  shouldWrap = true,
-}: LabelListProps) {
-  const sortedLabels = sortLabels(labels);
-  const visibleLabels = sortedLabels.slice(0, maxVisible);
-  const hiddenLabels = sortedLabels.slice(maxVisible);
-
+function LabelOverflow({
+  allLabels,
+  hiddenCount,
+}: {
+  allLabels: string[];
+  hiddenCount: number;
+}) {
   return (
-    <div className={labelListVariants({ layout, wrap: shouldWrap })}>
-      {visibleLabels.map((label) => (
-        <LabelChip key={label} label={label} />
-      ))}
-      {hiddenLabels.length > 0 && (
-        <HoverCard
-          placement="bottom-start"
-          content={
-            <div className="w-80 p-3">
-              <div className="space-y-2">
-                <h4 className="text-sm font-bold">All Labels</h4>
-                <div className="flex flex-wrap gap-1">
-                  {sortedLabels.map((label) => (
-                    <LabelChip key={label} label={label} />
-                  ))}
-                </div>
-              </div>
+    <HoverCard
+      placement="bottom-start"
+      content={
+        <div className="w-80 p-3">
+          <div className="space-y-2">
+            <h4 className="text-sm font-bold">All Labels</h4>
+            <div className="flex flex-wrap gap-1">
+              {allLabels.map((label) => (
+                <LabelChip key={label} label={label} />
+              ))}
             </div>
-          }
-        >
-          {({ getTriggerProps }) => (
-            <BadgeShell asChild color="filled" font="mono" size="md">
-              <button
-                type="button"
-                className="text-muted-foreground cursor-pointer self-center"
-                aria-label={`Show all ${sortedLabels.length} labels`}
-                {...getTriggerProps()}
-              >
-                +{hiddenLabels.length}
-              </button>
-            </BadgeShell>
-          )}
-        </HoverCard>
+          </div>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <BadgeShell asChild color="filled" font="mono" size="md">
+          <button
+            type="button"
+            className="text-muted-foreground cursor-pointer self-center"
+            aria-label={`Show all ${allLabels.length} labels`}
+            {...getTriggerProps()}
+          >
+            +{hiddenCount}
+          </button>
+        </BadgeShell>
       )}
-    </div>
+    </HoverCard>
   );
 }
 
