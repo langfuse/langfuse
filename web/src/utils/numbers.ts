@@ -77,7 +77,15 @@ export const usdFormatter = (
 };
 
 export const costFormatter = (totalCost?: number) => {
-  return usdFormatter(totalCost, 2, 2);
+  const cost = totalCost ?? 0;
+  // Cheap models can cost a fraction of a cent per call. With exactly two
+  // decimals those totals all round to $0.00, so keep ~3 significant digits
+  // below one cent while leaving cent precision at/above it untouched.
+  if (cost !== 0 && Math.abs(cost) < 0.01) {
+    const digits = 2 + Math.ceil(-Math.log10(Math.abs(cost)));
+    return usdFormatter(cost, 2, Math.min(digits, 10));
+  }
+  return usdFormatter(cost, 2, 2);
 };
 
 export const formatTokenCounts = (
