@@ -5,6 +5,8 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compareSkillFiles } from "@/src/features/skills/utils/compareSkillFiles";
+import { SkillDraftChanges } from "./SkillDraftChanges";
+import { type SkillEditorStore } from "./skillEditorStore";
 import { SkillFileChanges } from "./SkillFileChanges";
 import { SkillFileDiff } from "./SkillFileDiff";
 import { SkillComparisonError } from "./SkillComparisonError";
@@ -14,6 +16,7 @@ type ComparisonProps = {
   projectId: string;
   name: string;
   selectedVersion: number;
+  draftStore: SkillEditorStore | null;
   versions: { version: number }[];
   hasMore: boolean;
   isLoadingMore: boolean;
@@ -26,26 +29,33 @@ export function SkillVersionComparisonController({
   ...props
 }: ComparisonProps & {
   children: (control: {
-    openComparison: (version: number) => void;
+    openComparison: (version: number, compareDraft?: boolean) => void;
   }) => ReactNode;
 }) {
   const capture = usePostHogClientCapture();
 
   return (
-    <DialogController<{ before: number; after: number }>
+    <DialogController<{ before: number; after: number | "draft" }>
       renderDialog={({ state }) => (
         <SkillVersionComparison {...props} initialVersions={state} />
       )}
     >
       {({ openDialog }) =>
         children({
-          openComparison: (version) => {
-            if (version === props.selectedVersion) return;
+          openComparison: (version, compareDraft = false) => {
+            if (!compareDraft && version === props.selectedVersion) return;
             const before = version;
-            const after = props.selectedVersion;
+            const after =
+              compareDraft && props.draftStore
+                ? "draft"
+                : props.selectedVersion;
             capture("skills:version_compare", {
               beforeVersion: before,
-              afterVersion: after,
+              afterVersion:
+                after === "draft"
+                  ? props.draftStore?.getState().baseVersion
+                  : after,
+              isDraftComparison: after === "draft",
             });
             openDialog({ before, after });
           },
@@ -58,7 +68,9 @@ export function SkillVersionComparisonController({
 function SkillVersionComparison({
   initialVersions,
   ...props
-}: ComparisonProps & { initialVersions: { before: number; after: number } }) {
+}: ComparisonProps & {
+  initialVersions: { before: number; after: number | "draft" };
+}) {
   const [before, setBefore] = useState(initialVersions.before);
   const [after, setAfter] = useState(initialVersions.after);
   const options = [
@@ -77,14 +89,44 @@ function SkillVersionComparison({
     setBefore(Number(value));
   }
   function handleAfterChange(value: string) {
-    setAfter(Number(value));
+    setAfter(value === "draft" ? "draft" : Number(value));
+  }
+
+  function renderComparison() {
+    if (after === "draft") {
+      return props.draftStore ? (
+        <SkillDraftChanges
+          key={`draft:${before}`}
+          projectId={props.projectId}
+          store={props.draftStore}
+          isFirstVersion={false}
+          comparisonVersion={before}
+        />
+      ) : null;
+    }
+    if (before === after) {
+      return (
+        <p role="status" className="text-muted-foreground text-sm">
+          Select two different versions to compare.
+        </p>
+      );
+    }
+    return (
+      <SkillVersionFiles
+        key={`${before}:${after}`}
+        projectId={props.projectId}
+        name={props.name}
+        before={before}
+        after={after}
+      />
+    );
   }
 
   return (
     <Dialog title="Compare skill versions" size="xxl">
       <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
         <p className="text-muted-foreground text-sm">
-          Compare saved file contents. Unsaved draft changes are not included.
+          Compare saved versions or your unsaved local draft.
         </p>
         <div className="grid shrink-0 grid-cols-2 gap-4">
           <div className="flex min-w-0 flex-col gap-1">
@@ -102,7 +144,11 @@ function SkillVersionComparison({
             <SelectInput
               aria-label="To version"
               value={String(after)}
-              options={options}
+              options={
+                props.draftStore
+                  ? [{ value: "draft", label: "Local draft" }, ...options]
+                  : options
+              }
               placeholder="Select version"
               onValueChange={handleAfterChange}
             />
@@ -124,19 +170,7 @@ function SkillVersionComparison({
             />
           </div>
         ) : null}
-        {before === after ? (
-          <p role="status" className="text-muted-foreground text-sm">
-            Select two different versions to compare.
-          </p>
-        ) : (
-          <SkillVersionFiles
-            key={`${before}:${after}`}
-            projectId={props.projectId}
-            name={props.name}
-            before={before}
-            after={after}
-          />
-        )}
+        {renderComparison()}
       </div>
     </Dialog>
   );
