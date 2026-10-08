@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { Transcript } from "@langfuse/shared/src/server";
 import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
 import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
+import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
 
 const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),
@@ -106,6 +107,110 @@ beforeEach(() => {
   mocks.root.mockReset();
   mocks.recover.mockReset().mockImplementation(mocks.recoverActual);
 });
+
+it.each(
+  [
+    {
+      name: "image block",
+      output: [
+        {
+          type: "image_url",
+          image_url: { url: "https://example.com/image.png" },
+        },
+      ],
+    },
+    {
+      name: "file block",
+      output: [
+        {
+          type: "file",
+          data: "aGVsbG8=",
+          mediaType: "application/pdf",
+          filename: "result.pdf",
+        },
+      ],
+    },
+    {
+      name: "media token",
+      output:
+        "@@@langfuseMedia:type=image/jpeg|id=media-ref-image-1|source=base64@@@",
+    },
+    {
+      name: "text with media token",
+      output:
+        "Screenshot: @@@langfuseMedia:type=image/jpeg|id=media-ref-image-1|source=base64@@@",
+    },
+  ].flatMap((scenario) =>
+    [false, true].map((nativeCall) => ({ ...scenario, nativeCall })),
+  ),
+)(
+  "preserves TOOL $name with native call=$nativeCall",
+  async ({ output, nativeCall }) => {
+    const input = { query: "screenshot" };
+    const generation = {
+      id: "generation",
+      traceId: "trace",
+      type: "GENERATION" as const,
+      name: "generation",
+      parentObservationId: null,
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: [{ role: "user", content: "Run a tool" }],
+      output: nativeCall
+        ? [
+            {
+              role: "assistant",
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: "call-1",
+                  toolName: "search",
+                  input,
+                },
+              ],
+            },
+          ]
+        : null,
+      metadata: {},
+    };
+    const tool = {
+      ...generation,
+      id: "tool",
+      type: "TOOL" as const,
+      name: "search",
+      parentObservationId: generation.id,
+      startTime: new Date(2),
+      input,
+      output,
+      metadata: { callID: "call-1" },
+    };
+    const observations = [generation, tool];
+    const snapshot = structuredClone(observations);
+    const expectedParts = normalizeSpanIO({
+      input: undefined,
+      output,
+      metadata: {},
+    }).messages.flatMap((message) => message.parts);
+    expect(expectedParts.some((part) => part.type === "file")).toBe(true);
+    mocks.observations.mockResolvedValue({ observations, totalCount: 2 });
+    const result = await loadTraceTranscript({
+      ...trace,
+      recoverToolResponses: true,
+    });
+    const messages = result.transcript!.threads[0]!.currentTurn.messages;
+    expect(
+      messages
+        .filter((message) => message.observationId === tool.id)
+        .flatMap((message) => message.parts),
+    ).toEqual(expectedParts);
+    expect(
+      messages
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === "tool-call"),
+    ).toMatchObject([{ toolCallId: "call-1" }]);
+    expect(observations).toEqual(snapshot);
+  },
+);
 
 it.each([
   { parentObservationId: null, isRootObservation: true },

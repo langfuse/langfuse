@@ -229,6 +229,15 @@ function recoverToolCalls(observations: Observation[]) {
         !resolvedCallIds.has(JSON.stringify([observation.traceId, callId]))
       )
         return messages;
+      const parts = messages.flatMap((message) => message.parts);
+      // Tool-result payloads are JSON; wrapping media would discard the file
+      // parts the session renderer needs for previews.
+      if (
+        !parts.length ||
+        (!parts.every((part) => part.type === "text") &&
+          !parts.every((part) => part.type === "data"))
+      )
+        return messages;
       return normalizeSpanIO({
         input: undefined,
         metadata: undefined,
