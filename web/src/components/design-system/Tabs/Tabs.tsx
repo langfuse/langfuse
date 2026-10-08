@@ -563,7 +563,7 @@ function TabsOverflowList({
       <TabsPrimitive.List
         ref={availableRef}
         aria-label={ariaLabel}
-        className="relative flex h-full min-w-0 flex-1 items-center justify-start overflow-hidden"
+        className="relative flex h-full min-w-0 flex-1 items-center justify-start overflow-x-clip"
       >
         {/* Non-interactive replicas keep every trigger measurable, including
             the hidden ones, without duplicating tab semantics. */}
