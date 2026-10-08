@@ -161,6 +161,7 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "skillName",
   "metadataKeys",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
@@ -471,6 +472,7 @@ const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
   "traceTags",
   "toolNames",
   "calledToolNames",
+  "skillName",
 ]);
 
 const EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS = new Set([

@@ -18,6 +18,69 @@ import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
 
+function getSkillObservationFields(
+  table: "observations" | "events_observations",
+): Pick<ViewDeclarationType, "dimensions" | "measures"> {
+  const availableNames = `arrayMap(skill -> skill.skillName, ${table}.skills_available)`;
+  const loadedNames = `arrayMap(resource -> resource.skillName, ${table}.skills_resource_loaded)`;
+  const loadedResources = `arrayMap(resource -> toJSONString([resource.skillName, resource.filePath]), ${table}.skills_resource_loaded)`;
+
+  return {
+    dimensions: {
+      skillName: {
+        sql: `arrayDistinct(arrayConcat(${availableNames}, ${loadedNames}))`,
+        alias: "skillName",
+        type: "arrayString",
+        explodeArray: true,
+        description:
+          "Names of skills made available or loaded, across versions.",
+      },
+      loadedSkillResources: {
+        sql: `arrayDistinct(${loadedResources})`,
+        alias: "loadedSkillResources",
+        type: "arrayString",
+        explodeArray: true,
+        description:
+          "Loaded resources as JSON-encoded [skillName, filePath] pairs.",
+      },
+    },
+    measures: {
+      skillAvailability: {
+        sql: `toUInt8(has(@@AGG1@@(${availableNames}), skillName))`,
+        aggs: { agg1: "any" },
+        alias: "skillAvailability",
+        type: "integer",
+        requiresDimension: "skillName",
+        unit: "generations",
+        defaultAggregation: "sum",
+        description:
+          "Generations offering the skill, once per generation/name.",
+      },
+      skillLoads: {
+        sql: `countEqual(@@AGG1@@(${loadedNames}), skillName)`,
+        aggs: { agg1: "any" },
+        alias: "skillLoads",
+        type: "integer",
+        requiresDimension: "skillName",
+        unit: "loads",
+        defaultAggregation: "sum",
+        description: "Resource loads per skill name, including repeated reads.",
+      },
+      skillResourceLoads: {
+        sql: `countEqual(@@AGG1@@(${loadedResources}), loadedSkillResources)`,
+        aggs: { agg1: "any" },
+        alias: "skillResourceLoads",
+        type: "integer",
+        requiresDimension: "loadedSkillResources",
+        unit: "loads",
+        defaultAggregation: "sum",
+        description:
+          "Loads per skill name and file path, including repeated reads.",
+      },
+    },
+  };
+}
+
 export const traceView: ViewDeclarationType = {
   name: "traces",
   description:
@@ -512,6 +575,7 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
     },
+    ...getSkillObservationFields("observations").dimensions,
     toolNames: {
       sql: "mapKeys(observations.tool_definitions)",
       alias: "toolNames",
@@ -672,6 +736,7 @@ export const observationsView: ViewDeclarationType = {
       unit: "calls",
       defaultAggregation: "sum",
     },
+    ...getSkillObservationFields("observations").measures,
     toolCallInvocations: {
       sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",
       aggs: { agg1: "any" },
@@ -1382,6 +1447,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
     },
+    ...getSkillObservationFields("events_observations").dimensions,
     toolNames: {
       sql: "mapKeys(events_observations.tool_definitions)",
       alias: "toolNames",
@@ -1608,6 +1674,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "calls",
       defaultAggregation: "sum",
     },
+    ...getSkillObservationFields("events_observations").measures,
     toolCallInvocations: {
       sql: "countEqual(@@AGG1@@(events_observations.tool_call_names), calledToolNames)",
       aggs: { agg1: "any" },

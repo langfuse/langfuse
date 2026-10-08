@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useMediaQuery } from "react-responsive";
+import { useRouter } from "next/router";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
 import {
@@ -56,6 +57,7 @@ import {
 } from "@/src/features/skills/components/SkillMetadataSelect";
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
 import { SkillFilePreview } from "@/src/features/skills/components/SkillFilePreview";
+import { SkillMetrics } from "@/src/features/skills/components/SkillMetrics";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
 import {
   parseSkillFrontmatterMetadata,
@@ -105,9 +107,11 @@ export function SkillEditor({
       };
   metadataOptions: { labels: string[]; tags: string[] };
 }) {
+  const router = useRouter();
   const dirty = useStore(store, (state) => state.dirty);
   const isImporting = useStore(store, (state) => state.isImporting);
-  const fileCount = useStore(store, (state) => Object.keys(state.files).length);
+  const files = useStore(store, (state) => state.files);
+  const fileCount = Object.keys(files).length;
   const name = useStore(store, (state) => state.name);
   const baseVersion = useStore(store, (state) => state.baseVersion);
   const skillMarkdown = useStore(
@@ -165,6 +169,7 @@ export function SkillEditor({
   const setVersionTags = api.skills.setTags.useMutation();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [activeTab, setActiveTab] = useState<"editor" | "metrics">("editor");
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
@@ -499,143 +504,181 @@ export function SkillEditor({
         <Page
           headerProps={{
             ...headerProps,
-            actionButtonsRight: renderHeaderActions(openDialog),
-            actionButtonsMenu: ({ closeMenu }) =>
-              renderHeaderActions(openDialog, () =>
-                closeMenu({ handoffFocus: true }),
-              ),
+            tabsProps:
+              history.kind === "versions"
+                ? {
+                    activeTab,
+                    tabs: [
+                      {
+                        value: "editor",
+                        label: "Editor",
+                        href: router.pathname,
+                        querySelector: (query) => query,
+                        onClick: () => setActiveTab("editor"),
+                      },
+                      {
+                        value: "metrics",
+                        label: "Metrics",
+                        href: router.pathname,
+                        querySelector: (query) => query,
+                        onClick: () => setActiveTab("metrics"),
+                      },
+                    ],
+                  }
+                : undefined,
+            actionButtonsRight:
+              activeTab === "editor"
+                ? renderHeaderActions(openDialog)
+                : undefined,
+            actionButtonsMenu:
+              activeTab === "editor"
+                ? ({ closeMenu }) =>
+                    renderHeaderActions(openDialog, () =>
+                      closeMenu({ handoffFocus: true }),
+                    )
+                : undefined,
           }}
         >
-          <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1">
-            {showUpload ? (
-              <section
-                ref={focusUploadPanel}
-                tabIndex={-1}
-                aria-label="Upload files"
-                aria-busy={isImporting}
-                className="bg-background flex min-h-0 flex-col gap-3 p-4 outline-none [grid-area:1/1]"
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    cancelUpload();
-                  }
-                }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-bold">Upload files or folders</p>
-                    {isImporting ? (
-                      <p
-                        role="status"
-                        className="text-muted-foreground text-sm"
-                      >
-                        Adding files to draft…
+          {activeTab === "metrics" ? (
+            <SkillMetrics
+              projectId={projectId}
+              skillName={name}
+              filePaths={Object.keys(files)}
+            />
+          ) : (
+            <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1">
+              {showUpload ? (
+                <section
+                  ref={focusUploadPanel}
+                  tabIndex={-1}
+                  aria-label="Upload files"
+                  aria-busy={isImporting}
+                  className="bg-background flex min-h-0 flex-col gap-3 p-4 outline-none [grid-area:1/1]"
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      cancelUpload();
+                    }
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-bold">
+                        Upload files or folders
                       </p>
-                    ) : null}
+                      {isImporting ? (
+                        <p
+                          role="status"
+                          className="text-muted-foreground text-sm"
+                        >
+                          Adding files to draft…
+                        </p>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={isImporting}
+                      onClick={cancelUpload}
+                    >
+                      Cancel
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={isImporting}
-                    onClick={cancelUpload}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-                <div className="flex min-h-0 flex-1">
-                  <Dropzone
-                    src={undefined}
-                    variant="panel"
-                    accept={undefined}
-                    maxFiles={MAX_SKILL_FILES}
-                    maxSize={undefined}
-                    minSize={undefined}
-                    isDisabled={isImporting}
-                    onError={(error) => {
-                      showErrorToast("Could not add files", error.message);
-                      uploadPanelRef.current?.focus();
-                    }}
-                    onDrop={async (files) => {
-                      store.setState({ isImporting: true });
-                      try {
-                        const paths = await importSkillFiles(store, files);
-                        setTreeState((current) => ({
-                          selectedFolder: "",
-                          pendingEntry: null,
-                          expandedFolders: new Set([
-                            ...current.expandedFolders,
-                            ...getParentFolderPaths(paths),
-                          ]),
-                        }));
-                        setIsUploadOpen(false);
-                      } finally {
-                        store.setState({ isImporting: false });
-                      }
-                    }}
-                  />
-                </div>
-              </section>
-            ) : null}
-            <div
-              className={cn(
-                "flex min-h-0 flex-1 flex-col overflow-y-auto [grid-area:1/1] md:overflow-hidden",
-                showUpload && "invisible",
-              )}
-              inert={showUpload}
-              aria-hidden={showUpload}
-            >
-              <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
-                {history.kind === "versions" ? (
-                  <SkillVersionHistory
-                    projectId={projectId}
-                    name={name}
-                    {...history}
-                    isDraft={isDraft}
-                    canEdit={canCreate}
-                    labelOptions={metadataOptions.labels}
-                    isSavingLabels={setVersionLabels.isPending}
-                    onSaveLabels={saveLabels}
-                  />
-                ) : (
-                  <SkillVersionHistory kind="new" />
+                  <div className="flex min-h-0 flex-1">
+                    <Dropzone
+                      src={undefined}
+                      variant="panel"
+                      accept={undefined}
+                      maxFiles={MAX_SKILL_FILES}
+                      maxSize={undefined}
+                      minSize={undefined}
+                      isDisabled={isImporting}
+                      onError={(error) => {
+                        showErrorToast("Could not add files", error.message);
+                        uploadPanelRef.current?.focus();
+                      }}
+                      onDrop={async (files) => {
+                        store.setState({ isImporting: true });
+                        try {
+                          const paths = await importSkillFiles(store, files);
+                          setTreeState((current) => ({
+                            selectedFolder: "",
+                            pendingEntry: null,
+                            expandedFolders: new Set([
+                              ...current.expandedFolders,
+                              ...getParentFolderPaths(paths),
+                            ]),
+                          }));
+                          setIsUploadOpen(false);
+                        } finally {
+                          store.setState({ isImporting: false });
+                        }
+                      }}
+                    />
+                  </div>
+                </section>
+              ) : null}
+              <div
+                className={cn(
+                  "flex min-h-0 flex-1 flex-col overflow-y-auto [grid-area:1/1] md:overflow-hidden",
+                  showUpload && "invisible",
                 )}
-                <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
-                  <ResizablePanelGroup
-                    key={isDesktop ? "desktop" : "mobile"}
-                    orientation={isDesktop ? "horizontal" : "vertical"}
-                  >
-                    <ResizablePanel
-                      defaultSize={isDesktop ? "28%" : "32%"}
-                      minSize={isDesktop ? "20%" : "24%"}
-                      maxSize={isDesktop ? "42%" : "50%"}
+                inert={showUpload}
+                aria-hidden={showUpload}
+              >
+                <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
+                  {history.kind === "versions" ? (
+                    <SkillVersionHistory
+                      projectId={projectId}
+                      name={name}
+                      {...history}
+                      isDraft={isDraft}
+                      canEdit={canCreate}
+                      labelOptions={metadataOptions.labels}
+                      isSavingLabels={setVersionLabels.isPending}
+                      onSaveLabels={saveLabels}
+                    />
+                  ) : (
+                    <SkillVersionHistory kind="new" />
+                  )}
+                  <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
+                    <ResizablePanelGroup
+                      key={isDesktop ? "desktop" : "mobile"}
+                      orientation={isDesktop ? "horizontal" : "vertical"}
                     >
-                      <SkillFileExplorer
-                        store={store}
-                        readOnly={!isDraft || !canCreate}
-                        disabled={isSaving}
-                        state={treeState}
-                        onStateChange={setTreeState}
-                        onUpload={() => setIsUploadOpen(true)}
-                      />
-                    </ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel
-                      defaultSize={isDesktop ? "72%" : "68%"}
-                      minSize={isDesktop ? "45%" : "42%"}
-                    >
-                      <SkillFileEditor
-                        projectId={projectId}
-                        store={store}
-                        isDraft={isDraft}
-                        editable={canEditFiles}
-                      />
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
+                      <ResizablePanel
+                        defaultSize={isDesktop ? "28%" : "32%"}
+                        minSize={isDesktop ? "20%" : "24%"}
+                        maxSize={isDesktop ? "42%" : "50%"}
+                      >
+                        <SkillFileExplorer
+                          store={store}
+                          readOnly={!isDraft || !canCreate}
+                          disabled={isSaving}
+                          state={treeState}
+                          onStateChange={setTreeState}
+                          onUpload={() => setIsUploadOpen(true)}
+                        />
+                      </ResizablePanel>
+                      <ResizableHandle withHandle />
+                      <ResizablePanel
+                        defaultSize={isDesktop ? "72%" : "68%"}
+                        minSize={isDesktop ? "45%" : "42%"}
+                      >
+                        <SkillFileEditor
+                          projectId={projectId}
+                          store={store}
+                          isDraft={isDraft}
+                          editable={canEditFiles}
+                        />
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </Page>
       )}
     </DialogController>

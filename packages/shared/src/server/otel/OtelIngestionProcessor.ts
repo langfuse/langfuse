@@ -1,5 +1,11 @@
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
+import {
+  SkillsAvailableSchema,
+  SkillsResourceLoadedSchema,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
+} from "../../features/skills/trace";
 
 import {
   ForbiddenError,
@@ -611,6 +617,14 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
+                  ...this.extractSkills(
+                    spanAttributes,
+                    observationType,
+                    name,
+                    input,
+                    output,
+                    span.status?.code,
+                  ),
                   promptName: canLinkPrompt
                     ? (spanAttributes?.[
                         LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
@@ -1311,6 +1325,14 @@ export class OtelIngestionProcessor {
         instrumentationScopeName,
       ) as any,
       model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
+      ...this.extractSkills(
+        attributes,
+        mappedObservationType,
+        this.extractName(span.name, attributes),
+        input,
+        output,
+        span.status?.code,
+      ),
       promptName: canLinkPrompt
         ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
           attributes["langfuse.prompt.name"] ??
@@ -1867,6 +1889,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.TRACE_OUTPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
+      LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE,
       // Vercel AI SDK
       "ai.prompt.messages",
       "ai.prompt",
@@ -3764,6 +3787,126 @@ export class OtelIngestionProcessor {
       return typeof parsed === "object" ? parsed : undefined;
     } catch {
       // Fallthrough
+    }
+  }
+
+  private extractSkills(
+    attributes: Record<string, unknown>,
+    observationType: string,
+    name: string,
+    input: unknown,
+    output: unknown,
+    statusCode: number | undefined,
+  ): {
+    skillsAvailable?: SkillsAvailable;
+    skillsResourceLoaded?: SkillsResourceLoaded;
+  } {
+    const available = SkillsAvailableSchema.safeParse(
+      this.parseJsonPayload(
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE],
+      ),
+    );
+    const result =
+      available.success && observationType === ObservationType.GENERATION
+        ? { skillsAvailable: available.data }
+        : {};
+
+    const isNativeLoad = attributes["gen_ai.operation.name"] === "load_skill";
+    if (
+      statusCode === 2 ||
+      parseObservationLevel(
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+      ) === ObservationLevel.ERROR ||
+      (!isNativeLoad &&
+        (observationType !== ObservationType.TOOL || output == null))
+    )
+      return result;
+
+    // Resource contents can be JSON documents containing an "error" field.
+    const toolResult =
+      isNativeLoad || name === "Read" || name === "skill_read"
+        ? output
+        : this.parseJsonPayload(output);
+    if (
+      (OtelIngestionProcessor.isPlainObject(toolResult) &&
+        (toolResult.isError === true || toolResult.error !== undefined)) ||
+      (!isNativeLoad &&
+        (name === "skill" || name === "skill_read") &&
+        typeof output === "string" &&
+        /^(?:Skill|File) ".*" not found/.test(output))
+    )
+      return result;
+
+    const loaded = SkillsResourceLoadedSchema.element.safeParse(
+      isNativeLoad
+        ? {
+            skillName: attributes["langfuse.skill.name"],
+            langfuseSkillId: attributes["langfuse.skill.id"],
+            langfuseSkillVersion: attributes["langfuse.skill.version"],
+            filePath: attributes["langfuse.skill.resource.path"] ?? "SKILL.md",
+          }
+        : this.extractSkillToolReference(name, input),
+    );
+    if (!loaded.success) return result;
+
+    const reference = loaded.data;
+    const matches = (available.success ? available.data : []).filter(
+      (skill) =>
+        skill.skillName === reference.skillName &&
+        (reference.langfuseSkillId == null ||
+          skill.langfuseSkillId === reference.langfuseSkillId) &&
+        (reference.langfuseSkillVersion == null ||
+          skill.langfuseSkillVersion === reference.langfuseSkillVersion),
+    );
+    const matchedSkill = matches.length === 1 ? matches[0] : undefined;
+    return {
+      ...result,
+      skillsResourceLoaded: [
+        {
+          ...reference,
+          langfuseSkillId:
+            reference.langfuseSkillId ?? matchedSkill?.langfuseSkillId,
+          langfuseSkillVersion:
+            reference.langfuseSkillVersion ??
+            matchedSkill?.langfuseSkillVersion,
+        },
+      ],
+    };
+  }
+
+  private extractSkillToolReference(name: string, input: unknown) {
+    const args = this.parseJsonPayload(input);
+    if (!OtelIngestionProcessor.isPlainObject(args)) return;
+
+    const identity = {
+      langfuseSkillId: args.langfuseSkillId,
+      langfuseSkillVersion: args.langfuseSkillVersion,
+    };
+    switch (name) {
+      case "Skill":
+        return { ...identity, skillName: args.skill, filePath: "SKILL.md" };
+      case "skill":
+      case "skill_read": {
+        const skillName = name === "skill" ? args.name : args.skillName;
+        return {
+          ...identity,
+          skillName:
+            typeof skillName === "string"
+              ? skillName.replace(/^inline\//, "")
+              : skillName,
+          filePath: name === "skill" ? "SKILL.md" : args.path,
+        };
+      }
+      case "Read": {
+        if (typeof args.file_path !== "string") return;
+        const path = args.file_path
+          .replace(/\\/g, "/")
+          .match(/(?:^|\/)\.claude\/skills\/([^/]+)\/(.+)$/);
+        if (!path) return;
+        return { ...identity, skillName: path[1], filePath: path[2] };
+      }
+      default:
+        return;
     }
   }
 

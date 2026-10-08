@@ -11,6 +11,8 @@ import {
   Prompt,
   safeJsonParse,
   type JsonNested,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -335,8 +337,8 @@ export class IngestionService {
       Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
       Object.keys(eventData.providedCostDetails ?? {}).length > 0;
 
-    // Perform lookups for prompt and model/usage enrichment
-    const [prompt, generationUsage] = await Promise.all([
+    // Enrich prompt, usage and skill references concurrently.
+    const [prompt, generationUsage, skillReferences] = await Promise.all([
       // Lookup prompt by name and version
       eventData.promptName && eventData.promptVersion
         ? this.promptService.getPrompt({
@@ -372,6 +374,12 @@ export class IngestionService {
             },
           })
         : null,
+      this.resolveSkillReferences({
+        projectId: eventData.projectId,
+        type: eventData.type ?? "SPAN",
+        available: eventData.skillsAvailable,
+        loaded: eventData.skillsResourceLoaded,
+      }),
     ]);
 
     const now = toClickhouseDateTime();
@@ -424,6 +432,8 @@ export class IngestionService {
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
       prompt_version: parseUInt16(eventData.promptVersion),
+      skills_available: skillReferences.skills_available,
+      skills_resource_loaded: skillReferences.skills_resource_loaded,
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
@@ -1224,6 +1234,16 @@ export class IngestionService {
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 
+    const skills = await this.resolveSkillReferences({
+      projectId: params.projectId,
+      type: parsedObservationRecord.type,
+      available: parsedObservationRecord.skills_available,
+      loaded: parsedObservationRecord.skills_resource_loaded,
+    });
+    parsedObservationRecord.skills_available = skills.skills_available;
+    parsedObservationRecord.skills_resource_loaded =
+      skills.skills_resource_loaded;
+
     // Override endTimes that are before startTimes with the startTime
     if (
       parsedObservationRecord.end_time &&
@@ -1233,6 +1253,65 @@ export class IngestionService {
     }
 
     return parsedObservationRecord;
+  }
+
+  private async resolveSkillReferences({
+    projectId,
+    type,
+    available = [],
+    loaded = [],
+  }: {
+    projectId: string;
+    type: ObservationRecordInsertType["type"];
+    available?: SkillsAvailable;
+    loaded?: SkillsResourceLoaded;
+  }): Promise<{
+    skills_available: SkillsAvailable;
+    skills_resource_loaded: SkillsResourceLoaded;
+  }> {
+    const availableSkills = type === "GENERATION" ? available : [];
+    const skillIds = [
+      ...new Set(
+        availableSkills
+          .concat(loaded)
+          .flatMap((ref) => (ref.langfuseSkillId ? [ref.langfuseSkillId] : [])),
+      ),
+    ];
+    if (skillIds.length === 0) {
+      return {
+        skills_available: availableSkills,
+        skills_resource_loaded: loaded,
+      };
+    }
+
+    const skills = await this.prisma.skill.findMany({
+      where: { projectId, id: { in: skillIds } },
+      select: {
+        id: true,
+        name: true,
+        version: true,
+      },
+    });
+    const byId = new Map(skills.map((skill) => [skill.id, skill]));
+    const resolveReference = <T extends SkillsAvailable[number]>(
+      ref: T,
+    ): T[] => {
+      if (!ref.langfuseSkillId) return [ref];
+      const skill = byId.get(ref.langfuseSkillId);
+      if (
+        !skill ||
+        skill.name !== ref.skillName ||
+        (ref.langfuseSkillVersion != null &&
+          skill.version !== ref.langfuseSkillVersion)
+      )
+        return [];
+      return [{ ...ref, langfuseSkillVersion: skill.version }];
+    };
+
+    return {
+      skills_available: availableSkills.flatMap(resolveReference),
+      skills_resource_loaded: loaded.flatMap(resolveReference),
+    };
   }
 
   private mergeRecords<T extends InsertRecord>(
@@ -2100,6 +2179,8 @@ export class IngestionService {
         prompt_id: prompt?.id,
         prompt_name: prompt?.name,
         prompt_version: prompt?.version,
+        skills_available: obs.body.skillsAvailable,
+        skills_resource_loaded: obs.body.skillsResourceLoaded,
         created_at: toClickhouseDateTime(),
         updated_at: toClickhouseDateTime(),
         event_ts: toClickhouseDateTime(obs.timestamp),

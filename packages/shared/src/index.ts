@@ -99,6 +99,7 @@ export * from "./features/prompts/constants";
 
 // skills
 export * from "./features/skills/types";
+export * from "./features/skills/trace";
 export * from "./features/skills/constants";
 
 export {

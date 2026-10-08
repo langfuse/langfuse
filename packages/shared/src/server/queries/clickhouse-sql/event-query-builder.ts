@@ -160,6 +160,10 @@ const EVENTS_FIELDS = {
   promptName: 'e.prompt_name as "prompt_name"',
   promptVersion: 'e.prompt_version as "prompt_version"',
 
+  // Skill fields
+  skillsAvailable: 'e.skills_available as "skills_available"',
+  skillsResourceLoaded: 'e.skills_resource_loaded as "skills_resource_loaded"',
+
   // Tool fields
   toolDefinitions: 'e.tool_definitions as "tool_definitions"',
   toolCalls: 'e.tool_calls as "tool_calls"',
@@ -252,6 +256,8 @@ const FIELD_SETS = {
     "promptId",
     "promptName",
     "promptVersion",
+    "skillsAvailable",
+    "skillsResourceLoaded",
     "internalModelId",
     "userId",
     "sessionId",
@@ -292,6 +298,8 @@ const FIELD_SETS = {
     "promptId",
     "promptName",
     "promptVersion",
+    "skillsAvailable",
+    "skillsResourceLoaded",
     "internalModelId",
     "userId",
     "sessionId",
@@ -332,6 +340,8 @@ const FIELD_SETS = {
   ],
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
+    "skillsAvailable",
+    "skillsResourceLoaded",
     "id",
     "traceId",
     "projectId",
