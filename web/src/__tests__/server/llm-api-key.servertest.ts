@@ -1822,7 +1822,7 @@ describe("llmApiKey.all RPC", () => {
       ).toBeNull();
     });
 
-    it("keeps evaluators and the default model when an organization fallback remains", async () => {
+    it("deletes a key-bound default model even when another connection has the same provider", async () => {
       await prisma.llmApiKeys.createMany({
         data: [
           {
@@ -1844,8 +1844,11 @@ describe("llmApiKey.all RPC", () => {
       const projectConnection = await prisma.llmApiKeys.findFirstOrThrow({
         where: { projectId, provider: PROVIDER },
       });
-      const evaluatorId = await createV2Evaluator([
+      const providerEvaluatorId = await createV2Evaluator([
         { provider: PROVIDER, model: "gpt-4o" },
+      ]);
+      const defaultModelEvaluatorId = await createV2Evaluator([
+        { provider: null, model: null },
       ]);
       await prisma.defaultLlmModel.create({
         data: {
@@ -1862,19 +1865,35 @@ describe("llmApiKey.all RPC", () => {
         id: projectConnection.id,
       });
 
-      expect(mockFinalizeEvaluatorBlocks).not.toHaveBeenCalled();
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledOnce();
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledWith({
+        projectId,
+        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]: [],
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]: [
+            defaultModelEvaluatorId,
+          ],
+        },
+      });
       expect(
         await prisma.evaluator.findUniqueOrThrow({
-          where: { id: evaluatorId },
+          where: { id: providerEvaluatorId },
           select: { blockedAt: true, blockReason: true },
         }),
       ).toEqual({ blockedAt: null, blockReason: null });
       expect(
-        await prisma.defaultLlmModel.findUniqueOrThrow({
-          where: { projectId },
-          select: { provider: true, llmApiKeyId: true },
+        await prisma.evaluator.findUniqueOrThrow({
+          where: { id: defaultModelEvaluatorId },
+          select: { blockedAt: true, blockReason: true },
         }),
-      ).toEqual({ provider: PROVIDER, llmApiKeyId: null });
+      ).toEqual({
+        blockedAt: expect.any(Date),
+        blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+      });
+      expect(
+        await prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+      ).toBeNull();
     });
   });
 });
