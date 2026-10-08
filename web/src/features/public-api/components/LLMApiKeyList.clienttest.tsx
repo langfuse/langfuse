@@ -48,7 +48,20 @@ vi.mock("@/src/utils/api", () => ({
       },
       delete: { useMutation: () => ({ isPending: false }) },
     },
-    useUtils: () => ({ llmApiKey: { invalidate: vi.fn() } }),
+    organizationLlmApiKey: {
+      all: {
+        useQuery: () => ({
+          data: { data: [] },
+          isLoading: false,
+          isError: false,
+        }),
+      },
+      delete: { useMutation: () => ({ isPending: false }) },
+    },
+    useUtils: () => ({
+      llmApiKey: { invalidate: vi.fn() },
+      organizationLlmApiKey: { invalidate: vi.fn() },
+    }),
   },
   reportNonTrpcError: vi.fn(),
 }));
