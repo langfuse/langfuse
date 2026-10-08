@@ -4,7 +4,6 @@
  */
 
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TabsBar, TabsBarList } from "@/src/components/ui/tabs-bar";
 import { traceHeaderFrameClassName } from "@/src/features/traces/components/TraceHeader";
 import { type TraceRenderContext } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { cn } from "@/src/utils/tailwind";
@@ -48,13 +47,11 @@ export function DetailPanelSkeleton() {
           <Skeleton className="h-3 w-16" />
         </div>
       </div>
-      <TabsBar value="preview" className="h-auto shrink-0">
-        <TabsBarList className="w-full gap-8 px-4">
-          <Skeleton className="h-3.5 w-14" />
-          <Skeleton className="h-3.5 w-16" />
-          <Skeleton className="h-3.5 w-12" />
-        </TabsBarList>
-      </TabsBar>
+      <div className="flex h-9 w-full shrink-0 items-center gap-8 border-b px-4">
+        <Skeleton className="h-3.5 w-14" />
+        <Skeleton className="h-3.5 w-16" />
+        <Skeleton className="h-3.5 w-12" />
+      </div>
       <div className="flex flex-col gap-6 px-4 pt-4">
         {[0, 1, 2].map((section) => (
           <div key={section} className="space-y-2">
