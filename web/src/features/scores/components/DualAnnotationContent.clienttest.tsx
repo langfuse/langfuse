@@ -479,13 +479,14 @@ describe("unified annotation targets", () => {
     );
     expect(
       within(screen.getByRole("group", { name: "Quality (Trace)" })).getByRole(
-        "radio",
+        "tab",
         { name: /True/ },
       ),
-    ).toHaveAttribute("aria-checked", "true");
-    expect(
-      within(quality).getByRole("radio", { name: /True/ }),
-    ).toHaveAttribute("aria-checked", "true");
+    ).toHaveAttribute("aria-selected", "true");
+    expect(within(quality).getByRole("tab", { name: /True/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(feedback).toHaveValue("Unsent feedback");
     expect(comment).toHaveValue("Unsent score comment");
     expect(mocks.create).not.toHaveBeenCalled();
@@ -527,28 +528,28 @@ describe("unified annotation targets", () => {
           companionTrace: { environment: "default", scores: [] },
         }),
       );
-    fireEvent.click(within(row).getByRole("radio", { name: /True/ }));
+    fireEvent.mouseDown(within(row).getByRole("tab", { name: /True/ }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
     refresh(0);
-    expect(within(row).getByRole("radio", { name: /True/ })).toHaveAttribute(
-      "aria-checked",
+    expect(within(row).getByRole("tab", { name: /True/ })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
     await act(async () => pending.resolve({}));
     refresh(0);
-    expect(within(row).getByRole("radio", { name: /True/ })).toHaveAttribute(
-      "aria-checked",
+    expect(within(row).getByRole("tab", { name: /True/ })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
     refresh(1);
     refresh(0);
-    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
-      "aria-checked",
+    expect(within(row).getByRole("tab", { name: /False/ })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
     refresh(0, false);
-    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
-      "aria-checked",
+    expect(within(row).getByRole("tab", { name: /False/ })).toHaveAttribute(
+      "aria-selected",
       "false",
     );
     expect(mocks.update).toHaveBeenCalledOnce();
@@ -578,8 +579,8 @@ describe("unified annotation targets", () => {
     ).not.toBeInTheDocument();
 
     refresh(1);
-    expect(screen.getByRole("radio", { name: /True/ })).toHaveAttribute(
-      "aria-checked",
+    expect(screen.getByRole("tab", { name: /True/ })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
   });
@@ -587,7 +588,7 @@ describe("unified annotation targets", () => {
   it("hides the score comment portal without losing its unsaved draft", async () => {
     mocks.create.mockResolvedValue({});
     const rendered = renderContent();
-    fireEvent.click(screen.getByRole("radio", { name: /True/ }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /True/ }));
     await waitFor(() =>
       expect(
         screen.getByRole("status", { name: "Score save status" }),
@@ -613,7 +614,7 @@ describe("unified annotation targets", () => {
     try {
       mocks.create.mockResolvedValue({});
       renderContent();
-      fireEvent.click(screen.getByRole("radio", { name: /True/ }));
+      fireEvent.mouseDown(screen.getByRole("tab", { name: /True/ }));
       await waitFor(() =>
         expect(
           screen.getByRole("status", { name: "Score save status" }),
@@ -688,7 +689,7 @@ describe("unified annotation targets", () => {
       targetType: "trace",
       dataType: "BOOLEAN",
     });
-    fireEvent.click(screen.getByRole("radio", { name: /True/ }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /True/ }));
     await waitFor(() =>
       expect(mocks.create).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
@@ -724,11 +725,12 @@ describe("unified annotation targets", () => {
     });
     const traceRow = screen.getByRole("group", { name: "Quality (Trace)" });
     expect(
-      within(observationRow).getByRole("radio", { name: /True/ }),
-    ).toHaveAttribute("aria-checked", "false");
-    expect(
-      within(traceRow).getByRole("radio", { name: /True/ }),
-    ).toHaveAttribute("aria-checked", "true");
+      within(observationRow).getByRole("tab", { name: /True/ }),
+    ).toHaveAttribute("aria-selected", "false");
+    expect(within(traceRow).getByRole("tab", { name: /True/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     fireEvent.keyDown(
       within(traceRow).getByRole("button", { name: /Score actions/ }),
       { key: "ArrowDown" },
@@ -909,11 +911,12 @@ describe("unified annotation targets", () => {
       ]),
     );
     expect(
-      within(observationRow).getByRole("radio", { name: /False/ }),
-    ).toHaveAttribute("aria-checked", "true");
-    expect(
-      within(traceRow).getByRole("radio", { name: /True/ }),
-    ).toHaveAttribute("aria-checked", "true");
+      within(observationRow).getByRole("tab", { name: /False/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(within(traceRow).getByRole("tab", { name: /True/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("restores a categorical score after a failed clear and keeps its field after retry", async () => {
@@ -969,8 +972,8 @@ describe("unified annotation targets", () => {
       name: "Quality (Observation)",
     });
     expect(
-      within(restored).getByRole("radio", { name: /False/ }),
-    ).toHaveAttribute("aria-checked", "true");
+      within(restored).getByRole("tab", { name: /False/ }),
+    ).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(
       screen.getByRole("button", {
         name: "Score actions for Quality (Observation)",
@@ -991,12 +994,14 @@ describe("unified annotation targets", () => {
     const cleared = screen.getByRole("group", {
       name: "Quality (Observation)",
     });
-    expect(
-      within(cleared).getByRole("radio", { name: /False/ }),
-    ).toHaveAttribute("aria-checked", "false");
-    expect(
-      within(traceRow).getByRole("radio", { name: /True/ }),
-    ).toHaveAttribute("aria-checked", "true");
+    expect(within(cleared).getByRole("tab", { name: /False/ })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    expect(within(traceRow).getByRole("tab", { name: /True/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     fireEvent.keyDown(
       screen.getByRole("button", {
         name: "Score actions for Quality (Observation)",
@@ -1019,22 +1024,22 @@ describe("unified annotation targets", () => {
       .mockReturnValueOnce(newer.promise);
     renderContent();
     const row = screen.getByRole("group", { name: "Quality" });
-    fireEvent.click(within(row).getByRole("radio", { name: /False/ }));
+    fireEvent.mouseDown(within(row).getByRole("tab", { name: /False/ }));
     await waitFor(() =>
       expect(
         screen.getByRole("status", { name: "Score save status" }),
       ).toHaveTextContent("Saved"),
     );
-    fireEvent.click(within(row).getByRole("radio", { name: /True/ }));
-    fireEvent.click(within(row).getByRole("radio", { name: /False/ }));
+    fireEvent.mouseDown(within(row).getByRole("tab", { name: /True/ }));
+    fireEvent.mouseDown(within(row).getByRole("tab", { name: /False/ }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(2));
     await act(async () => newer.resolve({}));
     await act(async () => older.reject(new Error("Earlier edit failed")));
     expect(
       screen.getByRole("status", { name: "Score save status" }),
     ).toHaveTextContent("Saved");
-    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
-      "aria-checked",
+    expect(within(row).getByRole("tab", { name: /False/ })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
   });
@@ -1056,10 +1061,10 @@ describe("unified annotation targets", () => {
         name: "Quality (Observation)",
       });
       const traceRow = screen.getByRole("group", { name: "Quality (Trace)" });
-      fireEvent.click(
-        within(observationRow).getByRole("radio", { name: /False/ }),
+      fireEvent.mouseDown(
+        within(observationRow).getByRole("tab", { name: /False/ }),
       );
-      fireEvent.click(within(traceRow).getByRole("radio", { name: /True/ }));
+      fireEvent.mouseDown(within(traceRow).getByRole("tab", { name: /True/ }));
       await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
       expect(
         screen.getByRole("status", { name: "Score save status" }),
@@ -1074,11 +1079,11 @@ describe("unified annotation targets", () => {
         ).toHaveTextContent(retryWhilePending ? "Saving" : "Could not save"),
       );
       expect(
-        within(observationRow).getByRole("radio", { name: /False/ }),
-      ).toHaveAttribute("aria-checked", "false");
+        within(observationRow).getByRole("tab", { name: /False/ }),
+      ).toHaveAttribute("aria-selected", "false");
       expect(
-        within(traceRow).getByRole("radio", { name: /True/ }),
-      ).toHaveAttribute("aria-checked", "true");
+        within(traceRow).getByRole("tab", { name: /True/ }),
+      ).toHaveAttribute("aria-selected", "true");
       act(() => observationRow.focus());
       fireEvent.keyDown(observationRow, { key: "1" });
       await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(3));
@@ -1096,9 +1101,9 @@ describe("unified annotation targets", () => {
     const pending = deferred();
     mocks.create.mockReturnValueOnce(pending.promise).mockResolvedValue({});
     await renderBothTargets();
-    fireEvent.click(
+    fireEvent.mouseDown(
       within(screen.getByRole("group", { name: "Quality (Trace)" })).getByRole(
-        "radio",
+        "tab",
         { name: /True/ },
       ),
     );
@@ -1115,10 +1120,10 @@ describe("unified annotation targets", () => {
     await act(async () => pending.reject(new Error("Trace save failed")));
     const remaining = screen.getByRole("group", { name: "Quality" });
     expect(
-      within(remaining).getByRole("radio", { name: /True/ }),
-    ).toHaveAttribute("aria-checked", "false");
+      within(remaining).getByRole("tab", { name: /True/ }),
+    ).toHaveAttribute("aria-selected", "false");
     expect(within(remaining).getByText("Failed to create score")).toBeVisible();
-    fireEvent.click(within(remaining).getByRole("radio", { name: /False/ }));
+    fireEvent.mouseDown(within(remaining).getByRole("tab", { name: /False/ }));
     await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
     expect(mocks.create).toHaveBeenLastCalledWith(
       expect.objectContaining({
