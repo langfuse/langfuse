@@ -35,7 +35,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { showSuccessToast } from "@/src/features/notifications";
 import { cn } from "@/src/utils/tailwind";
 
@@ -277,13 +277,14 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           <div className="rounded-md border p-3">
             <div className="flex items-center gap-2">
               <div className="flex-1">
-                <CodeView
-                  className="bg-muted/50"
-                  content={
+                <CodeSection
+                  variant="outline"
+                  copyValue={
                     (action.config as SafeWebhookActionConfig).displaySecretKey
                   }
-                  defaultCollapsed={false}
-                />
+                >
+                  {(action.config as SafeWebhookActionConfig).displaySecretKey}
+                </CodeSection>
               </div>
               <div className="flex gap-2">
                 <RegenerateWebhookSecretButton

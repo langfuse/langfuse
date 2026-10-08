@@ -1,8 +1,8 @@
 import startCase from "lodash/startCase";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import Header from "@/src/components/layouts/header";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { ConnectedApiKeySettingsTable } from "@/src/features/public-api/components/ApiKeySettingsTable/ConnectedApiKeySettingsTable";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
@@ -72,11 +72,14 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           ) : undefined
         }
       />
-      <CodeView
-        content={envCode}
+      <CodeSection
         title=".env"
-        copiedToClipboardMessage="Secrets are not included, create a new key to copy them."
-      />
+        variant="outline"
+        copyValue={envCode}
+        copiedMessage="Secrets are not included, create a new key to copy them."
+      >
+        {envCode}
+      </CodeSection>
       <ConnectedApiKeySettingsTable
         entityId={entityId}
         scope={scope}

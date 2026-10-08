@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { SubHeader } from "@/src/components/layouts/header";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import { getLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { cn } from "@/src/utils/tailwind";
@@ -40,15 +40,27 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           This key can only be viewed once. You can always create new keys in
           the {scope} settings.
         </div>
-        <CodeView content={secretKey} className="mt-2" />
+        <div className="mt-2">
+          <CodeSection variant="outline" copyValue={secretKey}>
+            {secretKey}
+          </CodeSection>
+        </div>
       </div>
       <div>
         <SubHeader title="Public Key" />
-        <CodeView content={publicKey} className="mt-2" />
+        <div className="mt-2">
+          <CodeSection variant="outline" copyValue={publicKey}>
+            {publicKey}
+          </CodeSection>
+        </div>
       </div>
       <div>
         <SubHeader title=".env" />
-        <CodeView content={envCode} className="mt-2" />
+        <div className="mt-2">
+          <CodeSection variant="outline" copyValue={envCode}>
+            {envCode}
+          </CodeSection>
+        </div>
       </div>
       {showMcpSection ? (
         <>
@@ -70,11 +82,15 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
             </p>
             <div className="mt-4">
               <Label>Header</Label>
-              <CodeView
-                content={`Authorization: Basic ${mcpCredential}`}
-                className="mt-2"
-                lineWrap={false}
-              />
+              <div className="mt-2">
+                <CodeSection
+                  variant="outline"
+                  copyValue={`Authorization: Basic ${mcpCredential}`}
+                  shouldWrapLines={false}
+                >
+                  {`Authorization: Basic ${mcpCredential}`}
+                </CodeSection>
+              </div>
             </div>
           </div>
         </>
