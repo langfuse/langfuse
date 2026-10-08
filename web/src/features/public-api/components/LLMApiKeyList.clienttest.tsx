@@ -4,6 +4,12 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { api } from "@/src/utils/api";
 import { LlmApiKeyList } from "./LLMApiKeyList";
 
+const organizationQueryResult = vi.hoisted(() => ({
+  data: { data: [] },
+  isLoading: false,
+  isError: false,
+}));
+
 vi.mock("@/src/components/layouts/header", () => ({
   default: () => null,
 }));
@@ -50,11 +56,7 @@ vi.mock("@/src/utils/api", () => ({
     },
     organizationLlmApiKey: {
       all: {
-        useQuery: () => ({
-          data: { data: [] },
-          isLoading: false,
-          isError: false,
-        }),
+        useQuery: () => organizationQueryResult,
       },
       delete: { useMutation: () => ({ isPending: false }) },
     },

@@ -74,6 +74,7 @@ function InheritedLlmConnections({ projectId }: { projectId: string }) {
         createAction={{ hasAccess: false, onClick: () => undefined }}
         deleteAction={{ hasAccess: false, onClick: () => undefined }}
         updateAction={{ hasAccess: false, onClick: () => undefined }}
+        tableName="Inherited LLM connections"
         data={tableData}
         noResultsMessage="No organization connections"
       />

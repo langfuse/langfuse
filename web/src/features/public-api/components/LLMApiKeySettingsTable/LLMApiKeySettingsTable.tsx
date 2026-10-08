@@ -18,6 +18,7 @@ export type LLMApiKeySettingsTableRow = LlmApiKeyListItem & {
 export function LLMApiKeySettingsTable({
   createAction,
   deleteAction,
+  tableName = "LLM connections",
   updateAction,
   ...tableProps
 }: Pick<
@@ -33,6 +34,7 @@ export function LLMApiKeySettingsTable({
     hasAccess: boolean;
     onClick: (apiKey: LLMApiKeySettingsTableRow) => void;
   };
+  tableName?: string;
 }) {
   const showExtraHeaderKeys =
     tableProps.data.status === "success" &&
@@ -142,7 +144,7 @@ export function LLMApiKeySettingsTable({
 
   return (
     <SettingsTable
-      tableName="LLM connections"
+      tableName={tableName}
       columns={columns}
       actions={actions}
       toolbarActions={toolbarActions}
