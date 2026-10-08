@@ -69,8 +69,18 @@ export class LlmConnectionRepository {
     });
   }
 
-  count(owner: LlmConnectionOwner): Promise<number> {
-    return this.db.llmApiKeys.count({ where: ownerWhere(owner) });
+  count(params: {
+    owner: LlmConnectionOwner;
+    includeDecisionModels: boolean;
+  }): Promise<number> {
+    return this.db.llmApiKeys.count({
+      where: {
+        ...ownerWhere(params.owner),
+        ...(params.includeDecisionModels
+          ? {}
+          : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
+      },
+    });
   }
 
   async listOrganizationConnectionsForProject(params: {

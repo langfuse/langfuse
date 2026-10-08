@@ -1,6 +1,6 @@
-import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
 import {
   GetLlmConnectionsV1Query,
   GetLlmConnectionsV1Response,
@@ -8,16 +8,6 @@ import {
   PutLlmConnectionV1Response,
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
-import { encrypt } from "@langfuse/shared/encryption";
-import { getDisplaySecretKey } from "@/src/features/llm-api-key/server/llmConnectionService";
-import { auditLog } from "@/src/features/audit-logs/server";
-import {
-  InvalidRequestError,
-  BEDROCK_USE_DEFAULT_CREDENTIALS,
-  LLMAdapter,
-} from "@langfuse/shared";
-import { validateLlmConnectionBaseURL } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -27,52 +17,23 @@ export default withMiddlewares({
     responseSchema: GetLlmConnectionsV1Response,
     isAdminApiKeyAuthAllowed: true,
     fn: async ({ query, auth }) => {
-      const { limit, page } = query;
-
-      // Explicitly select only safe fields to prevent secret leakage
-      const llmConnections = await prisma.llmApiKeys.findMany({
-        select: {
-          id: true,
-          provider: true,
-          adapter: true,
-          displaySecretKey: true,
-          baseURL: true,
-          customModels: true,
-          withDefaultModels: true,
-          extraHeaderKeys: true,
-          config: true,
-          createdAt: true,
-          updatedAt: true,
-          // Explicitly exclude: secretKey, extraHeaders
-        },
-        where: {
+      const result = await new LlmConnectionService().list({
+        owner: {
+          type: "project",
           projectId: auth.scope.projectId,
+          organizationId: auth.scope.orgId,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: limit,
-        skip: (page - 1) * limit,
+        page: query.page,
+        limit: query.limit,
       });
-
-      const totalItems = await prisma.llmApiKeys.count({
-        where: {
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      // Transform and validate through strict schema
-      const transformedConnections = llmConnections.map(
-        transformDbLlmConnectionToAPI,
-      );
 
       return {
-        data: transformedConnections,
+        data: result.data.map(transformDbLlmConnectionToAPI),
         meta: {
-          page,
-          limit,
-          totalItems,
-          totalPages: Math.ceil(totalItems / limit),
+          page: query.page,
+          limit: query.limit,
+          totalItems: result.totalCount,
+          totalPages: Math.ceil(result.totalCount / query.limit),
         },
       };
     },
@@ -85,101 +46,22 @@ export default withMiddlewares({
     responseSchema: PutLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,
     fn: async ({ body, auth, res }) => {
-      const projectId = auth.scope.projectId;
-
-      const existingConnection = await prisma.llmApiKeys.findUnique({
-        where: {
-          projectId_provider: {
-            projectId,
-            provider: body.provider,
-          },
+      const result = await new LlmConnectionService().upsert({
+        owner: {
+          type: "project",
+          projectId: auth.scope.projectId,
+          organizationId: auth.scope.orgId,
         },
-        select: { id: true, baseURL: true },
-      });
-
-      const isUpdate = Boolean(existingConnection);
-
-      if (body.baseURL && body.baseURL !== existingConnection?.baseURL) {
-        try {
-          await validateLlmConnectionBaseURL(body.baseURL);
-        } catch (error) {
-          throw new InvalidRequestError(
-            `Invalid baseURL: ${error instanceof Error ? error.message : "Unknown error"}`,
-          );
-        }
-      }
-
-      const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-
-      if (body.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-        if (isLangfuseCloud || body.adapter !== LLMAdapter.Bedrock) {
-          throw new InvalidRequestError(
-            "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
-          );
-        }
-      }
-
-      const llmConnectionBody = {
-        adapter: body.adapter,
-        secretKey: encrypt(body.secretKey),
-        displaySecretKey: getDisplaySecretKey(body.secretKey),
-        baseURL: body.baseURL || null,
-        customModels: body.customModels || [],
-        withDefaultModels: body.withDefaultModels,
-        extraHeaders: body.extraHeaders
-          ? encrypt(JSON.stringify(body.extraHeaders))
-          : null,
-        extraHeaderKeys: body.extraHeaders
-          ? Object.keys(body.extraHeaders)
-          : [],
-        config: body.config,
-      };
-
-      // Perform upsert
-      const connection = await prisma.llmApiKeys.upsert({
-        where: {
-          projectId_provider: {
-            projectId,
-            provider: body.provider,
-          },
-        },
-        create: {
-          projectId,
-          provider: body.provider,
-          ...llmConnectionBody,
-        },
-        update: llmConnectionBody,
-        select: {
-          id: true,
-          provider: true,
-          adapter: true,
-          displaySecretKey: true,
-          baseURL: true,
-          customModels: true,
-          withDefaultModels: true,
-          extraHeaderKeys: true,
-          config: true,
-          createdAt: true,
-          updatedAt: true,
-          // Explicitly exclude: secretKey, extraHeaders
+        input: body,
+        actor: {
+          projectId: auth.scope.projectId,
+          orgId: auth.scope.orgId,
+          apiKeyId: auth.scope.apiKeyId,
         },
       });
 
-      // Set appropriate status code
-      res.status(isUpdate ? 200 : 201);
-
-      // Add audit log entry
-      await auditLog({
-        action: isUpdate ? "update" : "create",
-        resourceType: "llmApiKey",
-        resourceId: connection.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-      });
-
-      // Transform and validate through strict schema
-      return transformDbLlmConnectionToAPI(connection);
+      res.status(result.created ? 201 : 200);
+      return transformDbLlmConnectionToAPI(result.connection);
     },
   }),
 });

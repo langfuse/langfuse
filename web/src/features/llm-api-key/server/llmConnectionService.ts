@@ -236,7 +236,7 @@ async function validateBaseUrl(params: {
     await validateLlmConnectionBaseURL(params.baseURL);
   } catch (error) {
     throw new InvalidRequestError(
-      `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Invalid baseURL: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -415,7 +415,10 @@ export class LlmConnectionService {
             ? (params.page - 1) * params.limit
             : undefined,
       }),
-      this.repository.count(params.owner),
+      this.repository.count({
+        owner: params.owner,
+        includeDecisionModels,
+      }),
     ]);
 
     return {
