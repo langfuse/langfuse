@@ -274,6 +274,7 @@ function DatasetCompareRunsTableInternal(props: {
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
         customRowHeights={{
           s: "h-48",
           m: "h-64",

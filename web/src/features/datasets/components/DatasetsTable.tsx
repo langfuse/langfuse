@@ -679,6 +679,7 @@ export function DatasetsTable(props: { projectId: string }) {
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

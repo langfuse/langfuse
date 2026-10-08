@@ -795,6 +795,7 @@ export default function EvaluatorsPage() {
                   rowHeight={rowHeight}
                   customRowHeightPx={rowHeights.activeHeightPx}
                   onCustomRowHeightChange={rowHeights.setCustomPx}
+                  onSelectRowHeight={setRowHeight}
                   orderBy={orderBy}
                   setOrderBy={handleOrderByChange}
                   onRowClick={(row) =>

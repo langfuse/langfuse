@@ -20,11 +20,12 @@ import {
   type CustomHeights,
   type RowHeight,
   MAX_CUSTOM_ROW_HEIGHT_PX,
-  MIN_CUSTOM_ROW_HEIGHT_PX,
   RowHeightRenderingProvider,
   clampCustomRowHeightPx,
   getRowHeightTailwindClass,
+  minCustomRowHeightPx,
   resolveRowHeightRendering,
+  rowHeightPresetForPx,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -135,6 +136,11 @@ interface DataTableProps<TData, TValue> {
    * stay on presets, including embedded previews that force a small row.
    */
   onCustomRowHeightChange?: (heightPx: number) => void;
+  /**
+   * Called when a drag ends on a preset's pixel height. The row then uses
+   * that preset. Without this, the same height is stored as a free height.
+   */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
@@ -264,6 +270,7 @@ export function DataTable<TData extends object, TValue>({
   customRowHeights,
   customRowHeightPx,
   onCustomRowHeightChange,
+  onSelectRowHeight,
   className,
   shouldRenderGroupHeaders = false,
   onRowClick,
@@ -283,9 +290,25 @@ export function DataTable<TData extends object, TValue>({
   const rowResizeEnabled = onCustomRowHeightChange != null;
   const onCustomRowHeightChangeRef = useRef(onCustomRowHeightChange);
   onCustomRowHeightChangeRef.current = onCustomRowHeightChange;
+  const onSelectRowHeightRef = useRef(onSelectRowHeight);
+  onSelectRowHeightRef.current = onSelectRowHeight;
+  const customRowHeightsRef = useRef(customRowHeights);
+  customRowHeightsRef.current = customRowHeights;
   const capture = usePostHogClientCapture();
   const commitCustomRowHeight = useCallback(
     (heightPx: number) => {
+      const matched = rowHeightPresetForPx(
+        heightPx,
+        customRowHeightsRef.current,
+      );
+      if (matched && onSelectRowHeightRef.current) {
+        capture("table:row_height_switch_select", {
+          rowHeight: matched,
+          tableName,
+        });
+        onSelectRowHeightRef.current(matched);
+        return;
+      }
       capture("table:row_height_switch_select", {
         rowHeight: "custom",
         heightPx,
@@ -1022,6 +1045,7 @@ function TableBodyComponent<TData>({
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
   const [measuredPx, setMeasuredPx] = useState<number | undefined>(undefined);
   const effectiveRowHeightPx = previewPx ?? rowHeightPx;
+  const minRowHeightPx = minCustomRowHeightPx(customRowHeights);
 
   useLayoutEffect(() => {
     if (!rowResizeEnabled) return;
@@ -1062,7 +1086,10 @@ function TableBodyComponent<TData>({
     if (!drag || event.pointerId !== drag.pointerId) return;
     event.preventDefault();
     setPreviewPx(
-      clampCustomRowHeightPx(drag.startHeight + (event.clientY - drag.startY)),
+      clampCustomRowHeightPx(
+        drag.startHeight + (event.clientY - drag.startY),
+        minRowHeightPx,
+      ),
     );
   };
 
@@ -1072,6 +1099,7 @@ function TableBodyComponent<TData>({
     dragRef.current = null;
     const next = clampCustomRowHeightPx(
       drag.startHeight + (event.clientY - drag.startY),
+      minRowHeightPx,
     );
     setPreviewPx(null);
     if (next !== Math.round(drag.startHeight)) {
@@ -1102,13 +1130,13 @@ function TableBodyComponent<TData>({
       effectiveRowHeightPx ??
       measuredPx ??
       sized?.getBoundingClientRect().height ??
-      MIN_CUSTOM_ROW_HEIGHT_PX;
+      minRowHeightPx;
     const current = previewCommitRef.current ?? fallback;
     if (keyGestureStartRef.current == null) {
       keyGestureStartRef.current = current;
     }
     const delta = event.key === "ArrowDown" ? 16 : -16;
-    const next = clampCustomRowHeightPx(current + delta);
+    const next = clampCustomRowHeightPx(current + delta, minRowHeightPx);
     previewCommitRef.current = next;
     setPreviewPx(next);
   };
@@ -1278,9 +1306,7 @@ function TableBodyComponent<TData>({
                         role={primary ? "slider" : undefined}
                         aria-orientation={primary ? "vertical" : undefined}
                         aria-label={primary ? "Row height" : undefined}
-                        aria-valuemin={
-                          primary ? MIN_CUSTOM_ROW_HEIGHT_PX : undefined
-                        }
+                        aria-valuemin={primary ? minRowHeightPx : undefined}
                         aria-valuemax={
                           primary ? MAX_CUSTOM_ROW_HEIGHT_PX : undefined
                         }

@@ -458,6 +458,7 @@ export default function PromptMetricsPage({
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </Page>
   );

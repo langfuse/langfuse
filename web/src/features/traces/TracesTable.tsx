@@ -1631,6 +1631,7 @@ function TracesTableInternal({
               onCustomRowHeightChange={
                 hideControls ? undefined : rowHeights.setCustomPx
               }
+              onSelectRowHeight={hideControls ? undefined : setRowHeight}
               peekView={peekConfig}
               tableName="traces"
             />

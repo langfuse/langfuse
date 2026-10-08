@@ -46,12 +46,13 @@ describe("resolveStoredRowHeight", () => {
   });
 
   it("clamps a free height into the supported range", () => {
-    expect(clampCustomRowHeightPx(10)).toBe(48);
+    expect(clampCustomRowHeightPx(10)).toBe(28);
+    expect(clampCustomRowHeightPx(10, 96)).toBe(96);
     expect(clampCustomRowHeightPx(9000)).toBe(4000);
     expect(
       resolveStoredRowHeight({ preset: "s", mode: "custom", customPx: 12 }, "s")
         .customPx,
-    ).toBe(48);
+    ).toBe(28);
   });
 });
 

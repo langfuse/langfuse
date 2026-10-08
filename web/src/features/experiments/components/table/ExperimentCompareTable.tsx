@@ -52,6 +52,8 @@ type ExperimentCompareTableProps = {
   customRowHeightPx?: number | null;
   /** Dragging a row edge sets one height for every run column. */
   onCustomRowHeightChange?: (heightPx: number) => void;
+  /** Selects a preset when a drag lands on that preset's height. */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
   peekView?: DataTablePeekViewProps;
   noResultsMessage?: ReactNode;
   highlightAllRows?: boolean;
@@ -75,6 +77,7 @@ export const ExperimentCompareTable = ({
   rowHeight,
   customRowHeightPx,
   onCustomRowHeightChange,
+  onSelectRowHeight,
   peekView,
   noResultsMessage,
   highlightAllRows,
@@ -114,6 +117,7 @@ export const ExperimentCompareTable = ({
       customRowHeights={LIST_VIEW_ROW_HEIGHTS}
       customRowHeightPx={customRowHeightPx}
       onCustomRowHeightChange={onCustomRowHeightChange}
+      onSelectRowHeight={onSelectRowHeight}
       topAlignCells
       highlightAllRows={highlightAllRows}
     />

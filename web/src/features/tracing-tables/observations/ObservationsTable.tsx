@@ -1516,6 +1516,7 @@ export default function ObservationsTable({
               onCustomRowHeightChange={
                 hideControls ? undefined : rowHeights.setCustomPx
               }
+              onSelectRowHeight={hideControls ? undefined : setRowHeight}
               onRowClick={(row, event) => {
                 // Handle Command/Ctrl+click to open observation in new tab
                 if (event && (event.metaKey || event.ctrlKey)) {

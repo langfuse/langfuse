@@ -281,6 +281,7 @@ export function DatasetRunItemsByItemTable(props: {
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

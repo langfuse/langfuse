@@ -510,6 +510,7 @@ export function AnnotationQueueItemsTable({
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

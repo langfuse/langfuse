@@ -1004,6 +1004,7 @@ export default function SessionsTable({
               rowHeight={rowHeight}
               customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
             />
           </div>
         </StickySearchableTableFilterLayout>

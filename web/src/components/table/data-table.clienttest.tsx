@@ -230,6 +230,123 @@ describe("DataTable custom row height", () => {
     expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(216);
   });
 
+  it("shrinks a Small row back to Small in the same drag", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(28),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    const onSelectRowHeight = vi.fn();
+    render(
+      <DataTable
+        tableName="traces"
+        columns={columns}
+        hidePagination
+        rowHeight="s"
+        onCustomRowHeightChange={onCustomRowHeightChange}
+        onSelectRowHeight={onSelectRowHeight}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    expect(handle).toHaveAttribute("aria-valuemin", "28");
+    act(() => {
+      pointAt(handle, "pointerdown", 100);
+      pointAt(handle, "pointermove", 240);
+    });
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveStyle({ height: "168px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointermove", -40);
+    });
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveStyle({ height: "28px", maxHeight: "28px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointerup", -40);
+    });
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(onSelectRowHeight).not.toHaveBeenCalled();
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveClass("h-7");
+    }
+  });
+
+  it("selects Small when a second drag shrinks a free height down to it", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(168),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    const onSelectRowHeight = vi.fn();
+    render(
+      <DataTable
+        tableName="traces"
+        columns={columns}
+        hidePagination
+        rowHeight="s"
+        customRowHeightPx={168}
+        onCustomRowHeightChange={onCustomRowHeightChange}
+        onSelectRowHeight={onSelectRowHeight}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 400);
+      pointAt(handle, "pointermove", 0);
+    });
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveStyle({ height: "28px", maxHeight: "28px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointerup", 0);
+    });
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(onSelectRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+  });
+
+  it("uses a taller Small preset as the floor instead of the default 28px", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(332),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    const onSelectRowHeight = vi.fn();
+    render(
+      <DataTable
+        tableName="experiment-grid"
+        columns={columns}
+        hidePagination
+        rowHeight="m"
+        customRowHeightPx={332}
+        customRowHeights={{ s: "h-48", m: "h-64", l: "h-96" }}
+        onCustomRowHeightChange={onCustomRowHeightChange}
+        onSelectRowHeight={onSelectRowHeight}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    expect(handle).toHaveAttribute("aria-valuemin", "192");
+    act(() => {
+      pointAt(handle, "pointerdown", 500);
+      pointAt(handle, "pointermove", 0);
+    });
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveStyle({ height: "192px", maxHeight: "192px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointerup", 0);
+    });
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(onSelectRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+  });
+
   it("shrinks a custom height back below Medium and returns string cells to one line", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
       () => rect(208),

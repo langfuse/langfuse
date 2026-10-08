@@ -721,6 +721,7 @@ function DatasetRunsTableInternal(
               rowHeight={rowHeight}
               customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
               rowSelection={selectedRows}
               setRowSelection={setSelectedRows}
             />
@@ -789,6 +790,7 @@ function DatasetRunsTableInternal(
             rowHeight={rowHeight}
             customRowHeightPx={rowHeights.activeHeightPx}
             onCustomRowHeightChange={rowHeights.setCustomPx}
+            onSelectRowHeight={setRowHeight}
             rowSelection={selectedRows}
             setRowSelection={setSelectedRows}
           />

@@ -57,6 +57,8 @@ type ExperimentGridViewProps = {
   customRowHeightPx?: number | null;
   /** Dragging a row edge sets one height for every run column. */
   onCustomRowHeightChange?: (heightPx: number) => void;
+  /** Selects a preset when a drag lands on that preset's height. */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
   /** Whether any item in view has an expected output worth a column. */
   showExpectedOutput: boolean;
   observationScoreOrder: string[];
@@ -94,6 +96,7 @@ export const ExperimentGridView = ({
   rowHeight,
   customRowHeightPx,
   onCustomRowHeightChange,
+  onSelectRowHeight,
   showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
@@ -374,6 +377,7 @@ export const ExperimentGridView = ({
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
       customRowHeightPx={customRowHeightPx}
       onCustomRowHeightChange={onCustomRowHeightChange}
+      onSelectRowHeight={onSelectRowHeight}
       topAlignCells
       peekView={peekView}
       columnVisibility={columnVisibility}

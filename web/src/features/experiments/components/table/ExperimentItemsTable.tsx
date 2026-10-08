@@ -2199,6 +2199,7 @@ export default function ExperimentItemsTable({
                   onCustomRowHeightChange={
                     hideControls ? undefined : setCustomPx
                   }
+                  onSelectRowHeight={hideControls ? undefined : setRowHeight}
                   showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
@@ -2246,6 +2247,7 @@ export default function ExperimentItemsTable({
                 rowHeight={rowHeight}
                 customRowHeightPx={activeHeightPx}
                 onCustomRowHeightChange={hideControls ? undefined : setCustomPx}
+                onSelectRowHeight={hideControls ? undefined : setRowHeight}
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (

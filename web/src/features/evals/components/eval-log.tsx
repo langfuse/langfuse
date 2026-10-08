@@ -340,6 +340,7 @@ export default function EvalLogTable({
               rowHeight={rowHeight}
               customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
             />
           </div>
         </SearchableTableFilterLayout>

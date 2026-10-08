@@ -441,6 +441,7 @@ export function DatasetItemsTable({
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
       <EditDatasetItemDialog
         open={editDialogOpen}

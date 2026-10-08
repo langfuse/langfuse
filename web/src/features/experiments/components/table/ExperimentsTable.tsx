@@ -1167,6 +1167,7 @@ export default function ExperimentsTable({
                   rowHeight={rowHeight}
                   customRowHeightPx={rowHeights.activeHeightPx}
                   onCustomRowHeightChange={rowHeights.setCustomPx}
+                  onSelectRowHeight={setRowHeight}
                   onRowClick={(row, event) => {
                     // Handle Command/Ctrl+click to open experiment in new tab
                     if (event && (event.metaKey || event.ctrlKey)) {

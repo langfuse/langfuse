@@ -1388,6 +1388,7 @@ export default function ScoresTable({
                 rowHeight={rowHeight}
                 customRowHeightPx={rowHeights.activeHeightPx}
                 onCustomRowHeightChange={rowHeights.setCustomPx}
+                onSelectRowHeight={setRowHeight}
               />
             )}
           </div>

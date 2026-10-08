@@ -35,8 +35,12 @@ const defaultHeights: Record<RowHeight, string> = {
 export type RowHeight = (typeof ROW_HEIGHT_OPTIONS)[number]["id"];
 export type CustomHeights = Record<RowHeight, string>;
 
-/** Free row heights stay inside this range. Below it a row stops being readable; above it the page is mostly one cell. */
-export const MIN_CUSTOM_ROW_HEIGHT_PX = 48;
+/**
+ * Shortest free height on the default table. It is the Small preset (`h-7`),
+ * so a drag can land on Small. A table with a taller Small uses that height
+ * as its own floor.
+ */
+export const MIN_CUSTOM_ROW_HEIGHT_PX = 28;
 export const MAX_CUSTOM_ROW_HEIGHT_PX = 4_000;
 
 const ROW_HEIGHT_IDS = new Set<string>(
@@ -75,11 +79,17 @@ export type CustomRowHeightControl = {
 const isRowHeight = (value: unknown): value is RowHeight =>
   typeof value === "string" && ROW_HEIGHT_IDS.has(value);
 
-export function clampCustomRowHeightPx(heightPx: number): number {
-  if (!Number.isFinite(heightPx)) return MIN_CUSTOM_ROW_HEIGHT_PX;
+export function clampCustomRowHeightPx(
+  heightPx: number,
+  minPx: number = MIN_CUSTOM_ROW_HEIGHT_PX,
+): number {
+  const floor = Number.isFinite(minPx)
+    ? Math.round(minPx)
+    : MIN_CUSTOM_ROW_HEIGHT_PX;
+  if (!Number.isFinite(heightPx)) return floor;
   return Math.min(
     MAX_CUSTOM_ROW_HEIGHT_PX,
-    Math.max(MIN_CUSTOM_ROW_HEIGHT_PX, Math.round(heightPx)),
+    Math.max(floor, Math.round(heightPx)),
   );
 }
 
@@ -152,6 +162,26 @@ function rowHeightPresetPx(
  */
 export function mediumRowHeightPx(customHeights?: CustomHeights): number {
   return rowHeightPresetPx("m", customHeights);
+}
+
+/** Shortest height a drag on this table can commit. Matches its Small preset. */
+export function minCustomRowHeightPx(customHeights?: CustomHeights): number {
+  return rowHeightPresetPx("s", customHeights);
+}
+
+/**
+ * Preset whose pixel height is `heightPx`, if any. A drag that lands on one
+ * selects that preset, so the row is the preset and not a copy of it.
+ */
+export function rowHeightPresetForPx(
+  heightPx: number,
+  customHeights?: CustomHeights,
+): RowHeight | null {
+  const rounded = Math.round(heightPx);
+  for (const preset of ["s", "m", "l"] as const) {
+    if (rowHeightPresetPx(preset, customHeights) === rounded) return preset;
+  }
+  return null;
 }
 
 /**

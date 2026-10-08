@@ -611,6 +611,7 @@ export function RulesTable({
               rowHeight={rowHeight}
               customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
               orderBy={orderBy}
               setOrderBy={handleOrderByChange}
               pagination={{

@@ -279,6 +279,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
         getRowClassName={(row) =>
           row.isAssigned ? "bg-primary/5 border-l-4 border-l-primary/40" : ""
         }
