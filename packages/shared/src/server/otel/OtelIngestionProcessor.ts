@@ -2645,7 +2645,7 @@ export class OtelIngestionProcessor {
         "ai.telemetry.metadata.tags",
         "ai.telemetry.metadata.langfusePrompt",
       ]),
-      decodeValues: decodeValues ? { domain, dropScope } : undefined,
+      decodeValues: decodeValues ? { domain } : undefined,
     });
 
     return {
@@ -3446,6 +3446,25 @@ export class OtelIngestionProcessor {
     recordIncrement("langfuse.ingestion.metadata_dropped", 1, tags);
   }
 
+  // Counts per-key values a structured-metadata SDK sent that are not valid
+  // JSON. Tags follow recordMetadataDropped; attributeKey is the Langfuse
+  // prefix, never the user's key.
+  private recordMetadataUndecoded(
+    domain: string,
+    attributeKey: string,
+    value: string,
+  ): void {
+    recordIncrement("langfuse.ingestion.metadata_undecoded", 1, {
+      source: "otel",
+      domain,
+      projectId: this.projectId,
+      attributeKey,
+      kind: this.classifyParseFailure(value),
+      sdkName: sanitizeSdkMetricTagValue(this.sdkName),
+      sdkVersion: sanitizeSdkMetricTagValue(this.sdkVersion),
+    });
+  }
+
   // Sub-classifies a JSON.parse failure by the failing string's shape,
   // reading only bounded head/tail windows — never re-parses or copies the
   // (possibly multi-MB) value, and never logs its content. Slicing first
@@ -3507,7 +3526,7 @@ export class OtelIngestionProcessor {
     prefixes: string[];
     excludedKeys?: Set<string>;
     // Set for structured-metadata SDKs, which JSON-encode every value.
-    decodeValues?: Omit<MetadataDropContext, "attributeKey">;
+    decodeValues?: { domain: string };
   }): Record<string, unknown> {
     const {
       attributes,
@@ -3532,16 +3551,14 @@ export class OtelIngestionProcessor {
           continue;
         }
 
-        // Decoded values match what a metadata blob holds for the key, and an
-        // undecodable value is dropped like an unparsable blob.
+        // Decoded values match what a metadata blob holds for the key. An
+        // undecodable value (e.g. cut by an attribute length limit) is kept as
+        // sent so its content is not lost.
         try {
           metadata[metadataKey] = JSON.parse(value);
         } catch {
-          this.recordMetadataDropped(
-            "parse_failure",
-            { ...decodeValues, attributeKey: prefix },
-            this.classifyParseFailure(value),
-          );
+          metadata[metadataKey] = value;
+          this.recordMetadataUndecoded(decodeValues.domain, prefix, value);
         }
       }
     }

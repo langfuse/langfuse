@@ -542,7 +542,7 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     },
   );
 
-  it("drops a per-key value that is not valid JSON and counts it", async () => {
+  it("keeps a per-key value that is not valid JSON as sent and counts it", async () => {
     recordIncrementMock.mockClear();
     const result = await processMetadata("v4", [
       {
@@ -555,12 +555,14 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       },
     ]);
 
-    expect(result).not.toHaveProperty("note");
-    expect(result.environment).toBe("prod");
-    expect(droppedCalls()).toHaveLength(1);
-    expect(droppedCalls()[0][2]).toEqual(
+    expect(result).toMatchObject({ note: "{not json", environment: "prod" });
+    expect(droppedCalls()).toHaveLength(0);
+    const undecodedCalls = recordIncrementMock.mock.calls.filter(
+      ([stat]) => stat === "langfuse.ingestion.metadata_undecoded",
+    );
+    expect(undecodedCalls).toHaveLength(1);
+    expect(undecodedCalls[0][2]).toEqual(
       expect.objectContaining({
-        reason: "parse_failure",
         domain: "observation",
         attributeKey: "langfuse.observation.metadata",
         kind: "truncated_json",
