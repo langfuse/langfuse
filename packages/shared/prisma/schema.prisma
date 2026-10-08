@@ -945,15 +945,15 @@ model SkillFile {
 }
 
 model SkillBlob {
-  id         String    @id @default(cuid())
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   sha256Hash    String @map("sha_256_hash") @db.Char(44)
   contentType   String @map("content_type")
-  contentLength Int @map("content_length")
+  contentLength Int    @map("content_length")
   content       String @db.Text
 
   files SkillFile[]
@@ -1097,7 +1097,7 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
-  isBuiltIn       Boolean              @default(false) @map("is_built_in")
+  isBuiltIn       Boolean               @default(false) @map("is_built_in")
   description     String?
   createdByUserId String?               @map("created_by_user_id")
   createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1307,8 +1307,8 @@ model DefaultLlmModel {
   projectId String  @map("project_id")
   Project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  llmApiKeyId String?     @map("llm_api_key_id")
-  LlmApiKey   LlmApiKeys? @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: SetNull)
+  llmApiKeyId String     @map("llm_api_key_id")
+  LlmApiKey   LlmApiKeys @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: Cascade)
 
   provider    String
   adapter     String // This controls the interface that is used to connect with the LLM, e.g. 'openai' or 'anthropic'
@@ -1369,7 +1369,7 @@ model PosthogIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill               Boolean                          @default(true)
+  backfill Boolean @default(true)
 
   // Last deterministic customer-config fault (bad hostname) that disabled the
   // integration. Written by the worker, surfaced in the integration settings
@@ -1393,7 +1393,7 @@ model MixpanelIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill                      Boolean                          @default(true)
+  backfill Boolean @default(true)
 
   @@map("mixpanel_integrations")
 }
@@ -1435,7 +1435,7 @@ model BlobStorageIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill     Boolean   @default(true)
+  backfill Boolean @default(true)
 
   // Error tracking
   lastError   String?   @map("last_error")
