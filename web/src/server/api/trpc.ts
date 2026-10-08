@@ -100,6 +100,7 @@ import {
   contextWithLangfuseProps,
   ClickHouseResourceError,
   getActiveTraceId,
+  isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
@@ -615,17 +616,18 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       .flatMap((org) => org.projects)
       .find(({ id }) => id === projectId);
 
-    const traceSession = !!trace?.sessionId
-      ? await ctx.prisma.traceSession.findFirst({
-          where: {
-            id: trace.sessionId,
-            projectId,
-          },
-          select: {
-            public: true,
-          },
-        })
-      : null;
+    const traceSession =
+      !!trace?.sessionId && isStorableTraceSessionId(trace.sessionId)
+        ? await ctx.prisma.traceSession.findFirst({
+            where: {
+              id: trace.sessionId,
+              projectId,
+            },
+            select: {
+              public: true,
+            },
+          })
+        : null;
 
     const isSessionPublic = traceSession?.public === true;
 
@@ -701,15 +703,17 @@ const enforceSessionAccess = t.middleware(async (opts) => {
   // trace_sessions should be a sparse metadata side-table: a row only exists once a
   // session has been bookmarked or published.
   // If it's not marked as public, we fallback to the usual user-based project access check.
-  const session = await ctx.prisma.traceSession.findFirst({
-    where: {
-      id: sessionId,
-      projectId,
-    },
-    select: {
-      public: true,
-    },
-  });
+  const session = isStorableTraceSessionId(sessionId)
+    ? await ctx.prisma.traceSession.findFirst({
+        where: {
+          id: sessionId,
+          projectId,
+        },
+        select: {
+          public: true,
+        },
+      })
+    : null;
 
   const isPublicSession = session?.public ?? false;
 

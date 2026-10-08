@@ -14,9 +14,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Rows3, Rows2, Rows4 } from "lucide-react";
 
 const ROW_HEIGHT_OPTIONS = [
-  { id: "s", label: "Small", icon: <Rows4 /> },
-  { id: "m", label: "Medium", icon: <Rows3 /> },
-  { id: "l", label: "Large", icon: <Rows2 /> },
+  { id: "s", label: "Small", icon: <Rows4 className="icon-base" /> },
+  { id: "m", label: "Medium", icon: <Rows3 className="icon-base" /> },
+  { id: "l", label: "Large", icon: <Rows2 className="icon-base" /> },
 ] as const;
 
 const defaultHeights: Record<RowHeight, string> = {
@@ -76,7 +76,7 @@ export const DataTableRowHeightSwitch = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" title="Row height">
-          <Rows3 className="h-4 w-4" />
+          <Rows3 className="icon-base text-icon-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>

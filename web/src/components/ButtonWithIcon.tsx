@@ -1,6 +1,7 @@
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { type LucideIcon } from "lucide-react";
 import { forwardRef } from "react";
+import { cn } from "@/src/utils/tailwind";
 
 export const ButtonWithIcon = forwardRef<
   HTMLButtonElement,
@@ -14,7 +15,17 @@ export const ButtonWithIcon = forwardRef<
   }
 >(({ icon: Icon, text, ...buttonProps }, ref) => (
   <Button ref={ref} className="gap-1.5" {...buttonProps}>
-    <Icon className="size-4" aria-hidden="true" />
+    <Icon
+      aria-hidden="true"
+      className={cn(
+        buttonProps.size === "xs" || buttonProps.size === "icon-xs"
+          ? "icon-sm"
+          : "icon-base",
+        (buttonProps.variant === "outline" ||
+          buttonProps.variant === "ghost") &&
+          "text-icon-foreground",
+      )}
+    />
     {text}
   </Button>
 ));

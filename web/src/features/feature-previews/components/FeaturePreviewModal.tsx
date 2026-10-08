@@ -15,14 +15,14 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
   featurePreviewLabels,
-  type FeaturePreviewFlag,
+  type PersonalFeaturePreviewFlag,
 } from "@/src/features/feature-flags";
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts. */
-export type PreviewFlag = FeaturePreviewFlag;
+export type PreviewFlag = PersonalFeaturePreviewFlag;
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
@@ -37,7 +37,7 @@ type PreviewRegistryItem = {
   description: string;
   details: string;
   feedbackUrl: string;
-  illustration: PreviewIllustration;
+  illustration?: PreviewIllustration;
 };
 
 /** Per-preview dynamic state, supplied by ControlledFeaturePreviewModal (which
@@ -50,9 +50,17 @@ export type PreviewState = {
   isToggling?: boolean;
 };
 
-// Static registry — one entry per preview. Order = sidebar order; each
-// preview ships separate light/dark illustrations.
+// Static registry — one entry per preview, in sidebar order.
+// Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
+  {
+    flag: "langfuseTopics",
+    description:
+      "Discover common topics across traces, with summaries and an interactive topic map.",
+    details:
+      "Choose traces and facets, run the topic pipeline, and explore the resulting clusters and trace summaries.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
   {
     flag: "modernSession",
     description:
@@ -213,7 +221,9 @@ export function FeaturePreviewModal({
                   </div>
                 ) : null}
 
-                <PreviewMockupPanel illustration={selected.illustration} />
+                {selected.illustration && (
+                  <PreviewMockupPanel illustration={selected.illustration} />
+                )}
 
                 <p className="text-muted-foreground mt-5 text-sm">
                   {selected.details}

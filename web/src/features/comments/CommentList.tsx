@@ -1,5 +1,4 @@
-/* eslint-disable @repo/no-null-render */
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -29,11 +28,29 @@ type CommentListProps = {
 
 export function CommentList(props: CommentListProps) {
   return (
-    <CommentThread
-      key={`${props.projectId}-${props.objectType}-${props.objectId}`}
-      {...props}
-    />
+    <CommentReadAccessGate projectId={props.projectId}>
+      <CommentThread
+        key={`${props.projectId}-${props.objectType}-${props.objectId}`}
+        {...props}
+      />
+    </CommentReadAccessGate>
   );
+}
+
+function CommentReadAccessGate({
+  projectId,
+  children,
+}: {
+  projectId: string;
+  children: ReactNode;
+}) {
+  const session = useSession();
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "comments:read",
+  });
+  if (!hasReadAccess || session.status !== "authenticated") return null;
+  return children;
 }
 
 function CommentThread({
@@ -52,20 +69,15 @@ function CommentThread({
 }: CommentListProps) {
   const session = useSession();
   const commentsContainerRef = useRef<HTMLDivElement>(null);
-  const hasReadAccess = useHasProjectAccess({
-    projectId,
-    scope: "comments:read",
-  });
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "comments:CUD",
   });
   const comments = api.comments.getByObjectId.useQuery(
     { projectId, objectId, objectType },
-    { enabled: hasReadAccess && session.status === "authenticated" },
+    { enabled: session.status === "authenticated" },
   );
   const utils = api.useUtils();
-  if (!hasReadAccess || session.status !== "authenticated") return <></>;
   if (comments.isPending)
     return (
       <div className="flex justify-center p-6">

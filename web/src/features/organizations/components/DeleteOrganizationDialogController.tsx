@@ -48,6 +48,7 @@ export function DeleteOrganizationDialogController({
       });
       capture("organization_settings:delete_organization");
       showSuccessToast({
+        operation: "organization.delete",
         title: "Organization Deleted",
         description: "The organization has been successfully deleted.",
       });

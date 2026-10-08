@@ -60,7 +60,7 @@ export function DatasetPicker({
                   </span>
                   <CheckIcon
                     className={cn(
-                      "ml-auto h-4 w-4 shrink-0",
+                      "icon-base ml-auto shrink-0",
                       dataset.id === selectedDatasetId
                         ? "opacity-100"
                         : "opacity-0",

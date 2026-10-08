@@ -183,7 +183,9 @@ const getCommonPinningStyles = <TData,>(
     position: isPinned ? "sticky" : "relative",
     width: column.getSize(),
     zIndex: isPinned ? 10 : 0,
-    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+    backgroundColor: isPinned
+      ? "var(--surface-context, hsl(var(--background)))"
+      : undefined,
     // Repeated outer shadows paint through the stable scrollbar gutter even
     // when a table cell clips its contents. Only the outermost right-pinned
     // column owns them, so adjacent pinned columns retain their normal offsets.
@@ -219,8 +221,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 const cellBackgroundClassNames = {
   gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
-  green:
-    "bg-accent-light-green [&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+  green: "bg-surface-output [&_[data-slot=skeleton]]:bg-muted-foreground/20",
 } satisfies Record<DataTableCellBackground, string>;
 
 const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
@@ -691,7 +692,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
+        <div className="bg-surface sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
             isLoading={
@@ -778,10 +779,19 @@ function TableRefetchBar({ active }: { active: boolean }) {
 
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
-  if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
+  const ascending = orderBy.order === "ASC";
   return (
-    <span className="ml-1" title="Sort by this column">
-      ▼
+    <span className="ml-1 inline-flex shrink-0 items-center">
+      <svg
+        viewBox="0 0 24 24"
+        className="icon-base text-icon-foreground fill-current"
+        aria-hidden="true"
+      >
+        <path d={ascending ? "M7 14h10l-5-6z" : "M7 10h10l-5 6z"} />
+      </svg>
+      <span className="sr-only">
+        {ascending ? "sorted ascending" : "sorted descending"}
+      </span>
     </span>
   );
 }
@@ -1048,7 +1058,7 @@ function TableBodyComponent<TData>({
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
+            <div className="text-muted-foreground pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center text-sm">
               {noResultsMessage ?? (
                 <>
                   No results.{" "}

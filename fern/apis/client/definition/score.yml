@@ -5,12 +5,34 @@ service:
   base-path: /api/public
   endpoints:
     create:
-      docs: Add a score to the database, upserts on id
+      docs: >
+        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if accepted,
+        or 207 with accepted/rejected counts and error messages. Do not automatically retry a 207 batch.
+        The generated reference shows only 200; batches return 202 or 207.
       method: POST
       path: /scores
-      request: CreateScoreRequest
+      request: CreateScoresRequest
+      response: CreateScoresResponse
 
 types:
+  CreateScoresRequest:
+    discriminated: false
+    union:
+      - CreateScoreRequest
+      - CreateScoreBatchRequest
+
+  CreateScoreBatchRequest:
+    type: list<CreateScoreRequest>
+    examples:
+      - value:
+          - name: "accuracy"
+            value: 0.9
+            traceId: "cdef-1234-5678-90ab"
+          - name: "helpfulness"
+            value: 1
+            dataType: "BOOLEAN"
+            traceId: "cdef-1234-5678-90ab"
+
   CreateScoreRequest:
     properties:
       id: optional<string>
@@ -110,3 +132,32 @@ types:
       - double
       - string
     docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. For corrections pass value as string and set data type to CORRECTION
+
+  CreateScoresResponse:
+    discriminated: false
+    union:
+      - CreateScoreResponse
+      - CreateScoreBatchResponse
+      - CreateScoreBatchResults
+
+  CreateScoreBatchResponse:
+    docs: Batch accepted (HTTP 202).
+    properties:
+      message: literal<"Accepted">
+
+  CreateScoreResponse:
+    properties:
+      id:
+        type: string
+        docs: The id of the created object in Langfuse
+
+  CreateScoreBatchResults:
+    docs: Acceptance counts and errors (HTTP 207).
+    properties:
+      accepted: integer
+      rejected: integer
+      errors: list<CreateScoreBatchError>
+
+  CreateScoreBatchError:
+    properties:
+      message: string

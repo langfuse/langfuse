@@ -106,7 +106,7 @@ const TemplateTypeBadge = ({
 
     return (
       <Badge className="w-fit gap-1.5" variant="outline-solid">
-        {Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null}
+        {Icon ? <Icon className="icon-sm" aria-hidden="true" /> : null}
         {label}
       </Badge>
     );
@@ -165,7 +165,7 @@ const EvalTemplateRowActionsMenu = ({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-xs" aria-label="actions">
             <span className="sr-only relative">Open menu</span>
-            <MoreVertical className="h-4 w-4" />
+            <MoreVertical className="icon-sm text-icon-foreground" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -179,7 +179,7 @@ const EvalTemplateRowActionsMenu = ({
                 onClone();
               }}
             >
-              <Copy className="mr-2 h-4 w-4" />
+              <Copy className="icon-base text-icon-foreground mr-2" />
               Clone
             </DropdownMenuItem>
           ) : null}
@@ -193,7 +193,7 @@ const EvalTemplateRowActionsMenu = ({
                   onEdit();
                 }}
               >
-                <Pen className="mr-2 h-4 w-4" />
+                <Pen className="icon-base text-icon-foreground mr-2" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -207,7 +207,7 @@ const EvalTemplateRowActionsMenu = ({
                   setIsDeleteDialogOpen(true);
                 }}
               >
-                <Trash className="mr-2 h-4 w-4" />
+                <Trash className="icon-base text-icon-foreground mr-2" />
                 Delete
               </DropdownMenuItem>
             </>
@@ -611,6 +611,7 @@ export default function EvalsTemplateTable({
               setEditTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
+                operation: "evaluator.update",
                 title: "Evaluator updated successfully",
                 description: "You can now use this evaluator.",
               });
@@ -664,6 +665,7 @@ export default function EvalsTemplateTable({
               setCloneTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
+                operation: "evaluator.clone",
                 title: "Evaluator cloned successfully",
                 description:
                   "This evaluator is now available and maintained on project level. ",

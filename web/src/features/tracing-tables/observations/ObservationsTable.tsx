@@ -677,6 +677,7 @@ export default function ObservationsTable({
         });
       }
       showSuccessToast({
+        operation: "observation.add_to_annotation_queue",
         title: "Observations added to queue",
         description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
@@ -901,7 +902,7 @@ export default function ObservationsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         );
@@ -1391,6 +1392,7 @@ export default function ObservationsTable({
           search={
             !hideControls ? (
               <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
                 key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName={observationsFilterConfig.tableName}

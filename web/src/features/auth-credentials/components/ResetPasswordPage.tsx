@@ -190,7 +190,7 @@ export function ResetPasswordPage({
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
-                  <ArrowLeft className="mr-2 h-3 w-3" />
+                  <ArrowLeft className="icon-base text-icon-foreground mr-2" />
                   Back to sign in
                 </Link>
               </Button>
@@ -198,7 +198,7 @@ export function ResetPasswordPage({
           )}
         </div>
 
-        <div className="bg-background mt-10 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="bg-card mt-10 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-12">
           <div className="space-y-6">
             <Form {...form}>
               <form

@@ -56,7 +56,7 @@ export function EvaluationTypeToggle({
           <SelectTrigger aria-label="Evaluation type">
             <SelectValue>
               <span className="flex min-w-0 items-center gap-2">
-                <SelectedIcon className="h-4 w-4 shrink-0" />
+                <SelectedIcon className="icon-base shrink-0" />
                 <span className="truncate" title={selectedType.label}>
                   {selectedType.label}
                 </span>
@@ -67,7 +67,7 @@ export function EvaluationTypeToggle({
             {visibleTypes.map(({ value: typeValue, label, icon: Icon }) => (
               <SelectItem key={typeValue} value={typeValue}>
                 <span className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <Icon className="icon-base shrink-0" />
                   {label}
                 </span>
               </SelectItem>
@@ -80,7 +80,7 @@ export function EvaluationTypeToggle({
           value={value}
           onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
         >
-          <Tabs.List variant="outline">
+          <Tabs.List variant="inset" size="md">
             {visibleTypes.map(({ value: typeValue, label, icon }) => (
               <Tabs.Trigger
                 key={typeValue}

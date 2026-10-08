@@ -4,11 +4,7 @@ import {
   type AggregatedScoreData,
 } from "@langfuse/shared";
 import { MessageCircleMore } from "lucide-react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import {
   Tooltip,
   TooltipContent,
@@ -70,7 +66,7 @@ const ScoreValueSection = ({
       )}
       {aggregate?.comment && (
         <div className="flex h-3 w-3 items-center justify-center">
-          <MessageCircleMore size={12} className="text-muted-foreground" />
+          <MessageCircleMore className="icon-sm text-muted-foreground" />
         </div>
       )}
     </div>
@@ -124,85 +120,89 @@ export const ScoreRow = ({
   }
 
   return (
-    <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
-      <div className="flex h-6 w-full items-center gap-2">
-        <span className="w-32 shrink-0 truncate font-bold" title={name}>
-          {name}
-        </span>
-        <HoverCardTrigger asChild>
-          <div className="cursor-pointer">
-            <ScoreValueSection aggregate={aggregate} diff={diff} />
-          </div>
-        </HoverCardTrigger>
-      </div>
-      <HoverCardContent
-        className="max-h-[40vh] w-[300px] cursor-pointer overflow-y-auto"
-        side="top"
-        align="start"
-      >
-        <div className="cursor-pointer space-y-3">
-          <h4 className="text-sm font-bold">{name}</h4>
+    <HoverCard
+      openDelay={700}
+      closeDelay={100}
+      onOpenChange={setIsHovered}
+      placement="top-start"
+      content={
+        <div className="max-h-[40vh] w-[300px] cursor-pointer overflow-y-auto p-3">
+          <div className="cursor-pointer space-y-3">
+            <h4 className="text-sm font-bold">{name}</h4>
 
-          <div className="space-y-2 text-xs">
-            <ScoreDetailRow
-              label="Value"
-              value={resolveScoreValue(aggregate)}
-            />
-            <ScoreDetailRow label="Source" value={source} />
-
-            {aggregate.comment && (
+            <div className="space-y-2 text-xs">
               <ScoreDetailRow
-                label="Comment"
-                value={
-                  <span
-                    title={aggregate.comment}
-                    className="line-clamp-10 max-h-[240px] overflow-hidden wrap-break-word"
-                    style={{
-                      textAlign: "justify",
-                      textAlignLast: "right",
-                    }}
-                  >
-                    {aggregate.comment}
-                  </span>
-                }
+                label="Value"
+                value={resolveScoreValue(aggregate)}
               />
-            )}
+              <ScoreDetailRow label="Source" value={source} />
 
-            {aggregate.hasMetadata && (
-              <ScoreDetailRow
-                label="Metadata"
-                value={
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="line-clamp-1 cursor-help">
-                        {(() => {
-                          try {
-                            return metadata && Object.keys(metadata).length > 0
-                              ? JSON.stringify(metadata)
-                              : "Loading...";
-                          } catch {
-                            return "Invalid JSON";
-                          }
-                        })()}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="w-[400px] text-xs wrap-break-word">
-                      {metadata && Object.keys(metadata).length > 0 ? (
-                        <JSONView
-                          codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
-                          json={metadata}
-                        />
-                      ) : (
-                        <Skeleton className="h-12 w-full" />
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
-                }
-              />
-            )}
+              {aggregate.comment && (
+                <ScoreDetailRow
+                  label="Comment"
+                  value={
+                    <span
+                      title={aggregate.comment}
+                      className="line-clamp-10 max-h-[240px] overflow-hidden wrap-break-word"
+                      style={{
+                        textAlign: "justify",
+                        textAlignLast: "right",
+                      }}
+                    >
+                      {aggregate.comment}
+                    </span>
+                  }
+                />
+              )}
+
+              {aggregate.hasMetadata && (
+                <ScoreDetailRow
+                  label="Metadata"
+                  value={
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="line-clamp-1 cursor-help">
+                          {(() => {
+                            try {
+                              return metadata &&
+                                Object.keys(metadata).length > 0
+                                ? JSON.stringify(metadata)
+                                : "Loading...";
+                            } catch {
+                              return "Invalid JSON";
+                            }
+                          })()}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="w-[400px] text-xs wrap-break-word">
+                        {metadata && Object.keys(metadata).length > 0 ? (
+                          <JSONView
+                            codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
+                            json={metadata}
+                          />
+                        ) : (
+                          <Skeleton className="h-12 w-full" />
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  }
+                />
+              )}
+            </div>
           </div>
         </div>
-      </HoverCardContent>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div className="flex h-6 w-full items-center gap-2">
+          <span className="w-32 shrink-0 truncate font-bold" title={name}>
+            {name}
+          </span>
+          <div className="cursor-pointer" tabIndex={0} {...getTriggerProps()}>
+            <ScoreValueSection aggregate={aggregate} diff={diff} />
+          </div>
+        </div>
+      )}
     </HoverCard>
   );
 };

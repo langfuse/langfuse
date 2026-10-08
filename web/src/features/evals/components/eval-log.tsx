@@ -265,6 +265,7 @@ export default function EvalLogTable({
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={queryFilter.draftResetKey}
               projectId={projectId}
               tableName={evalLogFilterConfig.tableName}

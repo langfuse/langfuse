@@ -101,7 +101,7 @@ export const ExperimentGridView = ({
   setRowSelection,
   highlightAllRows,
 }: ExperimentGridViewProps) => {
-  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
   const capture = usePostHogClientCapture();
   const [summaryExpanded, setSummaryExpanded] = useState(true);
   // Keep the explicit baseline separate from the comparison list. A baseline

@@ -114,6 +114,7 @@ function DatasetExperimentsView({
     }
 
     showSuccessToast({
+      operation: "experiment.trigger",
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {
@@ -215,7 +216,7 @@ function DatasetExperimentsView({
                     disabled={!hasExperimentWriteAccess}
                     onClick={() => capture("dataset_run:new_form_open")}
                   >
-                    <FlaskConical className="h-4 w-4" />
+                    <FlaskConical className="icon-base text-icon-foreground" />
                     <span className="ml-2 hidden md:block">Run experiment</span>
                   </Button>
                 </DialogTrigger>
@@ -279,7 +280,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical className="icon-base text-icon-foreground" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -347,7 +348,7 @@ function DatasetExperimentsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical className="icon-base text-icon-foreground" />
                 </Button>
               )}
             </DatasetActionMenu>

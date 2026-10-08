@@ -425,6 +425,7 @@ export default function SessionsTable({
         });
       }
       showSuccessToast({
+        operation: "session.add_to_annotation_queue",
         title: "Sessions added to queue",
         description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
@@ -848,6 +849,7 @@ export default function SessionsTable({
         <StickySearchableTableFilterLayout
           search={
             <TableSearchBar
+              size={showControlsInPageHeader ? "large" : "default"}
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={isV4}
               filterState={queryFilter.searchBarFilterState}

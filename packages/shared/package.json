@@ -31,6 +31,18 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/transcript/ordering": {
+      "import": "./dist/src/server/transcript/ordering.js",
+      "require": "./dist/src/server/transcript/ordering.js"
+    },
+    "./src/server/transcript/transcript": {
+      "import": "./dist/src/server/transcript/transcript.js",
+      "require": "./dist/src/server/transcript/transcript.js"
+    },
+    "./src/server/transcript/types": {
+      "import": "./dist/src/server/transcript/types.js",
+      "require": "./dist/src/server/transcript/types.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"
@@ -55,6 +67,10 @@
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
     },
+    "./src/utils/json": {
+      "import": "./dist/src/utils/json.js",
+      "require": "./dist/src/utils/json.js"
+    },
     "./src/utils/normalized-io": {
       "import": "./dist/src/utils/normalized-io/index.js",
       "require": "./dist/src/utils/normalized-io/index.js"
@@ -67,9 +83,29 @@
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
     },
+    "./src/server/ee/fips": {
+      "import": "./dist/src/server/ee/fips/index.js",
+      "require": "./dist/src/server/ee/fips/index.js"
+    },
+    "./src/server/ee/licenseCheck": {
+      "import": "./dist/src/server/ee/licenseCheck/index.js",
+      "require": "./dist/src/server/ee/licenseCheck/index.js"
+    },
+    "./src/server/ee/clickhouseBilling": {
+      "import": "./dist/src/server/ee/clickhouseBilling/index.js",
+      "require": "./dist/src/server/ee/clickhouseBilling/index.js"
+    },
     "./query": {
       "import": "./dist/src/features/query/index.js",
       "require": "./dist/src/features/query/index.js"
+    },
+    "./rbac": {
+      "import": "./dist/src/features/rbac/index.js",
+      "require": "./dist/src/features/rbac/index.js"
+    },
+    "./rbac/server": {
+      "import": "./dist/src/features/rbac/server.js",
+      "require": "./dist/src/features/rbac/server.js"
     },
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
@@ -126,6 +162,14 @@
     "./in-app-agent/server/openaiCompatibility": {
       "import": "./dist/src/in-app-agent/server/openaiCompatibility.js",
       "require": "./dist/src/in-app-agent/server/openaiCompatibility.js"
+    },
+    "./topics": {
+      "import": "./dist/src/topics/index.js",
+      "require": "./dist/src/topics/index.js"
+    },
+    "./topics/server": {
+      "import": "./dist/src/server/topics/index.js",
+      "require": "./dist/src/server/topics/index.js"
     }
   },
   "scripts": {
@@ -138,8 +182,8 @@
     "test": "dotenv -e ../../.env -- vitest run",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
-    "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
-    "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate reset --force; fi",
+    "db:reset": "dotenv -e ../../.env -- pnpm exec prisma migrate reset",
+    "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- pnpm exec prisma migrate reset --force; fi",
     "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate --no-hints",
@@ -149,9 +193,9 @@
     "ch:migrations:clean": "node clickhouse/scripts/prepare-migrations.mjs clean clickhouse/migrations",
     "ch:up": "sh clickhouse/scripts/up.sh",
     "ch:down": "sh clickhouse/scripts/down.sh",
-    "ch:drop": "bash clickhouse/scripts/drop.sh",
+    "ch:drop": "sh clickhouse/scripts/drop.sh",
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
-    "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
+    "ch:reset": "pnpm run ch:drop && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
     "ch:seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-clickhouse.ts",
     "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts",
     "seed:scenario": "dotenv -e ../../.env -- tsx scripts/seeder/cli.ts"
@@ -167,9 +211,10 @@
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
     "@ai-sdk/google-vertex": "^5.0.8",
-    "@ai-sdk/openai": "^4.0.0",
+    "@ai-sdk/openai": "^4.0.86",
     "@ai-sdk/openai-compatible": "^3.0.3",
     "@ai-sdk/typesafe-ai": "^3.0.4",
+    "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
     "@aws-sdk/client-s3": "catalog:",
@@ -190,8 +235,9 @@
     "@slack/oauth": "3.0.5",
     "@slack/web-api": "^7.15.0",
     "@smithy/node-http-handler": "4.5.1",
+    "@smithy/signature-v4": "5.6.4",
     "@types/bcryptjs": "^2.4.6",
-    "ai": "^7.0.0",
+    "ai": "^7.0.130",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "bcryptjs": "^2.4.3",

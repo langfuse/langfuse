@@ -336,7 +336,7 @@ describe("AI gateway control plane", () => {
     const { caller, org } = await prepare();
     const created = await caller.aiGateway.createApiKey({
       orgId: org.id,
-      note: "Production gateway",
+      name: "Production gateway",
       metadata: { environment: "production", costCenter: 42 },
     });
     expect(created.secretKey).toMatch(/^sk-lf-/);
@@ -479,10 +479,10 @@ describe("AI gateway control plane", () => {
   it("cursor-paginates gateway keys", async () => {
     const { caller, org } = await prepare();
 
-    for (const note of ["First", "Second", "Third"]) {
+    for (const name of ["First", "Second", "Third"]) {
       await caller.aiGateway.createApiKey({
         orgId: org.id,
-        note,
+        name,
         metadata: {},
       });
     }
@@ -554,6 +554,7 @@ describe("AI gateway control plane", () => {
     expect(openAiPrimary.routingPriority).toBe(0);
     expect(result.connection).toEqual({
       id: openAiPrimary.id,
+      name: "OpenAI first",
       provider: "openai",
       api_format: apiFormat,
       base_url: "https://api.openai.com/v1",

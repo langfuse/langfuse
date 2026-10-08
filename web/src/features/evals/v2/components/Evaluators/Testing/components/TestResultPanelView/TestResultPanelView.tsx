@@ -46,11 +46,11 @@ function ResultStat({
 }) {
   return (
     <span
-      className="text-muted-foreground flex -translate-y-px items-center gap-1 font-mono text-xs leading-none tabular-nums"
+      className="text-muted-foreground flex items-center gap-1 font-mono text-xs leading-none tabular-nums"
       title={title}
     >
-      <Icon className="h-3 w-3" />
-      <span className="translate-y-0.5">{children}</span>
+      <Icon className="icon-sm shrink-0" />
+      {children}
     </span>
   );
 }

@@ -31,12 +31,7 @@ import {
   type ReactNode,
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
-import {
-  TabsBar,
-  TabsBarContent,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { TraceTruncationNotice } from "./TraceTruncationNotice";
 
@@ -66,14 +61,13 @@ export function useMobileLayoutContextOptional() {
   return useContext(MobileLayoutContext);
 }
 
-const TAB_BODY_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden";
-
 export function TraceLayoutMobile({
   tree,
   timeline,
   graph,
   info,
   showGraph,
+  isLoading = false,
 }: {
   tree: ReactNode;
   timeline: ReactNode;
@@ -81,6 +75,8 @@ export function TraceLayoutMobile({
   info: ReactNode;
   /** Reused from TraceContent; hides the Graph tab when the trace has no graph. */
   showGraph: boolean;
+  /** Skips the data-bound notice while the panels show placeholders. */
+  isLoading?: boolean;
 }) {
   const [tabParam, setTabParam] = useQueryParam("mobileTab", StringParam);
   const { selectedNodeId } = useSelection();
@@ -124,42 +120,42 @@ export function TraceLayoutMobile({
 
   return (
     <MobileLayoutContext.Provider value={contextValue}>
-      <TabsBar
+      <Tabs
         value={activeTab}
         onValueChange={(value) => setTabParam(value, "pushIn")}
-        className="h-full w-full"
+        layout="fill"
       >
-        <TabsBarList className="shrink-0 px-2">
-          <TabsBarTrigger value="tree">Tree</TabsBarTrigger>
-          <TabsBarTrigger value="timeline">Timeline</TabsBarTrigger>
-          {showGraph && <TabsBarTrigger value="graph">Graph</TabsBarTrigger>}
-          <TabsBarTrigger value="info">Data</TabsBarTrigger>
-        </TabsBarList>
+        <Tabs.List variant="underline">
+          <Tabs.Trigger value="tree" label="Tree" />
+          <Tabs.Trigger value="timeline" label="Timeline" />
+          {showGraph && <Tabs.Trigger value="graph" label="Graph" />}
+          <Tabs.Trigger value="info" label="Data" />
+        </Tabs.List>
 
         {/* Above the tab bodies, not inside one: the truncation applies to every
             tab, and the navigators own their own scroll containers. */}
-        <TraceTruncationNotice />
+        {!isLoading && <TraceTruncationNotice />}
 
         {/* Inactive tabs unmount (Radix default). On memory-constrained mobile
             that keeps a single heavy subtree live at a time (two virtualizers,
             the elk graph layout, and the detail JSON never all mount at once);
             the cost is that a navigator's scroll/zoom resets when revisited —
             an accepted v1 tradeoff (follow-up: preserve navigator state). */}
-        <TabsBarContent value="tree" className={TAB_BODY_CLASS}>
+        <Tabs.Content value="tree" layout="fill">
           {tree}
-        </TabsBarContent>
-        <TabsBarContent value="timeline" className={TAB_BODY_CLASS}>
+        </Tabs.Content>
+        <Tabs.Content value="timeline" layout="fill">
           {timeline}
-        </TabsBarContent>
+        </Tabs.Content>
         {showGraph && (
-          <TabsBarContent value="graph" className={TAB_BODY_CLASS}>
+          <Tabs.Content value="graph" layout="fill">
             {graph}
-          </TabsBarContent>
+          </Tabs.Content>
         )}
-        <TabsBarContent value="info" className={TAB_BODY_CLASS}>
+        <Tabs.Content value="info" layout="fill">
           {info}
-        </TabsBarContent>
-      </TabsBar>
+        </Tabs.Content>
+      </Tabs>
     </MobileLayoutContext.Provider>
   );
 }

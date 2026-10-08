@@ -215,18 +215,20 @@ export const BillingSwitchPlanDialog = ({
                           scheduledPlanSwitch.newPlanId !==
                             product.stripeProductId &&
                           (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
+                            organization?.id && (
+                              <StripeSwitchPlanButton
+                                orgId={organization.id}
+                                currentPlan={organization?.plan}
+                                newPlanTitle={product.checkout?.title}
+                                isLegacySubscription={isLegacySubscription}
+                                isUpgrade={isThisUpgrade}
+                                stripeProductId={product.stripeProductId}
+                                onProcessing={setProcessingPlanId}
+                                processing={
+                                  processingPlanId === product.stripeProductId
+                                }
+                              />
+                            )
                           ) : (
                             <Button className="w-full" disabled>
                               Payment method required
@@ -237,18 +239,20 @@ export const BillingSwitchPlanDialog = ({
                         {!isCurrentPlan &&
                           !scheduledPlanSwitch &&
                           (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
+                            organization?.id && (
+                              <StripeSwitchPlanButton
+                                orgId={organization.id}
+                                currentPlan={organization?.plan}
+                                newPlanTitle={product.checkout?.title}
+                                isLegacySubscription={isLegacySubscription}
+                                isUpgrade={isThisUpgrade}
+                                stripeProductId={product.stripeProductId}
+                                onProcessing={setProcessingPlanId}
+                                processing={
+                                  processingPlanId === product.stripeProductId
+                                }
+                              />
+                            )
                           ) : (
                             <Button className="w-full" disabled>
                               Payment method required

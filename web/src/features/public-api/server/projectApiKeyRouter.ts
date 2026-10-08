@@ -7,8 +7,10 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -62,7 +64,14 @@ export const projectApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        note: StringNoHTML.optional(),
+        name: StringNoHTML.optional(),
+        role: apiKeyCreationRoleSchema("project"),
+        expiresAt: z
+          .date()
+          .nullish()
+          .refine((date) => date == null || date.getTime() > Date.now(), {
+            message: "Expiration date must be in the future",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -72,12 +81,12 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
 
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma: ctx.prisma,
-        entityId: input.projectId,
-        note: input.note,
-        scope: "PROJECT",
-        createdByUserId: ctx.session.user.id,
+      const apiKeyMeta = await createApiKey(ctx.prisma, {
+        owner: ProjectId(input.projectId),
+        role: SystemRoleId(input.role),
+        createdBy: UserId(ctx.session.user.id),
+        name: input.name,
+        expiresAt: input.expiresAt,
       });
 
       await auditLog({
@@ -85,16 +94,17 @@ export const projectApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: apiKeyMeta.id,
         action: "create",
+        after: { role: input.role, expiresAt: input.expiresAt ?? null },
       });
 
       return apiKeyMeta;
     }),
-  updateNote: protectedProjectProcedure
+  updateName: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         keyId: z.string(),
-        note: StringNoHTML,
+        name: StringNoHTML,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -130,7 +140,7 @@ export const projectApiKeysRouter = createTRPCRouter({
           isInAppAgentKey: false,
         },
         data: {
-          note: input.note,
+          note: input.name,
         },
       });
 
