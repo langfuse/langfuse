@@ -509,7 +509,7 @@ export class LlmConnectionService {
         baseURL: params.input.baseURL ?? null,
         withDefaultModels: params.input.withDefaultModels,
         customModels: params.input.customModels ?? [],
-        config: params.input.config ?? null,
+        config: params.input.config ?? Prisma.DbNull,
         extraHeaders: params.input.extraHeaders
           ? encrypt(JSON.stringify(params.input.extraHeaders))
           : null,
