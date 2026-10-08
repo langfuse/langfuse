@@ -42,7 +42,7 @@ import {
   mapLegacyLLMCompletionParams,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
-import { prisma, type LlmApiKeys, type Prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma, type LlmApiKeys } from "@langfuse/shared/src/db";
 
 import {
   LlmConnectionRepository,
