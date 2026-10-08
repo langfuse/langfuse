@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvalidRequestError } from "../../errors";
-import { DEFAULT_TOPIC_FACETS, type TopicsSetup } from "../../topics";
+import { DEFAULT_TOPIC_FACETS } from "../../topics";
 
 const mocks = vi.hoisted(() => ({
-  saveModels: vi.fn(),
+  prepareModels: vi.fn(),
+  writeModels: vi.fn(),
   ensureFacets: vi.fn(),
   listRules: vi.fn(),
   saveRule: vi.fn(),
 }));
 
 vi.mock("./model-config", () => ({
-  saveTopicsModelSettings: mocks.saveModels,
+  prepareTopicsModelSettings: mocks.prepareModels,
+  writeTopicsModelSettings: mocks.writeModels,
 }));
 vi.mock("./postgres", () => ({
   ensureDefaultTopicFacets: mocks.ensureFacets,
@@ -31,7 +33,7 @@ const facets = DEFAULT_TOPIC_FACETS.map((facet, index) => ({
   enabled: index !== 1,
 }));
 
-const setup: TopicsSetup = {
+const setup = {
   summary: { llmApiKeyId: "key", model: "gpt" },
   embedding: { llmApiKeyId: "key", model: "embed" },
   embeddingDimensions: 1024,
@@ -44,13 +46,14 @@ const setup: TopicsSetup = {
   filter: [{ column: "name", type: "string", operator: "=", value: "billing" }],
   sampling: 0.25,
   idleSeconds: 120,
-};
+} satisfies Parameters<typeof saveTopicsSetup>[1];
 
 describe("Topics setup", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.ensureFacets.mockResolvedValue(facets);
     mocks.saveRule.mockResolvedValue({ id: "rule-a" });
+    mocks.prepareModels.mockResolvedValue({ enabled: true });
   });
 
   it("creates the built-in facets and one rule for the enabled ones", async () => {
@@ -58,7 +61,7 @@ describe("Topics setup", () => {
 
     await saveTopicsSetup(projectId, setup);
 
-    expect(mocks.saveModels).toHaveBeenCalledWith(projectId, {
+    expect(mocks.prepareModels).toHaveBeenCalledWith(projectId, {
       summary: setup.summary,
       embedding: setup.embedding,
       embeddingDimensions: 1024,
@@ -75,6 +78,37 @@ describe("Topics setup", () => {
       idleTimeMs: 120_000,
       facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),
     });
+    expect(mocks.writeModels).toHaveBeenCalledWith(projectId, {
+      enabled: true,
+    });
+  });
+
+  it("enables the models only after the rule is saved", async () => {
+    mocks.listRules.mockResolvedValue([]);
+    mocks.saveRule.mockRejectedValue(
+      new InvalidRequestError("This project already has a Topics rule."),
+    );
+
+    await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(
+      "already has a Topics rule",
+    );
+    expect(mocks.prepareModels).toHaveBeenCalledOnce();
+    expect(mocks.writeModels).not.toHaveBeenCalled();
+  });
+
+  it("keeps enabled custom facets assigned to the rule", async () => {
+    mocks.listRules.mockResolvedValue([]);
+
+    await saveTopicsSetup(projectId, {
+      ...setup,
+      customFacetIds: ["custom-language"],
+    });
+
+    expect(mocks.saveRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facetIds: expect.arrayContaining(["intent", "custom-language"]),
+      }),
+    );
   });
 
   it("updates the existing rule instead of creating another", async () => {
@@ -95,7 +129,7 @@ describe("Topics setup", () => {
     await expect(saveTopicsSetup(projectId, setup)).rejects.toBeInstanceOf(
       InvalidRequestError,
     );
-    expect(mocks.saveModels).not.toHaveBeenCalled();
+    expect(mocks.prepareModels).not.toHaveBeenCalled();
     expect(mocks.saveRule).not.toHaveBeenCalled();
   });
 
@@ -107,7 +141,7 @@ describe("Topics setup", () => {
       }),
     ).rejects.toThrow(/at least one facet/);
     expect(mocks.listRules).not.toHaveBeenCalled();
-    expect(mocks.saveModels).not.toHaveBeenCalled();
+    expect(mocks.prepareModels).not.toHaveBeenCalled();
   });
 
   it("rejects a setup that leaves out a built-in facet", async () => {
@@ -117,6 +151,6 @@ describe("Topics setup", () => {
         facets: setup.facets.slice(1),
       }),
     ).rejects.toThrow(/each built-in facet/);
-    expect(mocks.saveModels).not.toHaveBeenCalled();
+    expect(mocks.prepareModels).not.toHaveBeenCalled();
   });
 });

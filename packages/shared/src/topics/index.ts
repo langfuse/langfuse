@@ -136,6 +136,8 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
         });
       }
     }),
+  // Enabled custom facets keep their rule assignment; they are edited elsewhere.
+  customFacetIds: z.array(topicIdSchema).default([]),
   filter: topicRuleConfigSchema.shape.filter,
   sampling: z.number().min(0).max(1),
   idleSeconds: z.number().int().min(0).max(86_400),

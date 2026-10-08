@@ -1,10 +1,10 @@
+import type { z } from "zod";
 import { InvalidRequestError } from "../../errors";
+import { topicsSetupSchema, type TopicRule } from "../../topics";
 import {
-  topicsSetupSchema,
-  type TopicRule,
-  type TopicsSetup,
-} from "../../topics";
-import { saveTopicsModelSettings } from "./model-config";
+  prepareTopicsModelSettings,
+  writeTopicsModelSettings,
+} from "./model-config";
 import {
   ensureDefaultTopicFacets,
   listTopicRules,
@@ -14,7 +14,7 @@ import {
 /** One Topics setup: models, the four built-in facets, and a single rule. */
 export async function saveTopicsSetup(
   projectId: string,
-  input: TopicsSetup,
+  input: z.input<typeof topicsSetupSchema>,
 ): Promise<TopicRule> {
   const setup = topicsSetupSchema.parse(input);
   const rules = await listTopicRules(projectId);
@@ -37,14 +37,17 @@ export async function saveTopicsSetup(
       );
     return [id];
   });
-  await saveTopicsModelSettings(projectId, {
+  facetIds.push(...setup.customFacetIds);
+  // Test the models first and enable them only after the rule is saved, so a
+  // failed rule write never turns processing on with stale trace settings.
+  const models = await prepareTopicsModelSettings(projectId, {
     summary: setup.summary,
     embedding: setup.embedding,
     embeddingDimensions: setup.embeddingDimensions,
     clustering: setup.clustering,
     enabled: setup.enabled,
   });
-  return saveTopicRule({
+  const rule = await saveTopicRule({
     id: rules[0]?.id,
     projectId,
     name: rules[0]?.name ?? "Topics",
@@ -53,4 +56,6 @@ export async function saveTopicsSetup(
     idleTimeMs: setup.idleSeconds * 1000,
     facetIds,
   });
+  await writeTopicsModelSettings(projectId, models);
+  return rule;
 }

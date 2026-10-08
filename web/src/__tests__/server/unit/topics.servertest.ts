@@ -1316,6 +1316,7 @@ describe("Topics setup", () => {
       clustering: setup.clustering,
       enabled: true,
       facets: setup.facets,
+      customFacetIds: [],
       filter: setup.filter,
       sampling: 0.25,
       idleSeconds: 120,

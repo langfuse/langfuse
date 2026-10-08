@@ -226,6 +226,20 @@ export async function saveTopicsModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
 ): Promise<void> {
+  await writeTopicsModelSettings(
+    projectId,
+    await prepareTopicsModelSettings(projectId, settings),
+  );
+}
+
+/**
+ * Validates and tests the settings without writing them, so callers can save
+ * related configuration first and commit the models last.
+ */
+export async function prepareTopicsModelSettings(
+  projectId: string,
+  settings: TopicsModelSettings,
+) {
   const keys = await loadTopicsModelKeys(projectId, settings);
   if (
     settings.enabled &&
@@ -263,6 +277,13 @@ export async function saveTopicsModelSettings(
     clusteringLlmApiKeyId: settings.clustering?.llmApiKeyId ?? null,
     clusteringModel: settings.clustering?.model ?? null,
   };
+  return data;
+}
+
+export async function writeTopicsModelSettings(
+  projectId: string,
+  data: Awaited<ReturnType<typeof prepareTopicsModelSettings>>,
+): Promise<void> {
   await prisma.topicsModelConfig.upsert({
     where: { projectId },
     create: { projectId, ...data },
