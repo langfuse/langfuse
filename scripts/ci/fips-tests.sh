@@ -3,13 +3,13 @@
 # code path that needs an algorithm a FIPS host refuses (md5, ...) fails here
 # with ERR_OSSL_EVP_UNSUPPORTED instead of in a customer deployment.
 #
-# Runs inside the UBI toolchain stage of worker/Dockerfile: Red Hat's Node links
-# the system OpenSSL, and OPENSSL_FORCE_FIPS_MODE=1 switches it into FIPS mode
-# without a FIPS host kernel. The databases, migrations and env files must
+# Runs inside the UBI toolchain stage of worker/Dockerfile.fips: Red Hat's Node
+# links the system OpenSSL, and OPENSSL_FORCE_FIPS_MODE=1 switches it into FIPS
+# mode without a FIPS host kernel. The databases, migrations and env files must
 # already be set up on the host, as the tests-fips CI job does.
 #
 # Local run, from the repo root with the dev containers up and migrated:
-#   docker buildx build --load --target toolchain -f worker/Dockerfile -t langfuse-fips-toolchain .
+#   docker buildx build --load --target toolchain -f worker/Dockerfile.fips -t langfuse-fips-toolchain .
 #   docker run --rm --network host -e OPENSSL_FORCE_FIPS_MODE=1 -v "$PWD:/src:ro" \
 #     langfuse-fips-toolchain bash /src/scripts/ci/fips-tests.sh worker [vitest filters...]
 

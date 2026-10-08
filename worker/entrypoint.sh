@@ -1,12 +1,17 @@
 #!/bin/sh
 
 # Fail closed when FIPS mode is required but the OpenSSL FIPS provider is not
-# active for Node (e.g. a host without FIPS mode, or an image rebuilt on a
-# non-FIPS base). This runs before the migrations below open database
+# active for Node (e.g. the standard image instead of the -fips variant, or a
+# host without FIPS mode). This runs before the migrations below open database
 # connections. The app additionally requires an enterprise license for FIPS
 # mode at startup (packages/shared/src/server/ee/fips).
 if [ "$LANGFUSE_REQUIRE_FIPS" = "true" ]; then
-    # Opt into the FIPS crypto policy for OpenSSL (see the Dockerfile). An
+    # Only the -fips variant (Dockerfile.fips) ships the FIPS crypto policy.
+    if [ -z "$OPENSSL_CONF" ] && [ ! -f /etc/pki/tls/openssl-fips.cnf ]; then
+        echo "Error: LANGFUSE_REQUIRE_FIPS=true requires the -fips image variant (langfuse/langfuse-worker:<version>-fips). Exiting..."
+        exit 1
+    fi
+    # Opt into the FIPS crypto policy for OpenSSL (see Dockerfile.fips). An
     # OPENSSL_CONF set by the deployment takes precedence.
     export OPENSSL_CONF="${OPENSSL_CONF:-/etc/pki/tls/openssl-fips.cnf}"
     if ! node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then

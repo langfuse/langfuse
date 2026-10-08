@@ -4,10 +4,12 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["views", "relationJoins", "metrics"]
-  // rhel-openssl-3.0.x: UBI9 runtime images (glibc); these engines link the
-  // system libcrypto.so.3, so Postgres TLS runs inside the platform's
-  // FIPS-validated OpenSSL module.
-  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
+  // native resolves to each image build's own platform: linux-musl(-arm64)-
+  // openssl-3.0.x in the standard Alpine images and rhel-openssl-3.0.x
+  // (linux-arm64-openssl-3.0.x on arm64) in the -fips UBI 9 images. These
+  // engines link the system libcrypto.so.3, so in the -fips images Postgres
+  // TLS runs inside RHEL's FIPS-validated OpenSSL module.
+  binaryTargets   = ["native"]
 }
 
 datasource db {
