@@ -3533,7 +3533,7 @@ export class OtelIngestionProcessor {
         }
 
         // Decoded values match what a metadata blob holds for the key, and an
-        // undecodable value is dropped like an unparseable blob.
+        // undecodable value is dropped like an unparsable blob.
         try {
           metadata[metadataKey] = JSON.parse(value);
         } catch {
