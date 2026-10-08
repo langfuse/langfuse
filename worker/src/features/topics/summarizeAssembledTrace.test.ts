@@ -269,6 +269,8 @@ describe("summarizeAssembledTrace", () => {
       environment: "default",
       traceName: "agent-turn",
       transcript,
+      models,
+      facets: state.facets(),
     });
     const [written] = state.write.mock.calls[0][0];
     expect(written).toMatchObject({ state: "not_applicable" });
