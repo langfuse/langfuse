@@ -168,6 +168,11 @@ export function ConnectedLLMApiKeySettingsTable({
                   }}
                   data={tableDataWithOverrides}
                   noResultsMessage="None"
+                  tableName={
+                    owner.scope === "project"
+                      ? "Project LLM connections"
+                      : "Organization LLM connections"
+                  }
                 />
               )}
             </ConfirmationDialogController>
