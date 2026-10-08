@@ -433,7 +433,7 @@ export const llmApiKeyRouter = createTRPCRouter({
               projectId: input.projectId,
             },
             select: {
-              llmApiKeyId: true,
+              provider: true,
             },
           });
 
@@ -446,7 +446,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             : EMPTY_EVALUATOR_BLOCK;
 
           const defaultModelBlock =
-            !!defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
+            defaultModel?.provider === llmApiKey.provider
               ? await blockEvaluatorsUsingDefaultModel({
                   tx,
                   projectId: input.projectId,

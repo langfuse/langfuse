@@ -39,7 +39,7 @@ export default withMiddlewares({
       const result = await prisma.$transaction(async (tx) => {
         const defaultModel = await tx.defaultLlmModel.findFirst({
           where: { projectId },
-          select: { llmApiKeyId: true },
+          select: { provider: true },
         });
 
         const providerBlock = llmApiKey.provider
@@ -51,7 +51,7 @@ export default withMiddlewares({
           : EMPTY_EVALUATOR_BLOCK;
 
         const defaultModelBlock =
-          defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
+          defaultModel?.provider === llmApiKey.provider
             ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
             : EMPTY_EVALUATOR_BLOCK;
 

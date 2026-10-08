@@ -1,4 +1,3 @@
-import { LlmApiKeys } from "@prisma/client";
 import z from "zod";
 import {
   BedrockConfigSchema,
@@ -572,10 +571,7 @@ export const LLMApiKeySchema = z
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
   .strict();
 
-export type LLMApiKey =
-  z.infer<typeof LLMApiKeySchema> extends LlmApiKeys
-    ? z.infer<typeof LLMApiKeySchema>
-    : never;
+export type LLMApiKey = z.infer<typeof LLMApiKeySchema>;
 
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
