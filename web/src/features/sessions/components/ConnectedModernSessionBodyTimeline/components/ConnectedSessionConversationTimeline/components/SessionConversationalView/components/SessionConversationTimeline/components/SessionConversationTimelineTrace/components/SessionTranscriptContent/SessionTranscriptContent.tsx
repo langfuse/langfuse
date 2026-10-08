@@ -36,7 +36,7 @@ export function SessionTranscriptContent({
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
-        <p className="text-muted-foreground text-sm">No transcript messages.</p>
+        <p className="text-muted-foreground text-sm">No messages.</p>
       )}
       {visibleThreads
         .filter(
@@ -142,6 +142,13 @@ function SessionTranscriptRow({
   item: ReturnType<typeof getSessionTranscriptRows>[number];
 } & Omit<ComponentProps<typeof SessionTranscriptThread>, "rows">) {
   const { row, id } = item;
+  const scrollRequestId = (
+    scrollTarget?.rowId
+      ? scrollTarget.rowId === id
+      : scrollTarget?.observationId === row.message.observationId
+  )
+    ? scrollTarget?.requestId
+    : undefined;
   const timing = row.message.timing;
   const isTool = row.type === "tool";
   const isSystem = row.message.role === "system";
@@ -179,20 +186,13 @@ function SessionTranscriptRow({
       data-session-system-row={isSystem ? "" : undefined}
       data-session-observation-id={row.message.observationId ?? undefined}
       data-session-transcript-row-id={id}
-      data-scroll-request-id={
-        (
-          scrollTarget?.rowId
-            ? scrollTarget.rowId === id
-            : scrollTarget?.observationId === row.message.observationId
-        )
-          ? scrollTarget?.requestId
-          : undefined
-      }
+      data-scroll-request-id={scrollRequestId}
     >
       {row.type === "tool" ? (
         <SessionTranscriptTool row={row} trailingContent={metadata} />
       ) : (
         <SessionTranscriptMessage
+          expandRequestId={scrollRequestId}
           message={row.message}
           trailingContent={isSystem ? metadata : null}
           onOpenObservation={onOpenObservation}
@@ -272,10 +272,12 @@ function SessionTranscriptMessage({
   message,
   trailingContent,
   onOpenObservation,
+  expandRequestId,
 }: {
   message: DisplayMessage;
   trailingContent: ReactNode;
   onOpenObservation: (observationId: string) => void;
+  expandRequestId?: number;
 }) {
   if (message.role === "system") {
     return (
@@ -288,6 +290,7 @@ function SessionTranscriptMessage({
   }
   return (
     <SessionTimelineContentMessage
+      expandRequestId={expandRequestId}
       role={message.role}
       parts={message.parts}
       senderName={message.senderName}
