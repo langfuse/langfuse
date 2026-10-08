@@ -57,7 +57,11 @@ import {
   type TracingSearchType,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -576,11 +580,13 @@ function TracesTableInternal({
   // traces.all should load first together with everything else.
   // This here happens in the background.
 
-  const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [storedRowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "traces",
     "s",
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
+  const compactRows =
+    hideControls || isCompactRowHeight(storedRowHeight, rowHeights.mode);
 
   // Trace rows render trace-scoped aggregates: direct trace scores plus
   // observation scores that belong to the same trace.
@@ -759,7 +765,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "gray",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -771,7 +777,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="input"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -784,7 +790,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "green",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -796,7 +802,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="output"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -923,7 +929,7 @@ function TracesTableInternal({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !compactRows,
       enableHiding: true,
     }),
     {
@@ -931,7 +937,7 @@ function TracesTableInternal({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: (
@@ -962,7 +968,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="metadata"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -1531,6 +1537,7 @@ function TracesTableInternal({
                   setColumnOrder={handleColumnOrderChange}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(rowHeights)}
                   timeRange={showControlsInPageHeader ? undefined : timeRange}
                   setTimeRange={
                     showControlsInPageHeader ? undefined : setTimeRange
@@ -1613,6 +1620,12 @@ function TracesTableInternal({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
+              customRowHeightPx={
+                hideControls ? undefined : rowHeights.activeHeightPx
+              }
+              onCustomRowHeightChange={
+                hideControls ? undefined : rowHeights.setCustomPx
+              }
               peekView={peekConfig}
               tableName="traces"
             />

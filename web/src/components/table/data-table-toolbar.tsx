@@ -155,8 +155,8 @@ interface DataTableToolbarProps<TData, TValue> {
   rowHeight?: RowHeight;
   setRowHeight?: (rowHeight: RowHeight) => void;
   /**
-   * Free height alongside the presets. Omit on tables that only offer
-   * Small / Medium / Large.
+   * Free height alongside the presets. Pass it wherever the switch is shown.
+   * Custom stays hidden until a row has been dragged.
    */
   customRowHeight?: CustomRowHeightControl;
   columnsWithCustomSelect?: string[];

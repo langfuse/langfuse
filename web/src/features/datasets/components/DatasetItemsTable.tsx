@@ -26,7 +26,11 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
@@ -76,10 +80,11 @@ export function DatasetItemsTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "datasetItems",
     "m",
   );
+  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
 
   const [filterState, setFilterState] = useQueryFilterState(
     [],
@@ -223,14 +228,14 @@ export function DatasetItemsTable({
       header: "Input",
       size: 200,
       enableHiding: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createIOTableColumn<RowData>({
       accessorKey: "expectedOutput",
       header: "Expected Output",
       size: 200,
       enableHiding: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       variant: "output",
     }),
     createIOTableColumn<RowData>({
@@ -238,7 +243,7 @@ export function DatasetItemsTable({
       header: "Metadata",
       size: 200,
       enableHiding: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createDropdownTableColumn<RowData, string>({
       id: "actions",
@@ -396,6 +401,7 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         mobileSearch={searchBar}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
       />
@@ -429,6 +435,8 @@ export function DatasetItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
       />
       <EditDatasetItemDialog
         open={editDialogOpen}

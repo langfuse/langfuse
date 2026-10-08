@@ -128,7 +128,10 @@ interface DataTableProps<TData, TValue> {
    * row, so a drag in one run column stays aligned with the others.
    */
   customRowHeightPx?: number | null;
-  /** Dragging a row edge commits a free height. Omit to keep presets only. */
+  /**
+   * Dragging a row edge commits a free height. Omit on tables that should
+   * stay on presets, including embedded previews that force a small row.
+   */
   onCustomRowHeightChange?: (heightPx: number) => void;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
@@ -278,10 +281,18 @@ export function DataTable<TData extends object, TValue>({
   const rowResizeEnabled = onCustomRowHeightChange != null;
   const onCustomRowHeightChangeRef = useRef(onCustomRowHeightChange);
   onCustomRowHeightChangeRef.current = onCustomRowHeightChange;
-  const commitCustomRowHeight = useCallback((heightPx: number) => {
-    onCustomRowHeightChangeRef.current?.(heightPx);
-  }, []);
   const capture = usePostHogClientCapture();
+  const commitCustomRowHeight = useCallback(
+    (heightPx: number) => {
+      capture("table:row_height_switch_select", {
+        rowHeight: "custom",
+        heightPx,
+        tableName,
+      });
+      onCustomRowHeightChangeRef.current?.(heightPx);
+    },
+    [capture, tableName],
+  );
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
 
@@ -1232,10 +1243,8 @@ function TableBodyComponent<TData>({
                       event.stopPropagation();
                     }}
                     className={cn(
-                      "absolute inset-x-0 bottom-0 h-2 cursor-row-resize touch-none select-none",
-                      "bg-secondary opacity-0 group-hover/row:opacity-100",
-                      "focus-visible:bg-primary-accent focus-visible:opacity-100",
-                      previewPx != null && "bg-primary-accent opacity-100",
+                      "bg-secondary absolute inset-x-0 bottom-0 h-1.5 cursor-row-resize touch-none opacity-0 select-none group-hover/row:opacity-100",
+                      "focus-visible:ring-ring focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none",
                     )}
                   />
                 )}

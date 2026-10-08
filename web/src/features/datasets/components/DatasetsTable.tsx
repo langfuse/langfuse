@@ -24,7 +24,12 @@ import {
   BatchExportTableName,
 } from "@langfuse/shared";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  type CustomRowHeightControl,
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -187,6 +192,7 @@ function DatasetsTableToolbar({
   paginationState,
   projectId,
   rowHeight,
+  customRowHeight,
   searchQuery,
   setColumnOrder,
   setColumnVisibility,
@@ -203,6 +209,7 @@ function DatasetsTableToolbar({
   paginationState: { pageIndex: number; pageSize: number };
   projectId: string;
   rowHeight: ReturnType<typeof useRowHeightLocalStorage>[0];
+  customRowHeight: CustomRowHeightControl;
   searchQuery: string | null;
   setColumnOrder: ReturnType<typeof useColumnOrder<DatasetTableRow>>[1];
   setColumnVisibility: ReturnType<
@@ -230,6 +237,7 @@ function DatasetsTableToolbar({
       setColumnOrder={setColumnOrder}
       rowHeight={rowHeight}
       setRowHeight={setRowHeight}
+      customRowHeight={customRowHeight}
       searchConfig={{
         metadataSearchFields: ["Name"],
         updateQuery: setSearchQuery,
@@ -271,7 +279,11 @@ function DatasetsTableToolbar({
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "datasets",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
   const [datasetsTableStore] = useState(() => createDatasetsTableStore());
 
   const {
@@ -432,7 +444,7 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 300,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     {
       id: "actions",
@@ -621,6 +633,7 @@ export function DatasetsTable(props: { projectId: string }) {
         setColumnOrder={handleColumnOrderChange}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         currentFolderPath={currentFolderPath}
         paginationState={paginationState}
         projectId={props.projectId}
@@ -660,6 +673,8 @@ export function DatasetsTable(props: { projectId: string }) {
         columnOrder={columnOrder}
         onColumnOrderChange={handleColumnOrderChange}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
       />
     </>
   );

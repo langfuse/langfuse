@@ -45,6 +45,7 @@ import {
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
+  customRowHeightMenu,
   getRowHeightIOCharLimit,
   useAdjustableRowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
@@ -625,12 +626,10 @@ export default function ExperimentItemsTable({
 
   const {
     preset: rowHeight,
-    mode: rowHeightMode,
-    customPx: rememberedRowHeightPx,
     activeHeightPx,
     setPreset: setRowHeight,
     setCustomPx,
-    selectCustom: selectCustomRowHeight,
+    ...adjustableRowHeight
   } = useAdjustableRowHeight("experiment-items-compact", "s");
   const ioSingleLine = ioRenderMode === "text";
 
@@ -652,18 +651,6 @@ export default function ExperimentItemsTable({
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
   const capture = usePostHogClientCapture();
-  const setCustomRowHeight = useCallback(
-    (heightPx: number) => {
-      capture("table:row_height_switch_select", {
-        rowHeight: "custom",
-        heightPx,
-        tableName: experimentItemsFilterConfig.tableName,
-        isV4: true,
-      });
-      setCustomPx(heightPx);
-    },
-    [capture, setCustomPx],
-  );
   const { viewControllersRef, onExplicitFilterStateChange } =
     useTableViewFilterChange();
   const [filterTargetState, setFilterTargetState] = useState<{
@@ -807,7 +794,7 @@ export default function ExperimentItemsTable({
   // Small stays on the short preview. Medium, Large, and a custom height have
   // room for the longer text, so ask for the expanded read.
   const ioCharLimit =
-    rowHeightMode === "custom"
+    adjustableRowHeight.mode === "custom"
       ? getRowHeightIOCharLimit("l")
       : getRowHeightIOCharLimit(rowHeight);
 
@@ -2082,11 +2069,7 @@ export default function ExperimentItemsTable({
                   orderByState={orderByState}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
-                  customRowHeight={{
-                    active: rowHeightMode === "custom",
-                    rememberedPx: rememberedRowHeightPx,
-                    onSelect: selectCustomRowHeight,
-                  }}
+                  customRowHeight={customRowHeightMenu(adjustableRowHeight)}
                   toolbarSettings={toolbarSettings}
                   multiSelect={{
                     selectAll,
@@ -2195,7 +2178,7 @@ export default function ExperimentItemsTable({
                   rowHeight={rowHeight}
                   customRowHeightPx={activeHeightPx}
                   onCustomRowHeightChange={
-                    hideControls ? undefined : setCustomRowHeight
+                    hideControls ? undefined : setCustomPx
                   }
                   showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
@@ -2243,9 +2226,7 @@ export default function ExperimentItemsTable({
                 onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 customRowHeightPx={activeHeightPx}
-                onCustomRowHeightChange={
-                  hideControls ? undefined : setCustomRowHeight
-                }
+                onCustomRowHeightChange={hideControls ? undefined : setCustomPx}
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (

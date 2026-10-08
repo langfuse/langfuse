@@ -1,7 +1,11 @@
 /* eslint-disable no-nested-ternary */
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import {
   DataTableMobileFilterControls,
   DataTableToolbar,
@@ -219,7 +223,11 @@ export default function ScoresTable({
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "scores",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
@@ -696,7 +704,7 @@ export default function ScoresTable({
       enableHiding: true,
       size: 400,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createBadgeTableColumn<ScoresTableRow>({
       accessorKey: "environment",
@@ -724,7 +732,7 @@ export default function ScoresTable({
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
+                !compactRows && "flex-wrap",
               )}
             >
               <TagList selectedTags={traceTags} isLoading={false} viewOnly />
@@ -739,7 +747,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -752,7 +760,7 @@ export default function ScoresTable({
           <ScoresMetadataCell
             scoreId={scoreId}
             projectId={projectId}
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -1239,6 +1247,7 @@ export default function ScoresTable({
               ]}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               timeRange={
                 showControlsInPageHeader || isTraceScoped
                   ? undefined
@@ -1364,6 +1373,8 @@ export default function ScoresTable({
                 columnOrder={columnOrder}
                 onColumnOrderChange={handleColumnOrderChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={rowHeights.activeHeightPx}
+                onCustomRowHeightChange={rowHeights.setCustomPx}
               />
             )}
           </div>

@@ -12,7 +12,10 @@ import {
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
@@ -125,7 +128,7 @@ export function RulesTable({
     column: "createdAt",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluationRulesV2",
     "s",
   );
@@ -566,6 +569,7 @@ export function RulesTable({
               setColumnOrder={handleColumnOrderChange}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               filterState={filterState}
               orderByState={orderBy}
               viewConfig={{
@@ -605,6 +609,8 @@ export function RulesTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
               orderBy={orderBy}
               setOrderBy={handleOrderByChange}
               pagination={{

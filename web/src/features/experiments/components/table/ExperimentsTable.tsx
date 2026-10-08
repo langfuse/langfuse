@@ -37,7 +37,11 @@ import {
 } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
@@ -301,10 +305,11 @@ export default function ExperimentsTable({
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "experiments",
     "s",
   );
+  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
 
   const [inputFilterState] = useQueryFilterState([], "experiments", projectId);
 
@@ -594,7 +599,7 @@ export default function ExperimentsTable({
       // Off by default: 300px of mostly boilerplate ahead of the score columns.
       defaultHidden: true,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createIOTableColumn<ExperimentsTableRow>({
       // Placed here (right after the identifying name/description columns) rather
@@ -606,7 +611,7 @@ export default function ExperimentsTable({
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
@@ -710,7 +715,7 @@ export default function ExperimentsTable({
         return (
           <div
             className={
-              rowHeight === "s"
+              compactRows
                 ? "flex max-w-full flex-nowrap gap-1 overflow-x-auto py-0.5 whitespace-nowrap"
                 : "flex flex-wrap gap-1"
             }
@@ -1011,6 +1016,7 @@ export default function ExperimentsTable({
                 orderByState={orderByState}
                 rowHeight={rowHeight}
                 setRowHeight={setRowHeight}
+                customRowHeight={customRowHeightMenu(rowHeights)}
                 timeRange={showControlsInPageHeader ? undefined : timeRange}
                 setTimeRange={
                   showControlsInPageHeader ? undefined : setTimeRange
@@ -1135,6 +1141,8 @@ export default function ExperimentsTable({
                   columnVisibility={columnVisibility}
                   onColumnVisibilityChange={handleColumnVisibilityChange}
                   rowHeight={rowHeight}
+                  customRowHeightPx={rowHeights.activeHeightPx}
+                  onCustomRowHeightChange={rowHeights.setCustomPx}
                   onRowClick={(row, event) => {
                     // Handle Command/Ctrl+click to open experiment in new tab
                     if (event && (event.metaKey || event.ctrlKey)) {

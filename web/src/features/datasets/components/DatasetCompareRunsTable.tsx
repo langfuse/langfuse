@@ -12,7 +12,10 @@ import { useEffect, useMemo } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import {
   DatasetCompareFieldsProvider,
@@ -46,7 +49,7 @@ function DatasetCompareRunsTableInternal(props: {
     convertToColumnFilterList,
   } = useColumnFilterState();
   const { setDetailPageList } = useDetailPageLists();
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "datasetCompareRuns",
     "m",
   );
@@ -198,6 +201,7 @@ function DatasetCompareRunsTableInternal(props: {
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         additionalColumnSettings={{
           isDefault:
             isFieldSelected("output") &&
@@ -268,6 +272,8 @@ function DatasetCompareRunsTableInternal(props: {
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
         customRowHeights={{
           s: "h-48",
           m: "h-64",

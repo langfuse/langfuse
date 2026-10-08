@@ -10,7 +10,10 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { type AnnotationQueueStatus } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { ListTree, Trash } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
@@ -207,7 +210,10 @@ export function AnnotationQueueItemsTable({
   });
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("queueItems", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "queueItems",
+    "s",
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
@@ -451,6 +457,7 @@ export function AnnotationQueueItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         actionButtons={[
           selectedItems.length > 0 ? (
             <QueueItemTableMultiSelectAction
@@ -501,6 +508,8 @@ export function AnnotationQueueItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
       />
     </>
   );

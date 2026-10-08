@@ -10,7 +10,11 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -38,10 +42,11 @@ type RowData = {
 };
 
 export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "annotationQueues",
     "s",
   );
+  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -114,7 +119,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
           <span
             className={cn(
               "grid h-full items-center overflow-auto",
-              rowHeight === "s" && "leading-3",
+              compactRows && "leading-3",
             )}
           >
             {scoreConfigs
@@ -220,6 +225,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
       />
       <DataTable
         tableName="annotationQueues"
@@ -251,6 +257,8 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
         getRowClassName={(row) =>
           row.isAssigned ? "bg-primary/5 border-l-4 border-l-primary/40" : ""
         }

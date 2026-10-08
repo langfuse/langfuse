@@ -369,7 +369,7 @@ describe("DataTableToolbar presentation controls", () => {
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("offers Custom only after a row has been dragged", () => {
+  it("hides Custom until a row has been dragged", () => {
     render(
       <DataTableToolbar
         {...settingsProps}
@@ -383,8 +383,8 @@ describe("DataTableToolbar presentation controls", () => {
     openRowHeightMenu();
 
     expect(
-      screen.getByRole("menuitemcheckbox", { name: "Custom" }),
-    ).toHaveAttribute("aria-disabled", "true");
+      screen.queryByRole("menuitemcheckbox", { name: /^Custom/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens legacy filters and search together in the mobile sheet", () => {

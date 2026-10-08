@@ -113,6 +113,12 @@ const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
 export const getRowHeightIOCharLimit = (rowHeight: RowHeight) =>
   rowHeight === "s" ? undefined : EXPANDED_ROW_IO_CHAR_LIMIT;
 
+/** Small preset, and not a dragged height. Custom rows have room to wrap. */
+export const isCompactRowHeight = (
+  rowHeight: RowHeight,
+  mode: "preset" | "custom",
+) => mode !== "custom" && rowHeight === "s";
+
 export const getRowHeightTailwindClass = (
   rowHeight?: RowHeight,
   customHeights?: CustomHeights,
@@ -125,12 +131,9 @@ export function useRowHeightLocalStorage(
   tableName: string,
   defaultValue: RowHeight,
 ) {
-  const [rowHeight, setRowHeight, clearRowHeight] = useLocalStorage<RowHeight>(
-    `${tableName}Height`,
-    defaultValue,
-  );
+  const adjustable = useAdjustableRowHeight(tableName, defaultValue);
 
-  return [rowHeight, setRowHeight, clearRowHeight] as const;
+  return [adjustable.preset, adjustable.setPreset, adjustable] as const;
 }
 
 /**
@@ -194,6 +197,19 @@ export function useAdjustableRowHeight(
   };
 }
 
+/** Menu props for the row-height switch. Custom stays hidden until a drag. */
+export function customRowHeightMenu(adjustable: {
+  mode: "preset" | "custom";
+  customPx: number | null;
+  selectCustom: () => void;
+}): CustomRowHeightControl {
+  return {
+    active: adjustable.mode === "custom",
+    rememberedPx: adjustable.customPx,
+    onSelect: adjustable.selectCustom,
+  };
+}
+
 export const DataTableRowHeightSwitch = ({
   rowHeight,
   setRowHeight,
@@ -205,7 +221,10 @@ export const DataTableRowHeightSwitch = ({
   setRowHeight: (e: RowHeight) => void;
   tableName?: string;
   isV4?: boolean;
-  /** Omit on tables that only offer the presets. */
+  /**
+   * Pass this wherever the switch is shown. Custom stays hidden until a row
+   * has been dragged.
+   */
   customRowHeight?: CustomRowHeightControl;
 }) => {
   const capture = usePostHogClientCapture();
@@ -243,22 +262,14 @@ export const DataTableRowHeightSwitch = ({
               {label}
             </DropdownMenuCheckboxItem>
           ))}
-          {customRowHeight && (
+          {customRowHeight?.rememberedPx != null && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={customActive}
-                disabled={customRowHeight.rememberedPx == null}
-                title={
-                  customRowHeight.rememberedPx == null
-                    ? "Drag the bottom edge of a row"
-                    : undefined
-                }
                 onClick={(e) => {
                   e.preventDefault();
-                  if (customRowHeight.rememberedPx == null || customActive) {
-                    return;
-                  }
+                  if (customActive) return;
                   capture("table:row_height_switch_select", {
                     rowHeight: "custom",
                     tableName,
@@ -267,9 +278,7 @@ export const DataTableRowHeightSwitch = ({
                   customRowHeight.onSelect();
                 }}
               >
-                {customRowHeight.rememberedPx == null
-                  ? "Custom"
-                  : `Custom (${customRowHeight.rememberedPx}px)`}
+                {`Custom (${customRowHeight.rememberedPx}px)`}
               </DropdownMenuCheckboxItem>
             </>
           )}

@@ -58,7 +58,11 @@ import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlace
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
 import { TagList } from "@/src/features/tag";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { cn } from "@/src/utils/tailwind";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -196,7 +200,11 @@ export default function SessionsTable({
     limit: "pageSize",
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("sessions", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "sessions",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(rowHeight, rowHeights.mode);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -760,7 +768,7 @@ export default function SessionsTable({
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
+                !compactRows && "flex-wrap",
               )}
             >
               <TagList selectedTags={value} isLoading={false} viewOnly />
@@ -904,6 +912,7 @@ export default function SessionsTable({
               columnsWithCustomSelect={["userIds"]}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               multiSelect={{
                 selectAll,
                 setSelectAll,
@@ -980,6 +989,8 @@ export default function SessionsTable({
                 href: "https://langfuse.com/docs/observability/features/sessions",
               }}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
             />
           </div>
         </StickySearchableTableFilterLayout>
