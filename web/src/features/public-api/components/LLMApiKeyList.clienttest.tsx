@@ -9,6 +9,7 @@ vi.mock("@/src/components/layouts/header", () => ({
 }));
 vi.mock("@/src/features/rbac", () => ({
   useHasProjectAccess: () => true,
+  useHasOrganizationAccess: () => false,
 }));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => vi.fn(),
