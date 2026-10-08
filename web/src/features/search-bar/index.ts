@@ -9,7 +9,8 @@ export { ComposerTokens } from "@/src/features/search-bar/components/ComposerTok
 export { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 export { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 export {
-  COMPOSER_SURFACE_CLASSES,
+  type ComposerSize,
+  composerSurfaceClasses,
   COMPOSER_TEXT_CLASSES,
 } from "@/src/features/search-bar/components/composer-chrome";
 export { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";

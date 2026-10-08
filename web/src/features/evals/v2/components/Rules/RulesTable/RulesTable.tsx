@@ -534,6 +534,7 @@ export function RulesTable({
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
               projectId={projectId}
               tableName={filterConfig.tableName}

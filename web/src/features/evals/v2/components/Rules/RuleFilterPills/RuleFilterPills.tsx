@@ -11,7 +11,7 @@ import {
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { InlineFilterState } from "@/src/features/filters";
 import {
-  COMPOSER_SURFACE_CLASSES,
+  composerSurfaceClasses,
   COMPOSER_TEXT_CLASSES,
   ComposerTokens,
   filterStateToQueryText,
@@ -58,7 +58,7 @@ export function RuleFilterPills({
         <div
           aria-disabled="true"
           data-testid="readonly-rule-filter-search"
-          className={cn(COMPOSER_SURFACE_CLASSES, "bg-muted/30")}
+          className={cn(composerSurfaceClasses(), "bg-muted/30")}
         >
           <div className={COMPOSER_TEXT_CLASSES}>
             {filter.length === 0 ? (
@@ -108,7 +108,7 @@ export function RuleFilterPills({
       <div
         aria-disabled="true"
         data-testid="readonly-rule-filter-search"
-        className={cn(COMPOSER_SURFACE_CLASSES, "bg-muted/30")}
+        className={cn(composerSurfaceClasses(), "bg-muted/30")}
       >
         <div className={COMPOSER_TEXT_CLASSES}>
           {query.text ? (

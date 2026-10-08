@@ -26,7 +26,7 @@ import { SearchComposer } from "@/src/features/search-bar/components/SearchCompo
 import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
 import { useSearchBarStore } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import {
-  COMPOSER_SURFACE_CLASSES,
+  composerSurfaceClasses,
   COMPOSER_TEXT_CLASSES,
 } from "@/src/features/search-bar/components/composer-chrome";
 
@@ -68,7 +68,7 @@ export function ComposerWithPreview(
             "animate-in fade-in-0 duration-150",
           )}
         >
-          <div className={COMPOSER_SURFACE_CLASSES}>
+          <div className={composerSurfaceClasses(props.size)}>
             <div className={COMPOSER_TEXT_CLASSES}>
               <ComposerTokens
                 draft={previewText}

@@ -16,6 +16,7 @@
 
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { type ComposerSize } from "@/src/features/search-bar/components/composer-chrome";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
@@ -47,8 +48,11 @@ export function SearchBarAiPrompt({
   registryId = "events",
   onApply,
   onExit,
+  size = "default",
 }: {
   projectId: string;
+  /** Matches the composer's size so switching modes keeps the bar height. */
+  size?: ComposerSize;
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
   isV4?: boolean;
@@ -215,7 +219,8 @@ export function SearchBarAiPrompt({
     <div className="relative w-full">
       <div
         className={cn(
-          "border-input bg-background rounded-md border px-2 py-0.5",
+          "border-input bg-background rounded-md border px-2",
+          size === "large" ? "min-h-9 py-1.25" : "py-0.5",
           "focus-within:ring-ring focus-within:ring-1",
           error && "border-destructive focus-within:ring-destructive/40",
         )}

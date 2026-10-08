@@ -1160,6 +1160,7 @@ export default function ScoresTable({
 
   const scoresSearchBar = (
     <ScoresSearchBar
+      size={showControlsInPageHeader ? "large" : "default"}
       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
       isV4={isV4}
       projectId={projectId}

@@ -61,7 +61,8 @@ import {
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
 import {
-  COMPOSER_SURFACE_CLASSES,
+  composerSurfaceClasses,
+  type ComposerSize,
   COMPOSER_TEXT_CLASSES,
 } from "@/src/features/search-bar/components/composer-chrome";
 
@@ -327,8 +328,11 @@ export function SearchComposer({
   fieldReason,
   freeTextReason,
   registry = EVENTS_FIELD_REGISTRY,
+  size = "default",
 }: {
   projectId?: string;
+  /** `large` on full-page lists; embedded toolbars keep the default. */
+  size?: ComposerSize;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
   /** Columns whose lazy fetch terminally errored — settle the value-stage
@@ -1409,12 +1413,13 @@ export function SearchComposer({
           // Prominent primary control. Block (not flex) so inline pills never
           // break across a wrap. Balanced padding: a small, even gutter on all
           // sides (the left no longer dwarfs the inter-pill gap and top), py
-          // centers a single line near min-h-8 and the box grows when wrapped.
+          // centers a single line at the bar's min height and the box grows
+          // when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
           // Box + text metrics are shared with the preview surface
           // (composer-chrome.ts) so the overlay renders pixel-identical.
-          COMPOSER_SURFACE_CLASSES,
+          composerSurfaceClasses(size),
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
@@ -1530,7 +1535,8 @@ export function SearchComposer({
               onActivateAi();
             }}
             className={cn(
-              "absolute top-0.75 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              "absolute right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              size === "large" ? "top-1.25" : "top-0.75",
               "bg-background text-muted-foreground font-sans text-xs",
               "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
               // Match the app's focus ring (ring-ring) instead of the browser's

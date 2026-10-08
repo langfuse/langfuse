@@ -2008,6 +2008,7 @@ export default function ExperimentItemsTable({
           search={
             hideControls ? null : (
               <TableSearchBar
+                size="large"
                 key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName="experiment-items"
