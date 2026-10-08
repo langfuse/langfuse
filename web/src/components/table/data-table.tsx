@@ -1115,15 +1115,15 @@ function TableBodyComponent<TData>({
     if (event.button > 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const sized = event.currentTarget
-      .closest("td")
-      ?.querySelector<HTMLElement>("[data-row-height]");
+    // The lower half lives in the next row. Its target is the row above
+    // the border, not the row that contains the element.
+    const rowIndex = Number(event.currentTarget.dataset.rowResizeTarget ?? "");
+    if (!Number.isInteger(rowIndex) || rowIndex < 0) return;
+    const sized = tableBodyRef.current?.querySelector<HTMLElement>(
+      `tr[data-row-index="${rowIndex}"] [data-row-height]`,
+    );
     const startHeight = sized?.getBoundingClientRect().height;
     if (startHeight == null || startHeight <= 0) return;
-    const rowIndex = Number(
-      event.currentTarget.closest("tr")?.dataset.rowIndex ?? "",
-    );
-    if (!Number.isInteger(rowIndex)) return;
     dragRef.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
@@ -1319,10 +1319,11 @@ function TableBodyComponent<TData>({
             const columnDef = cell.column.columnDef as LangfuseColumnDef<TData>;
             const isLastRow = row.index === rowModelRows.length - 1;
             const isPrimaryHandle = row.index === 0 && cellIndex === 0;
-            // 3px above this row's border, and 3px at the top of the next
-            // row. The lower half lives in the next row so it can be grabbed
-            // without covering the rest of that row. The last row has no
-            // neighbor, so its strip hangs 3px below its own bottom edge.
+            // Each border has a 6px strip: 3px in the row above and 3px at
+            // the top of the next row. The lower half lives in the next row
+            // so the rest of that row still receives clicks. Both halves
+            // resize the row above the line. The last row's strip hangs 3px
+            // below its own bottom edge.
             const resizeEdges: RowResizeEdge[] = [];
             if (rowResizeEnabled && row.index > 0) resizeEdges.push("below");
             if (rowResizeEnabled && isLastRow) resizeEdges.push("last");
@@ -1390,6 +1391,9 @@ function TableBodyComponent<TData>({
                       key={edge}
                       data-row-resize-handle=""
                       data-row-resize-edge={edge}
+                      data-row-resize-target={
+                        edge === "below" ? row.index - 1 : row.index
+                      }
                       role={primary ? "slider" : undefined}
                       aria-orientation={primary ? "vertical" : undefined}
                       aria-label={primary ? "Row height" : undefined}

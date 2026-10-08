@@ -204,6 +204,29 @@ describe("DataTable custom row height", () => {
     );
   });
 
+  it("resizes the row above when the pointer starts on the lower half of its border", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(96),
+    );
+    renderResizableTable();
+
+    const lowerHalf = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="below"]',
+    );
+    expect(lowerHalf).not.toBeNull();
+    act(() => {
+      pointAt(lowerHalf!, "pointerdown", 100);
+      pointAt(lowerHalf!, "pointermove", 180);
+    });
+
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "176px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "96px", maxHeight: "96px" });
+    }
+  });
+
   it("does not render a row resize handle for tables that only use presets", () => {
     render(
       <SortableTable initialOrderBy={{ column: "scoreName", order: "ASC" }} />,
