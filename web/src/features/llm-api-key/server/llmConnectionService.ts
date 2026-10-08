@@ -780,9 +780,13 @@ export class LlmConnectionService {
             provider: connection.provider,
           })
         : null;
+    const hasCompatibleOrganizationFallback =
+      organizationFallback?.adapter === connection.adapter;
     let providerProjectIds: string[];
     if (params.owner.type === "project") {
-      providerProjectIds = organizationFallback ? [] : [params.owner.projectId];
+      providerProjectIds = hasCompatibleOrganizationFallback
+        ? []
+        : [params.owner.projectId];
     } else {
       providerProjectIds =
         await this.repository.listProjectsUsingOrganizationConnection({

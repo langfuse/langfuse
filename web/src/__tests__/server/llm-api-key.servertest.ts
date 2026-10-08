@@ -1949,5 +1949,59 @@ describe("llmApiKey.all RPC", () => {
         model: "gpt-4o",
       });
     });
+
+    it("deletes the default model when the organization fallback uses a different adapter", async () => {
+      await prisma.llmApiKeys.createMany({
+        data: [
+          {
+            organizationId: orgId,
+            secretKey: encrypt("organization-secret"),
+            displaySecretKey: "...cret",
+            provider: PROVIDER,
+            adapter: LLMAdapter.Anthropic,
+          },
+          {
+            projectId,
+            secretKey: encrypt("project-secret"),
+            displaySecretKey: "...cret",
+            provider: PROVIDER,
+            adapter: LLMAdapter.OpenAI,
+          },
+        ],
+      });
+      const projectConnection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      const defaultModelEvaluatorId = await createV2Evaluator([
+        { provider: null, model: null },
+      ]);
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+
+      await caller.llmApiKey.delete({
+        projectId,
+        id: projectConnection.id,
+      });
+
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledWith({
+        projectId,
+        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]: [],
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]: [
+            defaultModelEvaluatorId,
+          ],
+        },
+      });
+      expect(
+        await prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+      ).toBeNull();
+    });
   });
 });
