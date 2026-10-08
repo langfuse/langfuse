@@ -35,6 +35,8 @@ import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/Com
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { staleProps } from "@/src/features/traces/fns/staleProps";
+import { cn } from "@/src/utils/tailwind";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -204,6 +206,8 @@ function TraceWithSelection({
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
+  const { isPlaceholderData } = useTraceData();
+  const stale = staleProps(isPlaceholderData);
 
   const panels = isMobile ? (
     <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
@@ -212,7 +216,13 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   );
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
+    <div
+      inert={stale.inert}
+      className={cn(
+        "flex h-full w-full min-w-0 flex-col overflow-hidden",
+        stale.className,
+      )}
+    >
       <TraceHeader />
       <div className="min-h-0 flex-1">{panels}</div>
     </div>

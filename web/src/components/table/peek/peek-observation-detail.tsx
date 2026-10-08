@@ -4,7 +4,6 @@ import {
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { TraceDetailActions, TraceDetailBody } from "@/src/features/traces";
-import { StaleContent } from "@/src/features/traces/components/StaleContent";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
@@ -71,14 +70,17 @@ export const TablePeekViewObservationDetail = (
       hideExpandToggle
       preserveContentAcrossItems
       actions={
-        <StaleContent stale={trace.isPlaceholderData} remountOnStale>
-          <TraceDetailActions {...actionProps} />
-        </StaleContent>
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+        />
       }
       actionsMenu={
-        <StaleContent stale={trace.isPlaceholderData} remountOnStale>
-          <TraceDetailActions {...actionProps} layout="menu" />
-        </StaleContent>
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+          layout="menu"
+        />
       }
     >
       <TraceDetailBody

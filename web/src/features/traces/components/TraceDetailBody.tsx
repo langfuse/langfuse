@@ -1,6 +1,5 @@
 import { Trace, type TraceProps } from "@/src/features/traces/components/Trace";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
-import { StaleContent } from "@/src/features/traces/components/StaleContent";
 import { TraceDetailBodySkeleton } from "@/src/features/traces/components/TraceDetailSkeletons";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import { useLatched } from "@/src/hooks/useLatched";
@@ -12,8 +11,8 @@ type TraceDetailData = NonNullable<
 /**
  * The trace detail body (`<Trace>`), shared by the peek and the standalone
  * page so the invocation isn't copy-pasted. A cold load shows a shaped
- * skeleton; while `isPlaceholderData`, the previous trace stays on screen
- * dimmed and inert. `keySuffix` lets a caller force a remount when the
+ * skeleton; while `isPlaceholderData`, `<Trace>` keeps the previous trace on
+ * screen dimmed and inert. `keySuffix` lets a caller force a remount when the
  * focused item changes (e.g. the observation peek keys on the observation id).
  */
 export function TraceDetailBody({
@@ -51,19 +50,17 @@ export function TraceDetailBody({
       </SkeletonGroup>
     );
   return (
-    <StaleContent stale={isPlaceholderData} fill>
-      <Trace
-        key={traceKey}
-        trace={trace}
-        scores={trace.scores}
-        corrections={trace.corrections}
-        projectId={trace.projectId}
-        observations={trace.observations}
-        context={context}
-        layout={layout}
-        truncatedAtObservations={truncatedAtObservations}
-        isPlaceholderData={isPlaceholderData}
-      />
-    </StaleContent>
+    <Trace
+      key={traceKey}
+      trace={trace}
+      scores={trace.scores}
+      corrections={trace.corrections}
+      projectId={trace.projectId}
+      observations={trace.observations}
+      context={context}
+      layout={layout}
+      truncatedAtObservations={truncatedAtObservations}
+      isPlaceholderData={isPlaceholderData}
+    />
   );
 }

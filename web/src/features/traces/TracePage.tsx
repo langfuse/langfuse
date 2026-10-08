@@ -11,7 +11,6 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
-import { StaleContent } from "@/src/features/traces/components/StaleContent";
 
 export function TracePage({
   traceId,
@@ -141,29 +140,27 @@ export function TracePage({
               listKey="traces"
               compact
             />
-            <StaleContent stale={trace.isPlaceholderData} remountOnStale>
-              <TraceDetailActions
-                trace={trace.data}
-                traceContext={traceContext}
-                timestamp={timestamp}
-                deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-              />
-            </StaleContent>
+            <TraceDetailActions
+              isPlaceholderData={trace.isPlaceholderData}
+              trace={trace.data}
+              traceContext={traceContext}
+              timestamp={timestamp}
+              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+            />
           </>
         ),
         // Mobile compact header: the same trace actions as full-width labeled
         // menu rows (Share / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
-          <StaleContent stale={trace.isPlaceholderData} remountOnStale>
-            <TraceDetailActions
-              trace={trace.data}
-              traceContext={traceContext}
-              timestamp={timestamp}
-              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-              layout="menu"
-            />
-          </StaleContent>
+          <TraceDetailActions
+            isPlaceholderData={trace.isPlaceholderData}
+            trace={trace.data}
+            traceContext={traceContext}
+            timestamp={timestamp}
+            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+            layout="menu"
+          />
         ),
       }}
     >
