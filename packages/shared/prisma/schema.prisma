@@ -222,6 +222,7 @@ model ApiKey {
   createdAt           DateTime                  @default(now()) @map("created_at")
   note                String?
   publicKey           String                    @unique @map("public_key")
+  // bcrypt hash for keys created before fastHashedSecretKey existed; newer keys store a non-secret placeholder
   hashedSecretKey     String                    @unique @map("hashed_secret_key")
   fastHashedSecretKey String?                   @unique @map("fast_hashed_secret_key")
   displaySecretKey    String                    @map("display_secret_key")

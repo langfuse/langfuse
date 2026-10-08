@@ -1,6 +1,10 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import {
+  createLegacySecretKeyPlaceholder,
+  getDisplaySecretKey,
+  logger,
+} from "../../src/server";
 import { assignRole } from "../../src/features/rbac/roleAssignmentRepository";
 import {
   ApiKeyId,
@@ -55,16 +59,14 @@ const prepareProjectsAndApiKeys = async (
       where: { id: apiKeyId },
     });
     if (!apiKeyExists) {
-      const sk = await hashSecretKey(
-        `sk-${Math.random().toString(36).slice(2, 11)}`,
-      );
+      const sk = `sk-${Math.random().toString(36).slice(2, 11)}`;
       await prisma.$transaction(async (tx) => {
         await tx.apiKey.create({
           data: {
             id: apiKeyId,
             note: `API Key for ${projectId}`,
             publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
-            hashedSecretKey: sk,
+            hashedSecretKey: createLegacySecretKeyPlaceholder(),
             displaySecretKey: getDisplaySecretKey(sk),
             scope: "PROJECT",
             project: {
