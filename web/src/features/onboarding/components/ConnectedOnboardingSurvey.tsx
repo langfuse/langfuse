@@ -8,16 +8,15 @@ import { api } from "@/src/utils/api";
 import { getDemoCallbackRedirectPath } from "../lib/demoCallbackRedirect";
 import {
   getSurveySubmittedEvent,
-  orderBuildIntentOptions,
+  shuffleBuildIntentOptions,
 } from "../lib/buildIntent";
 import type { SurveyFormData } from "../lib/surveyTypes";
 import { OnboardingSurvey } from "./OnboardingSurvey";
 
 export function ConnectedOnboardingSurvey() {
   const router = useRouter();
-  const { data: session, update: updateSession } = useSession();
+  const { update: updateSession } = useSession();
   const capture = usePostHogClientCapture();
-  const userId = session?.user?.id;
   const utils = api.useUtils();
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
@@ -27,8 +26,8 @@ export function ConnectedOnboardingSurvey() {
     : undefined;
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
-  // Survey duration is measured from page open.
   const [onboardingOpenedAt] = useState(() => Date.now());
+  const [buildIntentOptions] = useState(shuffleBuildIntentOptions);
 
   const [finishOnboarding, isFinishingOnboarding] = useWatchedPromiseCallback(
     async (data: SurveyFormData) => {
@@ -46,7 +45,14 @@ export function ConnectedOnboardingSurvey() {
           ...(canConfigureAiFeatures
             ? { aiFeaturesEnabled: data.aiFeaturesEnabled }
             : {}),
-          ...(buildIntents.length > 0 ? { buildIntents } : {}),
+          ...(buildIntents.length > 0
+            ? {
+                buildIntents,
+                buildIntentPositions: buildIntents.map((id) =>
+                  buildIntentOptions.findIndex((option) => option.id === id),
+                ),
+              }
+            : {}),
           ...(buildIntentOther ? { buildIntentOther } : {}),
         });
         const surveySubmittedEvent = getSurveySubmittedEvent({
@@ -80,6 +86,7 @@ export function ConnectedOnboardingSurvey() {
     [
       capture,
       onboardingOpenedAt,
+      buildIntentOptions,
       completeOnboardingMutation,
       onboardingStatus.data,
       queryRedirectPath,
@@ -148,15 +155,10 @@ export function ConnectedOnboardingSurvey() {
     return <OnboardingSurvey state="error" />;
   }
 
-  // The option order is seeded by the user id.
-  if (!userId) {
-    return <OnboardingSurvey state="completing" />;
-  }
-
   return (
     <OnboardingSurvey
       state="form"
-      buildIntentOptions={orderBuildIntentOptions(userId)}
+      buildIntentOptions={buildIntentOptions}
       canConfigureAiFeatures={
         onboardingStatus.data?.completed === false
           ? onboardingStatus.data.canConfigureAiFeatures

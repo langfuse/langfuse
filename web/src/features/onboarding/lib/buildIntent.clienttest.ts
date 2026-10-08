@@ -1,46 +1,17 @@
 import {
   BUILD_INTENT_IDS,
   type BuildIntentId,
-  getShownPositions,
   getSurveySubmittedEvent,
-  orderBuildIntentOptions,
+  shuffleBuildIntentOptions,
   toggleBuildIntent,
 } from "./buildIntent";
 
-describe("orderBuildIntentOptions", () => {
-  it("returns the same order for the same user on every call", () => {
-    expect(orderBuildIntentOptions("user-1")).toEqual(
-      orderBuildIntentOptions("user-1"),
-    );
-  });
-
-  it("shows different users different use-case orders", () => {
-    const orders = new Set(
-      ["user-1", "user-2", "user-3", "user-4", "user-5"].map((userId) =>
-        orderBuildIntentOptions(userId)
-          .map((option) => option.id)
-          .join(","),
-      ),
-    );
-
-    expect(orders.size).toBeGreaterThan(1);
-  });
-
+describe("shuffleBuildIntentOptions", () => {
   it("keeps every option once and pins exploring and other last", () => {
-    const ids = orderBuildIntentOptions("user-1").map((option) => option.id);
+    const ids = shuffleBuildIntentOptions().map((option) => option.id);
 
     expect([...ids].sort()).toEqual([...BUILD_INTENT_IDS].sort());
     expect(ids.slice(-2)).toEqual(["just_exploring", "other"]);
-  });
-});
-
-describe("getShownPositions", () => {
-  it("returns where each pick appeared in that user's list", () => {
-    const shownIds = orderBuildIntentOptions("user-1").map(
-      (option) => option.id,
-    );
-
-    expect(getShownPositions("user-1", [shownIds[3], "other"])).toEqual([3, 6]);
   });
 });
 

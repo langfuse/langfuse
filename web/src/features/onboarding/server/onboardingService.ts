@@ -16,11 +16,7 @@ import {
 } from "@/src/features/rbac";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { createProjectRoute } from "@/src/features/setup";
-import {
-  getShownPositions,
-  OTHER_BUILD_INTENT,
-  type BuildIntentId,
-} from "@/src/features/onboarding/lib/buildIntent";
+import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 const STARTER_ORGANIZATION_METADATA = {
@@ -283,6 +279,7 @@ export const completeCloudSignupOnboarding = async ({
   referralSource,
   aiFeaturesEnabled,
   buildIntents,
+  buildIntentPositions,
   buildIntentOther,
 }: {
   prisma: PrismaClient;
@@ -292,6 +289,7 @@ export const completeCloudSignupOnboarding = async ({
   referralSource?: string;
   aiFeaturesEnabled?: boolean;
   buildIntents?: BuildIntentId[];
+  buildIntentPositions?: number[];
   buildIntentOther?: string;
 }) =>
   prisma.$transaction(async (tx) => {
@@ -320,12 +318,6 @@ export const completeCloudSignupOnboarding = async ({
 
     if (!existingSurvey) {
       const normalizedReferralSource = referralSource?.trim();
-      // Temporary build-intent answer, see features/onboarding/lib/buildIntent.ts
-      const normalizedBuildIntentOther = buildIntents?.includes(
-        OTHER_BUILD_INTENT,
-      )
-        ? buildIntentOther
-        : undefined;
 
       if (
         redirectTarget.canConfigureAiFeatures &&
@@ -348,10 +340,8 @@ export const completeCloudSignupOnboarding = async ({
             ...(buildIntents && buildIntents.length > 0
               ? {
                   buildIntents,
-                  buildIntentPositions: getShownPositions(userId, buildIntents),
-                  ...(normalizedBuildIntentOther
-                    ? { buildIntentOther: normalizedBuildIntentOther }
-                    : {}),
+                  buildIntentPositions: buildIntentPositions ?? [],
+                  ...(buildIntentOther ? { buildIntentOther } : {}),
                 }
               : {}),
           },

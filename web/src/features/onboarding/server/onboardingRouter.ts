@@ -34,6 +34,16 @@ export const onboardingRouter = createTRPCRouter({
             .min(1)
             .max(BUILD_INTENT_MAX_SELECTIONS)
             .optional(),
+          buildIntentPositions: z
+            .array(
+              z
+                .number()
+                .int()
+                .min(0)
+                .max(BUILD_INTENT_IDS.length - 1),
+            )
+            .max(BUILD_INTENT_MAX_SELECTIONS)
+            .optional(),
           buildIntentOther: z
             .string()
             .trim()
@@ -48,6 +58,11 @@ export const onboardingRouter = createTRPCRouter({
                 buildIntents.length === 1)),
           { message: "Build intents must be unique; exploring is exclusive" },
         )
+        .refine(
+          ({ buildIntents, buildIntentPositions }) =>
+            buildIntentPositions?.length === buildIntents?.length,
+          { message: "Each build intent needs its shown position" },
+        )
         .optional(),
     )
     .mutation(async ({ ctx, input }) => {
@@ -59,6 +74,7 @@ export const onboardingRouter = createTRPCRouter({
         referralSource: input?.referralSource,
         aiFeaturesEnabled: input?.aiFeaturesEnabled,
         buildIntents: input?.buildIntents,
+        buildIntentPositions: input?.buildIntentPositions,
         buildIntentOther: input?.buildIntentOther,
       });
     }),

@@ -1,17 +1,4 @@
-/**
- * Temporary onboarding question: "What will you use Langfuse for?"
- *
- * Up to three picks, optional. "Just exploring" clears the other picks.
- * The five use cases are shuffled per user, seeded by the user id, so the
- * order is the same on every reload and on the server, which recomputes each
- * pick's shown position from the user id. "Just exploring" and "Other" stay
- * last.
- *
- * Removal: delete this file, `BuildIntentFieldset.tsx`, the `buildIntent*`
- * fields in the onboarding router, service and form, and the build-intent
- * props and `onboardingBuildIntents` person property on the
- * `onboarding:signup_survey_submitted` event.
- */
+/** Temporary onboarding question; remove with `BuildIntentFieldset` and the `buildIntent*` fields and event props. */
 
 const USE_CASE_OPTIONS = [
   {
@@ -56,7 +43,6 @@ export type BuildIntentOption = {
   hint: string | undefined;
 };
 
-// z.enum needs a non-empty tuple type.
 export const BUILD_INTENT_IDS = [
   ...USE_CASE_OPTIONS,
   ...PINNED_BUILD_INTENT_OPTIONS,
@@ -66,24 +52,13 @@ export const BUILD_INTENT_MAX_SELECTIONS = 3;
 export const BUILD_INTENT_OTHER_MAX_LENGTH = 500;
 export const EXCLUSIVE_BUILD_INTENT: BuildIntentId = "just_exploring";
 export const OTHER_BUILD_INTENT: BuildIntentId = "other";
-const PARK_MILLER_MODULUS = 2147483647;
 
-/**
- * Orders the options for one user: use cases shuffled (Fisher–Yates), "Just
- * exploring" and "Other" last.
- *
- * @example
- * const options = orderBuildIntentOptions(session.user.id);
- * options.at(-1)?.id; // "other"
- */
-export const orderBuildIntentOptions = (
-  userId: string,
-): BuildIntentOption[] => {
-  const random = createSeededRandom(userId);
+/** Use cases in random order, then "Just exploring" and "Other". */
+export const shuffleBuildIntentOptions = (): BuildIntentOption[] => {
   const shuffled: BuildIntentOption[] = [...USE_CASE_OPTIONS];
 
   for (let index = shuffled.length - 1; index > 0; index--) {
-    const swapIndex = Math.floor(random() * (index + 1));
+    const swapIndex = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[swapIndex]] = [
       shuffled[swapIndex],
       shuffled[index],
@@ -93,29 +68,7 @@ export const orderBuildIntentOptions = (
   return [...shuffled, ...PINNED_BUILD_INTENT_OPTIONS];
 };
 
-/**
- * Where each pick appeared in the list this user saw (0-based), recomputed
- * from the user id instead of trusting the client.
- *
- * @example
- * getShownPositions("user-1", ["rag", "other"]); // e.g. [2, 6]
- */
-export const getShownPositions = (
-  userId: string,
-  buildIntents: BuildIntentId[],
-): number[] => {
-  const shownOrder = orderBuildIntentOptions(userId).map((option) => option.id);
-  return buildIntents.map((id) => shownOrder.indexOf(id));
-};
-
-/**
- * Applies one checkbox toggle to the current picks: "Just exploring" clears
- * every other pick and is cleared by any of them; a pick beyond the cap is
- * ignored.
- *
- * @example
- * toggleBuildIntent(["rag"], "just_exploring", true); // ["just_exploring"]
- */
+/** Applies one toggle: "Just exploring" is exclusive and picks past the cap are ignored. */
 export const toggleBuildIntent = (
   current: BuildIntentId[],
   id: BuildIntentId,
@@ -132,15 +85,7 @@ export const toggleBuildIntent = (
   return [...withoutExclusive, id];
 };
 
-/**
- * The `onboarding:signup_survey_submitted` payload for a submit that stored the
- * survey, or null when an earlier submit (e.g. another tab) already did. Takes
- * metadata only, so the "Other" text cannot reach PostHog.
- *
- * @example
- * const event = getSurveySubmittedEvent({ surveyCreated: true, buildIntents: ["rag"], hasReferralSource: false, surveyDurationMs: 4200 });
- * event?.options; // { $set_once: { onboardingBuildIntents: ["rag"] } }
- */
+/** Event payload for a submit that stored the survey; metadata only, so free text never reaches PostHog. */
 export const getSurveySubmittedEvent = ({
   surveyCreated,
   buildIntents,
@@ -161,25 +106,9 @@ export const getSurveySubmittedEvent = ({
       hasReferralSource,
       surveyDurationMs,
     },
-    // First answer wins, matching the one survey row stored per user.
     options:
       buildIntents.length > 0
         ? { $set_once: { onboardingBuildIntents: buildIntents } }
         : undefined,
-  };
-};
-
-/** Park–Miller generator seeded by a string hash; same sequence for the same seed on client and server. */
-const createSeededRandom = (seed: string) => {
-  let state = 1;
-  for (const character of seed) {
-    state = (state * 31 + character.charCodeAt(0)) % PARK_MILLER_MODULUS;
-  }
-  // A zero state would make the generator return 0 forever.
-  if (state === 0) state = 1;
-
-  return () => {
-    state = (state * 48271) % PARK_MILLER_MODULUS;
-    return state / PARK_MILLER_MODULUS;
   };
 };

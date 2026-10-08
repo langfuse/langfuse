@@ -13,19 +13,9 @@ type BuildIntentFieldsetProps = {
   options: BuildIntentOption[];
   value: BuildIntentId[];
   onChange: (value: BuildIntentId[]) => void;
-  // Rendered under "Other" while it is picked.
   children: ReactNode;
 };
 
-/**
- * Temporary onboarding question (see `lib/buildIntent.ts`): up to three picks,
- * "Just exploring" exclusive and always enabled.
- *
- * @example
- * <BuildIntentFieldset options={options} value={value} onChange={onChange}>
- *   <Input {...form.register("buildIntentOther")} />
- * </BuildIntentFieldset>
- */
 export function BuildIntentFieldset({
   options,
   value,
@@ -39,7 +29,6 @@ export function BuildIntentFieldset({
 
   return (
     <fieldset>
-      {/* A legend only names the fieldset as its direct first child. */}
       <legend className="text-xl font-bold">
         What will you use Langfuse for?
       </legend>
@@ -72,7 +61,6 @@ type BuildIntentOptionRowProps = {
   isChecked: boolean;
   isDisabled: boolean;
   onToggle: (id: BuildIntentId, isChecked: boolean) => void;
-  // Shown under the row while it is checked.
   children: ReactNode;
 };
 

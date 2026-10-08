@@ -7,7 +7,6 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/server";
 import { createProjectRoute } from "@/src/features/setup";
-import { getShownPositions } from "@/src/features/onboarding/lib/buildIntent";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({
@@ -505,11 +504,12 @@ describe("onboarding router", () => {
       return { caller, userId };
     };
 
-    it("stores trimmed answers with server-computed positions", async () => {
+    it("stores trimmed answers with their shown positions", async () => {
       const { caller, userId } = await createCallerForNewUser();
 
       await caller.onboarding.complete({
         buildIntents: ["rag", "other"],
+        buildIntentPositions: [2, 6],
         buildIntentOther: "  voice agent  ",
       });
 
@@ -519,24 +519,44 @@ describe("onboarding router", () => {
       expect(survey.response).toEqual({
         buildIntents: ["rag", "other"],
         buildIntentOther: "voice agent",
-        buildIntentPositions: getShownPositions(userId, ["rag", "other"]),
+        buildIntentPositions: [2, 6],
       });
     });
 
     it.each([
-      ["duplicate picks", { buildIntents: ["rag", "rag"] }],
+      [
+        "duplicate picks",
+        { buildIntents: ["rag", "rag"], buildIntentPositions: [0, 0] },
+      ],
       [
         "just exploring with another pick",
-        { buildIntents: ["just_exploring", "rag"] },
+        {
+          buildIntents: ["just_exploring", "rag"],
+          buildIntentPositions: [5, 0],
+        },
       ],
       [
         "more than three picks",
-        { buildIntents: ["rag", "chat_agent", "coding_agents", "other"] },
+        {
+          buildIntents: ["rag", "chat_agent", "coding_agents", "other"],
+          buildIntentPositions: [0, 1, 2, 6],
+        },
       ],
-      ["an unknown id", { buildIntents: ["unknown"] }],
+      [
+        "an unknown id",
+        { buildIntents: ["unknown"], buildIntentPositions: [0] },
+      ],
       [
         "other text over 500 characters",
-        { buildIntents: ["other"], buildIntentOther: "x".repeat(501) },
+        {
+          buildIntents: ["other"],
+          buildIntentPositions: [6],
+          buildIntentOther: "x".repeat(501),
+        },
+      ],
+      [
+        "positions that don't match the picks",
+        { buildIntents: ["rag", "other"], buildIntentPositions: [2] },
       ],
     ])("rejects %s", async (_case, input) => {
       const { caller, userId } = await createCallerForNewUser();

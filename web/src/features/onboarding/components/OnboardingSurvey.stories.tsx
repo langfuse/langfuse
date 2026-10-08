@@ -1,9 +1,9 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
-import { orderBuildIntentOptions } from "../lib/buildIntent";
+import { shuffleBuildIntentOptions } from "../lib/buildIntent";
 import { OnboardingSurvey } from "./OnboardingSurvey";
 
-const buildIntentOptions = orderBuildIntentOptions("storybook-user");
+const buildIntentOptions = shuffleBuildIntentOptions();
 
 const meta = preview.meta({
   component: OnboardingSurvey,

@@ -14,7 +14,6 @@ import {
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
 } from "@/src/features/onboarding/server";
-import { getShownPositions } from "@/src/features/onboarding/lib/buildIntent";
 
 type CompletionPrisma = Parameters<
   typeof completeCloudSignupOnboarding
@@ -265,7 +264,7 @@ describe("completeCloudSignupOnboarding", () => {
     expect(tx.organization.update).toHaveBeenCalledTimes(1);
   });
 
-  it("stores build intents with server-computed shown positions", async () => {
+  it("stores each pick with the position it was shown at", async () => {
     const { prisma, tx } = makeCompletionPrisma({
       memberships: [
         makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
@@ -279,6 +278,7 @@ describe("completeCloudSignupOnboarding", () => {
       canCreateOrganizations: true,
       referralSource: "Reddit",
       buildIntents: ["rag", "other"],
+      buildIntentPositions: [2, 6],
       buildIntentOther: "eval pipeline",
     });
 
@@ -288,37 +288,8 @@ describe("completeCloudSignupOnboarding", () => {
           response: {
             referralSource: "Reddit",
             buildIntents: ["rag", "other"],
-            buildIntentPositions: getShownPositions("user-1", ["rag", "other"]),
+            buildIntentPositions: [2, 6],
             buildIntentOther: "eval pipeline",
-          },
-        }),
-      }),
-    );
-  });
-
-  it("drops other text unless other is picked", async () => {
-    const { prisma, tx } = makeCompletionPrisma({
-      memberships: [
-        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
-      ],
-    });
-
-    await completeCloudSignupOnboarding({
-      prisma,
-      userId: "user-1",
-      canCreateOrganizations: true,
-      buildIntents: ["coding_agents"],
-      buildIntentOther: "left over",
-    });
-
-    expect(tx.survey.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          response: {
-            buildIntents: ["coding_agents"],
-            buildIntentPositions: getShownPositions("user-1", [
-              "coding_agents",
-            ]),
           },
         }),
       }),
