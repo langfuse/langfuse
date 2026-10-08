@@ -24,11 +24,15 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const { matchStructuredMedia, mayContainSerializedMedia } =
-    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  const {
+    matchStructuredMedia,
+    mayContainSerializedMedia,
+    transformMediaPayload,
+  } = await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     matchStructuredMedia,
     mayContainSerializedMedia,
+    transformMediaPayload,
     getClickhouseEntityType: (eventType: string) =>
       eventType === "trace-create" ? "trace" : "observation",
     instrumentAsync: mocks.instrumentAsync,
