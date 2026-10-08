@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { type ReactNode } from "react";
 import {
   clampCustomRowHeightPx,
   getRowHeightIOCharLimit,
@@ -6,7 +7,9 @@ import {
   mediumRowHeightPx,
   resolveRowHeightRendering,
   resolveStoredRowHeight,
+  RowHeightRenderingProvider,
   useAdjustableRowHeight,
+  useBoundRowHeightIO,
 } from "@/src/components/table/data-table-row-height-switch";
 
 const STORAGE_KEY = "experiment-items-compactHeight";
@@ -164,6 +167,42 @@ describe("resolveRowHeightRendering", () => {
     expect(
       resolveRowHeightRendering({ preset: "l", previewPx: 191 }, list).compact,
     ).toBe(true);
+  });
+});
+
+function CompactTable({ children }: { children: ReactNode }) {
+  return (
+    <RowHeightRenderingProvider compact expandedRead={false}>
+      {children}
+    </RowHeightRenderingProvider>
+  );
+}
+
+describe("useBoundRowHeightIO", () => {
+  it("follows a compact row by default and keeps singleLine when opted out", () => {
+    const following = renderHook(() => useBoundRowHeightIO(true, false, true), {
+      wrapper: CompactTable,
+    });
+    expect(following.result.current).toEqual({
+      singleLine: true,
+      enableExpandOnHover: true,
+    });
+
+    const optedOut = renderHook(() => useBoundRowHeightIO(false, false, true), {
+      wrapper: CompactTable,
+    });
+    expect(optedOut.result.current).toEqual({
+      singleLine: false,
+      enableExpandOnHover: true,
+    });
+  });
+
+  it("keeps singleLine outside a data table even when following", () => {
+    const { result } = renderHook(() => useBoundRowHeightIO(true, false, true));
+    expect(result.current).toEqual({
+      singleLine: false,
+      enableExpandOnHover: true,
+    });
   });
 });
 
