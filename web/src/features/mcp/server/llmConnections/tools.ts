@@ -9,9 +9,18 @@ import {
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
 import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { runMcpTool } from "../../core/run-mcp-tool";
 import { paginationMeta } from "../publicApi";
+
+const PutLlmConnectionMcpBase = PutLlmConnectionV1BodyBase.omit({
+  baseURL: true,
+  config: true,
+}).extend({
+  baseURL: z.url().optional(),
+  config: z.record(z.string(), z.any()).optional(),
+});
 
 export const [listLlmConnectionsTool, handleListLlmConnections] = defineTool({
   name: "listLlmConnections",
@@ -52,7 +61,7 @@ export const [upsertLlmConnectionTool, handleUpsertLlmConnection] = defineTool({
   description:
     "Create or replace a project LLM connection by provider. The secret is encrypted and never returned.",
   action: "llmApiKeys:create",
-  baseSchema: PutLlmConnectionV1BodyBase,
+  baseSchema: PutLlmConnectionMcpBase,
   inputSchema: PutLlmConnectionV1Body,
   handler: async (input, context) =>
     runMcpTool({
@@ -150,7 +159,7 @@ export const [
     "Create or replace an organization LLM connection by provider. It is inherited by projects without a provider override. The secret is encrypted and never returned.",
   action: "organizationLlmApiKeys:CUD",
   accessLevel: "organization",
-  baseSchema: PutLlmConnectionV1BodyBase,
+  baseSchema: PutLlmConnectionMcpBase,
   inputSchema: PutLlmConnectionV1Body,
   handler: async (input, context) =>
     runMcpTool({
