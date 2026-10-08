@@ -18,7 +18,7 @@ import {
   useColumnOrder,
 } from "@/src/features/column-visibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { PRODUCTION_LABEL, type ScoreAggregate } from "@langfuse/shared";
 import Page from "@/src/components/layouts/page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
@@ -200,7 +200,11 @@ export default function PromptMetricsPage({
         return (
           values &&
           values.length > 0 && (
-            <LabelList labels={values} maxVisible={2} shouldWrap={false} />
+            <LabelList
+              labels={values}
+              productionLabel={PRODUCTION_LABEL}
+              shouldWrap={false}
+            />
           )
         );
       },

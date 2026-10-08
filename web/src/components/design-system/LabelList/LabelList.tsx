@@ -1,3 +1,5 @@
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { cva } from "class-variance-authority";
 import { LATEST_PROMPT_LABEL, PRODUCTION_LABEL } from "@langfuse/shared";
 
@@ -13,7 +15,7 @@ const labelListVariants = cva("", {
     },
     wrap: {
       true: "flex-wrap",
-      false: "min-w-0 flex-nowrap items-center",
+      false: "relative min-w-0 flex-nowrap items-center",
     },
   },
   defaultVariants: {
@@ -22,54 +24,144 @@ const labelListVariants = cva("", {
   },
 });
 
-export function LabelList({
-  labels,
-  maxVisible = 5,
-  layout = "contained",
-  shouldWrap = true,
-}: LabelListProps) {
+const DEFAULT_MAX_VISIBLE = 5;
+/** Matches `gap-1` between chips. */
+const CHIP_GAP = 4;
+
+export function LabelList(props: LabelListProps) {
+  const { labels, productionLabel, layout = "contained" } = props;
+  const isSingleLine = layout === "contained" && props.shouldWrap === false;
   const sortedLabels = sortLabels(labels);
-  const visibleLabels = sortedLabels.slice(0, maxVisible);
-  const hiddenLabels = sortedLabels.slice(maxVisible);
-  const chips = visibleLabels.map((label) => (
-    <LabelChip key={label} label={label} />
-  ));
+  const { listRef, probeRef, fittingCount } = useFittingCount(
+    sortedLabels,
+    isSingleLine,
+  );
+  const visibleCount = isSingleLine
+    ? fittingCount
+    : (props.maxVisible ?? DEFAULT_MAX_VISIBLE);
+  const visibleLabels = sortedLabels.slice(0, visibleCount);
+  const hiddenCount = sortedLabels.length - visibleLabels.length;
+  const renderChip = (label: string) => (
+    <LabelChip
+      key={label}
+      label={label}
+      isProduction={label === productionLabel}
+    />
+  );
   const overflow =
-    hiddenLabels.length > 0 ? (
+    hiddenCount > 0 ? (
       <LabelOverflow
-        allLabels={sortedLabels}
-        hiddenCount={hiddenLabels.length}
+        chips={sortedLabels.map(renderChip)}
+        totalCount={sortedLabels.length}
+        hiddenCount={hiddenCount}
       />
     ) : null;
 
+  if (!isSingleLine) {
+    return (
+      <div className={labelListVariants({ layout, wrap: true })}>
+        {visibleLabels.map(renderChip)}
+        {overflow}
+      </div>
+    );
+  }
+
   return (
-    <div className={labelListVariants({ layout, wrap: shouldWrap })}>
-      {shouldWrap ? (
-        chips
-      ) : (
-        // Single line: chips clip, the overflow pill stays visible.
-        <div className="flex min-w-0 gap-1 overflow-hidden">{chips}</div>
-      )}
+    <div ref={listRef} className={labelListVariants({ wrap: false })}>
+      <div className="flex min-w-0 gap-1 overflow-hidden">
+        {visibleLabels.map(renderChip)}
+      </div>
       {overflow}
+      {/* Natural chip widths, measured to decide how many fit. */}
+      <div
+        ref={probeRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute flex w-max gap-1"
+      >
+        {sortedLabels.map(renderChip)}
+        <BadgeShell color="filled" font="mono" size="md">
+          +{sortedLabels.length}
+        </BadgeShell>
+      </div>
     </div>
   );
 }
 
 type LabelListProps = {
   labels: string[];
-  /** Labels beyond this count collapse into a `+N` hover card. */
-  maxVisible?: number;
+  /** This label gets the production marker. */
+  productionLabel?: string;
 } & (
   | {
       layout?: "contained";
-      /** Single-line lists clip overflow instead of wrapping. */
-      shouldWrap?: boolean;
+      shouldWrap?: true;
+      /** Labels beyond this count collapse into a `+N` hover card. */
+      maxVisible?: number;
+    }
+  | {
+      layout?: "contained";
+      /** One line: as many labels as fit, the rest collapse into `+N`. */
+      shouldWrap: false;
+      maxVisible?: never;
     }
   | {
       layout: "inline";
       shouldWrap?: never;
+      maxVisible?: number;
     }
 );
+
+function useFittingCount(labels: string[], isEnabled: boolean) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const probeRef = useRef<HTMLDivElement>(null);
+  const [fittingCount, setFittingCount] = useState(labels.length);
+  const labelsKey = labels.join("\u0000");
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const probe = probeRef.current;
+    if (!isEnabled || !list || !probe) return;
+
+    const update = () => {
+      const widths = [...probe.children].map(
+        (child) => (child as HTMLElement).offsetWidth,
+      );
+      const overflowWidth = widths.pop() ?? 0;
+      // Sub-pixel rounding at the exact boundary: allow a pixel of slack.
+      const available = list.clientWidth + 1;
+      const allWidth = sumWithGaps(widths);
+      if (allWidth <= available) {
+        setFittingCount(widths.length);
+        return;
+      }
+      let count = 0;
+      while (
+        count < widths.length &&
+        sumWithGaps(widths.slice(0, count + 1)) + CHIP_GAP + overflowWidth <=
+          available
+      ) {
+        count++;
+      }
+      setFittingCount(Math.max(1, count));
+    };
+
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    // Resize callbacks run before paint; a synchronous commit keeps it that way.
+    const observer = new ResizeObserver(() => flushSync(update));
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [isEnabled, labelsKey]);
+
+  return { listRef, probeRef, fittingCount };
+}
+
+function sumWithGaps(widths: number[]): number {
+  return widths.reduce(
+    (sum, width, index) => sum + width + (index > 0 ? CHIP_GAP : 0),
+    0,
+  );
+}
 
 function sortLabels(labels: string[]): string[] {
   return [...labels].sort((a, b) => {
@@ -82,10 +174,12 @@ function sortLabels(labels: string[]): string[] {
 }
 
 function LabelOverflow({
-  allLabels,
+  chips,
+  totalCount,
   hiddenCount,
 }: {
-  allLabels: string[];
+  chips: ReactNode;
+  totalCount: number;
   hiddenCount: number;
 }) {
   return (
@@ -95,11 +189,7 @@ function LabelOverflow({
         <div className="w-80 p-3">
           <div className="space-y-2">
             <h4 className="text-sm font-bold">All Labels</h4>
-            <div className="flex flex-wrap gap-1">
-              {allLabels.map((label) => (
-                <LabelChip key={label} label={label} />
-              ))}
-            </div>
+            <div className="flex flex-wrap gap-1">{chips}</div>
           </div>
         </div>
       }
@@ -109,7 +199,7 @@ function LabelOverflow({
           <button
             type="button"
             className="text-muted-foreground cursor-pointer self-center"
-            aria-label={`Show all ${allLabels.length} labels`}
+            aria-label={`Show all ${totalCount} labels`}
             {...getTriggerProps()}
           >
             +{hiddenCount}
@@ -120,10 +210,16 @@ function LabelOverflow({
   );
 }
 
-function LabelChip({ label }: { label: string }) {
+function LabelChip({
+  label,
+  isProduction,
+}: {
+  label: string;
+  isProduction: boolean;
+}) {
   return (
     <BadgeShell color="filled" font="mono" size="md">
-      {label === PRODUCTION_LABEL && (
+      {isProduction && (
         <span className="bg-dark-green size-1.5 shrink-0 rounded-full" />
       )}
       <span className="truncate py-0.5" title={label}>

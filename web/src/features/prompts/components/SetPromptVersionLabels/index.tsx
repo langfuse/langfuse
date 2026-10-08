@@ -180,7 +180,11 @@ export function SetPromptVersionLabels({
         >
           {title && title}
           {promptLabels.length > 0 && (
-            <LabelList labels={promptLabels} maxVisible={maxVisibleLabels} />
+            <LabelList
+              labels={promptLabels}
+              productionLabel={PRODUCTION_LABEL}
+              maxVisible={maxVisibleLabels}
+            />
           )}
           <Button
             variant="outline"

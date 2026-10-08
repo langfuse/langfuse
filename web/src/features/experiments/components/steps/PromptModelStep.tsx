@@ -26,6 +26,7 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
 import {
   hasPromptToolStructuredOutputConflict,
+  PRODUCTION_LABEL,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
   type LlmSchema,
 } from "@langfuse/shared";
@@ -238,6 +239,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                   <div className="min-w-0">
                                     <LabelList
                                       labels={prompt.labels}
+                                      productionLabel={PRODUCTION_LABEL}
                                       maxVisible={2}
                                     />
                                   </div>
