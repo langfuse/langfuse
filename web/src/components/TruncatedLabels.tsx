@@ -1,8 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import React from "react";
-import { Button } from "@/src/components/ui/button";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { PRODUCTION_LABEL, LATEST_PROMPT_LABEL } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
@@ -10,14 +9,12 @@ interface TruncatedLabelsProps {
   labels: string[];
   maxVisibleLabels?: number;
   className?: string;
-  showSimpleBadges?: boolean;
 }
 
 export function TruncatedLabels({
   labels,
   maxVisibleLabels = 5,
   className,
-  showSimpleBadges = false,
 }: TruncatedLabelsProps) {
   // Enhanced sorting: prioritize latest and production labels
   const sortedLabels = [...labels].sort((a, b) => {
@@ -40,23 +37,9 @@ export function TruncatedLabels({
 
   return (
     <div className={cn("flex flex-wrap gap-1", className)}>
-      {visibleLabels.map((label) =>
-        showSimpleBadges ? (
-          <div
-            key={label}
-            className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
-          >
-            {label}
-          </div>
-        ) : (
-          <StatusBadge
-            type={label}
-            key={label}
-            isLive={label === PRODUCTION_LABEL}
-            preserveCase
-          />
-        ),
-      )}
+      {visibleLabels.map((label) => (
+        <LabelChip key={label} label={label} />
+      ))}
       {hasHiddenLabels && (
         <HoverCard
           placement="bottom-start"
@@ -65,40 +48,41 @@ export function TruncatedLabels({
               <div className="space-y-2">
                 <h4 className="text-sm font-bold">All Labels</h4>
                 <div className="flex flex-wrap gap-1">
-                  {sortedLabels.map((label) =>
-                    showSimpleBadges ? (
-                      <div
-                        key={label}
-                        className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
-                      >
-                        {label}
-                      </div>
-                    ) : (
-                      <StatusBadge
-                        type={label}
-                        key={label}
-                        isLive={label === PRODUCTION_LABEL}
-                        preserveCase
-                      />
-                    ),
-                  )}
+                  {sortedLabels.map((label) => (
+                    <LabelChip key={label} label={label} />
+                  ))}
                 </div>
               </div>
             </div>
           }
         >
           {({ getTriggerProps }) => (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-muted-foreground hover:text-foreground h-6 cursor-pointer text-xs"
-              {...getTriggerProps()}
-            >
-              +{hiddenLabels.length} more
-            </Button>
+            <BadgeShell asChild color="filled" font="mono" size="md">
+              <button
+                type="button"
+                className="text-muted-foreground cursor-pointer self-center"
+                aria-label={`Show all ${sortedLabels.length} labels`}
+                {...getTriggerProps()}
+              >
+                +{hiddenLabels.length}
+              </button>
+            </BadgeShell>
           )}
         </HoverCard>
       )}
     </div>
+  );
+}
+
+function LabelChip({ label }: { label: string }) {
+  return (
+    <BadgeShell color="filled" font="mono" size="md">
+      {label === PRODUCTION_LABEL && (
+        <span className="bg-dark-green size-1.5 shrink-0 rounded-full" />
+      )}
+      <span className="truncate py-0.5" title={label}>
+        {label}
+      </span>
+    </BadgeShell>
   );
 }

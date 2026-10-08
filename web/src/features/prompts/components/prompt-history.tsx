@@ -6,8 +6,6 @@ import {
   TimelineItem,
 } from "@/src/features/prompts/components/timeline";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { CommandItem } from "@/src/components/ui/command";
 import { DialogController } from "@/src/components/ui/dialog";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
@@ -23,7 +21,6 @@ const PromptHistoryTraceNode = (props: {
   openCommentDrawer: (promptId: string, promptVersion: number) => void;
   commentCounts?: Map<string, number>;
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const { prompt } = props;
   const commentCount = props.commentCounts?.get(prompt.id);
@@ -64,8 +61,6 @@ const PromptHistoryTraceNode = (props: {
       <TimelineItem
         key={prompt.id}
         isActive={props.currentPromptVersion === prompt.version}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         onClick={(e) => {
           const target = e.target as HTMLElement;
           if (
@@ -81,7 +76,7 @@ const PromptHistoryTraceNode = (props: {
         }}
       >
         <div
-          className="items-start gap-1 space-y-1 rounded-none"
+          className="flex flex-col gap-1 rounded-none"
           style={{
             cursor: "pointer",
           }}
@@ -108,6 +103,43 @@ const PromptHistoryTraceNode = (props: {
               isOpen={isLabelPopoverOpen}
               setIsOpen={setIsLabelPopoverOpen}
               showOnlyOnHover
+              trailingActions={
+                props.currentPrompt &&
+                props.currentPromptVersion !== prompt.version ? (
+                  <DialogController
+                    size="xl"
+                    closeOnInteractionOutside
+                    renderContent={({ closeDialog }) => (
+                      <PromptVersionDiffDialogContent
+                        leftPrompt={prompt}
+                        rightPrompt={props.currentPrompt!}
+                        closeDialog={closeDialog}
+                      />
+                    )}
+                  >
+                    {({ openDialog }) => (
+                      <BadgeShell asChild color="ghost" size="md">
+                        <button
+                          type="button"
+                          role="button"
+                          title="Compare with selected prompt"
+                          className="hover:text-foreground cursor-pointer"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openDialog();
+                          }}
+                        >
+                          <FileDiffIcon
+                            className="icon-sm shrink-0"
+                            aria-hidden
+                          />
+                          Compare
+                        </button>
+                      </BadgeShell>
+                    )}
+                  </DialogController>
+                ) : null
+              }
             />
             {commentCount ? (
               <span
@@ -123,62 +155,20 @@ const PromptHistoryTraceNode = (props: {
             ) : null}
           </div>
 
-          <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr_auto]">
-            <div className="min-h-7 min-w-0">
-              {prompt.commitMessage && (
-                <div className="flex flex-1 flex-nowrap gap-2">
-                  <span
-                    className="text-muted-foreground max-w-full min-w-0 truncate text-xs"
-                    title={prompt.commitMessage}
-                  >
-                    {prompt.commitMessage}
-                  </span>
-                </div>
-              )}
-              <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
-                {prompt.createdAt.toLocaleString()} by{" "}
-                {prompt.creator || prompt.createdBy}
-              </div>
-            </div>
-            <div className="flex flex-row justify-end space-x-1">
-              {props.currentPrompt &&
-              props.currentPromptVersion !== prompt.version ? (
-                <DialogController
-                  size="xl"
-                  closeOnInteractionOutside
-                  renderContent={({ closeDialog }) => (
-                    <PromptVersionDiffDialogContent
-                      leftPrompt={prompt}
-                      rightPrompt={props.currentPrompt!}
-                      closeDialog={closeDialog}
-                    />
-                  )}
+          <div className="min-w-0">
+            {prompt.commitMessage && (
+              <div className="flex flex-1 flex-nowrap gap-2">
+                <span
+                  className="text-muted-foreground max-w-full min-w-0 truncate text-xs"
+                  title={prompt.commitMessage}
                 >
-                  {({ isOpen, openDialog }) =>
-                    isHovered ||
-                    props.currentPromptVersion === prompt.version ||
-                    isOpen ? (
-                      <Tooltip
-                        label="Compare with selected prompt"
-                        hoverableContent={false}
-                      >
-                        {({ getTriggerProps }) => (
-                          <IconButton
-                            {...getTriggerProps()}
-                            icon={FileDiffIcon}
-                            label="Compare with selected prompt"
-                            size="sm"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openDialog();
-                            }}
-                          />
-                        )}
-                      </Tooltip>
-                    ) : null
-                  }
-                </DialogController>
-              ) : null}
+                  {prompt.commitMessage}
+                </span>
+              </div>
+            )}
+            <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
+              {prompt.createdAt.toLocaleString()} by{" "}
+              {prompt.creator || prompt.createdBy}
             </div>
           </div>
         </div>

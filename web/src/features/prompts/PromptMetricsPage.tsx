@@ -204,7 +204,6 @@ export default function PromptMetricsPage({
               labels={values}
               maxVisibleLabels={3}
               className="-mr-8 flex max-h-full flex-wrap gap-1"
-              showSimpleBadges={true}
             />
           )
         );

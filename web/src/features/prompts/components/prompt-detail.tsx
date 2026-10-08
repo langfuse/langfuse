@@ -13,6 +13,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
+import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -311,8 +312,8 @@ export const PromptDetail = ({
   } = {}) => (
     <Command
       className={cn(
-        "flex min-h-0 flex-col gap-2 overflow-hidden font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
-        mobile ? "rounded-none" : "rounded-none border-r pr-3",
+        "flex min-h-0 flex-col gap-2 overflow-hidden bg-transparent font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
+        mobile ? "rounded-none" : "rounded-none border-r px-3",
       )}
     >
       <div
@@ -459,76 +460,62 @@ export const PromptDetail = ({
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden px-3 md:grid-cols-4">
+      <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-4">
         {isMobile ? null : renderVersionHistory()}
-        <div className="col-span-1 mt-3 flex max-h-full min-h-0 min-w-0 flex-col md:col-span-3">
+        <div className="col-span-1 flex max-h-full min-h-0 min-w-0 flex-col md:col-span-3">
           {isMobile ? (
-            <Drawer
-              open={isVersionHistoryOpen}
-              onOpenChange={setIsVersionHistoryOpen}
-            >
-              <DrawerTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
-                >
-                  <History className="icon-base text-icon-foreground shrink-0" />
-                  <span className="shrink-0">Version #{prompt.version}</span>
-                  <span
-                    className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
-                    title={prompt.commitMessage ?? prompt.name}
+            <div className="px-4 pt-3">
+              <Drawer
+                open={isVersionHistoryOpen}
+                onOpenChange={setIsVersionHistoryOpen}
+              >
+                <DrawerTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
                   >
-                    {prompt.commitMessage ?? prompt.name}
-                  </span>
-                  <DropdownIndicator />
-                </Button>
-              </DrawerTrigger>
-              <DrawerContent className="max-h-[85dvh]">
-                <DrawerHeader className="shrink-0 border-b text-left">
-                  <DrawerTitle>Prompt versions</DrawerTitle>
-                  <DrawerDescription>
-                    Select a version of {prompt.name}.
-                  </DrawerDescription>
-                </DrawerHeader>
-                <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
-                  {renderVersionHistory({
-                    mobile: true,
-                    onVersionSelect: () => setIsVersionHistoryOpen(false),
-                  })}
-                </div>
-              </DrawerContent>
-            </Drawer>
+                    <History className="icon-base text-icon-foreground shrink-0" />
+                    <span className="shrink-0">Version #{prompt.version}</span>
+                    <span
+                      className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
+                      title={prompt.commitMessage ?? prompt.name}
+                    >
+                      {prompt.commitMessage ?? prompt.name}
+                    </span>
+                    <DropdownIndicator />
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent className="max-h-[85dvh]">
+                  <DrawerHeader className="shrink-0 border-b text-left">
+                    <DrawerTitle>Prompt versions</DrawerTitle>
+                    <DrawerDescription>
+                      Select a version of {prompt.name}.
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
+                    {renderVersionHistory({
+                      mobile: true,
+                      onVersionSelect: () => setIsVersionHistoryOpen(false),
+                    })}
+                  </div>
+                </DrawerContent>
+              </Drawer>
+            </div>
           ) : null}
-          <div className="flex flex-col items-start gap-2">
-            <div className="flex w-full min-w-0 flex-col gap-2 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:justify-between">
-              <div className="flex max-w-full min-w-0 shrink flex-col">
-                <div className="flex max-w-full min-w-0 flex-wrap items-start gap-1">
-                  <SetPromptVersionLabels
-                    title={
-                      <div
-                        className="contents cursor-default!"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span className="mr-1 inline-flex">
-                          <BadgeShell font="mono" size="md">
-                            # {prompt.version}
-                          </BadgeShell>
-                        </span>
-                        <span className="mb-0 line-clamp-2 min-w-0 text-lg font-bold break-all md:break-normal md:wrap-break-word">
-                          {prompt.commitMessage ?? prompt.name}
-                        </span>
-                      </div>
-                    }
-                    promptLabels={prompt.labels}
-                    prompt={prompt}
-                    isOpen={isLabelPopoverOpen}
-                    setIsOpen={setIsLabelPopoverOpen}
-                  />
-                </div>
-
-                <div className="min-h-1 flex-1" />
+          <DetailViewHeaderShell>
+            <div className="grid w-full grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="flex min-w-0 items-center gap-2">
+                <BadgeShell color="inverted" font="mono" size="lg">
+                  # {prompt.version}
+                </BadgeShell>
+                <span
+                  className="text-primary min-w-0 truncate text-lg leading-6 font-bold"
+                  title={prompt.commitMessage ?? prompt.name}
+                >
+                  {prompt.commitMessage ?? prompt.name}
+                </span>
               </div>
-              <div className="flex h-full w-full flex-wrap content-start items-start justify-end gap-1 md:w-auto lg:flex-nowrap">
+              <div className="flex flex-wrap items-center justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundDropdownMenuController
                   source="prompt"
                   prompt={{
@@ -659,7 +646,13 @@ export const PromptDetail = ({
                 </DropdownMenu>
               </div>
             </div>
-          </div>
+            <SetPromptVersionLabels
+              promptLabels={prompt.labels}
+              prompt={prompt}
+              isOpen={isLabelPopoverOpen}
+              setIsOpen={setIsLabelPopoverOpen}
+            />
+          </DetailViewHeaderShell>
           <Tabs
             value={currentTab}
             layout="fill"
@@ -699,7 +692,7 @@ export const PromptDetail = ({
             <Tabs.Content value="prompt" layout="fill">
               <div
                 className={cn(
-                  "mb-2 flex max-h-full min-h-0 w-full flex-col gap-3 overflow-y-auto pt-3",
+                  "mb-2 flex max-h-full min-h-0 w-full flex-col gap-3 overflow-y-auto px-4 pt-3",
                   IO_SECTIONS_FLUSH_CLASS,
                 )}
               >
@@ -756,7 +749,7 @@ export const PromptDetail = ({
               </div>
             </Tabs.Content>
             <Tabs.Content value="config" layout="fill">
-              <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto pb-4">
+              <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto px-4 pt-3 pb-4">
                 <JSONView
                   json={prompt.config}
                   title="Config"
@@ -765,10 +758,10 @@ export const PromptDetail = ({
               </div>
             </Tabs.Content>
             <Tabs.Content value="use-prompt" layout="fill">
-              <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-y-auto pb-4">
+              <div className="flex h-full min-h-0 w-full flex-col gap-3 overflow-y-auto px-4 pt-3 pb-4">
                 {pythonCode && <CodeView content={pythonCode} title="Python" />}
                 {jsCode && <CodeView content={jsCode} title="JS/TS" />}
-                <p className="text-muted-foreground pl-1 text-xs">
+                <p className="text-muted-foreground text-xs">
                   See{" "}
                   <a
                     href="https://langfuse.com/docs/prompts"

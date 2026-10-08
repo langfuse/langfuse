@@ -1,10 +1,9 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
-import { CircleFadingArrowUp } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Input } from "@/src/components/ui/input";
 import {
   InputCommand,
@@ -14,6 +13,7 @@ import {
 } from "@/src/components/ui/input-command";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
@@ -39,6 +39,7 @@ export function SetPromptVersionLabels({
   title,
   showOnlyOnHover = false,
   maxVisibleLabels = 8,
+  trailingActions,
 }: {
   promptLabels: string[];
   prompt: Prompt;
@@ -47,6 +48,8 @@ export function SetPromptVersionLabels({
   title?: ReactNode;
   showOnlyOnHover?: boolean;
   maxVisibleLabels?: number;
+  /** Rendered beside the add-label button, sharing its hover visibility. */
+  trailingActions?: ReactNode;
 }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
@@ -173,40 +176,39 @@ export function SetPromptVersionLabels({
 
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
-      <PopoverTrigger asChild data-version-trigger="true">
-        <div
-          className={cn(
-            "flex w-fit max-w-full min-w-0 cursor-pointer flex-wrap gap-1",
-            !hasAccess && "cursor-not-allowed",
-          )}
-        >
+      <PopoverAnchor asChild>
+        <div className="flex w-fit max-w-full min-w-0 flex-wrap items-center gap-1">
           {title && title}
           {promptLabels.length > 0 && (
             <TruncatedLabels
               labels={promptLabels}
               maxVisibleLabels={maxVisibleLabels}
+              className="contents"
             />
           )}
           <span
             className={cn(
-              "inline-flex",
+              "inline-flex items-center gap-2",
               showOnlyOnHover && "opacity-0 group-hover:opacity-100",
               !hasAccess && "cursor-not-allowed group-hover:opacity-50",
             )}
           >
-            <Tooltip label="Add prompt label" hoverableContent={false}>
-              {({ getTriggerProps }) => (
-                <IconButton
-                  {...getTriggerProps()}
-                  icon={CircleFadingArrowUp}
-                  label="Add prompt label"
-                  size="sm"
-                />
-              )}
-            </Tooltip>
+            <PopoverTrigger asChild data-version-trigger="true">
+              <BadgeShell asChild color="ghost" size="md">
+                <button
+                  type="button"
+                  disabled={!hasAccess}
+                  className="hover:text-foreground cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <Plus className="icon-sm shrink-0" aria-hidden />
+                  Add label
+                </button>
+              </BadgeShell>
+            </PopoverTrigger>
+            {trailingActions}
           </span>
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent
         className="max-w-[90vw] sm:max-w-md"
         align="start"
