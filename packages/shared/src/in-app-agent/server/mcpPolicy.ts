@@ -252,18 +252,6 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "models:CUD" },
   },
-  listLlmConnections: {
-    approval: "auto",
-    availability: { scope: "llmApiKeys:read" },
-  },
-  upsertLlmConnection: {
-    approval: "approval",
-    availability: { scope: "llmApiKeys:create" },
-  },
-  deleteLlmConnection: {
-    approval: "approval",
-    availability: { scope: "llmApiKeys:delete" },
-  },
   listObservations: {
     approval: "auto",
     availability: { scope: "project:read" },
