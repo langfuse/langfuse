@@ -136,7 +136,7 @@ describe("/api/public/organizations/llm-connections", () => {
         provider: `other-provider-${randomUUID()}`,
         adapter: LLMAdapter.OpenAI,
         secretKey: encrypt("sk-other"),
-        displaySecretKey: "...ther",
+        displaySecretKey: "...1234",
       },
     });
 
