@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
-import { assignRole } from "../../src/features/rbac/roleAssignmentRepository";
+import { assignRole } from "../../src/features/rbac/roleAssignmentService";
 import {
   ApiKeyId,
   OrganizationId,

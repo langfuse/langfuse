@@ -35,35 +35,42 @@ const orgRow = (
   }) as unknown as OrganizationWithProjects;
 
 // Backfilled keys receive their legacy role, owned by their project or organization.
-const assignmentsFor = (principalApiKeyId: string) => {
-  const principal = { principalApiKeyId, principalUserId: null };
-  if (principalApiKeyId === "key_o")
+const assignmentsFor = (principalId: string) => {
+  const principal = {
+    principalId,
+    apiKeyId: principalId.slice(7),
+    userId: null,
+  };
+  if (principalId === "apiKey/key_o")
     return [
       {
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
+        roleId: "system/LEGACY_ORGANIZATION_API_KEY",
         ...principal,
-        ownerOrgId: ORG,
-        ownerProjectId: null,
+        ownerId: `organization/${ORG}`,
+        projectId: null,
         orgId: ORG,
       },
     ];
-  if (principalApiKeyId === "key_p")
+  if (principalId === "apiKey/key_p")
     return [
       {
         systemRole: "LEGACY_PROJECT_API_KEY",
+        roleId: "system/LEGACY_PROJECT_API_KEY",
         ...principal,
-        ownerOrgId: null,
-        ownerProjectId: PRJ,
+        ownerId: `project/${PRJ}`,
+        projectId: PRJ,
         orgId: ORG,
       },
     ];
-  if (principalApiKeyId === "key_v")
+  if (principalId === "apiKey/key_v")
     return [
       {
         ...principal,
         systemRole: "VIEWER",
-        ownerOrgId: null,
-        ownerProjectId: PRJ,
+        roleId: "system/VIEWER",
+        ownerId: `project/${PRJ}`,
+        projectId: PRJ,
         orgId: ORG,
       },
     ];
@@ -77,8 +84,8 @@ const mockPrisma = (row: OrganizationWithProjects | null): PrismaClient =>
       findFirst: async () => row,
     },
     roleAssignment: {
-      findMany: async ({ where }: { where: { principalApiKeyId: string } }) =>
-        assignmentsFor(where.principalApiKeyId),
+      findMany: async ({ where }: { where: { principalId: string } }) =>
+        assignmentsFor(where.principalId),
     },
     project: {
       findMany: async () => (row?.projects ?? []).map((p) => ({ id: p.id })),

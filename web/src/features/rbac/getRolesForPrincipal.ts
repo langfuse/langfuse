@@ -1,4 +1,3 @@
-import { InternalServerError } from "@langfuse/shared";
 import {
   hasOrganizationKind,
   hasProjectKind,
@@ -53,11 +52,8 @@ function toRole(assignment: RoleAssignment): Role {
 
 /** toOwnerId tags the populated owner foreign key. */
 function toOwnerId(assignment: RoleAssignment): OwnerId {
-  if (assignment.ownerProjectId !== null)
-    return ProjectId(assignment.ownerProjectId);
-  if (assignment.ownerOrgId !== null)
-    return OrganizationId(assignment.ownerOrgId);
-  throw new InternalServerError("role assignment requires an owner");
+  if (assignment.projectId !== null) return ProjectId(assignment.projectId);
+  return OrganizationId(assignment.orgId);
 }
 
 /** toPolicy binds a catalog policy to resources of its kind. */

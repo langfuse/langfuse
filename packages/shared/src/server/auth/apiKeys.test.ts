@@ -100,13 +100,16 @@ describe("createApiKey assignment rows", () => {
   function makeTx() {
     const assignments: Array<{
       orgId: string;
-      principalApiKeyId: string;
-      ownerOrgId?: string;
-      ownerProjectId?: string;
+      apiKeyId: string;
+      principalId: string;
+      ownerId: string;
+      roleId: string;
+      projectId: string | null;
       systemRole: string;
     }> = [];
     let apiKeyData: Record<string, unknown> = {};
     const tx = {
+      $queryRaw: vi.fn(async () => [{ id: "proj_1" }]),
       apiKey: {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
           apiKeyData = data;
@@ -150,8 +153,11 @@ describe("createApiKey assignment rows", () => {
     expect(assignments).toEqual([
       {
         orgId: ORG_ID,
-        principalApiKeyId: KEY_ID,
-        ownerProjectId: "proj_1",
+        apiKeyId: KEY_ID,
+        principalId: ApiKeyId(KEY_ID),
+        ownerId: ProjectId("proj_1"),
+        roleId: SystemRoleId("VIEWER"),
+        projectId: "proj_1",
         systemRole: "VIEWER",
       },
     ]);
@@ -176,8 +182,11 @@ describe("createApiKey assignment rows", () => {
     expect(assignments).toEqual([
       {
         orgId: ORG_ID,
-        principalApiKeyId: KEY_ID,
-        ownerOrgId: ORG_ID,
+        apiKeyId: KEY_ID,
+        principalId: ApiKeyId(KEY_ID),
+        ownerId: OrganizationId(ORG_ID),
+        roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        projectId: null,
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
       },
     ]);

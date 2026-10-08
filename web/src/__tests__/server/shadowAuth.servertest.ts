@@ -149,9 +149,11 @@ const createOrgApiKey = async (targetOrgId: string) => {
   await prisma.roleAssignment.create({
     data: {
       orgId: targetOrgId,
-      principalApiKeyId: apiKeyRowId,
+      apiKeyId: apiKeyRowId,
+      principalId: `apiKey/${apiKeyRowId}`,
       systemRole: "LEGACY_ORGANIZATION_API_KEY",
-      ownerOrgId: targetOrgId,
+      roleId: "system/LEGACY_ORGANIZATION_API_KEY",
+      ownerId: `organization/${targetOrgId}`,
     },
   });
   return createBasicAuthHeader(publicKey, secretKey);
