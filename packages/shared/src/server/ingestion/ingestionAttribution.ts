@@ -141,7 +141,7 @@ export const extractBaseIngestionSdkVersion = (sdkVersion: string): string => {
   return version;
 };
 
-export const sendsStructuredMetadataValues = (params: {
+export const isStructuredMetadataSdkVersion = (params: {
   sdkName: IngestionSdkCanonicalName | null;
   sdkVersion: string | null | undefined;
 }): boolean => {

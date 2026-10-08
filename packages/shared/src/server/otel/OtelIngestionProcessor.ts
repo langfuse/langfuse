@@ -28,7 +28,7 @@ import {
   LangfuseInternalTraceEnvironment,
   sanitizeSdkMetricTagValue,
   normalizeIngestionSdkName,
-  sendsStructuredMetadataValues,
+  isStructuredMetadataSdkVersion,
   type IngestionSdkCanonicalName,
 } from "../";
 
@@ -429,7 +429,7 @@ export class OtelIngestionProcessor {
                 const isLangfuseSDKSpans =
                   scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
 
-                const decodeMetadataValues = this.sendsStructuredMetadataValues(
+                const decodeMetadataValues = this.shouldDecodeMetadataValues(
                   scopeSpan,
                   resourceAttributes,
                 );
@@ -997,7 +997,7 @@ export class OtelIngestionProcessor {
       ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
       : null;
 
-    const decodeMetadataValues = this.sendsStructuredMetadataValues(
+    const decodeMetadataValues = this.shouldDecodeMetadataValues(
       scopeSpan,
       resourceAttributes,
     );
@@ -3552,7 +3552,7 @@ export class OtelIngestionProcessor {
   // Langfuse SDK spans from a major that opts into decoded per-key metadata.
   // The language comes from the request header, falling back to the OTel
   // resource for exports relayed without Langfuse headers.
-  private sendsStructuredMetadataValues(
+  private shouldDecodeMetadataValues(
     scopeSpan: any,
     resourceAttributes: Record<string, unknown>,
   ): boolean {
@@ -3565,7 +3565,7 @@ export class OtelIngestionProcessor {
         String(resourceAttributes["telemetry.sdk.language"]),
       ) ??
       null;
-    return sendsStructuredMetadataValues({
+    return isStructuredMetadataSdkVersion({
       sdkName,
       sdkVersion: scopeSpan.scope.version,
     });
