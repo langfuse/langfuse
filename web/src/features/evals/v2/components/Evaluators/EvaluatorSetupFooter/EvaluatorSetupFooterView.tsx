@@ -58,19 +58,19 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
           {props.children}
         </p>
       ) : null}
-      {props.assistantAction ? (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={props.assistantAction.disabled}
-          className="w-full gap-1.5 sm:w-auto"
-          onClick={props.assistantAction.onClick}
-        >
-          <WandSparkles className="icon-base" aria-hidden="true" />
-          {props.assistantAction.label}
-        </Button>
-      ) : null}
-      <div className="ml-auto flex shrink-0 gap-2">
+      <div className="ml-auto flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+        {props.assistantAction ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={props.assistantAction.disabled}
+            className="w-full gap-1.5 sm:w-auto"
+            onClick={props.assistantAction.onClick}
+          >
+            <WandSparkles className="icon-base" aria-hidden="true" />
+            {props.assistantAction.label}
+          </Button>
+        ) : null}
         <Button type="button" variant="outline" onClick={onClose}>
           {closeLabel}
         </Button>
