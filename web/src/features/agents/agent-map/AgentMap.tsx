@@ -58,7 +58,23 @@ export function AgentMap({
       buildAgentMapData(skeleton.data?.rows ?? [], agentName, showAllAgents),
     [skeleton.data?.rows, agentName, showAllAgents],
   );
+  const diagram = useMemo(
+    () => ({
+      nodes: graph.nodes.map((node) => ({
+        ...node,
+        label: node.selfCallCount
+          ? `↻ ${node.selfCallCount.toLocaleString()} · ${node.label}`
+          : node.label,
+      })),
+      edges: graph.edges.filter((edge) => edge.from !== edge.to),
+    }),
+    [graph],
+  );
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const hasGroupedUnnamedCalls = graph.edges.some(
+    (edge) =>
+      edge.from === edge.to && nodeById.get(edge.from)?.kind === "unnamed",
+  );
   const connections: ConnectionRow[] = graph.edges.map((edge) => ({
     caller: nodeById.get(edge.from)?.label ?? "Unknown caller",
     callee: nodeById.get(edge.to)?.label ?? "Unnamed agent",
@@ -200,6 +216,31 @@ export function AgentMap({
             cannot open a profile.
           </p>
         ) : null}
+        {graph.diagnostics.selfCallRuns > 0 || hasGroupedUnnamedCalls ? (
+          <Alert variant="info" size="sm">
+            <Alert.Title>Calls within one group</Alert.Title>
+            <Alert.Description>
+              <p>The diagram groups agents by name.</p>
+              {graph.diagnostics.selfCallRuns > 0 ? (
+                <p>
+                  {graph.diagnostics.selfCallRuns.toLocaleString()} self-call
+                  {graph.diagnostics.selfCallRuns === 1 ? "" : "s"} across{" "}
+                  {graph.diagnostics.selfCallTraces.toLocaleString()} sampled{" "}
+                  {graph.diagnostics.selfCallTraces === 1 ? "trace" : "traces"}.
+                  These calls remain in Connections instead of being drawn as
+                  loops; ↻ marks their count on each node.
+                </p>
+              ) : null}
+              {hasGroupedUnnamedCalls ? (
+                <p>
+                  Calls between unnamed agents also share a node and remain in
+                  Connections. Inspect their observations to identify the
+                  caller.
+                </p>
+              ) : null}
+            </Alert.Description>
+          </Alert>
+        ) : null}
         {graph.nodes.length === 0 ? (
           <div className="text-muted-foreground flex h-64 flex-col items-center justify-center gap-2 rounded-md border px-6 text-center">
             <p className="text-foreground font-bold">
@@ -215,7 +256,7 @@ export function AgentMap({
           <>
             <div className="ph-no-capture h-96 overflow-hidden rounded-md border md:h-[480px]">
               <ElkGraphRenderer
-                graph={graph}
+                graph={diagram}
                 nodeToObservationsMap={EMPTY_OBSERVATION_MAP}
                 selectedNodeName={`agent:${agentName}`}
                 graphLabel="Agent call map"

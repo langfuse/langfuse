@@ -87,6 +87,8 @@ the UI. Window boundaries can exclude ancestors; those calls have an unknown
 caller, not an invented root. The nearest AGENT ancestor is the caller, including
 unnamed boundaries. Counts are distinct sampled spans and traces, not a complete
 project-wide graph. Cross-trace calls require a future explicit caller attribute.
+Same-name self-calls keep their counts in Connections and appear as ↻ counts on
+diagram nodes; calls between unnamed agents remain grouped without claiming identity.
 
 ## Reproducible review
 

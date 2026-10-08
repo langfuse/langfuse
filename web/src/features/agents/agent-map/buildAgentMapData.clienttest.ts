@@ -19,6 +19,70 @@ const row = (
 });
 
 describe("buildAgentMapData", () => {
+  it("retains recursive same-name calls with distinct trace and node counts", () => {
+    const map = buildAgentMapData(
+      [
+        row("root", null, "research"),
+        row("recursive-1", "root", "research"),
+        row("bridge", "recursive-1", "research", "trace-1", "SPAN"),
+        row("recursive-2", "bridge", "research"),
+        row("recursive-2", "bridge", "research"),
+        row("root", null, "research", "trace-2"),
+        row("recursive-1", "root", "research", "trace-2"),
+      ],
+      "research",
+      false,
+    );
+    expect(map.edges).toContainEqual(
+      expect.objectContaining({
+        from: "agent:research",
+        to: "agent:research",
+        count: 3,
+        traceCount: 2,
+        traceIds: ["trace-1", "trace-2"],
+      }),
+    );
+    expect(map.diagnostics).toMatchObject({
+      selfCallRuns: 3,
+      selfCallTraces: 2,
+    });
+    expect(
+      map.nodes.find((node) => node.id === "agent:research"),
+    ).toMatchObject({
+      label: "research",
+      selfCallCount: 3,
+    });
+  });
+
+  it("counts a shared recursive trace once without inferring unnamed identity", () => {
+    const map = buildAgentMapData(
+      [
+        row("root", null, "research"),
+        row("recursive", "root", "research"),
+        row("compose", "root", "compose"),
+        row("compose-recursive", "compose", "compose"),
+        row("unnamed", "root", null),
+        row("unnamed-child", "unnamed", null),
+      ],
+      "research",
+      true,
+    );
+    expect(map.diagnostics).toMatchObject({
+      selfCallRuns: 2,
+      selfCallTraces: 1,
+    });
+    expect(
+      map.nodes.find((node) => node.kind === "unnamed")?.selfCallCount,
+    ).toBe(0);
+    expect(map.edges).toContainEqual(
+      expect.objectContaining({
+        from: "boundary:unnamed",
+        to: "boundary:unnamed",
+        count: 1,
+      }),
+    );
+  });
+
   it("walks intermediary observations and aggregates calls and distinct traces", () => {
     const map = buildAgentMapData(
       [
@@ -105,6 +169,7 @@ describe("buildAgentMapData", () => {
       }),
     ]);
     expect(map.diagnostics.cyclicParentRuns).toBe(4);
+    expect(map.diagnostics.selfCallRuns).toBe(0);
   });
 
   it("filters edges touching the current agent and safely distinguishes reserved-looking names", () => {

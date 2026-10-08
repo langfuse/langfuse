@@ -13,13 +13,15 @@ type AgentMapEdge = GraphCanvasData["edges"][number] & {
 };
 
 export type AgentMapData = {
-  nodes: AgentMapNode[];
+  nodes: (AgentMapNode & { selfCallCount: number })[];
   edges: AgentMapEdge[];
   diagnostics: {
     duplicateRows: number;
     missingParentRuns: number;
     cyclicParentRuns: number;
     unnamedAgentRuns: number;
+    selfCallRuns: number;
+    selfCallTraces: number;
   };
 };
 
@@ -161,6 +163,8 @@ export function buildAgentMapData(
     missingParentRuns: 0,
     cyclicParentRuns: 0,
     unnamedAgentRuns: 0,
+    selfCallRuns: 0,
+    selfCallTraces: 0,
   };
   for (const [key, row] of byId) {
     if (row.type !== "AGENT") continue;
@@ -193,8 +197,25 @@ export function buildAgentMapData(
     }
   }
 
+  const selfCallCounts = new Map<string, number>();
+  const selfCallTraceIds = new Set<string>();
+  for (const edge of edges.values()) {
+    // Unnamed observations sharing a boundary do not prove agent identity.
+    if (edge.from !== edge.to || nodes.get(edge.from)?.kind !== "agent")
+      continue;
+    selfCallCounts.set(edge.from, edge.count);
+    diagnostics.selfCallRuns += edge.count;
+    for (const traceId of edge.traces) selfCallTraceIds.add(traceId);
+  }
+  diagnostics.selfCallTraces = selfCallTraceIds.size;
+
   return {
-    nodes: [...nodes.values()].sort((a, b) => a.label.localeCompare(b.label)),
+    nodes: [...nodes.values()]
+      .map((node) => ({
+        ...node,
+        selfCallCount: selfCallCounts.get(node.id) ?? 0,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
     edges: [...edges.values()]
       .map(({ traces, ...edge }) => ({
         ...edge,
