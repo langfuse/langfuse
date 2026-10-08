@@ -64,7 +64,10 @@ describe("ClickHouse query outcome metric", () => {
     it.each([
       ["events.all", "events.all"],
       ["events.batchIO", "events.batchIO"],
+      ["events.experimentBatchIO", "events.experimentBatchIO"],
+      ["events.sessionBatchIO", "events.sessionBatchIO"],
       ["events.filterOptions", "events.filterOptions"],
+      ["experiments.batchIO", "experiments.batchIO"],
       ["scores.allFromEvents", "scores.allFromEvents"],
       ["scores.countAllFromEvents", "scores.countAllFromEvents"],
       ["traces.byId", "traces.byId"],

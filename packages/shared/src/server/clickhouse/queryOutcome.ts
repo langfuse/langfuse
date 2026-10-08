@@ -72,7 +72,10 @@ const LABELLED_ROUTES = new Set([
 const LABELLED_BARE_ROUTES = new Set([
   "events.all",
   "events.batchIO",
+  "events.experimentBatchIO",
+  "events.sessionBatchIO",
   "events.filterOptions",
+  "experiments.batchIO",
   "scores.allFromEvents",
   "scores.countAllFromEvents",
   "traces.byId",
