@@ -339,6 +339,9 @@ export const ExperimentGridView = ({
               size: 200,
               getCell: (value) =>
                 ioLoading ? { type: "loading" } : value || undefined,
+              // Display chooses text or JSON. Row height does not.
+              followRowHeight: false,
+              singleLine,
               variant: "output",
             }),
           ]

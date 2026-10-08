@@ -760,11 +760,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell
-          isLoading
-          followRowHeight
-          singleLine={compactRows}
-        />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -1428,16 +1424,10 @@ const ScoresMetadataCell = ({
     },
   );
   if (score.isPending) {
-    return (
-      <ConnectedIOTableCell isLoading followRowHeight singleLine={singleLine} />
-    );
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
   }
 
   return (
-    <ConnectedIOTableCell
-      data={score.data?.metadata}
-      followRowHeight
-      singleLine={singleLine}
-    />
+    <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
   );
 };

@@ -249,12 +249,13 @@ export function useCompactRows(fallback: boolean): boolean {
 }
 
 /**
- * Input/output props after applying the live row height. Column factories
- * always pass `followRowHeight`. A custom cell can leave it off and keep
- * `singleLine`. `enableExpandOnHover` is on only while the row is compact.
+ * Input/output props after applying the live row height. Following is the
+ * default inside a data table. Pass false to keep `singleLine` in charge.
+ * Outside a data table, `singleLine` is used either way.
+ * `enableExpandOnHover` is on only while the row is compact.
  */
 export function useBoundRowHeightIO(
-  followRowHeight: boolean | undefined,
+  followRowHeight = true,
   singleLine: boolean | undefined,
   enableExpandOnHover: boolean | undefined,
 ): {
@@ -262,7 +263,7 @@ export function useBoundRowHeightIO(
   enableExpandOnHover: boolean | undefined;
 } {
   const live = useRowHeightRendering();
-  if (!followRowHeight || !live) {
+  if (followRowHeight === false || !live) {
     return { singleLine, enableExpandOnHover };
   }
   return {

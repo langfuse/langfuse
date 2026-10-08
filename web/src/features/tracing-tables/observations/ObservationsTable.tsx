@@ -815,11 +815,7 @@ export default function ObservationsTable({
       size: 300,
       cellBackground: "gray",
       loadingCell: () => (
-        <ConnectedIOTableCell
-          isLoading
-          followRowHeight
-          singleLine={compactRows}
-        />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -844,11 +840,7 @@ export default function ObservationsTable({
       size: 300,
       cellBackground: "green",
       loadingCell: () => (
-        <ConnectedIOTableCell
-          isLoading
-          followRowHeight
-          singleLine={compactRows}
-        />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -1048,11 +1040,7 @@ export default function ObservationsTable({
       header: "Metadata",
       size: 300,
       loadingCell: () => (
-        <ConnectedIOTableCell
-          isLoading
-          followRowHeight
-          singleLine={compactRows}
-        />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
@@ -1772,12 +1760,8 @@ const GenerationsDynamicCell = ({
   })();
 
   if (observation.isPending) {
-    return (
-      <ConnectedIOTableCell isLoading followRowHeight singleLine={singleLine} />
-    );
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
   }
 
-  return (
-    <ConnectedIOTableCell data={data} followRowHeight singleLine={singleLine} />
-  );
+  return <ConnectedIOTableCell data={data} singleLine={singleLine} />;
 };

@@ -26,6 +26,7 @@ function IOColumnCell({
   compact = false,
   data,
   enableExpandOnHover = false,
+  followRowHeight = true,
   isLoading = false,
   renderMediaReference,
   singleLine = false,
@@ -33,13 +34,18 @@ function IOColumnCell({
   compact?: boolean;
   data?: unknown;
   enableExpandOnHover?: boolean;
+  followRowHeight?: boolean;
   isLoading?: boolean;
   renderMediaReference?: IOTableCellMediaRenderer;
   singleLine?: boolean;
 }) {
   // The column paints input/output color on the table cell. The inner preview
   // stays uncolored so the two backgrounds do not stack.
-  const bound = useBoundRowHeightIO(true, singleLine, enableExpandOnHover);
+  const bound = useBoundRowHeightIO(
+    followRowHeight,
+    singleLine,
+    enableExpandOnHover,
+  );
   const cellProps = {
     enableExpandOnHover: bound.enableExpandOnHover,
     singleLine: bound.singleLine,
@@ -63,15 +69,24 @@ function IOColumnCell({
   }
 
   return isLoading ? (
-    <ConnectedIOTableCell {...cellProps} isLoading />
+    <ConnectedIOTableCell
+      {...cellProps}
+      followRowHeight={followRowHeight}
+      isLoading
+    />
   ) : (
-    <ConnectedIOTableCell {...cellProps} data={data} />
+    <ConnectedIOTableCell
+      {...cellProps}
+      data={data}
+      followRowHeight={followRowHeight}
+    />
   );
 }
 
 export function createIOTableColumn<TData extends RowData, TValue = unknown>({
   compact = false,
   enableExpandOnHover = false,
+  followRowHeight = true,
   getCell,
   renderMediaReference,
   singleLine = false,
@@ -81,23 +96,27 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
   cellBackground?: never;
   compact?: boolean;
   enableExpandOnHover?: boolean;
+  /**
+   * Defaults to true: a data table's row height chooses text vs the JSON
+   * preview, including while a drag is in progress. Pass false to keep
+   * `singleLine` in charge inside a data table. Outside a data table,
+   * `singleLine` is used either way. `enableExpandOnHover` applies only
+   * while the row is compact.
+   */
+  followRowHeight?: boolean;
   getCell?: (
     value: TValue | null | undefined,
     context: CellContext<TData, TValue | null | undefined>,
   ) => IOTableColumnCell<TValue>;
   renderMediaReference?: IOTableCellMediaRenderer;
-  /**
-   * Used when the cell renders outside a data table. Inside one, the row
-   * height decides: below that table's Medium the cell is one line, and at
-   * Medium and above it is the JSON preview, including while a drag is in
-   * progress. `enableExpandOnHover` applies only while the row is compact.
-   */
+  /** Fallback when the cell is outside a data table, or when `followRowHeight` is false. */
   singleLine?: boolean;
   variant?: IOTableCellVariant;
 }) {
   const cellProps = {
     compact,
     enableExpandOnHover,
+    followRowHeight,
     renderMediaReference,
     singleLine,
   };

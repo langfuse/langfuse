@@ -13,10 +13,9 @@ type ConnectedIOTableCellProps = WithoutMediaRenderer<
   Parameters<typeof IOTableCell>[0]
 > & {
   /**
-   * Follow the table's row height. Presets and a drag in progress resolve
-   * through the same height, so the cell switches as the pointer moves.
-   * `enableExpandOnHover` stays the column's opt-in and applies only while
-   * the row is compact.
+   * Follow the table's row height. Defaults to true. Pass false to keep
+   * `singleLine` in charge, including inside a data table. Outside a data
+   * table, `singleLine` is used either way.
    */
   followRowHeight?: boolean;
 };
@@ -35,7 +34,7 @@ export const ConnectedIOTableCell = memo(function ConnectedIOTableCell(
   props: ConnectedIOTableCellProps,
 ) {
   const bound = useBoundRowHeightIO(
-    props.followRowHeight,
+    props.followRowHeight ?? true,
     props.singleLine,
     props.enableExpandOnHover,
   );

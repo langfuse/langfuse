@@ -770,11 +770,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "gray",
       loadingCell: () => (
-        <ConnectedIOTableCell
-          isLoading
-          followRowHeight
-          singleLine={compactRows}
-        />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -799,11 +795,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "green",
       loadingCell: () => (
-        <ConnectedIOTableCell
-          isLoading
-          followRowHeight
-          singleLine={compactRows}
-        />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -950,11 +942,7 @@ function TracesTableInternal({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell
-          isLoading
-          followRowHeight
-          singleLine={compactRows}
-        />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: (
@@ -1692,7 +1680,6 @@ const TracesDynamicCell = ({
     return (
       <ConnectedIOTableCell
         isLoading
-        followRowHeight
         singleLine={singleLine}
         enableExpandOnHover
       />
@@ -1702,7 +1689,6 @@ const TracesDynamicCell = ({
   return (
     <ConnectedIOTableCell
       data={data}
-      followRowHeight
       singleLine={singleLine}
       enableExpandOnHover
     />

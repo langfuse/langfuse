@@ -367,6 +367,7 @@ const StackedOutputRow = ({
       />
       <ConnectedIOTableCell
         data={output}
+        followRowHeight={false}
         singleLine={singleLine}
         variant="output"
       />
@@ -409,6 +410,7 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
 
 /**
  * Cell component that renders stacked output values for each experiment.
+ * Display chooses text or JSON. Row height does not.
  */
 const StackedOutputCell = ({
   outputs,
@@ -458,6 +460,7 @@ const StackedOutputCell = ({
             <ConnectedIOTableCell
               isLoading={false}
               data={expectedOutput ?? null}
+              followRowHeight={false}
               singleLine={singleLine}
             />
           </div>
@@ -497,7 +500,11 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex h-full min-h-0 min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <ConnectedIOTableCell isLoading singleLine={singleLine} />
+                <ConnectedIOTableCell
+                  isLoading
+                  followRowHeight={false}
+                  singleLine={singleLine}
+                />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
@@ -1319,6 +1326,9 @@ export default function ExperimentItemsTable({
     defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
+    // Display chooses text or JSON. Row height does not.
+    followRowHeight: false,
+    singleLine: ioSingleLine,
     variant: "output",
   }) as LangfuseColumnDef<ExperimentItemsTableRow>;
 
@@ -1367,6 +1377,9 @@ export default function ExperimentItemsTable({
       size: 300,
       enableHiding: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+      // Display chooses text or JSON. Row height does not.
+      followRowHeight: false,
+      singleLine: ioSingleLine,
     }),
     // The scores sit between the item's input and its outputs: the input says
     // which item this is, the score headers carry the judgement, and the outputs
