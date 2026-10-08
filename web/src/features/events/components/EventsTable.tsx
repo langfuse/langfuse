@@ -37,6 +37,7 @@ import {
 } from "../config/filter-config";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+  AGENT_NAME_METADATA_KEY,
   type ObservationLevelType,
   type FilterState,
   type OrderByState,
@@ -254,10 +255,14 @@ export type EventsTableRow = {
 export type EventsTableProps = {
   projectId: string;
   userId?: string;
+  /** Observation-level agent identity; independent of the observation type. */
+  agentName?: string;
   promptName?: string;
   promptVersion?: number;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
+  /** Allow a scoped profile table to open observations while hiding its toolbar. */
+  enablePeekView?: boolean;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -307,10 +312,12 @@ const toStartTimeFilterState = (range?: TableDateRange): TimeFilter[] =>
 export default function ObservationsEventsTable({
   projectId,
   userId,
+  agentName,
   promptName,
   promptVersion,
   omittedFilter = [],
   hideControls = false,
+  enablePeekView = !hideControls,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -342,7 +349,12 @@ export default function ObservationsEventsTable({
     hideControls,
     isolateTableState,
     hasParentScope: Boolean(
-      peekContext || userId || sessionId || promptName || promptVersion,
+      peekContext ||
+      userId ||
+      agentName ||
+      sessionId ||
+      promptName ||
+      promptVersion,
     ),
   });
   const searchQuery = tableStatePolicy.useIsolatedSearch
@@ -634,6 +646,17 @@ export default function ObservationsEventsTable({
   // conditions bound the row query, so they refine the facet counts too.
   const embedScopeFilterState: FilterState = useMemo(
     () => [
+      ...(agentName
+        ? [
+            {
+              column: "metadata",
+              type: "stringObject" as const,
+              key: AGENT_NAME_METADATA_KEY,
+              operator: "=" as const,
+              value: agentName,
+            },
+          ]
+        : []),
       ...(userId
         ? [
             {
@@ -675,13 +698,14 @@ export default function ObservationsEventsTable({
           ]
         : []),
     ],
-    [userId, sessionId, promptName, promptVersion],
+    [userId, agentName, sessionId, promptName, promptVersion],
   );
 
   const facetRefiningFilter = useMemo(
     () =>
-      externalFilterState ??
-      filterCore.filterState.concat(embedScopeFilterState),
+      (externalFilterState ?? filterCore.filterState).concat(
+        embedScopeFilterState,
+      ),
     [externalFilterState, filterCore.filterState, embedScopeFilterState],
   );
   // Same anchored window as the rows: the facets no longer need a tick-decoupled
@@ -886,14 +910,14 @@ export default function ObservationsEventsTable({
   // callers that pass an externalDateRange (e.g. the eval preview's "last 24
   // hours" window) have it honored for the row query, not just score columns.
   const filterState = externalFilterState
-    ? externalFilterState.concat(dateRangeFilter)
+    ? externalFilterState.concat(dateRangeFilter, embedScopeFilterState)
     : combinedFilterState;
 
   // Offer the chart on the full (v4) surface — not embedded, not user/session
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = !hideControls && !userId && !sessionId;
+  const chartEnabled = !hideControls && !userId && !agentName && !sessionId;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
@@ -937,9 +961,9 @@ export default function ObservationsEventsTable({
     filterState,
     tableDataScope: {
       projectId,
-      filter:
-        externalFilterState ??
-        queryFilter.effectiveFilterState.concat(embedScopeFilterState),
+      filter: (externalFilterState ?? queryFilter.effectiveFilterState).concat(
+        embedScopeFilterState,
+      ),
       searchQuery,
       searchType,
       timeRange: externalDateRange ?? timeRange,
@@ -1737,13 +1761,13 @@ export default function ObservationsEventsTable({
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
-    if (hideControls) return undefined;
+    if (!enablePeekView) return undefined;
     return {
       itemType: "TRACE",
       detailNavigationKey: detailPageListKeys.events,
       ...peekNavigationProps,
     };
-  }, [peekNavigationProps, hideControls]);
+  }, [peekNavigationProps, enablePeekView]);
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
