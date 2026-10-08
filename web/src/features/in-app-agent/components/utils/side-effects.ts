@@ -19,6 +19,7 @@ export type InAppAgentTrpcInvalidationTarget =
   | "evals"
   | "experiments"
   | "externalMediaStorage"
+  | "llmApiKeys"
   | "models"
   | "prompts"
   | "scoreAnalytics"
@@ -99,6 +100,9 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_createModel: ["models"],
   langfuse_getModel: [],
   langfuse_deleteModel: ["models"],
+  langfuse_listLlmConnections: [],
+  langfuse_upsertLlmConnection: ["llmApiKeys"],
+  langfuse_deleteLlmConnection: ["llmApiKeys"],
   langfuse_listObservations: [],
   langfuse_getObservation: [],
   langfuse_getObservationFieldSchema: [],
@@ -194,6 +198,9 @@ function performTargetInvalidation(
   }
   if (target === "externalMediaStorage") {
     return utils.externalMediaStorage.invalidate();
+  }
+  if (target === "llmApiKeys") {
+    return utils.llmApiKey.invalidate();
   }
   if (target === "models") {
     return utils.models.invalidate();
