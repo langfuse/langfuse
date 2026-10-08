@@ -2,7 +2,7 @@ import type { FilterState, TracingSearchType } from "@langfuse/shared";
 import { EventsSearchBarRow } from "./EventsSearchBarRow";
 import { useEventsSearchBar } from "../hooks/useEventsSearchBar";
 import { DEFAULT_SEARCH_TYPE } from "../lib/commit";
-import type { ComposerSize } from "./composer-chrome";
+import type { ComposerSize } from "./ComposerSurface";
 import type { FieldRegistry } from "../lib/fields";
 import type { ObservedOptions } from "../lib/observed-options";
 

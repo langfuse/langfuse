@@ -29,7 +29,7 @@ import {
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
-import { type ComposerSize } from "@/src/features/search-bar/components/composer-chrome";
+import { type ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";

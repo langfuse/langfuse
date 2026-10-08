@@ -15,7 +15,7 @@
 // hover otherwise fed a layout-thrash loop at narrow widths: the taller field
 // shifted the anchored presets dropdown out from under the cursor, changing the
 // hovered row → the preview → the height, oscillating (LFE-11067). Both surfaces
-// share their chrome via composer-chrome.ts so the overlay renders pixel-identical.
+// render ComposerSurface so the overlay is pixel-identical.
 
 import * as React from "react";
 
@@ -26,9 +26,9 @@ import { SearchComposer } from "@/src/features/search-bar/components/SearchCompo
 import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
 import { useSearchBarStore } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import {
-  composerSurfaceClasses,
-  COMPOSER_TEXT_CLASSES,
-} from "@/src/features/search-bar/components/composer-chrome";
+  ComposerSurface,
+  ComposerText,
+} from "@/src/features/search-bar/components/ComposerSurface";
 
 export function ComposerWithPreview(
   props: React.ComponentProps<typeof SearchComposer>,
@@ -68,18 +68,22 @@ export function ComposerWithPreview(
             "animate-in fade-in-0 duration-150",
           )}
         >
-          <div className={composerSurfaceClasses(props.size)}>
-            <div className={COMPOSER_TEXT_CLASSES}>
-              <ComposerTokens
-                draft={previewText}
-                showDiagnostics={false}
-                scoreTypes={scoreTypes}
-                fieldReason={props.fieldReason}
-                freeTextReason={props.freeTextReason}
-                registry={props.registry}
-              />
+          <ComposerSurface size={props.size}>
+            <div>
+              <ComposerText>
+                <div>
+                  <ComposerTokens
+                    draft={previewText}
+                    showDiagnostics={false}
+                    scoreTypes={scoreTypes}
+                    fieldReason={props.fieldReason}
+                    freeTextReason={props.freeTextReason}
+                    registry={props.registry}
+                  />
+                </div>
+              </ComposerText>
             </div>
-          </div>
+          </ComposerSurface>
         </div>
       )}
     </div>

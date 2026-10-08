@@ -16,7 +16,7 @@
 
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
-import { type ComposerSize } from "@/src/features/search-bar/components/composer-chrome";
+import { type ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";

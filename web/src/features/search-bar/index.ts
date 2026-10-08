@@ -10,9 +10,9 @@ export { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsS
 export { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 export {
   type ComposerSize,
-  composerSurfaceClasses,
-  COMPOSER_TEXT_CLASSES,
-} from "@/src/features/search-bar/components/composer-chrome";
+  ComposerSurface,
+  ComposerText,
+} from "@/src/features/search-bar/components/ComposerSurface";
 export { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 export { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 export { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
