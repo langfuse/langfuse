@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import Header from "@/src/components/layouts/header";
 import { ConnectedLLMApiKeySettingsTable } from "./LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
 import { type LLMApiKeySettingsTableRow } from "./LLMApiKeySettingsTable/LLMApiKeySettingsTable";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -68,7 +69,7 @@ export function LlmApiKeyList(props: {
           data={organizationTableData}
           toolbarContent={
             <div className="flex items-center gap-1">
-              <h3 className="text-base font-bold">Organization connections</h3>
+              <Header title="Organization connections" className="!mb-0" />
               <InfoTooltip label="About organization connections">
                 Organization connections are inherited by this project. Project
                 connections with the same provider name take precedence.
@@ -82,7 +83,7 @@ export function LlmApiKeyList(props: {
           owner={{ scope: "project", projectId: props.projectId }}
           overriddenProviders={organizationProviders}
           toolbarContent={
-            <h3 className="text-base font-bold">Project connections</h3>
+            <Header title="Project connections" className="!mb-0" />
           }
         />
       </section>
