@@ -207,6 +207,60 @@ describe.each(faces)("%s", (_fileName, codepoints) => {
   });
 });
 
+// The shipped faces carry only format 4 subtables, so these pin the format 12
+// reader against the spec rather than against a binary we happen to have.
+describe("cmap format 12 reader", () => {
+  function subtable(
+    groups: { start: number; end: number; startGlyph: number }[],
+  ): DataView {
+    const view = new DataView(new ArrayBuffer(16 + groups.length * 12));
+    view.setUint16(0, 12);
+    view.setUint32(12, groups.length);
+    groups.forEach((group, index) => {
+      const at = 16 + index * 12;
+      view.setUint32(at, group.start);
+      view.setUint32(at + 4, group.end);
+      view.setUint32(at + 8, group.startGlyph);
+    });
+    return view;
+  }
+
+  function read(
+    groups: { start: number; end: number; startGlyph: number }[],
+  ): Set<number> {
+    const covered = new Set<number>();
+    readFormat12(subtable(groups), 0, covered);
+    return covered;
+  }
+
+  it("keeps a group whose glyph ids happen to start at zero", () => {
+    // Ids run consecutively, so only the first character is the missing glyph.
+    const covered = read([{ start: 0, end: 0x24f, startGlyph: 0 }]);
+    expect(covered.size).toBe(0x24f);
+    expect(covered.has(0)).toBe(false);
+    expect(covered.has(1)).toBe(true);
+    expect(covered.has(0x24f)).toBe(true);
+  });
+
+  it("drops only the character that lands on the missing glyph", () => {
+    const covered = read([{ start: 0x100, end: 0x10f, startGlyph: 0 }]);
+    expect(covered.size).toBe(15);
+    expect(covered.has(0x100)).toBe(false);
+    expect(covered.has(0x101)).toBe(true);
+  });
+
+  it("keeps every character of a group mapped above the missing glyph", () => {
+    const covered = read([{ start: 0x100, end: 0x10f, startGlyph: 5 }]);
+    expect(covered.size).toBe(16);
+    expect(covered.has(0x100)).toBe(true);
+  });
+
+  it("reads supplementary-plane groups", () => {
+    const covered = read([{ start: 0x1f600, end: 0x1f602, startGlyph: 9 }]);
+    expect([...covered]).toEqual([0x1f600, 0x1f601, 0x1f602]);
+  });
+});
+
 it("declares the same characters in every weight", () => {
   // A character present in one weight only renders in a fallback font as soon
   // as it is bold, which is the same mixed-typeface bug one weight deep.

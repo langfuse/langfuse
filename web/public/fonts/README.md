@@ -9,10 +9,12 @@ ids.
 
 - **Family** — IBM Plex Mono, version 2.3 (`fontRevision` 2.003).
 - **Source** — the static TTFs in
-  [`google/fonts:ofl/ibmplexmono`](https://github.com/google/fonts/tree/main/ofl/ibmplexmono),
-  converted to woff2 by the command below.
+  [`google/fonts@633f320:ofl/ibmplexmono`](https://github.com/google/fonts/tree/633f3200539c52ee0aba2dfd7f46921417a81877/ofl/ibmplexmono),
+  converted to woff2 by the command below. The commit is pinned so the command
+  reproduces these exact bytes.
 - **License** — SIL Open Font License 1.1. `IBMPlexMono-OFL.txt` is the copy
-  that ships in that same directory; keep the two together.
+  from that same commit, with line endings normalised to LF; keep the two
+  together.
 
 `IBMPlexMono-Bold.woff2` is the real Bold face (`usWeightClass` 700). It is
 declared at CSS `weight: 600` in `fonts.ts` because `--font-weight-bold` is 600
@@ -45,8 +47,9 @@ Needs [`fonttools`](https://github.com/fonttools/fonttools) with Brotli
 (`pip install 'fonttools[woff]'`).
 
 ```sh
+upstream=633f3200539c52ee0aba2dfd7f46921417a81877
 for weight in Regular Bold; do
-  curl -sSLO "https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexmono/IBMPlexMono-$weight.ttf"
+  curl -sSLO "https://raw.githubusercontent.com/google/fonts/$upstream/ofl/ibmplexmono/IBMPlexMono-$weight.ttf"
   pyftsubset "IBMPlexMono-$weight.ttf" \
     --unicodes='*' \
     --layout-features='*' \
@@ -63,11 +66,10 @@ Keep the TrueType hinting tables (`cvt`, `fpgm`, `prep`, `gasp`) that this
 produces. `--no-hinting` saves about 12 KB per face and changes how the text
 renders on Windows.
 
-`main` is a moving branch, so a regeneration can pick up a newer release than
-the 930-character version 2.3 recorded above. That is fine — but the count is
-pinned in `fonts.clienttest.ts`, so when it changes, update
-`UPSTREAM_CODEPOINT_COUNT` and the version here in the same commit. The test
-failing on an upgrade is the contract working.
+To take a newer upstream release, move `upstream` to the commit you want and
+update `UPSTREAM_CODEPOINT_COUNT` in `fonts.clienttest.ts` and the version
+above in the same commit. The test failing on an upgrade is the contract
+working.
 
 After regenerating, check against the files you replaced: codepoint coverage
 must be a superset, and `unitsPerEm`, ascender, descender, cap height, x-height
