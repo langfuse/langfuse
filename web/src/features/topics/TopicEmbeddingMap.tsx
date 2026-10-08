@@ -8,7 +8,7 @@ import { EmbeddingMapView } from "./EmbeddingMapView";
 type Topic = Pick<
   RouterOutputs["topics"]["currentResults"][number]["topics"][number],
   "id" | "name"
->;
+> & { description?: string };
 
 export function TopicEmbeddingMap({
   projectId,

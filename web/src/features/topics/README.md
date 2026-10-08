@@ -66,22 +66,29 @@ project permissions. Processing additionally requires the project allowlist.
   open. It uses the same deterministic transcript loader as the worker, does
   not run inference, and explains when the source is unavailable or may differ
   from the original input. Transcript content is marked `ph-no-capture`.
-- `TopicEmbeddingMap.tsx` loads the published map by run ID and supplies trace
-  navigation to the isolated `EmbeddingMapView.tsx`, whose states are shown
-  in Storybook. A pure geometry unit test protects distance ratios.
-  The view renders its saved 2D UMAP
-  coordinates. Clicking a point pins its summary until another selection. Trace IDs
-  in the map summary open the shared trace peek. The summary area collapses when
-  inactive and fits its content up to a scrollable maximum height. Cards own
-  topic filtering, with All topics in the map header to reset it. Topic selection is
-  shared with the cards and list and fits the plot to that topic's points, making
-  overlapping groups easier to inspect. Arrow keys navigate a single roving tab
-  stop; Enter or Space keeps a point selected. The plot uses the measured viewport
-  and rotates the cohort's principal axis horizontally, then applies one uniform
-  scale to preserve all relative 2D distances. Topic zoom retains the cohort's
-  orientation. The shared element-size hook owns the ResizeObserver lifecycle;
-  geometry is derived during render. Saved coordinates and clustering are unchanged.
-  Missing-coordinate warnings remain visible below the map.
+- `TopicEmbeddingMap.tsx` loads the published map and supplies trace navigation.
+  `EmbeddingMapView.tsx` preserves the controlled selection contract as a drop-in
+  adapter to `map/TopicMapExplorer.tsx`. The renderer owns no queries or clustering.
+  `map/prepare-topic-map.ts` prepares stable cohort orientation, topic zones,
+  colors, mapped-cohort counts, camera geometry and collision-bounded detail labels.
+  Zones represent existing topics, not a new clustering hierarchy; halos and
+  deterministic depth are decorative, not density, severity or quality measures.
+  One uniform scale preserves relative 2D distances. The camera keeps surrounding
+  topics visible when a selection focuses a cloud. At closer scales, stored trace
+  excerpts appear in the map; the inspector pins full summaries and opens traces.
+  Previous/Next controls expose every plotted trace to keyboard users, including
+  coincident points and fullscreen, without mounting thousands of focusable dots.
+  `map/TopicMapCanvas.tsx` draws the cloud via a frame-batched subscription to a
+  per-mount vanilla store; only labels/details subscribe to their changing state.
+  The measured stage fills its container and expands with native browser fullscreen,
+  retaining the camera. Opening a trace exits fullscreen before using the peek panel.
+  `usePanZoomGestures` shares wheel input with the timeline: scroll pans, pinch or
+  Ctrl/Command-scroll zooms at the pointer, and two touch contacts pinch and pan.
+  Drag capture starts after a threshold so clicks remain clicks. Arrow keys pan,
+  +/- zoom and 0/Home fit the map. OS reduced motion disables focus flights and
+  pointer parallax. Missing-coordinate warnings remain below the map. This internal
+  PoC adds no analytics events for camera/hover/fullscreen; the entire renderer is
+  blocked from session replay. Browser fullscreen denial is expected UI state.
 - `server/currentResults.ts` joins latest per-trace/facet assignments to their
   exact topic versions, including assignments from older maps. Summary states
   identify terminal no-topic results. An assignment applies only when its stored

@@ -107,7 +107,8 @@ function CurrentFacet({
     selection === "outliers" ||
     selection === "no_topic" ||
     selection === "awaiting_map" ||
-    facet.topics.some((topic) => topic.id === selection)
+    facet.topics.some((topic) => topic.id === selection) ||
+    facet.map?.topics.some((topic) => topic.id === selection)
       ? selection
       : null;
   const visible = facet.rows.filter((row) => {
@@ -158,7 +159,12 @@ function CurrentFacet({
               timeRange={timeRange}
               projectId={projectId}
               runId={facet.map.runId}
-              topics={facet.map.topics}
+              topics={facet.map.topics.map((topic) => ({
+                ...topic,
+                description: facet.topics.find(
+                  (current) => current.id === topic.id,
+                )?.description,
+              }))}
               selectedTopic={selected}
               onSelectTopic={selectTopic}
               onSelectTrace={setSelectedTraceId}
