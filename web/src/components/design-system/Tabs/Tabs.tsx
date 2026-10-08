@@ -448,6 +448,18 @@ function TabsOverflowList({
   const visible = new Set(visibleIndices ?? items.map((_, index) => index));
   const hiddenItems = items.filter((_, index) => !visible.has(index));
   const triggerClassName = tabsTriggerVariants({ look: "underline" });
+  const rowRef = React.useRef<HTMLDivElement>(null);
+
+  const selectFromMenu = (value: string) => {
+    root?.onValueChange(value);
+    // The menu hands focus back to its trigger in a microtask, and that
+    // trigger is gone once every tab fits; the selected tab takes focus after.
+    requestAnimationFrame(() => {
+      rowRef.current
+        ?.querySelector<HTMLElement>('[role="tab"][data-state="active"]')
+        ?.focus();
+    });
+  };
 
   return (
     <TabsListContext value={{ look: "underline" }}>
@@ -477,6 +489,7 @@ function TabsOverflowList({
             <TabsOverflowTrigger tabIndex={-1} />
           </div>
           <div
+            ref={rowRef}
             className={cn(
               "flex h-full items-center",
               visibleIndices === null && "invisible",
@@ -499,7 +512,7 @@ function TabsOverflowList({
                 items={hiddenItems.map((item) => ({
                   badge: item.badge,
                   id: item.value,
-                  onClick: () => root?.onValueChange(item.value),
+                  onClick: () => selectFromMenu(item.value),
                   title: item.label,
                   tooltip: item.tooltip,
                   type: "item" as const,

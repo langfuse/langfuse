@@ -113,6 +113,38 @@ function OverflowTabs({
   );
 }
 
+/**
+ * Like the detail panels: a view toggle sits after the tabs except on Scores,
+ * so picking Scores from the menu frees enough room for every tab and the
+ * overflow trigger disappears.
+ */
+function OverflowTabsWithConditionalTrailing() {
+  const [value, setValue] = React.useState("preview");
+
+  return (
+    <div className="w-xl">
+      <Tabs value={value} onValueChange={setValue}>
+        <Tabs.OverflowList
+          aria-label="Detail views"
+          items={overflowItems}
+          trailing={
+            value === "scores" ? null : (
+              <span className="text-muted-foreground ml-auto w-64 shrink-0 px-2 text-xs">
+                trailing
+              </span>
+            )
+          }
+        />
+        {overflowItems.map((item) => (
+          <Tabs.Content key={item.value} value={item.value}>
+            {item.label} panel
+          </Tabs.Content>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
+
 function LinkTabs() {
   return (
     <Tabs.List variant="underline" aria-label="Page sections">
@@ -501,6 +533,34 @@ export const SelectsHiddenTabFromOverflowMenu = meta.story({
       expect(canvas.queryByRole("tab", { name: "Preview" })).toBeNull();
     });
     await expect(canvas.getByText("Attributes panel")).toBeVisible();
+  },
+});
+
+export const FocusesTabSelectedFromOverflowMenu = meta.story({
+  name: "(Test) Focuses Tab Selected From Overflow Menu",
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabsWithConditionalTrailing />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const trigger = canvas.getByRole("button", { name: "More tabs" });
+
+    await expect(canvas.queryByRole("tab", { name: "Scores" })).toBeNull();
+
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    const scoresItem = await body.findByRole("menuitem", { name: "Scores" });
+    scoresItem.focus();
+    await userEvent.keyboard("{Enter}");
+
+    // Scores frees the trailing slot, so every tab fits and the trigger that
+    // the menu would hand focus back to is gone.
+    await waitFor(() => {
+      expect(canvas.queryByRole("button", { name: "More tabs" })).toBeNull();
+      expect(document.activeElement).toBe(
+        canvas.getByRole("tab", { name: "Scores" }),
+      );
+    });
   },
 });
 
