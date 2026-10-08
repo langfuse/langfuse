@@ -7,7 +7,10 @@ import {
   type ServiceUnavailableError,
   type UnauthorizedError,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  type ApiAccessLevel,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   isOrgAction,
@@ -47,6 +50,7 @@ export async function enforceAuth({
   action,
   allowInAppAgentKey,
   isAdminApiKeyAuthAllowed,
+  allowedAccessLevels,
 }: EnforceAuthParams): Promise<EnforceAuthResult> {
   const auth = await authenticator.authenticate({
     headers: req.headers,
@@ -59,10 +63,16 @@ export async function enforceAuth({
   switch (context.principal.kind) {
     case "admin":
       return enforceAdminAuthz(context, req, action);
-    case "apiKey":
-      return action !== __dangerouslySkipAuthz && isOrgAction(action)
+    case "apiKey": {
+      const isOrganizationRoute =
+        action === __dangerouslySkipAuthz
+          ? allowedAccessLevels?.length === 1 &&
+            allowedAccessLevels[0] === "organization"
+          : isOrgAction(action);
+      return isOrganizationRoute
         ? enforceOrgAuthz(context, req, action)
         : enforceProjectAuthz(context, req, action);
+    }
     default:
       return internalServerError(`Unexpected principal on the public api`);
   }
@@ -274,6 +284,7 @@ function access(
 export type EnforceAuthParams = {
   req: NextApiRequest;
   action: ApiAction;
+  allowedAccessLevels?: ApiAccessLevel[];
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };
