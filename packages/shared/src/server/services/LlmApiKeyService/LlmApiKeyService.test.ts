@@ -8,24 +8,27 @@ const organizationId = "organization-id";
 
 const connection = (
   overrides: Partial<LlmApiKeys> & Pick<LlmApiKeys, "id" | "provider">,
-): LlmApiKeys => ({
-  id: overrides.id,
-  provider: overrides.provider,
-  adapter: "openai",
-  secretKey: "encrypted-secret",
-  displaySecretKey: "...cret",
-  baseURL: null,
-  customModels: [],
-  withDefaultModels: true,
-  extraHeaders: null,
-  extraHeaderKeys: [],
-  config: null,
-  projectId: null,
-  organizationId: null,
-  createdAt: new Date("2026-01-01T00:00:00.000Z"),
-  updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-  ...overrides,
-});
+): LlmApiKeys => {
+  const { id, provider, ...rest } = overrides;
+  return {
+    id,
+    provider,
+    adapter: "openai",
+    secretKey: "encrypted-secret",
+    displaySecretKey: "...cret",
+    baseURL: null,
+    customModels: [],
+    withDefaultModels: true,
+    extraHeaders: null,
+    extraHeaderKeys: [],
+    config: null,
+    projectId: null,
+    organizationId: null,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    ...rest,
+  };
+};
 
 describe("LlmApiKeyService", () => {
   it("prefers a project connection over an organization connection", async () => {
