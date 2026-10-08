@@ -367,11 +367,13 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   end,
   projectId,
   projectIds,
+  preferredClickhouseService,
 }: {
   start: Date;
   end: Date;
   projectId?: string;
   projectIds?: string[];
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const query = `
     SELECT
@@ -396,6 +398,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout
     },
+    preferredClickhouseService,
   });
 
   return rows.map((row) => ({

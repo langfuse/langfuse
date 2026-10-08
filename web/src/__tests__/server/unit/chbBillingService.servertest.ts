@@ -834,6 +834,7 @@ describe("chbBillingService", () => {
         start: new Date("2026-10-01T00:00:00Z"),
         end: new Date("2026-10-06T12:00:00Z"),
         projectIds: ["project-1", "project-2"],
+        preferredClickhouseService: "ReadOnly",
       };
       expect(mocks.traceCounts).toHaveBeenCalledWith(interval);
       expect(mocks.observationCounts).toHaveBeenCalledWith(interval);

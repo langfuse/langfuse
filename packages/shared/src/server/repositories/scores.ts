@@ -2356,11 +2356,13 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   end,
   projectId,
   projectIds,
+  preferredClickhouseService,
 }: {
   start: Date;
   end: Date;
   projectId?: string;
   projectIds?: string[];
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const query = `
     SELECT
@@ -2387,6 +2389,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout
     },
+    preferredClickhouseService,
   });
 
   return rows.map((row) => ({

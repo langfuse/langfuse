@@ -690,6 +690,7 @@ export class ChbBillingService {
       start: period.start,
       end,
       projectIds: projects.map((project) => project.id),
+      preferredClickhouseService: "ReadOnly" as const,
     };
     const counts = await Promise.all([
       getTraceCountsByProjectInCreationInterval(interval),
