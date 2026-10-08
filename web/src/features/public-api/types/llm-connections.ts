@@ -55,7 +55,7 @@ const PUBLIC_LLM_ADAPTERS = Object.values(LLMAdapter).filter(
 ) as [LLMAdapter, ...LLMAdapter[]];
 
 // Base request schema (before adapter-specific validation)
-const PutLlmConnectionV1BodyBase = z.object({
+export const PutLlmConnectionV1BodyBase = z.object({
   provider: z.string().min(1),
   adapter: z.enum(PUBLIC_LLM_ADAPTERS),
   secretKey: z.string().min(1),

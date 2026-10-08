@@ -4,6 +4,7 @@ import {
   GetLlmConnectionsV1Query,
   GetLlmConnectionsV1Response,
   PutLlmConnectionV1Body,
+  PutLlmConnectionV1BodyBase,
   PutLlmConnectionV1Response,
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
@@ -51,7 +52,7 @@ export const [upsertLlmConnectionTool, handleUpsertLlmConnection] = defineTool({
   description:
     "Create or replace a project LLM connection by provider. The secret is encrypted and never returned.",
   action: "llmApiKeys:create",
-  baseSchema: PutLlmConnectionV1Body,
+  baseSchema: PutLlmConnectionV1BodyBase,
   inputSchema: PutLlmConnectionV1Body,
   handler: async (input, context) =>
     runMcpTool({
@@ -149,7 +150,7 @@ export const [
     "Create or replace an organization LLM connection by provider. It is inherited by projects without a provider override. The secret is encrypted and never returned.",
   action: "organizationLlmApiKeys:CUD",
   accessLevel: "organization",
-  baseSchema: PutLlmConnectionV1Body,
+  baseSchema: PutLlmConnectionV1BodyBase,
   inputSchema: PutLlmConnectionV1Body,
   handler: async (input, context) =>
     runMcpTool({
