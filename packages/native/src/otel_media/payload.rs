@@ -162,6 +162,11 @@ impl ExtractedMedia {
         String::from_utf8(value).map_err(|_| MediaDecodeError::InvalidSourceText)
     }
 
+    /// Whether inline restoration differs from the fully decoded media text.
+    pub fn original_has_json_escapes(&self) -> bool {
+        self.original_storage.is_some()
+    }
+
     /// Number of serialized JSON documents containing this candidate.
     pub fn original_json_depth(&self) -> u8 {
         self.original_json_depth

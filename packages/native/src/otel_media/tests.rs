@@ -294,7 +294,8 @@ fn scans_sdk_json_string_wrappers_within_the_embedded_json_budget() {
     assert_eq!(result.media[1].decode().unwrap(), uri_body);
     assert_eq!(result.media[2].decode().unwrap(), provider_body);
     let mut expected = String::from_utf8(input).unwrap();
-    expected = expected.replace(&uri, &result.media[0].reference());
+    expected = expected.replacen(&uri, &result.media[0].reference(), 1);
+    expected = expected.replacen(&uri, &result.media[1].reference(), 1);
     expected = expected.replace(&provider_data, &result.media[2].reference());
     assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
 }

@@ -193,7 +193,6 @@ describe(
           },
         ],
       });
-      const original = JSON.parse(input) as unknown;
       const validated = await validateOtelJson(Buffer.from(input));
       const batch = await validated.extract(true);
       try {
@@ -227,9 +226,15 @@ describe(
         expect(
           JSON.parse(JSON.parse(attributes[2]!.value.stringValue)),
         ).toMatchObject({ data: batch.media[2]!.reference });
-        expect(canonicalizeNativeReferences(compact, batch.media)).toEqual(
-          original,
-        );
+        await expect(
+          batch.originalMedia(0, batch.media[0]!.originalJsonDepth),
+        ).resolves.toBe(MEDIA_URI);
+        await expect(
+          batch.originalMedia(1, batch.media[1]!.originalJsonDepth),
+        ).resolves.toBe(MEDIA_URI);
+        await expect(
+          batch.originalMedia(2, batch.media[2]!.originalJsonDepth),
+        ).resolves.toBe(providerBody.toString("base64"));
       } finally {
         await batch.dispose();
         await validated.dispose();
