@@ -92,10 +92,10 @@ export class LlmConnectionRepository {
     data: Prisma.LlmApiKeysUpdateInput;
   }): Promise<LlmApiKeys> {
     return this.db.llmApiKeys.update({
-      where: {
-        id: params.id,
-        ...ownerWhere(params.owner),
-      },
+      where:
+        params.owner.type === "project"
+          ? { id: params.id, projectId: params.owner.projectId }
+          : { id: params.id, organizationId: params.owner.organizationId },
       data: params.data,
     });
   }
@@ -105,10 +105,10 @@ export class LlmConnectionRepository {
     id: string;
   }): Promise<LlmApiKeys> {
     return this.db.llmApiKeys.delete({
-      where: {
-        id: params.id,
-        ...ownerWhere(params.owner),
-      },
+      where:
+        params.owner.type === "project"
+          ? { id: params.id, projectId: params.owner.projectId }
+          : { id: params.id, organizationId: params.owner.organizationId },
     });
   }
 

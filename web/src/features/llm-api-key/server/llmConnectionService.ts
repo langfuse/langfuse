@@ -75,17 +75,19 @@ export type SafeLlmConnection = {
   updatedAt: Date;
   provider: string;
   displaySecretKey: string;
-  adapter: string;
+  adapter: LLMAdapter;
   baseURL: string | null;
   customModels: string[];
   withDefaultModels: boolean;
   extraHeaderKeys: string[];
   config: JSONValue | null;
   authMethod?: BedrockAuthMethod;
-} & (
-  | { scope: "project"; projectId: string }
-  | { scope: "organization"; organizationId: string }
-);
+  secretKey?: undefined;
+  extraHeaders?: undefined;
+  scope?: "project" | "organization";
+  projectId?: string;
+  organizationId?: string;
+};
 
 type TestLlmConnectionParams = Omit<
   LlmConnectionWriteInput,
@@ -99,7 +101,7 @@ const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
     updatedAt: connection.updatedAt,
     provider: connection.provider,
     displaySecretKey: connection.displaySecretKey,
-    adapter: connection.adapter,
+    adapter: connection.adapter as LLMAdapter,
     baseURL: connection.baseURL,
     customModels: connection.customModels,
     withDefaultModels: connection.withDefaultModels,
