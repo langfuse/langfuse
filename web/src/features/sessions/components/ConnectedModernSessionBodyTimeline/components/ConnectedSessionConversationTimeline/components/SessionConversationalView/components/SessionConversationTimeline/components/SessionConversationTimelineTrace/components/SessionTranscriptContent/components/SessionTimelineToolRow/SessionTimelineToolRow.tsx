@@ -10,8 +10,7 @@ import yaml from "highlight.js/lib/languages/yaml";
 import xml from "highlight.js/lib/languages/xml";
 import css from "highlight.js/lib/languages/css";
 import markdown from "highlight.js/lib/languages/markdown";
-import { Highlight, themes } from "prism-react-renderer";
-import { useTheme } from "next-themes";
+import { SyntaxHighlight } from "@/src/components/design-system/SyntaxHighlight/SyntaxHighlight";
 import { SelectDropdown } from "@/src/components/design-system/SelectDropdown/SelectDropdown";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
@@ -29,6 +28,8 @@ const toPreviewText = (value: unknown) => {
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
+
+const MAX_HIGHLIGHT_CHARACTERS = 10_000;
 
 const languageOptions = [
   { value: "json", label: "JSON", grammar: json },
@@ -56,18 +57,22 @@ function SessionTimelineToolPreview({
   kind: "input" | "output";
 }) {
   const [selectedLanguage, setSelectedLanguage] = useState("auto");
-  const { resolvedTheme } = useTheme();
   const text = useMemo(() => toPreviewText(value), [value]);
+  const isLargePreview = text.length > MAX_HIGHLIGHT_CHARACTERS;
   const detectedLanguage = useMemo(() => {
+    if (isLargePreview) return "text";
     if (typeof value !== "string") return "json";
-    // Bound detection work for large tool responses in the virtualized timeline.
-    return detector.highlightAuto(text.slice(0, 10_000)).language ?? "text";
-  }, [value, text]);
+    return detector.highlightAuto(text).language ?? "text";
+  }, [isLargePreview, value, text]);
   const language =
     selectedLanguage === "auto" ? detectedLanguage : selectedLanguage;
   const detectedLabel =
     languageOptions.find((option) => option.value === detectedLanguage)
       ?.label ?? "Plain text";
+  const previewClassName = cn(
+    "bg-muted/30 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap",
+    kind === "input" ? "max-h-48" : "max-h-96",
+  );
 
   return (
     <div className="relative flex min-w-0 flex-col gap-1">
@@ -75,49 +80,43 @@ function SessionTimelineToolPreview({
         <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
           {kind === "input" ? "Input" : "Output"}
         </span>
-        <SelectDropdown
-          aria-label={`Tool ${kind} language`}
-          value={selectedLanguage}
-          onValueChange={setSelectedLanguage}
-          options={[
-            { value: "auto", label: `Auto (${detectedLabel})` },
-            { value: "text", label: "Plain text" },
-            ...languageOptions.map(({ value, label }) => ({ value, label })),
-          ]}
-        >
-          {({ getTriggerProps, selectedLabel }) => (
-            <button
-              {...getTriggerProps()}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs focus-visible:ring-2 focus-visible:outline-hidden"
-            >
-              {selectedLabel}
-              <DropdownIndicator />
-            </button>
-          )}
-        </SelectDropdown>
-      </div>
-      <Highlight
-        code={text}
-        language={language}
-        theme={resolvedTheme === "dark" ? themes.vsDark : themes.github}
-      >
-        {({ tokens, getLineProps, getTokenProps }) => (
-          <pre
-            className={cn(
-              "bg-muted/30 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap",
-              kind === "input" ? "max-h-48" : "max-h-96",
-            )}
+        {isLargePreview ? (
+          <span
+            className="text-muted-foreground px-1.5 py-1 text-xs"
+            title="Syntax highlighting is disabled for previews over 10,000 characters."
           >
-            {tokens.map((line, index) => (
-              <div key={index} {...getLineProps({ line })}>
-                {line.map((token, key) => (
-                  <span key={key} {...getTokenProps({ token })} />
-                ))}
-              </div>
-            ))}
-          </pre>
+            Plain text (large value)
+          </span>
+        ) : (
+          <SelectDropdown
+            aria-label={`Tool ${kind} language`}
+            value={selectedLanguage}
+            onValueChange={setSelectedLanguage}
+            options={[
+              { value: "auto", label: `Auto (${detectedLabel})` },
+              { value: "text", label: "Plain text" },
+              ...languageOptions.map(({ value, label }) => ({ value, label })),
+            ]}
+          >
+            {({ getTriggerProps, selectedLabel }) => (
+              <button
+                {...getTriggerProps()}
+                className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs focus-visible:ring-2 focus-visible:outline-hidden"
+              >
+                {selectedLabel}
+                <DropdownIndicator />
+              </button>
+            )}
+          </SelectDropdown>
         )}
-      </Highlight>
+      </div>
+      {isLargePreview || language === "text" ? (
+        <pre className={previewClassName}>{text}</pre>
+      ) : (
+        <SyntaxHighlight code={text} language={language}>
+          {({ content }) => <pre className={previewClassName}>{content}</pre>}
+        </SyntaxHighlight>
+      )}
     </div>
   );
 }

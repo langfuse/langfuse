@@ -359,6 +359,62 @@ export const ToolPreviewJsonHighlighting = meta.story({
   },
 });
 
+const largeToolPreviewCases = [
+  {
+    name: "highlight-limit",
+    input: JSON.stringify({ text: "x".repeat(9_989) }),
+    output: JSON.stringify({ text: "x".repeat(9_990) }),
+  },
+  {
+    name: "large-multiline",
+    input: JSON.stringify({ text: "x".repeat(9_990) }),
+    output: `${"\n".repeat(10_000)}full value ends here`,
+  },
+];
+
+export const LargeToolPreviews = meta.story({
+  name: "(Test) Large Tool Previews Bypass Highlighting Without Truncation",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState(largeToolPreviewCases),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const { name, input, output } of largeToolPreviewCases) {
+      const expand = canvas.getByRole("button", { name: `Expand ${name}` });
+      const row = expand.closest("section")!;
+      await userEvent.click(expand);
+      const controls = within(row);
+      const [inputPreview, outputPreview] = row.querySelectorAll("pre");
+      await expect(inputPreview.textContent).toBe(input);
+      await expect(outputPreview.textContent).toBe(output);
+      await expect(inputPreview).toHaveClass("max-h-48");
+      await expect(outputPreview).toHaveClass("max-h-96");
+      await expect(outputPreview.childElementCount).toBe(0);
+      await expect(
+        controls.queryByRole("combobox", { name: "Tool output language" }),
+      ).toBeNull();
+
+      if (name === "highlight-limit") {
+        await expect(input.length).toBe(10_000);
+        await expect(output.length).toBe(10_001);
+        await expect(
+          inputPreview.querySelector(".token.property"),
+        ).toBeInTheDocument();
+        await expect(
+          controls.getByRole("combobox", { name: "Tool input language" }),
+        ).toHaveTextContent("Auto (JSON)");
+      } else {
+        await expect(inputPreview.childElementCount).toBe(0);
+        await expect(controls.queryByRole("combobox")).toBeNull();
+        await expect(
+          controls.getAllByText("Plain text (large value)"),
+        ).toHaveLength(2);
+      }
+    }
+  },
+});
+
 export const ToolPreviewLanguageOverrides = meta.story({
   name: "(Test) Independent Tool Preview Language Overrides",
   args: {
