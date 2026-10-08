@@ -126,7 +126,7 @@ const createEvaluatorWithThreeVersions = async () => {
 
 const provisionDefaultEvalModel = async (model: string) => {
   const provider = `openai-${randomUUID()}`;
-  const llmApiKey = await prisma.llmApiKeys.create({
+  await prisma.llmApiKeys.create({
     data: {
       projectId,
       provider,
@@ -143,7 +143,6 @@ const provisionDefaultEvalModel = async (model: string) => {
   await prisma.defaultLlmModel.create({
     data: {
       projectId,
-      llmApiKeyId: llmApiKey.id,
       provider,
       adapter: LLMAdapter.OpenAI,
       model,

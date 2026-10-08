@@ -25,6 +25,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { AuthMethod } from "@/src/features/llm-api-key/types";
 import {
   createOrgProjectAndApiKey,
+  DefaultEvalModelService,
   EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
@@ -152,8 +153,8 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
   });
 
-  it("repoints the default model when creating a project override", async () => {
-    const provider = `override-${randomUUID()}`;
+  it("resolves an organization connection for the project default model", async () => {
+    const provider = `organization-default-${randomUUID()}`;
     const organizationConnection = await prisma.llmApiKeys.create({
       data: {
         organizationId: orgId,
@@ -166,28 +167,23 @@ describe("llmApiKey.all RPC", () => {
     await prisma.defaultLlmModel.create({
       data: {
         projectId,
-        llmApiKeyId: organizationConnection.id,
         provider,
         adapter: LLMAdapter.OpenAI,
         model: "gpt-4o",
       },
     });
 
-    const projectConnection = await caller.llmApiKey.create({
-      projectId,
-      provider,
-      adapter: LLMAdapter.OpenAI,
-      secretKey: "project-secret",
-    });
+    const result =
+      await DefaultEvalModelService.fetchValidModelConfig(projectId);
 
-    expect(
-      await prisma.defaultLlmModel.findUniqueOrThrow({
-        where: { projectId },
-        select: { llmApiKeyId: true, adapter: true },
-      }),
-    ).toEqual({
-      llmApiKeyId: projectConnection.id,
-      adapter: LLMAdapter.OpenAI,
+    expect(result).toMatchObject({
+      valid: true,
+      config: {
+        apiKey: {
+          id: organizationConnection.id,
+          projectId,
+        },
+      },
     });
   });
 
@@ -1834,12 +1830,11 @@ describe("llmApiKey.all RPC", () => {
         createV2Evaluator([{ provider: "anthropic", model: "claude" }]),
       ]);
 
-      // Point the project's default eval model at the connection too, so both
-      // block reasons fire from one deletion.
+      // Use this provider as the project's default too, so both block reasons
+      // fire when its last effective connection is deleted.
       await prisma.defaultLlmModel.create({
         data: {
           projectId,
-          llmApiKeyId: connection.id,
           provider: PROVIDER,
           adapter: LLMAdapter.OpenAI,
           model: "gpt-4o",
@@ -1888,7 +1883,7 @@ describe("llmApiKey.all RPC", () => {
       ).toBeNull();
     });
 
-    it("repoints a key-bound default model when deleting a project override", async () => {
+    it("keeps the default model when deleting an override with an organization fallback", async () => {
       await prisma.llmApiKeys.createMany({
         data: [
           {
@@ -1910,9 +1905,6 @@ describe("llmApiKey.all RPC", () => {
       const projectConnection = await prisma.llmApiKeys.findFirstOrThrow({
         where: { projectId, provider: PROVIDER },
       });
-      const organizationConnection = await prisma.llmApiKeys.findFirstOrThrow({
-        where: { organizationId: orgId, provider: PROVIDER },
-      });
       const providerEvaluatorId = await createV2Evaluator([
         { provider: PROVIDER, model: "gpt-4o" },
       ]);
@@ -1922,7 +1914,6 @@ describe("llmApiKey.all RPC", () => {
       await prisma.defaultLlmModel.create({
         data: {
           projectId,
-          llmApiKeyId: projectConnection.id,
           provider: PROVIDER,
           adapter: LLMAdapter.OpenAI,
           model: "gpt-4o",
@@ -1950,11 +1941,12 @@ describe("llmApiKey.all RPC", () => {
       expect(
         await prisma.defaultLlmModel.findUniqueOrThrow({
           where: { projectId },
-          select: { llmApiKeyId: true, adapter: true },
+          select: { provider: true, adapter: true, model: true },
         }),
       ).toEqual({
-        llmApiKeyId: organizationConnection.id,
+        provider: PROVIDER,
         adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
       });
     });
   });

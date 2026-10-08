@@ -69,7 +69,6 @@ export class DefaultEvalModelService {
         projectId,
       },
       update: {
-        llmApiKeyId: llmApiKey.id,
         provider,
         adapter: llmApiKey.adapter,
         model,
@@ -77,7 +76,6 @@ export class DefaultEvalModelService {
       },
       create: {
         projectId,
-        llmApiKeyId: llmApiKey.id,
         provider,
         adapter: llmApiKey.adapter,
         model,
@@ -143,7 +141,6 @@ export class DefaultEvalModelService {
       }
   > {
     let selectedModel: ValidConfig | null = null;
-    let selectedApiKeyId: string | undefined;
     // Basic validation first
     const config = {
       provider,
@@ -168,7 +165,6 @@ export class DefaultEvalModelService {
 
       if (basicValidation) {
         selectedModel = defaultConfig;
-        selectedApiKeyId = defaultModel?.llmApiKeyId;
       }
     }
 
@@ -179,14 +175,10 @@ export class DefaultEvalModelService {
       };
     }
 
-    const apiKey = selectedApiKeyId
-      ? await prisma.llmApiKeys.findUnique({
-          where: { id: selectedApiKeyId },
-        })
-      : await resolveLlmApiKey({
-          projectId,
-          provider: selectedModel.provider,
-        });
+    const apiKey = await resolveLlmApiKey({
+      projectId,
+      provider: selectedModel.provider,
+    });
 
     const parsedKey = LLMApiKeySchema.safeParse(apiKey);
 

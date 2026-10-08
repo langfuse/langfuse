@@ -462,14 +462,14 @@ export class LlmConnectionService {
     return Boolean(await this.repository.findByProvider(params));
   }
 
-  private async getOrganizationConnectionForProjectOverride(params: {
+  private async validateProjectOverrideAdapter(params: {
     repository: LlmConnectionRepository;
     owner: LlmConnectionOwner;
     provider: string;
     adapter: LLMAdapter;
   }) {
     if (params.owner.type !== "project") {
-      return null;
+      return;
     }
 
     const organizationConnection = await params.repository.findByProvider({
@@ -487,31 +487,6 @@ export class LlmConnectionService {
         "Project overrides must use the same adapter as the organization connection",
       );
     }
-
-    return organizationConnection;
-  }
-
-  private async repointDefaultModelToProjectConnection(params: {
-    tx: Prisma.TransactionClient;
-    owner: LlmConnectionOwner;
-    organizationConnection: LlmApiKeys | null;
-    projectConnection: LlmApiKeys;
-  }) {
-    if (params.owner.type !== "project" || !params.organizationConnection) {
-      return;
-    }
-
-    await params.tx.defaultLlmModel.updateMany({
-      where: {
-        projectId: params.owner.projectId,
-        provider: params.projectConnection.provider,
-        llmApiKeyId: params.organizationConnection.id,
-      },
-      data: {
-        llmApiKeyId: params.projectConnection.id,
-        adapter: params.projectConnection.adapter,
-      },
-    });
   }
 
   async create(params: {
@@ -524,13 +499,12 @@ export class LlmConnectionService {
 
     const key = await this.db.$transaction(async (tx) => {
       const repository = this.repository.withDb(tx);
-      const organizationConnection =
-        await this.getOrganizationConnectionForProjectOverride({
-          repository,
-          owner: params.owner,
-          provider: params.input.provider,
-          adapter: params.input.adapter,
-        });
+      await this.validateProjectOverrideAdapter({
+        repository,
+        owner: params.owner,
+        provider: params.input.provider,
+        adapter: params.input.adapter,
+      });
       const connection = await repository.create({
         owner: params.owner,
         data: {
@@ -549,12 +523,6 @@ export class LlmConnectionService {
             ? Object.keys(params.input.extraHeaders)
             : undefined,
         },
-      });
-      await this.repointDefaultModelToProjectConnection({
-        tx,
-        owner: params.owner,
-        organizationConnection,
-        projectConnection: connection,
       });
       return connection;
     });
@@ -587,18 +555,16 @@ export class LlmConnectionService {
       : undefined;
     const { connection, existing } = await this.db.$transaction(async (tx) => {
       const repository = this.repository.withDb(tx);
-      const [existing, organizationConnection] = await Promise.all([
-        repository.findByProvider({
-          owner: params.owner,
-          provider: params.input.provider,
-        }),
-        this.getOrganizationConnectionForProjectOverride({
-          repository,
-          owner: params.owner,
-          provider: params.input.provider,
-          adapter: params.input.adapter,
-        }),
-      ]);
+      const existing = await repository.findByProvider({
+        owner: params.owner,
+        provider: params.input.provider,
+      });
+      await this.validateProjectOverrideAdapter({
+        repository,
+        owner: params.owner,
+        provider: params.input.provider,
+        adapter: params.input.adapter,
+      });
       const connection = await repository.upsert({
         owner: params.owner,
         provider: params.input.provider,
@@ -625,12 +591,6 @@ export class LlmConnectionService {
           extraHeaders: encryptedExtraHeaders ?? null,
           extraHeaderKeys: extraHeaderKeys ?? [],
         },
-      });
-      await this.repointDefaultModelToProjectConnection({
-        tx,
-        owner: params.owner,
-        organizationConnection,
-        projectConnection: connection,
       });
       return { connection, existing };
     });
@@ -830,21 +790,16 @@ export class LlmConnectionService {
           provider: connection.provider,
         });
     }
-    const repointDefaultModel =
-      params.owner.type === "project" && organizationFallback !== null;
-    const defaultModelProjectIds = repointDefaultModel
-      ? []
-      : (
-          await this.db.defaultLlmModel.findMany({
-            where: { llmApiKeyId: connection.id },
-            select: { projectId: true },
-          })
-        ).map(({ projectId }) => projectId);
-    const providerProjectIdSet = new Set(providerProjectIds);
+    const defaultModelProjectIds = (
+      await this.db.defaultLlmModel.findMany({
+        where: {
+          projectId: { in: providerProjectIds },
+          provider: connection.provider,
+        },
+        select: { projectId: true },
+      })
+    ).map(({ projectId }) => projectId);
     const defaultModelProjectIdSet = new Set(defaultModelProjectIds);
-    const affectedProjectIds = [
-      ...new Set([...providerProjectIds, ...defaultModelProjectIds]),
-    ];
 
     const blockResults = await this.db.$transaction(async (tx) => {
       const txRepository = this.repository.withDb(tx);
@@ -854,35 +809,24 @@ export class LlmConnectionService {
         defaultModelBlock: typeof EMPTY_EVALUATOR_BLOCK;
       }> = [];
 
-      for (const projectId of affectedProjectIds) {
-        const providerBlock = providerProjectIdSet.has(projectId)
-          ? await blockEvaluatorsUsingProvider({
-              tx,
-              projectId,
-              provider: connection.provider,
-            })
-          : EMPTY_EVALUATOR_BLOCK;
+      for (const projectId of providerProjectIds) {
+        const providerBlock = await blockEvaluatorsUsingProvider({
+          tx,
+          projectId,
+          provider: connection.provider,
+        });
         const defaultModelBlock = defaultModelProjectIdSet.has(projectId)
           ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
           : EMPTY_EVALUATOR_BLOCK;
         results.push({ projectId, providerBlock, defaultModelBlock });
       }
 
-      if (params.owner.type === "project" && organizationFallback !== null) {
-        await tx.defaultLlmModel.updateMany({
-          where: {
-            projectId: params.owner.projectId,
-            provider: connection.provider,
-            llmApiKeyId: connection.id,
-          },
-          data: {
-            llmApiKeyId: organizationFallback.id,
-            adapter: organizationFallback.adapter,
-          },
-        });
-      } else {
+      if (defaultModelProjectIds.length > 0) {
         await tx.defaultLlmModel.deleteMany({
-          where: { llmApiKeyId: connection.id },
+          where: {
+            projectId: { in: defaultModelProjectIds },
+            provider: connection.provider,
+          },
         });
       }
 

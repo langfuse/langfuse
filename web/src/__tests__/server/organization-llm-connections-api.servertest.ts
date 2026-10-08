@@ -167,6 +167,14 @@ describe("/api/public/organizations/llm-connections", () => {
         displaySecretKey: "...lete",
       },
     });
+    await prisma.defaultLlmModel.create({
+      data: {
+        projectId: fixture.projectId,
+        provider: connection.provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
+      },
+    });
 
     const response = await makeZodVerifiedAPICall(
       DeleteLlmConnectionV1Response,
@@ -179,6 +187,11 @@ describe("/api/public/organizations/llm-connections", () => {
     expect(response.status).toBe(200);
     expect(
       await prisma.llmApiKeys.findUnique({ where: { id: connection.id } }),
+    ).toBeNull();
+    expect(
+      await prisma.defaultLlmModel.findUnique({
+        where: { projectId: fixture.projectId },
+      }),
     ).toBeNull();
   });
 });
