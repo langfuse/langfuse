@@ -6,7 +6,8 @@ import { isEnterpriseLicenseAvailable } from "../licenseCheck";
  * Enforce FIPS mode (LANGFUSE_REQUIRE_FIPS=true), an enterprise feature.
  *
  * Fails closed: when FIPS mode is requested, startup must stop unless an
- * enterprise license is available and Node's OpenSSL FIPS provider is active.
+ * enterprise license is available, Node's OpenSSL FIPS provider is active, and
+ * no configured option depends on MD5.
  * The provider is active when OpenSSL loads the image's
  * /etc/ssl/openssl-fips.cnf, which the image entrypoints select through
  * OPENSSL_CONF.
@@ -32,4 +33,31 @@ export function assertFipsMode(envOverride?: SharedEnv): void {
       "LANGFUSE_REQUIRE_FIPS=true but Node's OpenSSL FIPS provider is not active (crypto.getFips() != 1). Start the Langfuse image through its entrypoint or set OPENSSL_CONF=/etc/ssl/openssl-fips.cnf.",
     );
   }
+
+  const incompatibleOptions = getFipsIncompatibleOptions(e);
+  if (incompatibleOptions.length > 0) {
+    throw new Error(
+      `LANGFUSE_REQUIRE_FIPS=true cannot be combined with ${incompatibleOptions.join("; ")}.`,
+    );
+  }
+}
+
+/**
+ * getFipsIncompatibleOptions lists configured options whose code paths compute
+ * MD5, which the FIPS provider rejects at runtime, so startup fails instead of
+ * the affected uploads or deletes.
+ */
+function getFipsIncompatibleOptions(e: SharedEnv): string[] {
+  const options: string[] = [];
+  if (e.LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM === "MD5") {
+    options.push(
+      "LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM=MD5 (use SHA256, or leave it unset for CRC32)",
+    );
+  }
+  if (e.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE === "true") {
+    options.push(
+      "LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE=true (the OCI SDK hashes every upload part with MD5; use OCI's S3-compatible endpoint instead)",
+    );
+  }
+  return options;
 }
