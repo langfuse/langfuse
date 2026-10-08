@@ -1,73 +1,42 @@
 import { type ReactNode } from "react";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { useFitsAvailableWidth } from "@/src/hooks/useFitsAvailableWidth";
-import { cn } from "@/src/utils/tailwind";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 
-import { TraceDetailTabMenu } from "./TraceDetailTabMenu";
 import type { DetailTab } from "../contexts/SelectionContext";
 
+const labels: Record<DetailTab, string> = {
+  preview: "Preview",
+  messages: "Messages",
+  attributes: "Attributes",
+  scores: "Scores",
+  log: "Log View",
+};
+
 /**
- * Tab bar for the trace and observation detail panels. Keeps the tab triggers
- * visible for as long as they fit next to the trailing controls and replaces
- * them with a dropdown once they stop fitting.
- *
- * Which tabs a panel shows depends on the trace, the project role, and the
- * enabled features, so the row is anywhere between two and five tabs wide. The
- * swap therefore follows the measured width of the triggers: a fixed panel
- * width would have to assume the widest tab set and would collapse the narrow
- * ones while there is still room for them.
+ * Tab bar for the trace and observation detail panels. Which tabs a panel
+ * shows depends on the trace, the project role, and the enabled features, so
+ * the row is anywhere between two and five tabs wide; the ones that do not fit
+ * next to the trailing controls move behind an overflow menu.
  */
 export function TraceDetailTabsBarList({
   tabs,
-  selectedTab,
-  onSelect,
-  triggers,
+  logViewDescription,
   trailingControls,
 }: {
   tabs: DetailTab[];
-  selectedTab: DetailTab;
-  onSelect: (tab: DetailTab) => void;
-  triggers: ReactNode;
+  logViewDescription: string;
   trailingControls: ReactNode;
 }) {
-  const { availableRef, contentRef, fits } = useFitsAvailableWidth<
-    HTMLDivElement,
-    HTMLDivElement
-  >();
-
   return (
-    <Tabs.List variant="underline">
-      {/* A zero flex basis makes this the row space left over by the trailing
-          controls, so the triggers are compared against the width they can
-          actually occupy without that width depending on them in turn. */}
-      <div
-        ref={availableRef}
-        className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden"
-      >
-        {/* The triggers stay mounted while the dropdown is shown so their
-            natural width remains measurable and the row can come back once
-            there is room. Hiding them also takes them out of the tab order.
-            Until the first measurement neither presentation shows. */}
-        <div
-          ref={contentRef}
-          className={cn(
-            "flex h-full w-max shrink-0 items-center",
-            fits !== true && "invisible",
-            fits === false && "absolute",
-          )}
-        >
-          {triggers}
-        </div>
-        {fits === false && (
-          <TraceDetailTabMenu
-            tabs={tabs}
-            selectedTab={selectedTab}
-            onSelect={onSelect}
-          />
-        )}
-      </div>
-      {trailingControls}
-    </Tabs.List>
+    <Tabs.OverflowList
+      items={tabs.map((tab) => ({
+        value: tab,
+        label: labels[tab],
+        badge: tab === "messages" ? <InternalFeatureBadge /> : undefined,
+        tooltip: tab === "log" ? logViewDescription : undefined,
+      }))}
+      trailing={trailingControls}
+    />
   );
 }

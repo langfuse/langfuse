@@ -3,9 +3,13 @@
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { Ellipsis, type LucideIcon } from "lucide-react";
 import Link, { type LinkProps } from "next/link";
 
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { useTabsOverflow } from "@/src/hooks/useTabsOverflow";
 import { cn } from "@/src/utils/tailwind";
 
 type TabsVariant = "inset" | "underline";
@@ -91,7 +95,11 @@ type TabsRootProps = {
   | { defaultValue?: never; value: string }
 );
 
-const TabsRootContext = React.createContext(false);
+/** The active value and its setter, so `Tabs.OverflowList` can read and select tabs. */
+const TabsRootContext = React.createContext<{
+  value: string;
+  onValueChange: (value: string) => void;
+} | null>(null);
 
 function TabsRoot({
   activationMode,
@@ -102,15 +110,25 @@ function TabsRoot({
   ref,
   value,
 }: TabsRootProps) {
+  const [uncontrolledValue, setUncontrolledValue] = React.useState(
+    defaultValue ?? "",
+  );
+  const currentValue = value ?? uncontrolledValue;
+  const handleValueChange = (nextValue: string) => {
+    if (value === undefined) setUncontrolledValue(nextValue);
+    onValueChange?.(nextValue);
+  };
+
   return (
-    <TabsRootContext value={true}>
+    <TabsRootContext
+      value={{ value: currentValue, onValueChange: handleValueChange }}
+    >
       <TabsPrimitive.Root
         activationMode={activationMode}
         className={layout === "fill" ? rootFillClassName : undefined}
-        defaultValue={defaultValue}
-        onValueChange={onValueChange}
+        onValueChange={handleValueChange}
         ref={ref}
-        value={value}
+        value={currentValue}
       >
         {children}
       </TabsPrimitive.Root>
@@ -142,7 +160,7 @@ function TabsList({
   size,
   variant,
 }: TabsListProps) {
-  const inRoot = React.use(TabsRootContext);
+  const inRoot = React.use(TabsRootContext) !== null;
   const look: TabsLook =
     variant === "underline" && !inRoot ? "navigation" : variant;
   const listRef = React.useRef<HTMLDivElement>(null);
@@ -295,22 +313,54 @@ type TabsTriggerProps = {
       }
   );
 
+function TabsTriggerContent({
+  badge,
+  children,
+  icon: Icon,
+  label,
+  tooltip,
+}: Pick<TabsTriggerProps, "children" | "icon" | "label"> & {
+  badge?: React.ReactNode;
+  tooltip?: string;
+}) {
+  const renderLabel = (triggerProps?: Record<string, unknown>) => (
+    <span
+      {...triggerProps}
+      className="min-w-0 truncate leading-normal"
+      title={tooltip ? undefined : label}
+    >
+      {label}
+    </span>
+  );
+
+  const renderContent = () => {
+    if (label === undefined) return children;
+    if (!tooltip) return renderLabel();
+    return (
+      <Tooltip label={tooltip}>
+        {({ getTriggerProps }) => renderLabel(getTriggerProps())}
+      </Tooltip>
+    );
+  };
+
+  return (
+    <>
+      {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
+      {renderContent()}
+      {badge}
+    </>
+  );
+}
+
 function TabsTrigger(props: TabsTriggerProps) {
   // Outside a Tabs.List, fall back to the underline look instead of crashing.
   const list = React.use(TabsListContext) ?? { look: "underline" as const };
-  const { children, disabled, icon: Icon, label, title } = props;
+  const { children, disabled, icon, label, title } = props;
   const className = tabsTriggerVariants({ look: list.look, size: list.size });
   const content = (
-    <>
-      {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
-      {label !== undefined ? (
-        <span className="min-w-0 truncate" title={label}>
-          {label}
-        </span>
-      ) : (
-        children
-      )}
-    </>
+    <TabsTriggerContent icon={icon} label={label}>
+      {children}
+    </TabsTriggerContent>
   );
 
   if (props.href !== undefined) {
@@ -342,6 +392,129 @@ function TabsTrigger(props: TabsTriggerProps) {
   );
 }
 
+type TabsOverflowItem = {
+  value: string;
+  label: string;
+  /** Rendered after the label, in the row and in the overflow menu. */
+  badge?: React.ReactNode;
+  tooltip?: string;
+};
+
+type TabsOverflowListProps = {
+  "aria-label"?: string;
+  items: TabsOverflowItem[];
+  /** Controls after the tabs; the tabs fit into the space these leave. */
+  trailing?: React.ReactNode;
+};
+
+const overflowTriggerLabel = "More tabs";
+
+function TabsOverflowTrigger(
+  props: Omit<
+    React.ComponentProps<typeof IconButton>,
+    "icon" | "label" | "size" | "variant"
+  >,
+) {
+  return (
+    <IconButton
+      {...props}
+      icon={Ellipsis}
+      label={overflowTriggerLabel}
+      size="md"
+      variant="ghost"
+    />
+  );
+}
+
+/**
+ * An underline tab row that shows as many tabs as fit, in order, and lists the
+ * rest in a menu behind an overflow trigger. The active tab is always in the
+ * row. Only works inside a `Tabs` root.
+ */
+function TabsOverflowList({
+  "aria-label": ariaLabel,
+  items,
+  trailing,
+}: TabsOverflowListProps) {
+  const root = React.use(TabsRootContext);
+  const activeIndex = items.findIndex((item) => item.value === root?.value);
+  const { availableRef, measureRef, visibleIndices } = useTabsOverflow<
+    HTMLDivElement,
+    HTMLDivElement
+  >(items.length, activeIndex);
+  const visible = new Set(visibleIndices ?? items.map((_, index) => index));
+  const hiddenItems = items.filter((_, index) => !visible.has(index));
+  const triggerClassName = tabsTriggerVariants({ look: "underline" });
+
+  return (
+    <TabsListContext value={{ look: "underline" }}>
+      <TabsPrimitive.List
+        aria-label={ariaLabel}
+        className={tabsListVariants({ look: "underline" })}
+      >
+        {/* A zero flex basis makes this the space left over by the trailing
+            controls, so the triggers never feed back into the width they are
+            compared against. */}
+        <div
+          ref={availableRef}
+          className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden"
+        >
+          {/* Non-interactive replicas keep every trigger measurable, including
+              the hidden ones, without duplicating tab semantics. */}
+          <div
+            ref={measureRef}
+            aria-hidden="true"
+            className="invisible absolute flex h-full w-max items-center"
+          >
+            {items.map((item) => (
+              <span key={item.value} className={triggerClassName}>
+                <TabsTriggerContent label={item.label} badge={item.badge} />
+              </span>
+            ))}
+            <TabsOverflowTrigger tabIndex={-1} />
+          </div>
+          <div
+            className={cn(
+              "flex h-full items-center",
+              visibleIndices === null && "invisible",
+            )}
+          >
+            {items.map((item, index) =>
+              visible.has(index) ? (
+                <TabsTrigger key={item.value} value={item.value}>
+                  <TabsTriggerContent
+                    badge={item.badge}
+                    label={item.label}
+                    tooltip={item.tooltip}
+                  />
+                </TabsTrigger>
+              ) : null,
+            )}
+            {hiddenItems.length > 0 ? (
+              <DropdownMenu
+                ariaLabel={overflowTriggerLabel}
+                items={hiddenItems.map((item) => ({
+                  badge: item.badge,
+                  id: item.value,
+                  onClick: () => root?.onValueChange(item.value),
+                  title: item.label,
+                  tooltip: item.tooltip,
+                  type: "item" as const,
+                }))}
+              >
+                {({ getTriggerProps }) => (
+                  <TabsOverflowTrigger {...getTriggerProps()} />
+                )}
+              </DropdownMenu>
+            ) : null}
+          </div>
+        </div>
+        {trailing}
+      </TabsPrimitive.List>
+    </TabsListContext>
+  );
+}
+
 type TabsContentProps = {
   children: React.ReactNode;
   /** `fill`: a column that takes the remaining height of a `layout="fill"` root. */
@@ -366,6 +539,7 @@ function TabsContent({ children, layout, value }: TabsContentProps) {
 
 const Tabs = Object.assign(TabsRoot, {
   List: TabsList,
+  OverflowList: TabsOverflowList,
   Trigger: TabsTrigger,
   Content: TabsContent,
 });

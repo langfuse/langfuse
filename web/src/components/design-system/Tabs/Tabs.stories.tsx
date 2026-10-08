@@ -3,6 +3,7 @@ import { KeyRound, User } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
+import { Badge } from "../Badge/Badge";
 import { Tabs } from "./Tabs";
 
 const meta = preview.meta({
@@ -61,6 +62,52 @@ function ResizableSlidingTabs() {
           </span>
           <Tabs.Trigger value="second" label="Second" />
         </Tabs.List>
+      </Tabs>
+    </div>
+  );
+}
+
+const overflowItems: React.ComponentProps<typeof Tabs.OverflowList>["items"] = [
+  { value: "preview", label: "Preview" },
+  {
+    value: "messages",
+    label: "Messages",
+    badge: <Badge text="Internal" color="yellow" size="sm" />,
+  },
+  { value: "attributes", label: "Attributes" },
+  { value: "scores", label: "Scores" },
+  {
+    value: "log",
+    label: "Log View",
+    tooltip: "Shows all observations concatenated.",
+  },
+];
+
+/** The row sits in a fixed-width box so each story shows one overflow case. */
+function OverflowTabs({
+  defaultValue,
+  width,
+}: {
+  defaultValue: string;
+  width: "w-40" | "w-sm" | "w-2xl";
+}) {
+  return (
+    <div className={width}>
+      <Tabs defaultValue={defaultValue}>
+        <Tabs.OverflowList
+          aria-label="Detail views"
+          items={overflowItems}
+          trailing={
+            <span className="text-muted-foreground ml-auto shrink-0 px-2 text-xs">
+              trailing
+            </span>
+          }
+        />
+        {overflowItems.map((item) => (
+          <Tabs.Content key={item.value} value={item.value}>
+            {item.label} panel
+          </Tabs.Content>
+        ))}
       </Tabs>
     </div>
   );
@@ -127,6 +174,36 @@ export const Underline = meta.story({
     defaultValue: "first",
     children: underlineChildren,
   },
+});
+
+const overflowStoryParameters = {
+  controls: {
+    disable: true,
+  },
+};
+
+/** Wide enough for every tab: no overflow trigger. */
+export const OverflowAllFit = meta.story({
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabs defaultValue="preview" width="w-2xl" />,
+});
+
+/** Three tabs fit; Scores and Log View sit behind the overflow trigger. */
+export const OverflowThreeFit = meta.story({
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabs defaultValue="preview" width="w-sm" />,
+});
+
+/** The active Log View tab takes the last slot and displaces Attributes. */
+export const OverflowActiveTab = meta.story({
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabs defaultValue="log" width="w-sm" />,
+});
+
+/** Only the active tab fits next to the overflow trigger. */
+export const OverflowOneFits = meta.story({
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabs defaultValue="scores" width="w-40" />,
 });
 
 /** Link tabs render outside a `Tabs` root: navigation, not a tablist. */
@@ -360,6 +437,70 @@ export const RendersLinksAsNavigation = meta.story({
     ).not.toHaveAttribute("aria-current");
     await expect(canvas.queryByRole("tab")).not.toBeInTheDocument();
     await expect(canvas.queryByRole("tablist")).not.toBeInTheDocument();
+  },
+});
+
+export const ShowsNoOverflowWhenTabsFit = meta.story({
+  name: "(Test) Shows No Overflow When Tabs Fit",
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabs defaultValue="preview" width="w-2xl" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getAllByRole("tab")).toHaveLength(5);
+    await expect(
+      canvas.queryByRole("button", { name: "More tabs" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const KeepsActiveTabVisibleInOverflow = meta.story({
+  name: "(Test) Keeps Active Tab Visible In Overflow",
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabs defaultValue="log" width="w-40" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const logTab = canvas.getByRole("tab", { name: "Log View" });
+    const trigger = canvas.getByRole("button", { name: "More tabs" });
+
+    await expect(logTab).toHaveAttribute("aria-selected", "true");
+    await expect(canvas.queryByRole("tab", { name: "Preview" })).toBeNull();
+    // The trigger shares the row with the tab instead of hanging below it.
+    const tabRect = logTab.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    await expect(
+      Math.abs(
+        tabRect.top +
+          tabRect.height / 2 -
+          (triggerRect.top + triggerRect.height / 2),
+      ),
+    ).toBeLessThan(2);
+  },
+});
+
+export const SelectsHiddenTabFromOverflowMenu = meta.story({
+  name: "(Test) Selects Hidden Tab From Overflow Menu",
+  parameters: overflowStoryParameters,
+  render: () => <OverflowTabs defaultValue="preview" width="w-40" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "More tabs" }));
+    const messagesItem = await body.findByRole("menuitem", {
+      name: /Messages/,
+    });
+    await expect(messagesItem).toHaveTextContent("Internal");
+
+    await userEvent.click(body.getByRole("menuitem", { name: "Attributes" }));
+    await waitFor(() => {
+      expect(canvas.getByRole("tab", { name: "Attributes" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(canvas.queryByRole("tab", { name: "Preview" })).toBeNull();
+    });
+    await expect(canvas.getByText("Attributes panel")).toBeVisible();
   },
 });
 

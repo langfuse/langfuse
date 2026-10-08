@@ -1,23 +1,44 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 import { TraceDetailTabsBarList } from "./TraceDetailTabsBarList";
+import type { DetailTab } from "../contexts/SelectionContext";
 
-// jsdom has no layout engine, so every width is 0 and the component would
-// always believe the triggers fit. These two widths stand in for the layout the
-// browser would compute: the space left for the triggers next to the trailing
-// controls, and the width the triggers need.
+// jsdom has no layout engine, so every width is 0 and every tab would always
+// fit. These widths stand in for the layout the browser would compute: the
+// space left for the tabs next to the trailing controls, each tab's replica in
+// the measuring row, and the overflow trigger.
 let availableWidth = 1000;
-let triggersWidth = 400;
+const tabWidths: Record<string, number> = {
+  Preview: 100,
+  MessagesInternal: 160,
+  Scores: 100,
+};
+const overflowWidth = 32;
 const resizeCallbacks: ResizeObserverCallback[] = [];
 
-function isAvailableElement(element: HTMLElement) {
-  // The measured container is the only element the component puts directly
-  // inside the tab list.
-  return element.parentElement?.getAttribute("role") === "tablist";
+function isAvailableElement(element: Element | null) {
+  // The measured container is the only element the bar puts directly inside
+  // the tab list.
+  return element?.parentElement?.getAttribute("role") === "tablist";
+}
+
+function isReplica(element: Element) {
+  const row = element.parentElement;
+  return (
+    row?.getAttribute("aria-hidden") === "true" &&
+    isAvailableElement(row.parentElement)
+  );
 }
 
 function setAvailableWidth(width: number) {
@@ -29,28 +50,29 @@ function setAvailableWidth(width: number) {
   });
 }
 
-function renderTabsBar() {
+function renderTabsBar({
+  tabs = ["preview", "scores"],
+  value = "preview",
+  onValueChange = vi.fn(),
+}: {
+  tabs?: DetailTab[];
+  value?: DetailTab;
+  onValueChange?: (value: string) => void;
+} = {}) {
   return render(
-    <Tabs value="preview" onValueChange={vi.fn()}>
+    <Tabs value={value} onValueChange={onValueChange}>
       <TraceDetailTabsBarList
-        tabs={["preview", "scores"]}
-        selectedTab="preview"
-        onSelect={vi.fn()}
-        triggers={
-          <>
-            <Tabs.Trigger value="preview" label="Preview" />
-            <Tabs.Trigger value="scores" label="Scores" />
-          </>
-        }
+        tabs={tabs}
+        logViewDescription="Shows all observations."
         trailingControls={<div>Trailing</div>}
       />
     </Tabs>,
+    { wrapper: LayerProvider },
   );
 }
 
 beforeEach(() => {
   availableWidth = 1000;
-  triggersWidth = 400;
   resizeCallbacks.length = 0;
 
   vi.stubGlobal(
@@ -71,66 +93,73 @@ beforeEach(() => {
       return isAvailableElement(this) ? availableWidth : 0;
     },
   });
-  Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
-    configurable: true,
-    get(this: HTMLElement) {
-      const parent = this.parentElement;
-      return parent && isAvailableElement(parent) ? triggersWidth : 0;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      if (!isReplica(this)) return { width: 0 } as DOMRect;
+      if (this.getAttribute("aria-label")) {
+        return { width: overflowWidth } as DOMRect;
+      }
+      return { width: tabWidths[this.textContent ?? ""] ?? 0 } as DOMRect;
     },
-  });
+  );
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
-  Reflect.deleteProperty(HTMLElement.prototype, "scrollWidth");
 });
 
 describe("TraceDetailTabsBarList", () => {
-  it("shows the tab triggers and no dropdown while they fit", () => {
+  it("shows every tab and no overflow trigger while they fit", () => {
     renderTabsBar();
 
     expect(screen.getByRole("tab", { name: "Preview" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Scores" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Detail view/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More tabs" })).toBeNull();
   });
 
-  it("falls back to the dropdown once the triggers no longer fit", () => {
-    triggersWidth = 400;
-    availableWidth = 200;
-    renderTabsBar();
+  it("keeps the active tab and moves the rest behind the overflow trigger", () => {
+    availableWidth = 150;
+    renderTabsBar({ value: "scores" });
 
-    expect(
-      screen.getByRole("button", { name: "Detail view: Preview" }),
-    ).toBeTruthy();
-    // The triggers have to stay mounted behind the dropdown, otherwise their
-    // natural width is no longer measurable and the bar can never tell that
-    // there is room for them again.
-    expect(screen.getByRole("tab", { name: "Preview" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Scores" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Preview" })).toBeNull();
+    expect(screen.getByRole("button", { name: "More tabs" })).toBeTruthy();
   });
 
-  it("restores the tab triggers when space becomes available again", () => {
-    triggersWidth = 400;
-    availableWidth = 200;
+  it("brings the tabs back when space becomes available again", () => {
+    availableWidth = 150;
     renderTabsBar();
 
-    expect(
-      screen.getByRole("button", { name: "Detail view: Preview" }),
-    ).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Scores" })).toBeNull();
 
     setAvailableWidth(800);
 
-    expect(screen.queryByRole("button", { name: /Detail view/ })).toBeNull();
-    expect(screen.getByRole("tab", { name: "Preview" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Scores" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More tabs" })).toBeNull();
   });
 
-  it("keeps the triggers when they fit the available width exactly", () => {
-    triggersWidth = 400;
-    availableWidth = 400;
-    renderTabsBar();
+  it("selects a hidden tab from the overflow menu", async () => {
+    const onValueChange = vi.fn();
+    availableWidth = 150;
+    renderTabsBar({ onValueChange });
 
-    expect(screen.queryByRole("button", { name: /Detail view/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More tabs" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Scores" }));
+
+    expect(onValueChange).toHaveBeenCalledWith("scores");
+  });
+
+  it("carries the tab badge into the overflow menu row", async () => {
+    availableWidth = 150;
+    renderTabsBar({ tabs: ["preview", "messages"] });
+
+    fireEvent.click(screen.getByRole("button", { name: "More tabs" }));
+
+    expect(
+      (await screen.findByRole("menuitem", { name: /Messages/ })).textContent,
+    ).toContain("Internal");
   });
 });
