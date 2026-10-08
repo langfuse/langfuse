@@ -33,9 +33,11 @@ import { summarizeAssembledTrace } from "../../features/topics/summarizeAssemble
 import {
   ensureDefaultTopicFacets,
   getEnabledTopicsModels,
+  listTopicRules,
   pauseTopicsModels,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
+import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
@@ -63,6 +65,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
       new Map(projectIds.map((projectId) => [projectId, { projectId }])),
   ),
   ensureDefaultTopicFacets: vi.fn(async () => []),
+  listTopicRules: vi.fn(async () => []),
   pauseTopicsModels: vi.fn(),
 }));
 
@@ -752,6 +755,71 @@ describe("trace batch queue", () => {
     vi.mocked(summarizeAssembledTrace).mockImplementation(
       async () => "unchanged",
     );
+  });
+
+  it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const projectId of ["picked", "sampled-out"])
+        yield {
+          project_id: projectId,
+          trace_id: "trace",
+          environment: "default",
+          span_id: "span",
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: projectId }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    const facet = (id: string) => ({ id }) as TopicFacet;
+    vi.mocked(ensureDefaultTopicFacets).mockResolvedValue([
+      facet("intent"),
+      facet("issues"),
+    ]);
+    vi.mocked(listTopicRules).mockImplementation(async (projectId) => [
+      {
+        facetIds: ["issues"],
+        sampling: projectId === "picked" ? 1 : 0,
+      } as TopicRule,
+    ]);
+    const job = {
+      data: {
+        id: "rule",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["picked", "sampled-out"].map((projectId) => ({
+            projectId,
+            traceId: "trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(
+      vi
+        .mocked(summarizeAssembledTrace)
+        .mock.calls.map(([input]) => [
+          input.projectId,
+          input.facets.map(({ id }) => id),
+        ]),
+    ).toEqual([["picked", ["issues"]]]);
+    vi.mocked(ensureDefaultTopicFacets).mockResolvedValue([]);
+    vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
   it("skips projects without enabled Topics models and pauses a project whose connection is rejected", async () => {

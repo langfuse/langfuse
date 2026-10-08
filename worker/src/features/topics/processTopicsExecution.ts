@@ -40,7 +40,11 @@ import {
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
 import { summarizeTopicTrace, nameTopicGroup } from "./models";
-import { TopicsProviderUnavailable } from "./provider-error";
+import {
+  isRejectedConnection,
+  pauseForRejectedConnection,
+  TopicsProviderUnavailable,
+} from "./provider-error";
 import {
   buildTopicPrototypes,
   buildNamingEvidence,
@@ -1143,14 +1147,14 @@ export async function processTopicsExecution({
     if (!models)
       throw new TopicsProviderUnavailable(
         "Choose Topics models for this project before running Topics.",
-        "authentication",
+        "configuration",
       );
     if (
       execution.input.embeddingConfig.embeddingModel !== models.embedding.model
     )
       throw new TopicsProviderUnavailable(
         "The project's embedding model changed after this execution was created; start a new Topics execution.",
-        "authentication",
+        "configuration",
       );
     if (execution.input.operation === "process") {
       if (
@@ -1158,7 +1162,7 @@ export async function processTopicsExecution({
       )
         throw new TopicsProviderUnavailable(
           "The project's summary model changed after this execution was created; start a new Topics execution.",
-          "authentication",
+          "configuration",
         );
       await processTraces(
         metrics,
@@ -1185,6 +1189,8 @@ export async function processTopicsExecution({
       await save("embedding");
       return;
     }
+    if (isRejectedConnection(error))
+      await pauseForRejectedConnection(projectId, error);
     metrics.error("execution", error);
     metrics.execution("failed");
     execution.status = "failed";

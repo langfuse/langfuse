@@ -12,6 +12,8 @@ import { embedTopicSummary } from "./models";
 import { TopicMetrics } from "./metrics";
 import { mergeTopicModelUsage } from "./summaryResult";
 import {
+  isRejectedConnection,
+  pauseForRejectedConnection,
   topicProviderError,
   TopicsProviderUnavailable,
 } from "./provider-error";
@@ -27,7 +29,7 @@ export async function processTopicEmbeddingBatch(
     if (!models)
       throw new TopicsProviderUnavailable(
         "Choose Topics models for this project, then start a new Topics execution.",
-        "authentication",
+        "configuration",
       );
     for (const ref of batch.summaries) {
       const staged = await readStagedTopicSummary(batch, ref);
@@ -35,7 +37,7 @@ export async function processTopicEmbeddingBatch(
       if (staged.embeddingConfig.embeddingModel !== models.embedding.model)
         throw new TopicsProviderUnavailable(
           "The project's embedding model changed after this batch was created. Start a new Topics execution.",
-          "authentication",
+          "configuration",
         );
       let { summary } = staged;
       if (summary.state === "summarized") {
@@ -71,11 +73,16 @@ export async function processTopicEmbeddingBatch(
       }
     }
   } catch (error) {
+    if (isRejectedConnection(error))
+      await pauseForRejectedConnection(batch.projectId, error);
     if (
       error instanceof TopicsProviderUnavailable &&
-      ["authentication", "invalid_input", "invalid_output"].includes(
-        error.reason,
-      )
+      [
+        "authentication",
+        "configuration",
+        "invalid_input",
+        "invalid_output",
+      ].includes(error.reason)
     )
       throw new UnrecoverableError(error.message);
     throw error;

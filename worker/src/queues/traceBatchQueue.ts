@@ -1,4 +1,3 @@
-import { EvaluatorBlockReason } from "@prisma/client";
 import { type Processor } from "bullmq";
 import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
@@ -18,12 +17,20 @@ import {
   ensureDefaultTopicFacets,
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
-  pauseTopicsModels,
+  listTopicRules,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import type { TopicFacet } from "@langfuse/shared/topics";
 import { env } from "../env";
-import { TopicsProviderUnavailable } from "../features/topics/provider-error";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "../features/evaluation/deterministicSampling";
+import {
+  isRejectedConnection,
+  pauseForRejectedConnection,
+  TopicsProviderUnavailable,
+} from "../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
@@ -37,7 +44,10 @@ type TraceOutcome =
  */
 class TopicsBatchProjects {
   private readonly models: Promise<Map<string, TopicsModels>>;
-  private readonly facets = new Map<string, Promise<TopicFacet[]>>();
+  private readonly settings = new Map<
+    string,
+    Promise<{ facets: TopicFacet[]; sampling: number }>
+  >();
   private readonly paused = new Set<string>();
 
   constructor(projectIds: Iterable<string>) {
@@ -51,32 +61,37 @@ class TopicsBatchProjects {
     if (this.paused.has(projectId)) return null;
     const models = (await this.models).get(projectId);
     if (!models) return null;
-    let facets = this.facets.get(projectId);
-    if (!facets) {
-      facets = ensureDefaultTopicFacets(projectId);
-      this.facets.set(projectId, facets);
+    let settings = this.settings.get(projectId);
+    if (!settings) {
+      settings = loadProjectRule(projectId);
+      this.settings.set(projectId, settings);
       // A failed load fails this trace only; the next trace loads again.
-      facets.catch(() => this.facets.delete(projectId));
+      settings.catch(() => this.settings.delete(projectId));
     }
-    return { models, facets: await facets };
+    return { models, ...(await settings) };
   }
 
-  async pause(
-    projectId: string,
-    block: { blockReason: EvaluatorBlockReason; blockMessage: string },
-  ) {
+  async pause(projectId: string, error: TopicsProviderUnavailable) {
     if (this.paused.has(projectId)) return;
-    this.paused.add(projectId);
     // The project is skipped for this batch even if recording the pause fails.
-    try {
-      await pauseTopicsModels(projectId, block);
-    } catch (error) {
-      logger.error("Failed to pause Topics after a rejected connection", {
-        projectId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    this.paused.add(projectId);
+    await pauseForRejectedConnection(projectId, error);
   }
+}
+
+/** The saved rule's facets and sampling; without a rule, every facet runs. */
+async function loadProjectRule(projectId: string) {
+  const [facets, rules] = await Promise.all([
+    ensureDefaultTopicFacets(projectId),
+    listTopicRules(projectId),
+  ]);
+  const rule = rules[0];
+  if (!rule) return { facets, sampling: 1 };
+  const selected = new Set(rule.facetIds);
+  return {
+    facets: facets.filter((facet) => selected.has(facet.id)),
+    sampling: rule.sampling,
+  };
 }
 
 async function summarizeTraceBatch(
@@ -102,7 +117,14 @@ async function summarizeTraceBatch(
   await recordTraceBatchTranscript(observations, async (transcript) => {
     try {
       const project = await topics.get(first.projectId);
-      if (!project) return;
+      if (
+        !project ||
+        !shouldSampleEvaluation({
+          samplingValue: getDeterministicSamplingValue(traceId),
+          samplingRate: project.sampling,
+        })
+      )
+        return;
       outcome = {
         outcome: await summarizeAssembledTrace({
           projectId: first.projectId,
@@ -111,21 +133,16 @@ async function summarizeTraceBatch(
           environment: first.environment,
           traceName: first.name ?? "",
           transcript,
-          ...project,
+          models: project.models,
+          facets: project.facets,
         }),
       };
     } catch (error) {
       // One trace's failure must not fail or re-read the shared batch.
       const reason =
         error instanceof TopicsProviderUnavailable ? error.reason : "other";
-      if (
-        error instanceof TopicsProviderUnavailable &&
-        reason === "authentication"
-      )
-        await topics.pause(first.projectId, {
-          blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
-          blockMessage: `${error.message} Topics was turned off; fix the connection and turn it on again.`,
-        });
+      if (isRejectedConnection(error))
+        await topics.pause(first.projectId, error);
       outcome = { outcome: "failed", reason };
       logger.warn("Topics summary failed for trace", {
         projectId: first.projectId,

@@ -193,7 +193,7 @@ function requireFrozenSummaryModel(
   if (config.summaryModel !== models.summary.model)
     throw new TopicsProviderUnavailable(
       "The project's summary model changed after this request was created. Start a new Topics execution.",
-      "authentication",
+      "configuration",
     );
 }
 

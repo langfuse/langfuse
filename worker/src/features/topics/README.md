@@ -59,10 +59,11 @@ Topics runs on the project's own LLM connections (the same connections evals
 and the playground use). Each project stores one `topics_model_configs` row with
 three slots, each a connection plus a model ID: facet summaries, embeddings (plus
 dimensions), and topic clustering (the model that names and describes topics). Set them on the Topics page under **Models**.
-Processing is unavailable until all three are set. Allowed adapters are OpenAI
-(including OpenAI-compatible base URLs), Azure OpenAI, Amazon Bedrock, Google AI
-Studio and Vertex AI; Anthropic connections are rejected because Anthropic has
-no embeddings API. Summary and clustering calls go through `generateLLMText`;
+Processing is unavailable until all three are set. Any connection whose save-time
+test call succeeds can serve summaries and clustering, including Anthropic.
+Embeddings need OpenAI (including OpenAI-compatible base URLs), Azure OpenAI,
+Amazon Bedrock, Google AI Studio or Vertex AI; Anthropic has no embeddings API,
+so its embedding test call fails. Summary and clustering calls go through `generateLLMText`;
 embeddings go through `embedLLMText`. Both retry 429 and 5xx responses twice
 with backoff. On Cloud, Bedrock and Vertex connections need explicit
 credentials; the default credential chain is self-hosted only.

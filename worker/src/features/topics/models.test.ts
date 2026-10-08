@@ -127,7 +127,7 @@ describe("Topics naming boundary", () => {
           summaryModel: "us.openai.gpt-5.6-luna",
         }),
       ),
-    ).rejects.toMatchObject({ reason: "authentication" });
+    ).rejects.toMatchObject({ reason: "configuration" });
     expect(state.call).not.toHaveBeenCalled();
   });
 

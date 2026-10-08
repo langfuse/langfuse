@@ -2,10 +2,17 @@ import {
   TOPICS_MODEL_SLOT_DETAILS,
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
-import type { TopicsModel } from "@langfuse/shared/topics/server";
+import { EvaluatorBlockReason } from "@prisma/client";
+import { logger } from "@langfuse/shared/src/server";
+import {
+  pauseTopicsModels,
+  type TopicsModel,
+} from "@langfuse/shared/topics/server";
 
 type TopicsProviderErrorReason =
   | "authentication"
+  // The project's saved models are missing or differ from a frozen request.
+  | "configuration"
   | "rate_limit"
   | "timeout"
   | "invalid_output"
@@ -66,4 +73,37 @@ export function topicProviderError(
     reason,
     model.slot,
   );
+}
+
+/** The provider rejected the connection's credentials or billing. */
+export function isRejectedConnection(
+  error: unknown,
+): error is TopicsProviderUnavailable {
+  return (
+    error instanceof TopicsProviderUnavailable &&
+    error.reason === "authentication"
+  );
+}
+
+function rejectedConnectionBlock(error: TopicsProviderUnavailable) {
+  return {
+    blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
+    blockMessage: `${error.message} Topics was turned off; fix the connection and turn it on again.`,
+  };
+}
+
+/** Turns automatic processing off; a failed write is logged, not rethrown. */
+export async function pauseForRejectedConnection(
+  projectId: string,
+  error: TopicsProviderUnavailable,
+): Promise<void> {
+  try {
+    await pauseTopicsModels(projectId, rejectedConnectionBlock(error));
+  } catch (pauseError) {
+    logger.error("Failed to pause Topics after a rejected connection", {
+      projectId,
+      error:
+        pauseError instanceof Error ? pauseError.message : String(pauseError),
+    });
+  }
 }
