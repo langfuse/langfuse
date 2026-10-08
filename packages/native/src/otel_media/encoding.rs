@@ -328,26 +328,6 @@ mod tests {
     use super::{MediaDecodeError, MediaEncoding};
 
     #[test]
-    fn hashes_large_base64_across_chunk_boundaries_with_or_without_padding() {
-        // Cross an encoded chunk boundary and exercise padded and unpadded input.
-        let decoded = (0usize..12_289)
-            .map(|index| index.wrapping_mul(31) as u8)
-            .collect::<Vec<_>>();
-        let padded = BASE64.encode(&decoded);
-        let unpadded = padded.trim_end_matches('=');
-        let expected: [u8; 32] = Sha256::digest(&decoded).into();
-
-        assert_eq!(
-            hash_encoded_data(padded.as_bytes(), MediaEncoding::Base64).unwrap(),
-            expected
-        );
-        assert_eq!(
-            hash_encoded_data(unpadded.as_bytes(), MediaEncoding::Base64).unwrap(),
-            expected
-        );
-    }
-
-    #[test]
     fn python_bytes_decoder_and_hasher_share_escape_validation() {
         let encoded = br#"b"abc\n\r\t\\\'\"\x41""#;
         let expected = b"abc\n\r\t\\'\"A";
@@ -416,12 +396,16 @@ mod tests {
                     BASE64_HASH_DECODED_CHUNK_SIZE..(2 * BASE64_HASH_DECODED_CHUNK_SIZE + 17),
                 ),
             ]) {
-            let encoded = BASE64.encode(&bytes);
-            let expected: [u8; 32] = Sha256::digest(&bytes).into();
-
-            prop_assert_eq!(hash_encoded_data(encoded.as_bytes(), MediaEncoding::Base64).unwrap(), expected);
-            let unpadded = encoded.trim_end_matches('=');
-            prop_assert_eq!(hash_encoded_data(unpadded.as_bytes(), MediaEncoding::Base64).unwrap(), expected);
+            // Pin the first partial chunk as well as sampling arbitrary bodies and padding.
+            let boundary: [u8; BASE64_HASH_DECODED_CHUNK_SIZE + 1] =
+                std::array::from_fn(|index| index.wrapping_mul(31) as u8);
+            for bytes in [bytes.as_slice(), boundary.as_slice()] {
+                let encoded = BASE64.encode(bytes);
+                let expected: [u8; 32] = Sha256::digest(bytes).into();
+                prop_assert_eq!(hash_encoded_data(encoded.as_bytes(), MediaEncoding::Base64).unwrap(), expected);
+                let unpadded = encoded.trim_end_matches('=');
+                prop_assert_eq!(hash_encoded_data(unpadded.as_bytes(), MediaEncoding::Base64).unwrap(), expected);
+            }
         }
     }
 }
