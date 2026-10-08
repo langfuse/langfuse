@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -92,5 +92,143 @@ describe("DataTable column sorting affordances", () => {
     expect(nameHeader).toHaveTextContent("sorted ascending");
     expect(statusHeader).not.toHaveTextContent("sorted ascending");
     expect(statusHeader).not.toHaveTextContent("sorted descending");
+  });
+});
+
+describe("DataTable custom row height", () => {
+  // jsdom has no PointerEvent, so pointer helpers fall back to Event and
+  // drop clientY. A MouseEvent under that name keeps the drag coordinates.
+  class PointerEventPolyfill extends MouseEvent {
+    pointerId: number;
+    constructor(
+      type: string,
+      params: MouseEventInit & { pointerId?: number } = {},
+    ) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 1;
+    }
+  }
+
+  beforeAll(() => {
+    Object.defineProperty(globalThis, "PointerEvent", {
+      configurable: true,
+      writable: true,
+      value: PointerEventPolyfill,
+    });
+  });
+
+  const pointAt = (handle: HTMLElement, type: string, clientY: number) => {
+    handle.dispatchEvent(
+      new PointerEventPolyfill(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: 1,
+        clientY,
+      }),
+    );
+  };
+
+  const rect = (height: number): DOMRect =>
+    ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      bottom: height,
+      right: 100,
+      width: 100,
+      height,
+      toJSON: () => ({}),
+    }) as DOMRect;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function renderResizableTable(
+    onCustomRowHeightChange: (heightPx: number) => void = vi.fn(),
+  ) {
+    render(
+      <DataTable
+        tableName="experiment-items"
+        columns={columns}
+        hidePagination
+        rowHeight="m"
+        onCustomRowHeightChange={onCustomRowHeightChange}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+  }
+
+  it("does not render a row resize handle for tables that only use presets", () => {
+    render(
+      <SortableTable initialOrderBy={{ column: "scoreName", order: "ASC" }} />,
+    );
+
+    expect(
+      screen.queryByRole("slider", { name: "Row height" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("applies one dragged height to every cell, including every column of the row", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(96),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    renderResizableTable(onCustomRowHeightChange);
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 100);
+      pointAt(handle, "pointermove", 220);
+    });
+
+    const boxes = document.querySelectorAll("[data-row-height]");
+    // Two rows, two columns: the drag is a table height, so run columns stay aligned.
+    expect(boxes).toHaveLength(4);
+    for (const box of boxes) {
+      expect(box).toHaveStyle({ height: "216px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointerup", 220);
+    });
+    expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(216);
+  });
+
+  it("leaves the preset in place when the row edge is pressed without moving", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(192),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    renderResizableTable(onCustomRowHeightChange);
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 40);
+      pointAt(handle, "pointerup", 40);
+    });
+
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-row-height]")).not.toHaveStyle({
+      height: "192px",
+    });
+  });
+
+  it("grows every cell together when the row-height slider is stepped down", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(96),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    renderResizableTable(onCustomRowHeightChange);
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    expect(handle).toHaveAttribute("aria-orientation", "vertical");
+    act(() => {
+      fireEvent.keyDown(handle, { key: "ArrowDown" });
+    });
+
+    expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(112);
   });
 });

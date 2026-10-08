@@ -48,6 +48,10 @@ type ExperimentCompareTableProps = {
   columnVisibility: VisibilityState;
   onColumnVisibilityChange: OnChangeFn<VisibilityState>;
   rowHeight: RowHeight;
+  /** Free height in pixels. Null while a preset is active. */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge sets one height for every run column. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
   peekView?: DataTablePeekViewProps;
   noResultsMessage?: ReactNode;
   highlightAllRows?: boolean;
@@ -69,6 +73,8 @@ export const ExperimentCompareTable = ({
   columnVisibility,
   onColumnVisibilityChange,
   rowHeight,
+  customRowHeightPx,
+  onCustomRowHeightChange,
   peekView,
   noResultsMessage,
   highlightAllRows,
@@ -106,6 +112,8 @@ export const ExperimentCompareTable = ({
       onColumnVisibilityChange={onColumnVisibilityChange}
       rowHeight={rowHeight}
       customRowHeights={LIST_VIEW_ROW_HEIGHTS}
+      customRowHeightPx={customRowHeightPx}
+      onCustomRowHeightChange={onCustomRowHeightChange}
       topAlignCells
       highlightAllRows={highlightAllRows}
     />

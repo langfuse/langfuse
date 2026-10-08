@@ -53,6 +53,10 @@ type ExperimentGridViewProps = {
    */
   ioLoading: boolean;
   rowHeight: RowHeight;
+  /** Free height in pixels. Null while a preset is active. */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge sets one height for every run column. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
   /** Whether any item in view has an expected output worth a column. */
   showExpectedOutput: boolean;
   observationScoreOrder: string[];
@@ -88,6 +92,8 @@ export const ExperimentGridView = ({
   isLoading,
   ioLoading,
   rowHeight,
+  customRowHeightPx,
+  onCustomRowHeightChange,
   showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
@@ -364,6 +370,8 @@ export const ExperimentGridView = ({
       pagination={pagination}
       rowHeight={rowHeight}
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
+      customRowHeightPx={customRowHeightPx}
+      onCustomRowHeightChange={onCustomRowHeightChange}
       topAlignCells
       peekView={peekView}
       columnVisibility={columnVisibility}

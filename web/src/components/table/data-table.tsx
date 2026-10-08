@@ -18,6 +18,9 @@ import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
   type CustomHeights,
   type RowHeight,
+  MAX_CUSTOM_ROW_HEIGHT_PX,
+  MIN_CUSTOM_ROW_HEIGHT_PX,
+  clampCustomRowHeightPx,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -119,6 +122,13 @@ interface DataTableProps<TData, TValue> {
   noResultsMessage?: React.ReactNode;
   rowHeight?: RowHeight;
   customRowHeights?: CustomHeights;
+  /**
+   * Free height in pixels. When set, it replaces the preset class on every
+   * row, so a drag in one run column stays aligned with the others.
+   */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge commits a free height. Omit to keep presets only. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
@@ -246,6 +256,8 @@ export function DataTable<TData extends object, TValue>({
   setOrderBy,
   rowHeight,
   customRowHeights,
+  customRowHeightPx,
+  onCustomRowHeightChange,
   className,
   shouldRenderGroupHeaders = false,
   onRowClick,
@@ -261,6 +273,13 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
+  const rowHeightPx = customRowHeightPx ?? undefined;
+  const rowResizeEnabled = onCustomRowHeightChange != null;
+  const onCustomRowHeightChangeRef = useRef(onCustomRowHeightChange);
+  onCustomRowHeightChangeRef.current = onCustomRowHeightChange;
+  const commitCustomRowHeight = useCallback((heightPx: number) => {
+    onCustomRowHeightChangeRef.current?.(heightPx);
+  }, []);
   const capture = usePostHogClientCapture();
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
@@ -641,6 +660,9 @@ export function DataTable<TData extends object, TValue>({
                 table={table}
                 rowheighttw={rowheighttw}
                 rowHeight={rowHeight}
+                rowHeightPx={rowHeightPx}
+                rowResizeEnabled={rowResizeEnabled}
+                onCommitRowHeight={commitCustomRowHeight}
                 columns={columns}
                 data={data}
                 help={help}
@@ -663,6 +685,9 @@ export function DataTable<TData extends object, TValue>({
                 table={table}
                 rowheighttw={rowheighttw}
                 rowHeight={rowHeight}
+                rowHeightPx={rowHeightPx}
+                rowResizeEnabled={rowResizeEnabled}
+                onCommitRowHeight={commitCustomRowHeight}
                 columns={columns}
                 data={data}
                 help={help}
@@ -800,6 +825,9 @@ interface TableBodyComponentProps<TData> {
   table: ReturnType<typeof useReactTable<TData>>;
   rowheighttw?: string;
   rowHeight?: RowHeight;
+  rowHeightPx?: number;
+  rowResizeEnabled?: boolean;
+  onCommitRowHeight?: (heightPx: number) => void;
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
@@ -828,6 +856,7 @@ function TableRowComponent<TData>({
   getRowClassName,
   highlightAllRows = false,
   selectionStore,
+  rowResizeEnabled = false,
   children,
 }: {
   row: Row<TData>;
@@ -835,6 +864,7 @@ function TableRowComponent<TData>({
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
   selectionStore?: TableSelectionStoreLike;
+  rowResizeEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -864,6 +894,7 @@ function TableRowComponent<TData>({
       }}
       className={cn(
         "hover:bg-accent",
+        rowResizeEnabled && "group/row",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         selectedRowId && selectedRowId === row.id
           ? "bg-accent dark:bg-accent"
@@ -877,10 +908,43 @@ function TableRowComponent<TData>({
   );
 }
 
+function rowHeightFrameProps({
+  rowHeight,
+  rowheighttw,
+  rowHeightPx,
+  topAlignCells,
+  measure,
+}: {
+  rowHeight?: RowHeight;
+  rowheighttw?: string;
+  rowHeightPx?: number;
+  topAlignCells: boolean;
+  measure: boolean;
+}): {
+  className: string;
+  style?: CSSProperties;
+  "data-row-height"?: string;
+} {
+  const isSmallRowHeight = rowHeightPx == null && (rowHeight ?? "s") === "s";
+  return {
+    className: cn(
+      "flex",
+      isSmallRowHeight && !topAlignCells ? "items-center" : "items-start",
+      !isSmallRowHeight && "py-1",
+      rowHeightPx == null ? rowheighttw : "min-h-0 overflow-hidden",
+    ),
+    style: rowHeightPx != null ? { height: rowHeightPx } : undefined,
+    ...(measure ? { "data-row-height": "" } : {}),
+  };
+}
+
 function TableBodyComponent<TData>({
   table,
   rowheighttw,
   rowHeight,
+  rowHeightPx,
+  rowResizeEnabled = false,
+  onCommitRowHeight,
   columns,
   data,
   help,
@@ -901,6 +965,75 @@ function TableBodyComponent<TData>({
     1,
     Math.min(tableState.pagination?.pageSize ?? 8, 8),
   );
+  const dragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startHeight: number;
+  } | null>(null);
+  const [previewPx, setPreviewPx] = useState<number | null>(null);
+  const effectiveRowHeightPx = previewPx ?? rowHeightPx;
+
+  const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    // button is 0 for a primary press. Some pointers report -1 until the
+    // button is known; only an explicit non-primary button should bail.
+    if (event.button > 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const sized = event.currentTarget
+      .closest("td")
+      ?.querySelector<HTMLElement>("[data-row-height]");
+    const startHeight = sized?.getBoundingClientRect().height;
+    if (startHeight == null || startHeight <= 0) return;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight,
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture can fail when the pointer id is unknown. Moves fired on
+      // the handle still update the height.
+    }
+  };
+
+  const onResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.preventDefault();
+    setPreviewPx(
+      clampCustomRowHeightPx(drag.startHeight + (event.clientY - drag.startY)),
+    );
+  };
+
+  const finishResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    dragRef.current = null;
+    const next = clampCustomRowHeightPx(
+      drag.startHeight + (event.clientY - drag.startY),
+    );
+    setPreviewPx(null);
+    if (next !== Math.round(drag.startHeight)) {
+      onCommitRowHeight?.(next);
+    }
+  };
+
+  const onResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    event.stopPropagation();
+    const sized = event.currentTarget
+      .closest("td")
+      ?.querySelector<HTMLElement>("[data-row-height]");
+    const current =
+      effectiveRowHeightPx ??
+      sized?.getBoundingClientRect().height ??
+      MIN_CUSTOM_ROW_HEIGHT_PX;
+    const delta = event.key === "ArrowDown" ? 16 : -16;
+    const next = clampCustomRowHeightPx(current + delta);
+    if (next !== Math.round(current)) onCommitRowHeight?.(next);
+  };
 
   return (
     <TableBody>
@@ -932,14 +1065,13 @@ function TableBodyComponent<TData>({
                   }}
                 >
                   <div
-                    className={cn(
-                      "flex",
-                      (rowHeight ?? "s") === "s" && !topAlignCells
-                        ? "items-center"
-                        : "items-start",
-                      (rowHeight ?? "s") !== "s" && "py-1",
+                    {...rowHeightFrameProps({
+                      rowHeight,
                       rowheighttw,
-                    )}
+                      rowHeightPx: effectiveRowHeightPx,
+                      topAlignCells,
+                      measure: false,
+                    })}
                   >
                     {(() => {
                       const loadingCell = columnDef.loadingCell;
@@ -973,17 +1105,20 @@ function TableBodyComponent<TData>({
         ))
       ) : rowModelRows.length ? (
         rowModelRows.map((row) => {
-          const cells = row.getVisibleCells().map((cell) => {
+          const cells = row.getVisibleCells().map((cell, cellIndex) => {
             const cellValue = cell.getValue();
             const isStringCell = typeof cellValue === "string";
-            const isSmallRowHeight = (rowHeight ?? "s") === "s";
+            const isSmallRowHeight =
+              effectiveRowHeightPx == null && (rowHeight ?? "s") === "s";
             const columnDef = cell.column.columnDef as LangfuseColumnDef<TData>;
+            const isPrimaryHandle = row.index === 0 && cellIndex === 0;
 
             return (
               <TableCell
                 key={cell.id}
                 className={cn(
                   "overflow-hidden border-b text-xs first:pl-2",
+                  rowResizeEnabled && "relative",
                   getCellPaddingClassName(columnDef.cellPadding ?? cellPadding),
                   isSmallRowHeight && "whitespace-nowrap",
                   getPinningClasses(cell.column),
@@ -999,14 +1134,13 @@ function TableBodyComponent<TData>({
                 }}
               >
                 <div
-                  className={cn(
-                    "flex",
-                    isSmallRowHeight && !topAlignCells
-                      ? "items-center"
-                      : "items-start",
-                    !isSmallRowHeight && "py-1",
+                  {...rowHeightFrameProps({
+                    rowHeight,
                     rowheighttw,
-                  )}
+                    rowHeightPx: effectiveRowHeightPx,
+                    topAlignCells,
+                    measure: rowResizeEnabled,
+                  })}
                 >
                   {isStringCell && isSmallRowHeight ? (
                     <div
@@ -1034,6 +1168,39 @@ function TableBodyComponent<TData>({
                     flexRender(cell.column.columnDef.cell, cell.getContext())
                   )}
                 </div>
+                {rowResizeEnabled && (
+                  <div
+                    data-row-resize-handle=""
+                    role={isPrimaryHandle ? "slider" : undefined}
+                    aria-orientation={isPrimaryHandle ? "vertical" : undefined}
+                    aria-label={isPrimaryHandle ? "Row height" : undefined}
+                    aria-valuemin={
+                      isPrimaryHandle ? MIN_CUSTOM_ROW_HEIGHT_PX : undefined
+                    }
+                    aria-valuemax={
+                      isPrimaryHandle ? MAX_CUSTOM_ROW_HEIGHT_PX : undefined
+                    }
+                    aria-valuenow={
+                      isPrimaryHandle ? effectiveRowHeightPx : undefined
+                    }
+                    aria-hidden={isPrimaryHandle ? undefined : true}
+                    tabIndex={isPrimaryHandle ? 0 : undefined}
+                    onPointerDown={onResizePointerDown}
+                    onPointerMove={onResizePointerMove}
+                    onPointerUp={finishResize}
+                    onPointerCancel={finishResize}
+                    onKeyDown={isPrimaryHandle ? onResizeKeyDown : undefined}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    className={cn(
+                      "absolute inset-x-0 bottom-0 h-2 cursor-row-resize touch-none select-none",
+                      "bg-secondary opacity-0 group-hover/row:opacity-100",
+                      previewPx != null && "bg-primary-accent opacity-100",
+                    )}
+                  />
+                )}
               </TableCell>
             );
           });
@@ -1050,6 +1217,7 @@ function TableBodyComponent<TData>({
               getRowClassName={getRowClassName}
               highlightAllRows={highlightAllRows}
               selectionStore={selectionStore}
+              rowResizeEnabled={rowResizeEnabled}
             >
               {cells}
             </TableRowComponent>
@@ -1105,6 +1273,8 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
+  if (prev.rowHeightPx !== next.rowHeightPx) return false;
+  if (prev.rowResizeEnabled !== next.rowResizeEnabled) return false;
   if (prev.highlightAllRows !== next.highlightAllRows) return false;
   if (prev.selectionStore !== next.selectionStore) return false;
   if (prev.cellPadding !== next.cellPadding) return false;
