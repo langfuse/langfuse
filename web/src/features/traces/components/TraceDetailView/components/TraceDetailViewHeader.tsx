@@ -1,3 +1,4 @@
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
@@ -11,6 +12,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
+import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { memo, useRef } from "react";
 import { useReadPath } from "@/src/features/events";
 import {
@@ -42,7 +44,6 @@ import {
   LockIcon,
   MessageSquare,
   MessageSquareOff,
-  MoreHorizontal,
   PlusIcon,
   SquarePen,
 } from "lucide-react";
@@ -118,16 +119,13 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               }}
             >
               {({ getTriggerProps }) => (
-                <Button
-                  aria-label="Options"
-                  className="mt-0.5 shrink-0"
-                  size="icon-xs"
-                  title="Options"
-                  variant="ghost"
+                <HeaderActionButton
+                  label="Options"
+                  icon={
+                    <EllipsisVertical className="icon-base text-icon-foreground" />
+                  }
                   {...getTriggerProps()}
-                >
-                  <EllipsisVertical className="icon-sm text-icon-foreground" />
-                </Button>
+                />
               )}
             </ConnectedDetailHeaderActionsMenuController>
           )}
@@ -231,7 +229,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                 ref: mobileActionsTriggerRef,
                               })}
                             >
-                              <MoreHorizontal className="icon-base text-icon-foreground" />
+                              <EllipsisVertical className="icon-base text-icon-foreground" />
                             </Button>
                           )}
                         </DropdownMenu>
@@ -245,7 +243,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
-          <div className="flex flex-wrap content-start items-center justify-start gap-0.5 @md:justify-end">
+          <div className="flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end">
             <ConnectedTraceObservationAddToDropdownMenuController
               analyticsData={{ source: "TraceDetail", isV4 }}
               projectId={projectId}
@@ -259,10 +257,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-1"
+                  className={headerActionClassName}
                   {...getTriggerProps()}
                 >
-                  <PlusIcon className="icon-base" />
+                  <PlusIcon className="icon-base text-icon-foreground" />
                   <span>Add to</span>
                   <DropdownIndicator size="sm" nudge />
                 </Button>
@@ -275,6 +273,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   <Button
                     variant="ghost"
                     size="sm"
+                    className={headerActionClassName}
                     disabled={disabled}
                     onClick={() =>
                       openDrawer(
@@ -289,9 +288,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     }
                   >
                     {disabled ? (
-                      <LockIcon className="icon-base mr-1.5" />
+                      <LockIcon className="icon-base text-icon-foreground" />
                     ) : (
-                      <SquarePen className="icon-base mr-1.5" />
+                      <SquarePen className="icon-base text-icon-foreground" />
                     )}
                     <span>Annotate</span>
                   </Button>
@@ -304,13 +303,13 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               size="sm"
               disabled={commentDrawerControl.disabled}
               onClick={commentDrawerControl.openDrawer}
-              className="gap-1"
+              className={headerActionClassName}
             >
               {commentDrawerControl.disabled ? (
                 <MessageSquareOff className="icon-base text-muted-foreground" />
               ) : (
                 <>
-                  <MessageSquare className="icon-base" />
+                  <MessageSquare className="icon-base text-icon-foreground" />
                   <span>{commentActionLabel}</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />

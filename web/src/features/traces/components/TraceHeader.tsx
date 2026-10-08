@@ -1,3 +1,4 @@
+import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo, useState } from "react";
@@ -91,15 +92,11 @@ export function TraceHeader() {
               <TagButton key={tag} tag={tag} loading={false} viewOnly />
             ))}
             {hiddenTagCount > 0 && (
-              <Button
-                variant="tertiary"
-                size="icon-sm"
-                className="w-fit"
+              <OverflowCountBadge
+                count={hiddenTagCount}
                 aria-label={`Show ${hiddenTagCount} more tags`}
                 onClick={() => setShowAllTags(true)}
-              >
-                +{hiddenTagCount}
-              </Button>
+              />
             )}
             {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
               <Button
