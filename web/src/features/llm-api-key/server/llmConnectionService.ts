@@ -686,13 +686,26 @@ export class LlmConnectionService {
       throw new LangfuseNotFoundError("LLM connection not found");
     }
 
-    const projectIds =
+    const organizationFallback =
       params.owner.type === "project"
-        ? [params.owner.projectId]
-        : await this.repository.listProjectsUsingOrganizationConnection({
-            organizationId: params.owner.organizationId,
+        ? await this.repository.findByProvider({
+            owner: {
+              type: "organization",
+              organizationId: params.owner.organizationId,
+            },
             provider: connection.provider,
-          });
+          })
+        : null;
+    let projectIds: string[];
+    if (params.owner.type === "project") {
+      projectIds = organizationFallback ? [] : [params.owner.projectId];
+    } else {
+      projectIds =
+        await this.repository.listProjectsUsingOrganizationConnection({
+          organizationId: params.owner.organizationId,
+          provider: connection.provider,
+        });
+    }
 
     const blockResults = await this.db.$transaction(async (tx) => {
       const txRepository = this.repository.withDb(tx);
@@ -718,6 +731,11 @@ export class LlmConnectionService {
             : EMPTY_EVALUATOR_BLOCK;
         results.push({ projectId, providerBlock, defaultModelBlock });
       }
+
+      await tx.defaultLlmModel.updateMany({
+        where: { llmApiKeyId: connection.id },
+        data: { llmApiKeyId: null },
+      });
 
       try {
         await txRepository.delete({

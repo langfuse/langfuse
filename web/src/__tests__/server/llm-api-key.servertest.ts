@@ -1821,5 +1821,60 @@ describe("llmApiKey.all RPC", () => {
         });
       }
     });
+
+    it("keeps evaluators and the default model when an organization fallback remains", async () => {
+      await prisma.llmApiKeys.createMany({
+        data: [
+          {
+            organizationId: orgId,
+            secretKey: encrypt("organization-secret"),
+            displaySecretKey: "...cret",
+            provider: PROVIDER,
+            adapter: LLMAdapter.OpenAI,
+          },
+          {
+            projectId,
+            secretKey: encrypt("project-secret"),
+            displaySecretKey: "...cret",
+            provider: PROVIDER,
+            adapter: LLMAdapter.OpenAI,
+          },
+        ],
+      });
+      const projectConnection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      const evaluatorId = await createV2Evaluator([
+        { provider: PROVIDER, model: "gpt-4o" },
+      ]);
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: projectConnection.id,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+
+      await caller.llmApiKey.delete({
+        projectId,
+        id: projectConnection.id,
+      });
+
+      expect(mockFinalizeEvaluatorBlocks).not.toHaveBeenCalled();
+      expect(
+        await prisma.evaluator.findUniqueOrThrow({
+          where: { id: evaluatorId },
+          select: { blockedAt: true, blockReason: true },
+        }),
+      ).toEqual({ blockedAt: null, blockReason: null });
+      expect(
+        await prisma.defaultLlmModel.findUniqueOrThrow({
+          where: { projectId },
+          select: { provider: true, llmApiKeyId: true },
+        }),
+      ).toEqual({ provider: PROVIDER, llmApiKeyId: null });
+    });
   });
 });

@@ -1308,7 +1308,7 @@ model DefaultLlmModel {
   Project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   llmApiKeyId String?     @map("llm_api_key_id")
-  LlmApiKey   LlmApiKeys? @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: Cascade)
+  LlmApiKey   LlmApiKeys? @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: SetNull)
 
   provider    String
   adapter     String // This controls the interface that is used to connect with the LLM, e.g. 'openai' or 'anthropic'

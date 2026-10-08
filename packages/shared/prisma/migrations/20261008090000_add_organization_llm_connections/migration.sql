@@ -21,3 +21,14 @@ ALTER TABLE "llm_api_keys"
 -- connection can change when a project adds or removes an organization override.
 ALTER TABLE "default_llm_models"
   ALTER COLUMN "llm_api_key_id" DROP NOT NULL;
+
+UPDATE "default_llm_models"
+  SET "llm_api_key_id" = NULL;
+
+ALTER TABLE "default_llm_models"
+  DROP CONSTRAINT "default_llm_models_llm_api_key_id_fkey",
+  ADD CONSTRAINT "default_llm_models_llm_api_key_id_fkey"
+    FOREIGN KEY ("llm_api_key_id")
+    REFERENCES "llm_api_keys"("id")
+    ON DELETE SET NULL
+    ON UPDATE CASCADE;
