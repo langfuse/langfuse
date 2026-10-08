@@ -822,7 +822,7 @@ export function DataTableControls({
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs"
+                className="w-full text-xs"
                 disabled={addableFilters.length === 0}
               >
                 <Plus className="icon-base text-icon-foreground mr-1.5" />
