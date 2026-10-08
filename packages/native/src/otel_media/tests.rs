@@ -256,9 +256,8 @@ fn scans_sdk_json_string_wrappers_within_the_embedded_json_budget() {
     let (uri, uri_body) = large_data_uri(b"sdk-uri");
     let (provider_data, provider_body) = large_base64(b"sdk-provider");
     let uri_metadata = format!(r#"{{"image":"{uri}"}}"#);
-    let provider_metadata = format!(
-        r#"{{"type":"file","mediaType":"image/png","data":"{provider_data}"}}"#
-    );
+    let provider_metadata =
+        format!(r#"{{"type":"file","mediaType":"image/png","data":"{provider_data}"}}"#);
     // The SDK JSON-encodes the metadata value, so stringValue contains a
     // quoted JSON representation of either metadata JSON text or a raw string.
     let uri_string_value = serde_json::to_string(&uri_metadata).unwrap();
