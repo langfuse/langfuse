@@ -1,6 +1,7 @@
 import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { type ReactNode } from "react";
 import {
+  anchoredScrollTop,
   clampCustomRowHeightPx,
   getRowHeightIOCharLimit,
   isCompactRowHeight,
@@ -53,6 +54,37 @@ describe("resolveStoredRowHeight", () => {
       resolveStoredRowHeight({ preset: "s", mode: "custom", customPx: 12 }, "s")
         .customPx,
     ).toBe(28);
+  });
+
+  it("keeps a row's top edge and stays inside the scroller", () => {
+    expect(
+      anchoredScrollTop({
+        scrollTop: 100,
+        rowTop: 300,
+        anchorTop: 180,
+        scrollHeight: 2000,
+        clientHeight: 400,
+      }),
+    ).toBe(220);
+    // The list got shorter, so the old offset is past the new maximum.
+    expect(
+      anchoredScrollTop({
+        scrollTop: 400,
+        rowTop: 700,
+        anchorTop: 200,
+        scrollHeight: 900,
+        clientHeight: 800,
+      }),
+    ).toBe(100);
+    expect(
+      anchoredScrollTop({
+        scrollTop: 40,
+        rowTop: 10,
+        anchorTop: 200,
+        scrollHeight: 900,
+        clientHeight: 800,
+      }),
+    ).toBe(0);
   });
 });
 

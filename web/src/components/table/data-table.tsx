@@ -21,6 +21,7 @@ import {
   type RowHeight,
   MAX_CUSTOM_ROW_HEIGHT_PX,
   RowHeightRenderingProvider,
+  anchoredScrollTop,
   clampCustomRowHeightPx,
   getRowHeightTailwindClass,
   minCustomRowHeightPx,
@@ -295,6 +296,7 @@ export function DataTable<TData extends object, TValue>({
   const customRowHeightsRef = useRef(customRowHeights);
   customRowHeightsRef.current = customRowHeights;
   const capture = usePostHogClientCapture();
+  const rowHeightScrollRef = useRef<HTMLDivElement>(null);
   const commitCustomRowHeight = useCallback(
     (heightPx: number) => {
       const matched = rowHeightPresetForPx(
@@ -509,6 +511,7 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
+          ref={rowHeightScrollRef}
           // When the final visible column can be resized, reserve a small gutter so
           // its handle is never flush against the scrollbar or edge and always has
           // some cursor room. Partial mitigation for LFE-10460: a maximized browser
@@ -703,6 +706,7 @@ export function DataTable<TData extends object, TValue>({
                 customRowHeights={customRowHeights}
                 rowResizeEnabled={rowResizeEnabled}
                 onCommitRowHeight={commitCustomRowHeight}
+                scrollContainerRef={rowHeightScrollRef}
                 columns={columns}
                 data={data}
                 help={help}
@@ -729,6 +733,7 @@ export function DataTable<TData extends object, TValue>({
                 customRowHeights={customRowHeights}
                 rowResizeEnabled={rowResizeEnabled}
                 onCommitRowHeight={commitCustomRowHeight}
+                scrollContainerRef={rowHeightScrollRef}
                 columns={columns}
                 data={data}
                 help={help}
@@ -870,6 +875,8 @@ interface TableBodyComponentProps<TData> {
   customRowHeights?: CustomHeights;
   rowResizeEnabled?: boolean;
   onCommitRowHeight?: (heightPx: number) => void;
+  /** Scroller whose scrollTop keeps the dragged row in place after commit. */
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
@@ -964,14 +971,18 @@ function rowResizeHandleStyle(edge: RowResizeEdge): CSSProperties {
 
 function rowHeightFrameProps({
   rowheighttw,
-  rowHeightPx,
+  heightPx,
+  presetClass,
   compact,
   topAlignCells,
   measure,
   clipContent = false,
 }: {
   rowheighttw?: string;
-  rowHeightPx?: number;
+  /** Pixel lock. A drag, a free height, and a preset while resize is on. */
+  heightPx?: number;
+  /** Keep the Tailwind height class. True while this row shows its preset. */
+  presetClass: boolean;
   compact: boolean;
   topAlignCells: boolean;
   measure: boolean;
@@ -981,18 +992,19 @@ function rowHeightFrameProps({
   style?: CSSProperties;
   "data-row-height"?: string;
 } {
-  const isSmallRowHeight = compact;
   return {
     className: cn(
       "flex",
-      isSmallRowHeight && !topAlignCells ? "items-center" : "items-start",
-      !isSmallRowHeight && "py-1",
-      rowHeightPx == null ? rowheighttw : "min-h-0 overflow-hidden",
+      compact && !topAlignCells ? "items-center" : "items-start",
+      !compact && "py-1",
+      presetClass ? rowheighttw : "min-h-0 overflow-hidden",
       clipContent && "w-full min-w-0 overflow-hidden",
     ),
+    // height and maxHeight together: a table cell treats a lone height as a
+    // minimum, so content can hold a row open after the handle asks it to shrink.
     style:
-      rowHeightPx != null
-        ? { height: rowHeightPx, maxHeight: rowHeightPx }
+      heightPx != null
+        ? { height: heightPx, maxHeight: heightPx, minHeight: 0 }
         : undefined,
     ...(measure ? { "data-row-height": "" } : {}),
   };
@@ -1006,6 +1018,7 @@ function TableBodyComponent<TData>({
   customRowHeights,
   rowResizeEnabled = false,
   onCommitRowHeight,
+  scrollContainerRef,
   columns,
   data,
   help,
@@ -1030,22 +1043,61 @@ function TableBodyComponent<TData>({
     pointerId: number;
     startY: number;
     startHeight: number;
+    rowIndex: number;
   } | null>(null);
-  const [previewPx, setPreviewPx] = useState<number | null>(null);
-  const rendering = resolveRowHeightRendering(
+  const [preview, setPreview] = useState<{
+    rowIndex: number;
+    px: number;
+  } | null>(null);
+  const committedRendering = resolveRowHeightRendering(
     {
       preset: rowHeight ?? "s",
       customPx: rowHeightPx ?? null,
-      previewPx,
     },
     customRowHeights,
   );
   const previewCommitRef = useRef<number | null>(null);
   const keyGestureStartRef = useRef<number | null>(null);
+  const anchorRef = useRef<{ rowIndex: number; top: number } | null>(null);
+  const [anchorEpoch, setAnchorEpoch] = useState(0);
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
   const [measuredPx, setMeasuredPx] = useState<number | undefined>(undefined);
-  const effectiveRowHeightPx = previewPx ?? rowHeightPx;
   const minRowHeightPx = minCustomRowHeightPx(customRowHeights);
+  const announcedPx = preview?.px ?? rowHeightPx ?? measuredPx;
+
+  const rememberRowAnchor = (rowIndex: number) => {
+    const row = tableBodyRef.current?.querySelector<HTMLElement>(
+      `tr[data-row-index="${rowIndex}"]`,
+    );
+    if (!row) {
+      anchorRef.current = null;
+      return;
+    }
+    anchorRef.current = {
+      rowIndex,
+      top: row.getBoundingClientRect().top,
+    };
+  };
+
+  // After the shared height lands, rows above the dragged one move it. Put
+  // its top edge back, including when the list's maximum scroll shrinks.
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    anchorRef.current = null;
+    const scroller = scrollContainerRef?.current;
+    const row = tableBodyRef.current?.querySelector<HTMLElement>(
+      `tr[data-row-index="${anchor.rowIndex}"]`,
+    );
+    if (!scroller || !row) return;
+    scroller.scrollTop = anchoredScrollTop({
+      scrollTop: scroller.scrollTop,
+      rowTop: row.getBoundingClientRect().top,
+      anchorTop: anchor.top,
+      scrollHeight: scroller.scrollHeight,
+      clientHeight: scroller.clientHeight,
+    });
+  }, [anchorEpoch, rowHeight, rowHeightPx, scrollContainerRef]);
 
   useLayoutEffect(() => {
     if (!rowResizeEnabled) return;
@@ -1068,10 +1120,15 @@ function TableBodyComponent<TData>({
       ?.querySelector<HTMLElement>("[data-row-height]");
     const startHeight = sized?.getBoundingClientRect().height;
     if (startHeight == null || startHeight <= 0) return;
+    const rowIndex = Number(
+      event.currentTarget.closest("tr")?.dataset.rowIndex ?? "",
+    );
+    if (!Number.isInteger(rowIndex)) return;
     dragRef.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
       startHeight,
+      rowIndex,
     };
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -1085,12 +1142,13 @@ function TableBodyComponent<TData>({
     const drag = dragRef.current;
     if (!drag || event.pointerId !== drag.pointerId) return;
     event.preventDefault();
-    setPreviewPx(
-      clampCustomRowHeightPx(
+    setPreview({
+      rowIndex: drag.rowIndex,
+      px: clampCustomRowHeightPx(
         drag.startHeight + (event.clientY - drag.startY),
         minRowHeightPx,
       ),
-    );
+    });
   };
 
   const finishResize = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1101,10 +1159,14 @@ function TableBodyComponent<TData>({
       drag.startHeight + (event.clientY - drag.startY),
       minRowHeightPx,
     );
-    setPreviewPx(null);
-    if (next !== Math.round(drag.startHeight)) {
-      onCommitRowHeight?.(next);
+    setPreview(null);
+    if (next === Math.round(drag.startHeight)) {
+      anchorRef.current = null;
+      return;
     }
+    rememberRowAnchor(drag.rowIndex);
+    setAnchorEpoch((epoch) => epoch + 1);
+    onCommitRowHeight?.(next);
   };
 
   const commitKeyboardResize = () => {
@@ -1113,10 +1175,15 @@ function TableBodyComponent<TData>({
     if (next == null && start == null) return;
     previewCommitRef.current = null;
     keyGestureStartRef.current = null;
-    setPreviewPx(null);
-    if (next != null && start != null && next !== Math.round(start)) {
-      onCommitRowHeight?.(next);
+    setPreview(null);
+    if (next == null || start == null || next === Math.round(start)) {
+      anchorRef.current = null;
+      return;
     }
+    // The slider lives on the first row.
+    rememberRowAnchor(0);
+    setAnchorEpoch((epoch) => epoch + 1);
+    onCommitRowHeight?.(next);
   };
 
   const onResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1127,7 +1194,8 @@ function TableBodyComponent<TData>({
       .closest("td")
       ?.querySelector<HTMLElement>("[data-row-height]");
     const fallback =
-      effectiveRowHeightPx ??
+      preview?.px ??
+      rowHeightPx ??
       measuredPx ??
       sized?.getBoundingClientRect().height ??
       minRowHeightPx;
@@ -1138,17 +1206,52 @@ function TableBodyComponent<TData>({
     const delta = event.key === "ArrowDown" ? 16 : -16;
     const next = clampCustomRowHeightPx(current + delta, minRowHeightPx);
     previewCommitRef.current = next;
-    setPreviewPx(next);
+    setPreview({ rowIndex: 0, px: next });
   };
 
+  const renderingForRow = (rowIndex: number) => {
+    if (preview == null || preview.rowIndex !== rowIndex) {
+      return { rendering: committedRendering, previewing: false };
+    }
+    return {
+      previewing: true,
+      rendering: resolveRowHeightRendering(
+        {
+          preset: rowHeight ?? "s",
+          customPx: rowHeightPx ?? null,
+          previewPx: preview.px,
+        },
+        customRowHeights,
+      ),
+    };
+  };
+
+  const framePropsFor = (
+    rendering: typeof committedRendering,
+    previewing: boolean,
+    measure: boolean,
+  ) =>
+    rowHeightFrameProps({
+      rowheighttw,
+      heightPx:
+        previewing || rowHeightPx != null || rowResizeEnabled
+          ? rendering.heightPx
+          : undefined,
+      presetClass: !previewing && rowHeightPx == null,
+      compact: rendering.compact,
+      topAlignCells,
+      measure,
+      clipContent: rowResizeEnabled,
+    });
+
   return (
-    <RowHeightRenderingProvider
-      compact={rendering.compact}
-      expandedRead={rendering.expandedRead}
-    >
-      <TableBody ref={tableBodyRef}>
-        {data.isLoading || !data.data ? (
-          Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+    <TableBody ref={tableBodyRef}>
+      {data.isLoading || !data.data ? (
+        <RowHeightRenderingProvider
+          compact={committedRendering.compact}
+          expandedRead={committedRendering.expandedRead}
+        >
+          {Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
             <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
               {visibleColumns.map((column, columnIndex) => {
                 const columnDef = column.columnDef as LangfuseColumnDef<TData>;
@@ -1161,7 +1264,7 @@ function TableBodyComponent<TData>({
                       getCellPaddingClassName(
                         columnDef.cellPadding ?? cellPadding,
                       ),
-                      rendering.compact && "whitespace-nowrap",
+                      committedRendering.compact && "whitespace-nowrap",
                       getPinningClasses(column),
                       getCellBackgroundClassName(columnDef.cellBackground),
                       columnDef.cellClassName,
@@ -1174,15 +1277,7 @@ function TableBodyComponent<TData>({
                         : `calc(var(--col-${column.id}-size) * 1px)`,
                     }}
                   >
-                    <div
-                      {...rowHeightFrameProps({
-                        rowheighttw,
-                        rowHeightPx: effectiveRowHeightPx,
-                        compact: rendering.compact,
-                        topAlignCells,
-                        measure: false,
-                      })}
-                    >
+                    <div {...framePropsFor(committedRendering, false, false)}>
                       {(() => {
                         const loadingCell = columnDef.loadingCell;
 
@@ -1212,175 +1307,164 @@ function TableBodyComponent<TData>({
                 );
               })}
             </TableRow>
-          ))
-        ) : rowModelRows.length ? (
-          rowModelRows.map((row) => {
-            const cells = row.getVisibleCells().map((cell, cellIndex) => {
-              const cellValue = cell.getValue();
-              const isStringCell = typeof cellValue === "string";
-              const isSmallRowHeight = rendering.compact;
-              const columnDef = cell.column
-                .columnDef as LangfuseColumnDef<TData>;
-              const isLastRow = row.index === rowModelRows.length - 1;
-              const isPrimaryHandle = row.index === 0 && cellIndex === 0;
-              // 3px above this row's border, and 3px at the top of the next
-              // row. The lower half lives in the next row so it can be grabbed
-              // without covering the rest of that row. The last row has no
-              // neighbor, so its strip hangs 3px below its own bottom edge.
-              const resizeEdges: RowResizeEdge[] = [];
-              if (rowResizeEnabled && row.index > 0) resizeEdges.push("below");
-              if (rowResizeEnabled && isLastRow) resizeEdges.push("last");
-              else if (rowResizeEnabled) resizeEdges.push("above");
-              const primaryEdge: RowResizeEdge | null = isPrimaryHandle
-                ? isLastRow
-                  ? "last"
-                  : "above"
-                : null;
+          ))}
+        </RowHeightRenderingProvider>
+      ) : rowModelRows.length ? (
+        rowModelRows.map((row) => {
+          const { rendering, previewing } = renderingForRow(row.index);
+          const cells = row.getVisibleCells().map((cell, cellIndex) => {
+            const cellValue = cell.getValue();
+            const isStringCell = typeof cellValue === "string";
+            const isSmallRowHeight = rendering.compact;
+            const columnDef = cell.column.columnDef as LangfuseColumnDef<TData>;
+            const isLastRow = row.index === rowModelRows.length - 1;
+            const isPrimaryHandle = row.index === 0 && cellIndex === 0;
+            // 3px above this row's border, and 3px at the top of the next
+            // row. The lower half lives in the next row so it can be grabbed
+            // without covering the rest of that row. The last row has no
+            // neighbor, so its strip hangs 3px below its own bottom edge.
+            const resizeEdges: RowResizeEdge[] = [];
+            if (rowResizeEnabled && row.index > 0) resizeEdges.push("below");
+            if (rowResizeEnabled && isLastRow) resizeEdges.push("last");
+            else if (rowResizeEnabled) resizeEdges.push("above");
+            const primaryEdge: RowResizeEdge | null = isPrimaryHandle
+              ? isLastRow
+                ? "last"
+                : "above"
+              : null;
 
-              return (
-                <TableCell
-                  key={cell.id}
-                  className={cn(
-                    "border-b text-xs first:pl-2",
-                    rowResizeEnabled ? "overflow-visible" : "overflow-hidden",
-                    rowResizeEnabled && "relative",
-                    getCellPaddingClassName(
-                      columnDef.cellPadding ?? cellPadding,
-                    ),
-                    isSmallRowHeight && "whitespace-nowrap",
-                    getPinningClasses(cell.column),
-                    getCellBackgroundClassName(columnDef.cellBackground),
-                    columnDef.cellClassName,
-                    columnDef.hideBelowMd && "hidden md:table-cell",
-                  )}
-                  style={{
-                    ...getCommonPinningStyles(cell.column),
-                    width: columnDef.isFlexWidth
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  }}
-                >
-                  <div
-                    {...rowHeightFrameProps({
-                      rowheighttw,
-                      rowHeightPx: effectiveRowHeightPx,
-                      compact: rendering.compact,
-                      topAlignCells,
-                      measure: rowResizeEnabled,
-                      clipContent: rowResizeEnabled,
-                    })}
-                  >
-                    {isStringCell && isSmallRowHeight ? (
-                      <div
-                        className="min-w-0 truncate leading-normal"
-                        title={getPlainTextFromReactNode(
-                          flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          ),
-                        )}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    ) : isStringCell && !isSmallRowHeight ? (
-                      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    ) : (
-                      flexRender(cell.column.columnDef.cell, cell.getContext())
-                    )}
-                  </div>
-                  {resizeEdges.map((edge) => {
-                    const primary = edge === primaryEdge;
-                    return (
-                      <div
-                        key={edge}
-                        data-row-resize-handle=""
-                        data-row-resize-edge={edge}
-                        role={primary ? "slider" : undefined}
-                        aria-orientation={primary ? "vertical" : undefined}
-                        aria-label={primary ? "Row height" : undefined}
-                        aria-valuemin={primary ? minRowHeightPx : undefined}
-                        aria-valuemax={
-                          primary ? MAX_CUSTOM_ROW_HEIGHT_PX : undefined
-                        }
-                        aria-valuenow={
-                          primary
-                            ? (effectiveRowHeightPx ?? measuredPx)
-                            : undefined
-                        }
-                        aria-hidden={primary ? undefined : true}
-                        tabIndex={primary ? 0 : undefined}
-                        onPointerDown={onResizePointerDown}
-                        onPointerMove={onResizePointerMove}
-                        onPointerUp={finishResize}
-                        onPointerCancel={finishResize}
-                        onKeyDown={primary ? onResizeKeyDown : undefined}
-                        onKeyUp={primary ? commitKeyboardResize : undefined}
-                        onBlur={primary ? commitKeyboardResize : undefined}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                        }}
-                        style={rowResizeHandleStyle(edge)}
-                        className={cn(
-                          // Invisible. The row-resize cursor is the pointer
-                          // affordance; keyboard focus keeps a hairline ring.
-                          "absolute inset-x-0 z-[1] cursor-row-resize touch-none bg-transparent select-none",
-                          primary &&
-                            "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
-                        )}
-                      />
-                    );
-                  })}
-                </TableCell>
-              );
-            });
-
-            return renderRow ? (
-              <React.Fragment key={row.id}>
-                {renderRow({ row, children: cells })}
-              </React.Fragment>
-            ) : (
-              <TableRowComponent
-                key={row.id}
-                row={row}
-                onRowClick={onRowClick}
-                getRowClassName={getRowClassName}
-                highlightAllRows={highlightAllRows}
-                selectionStore={selectionStore}
-              >
-                {cells}
-              </TableRowComponent>
-            );
-          })
-        ) : (
-          <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={columns.length} className="h-24">
-              <div className="text-muted-foreground pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center text-sm">
-                {noResultsMessage ?? (
-                  <>
-                    No results.{" "}
-                    {help && (
-                      <DocPopup
-                        description={help.description}
-                        href={help.href}
-                      />
-                    )}
-                  </>
+            return (
+              <TableCell
+                key={cell.id}
+                className={cn(
+                  "border-b text-xs first:pl-2",
+                  rowResizeEnabled ? "overflow-visible" : "overflow-hidden",
+                  rowResizeEnabled && "relative",
+                  getCellPaddingClassName(columnDef.cellPadding ?? cellPadding),
+                  isSmallRowHeight && "whitespace-nowrap",
+                  getPinningClasses(cell.column),
+                  getCellBackgroundClassName(columnDef.cellBackground),
+                  columnDef.cellClassName,
+                  columnDef.hideBelowMd && "hidden md:table-cell",
                 )}
-              </div>
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </RowHeightRenderingProvider>
+                style={{
+                  ...getCommonPinningStyles(cell.column),
+                  width: columnDef.isFlexWidth
+                    ? "auto"
+                    : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                }}
+              >
+                <div
+                  {...framePropsFor(rendering, previewing, rowResizeEnabled)}
+                >
+                  {isStringCell && isSmallRowHeight ? (
+                    <div
+                      className="min-w-0 truncate leading-normal"
+                      title={getPlainTextFromReactNode(
+                        flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        ),
+                      )}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </div>
+                  ) : isStringCell && !isSmallRowHeight ? (
+                    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </div>
+                  ) : (
+                    flexRender(cell.column.columnDef.cell, cell.getContext())
+                  )}
+                </div>
+                {resizeEdges.map((edge) => {
+                  const primary = edge === primaryEdge;
+                  return (
+                    <div
+                      key={edge}
+                      data-row-resize-handle=""
+                      data-row-resize-edge={edge}
+                      role={primary ? "slider" : undefined}
+                      aria-orientation={primary ? "vertical" : undefined}
+                      aria-label={primary ? "Row height" : undefined}
+                      aria-valuemin={primary ? minRowHeightPx : undefined}
+                      aria-valuemax={
+                        primary ? MAX_CUSTOM_ROW_HEIGHT_PX : undefined
+                      }
+                      aria-valuenow={primary ? announcedPx : undefined}
+                      aria-hidden={primary ? undefined : true}
+                      tabIndex={primary ? 0 : undefined}
+                      onPointerDown={onResizePointerDown}
+                      onPointerMove={onResizePointerMove}
+                      onPointerUp={finishResize}
+                      onPointerCancel={finishResize}
+                      onKeyDown={primary ? onResizeKeyDown : undefined}
+                      onKeyUp={primary ? commitKeyboardResize : undefined}
+                      onBlur={primary ? commitKeyboardResize : undefined}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      style={rowResizeHandleStyle(edge)}
+                      className={cn(
+                        // Invisible. The row-resize cursor is the pointer
+                        // affordance; keyboard focus keeps a hairline ring.
+                        "absolute inset-x-0 z-[1] cursor-row-resize touch-none bg-transparent select-none",
+                        primary &&
+                          "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
+                      )}
+                    />
+                  );
+                })}
+              </TableCell>
+            );
+          });
+
+          return (
+            <RowHeightRenderingProvider
+              key={row.id}
+              compact={rendering.compact}
+              expandedRead={rendering.expandedRead}
+            >
+              {renderRow ? (
+                renderRow({ row, children: cells })
+              ) : (
+                <TableRowComponent
+                  row={row}
+                  onRowClick={onRowClick}
+                  getRowClassName={getRowClassName}
+                  highlightAllRows={highlightAllRows}
+                  selectionStore={selectionStore}
+                >
+                  {cells}
+                </TableRowComponent>
+              )}
+            </RowHeightRenderingProvider>
+          );
+        })
+      ) : (
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={columns.length} className="h-24">
+            <div className="text-muted-foreground pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center text-sm">
+              {noResultsMessage ?? (
+                <>
+                  No results.{" "}
+                  {help && (
+                    <DocPopup description={help.description} href={help.href} />
+                  )}
+                </>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </TableBody>
   );
 }
 

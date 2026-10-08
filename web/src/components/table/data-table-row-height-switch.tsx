@@ -79,6 +79,32 @@ export type CustomRowHeightControl = {
 const isRowHeight = (value: unknown): value is RowHeight =>
   typeof value === "string" && ROW_HEIGHT_IDS.has(value);
 
+/**
+ * Scroll offset that keeps a row's top edge at `anchorTop` after every row
+ * takes the committed height. Near the end of the list the maximum offset
+ * shrinks with the rows, so the result stays inside the scroller.
+ */
+export function anchoredScrollTop({
+  scrollTop,
+  rowTop,
+  anchorTop,
+  scrollHeight,
+  clientHeight,
+}: {
+  scrollTop: number;
+  rowTop: number;
+  anchorTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+}): number {
+  const maxScroll = Math.max(0, scrollHeight - clientHeight);
+  const next = scrollTop + (rowTop - anchorTop);
+  if (!Number.isFinite(next)) {
+    return Math.min(maxScroll, Math.max(0, scrollTop));
+  }
+  return Math.min(maxScroll, Math.max(0, next));
+}
+
 export function clampCustomRowHeightPx(
   heightPx: number,
   minPx: number = MIN_CUSTOM_ROW_HEIGHT_PX,

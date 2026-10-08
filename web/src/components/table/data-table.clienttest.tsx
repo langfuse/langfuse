@@ -1,7 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightRendering } from "@/src/components/table/data-table-row-height-switch";
+import {
+  useRowHeightRendering,
+  type RowHeight,
+  type CustomHeights,
+} from "@/src/components/table/data-table-row-height-switch";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type OrderByState } from "@langfuse/shared";
 
@@ -130,18 +134,24 @@ describe("DataTable custom row height", () => {
     );
   };
 
-  const rect = (height: number): DOMRect =>
+  const rect = (height: number, top = 0): DOMRect =>
     ({
       x: 0,
-      y: 0,
-      top: 0,
+      y: top,
+      top,
       left: 0,
-      bottom: height,
+      bottom: top + height,
       right: 100,
       width: 100,
       height,
       toJSON: () => ({}),
     }) as DOMRect;
+
+  const rowBoxes = (index: number) => [
+    ...document.querySelectorAll<HTMLElement>(
+      `tr[data-row-index="${index}"] [data-row-height]`,
+    ),
+  ];
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -204,7 +214,7 @@ describe("DataTable custom row height", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("applies one dragged height to every cell, including every column of the row", () => {
+  it("previews the dragged row only, then commits one height for the table", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
       () => rect(96),
     );
@@ -217,11 +227,13 @@ describe("DataTable custom row height", () => {
       pointAt(handle, "pointermove", 220);
     });
 
-    const boxes = document.querySelectorAll("[data-row-height]");
-    // Two rows, two columns: the drag is a table height, so run columns stay aligned.
-    expect(boxes).toHaveLength(4);
-    for (const box of boxes) {
+    // Both columns of the dragged row follow the pointer. The other row waits.
+    expect(rowBoxes(0)).toHaveLength(2);
+    for (const box of rowBoxes(0)) {
       expect(box).toHaveStyle({ height: "216px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "96px", maxHeight: "96px" });
     }
 
     act(() => {
@@ -254,14 +266,20 @@ describe("DataTable custom row height", () => {
       pointAt(handle, "pointerdown", 100);
       pointAt(handle, "pointermove", 240);
     });
-    for (const box of document.querySelectorAll("[data-row-height]")) {
+    for (const box of rowBoxes(0)) {
       expect(box).toHaveStyle({ height: "168px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "28px", maxHeight: "28px" });
     }
 
     act(() => {
       pointAt(handle, "pointermove", -40);
     });
-    for (const box of document.querySelectorAll("[data-row-height]")) {
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "28px", maxHeight: "28px" });
+    }
+    for (const box of rowBoxes(1)) {
       expect(box).toHaveStyle({ height: "28px", maxHeight: "28px" });
     }
 
@@ -299,8 +317,11 @@ describe("DataTable custom row height", () => {
       pointAt(handle, "pointerdown", 400);
       pointAt(handle, "pointermove", 0);
     });
-    for (const box of document.querySelectorAll("[data-row-height]")) {
+    for (const box of rowBoxes(0)) {
       expect(box).toHaveStyle({ height: "28px", maxHeight: "28px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "168px", maxHeight: "168px" });
     }
 
     act(() => {
@@ -336,8 +357,11 @@ describe("DataTable custom row height", () => {
       pointAt(handle, "pointerdown", 500);
       pointAt(handle, "pointermove", 0);
     });
-    for (const box of document.querySelectorAll("[data-row-height]")) {
+    for (const box of rowBoxes(0)) {
       expect(box).toHaveStyle({ height: "192px", maxHeight: "192px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "332px", maxHeight: "332px" });
     }
 
     act(() => {
@@ -362,12 +386,14 @@ describe("DataTable custom row height", () => {
       pointAt(handle, "pointermove", 240);
     });
 
-    const boxes = document.querySelectorAll("[data-row-height]");
-    expect(boxes.length).toBeGreaterThan(0);
-    for (const box of boxes) {
+    for (const box of rowBoxes(0)) {
       expect(box).toHaveStyle({ height: "48px", maxHeight: "48px" });
     }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "208px", maxHeight: "208px" });
+    }
     expect(screen.getByText("zeta-score")).toHaveClass("truncate");
+    expect(screen.getByText("alpha-score")).not.toHaveClass("truncate");
 
     act(() => {
       pointAt(handle, "pointerup", 240);
@@ -411,8 +437,11 @@ describe("DataTable custom row height", () => {
 
     expect(onCustomRowHeightChange).not.toHaveBeenCalled();
     expect(handle).toHaveAttribute("aria-valuenow", "128");
-    for (const box of document.querySelectorAll("[data-row-height]")) {
+    for (const box of rowBoxes(0)) {
       expect(box).toHaveStyle({ height: "128px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "96px", maxHeight: "96px" });
     }
 
     act(() => {
@@ -467,15 +496,21 @@ describe("DataTable custom row height", () => {
 
     expect(onCustomRowHeightChange).not.toHaveBeenCalled();
     expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("expanded");
+    expect(screen.getAllByTestId("row-mode")[1]).toHaveTextContent("compact");
     expect(screen.getByText("zeta-score")).not.toHaveClass("truncate");
-    for (const box of document.querySelectorAll("[data-row-height]")) {
+    expect(screen.getByText("alpha-score")).toHaveClass("truncate");
+    for (const box of rowBoxes(0)) {
       expect(box).toHaveStyle({ height: "96px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "28px", maxHeight: "28px" });
     }
 
     act(() => {
       pointAt(handle, "pointermove", 20);
     });
     expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("compact");
+    expect(screen.getAllByTestId("row-mode")[1]).toHaveTextContent("compact");
     expect(screen.getByText("zeta-score")).toHaveClass("truncate");
   });
 
@@ -519,5 +554,251 @@ describe("DataTable custom row height", () => {
       />,
     );
     expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("compact");
+  });
+
+  const listHeights: CustomHeights = { s: "h-24", m: "h-48", l: "h-96" };
+  const gridHeights: CustomHeights = { s: "h-48", m: "h-64", l: "h-96" };
+
+  function renderSizedTable({
+    heights,
+    rowHeight = "m",
+    customRowHeightPx,
+    onCustomRowHeightChange = vi.fn(),
+    onSelectRowHeight = vi.fn(),
+  }: {
+    heights?: CustomHeights;
+    rowHeight?: RowHeight;
+    customRowHeightPx?: number;
+    onCustomRowHeightChange?: (heightPx: number) => void;
+    onSelectRowHeight?: (rowHeight: RowHeight) => void;
+  }) {
+    render(
+      <DataTable
+        tableName="experiment-items"
+        columns={columns}
+        hidePagination
+        rowHeight={rowHeight}
+        customRowHeightPx={customRowHeightPx}
+        customRowHeights={heights}
+        onCustomRowHeightChange={onCustomRowHeightChange}
+        onSelectRowHeight={onSelectRowHeight}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+  }
+
+  it("shrinks an experiment list row from Medium to that table's Small", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(192),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    const onSelectRowHeight = vi.fn();
+    renderSizedTable({
+      heights: listHeights,
+      onCustomRowHeightChange,
+      onSelectRowHeight,
+    });
+
+    const handle = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="last"]',
+    );
+    expect(handle).not.toBeNull();
+    expect(screen.getByRole("slider", { name: "Row height" })).toHaveAttribute(
+      "aria-valuemin",
+      "96",
+    );
+    act(() => {
+      pointAt(handle!, "pointerdown", 400);
+      pointAt(handle!, "pointermove", 0);
+    });
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "96px", maxHeight: "96px" });
+    }
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "192px", maxHeight: "192px" });
+    }
+
+    act(() => {
+      pointAt(handle!, "pointerup", 0);
+    });
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(onSelectRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+  });
+
+  it("shrinks an experiment grid row from Medium to that table's Small", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(256),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    const onSelectRowHeight = vi.fn();
+    renderSizedTable({
+      heights: gridHeights,
+      onCustomRowHeightChange,
+      onSelectRowHeight,
+    });
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    expect(handle).toHaveAttribute("aria-valuemin", "192");
+    act(() => {
+      pointAt(handle, "pointerdown", 400);
+      pointAt(handle, "pointermove", 0);
+    });
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "192px", maxHeight: "192px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "256px", maxHeight: "256px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointerup", 0);
+    });
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(onSelectRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+  });
+
+  it("shrinks a custom experiment height down to Small", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(300),
+    );
+    const onSelectRowHeight = vi.fn();
+    renderSizedTable({
+      heights: listHeights,
+      customRowHeightPx: 300,
+      onSelectRowHeight,
+    });
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 500);
+      pointAt(handle, "pointermove", 0);
+    });
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "96px", maxHeight: "96px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "300px", maxHeight: "300px" });
+    }
+
+    act(() => {
+      pointAt(handle, "pointerup", 0);
+    });
+    expect(onSelectRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+  });
+
+  function CommittedHeightTable() {
+    const [preset, setPreset] = useState<RowHeight>("m");
+    const [px, setPx] = useState<number | undefined>(undefined);
+    return (
+      <DataTable
+        tableName="traces"
+        columns={columns}
+        hidePagination
+        rowHeight={preset}
+        customRowHeightPx={px}
+        onCustomRowHeightChange={setPx}
+        onSelectRowHeight={(next) => {
+          setPreset(next);
+          setPx(undefined);
+        }}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />
+    );
+  }
+
+  function installStackedRects(fallback: number) {
+    const heightOf = (el: HTMLElement) => {
+      const parsed = Number.parseFloat(el.style.height);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.tagName === "TR") {
+          const rows = this.parentElement
+            ? [
+                ...this.parentElement.querySelectorAll<HTMLElement>(
+                  "tr[data-row-index]",
+                ),
+              ]
+            : [];
+          let top = 0;
+          for (const row of rows) {
+            if (row === this) break;
+            const box = row.querySelector<HTMLElement>("[data-row-height]");
+            top += box ? heightOf(box) : fallback;
+          }
+          const own = this.querySelector<HTMLElement>("[data-row-height]");
+          return rect(own ? heightOf(own) : fallback, top);
+        }
+        if (this.hasAttribute("data-row-height")) return rect(heightOf(this));
+        return rect(fallback);
+      },
+    );
+  }
+
+  function prepareScroller(
+    scrollHeight: number,
+    clientHeight: number,
+    scrollTop: number,
+  ) {
+    const node = document.querySelector("table")?.parentElement as HTMLElement;
+    Object.defineProperty(node, "scrollHeight", {
+      configurable: true,
+      value: scrollHeight,
+    });
+    Object.defineProperty(node, "clientHeight", {
+      configurable: true,
+      value: clientHeight,
+    });
+    node.scrollTop = scrollTop;
+    return node;
+  }
+
+  it("keeps the dragged row's top edge after every row takes the new height", () => {
+    installStackedRects(96);
+    render(<CommittedHeightTable />);
+    const scroller = prepareScroller(5000, 400, 120);
+    const handle = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="last"]',
+    );
+
+    act(() => {
+      pointAt(handle!, "pointerdown", 100);
+      pointAt(handle!, "pointermove", 204);
+    });
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "96px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "200px" });
+    }
+
+    act(() => {
+      pointAt(handle!, "pointerup", 204);
+    });
+    for (const box of [...rowBoxes(0), ...rowBoxes(1)]) {
+      expect(box).toHaveStyle({ height: "200px", maxHeight: "200px" });
+    }
+    // The row above grew by 104px, so the scroller follows by the same amount.
+    expect(scroller.scrollTop).toBe(224);
+  });
+
+  it("clamps the anchor when the list cannot scroll far enough", () => {
+    installStackedRects(96);
+    render(<CommittedHeightTable />);
+    const scroller = prepareScroller(1000, 900, 50);
+    const handle = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="last"]',
+    );
+
+    act(() => {
+      pointAt(handle!, "pointerdown", 0);
+      pointAt(handle!, "pointerup", 400);
+    });
+
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "496px" });
+    }
+    expect(scroller.scrollTop).toBe(100);
   });
 });
