@@ -108,7 +108,7 @@ export const ConfiguredMetadata = meta.story({
       source: {
         state: "ready",
         metadata: {
-          langfuse_user_email: "danielm@nexite.io",
+          langfuse_user_email: "daniel.mueller-schmidt@enterprise.nexite.io",
           cloud_region: "EU",
         },
         metadataTruncated: false,
@@ -231,7 +231,7 @@ export const TestBoundsManyUsers = meta.story({
     await userEvent.type(searchInput, "user-999@example.com");
     await expect(
       within(results).getByRole("link", {
-        name: "user user-999@example.com",
+        name: "user: user-999@example.com",
       }),
     ).toBeInTheDocument();
   },

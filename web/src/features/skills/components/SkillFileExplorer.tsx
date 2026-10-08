@@ -1,5 +1,11 @@
-import { useId, useState, type ReactNode } from "react";
+import {
+  useId,
+  type ReactNode,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   DndContext,
   KeyboardSensor,
@@ -17,12 +23,15 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   ChevronRight,
   Check,
+  Circle,
+  CircleDashed,
   File,
   FileCode2,
   FilePlus2,
   Folder,
   FolderOpen,
   FolderPlus,
+  Plus,
   Trash2,
   Upload,
   X,
@@ -35,17 +44,18 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { DropzoneController } from "@/src/components/design-system/DropzoneController/DropzoneController";
 import { showErrorToast } from "@/src/features/notifications";
-import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
 import {
   buildSkillFileTree,
   getParentFolderPaths,
   type SkillFileTreeNode,
 } from "@/src/features/skills/components/skillFileTree";
-import { type SkillEditorStore } from "@/src/features/skills/components/skillEditorStore";
+import {
+  createSkillDraftFile,
+  type SkillEditorStore,
+} from "@/src/features/skills/components/skillEditorStore";
 import { cn } from "@/src/utils/tailwind";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 type PendingEntry = {
   kind: "file" | "folder";
@@ -53,26 +63,47 @@ type PendingEntry = {
   name: string;
 };
 
+export type SkillFileExplorerState = {
+  selectedFolder: string;
+  expandedFolders: Set<string>;
+  pendingEntry: PendingEntry | null;
+};
+
 export function SkillFileExplorer({
   store,
   disabled = false,
   readOnly = false,
+  state,
+  onStateChange,
+  onUpload,
 }: {
   store: SkillEditorStore;
   disabled?: boolean;
   readOnly?: boolean;
+  state: SkillFileExplorerState;
+  onStateChange: Dispatch<SetStateAction<SkillFileExplorerState>>;
+  onUpload: () => void;
 }) {
-  const files = useStore(store, (state) => state.files);
+  const filePaths = useStore(
+    store,
+    useShallow((state) => Object.keys(state.files)),
+  );
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
   const actions = useStore(store, (state) => state.actions);
-  const [selectedFolder, setSelectedFolder] = useState("");
-  const [expandedFolders, setExpandedFolders] = useState(
-    () => new Set(store.getState().folders),
-  );
-  const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
+  const { selectedFolder, expandedFolders, pendingEntry } = state;
+  const setSelectedFolder = (selectedFolder: string) =>
+    onStateChange((current) => ({ ...current, selectedFolder }));
+  const setPendingEntry = (pendingEntry: PendingEntry | null) =>
+    onStateChange((current) => ({ ...current, pendingEntry }));
+  const setExpandedFolders = (update: SetStateAction<Set<string>>) =>
+    onStateChange((current) => ({
+      ...current,
+      expandedFolders:
+        typeof update === "function" ? update(current.expandedFolders) : update,
+    }));
   const isImporting = useStore(store, (state) => state.isImporting);
-  const tree = buildSkillFileTree(Object.keys(files), folders);
+  const tree = buildSkillFileTree(filePaths, folders);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
@@ -159,10 +190,7 @@ export function SkillFileExplorer({
       return;
     }
 
-    if (
-      pendingEntry.kind === "file" &&
-      Object.keys(files).length >= MAX_SKILL_FILES
-    ) {
+    if (pendingEntry.kind === "file" && filePaths.length >= MAX_SKILL_FILES) {
       showErrorToast(
         "Could not add file",
         `A skill can contain at most ${MAX_SKILL_FILES} files.`,
@@ -173,11 +201,7 @@ export function SkillFileExplorer({
     const created =
       pendingEntry.kind === "folder"
         ? actions.addFolder(path)
-        : actions.addFile({
-            path,
-            content: "",
-            contentType: getContentType(path),
-          });
+        : actions.addFile(createSkillDraftFile(path, ""));
     if (!created) {
       showErrorToast(
         `${pendingEntry.kind === "folder" ? "Folder" : "File"} already exists`,
@@ -213,9 +237,9 @@ export function SkillFileExplorer({
         }}
       >
         {pendingEntry.kind === "folder" ? (
-          <Folder className="text-muted-foreground h-4 w-4 shrink-0" />
+          <Folder className="text-muted-foreground icon-base shrink-0" />
         ) : (
-          <FileCode2 className="text-muted-foreground h-4 w-4 shrink-0" />
+          <FileCode2 className="text-muted-foreground icon-base shrink-0" />
         )}
         <Input
           autoFocus
@@ -240,7 +264,7 @@ export function SkillFileExplorer({
           aria-label={`Create new ${label}`}
           disabled={moveDisabled}
         >
-          <Check className="h-3.5 w-3.5" />
+          <Check className="icon-base text-icon-foreground" />
         </Button>
         <Button
           type="button"
@@ -249,7 +273,7 @@ export function SkillFileExplorer({
           aria-label={`Cancel new ${label}`}
           onClick={() => setPendingEntry(null)}
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="icon-base text-icon-foreground" />
         </Button>
       </form>
     );
@@ -266,6 +290,7 @@ export function SkillFileExplorer({
           return (
             <DraggableSkillFile
               key={node.path}
+              store={store}
               path={node.path}
               name={node.name}
               disabled={moveDisabled}
@@ -315,131 +340,70 @@ export function SkillFileExplorer({
         collisionDetection={skillMoveCollisionDetection}
         onDragEnd={handleDragEnd}
       >
-        <DropzoneController
-          noClick
-          noKeyboard
-          isDisabled={moveDisabled}
-          onError={(error) =>
-            showErrorToast("Could not add files", error.message)
-          }
-          onProcessingChange={(isImporting) => store.setState({ isImporting })}
-          onDrop={async (droppedFiles) => {
-            const paths = await importSkillFiles(store, droppedFiles);
-            setExpandedFolders(
-              (current) =>
-                new Set([...current, ...getParentFolderPaths(paths)]),
-            );
-            setSelectedFolder("");
-            setPendingEntry(null);
-          }}
+        <aside
+          aria-label="Skill files"
+          className="ph-no-capture bg-muted/20 relative flex h-full min-w-0 flex-col"
         >
-          {({
-            getRootProps,
-            getInputProps,
-            isDragActive,
-            open,
-            openDirectory,
-          }) => (
-            <aside
-              {...getRootProps({
-                role: "region",
-                "aria-label": "Skill files",
-                className: cn(
-                  "ph-no-capture bg-muted/20 relative flex h-full min-w-0 flex-col",
-                  isDragActive && "ring-primary ring-2 ring-inset",
-                ),
-              })}
-            >
-              <input {...getInputProps()} aria-label="Add files to draft" />
-              <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
-                <SkillFolderDropTarget path="" disabled={moveDisabled}>
-                  <button
-                    type="button"
-                    aria-label="Root folder"
-                    title="Drop a file here to move it to the root"
-                    onClick={() => setSelectedFolder("")}
-                    className="flex items-center gap-2 rounded px-1 py-2 text-sm font-bold"
-                  >
-                    <FolderOpen className="h-4 w-4" /> Files
-                  </button>
-                </SkillFolderDropTarget>
-                {!readOnly ? (
-                  <div className="flex items-center gap-0.5">
-                    <DropdownMenu
-                      disabled={disabled || isImporting}
-                      items={[
-                        {
-                          id: "files",
-                          type: "item",
-                          title: "Add files",
-                          icon: FilePlus2,
-                          onClick: open,
-                        },
-                        {
-                          id: "folder",
-                          type: "item",
-                          title: "Add folder",
-                          icon: FolderPlus,
-                          onClick: openDirectory,
-                        },
-                      ]}
-                    >
-                      {({ getTriggerProps }) => (
-                        <IconButton
-                          {...getTriggerProps()}
-                          icon={Upload}
-                          label="Upload files or folder"
-                          size="sm"
-                          disabled={disabled || isImporting}
-                        />
-                      )}
-                    </DropdownMenu>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      title="New file"
-                      aria-label="New file"
-                      disabled={moveDisabled}
-                      onClick={() => startEntry("file")}
-                    >
-                      <FilePlus2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      title="New folder"
-                      aria-label="New folder"
-                      disabled={moveDisabled}
-                      onClick={() => startEntry("folder")}
-                    >
-                      <FolderPlus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-              <div className="flex flex-1 flex-col overflow-y-auto p-2">
-                {renderTree(tree, "")}
-                <SkillFolderDropTarget
-                  path=""
+          <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
+            <SkillFolderDropTarget path="" disabled={moveDisabled}>
+              <button
+                type="button"
+                aria-label="Root folder"
+                title="Drop a file here to move it to the root"
+                onClick={() => setSelectedFolder("")}
+                className="flex items-center gap-2 rounded px-1 py-2 text-sm font-bold"
+              >
+                <FolderOpen className="icon-base" /> Files
+              </button>
+            </SkillFolderDropTarget>
+            {!readOnly ? (
+              <div className="flex items-center gap-0.5">
+                <IconButton
+                  onClick={onUpload}
+                  icon={Upload}
+                  label="Upload files or folders"
+                  size="sm"
                   disabled={moveDisabled}
-                  variant="empty-space"
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="New file"
+                  aria-label="New file"
+                  disabled={moveDisabled}
+                  onClick={() => startEntry("file")}
+                >
+                  <FilePlus2 className="icon-base text-icon-foreground" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="New folder"
+                  aria-label="New folder"
+                  disabled={moveDisabled}
+                  onClick={() => startEntry("folder")}
+                >
+                  <FolderPlus className="icon-base text-icon-foreground" />
+                </Button>
               </div>
-              {isImporting ? (
-                <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
-                  Adding files to draft…
-                </p>
-              ) : null}
-              {isDragActive ? (
-                <div className="bg-background/90 pointer-events-none absolute inset-0 flex items-center justify-center p-4 text-center text-sm font-bold">
-                  Drop files or folders to add to draft
-                </div>
-              ) : null}
-            </aside>
-          )}
-        </DropzoneController>
+            ) : null}
+          </div>
+          <div className="flex flex-1 flex-col overflow-y-auto p-2">
+            {renderTree(tree, "")}
+            <SkillFolderDropTarget
+              path=""
+              disabled={moveDisabled}
+              variant="empty-space"
+            />
+          </div>
+          {isImporting ? (
+            <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
+              Adding files to draft…
+            </p>
+          ) : null}
+        </aside>
       </DndContext>
     </div>
   );
@@ -460,7 +424,26 @@ const skillMoveCollisionDetection: CollisionDetection = (args) => {
     : rectIntersection(candidates);
 };
 
+const fileChangeIndicators = {
+  new: {
+    label: "New file",
+    icon: Plus,
+    className: "text-dark-green h-3.5 w-3.5",
+  },
+  edited: {
+    label: "Edited file",
+    icon: Circle,
+    className: "text-dark-yellow h-2 w-2 fill-current",
+  },
+  pending: {
+    label: "Checking for changes",
+    icon: CircleDashed,
+    className: "text-muted-foreground h-3.5 w-3.5",
+  },
+};
+
 function DraggableSkillFile({
+  store,
   path,
   name,
   disabled,
@@ -468,6 +451,7 @@ function DraggableSkillFile({
   onSelect,
   onDelete,
 }: {
+  store: SkillEditorStore;
   path: string;
   name: string;
   disabled: boolean;
@@ -475,6 +459,16 @@ function DraggableSkillFile({
   onSelect: () => void;
   onDelete: () => void;
 }) {
+  const changeStatusId = useId();
+  const changeStatus = useStore(store, (state) => {
+    const file = state.files[path];
+    if (!file) return null;
+    if (file.sourceSha === null) return "new";
+    if (file.currentSha === null) return "pending";
+    return file.currentSha !== file.sourceSha ? "edited" : null;
+  });
+  const indicator = changeStatus ? fileChangeIndicators[changeStatus] : null;
+  const IndicatorIcon = indicator?.icon;
   const movable = path !== "SKILL.md";
   const draggable = movable && !disabled;
   const {
@@ -505,6 +499,15 @@ function DraggableSkillFile({
         type="button"
         {...(draggable ? attributes : {})}
         {...(draggable ? listeners : {})}
+        aria-label={name}
+        aria-describedby={
+          [
+            draggable ? attributes["aria-describedby"] : undefined,
+            indicator ? changeStatusId : undefined,
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
         onClick={onSelect}
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-left",
@@ -512,13 +515,32 @@ function DraggableSkillFile({
         )}
       >
         {path.endsWith(".md") ? (
-          <FileCode2 className="h-4 w-4 shrink-0" />
+          <FileCode2 className="icon-base shrink-0" />
         ) : (
-          <File className="h-4 w-4 shrink-0" />
+          <File className="icon-base shrink-0" />
         )}
         <span className="min-w-0 flex-1 truncate" title={path}>
           {name}
         </span>
+        {indicator && IndicatorIcon ? (
+          <Tooltip label={indicator.label}>
+            {({ getTriggerProps }) => (
+              <span
+                {...getTriggerProps()}
+                id={changeStatusId}
+                role="img"
+                aria-label={indicator.label}
+                className="flex h-4 w-4 shrink-0 items-center justify-center"
+              >
+                <IndicatorIcon
+                  aria-hidden="true"
+                  className={indicator.className}
+                />
+                <span className="sr-only">{indicator.label}</span>
+              </span>
+            )}
+          </Tooltip>
+        ) : null}
       </button>
       {movable && !disabled ? (
         <Button
@@ -529,7 +551,7 @@ function DraggableSkillFile({
           onClick={onDelete}
           className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="icon-base text-icon-foreground" />
         </Button>
       ) : null}
     </div>
@@ -594,14 +616,14 @@ function DraggableSkillFolder({
         >
           <ChevronRight
             className={cn(
-              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+              "text-muted-foreground icon-base shrink-0 transition-transform",
               expanded && "rotate-90",
             )}
           />
           {expanded ? (
-            <FolderOpen className="h-4 w-4 shrink-0" />
+            <FolderOpen className="icon-base shrink-0" />
           ) : (
-            <Folder className="h-4 w-4 shrink-0" />
+            <Folder className="icon-base shrink-0" />
           )}
           <span className="min-w-0 flex-1 truncate" title={path}>
             {name}
@@ -616,7 +638,7 @@ function DraggableSkillFolder({
             onClick={onDelete}
             className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="icon-base text-icon-foreground" />
           </Button>
         ) : null}
       </div>
@@ -662,10 +684,4 @@ function joinPath(parentPath: string, name: string): string {
 function parentFolder(path: string): string {
   const separator = path.lastIndexOf("/");
   return separator === -1 ? "" : path.slice(0, separator);
-}
-
-function getContentType(path: string): string {
-  if (path.endsWith(".md")) return "text/markdown";
-  if (path.endsWith(".json")) return "application/json";
-  return "text/plain";
 }

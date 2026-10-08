@@ -21,7 +21,7 @@ pub fn instrument(router: Router) -> Router {
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
                     let (method, route) = request_labels(request);
-                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.request.body.size = tracing::field::Empty, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, provider_request_id = tracing::field::Empty, gateway.outcome = tracing::field::Empty, gateway.first_byte_ms = tracing::field::Empty);
+                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.request.body.size = tracing::field::Empty, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, gateway.request.id = tracing::field::Empty, gateway.client.request.id = tracing::field::Empty, langfuse.organization.id = tracing::field::Empty, langfuse.project.id = tracing::field::Empty, gateway.provider = tracing::field::Empty, gateway.provider.connection.id = tracing::field::Empty, gateway.provider.connection.name = tracing::field::Empty, gateway.upstream.model = tracing::field::Empty, provider_request_id = tracing::field::Empty, gateway.outcome = tracing::field::Empty, gateway.first_byte_ms = tracing::field::Empty);
                     // Operational tracing has no caller or ambient trace context.
                     let _ = span.set_parent(Context::new());
                     span

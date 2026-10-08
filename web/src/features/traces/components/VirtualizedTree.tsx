@@ -100,6 +100,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     // overlap (LFE-10591, worst right after "Collapse all"). Keying by id makes
     // each measurement travel with its node, so offsets stay correct.
     getItemKey: (index) => flattenedItems[index]!.node.id,
+    paddingStart: 8,
     overscan,
     measureElement:
       typeof window !== "undefined"

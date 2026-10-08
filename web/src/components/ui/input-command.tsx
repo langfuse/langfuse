@@ -8,10 +8,6 @@ import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
-import {
-  KeyboardShortcut,
-  type KeyboardShortcutProps,
-} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<
@@ -43,11 +39,11 @@ const InputCommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <Search className="icon-base mr-2 shrink-0 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        "placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+        "placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent py-3 font-mono text-xs outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -127,22 +123,6 @@ const InputCommandItem = React.forwardRef<
 
 InputCommandItem.displayName = CommandPrimitive.Item.displayName;
 
-type InputCommandShortcutProps = KeyboardShortcutProps & {
-  className?: string;
-};
-
-const InputCommandShortcut = ({
-  className,
-  ...props
-}: InputCommandShortcutProps) => {
-  return (
-    <span className={cn("ml-auto hidden md:inline-flex", className)}>
-      <KeyboardShortcut {...props} />
-    </span>
-  );
-};
-InputCommandShortcut.displayName = "CommandShortcut";
-
 export {
   InputCommand,
   InputCommandInput,
@@ -150,6 +130,5 @@ export {
   InputCommandEmpty,
   InputCommandGroup,
   InputCommandItem,
-  InputCommandShortcut,
   InputCommandSeparator,
 };

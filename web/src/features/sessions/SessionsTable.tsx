@@ -44,6 +44,7 @@ import {
 } from "@langfuse/shared";
 
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useOrderByState } from "@/src/features/orderBy";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -240,6 +241,23 @@ export default function SessionsTable({
   );
 
   const filterOptions = isV4 ? filterOptionsV4 : filterOptionsV3;
+  const eventToolOptions = useEventsFilterOptions({
+    projectId,
+    refiningFilter: [
+      {
+        column: "sessionId",
+        type: "string",
+        operator: "is not empty",
+        value: "",
+      },
+    ],
+    startTimeFilter: (dateRangeFilter as TimeFilter[]).map((item) => ({
+      ...item,
+      column: "startTime" as const,
+    })),
+    columns: ["toolNames", "calledToolNames"],
+    enabled: isV4,
+  });
 
   const newFilterOptions = useMemo(() => {
     const scoreCategories =
@@ -263,6 +281,8 @@ export default function SessionsTable({
         })) ?? undefined,
       // tags don't have counts; they read A→Z
       tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
+      toolNames: eventToolOptions.filterOptions.toolNames,
+      calledToolNames: eventToolOptions.filterOptions.calledToolNames,
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -275,10 +295,17 @@ export default function SessionsTable({
       scores_avg: scoresNumeric,
       score_booleans: scoresBoolean,
     };
-  }, [environmentOptions, filterOptions.data]);
+  }, [
+    environmentOptions,
+    filterOptions.data,
+    eventToolOptions.filterOptions.toolNames,
+    eventToolOptions.filterOptions.calledToolNames,
+  ]);
 
   const isSidebarFilterLoading =
-    filterOptions.isPending || environmentFilterOptions.isPending;
+    filterOptions.isPending ||
+    environmentFilterOptions.isPending ||
+    (isV4 && eventToolOptions.isFilterOptionsPending);
 
   const { viewControllersRef, onExplicitFilterStateChange } =
     useTableViewFilterChange();
@@ -398,6 +425,7 @@ export default function SessionsTable({
         });
       }
       showSuccessToast({
+        operation: "session.add_to_annotation_queue",
         title: "Sessions added to queue",
         description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,
         link: {

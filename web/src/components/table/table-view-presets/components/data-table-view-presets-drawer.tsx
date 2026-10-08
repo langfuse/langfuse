@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
 import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
@@ -95,6 +95,7 @@ const copyPermalinkAndToast = (href: string) => {
   copyTextToClipboard(href)
     .then(() =>
       showSuccessToast({
+        operation: "saved_view.permalink_copy",
         title: "Permalink copied to clipboard",
         description: "You can now share the permalink with others",
       }),
@@ -597,7 +598,7 @@ function TableViewPresetsDrawerContentBody({
             </DrawerTitle>
             <DrawerClose asChild>
               <Button variant="outline" size="icon">
-                <X className="h-4 w-4" />
+                <X className="icon-base text-icon-foreground" />
               </Button>
             </DrawerClose>
           </DrawerHeader>
@@ -696,16 +697,8 @@ function TableViewPresetsDrawerContentBody({
                             {isSystemView && <LangfuseIcon size={14} />}
                             {view.name}
                           </span>
-                          {isUserDefault && (
-                            <Badge variant="secondary" className="text-xs">
-                              Your default
-                            </Badge>
-                          )}
-                          {isProjectDefault && (
-                            <Badge variant="outline" className="text-xs">
-                              Project default
-                            </Badge>
-                          )}
+                          {isUserDefault && <Badge text="Your default" />}
+                          {isProjectDefault && <Badge text="Project default" />}
                         </div>
                         {isSystemView ? (
                           view.description ? (
@@ -754,7 +747,7 @@ function TableViewPresetsDrawerContentBody({
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >
-                          <Link className="h-4 w-4" />
+                          <Link className="icon-base text-icon-foreground" />
                         </Button>
                         <DropdownMenu
                           open={dropdownId === view.id}
@@ -771,7 +764,7 @@ function TableViewPresetsDrawerContentBody({
                               }}
                               className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
                             >
-                              <MoreVertical className="h-4 w-4" />
+                              <MoreVertical className="icon-base text-icon-foreground" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -806,9 +799,9 @@ function TableViewPresetsDrawerContentBody({
                                         disabled={!hasWriteAccess}
                                       >
                                         {hasWriteAccess ? (
-                                          <Pen className="mr-2 h-4 w-4" />
+                                          <Pen className="icon-base text-icon-foreground mr-2" />
                                         ) : (
-                                          <Lock className="mr-2 h-4 w-4" />
+                                          <Lock className="icon-base text-icon-foreground mr-2" />
                                         )}
                                         Rename
                                       </Button>
@@ -899,7 +892,7 @@ function TableViewPresetsDrawerContentBody({
                                 <>Set as project default</>
                               )}
                               {!hasWriteAccess && (
-                                <Lock className="ml-auto h-4 w-4" />
+                                <Lock className="icon-base text-icon-foreground ml-auto" />
                               )}
                             </DropdownMenuItem>
                             {!isSystemView && (
@@ -938,7 +931,12 @@ function TableViewPresetsDrawerContentBody({
                             <Avatar
                               size="sm"
                               src={view.createdByUser?.image ?? undefined}
-                              displayName={view.createdByUser?.name ?? "User"}
+                              displayName={
+                                view.createdByUser?.name?.trim() ||
+                                view.createdByUser?.email?.trim() ||
+                                "User"
+                              }
+                              email={view.createdByUser?.email ?? undefined}
                             />
                           </div>
                         )}
@@ -962,7 +960,7 @@ function TableViewPresetsDrawerContentBody({
                 variant="ghost"
                 className="w-full justify-start px-1"
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="icon-base text-icon-foreground mr-2" />
                 Create Custom View
               </Button>
             </DrawerClose>
@@ -1036,7 +1034,7 @@ function TableViewPresetsDrawerContentBody({
                     !hasWriteAccess
                   }
                 >
-                  {!hasWriteAccess && <Lock className="mr-2 h-4 w-4" />}
+                  {!hasWriteAccess && <Lock className="icon-base mr-2" />}
                   {createMutation.isPending ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>

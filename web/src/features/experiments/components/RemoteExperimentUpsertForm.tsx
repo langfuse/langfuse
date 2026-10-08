@@ -117,6 +117,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.upsertRemoteExperiment.useMutation({
       onSuccess: (data) => {
         showSuccessToast({
+          operation: "remote_experiment.configure",
           title: "Setup successfully",
           description: "Your changes have been saved.",
         });
@@ -142,6 +143,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.deleteRemoteExperiment.useMutation({
       onSuccess: () => {
         showSuccessToast({
+          operation: "remote_experiment.delete",
           title: "Deleted successfully",
           description:
             "The remote dataset run trigger has been removed from this dataset.",
@@ -457,9 +459,9 @@ export const RemoteExperimentUpsertForm = ({
                               }
                             >
                               {isSecret ? (
-                                <Lock className="h-4 w-4 text-orange-500" />
+                                <Lock className="icon-base text-orange-500" />
                               ) : (
-                                <LockOpen className="text-muted-foreground h-4 w-4" />
+                                <LockOpen className="icon-base text-muted-foreground" />
                               )}
                             </Button>
                             <Button
@@ -468,7 +470,7 @@ export const RemoteExperimentUpsertForm = ({
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="icon-base text-icon-foreground" />
                             </Button>
                           </div>
                         );
@@ -487,7 +489,7 @@ export const RemoteExperimentUpsertForm = ({
                         }
                         className="mt-2"
                       >
-                        <Plus className="mr-1 h-4 w-4" />
+                        <Plus className="icon-base text-icon-foreground mr-1" />
                         Add Custom Header
                       </Button>
                     </div>

@@ -64,9 +64,9 @@ describe("usePaginationWindowPin", () => {
     rerender({ pageIndex: 2 });
     expect(result.current.range).toBe(pinned);
 
-    // Leaving page 2 must not move the upper bound to that older page's first
+    // Leaving page 3 must not move the upper bound to that older page's first
     // row, otherwise the available page count shrinks with every next click.
-    act(() => result.current.pinOnLeavingFirstPage(1, 2, OLDEST_ON_PAGE_1));
+    act(() => result.current.pinOnLeavingFirstPage(2, 3, OLDEST_ON_PAGE_1));
     rerender({ pageIndex: 3 });
     expect(result.current.range).toBe(pinned);
 

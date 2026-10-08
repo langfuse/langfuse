@@ -2,8 +2,19 @@ import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
+import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type {
+  ToastInteractionEventProperties,
+  ToastShownEventProperties,
+} from "@/src/features/notifications/toastAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
+
+type ToastEventMap = {
+  "toast:shown": ToastShownEventProperties;
+  "toast:report_issue": ToastInteractionEventProperties;
+  "toast:dismiss": ToastInteractionEventProperties;
+};
 
 // resource:action, only use snake_case
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
@@ -155,7 +166,15 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
-  skills: ["new_form_open", "version_create", "version_download", "delete"],
+  skills: [
+    "new_form_open",
+    "version_create",
+    "version_download",
+    "version_compare",
+    "delete",
+    "import_open",
+    "import",
+  ],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
@@ -219,6 +238,29 @@ const events = {
     "detach_evaluator",
     "filter_reused",
   ],
+  // Evaluator creation funnel (gallery -> setup page -> saved dialog). Props
+  // are typed in EvalOnboardingEventMap: metadata only, never search text,
+  // prompt content, names or filter values.
+  eval: [
+    "onboarding_started",
+    "onboarding_step_completed",
+    "onboarding_completed",
+    "onboarding_gallery_searched",
+    "onboarding_gallery_section_selected",
+    "onboarding_evaluator_type_changed",
+    "onboarding_preview_toggled",
+    "onboarding_sample_observation_previewed",
+    "onboarding_prompt_modified",
+    "onboarding_llm_connection_tab_opened",
+    "onboarding_model_picker_opened",
+    "onboarding_model_changed",
+    "onboarding_ai_generate_requested",
+    "onboarding_sampling_changed",
+    "onboarding_historic_eval_toggled",
+    "onboarding_scope_changed",
+    "onboarding_create_rule_opened",
+    "onboarding_execution_skipped",
+  ],
   // One-shot batch evaluation from the events / experiments tables.
   // Counts and enums only — never mapping contents or observation payloads.
   batch_eval: ["run"],
@@ -263,7 +305,6 @@ const events = {
     "add_widget_dialog_open",
     "add_widget_tab_switch",
     "widget_added",
-    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -318,18 +359,15 @@ const events = {
   // distinguishes picker vs table-selection vs url (deep link / redirect) vs
   // auto — so the auto-selected comparison stays out of "users who compare".
   //
-  // Two events from the original plan went away with the surfaces they
-  // measured: `analytics_tab_opened` (the Analytics route is
-  // deleted) and `charts_section_toggled` (the charts accordion is replaced by
-  // an always-on metric strip). `chart_metric_changed` now belongs to that
-  // strip and `item_regression_filter_applied` to the score-comparison filter:
-  // same question, same name, so the event history stays continuous.
   experiment: [
     "comparison_changed",
     "comparison_picker_opened",
     "baseline_changed",
     "auto_comparison_preference_changed",
     "chart_metric_changed",
+    "chart_added",
+    "chart_removed",
+    "chart_type_changed",
     "layout_changed",
     "diff_mode_changed",
     "score_column_scope_toggled",
@@ -340,7 +378,10 @@ const events = {
   // props carry user content.
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
-  toast: ["report_issue", "dismiss"],
+  // User-visible toast denominator. Metadata only: `path` is a static tRPC
+  // procedure, `operation` is a static action id, and `errorId` is the opaque
+  // ID shown in the toast. Never send toast text or error payloads.
+  toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
@@ -466,11 +507,12 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
-type EventProperties = AnnotationEventMap & {
-  [E in Exclude<EventName, keyof AnnotationEventMap>]: Record<
-    string,
-    any
-  > | null;
+type TypedEventMap = AnnotationEventMap &
+  EvalOnboardingEventMap &
+  ToastEventMap;
+
+type EventProperties = TypedEventMap & {
+  [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;
 };
 
 export const usePostHogClientCapture = () => {

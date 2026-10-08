@@ -1409,7 +1409,7 @@ export function SearchComposer({
           // Prominent primary control. Block (not flex) so inline pills never
           // break across a wrap. Balanced padding: a small, even gutter on all
           // sides (the left no longer dwarfs the inter-pill gap and top), py
-          // centers a single line near min-h-9 and the box grows when wrapped.
+          // centers a single line near min-h-8 and the box grows when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
           // Box + text metrics are shared with the preview surface
@@ -1530,15 +1530,15 @@ export function SearchComposer({
               onActivateAi();
             }}
             className={cn(
-              "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              "absolute top-0.75 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
               "bg-background text-muted-foreground font-sans text-xs",
-              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
+              "hover:text-foreground transition-colors",
               // Match the app's focus ring (ring-ring) instead of the browser's
               // default blue outline, like the shared Button used elsewhere.
               "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
             )}
           >
-            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <WandSparkles className="icon-base" aria-hidden="true" />
             <span>Ask AI</span>
           </button>
         )}
@@ -1562,7 +1562,7 @@ export function SearchComposer({
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
             aria-label="invalid query"
           >
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="icon-base" />
           </span>
         </div>
       )}
@@ -1681,7 +1681,7 @@ function RemoveTokenButton({
         onRemove(segment);
       }}
     >
-      <X className="h-3 w-3" aria-hidden="true" />
+      <X className="icon-sm" aria-hidden="true" />
     </button>
   );
 }

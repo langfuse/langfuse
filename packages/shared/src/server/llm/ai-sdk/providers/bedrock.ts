@@ -1,6 +1,6 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import type { LanguageModel } from "ai";
+import { type LanguageModel } from "ai";
 
 import { env } from "../../../../env";
 import {
@@ -34,6 +34,15 @@ export function assertValidBedrockRegion(region: string | undefined): void {
  */
 export function getLangfuseAIBedrockRegion(): string | undefined {
   return env.LANGFUSE_AI_AWS_BEDROCK_REGION;
+}
+
+/** Local profile shared by Langfuse AI features, with the ambient AWS profile taking precedence. */
+export function getLangfuseAIAwsProfile(): string | undefined {
+  return (
+    env.AWS_PROFILE ??
+    env.LANGFUSE_AI_FEATURES_AWS_PROFILE ??
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE
+  );
 }
 
 /**
@@ -102,10 +111,9 @@ export function createDefaultBedrockProviderAuth(params?: {
   Parameters<typeof createAmazonBedrock>[0] & object,
   "apiKey" | "credentialProvider"
 > {
+  const profile = params?.profile;
   return {
-    credentialProvider: fromNodeProviderChain(
-      params?.profile ? { profile: params.profile } : {},
-    ),
+    credentialProvider: fromNodeProviderChain(profile ? { profile } : {}),
     ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
   };
 }
@@ -119,6 +127,7 @@ export function createDefaultBedrockProviderAuth(params?: {
 export function resolveBedrockProviderAuth(params: {
   secretKey: string;
   allowDefaultCredentials: boolean;
+  profile?: string;
 }): Pick<
   Parameters<typeof createAmazonBedrock>[0] & object,
   "accessKeyId" | "secretAccessKey" | "apiKey" | "credentialProvider"
@@ -131,7 +140,7 @@ export function resolveBedrockProviderAuth(params: {
   ) {
     // Unlike the AI SDK's built-in env-only fallback, the node provider chain
     // includes env, profile, IMDS, IRSA, and the remaining AWS defaults.
-    return createDefaultBedrockProviderAuth();
+    return createDefaultBedrockProviderAuth({ profile: params.profile });
   }
 
   try {
@@ -182,6 +191,7 @@ export function buildBedrockModel(params: {
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,
     allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
+    profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 
   const provider = createAmazonBedrock({

@@ -2,10 +2,11 @@ import { type SkillDraftFile } from "@/src/features/skills/components/skillEdito
 import { api } from "@/src/utils/api";
 
 export function useSkillFileContents(projectId: string, file: SkillDraftFile) {
-  return api.skills.fileContent.useQuery(
-    { projectId, fileId: file.source?.fileId ?? "" },
+  return api.skills.fileContents.useQuery(
+    { projectId, sha256Hashes: file.sourceSha ? [file.sourceSha] : [] },
     {
-      enabled: Boolean(file.source),
+      enabled: file.content === undefined && file.sourceSha !== null,
+      select: (response) => response.data[0],
       staleTime: Infinity,
       gcTime: 10 * 60 * 1000,
       meta: { silentAllErrors: true },

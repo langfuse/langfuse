@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo, useState } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
@@ -208,7 +207,9 @@ export function useEventsFilterOptions({
             !EAGER_COLUMN_SET.has(col) &&
             !prev.has(col)
           ) {
-            next ??= new Set(prev);
+            if (next === null) {
+              next = new Set(prev);
+            }
             next.add(col);
           }
         }

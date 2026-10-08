@@ -249,6 +249,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
     (filter) =>
       filter.clickhouseTable === "events_proto" && filter.field === "metadata",
   );
+  const toolColumns = ["toolNames", "calledToolNames", "toolCalls"];
+  const requiresTools =
+    filter.some((item) => toolColumns.includes(item.column)) ||
+    (orderBy != null && toolColumns.includes(orderBy.column));
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
@@ -258,6 +262,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
       ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
       : null,
     includeMetadata: requiresMetadata,
+    includeTools: requiresTools,
   });
 
   // Compose query using CTEQueryBuilder

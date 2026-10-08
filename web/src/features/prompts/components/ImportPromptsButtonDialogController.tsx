@@ -121,9 +121,9 @@ const ImportPromptsDialogContent: React.FC<{
                   className="flex items-start gap-2 py-1"
                 >
                   {r.success ? (
-                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                    <CheckCircle className="icon-base mt-0.5 shrink-0 text-green-500" />
                   ) : (
-                    <XCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
+                    <XCircle className="text-destructive icon-base mt-0.5 shrink-0" />
                   )}
                   <span className="font-mono">{r.name}</span>
                   {r.error && (
@@ -204,7 +204,7 @@ const ImportPromptsDialogContent: React.FC<{
         >
           {isImportPending ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="icon-base mr-2 animate-spin" />
               Importing…
             </>
           ) : (

@@ -52,6 +52,7 @@ programmatic calls from the dx seed chain.
 | `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog                                                                                                     | —                                                                                                                                                                                                 |
 | `evaluator-gallery` | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
 | `support-agent`     | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
+| `incident-session`  | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
 | `timeline-shapes`   | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
 
 Common flags: `--project` (defaults to the seeded example project),
@@ -61,6 +62,31 @@ counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
+
+## Topics
+
+After applying the normal Postgres and ClickHouse migrations, seed either fixture:
+
+```bash
+pnpm run seed -- topics
+pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
+```
+
+The default batch creates 12 discovery traces across three themes and three
+assignment traces (two familiar themes and one new theme), with v4 events enabled
+by default. `--batch discovery` seeds IDs `-t00` through `-t11`;
+`--batch assignment` seeds `-t12` through `-t14`. Process the `discovery` tag,
+choose **Update topics** with **Small sample mode**, then process the
+held-out `assignment` tag after publishing a map.
+
+The evaluation batch creates 100 traces (`-e00` through `-e99`) with five intent
+themes and cross-cutting tool outcomes: 20 each of timeout, denied access,
+invalid JSON, empty results, and success. Each trace has a generation and a
+child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
+sample mode** with the default minimum-count settings.
+
+Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
+and I/O.
 
 ## The contract (additive-only)
 

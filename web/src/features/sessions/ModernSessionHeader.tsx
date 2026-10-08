@@ -1,12 +1,11 @@
 /* eslint-disable no-nested-ternary */
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Plus, Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
-import Link from "next/link";
-
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
@@ -84,19 +83,15 @@ const scoreChipValue = (
 };
 
 const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
-  <Link
-    href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-    className="ph-no-capture inline-flex max-w-[280px] min-w-0"
-  >
-    <Badge
-      color="ghost"
+  <span className="inline-flex max-w-[280px] min-w-0">
+    <LinkBadge
+      href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
+      noCapture
       data-session-header-pill="true"
       label="user"
       text={user}
-      trailingIcon={ArrowUpRight}
-      trailingIconTone="link"
     />
-  </Link>
+  </span>
 );
 
 const resolveAgainstSource = (
@@ -136,29 +131,39 @@ const MetadataJsonPathPill = ({
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
 }) => (
-  <span className="group flex items-center">
-    <BadgeShell data-session-header-pill="true">
+  <span className="group flex max-w-full min-w-0 items-center">
+    <BadgeShell font="mono" data-session-header-pill="true">
       <span
-        className="text-muted-foreground max-w-40 truncate"
+        className="text-muted-foreground max-w-64 shrink-0 truncate"
         title={display.path}
       >
         {display.label}
       </span>
-      <span className="max-w-56 truncate" title={display.displayValue}>
+      <span className="truncate" title={display.displayValue}>
         {display.displayValue}
       </span>
-      <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
-        <button
-          type="button"
-          aria-label={`Remove metadata JSONPath ${display.path}`}
-          title="Remove metadata JSONPath"
-          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-          onClick={() => onRemove(display.path)}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </span>
+      <MetadataJsonPathRemoveButton path={display.path} onRemove={onRemove} />
     </BadgeShell>
+  </span>
+);
+
+const MetadataJsonPathRemoveButton = ({
+  path,
+  onRemove,
+}: {
+  path: string;
+  onRemove: (path: string) => void;
+}) => (
+  <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
+    <button
+      type="button"
+      aria-label={`Remove metadata JSONPath ${path}`}
+      title="Remove metadata JSONPath"
+      className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+      onClick={() => onRemove(path)}
+    >
+      <X className="icon-sm" />
+    </button>
   </span>
 );
 
@@ -312,7 +317,7 @@ export function ModernSessionHeader({
       searchText: `traces ${countTraces}`,
       type: "traces",
       content: (
-        <BadgeShell color="ghost" data-session-header-pill="true">
+        <BadgeShell font="mono" color="ghost" data-session-header-pill="true">
           <span>
             {numberFormatter(countTraces, 0)}{" "}
             <ChipKey>{countTraces === 1 ? "trace" : "traces"}</ChipKey>
@@ -328,6 +333,7 @@ export function ModernSessionHeader({
     type: "duration",
     content: (
       <Badge
+        font="mono"
         color="ghost"
         data-session-header-pill="true"
         text={formatIntervalSeconds(durationSeconds)}
@@ -342,6 +348,7 @@ export function ModernSessionHeader({
     type: "cost",
     content: (
       <Badge
+        font="mono"
         color="ghost"
         data-session-header-pill="true"
         text={usdFormatter(totalCost, 2, 3)}
@@ -361,6 +368,7 @@ export function ModernSessionHeader({
           isCost={false}
         >
           <Badge
+            font="mono"
             color="ghost"
             interactive
             data-session-header-pill="true"
@@ -422,7 +430,7 @@ export function ModernSessionHeader({
     });
   });
   return (
-    <div className="border-b px-3 pt-1 pb-1.5">
+    <div className="border-b px-4 pt-1 pb-1.5 font-mono">
       <SingleLineOverflowList
         spacing="comfortable"
         items={pills}
@@ -436,11 +444,15 @@ export function ModernSessionHeader({
             onOpenChange={handleMetadataEditorOpenChange}
           >
             <PopoverTrigger asChild>
-              <BadgeShell asChild data-session-header-pill="true">
-                <button type="button" aria-label="Add metadata JSONPath">
-                  <Plus className="h-3 w-3" />
-                </button>
-              </BadgeShell>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Add metadata JSONPath"
+                data-session-header-pill="true"
+              >
+                <Plus className="icon-base" />
+              </Button>
             </PopoverTrigger>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
@@ -478,7 +490,7 @@ export function ModernSessionHeader({
               }}
             >
               <PopoverTrigger asChild>
-                <BadgeShell asChild data-session-header-pill="true">
+                <BadgeShell font="mono" asChild data-session-header-pill="true">
                   <button
                     type="button"
                     aria-label={`Show ${overflowItemCount} more session details`}
@@ -493,7 +505,7 @@ export function ModernSessionHeader({
                 aria-label="All session details"
               >
                 <div className="relative border-b p-2">
-                  <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
+                  <Search className="text-muted-foreground icon-base absolute top-1/2 left-4 -translate-y-1/2" />
                   <Input
                     value={search}
                     onChange={(event) => {
@@ -528,7 +540,10 @@ export function ModernSessionHeader({
                   {hasResults ? (
                     <>
                       {filteredPills.map((pill) => (
-                        <span key={pill.key} className="flex items-center">
+                        <span
+                          key={pill.key}
+                          className="flex max-w-full items-center"
+                        >
                           {pill.content}
                         </span>
                       ))}
