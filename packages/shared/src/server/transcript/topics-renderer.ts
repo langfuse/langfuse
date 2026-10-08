@@ -110,6 +110,13 @@ export function renderTranscript(
     maxChars === 0
       ? `[${label}]`
       : `[${label}] ${clip(content, maxChars, block)}`.trimEnd();
+  // Normalized audio keeps its spoken text in providerMetadata; the JSON projection keeps it too.
+  const fileTranscript = (part: NormalizedMessagePart): string | undefined =>
+    part.type === "file" &&
+    typeof part.providerMetadata?.transcript === "string" &&
+    part.providerMetadata.transcript.trim()
+      ? part.providerMetadata.transcript
+      : undefined;
   const partContent = (part: NormalizedMessagePart): string => {
     switch (part.type) {
       case "text":
@@ -121,7 +128,7 @@ export function renderTranscript(
       case "tool-result":
         return json(part.output);
       case "file":
-        return `[${part.mediaType ?? "file"} omitted]`;
+        return fileTranscript(part) ?? `[${part.mediaType ?? "file"} omitted]`;
       case "data":
         return json(part.value);
       case "custom":
@@ -384,10 +391,18 @@ export function renderTranscript(
               "tool_results",
             )
           : null;
-      case "file":
-        return role.include && !part.reasoning
-          ? `[${userLabel}] [${part.mediaType ?? "file"} omitted]`
-          : null;
+      case "file": {
+        if (!role.include || part.reasoning) return null;
+        const transcript = fileTranscript(part);
+        return transcript
+          ? labeled(
+              `${userLabel} · transcript`,
+              transcript,
+              role.maxChars,
+              message.role === "tool" ? "tool_results" : message.role,
+            )
+          : `[${userLabel}] [${part.mediaType ?? "file"} omitted]`;
+      }
       case "data":
       case "custom":
         return role.include

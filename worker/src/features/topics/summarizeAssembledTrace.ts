@@ -138,12 +138,14 @@ async function summarizeEnabledTrace(
   if (!pending.length) return "unchanged";
 
   // The rendered Topics text is the summary input; the JSON projection is the fallback.
+  // Both formats use the projection's content check, so empty traces skip the model call.
   const format: TopicTranscriptFormat =
     input.topicsText === undefined ? "json" : "text";
+  const assembled = prepareAssembledTopicTranscript(input.transcript);
   const prepared =
     format === "text"
-      ? { text: input.topicsText ?? "", hasContent: !!input.topicsText?.trim() }
-      : prepareAssembledTopicTranscript(input.transcript);
+      ? { text: input.topicsText ?? "", hasContent: assembled.hasContent }
+      : assembled;
   const bases = pending.map(({ version }) =>
     baseSummary(input, version, config, embeddingModel, format),
   );
