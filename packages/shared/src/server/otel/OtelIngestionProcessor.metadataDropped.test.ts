@@ -419,38 +419,56 @@ describe("raw OTLP empty attribute values", () => {
 });
 
 describe("per-key metadata values from structured-metadata SDK majors", () => {
-  const metadataAttributes: OtelAttribute[] = [
+  const metadata = {
+    environment: "prod",
+    version: "1.0",
+    digits: "42",
+    label: "",
+    retries: 3,
+    ratio: 1.5,
+    enabled: true,
+    missing: null,
+    database: { host: "localhost", port: 5432, auth: { user: "app" } },
+    steps: [{ name: "web_fetch", args: { url: "https://example.com" } }],
+    empty: {},
+  };
+
+  const blobAttributes = (
+    domain: "observation" | "trace",
+    space?: number,
+  ): OtelAttribute[] => [
     {
-      key: "langfuse.observation.metadata.database",
-      value: { stringValue: '{"host": "localhost", "port": 5432}' },
-    },
-    {
-      key: "langfuse.observation.metadata.steps",
-      value: { stringValue: '[{"name": "web_fetch"}]' },
-    },
-    {
-      key: "langfuse.observation.metadata.retries",
-      value: { stringValue: "3" },
-    },
-    {
-      key: "langfuse.observation.metadata.note",
-      value: { stringValue: "{not json" },
+      key: `langfuse.${domain}.metadata`,
+      value: { stringValue: JSON.stringify(metadata, null, space) },
     },
   ];
 
+  // Structured-metadata SDKs JSON-encode every value, strings included.
+  const perKeyAttributes = (
+    domain: "observation" | "trace",
+    space?: number,
+  ): OtelAttribute[] =>
+    Object.entries(metadata).map(([key, value]) => ({
+      key: `langfuse.${domain}.metadata.${key}`,
+      value: { stringValue: JSON.stringify(value, null, space) },
+    }));
+
   const processMetadata = async (
     path: "v3" | "v4",
+    attributes: OtelAttribute[],
     params: {
-      headerSdkName: string;
+      domain?: "observation" | "trace";
+      headerSdkName?: string;
       scopeName?: string;
-      scopeVersion: string;
+      scopeVersion?: string;
       telemetrySdkLanguage?: string;
-    },
+    } = {},
   ) => {
-    const batch = buildBatch(metadataAttributes);
+    const scopeVersion = params.scopeVersion ?? "5.0.0";
+    const batch = buildBatch(attributes);
     const scope = batch[0].scopeSpans![0].scope!;
     scope.name = params.scopeName ?? "langfuse-sdk";
-    scope.version = params.scopeVersion;
+    scope.version = scopeVersion;
     if (params.telemetrySdkLanguage) {
       batch[0].resource!.attributes!.push({
         key: "telemetry.sdk.language",
@@ -460,37 +478,65 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     const processor = new OtelIngestionProcessor({
       projectId: PROJECT_ID,
       publicKey: "pk-test",
-      sdkName: params.headerSdkName,
-      sdkVersion: params.scopeVersion,
+      sdkName: params.headerSdkName ?? "python",
+      sdkVersion: scopeVersion,
     });
-    const observation =
-      path === "v4"
-        ? processor.processToEvent(batch)[0]
-        : (await processor.processToIngestionEvents(batch)).find(
-            (event) => event.type === "span-create",
-          )?.body;
-    return observation?.metadata as Record<string, unknown>;
+    if (path === "v4") {
+      return processor.processToEvent(batch)[0]?.metadata as Record<
+        string,
+        unknown
+      >;
+    }
+    // v3 writes trace metadata to the trace, observation metadata to the span.
+    const eventType =
+      params.domain === "trace" ? "trace-create" : "span-create";
+    const event = (await processor.processToIngestionEvents(batch)).find(
+      (event) => event.type === eventType,
+    );
+    return (event?.body as { metadata?: Record<string, unknown> } | undefined)
+      ?.metadata as Record<string, unknown>;
   };
 
-  it.each(["v3", "v4"] as const)(
-    "decodes JSON objects and arrays like a metadata blob on %s",
-    async (path) => {
-      const metadata = await processMetadata(path, {
-        headerSdkName: "python",
-        scopeVersion: "5.0.0",
-      });
+  it.each([
+    { path: "v3", domain: "observation", encoding: "compact" },
+    { path: "v3", domain: "trace", encoding: "compact" },
+    { path: "v4", domain: "observation", encoding: "compact" },
+    { path: "v4", domain: "trace", encoding: "compact" },
+    { path: "v3", domain: "observation", encoding: "indented" },
+    { path: "v4", domain: "observation", encoding: "indented" },
+  ] as const)(
+    "stores per-key values exactly like a blob ($path, $domain, $encoding JSON)",
+    async ({ path, domain, encoding }) => {
+      const space = encoding === "indented" ? 2 : undefined;
+      const fromBlob = await processMetadata(
+        path,
+        blobAttributes(domain, space),
+        { domain },
+      );
+      const fromPerKey = await processMetadata(
+        path,
+        perKeyAttributes(domain, space),
+        { domain },
+      );
 
-      expect(metadata).toMatchObject({
-        database: { host: "localhost", port: 5432 },
-        steps: [{ name: "web_fetch" }],
-        retries: "3",
-        note: "{not json",
-      });
-      expect(flattenJsonToPathArrays(metadata).names).toEqual(
-        expect.arrayContaining(["database.host", "database.port", "steps"]),
+      expect(fromBlob).toMatchObject(metadata);
+      expect(fromPerKey).toEqual(fromBlob);
+      expect(flattenJsonToPathArrays(fromPerKey)).toEqual(
+        flattenJsonToPathArrays(fromBlob),
       );
     },
   );
+
+  it("keeps a per-key value that is not valid JSON as sent", async () => {
+    const result = await processMetadata("v4", [
+      {
+        key: "langfuse.observation.metadata.note",
+        value: { stringValue: "{not json" },
+      },
+    ]);
+
+    expect(result.note).toBe("{not json");
+  });
 
   it.each([
     {
@@ -510,22 +556,34 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       scopeName: "openinference",
     },
   ])("keeps per-key values as sent for the $case", async (params) => {
-    const metadata = await processMetadata("v4", params);
+    const result = await processMetadata(
+      "v4",
+      perKeyAttributes("observation"),
+      params,
+    );
 
-    expect(metadata).toMatchObject({
-      database: '{"host": "localhost", "port": 5432}',
-      steps: '[{"name": "web_fetch"}]',
+    expect(result).toMatchObject({
+      environment: '"prod"',
+      retries: "3",
+      database: '{"host":"localhost","port":5432,"auth":{"user":"app"}}',
     });
   });
 
   it("falls back to telemetry.sdk.language without a Langfuse SDK header", async () => {
-    const metadata = await processMetadata("v4", {
-      headerSdkName: "unknown",
-      scopeVersion: "6.0.0-beta.1",
-      telemetrySdkLanguage: "nodejs",
-    });
+    const result = await processMetadata(
+      "v4",
+      perKeyAttributes("observation"),
+      {
+        headerSdkName: "unknown",
+        scopeVersion: "6.0.0-beta.1",
+        telemetrySdkLanguage: "nodejs",
+      },
+    );
 
-    expect(metadata.database).toEqual({ host: "localhost", port: 5432 });
+    expect(result).toMatchObject({
+      environment: "prod",
+      database: metadata.database,
+    });
   });
 });
 

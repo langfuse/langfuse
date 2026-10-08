@@ -25,8 +25,8 @@ export const LANGFUSE_SDK_LATEST_MAJOR = {
 
 export type IngestionSdkCanonicalName = keyof typeof LANGFUSE_SDK_LATEST_MAJOR;
 
-// First SDK majors whose per-key metadata attributes are decoded like a
-// metadata blob, so JSON-encoded nested objects are stored as dotted keys.
+// First SDK majors that JSON-encode every per-key metadata value. Ingestion
+// decodes those values so they are stored exactly like a metadata blob.
 const LANGFUSE_SDK_STRUCTURED_METADATA_MIN_MAJOR = {
   python: 5,
   javascript: 6,

@@ -3535,17 +3535,15 @@ export class OtelIngestionProcessor {
     return metadata;
   }
 
-  // Decodes a per-key value the way parseMetadataAttribute decodes a blob:
-  // a JSON object or array becomes structured, so nested objects are stored
-  // as dotted keys. Scalars stay as sent, because a JSON-encoded number is
-  // indistinguishable from a string holding the same digits.
+  // Structured-metadata SDKs JSON-encode every per-key value, so decoding it
+  // yields the same value a metadata blob holds for that key. A value that is
+  // not valid JSON is kept as sent rather than dropped.
   private static decodeMetadataValue(value: unknown): unknown {
-    if (typeof value !== "string" || !/^\s*[{[]/.test(value)) {
+    if (typeof value !== "string") {
       return value;
     }
     try {
-      const parsed: unknown = JSON.parse(value);
-      return parsed !== null && typeof parsed === "object" ? parsed : value;
+      return JSON.parse(value);
     } catch {
       return value;
     }
