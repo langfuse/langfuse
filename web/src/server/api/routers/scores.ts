@@ -178,6 +178,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await getScoreById({
         projectId: input.projectId,
         scoreId: input.scoreId,
+        preferredClickhouseService: "ReadOnly",
       });
       if (!score) {
         throw new TRPCError({
