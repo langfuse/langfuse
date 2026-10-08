@@ -458,6 +458,8 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     attributes: OtelAttribute[],
     params: {
       domain?: "observation" | "trace";
+      // "child" sends the attributes on a child span of an attribute-less root.
+      span?: "root" | "child";
       headerSdkName?: string;
       scopeName?: string;
       scopeVersion?: string;
@@ -465,7 +467,17 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     } = {},
   ) => {
     const scopeVersion = params.scopeVersion ?? "5.0.0";
-    const batch = buildBatch(attributes);
+    const batch = buildBatch(params.span === "child" ? [] : attributes);
+    if (params.span === "child") {
+      const spans = batch[0].scopeSpans![0].spans!;
+      spans.push({
+        ...spans[0],
+        spanId: Buffer.from("fedcba9876543210", "hex"),
+        parentSpanId: spans[0].spanId,
+        name: "child-span",
+        attributes: [...spans[0].attributes!, ...attributes],
+      });
+    }
     const scope = batch[0].scopeSpans![0].scope!;
     scope.name = params.scopeName ?? "langfuse-sdk";
     scope.version = scopeVersion;
@@ -482,41 +494,44 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       sdkVersion: scopeVersion,
     });
     if (path === "v4") {
-      return processor.processToEvent(batch)[0]?.metadata as Record<
+      return processor.processToEvent(batch).at(-1)?.metadata as Record<
         string,
         unknown
       >;
     }
     // v3 writes trace metadata to the trace, observation metadata to the span.
+    // The last matching event belongs to the span carrying the attributes.
     const eventType =
       params.domain === "trace" ? "trace-create" : "span-create";
-    const event = (await processor.processToIngestionEvents(batch)).find(
-      (event) => event.type === eventType,
-    );
+    const event = (await processor.processToIngestionEvents(batch))
+      .filter((event) => event.type === eventType)
+      .at(-1);
     return (event?.body as { metadata?: Record<string, unknown> } | undefined)
       ?.metadata as Record<string, unknown>;
   };
 
   it.each([
-    { path: "v3", domain: "observation", encoding: "compact" },
-    { path: "v3", domain: "trace", encoding: "compact" },
-    { path: "v4", domain: "observation", encoding: "compact" },
-    { path: "v4", domain: "trace", encoding: "compact" },
-    { path: "v3", domain: "observation", encoding: "indented" },
-    { path: "v4", domain: "observation", encoding: "indented" },
+    { path: "v3", domain: "observation", span: "root", encoding: "compact" },
+    { path: "v3", domain: "trace", span: "root", encoding: "compact" },
+    { path: "v3", domain: "trace", span: "child", encoding: "compact" },
+    { path: "v4", domain: "observation", span: "root", encoding: "compact" },
+    { path: "v4", domain: "trace", span: "root", encoding: "compact" },
+    { path: "v4", domain: "trace", span: "child", encoding: "compact" },
+    { path: "v3", domain: "observation", span: "root", encoding: "indented" },
+    { path: "v4", domain: "observation", span: "root", encoding: "indented" },
   ] as const)(
-    "stores per-key values exactly like a blob ($path, $domain, $encoding JSON)",
-    async ({ path, domain, encoding }) => {
+    "stores per-key values exactly like a blob ($path, $domain on $span span, $encoding JSON)",
+    async ({ path, domain, span, encoding }) => {
       const space = encoding === "indented" ? 2 : undefined;
       const fromBlob = await processMetadata(
         path,
         blobAttributes(domain, space),
-        { domain },
+        { domain, span },
       );
       const fromPerKey = await processMetadata(
         path,
         perKeyAttributes(domain, space),
-        { domain },
+        { domain, span },
       );
 
       expect(fromBlob).toMatchObject(metadata);
