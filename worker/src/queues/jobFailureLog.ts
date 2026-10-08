@@ -22,7 +22,7 @@ export function logRetryableJobFailure(params: {
   fields?: Record<string, unknown>;
 }): void {
   const { message, error, job, attemptsIncludeCurrentFailure, fields } = params;
-  const payload = fields ? withFields(error, fields) : error;
+  const payload = fields ? { error, ...fields } : error;
   if (
     isS3SlowDownError(error) &&
     job &&
@@ -34,45 +34,6 @@ export function logRetryableJobFailure(params: {
 
   logger.error(message, payload);
   traceException(error);
-}
-
-/**
- * Winston's JSON format serialises an Error nested under a key as `{}`, so the
- * error's own fields, message and stack are lifted next to `fields`, matching
- * the line winston writes for a bare Error.
- */
-function withFields(
-  error: unknown,
-  fields: Record<string, unknown>,
-): Record<string, unknown> {
-  if (!(error instanceof Error)) return { error, ...fields };
-  return { ...serializeError(error, new WeakSet()), ...fields };
-}
-
-/**
- * Plain-object copy of an error and its `cause`/`errors` chain, which are
- * non-enumerable and would otherwise render as `{}`. A cyclic chain renders
- * the repeated error as "[Circular]".
- */
-function serializeError(
-  error: Error,
-  seen: WeakSet<Error>,
-): Record<string, unknown> {
-  seen.add(error);
-  const nested = (value: unknown) => {
-    if (!(value instanceof Error)) return value;
-    return seen.has(value) ? "[Circular]" : serializeError(value, seen);
-  };
-  return {
-    ...error,
-    name: error.name,
-    message: error.message,
-    stack: error.stack,
-    ...(error.cause === undefined ? {} : { cause: nested(error.cause) }),
-    ...(error instanceof AggregateError
-      ? { errors: error.errors.map(nested) }
-      : {}),
-  };
 }
 
 /**

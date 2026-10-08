@@ -182,8 +182,6 @@ export class WorkerManager {
         error: err,
         job,
         attemptsIncludeCurrentFailure: true,
-        // Entity and event IDs are caller-supplied and can carry PII; the
-        // failed set keeps the full payload for replay.
         fields: {
           projectId: job ? WorkerManager.extractProjectId(job) : undefined,
           jobId: job?.id,
