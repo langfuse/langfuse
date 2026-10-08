@@ -942,7 +942,6 @@ function TracesTableInternal({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      followRowHeight: true,
       shouldWrap: !compactRows,
       enableHiding: true,
     }),

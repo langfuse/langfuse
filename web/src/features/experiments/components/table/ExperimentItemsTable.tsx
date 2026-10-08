@@ -1319,7 +1319,6 @@ export default function ExperimentItemsTable({
     defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
-    singleLine: ioSingleLine,
     variant: "output",
   }) as LangfuseColumnDef<ExperimentItemsTableRow>;
 
@@ -1368,7 +1367,6 @@ export default function ExperimentItemsTable({
       size: 300,
       enableHiding: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-      singleLine: ioSingleLine,
     }),
     // The scores sit between the item's input and its outputs: the input says
     // which item this is, the score headers carry the judgement, and the outputs

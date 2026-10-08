@@ -496,7 +496,6 @@ function DatasetRunsTableInternal(
       size: 200,
       enableHiding: true,
       getCell: (value) => value || undefined,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createDropdownTableColumn<DatasetRunRowData, DatasetRunRowData["id"]>({

@@ -153,7 +153,6 @@ export default function EvalLogTable({
       enableHiding: true,
       cellPadding: "none",
       compact: true,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createIOTableColumn<JobExecutionRow>({
@@ -162,7 +161,6 @@ export default function EvalLogTable({
       enableHiding: true,
       cellPadding: "none",
       compact: true,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createLinkTableColumn<JobExecutionRow>({

@@ -434,7 +434,6 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.input;
         },
-        followRowHeight: true,
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
         enableExpandOnHover: true,
         variant: "input",
@@ -449,7 +448,6 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.output;
         },
-        followRowHeight: true,
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
         enableExpandOnHover: true,
         variant: "output",
@@ -464,7 +462,6 @@ export function SampleObservationSelectorBase(
           if (!io && observationIOPending) return { type: "loading" };
           return io?.metadata;
         },
-        followRowHeight: true,
         singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
         enableExpandOnHover: true,
       }),

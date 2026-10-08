@@ -724,7 +724,6 @@ export default function ScoresTable({
       enableHiding: true,
       size: 400,
       getCell: (value) => value || undefined,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createBadgeTableColumn<ScoresTableRow>({

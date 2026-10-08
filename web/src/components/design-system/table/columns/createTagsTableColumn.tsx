@@ -11,30 +11,30 @@ import {
 } from "./utils/createTableColumn";
 
 function TagsCell({
-  followRowHeight,
   shouldWrap,
   tags,
 }: {
-  followRowHeight: boolean;
   shouldWrap: boolean;
   tags: string[];
 }) {
+  // Inside a data table the row height wins, including a drag still in
+  // progress. `shouldWrap` is the fallback when that context is absent.
   const compact = useCompactRows(!shouldWrap);
-  const wrap = followRowHeight ? !compact : shouldWrap;
   return (
-    <div className={cn("flex gap-x-2 gap-y-1", wrap && "flex-wrap")}>
+    <div className={cn("flex gap-x-2 gap-y-1", !compact && "flex-wrap")}>
       <TagList selectedTags={tags} isLoading={false} />
     </div>
   );
 }
 
 export function createTagsTableColumn<TData extends RowData>({
-  followRowHeight = false,
   shouldWrap,
   ...options
 }: TableColumnOptions<TData, string[]> & {
-  /** Wrap once the row reaches Medium, including while a drag is in progress. */
-  followRowHeight?: boolean;
+  /**
+   * Used when the cell renders outside a data table. Inside one, tags wrap
+   * once the row reaches that table's Medium height.
+   */
   shouldWrap: boolean;
 }) {
   return createTableColumn<TData, string[]>({
@@ -42,11 +42,7 @@ export function createTagsTableColumn<TData extends RowData>({
     loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (tags) =>
       tags && tags.length > 0 ? (
-        <TagsCell
-          followRowHeight={followRowHeight}
-          shouldWrap={shouldWrap}
-          tags={tags}
-        />
+        <TagsCell shouldWrap={shouldWrap} tags={tags} />
       ) : null,
   });
 }

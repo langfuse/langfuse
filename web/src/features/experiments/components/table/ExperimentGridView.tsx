@@ -339,7 +339,6 @@ export const ExperimentGridView = ({
               size: 200,
               getCell: (value) =>
                 ioLoading ? { type: "loading" } : value || undefined,
-              singleLine,
               variant: "output",
             }),
           ]

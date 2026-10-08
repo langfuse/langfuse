@@ -249,8 +249,9 @@ export function useCompactRows(fallback: boolean): boolean {
 }
 
 /**
- * Input/output props after applying the live row height. `enableExpandOnHover`
- * is the column's opt-in; it is on only while the row is compact.
+ * Input/output props after applying the live row height. Column factories
+ * always pass `followRowHeight`. A custom cell can leave it off and keep
+ * `singleLine`. `enableExpandOnHover` is on only while the row is compact.
  */
 export function useBoundRowHeightIO(
   followRowHeight: boolean | undefined,

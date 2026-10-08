@@ -232,7 +232,6 @@ export function DatasetItemsTable({
       header: "Input",
       size: 200,
       enableHiding: true,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createIOTableColumn<RowData>({
@@ -240,7 +239,6 @@ export function DatasetItemsTable({
       header: "Expected Output",
       size: 200,
       enableHiding: true,
-      followRowHeight: true,
       singleLine: compactRows,
       variant: "output",
     }),
@@ -249,7 +247,6 @@ export function DatasetItemsTable({
       header: "Metadata",
       size: 200,
       enableHiding: true,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createDropdownTableColumn<RowData, string>({

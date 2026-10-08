@@ -1275,7 +1275,6 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      followRowHeight: true,
       singleLine: compactRows,
       enableHiding: true,
     }),
@@ -1285,7 +1284,6 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      followRowHeight: true,
       singleLine: compactRows,
       variant: "output",
       enableHiding: true,
@@ -1300,7 +1298,6 @@ export default function ObservationsEventsTable({
       },
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      followRowHeight: true,
       singleLine: compactRows,
       enableHiding: true,
     }),
@@ -1331,7 +1328,6 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       getCell: (value) => value || undefined,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createDurationTableColumn<EventsTableRow>({
@@ -1579,7 +1575,6 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
-      followRowHeight: true,
       shouldWrap: !compactRows,
     }),
     {

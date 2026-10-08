@@ -642,7 +642,6 @@ export default function ExperimentsTable({
       // Off by default: 300px of mostly boilerplate ahead of the score columns.
       defaultHidden: true,
       getCell: (value) => value || undefined,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createIOTableColumn<ExperimentsTableRow>({
@@ -655,7 +654,6 @@ export default function ExperimentsTable({
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-      followRowHeight: true,
       singleLine: compactRows,
     }),
     createNumberTableColumn<ExperimentsTableRow>({

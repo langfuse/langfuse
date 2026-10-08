@@ -1041,7 +1041,6 @@ export default function ObservationsTable({
       header: "Trace Tags",
       size: 250,
       enableHiding: true,
-      followRowHeight: true,
       shouldWrap: !compactRows,
     }),
     {
