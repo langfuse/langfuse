@@ -57,24 +57,6 @@ function withFields(
   };
 }
 
-type ProjectScopedPayload = {
-  payload?: {
-    projectId?: unknown;
-    authCheck?: { scope?: { projectId?: unknown } };
-  };
-};
-
-/**
- * Project a queue job belongs to. Entity and event IDs are caller-supplied and
- * can carry PII, so failure logs identify the job by project and BullMQ job id
- * only; the failed set keeps the full payload for replay.
- */
-export function jobProjectId(jobData: unknown): string | undefined {
-  const payload = (jobData as ProjectScopedPayload | undefined)?.payload;
-  const projectId = payload?.projectId ?? payload?.authCheck?.scope?.projectId;
-  return typeof projectId === "string" ? projectId : undefined;
-}
-
 /**
  * Whether a non-SlowDown failure has used up `budget` attempts. Lets a queue
  * keep a long retry budget for S3 throttling without extending it to failures

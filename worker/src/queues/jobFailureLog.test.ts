@@ -21,7 +21,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import {
   exceedsNonSlowDownAttemptBudget,
-  jobProjectId,
   logRetryableJobFailure,
 } from "./jobFailureLog";
 
@@ -121,26 +120,6 @@ describe("logRetryableJobFailure", () => {
       cause,
       projectId: "project-1",
     });
-  });
-});
-
-describe("jobProjectId", () => {
-  it("reads the project of an ingestion job without exposing entity IDs", () => {
-    expect(
-      jobProjectId({
-        payload: {
-          authCheck: { scope: { projectId: "project-1" } },
-          data: { eventBodyId: "trace-1", fileKey: "event-1" },
-        },
-      }),
-    ).toBe("project-1");
-  });
-
-  it("reads a top-level projectId and ignores missing payloads", () => {
-    expect(jobProjectId({ payload: { projectId: "project-1" } })).toBe(
-      "project-1",
-    );
-    expect(jobProjectId(undefined)).toBeUndefined();
   });
 });
 

@@ -15,7 +15,7 @@ import {
   markQueueWorkerRegistered,
 } from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
-import { jobProjectId, logRetryableJobFailure } from "./jobFailureLog";
+import { logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
 import { classifyJobFailure } from "./jobFailureReason";
 
@@ -180,8 +180,10 @@ export class WorkerManager {
         error: err,
         job,
         attemptsIncludeCurrentFailure: true,
+        // Entity and event IDs are caller-supplied and can carry PII; the
+        // failed set keeps the full payload for replay.
         fields: {
-          projectId: jobProjectId(job?.data),
+          projectId: job ? WorkerManager.extractProjectId(job) : undefined,
           jobId: job?.id,
           failureReason: reason,
           // true once BullMQ stops retrying: the job's events are dropped.
