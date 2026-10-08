@@ -9,6 +9,7 @@ import {
   logger,
   matchStructuredMedia,
   mayContainSerializedMedia,
+  transformMediaPayload,
   recordDistribution,
   recordIncrement,
   type OtelMediaTarget,
@@ -140,19 +141,28 @@ function containsDataUriReference(
   return false;
 }
 
-function parseSerializedJsonContainer(value: string): unknown {
+function parseSerializedJson(value: string): unknown {
   const trimmed = value.trimStart();
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
+  if (
+    !trimmed.startsWith("{") &&
+    !trimmed.startsWith("[") &&
+    !trimmed.startsWith('"')
+  )
+    return undefined;
   try {
     const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) || isObject(parsed) ? parsed : undefined;
+    return Array.isArray(parsed) ||
+      isObject(parsed) ||
+      typeof parsed === "string"
+      ? parsed
+      : undefined;
   } catch {
     return undefined;
   }
 }
 
-function isSerializedJsonContainer(value: string): boolean {
-  return parseSerializedJsonContainer(value) !== undefined;
+function isSerializedJson(value: string): boolean {
+  return parseSerializedJson(value) !== undefined;
 }
 
 /**
@@ -338,7 +348,7 @@ function serializedReferenceLayers(
     }
   };
 
-  const root = parseSerializedJsonContainer(value);
+  const root = parseSerializedJson(value);
   if (root === undefined) {
     assign(value, 1);
     return layers;
@@ -358,7 +368,7 @@ function serializedReferenceLayers(
       // A nested JSON string owns the references represented inside it. Do not
       // assign the same textual markers once at the outer string layer and
       // again after decoding the nested document.
-      const nested = parseSerializedJsonContainer(current.value);
+      const nested = parseSerializedJson(current.value);
       if (nested !== undefined) {
         stack.push({ value: nested, depth: current.depth + 1 });
       } else {
@@ -449,7 +459,7 @@ function createMediaRestorer(
   async function restore(value: unknown): Promise<unknown> {
     if (typeof value === "string") {
       if (!hasKnownMediaReferenceInRegistry(value, media)) return value;
-      return restoreReferences(value, isSerializedJsonContainer(value));
+      return restoreReferences(value, isSerializedJson(value));
     }
     if (Array.isArray(value)) {
       for (let index = 0; index < value.length; index++)
@@ -660,14 +670,16 @@ export async function resolveExtractedMedia(params: {
     // deeply nested text bounded and avoids parsing a data-only document.
     if (containsDataUriReference(value, media)) {
       const dataOnly = containsOnlyDataUriReferences(value, media);
+      const parseProviderRoot = rootString && mayContainSerializedMedia(value);
       const dataResolved = await resolveDirectReferences(
         value,
         target,
         field,
         mode,
         true,
+        parseProviderRoot,
       );
-      if (dataOnly || depth > MAX_LEGACY_MEDIA_DEPTH)
+      if ((dataOnly && !parseProviderRoot) || depth > MAX_LEGACY_MEDIA_DEPTH)
         return restoreProviderReferences(dataResolved);
       value = dataResolved;
     }
@@ -743,14 +755,14 @@ export async function resolveExtractedMedia(params: {
     field: MediaField,
     mode: Exclude<ResolutionMode, "restore">,
     dataUriOnly = false,
+    parseProviderRoot = false,
   ): Promise<string> {
     let serializedLayers: Map<number, number> | undefined;
     let serialized: boolean | undefined;
     const layerFor = (match: KnownMediaReferenceMatch): number => {
       const active = activeJsonLayers(match.entry);
       if (active > 0) return active;
-      if (serialized === undefined)
-        serialized = isSerializedJsonContainer(value);
+      if (serialized === undefined) serialized = isSerializedJson(value);
       if (!serialized) return 0;
       if (serializedLayers === undefined)
         serializedLayers = serializedReferenceLayers(value, media);
@@ -765,6 +777,48 @@ export async function resolveExtractedMedia(params: {
         output += match.reference;
         end = match.index + match.reference.length;
         continue;
+      }
+      // A retained quoted JSON layer can put a backslash after the URI. The
+      // text detector rejects that delimiter even when the decoded URI is valid.
+      if (
+        match.entry.kind === "data_uri" &&
+        value[match.index + match.reference.length] === "\\"
+      ) {
+        output += await restoreReference(match.entry, layerFor(match));
+        changed = true;
+        end = match.index + match.reference.length;
+        continue;
+      }
+      // Discovery sees decoded JSON strings. The TS detector scans held JSON
+      // text literally unless it is a root provider document, so an escaped
+      // MIME header can be a candidate without being eligible for upload here.
+      if (dataUriOnly && match.entry.originalHasJsonEscapes) {
+        if (serialized === undefined) serialized = isSerializedJson(value);
+        if (serialized && serializedLayers === undefined)
+          serializedLayers = serializedReferenceLayers(value, media);
+        const layers = serializedLayers?.get(match.index) ?? 0;
+        if (layers > 0) {
+          const original = await originalFor(match.entry, layers);
+          let accepted = false;
+          await transformMediaPayload(original, {
+            processCandidate: async () => {
+              accepted = true;
+              return undefined;
+            },
+            onInvalidCandidate: () => {},
+            onIgnoredCandidate: () => {},
+            onDetectionPath: () => {},
+          });
+          if (!accepted) {
+            // A root provider document gets one structural pass below. Other
+            // strings keep the exact spelling that the text detector ignored.
+            output += parseProviderRoot ? match.reference : original;
+            if (!parseProviderRoot) recordReference(match.reference);
+            if (!parseProviderRoot) changed = true;
+            end = match.index + match.reference.length;
+            continue;
+          }
+        }
       }
       const replacement = await resolveReference(
         match.entry,
@@ -852,7 +906,7 @@ export async function resolveExtractedMedia(params: {
       (match) => match.entry.kind !== "data_uri",
     );
     if (providerMatches.length === 0) return value;
-    const jsonString = isSerializedJsonContainer(value);
+    const jsonString = isSerializedJson(value);
     const layers = jsonString
       ? serializedReferenceLayers(value, media)
       : undefined;
