@@ -3,9 +3,13 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessionExpiration";
 import type { AdClickIds } from "@/src/features/auth";
 import { env } from "@/src/env.mjs";
+import {
+  hashPassword,
+  passwordNeedsRehash,
+} from "@/src/features/auth-credentials/lib/passwordHash";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { compare, hash } from "bcryptjs";
 
 function hashEmailOtpToken(token: string) {
   if (!env.NEXTAUTH_SECRET) {
@@ -104,7 +108,7 @@ export async function consumeEmailOtpAndUpdatePassword({
     await tx.verificationToken.deleteMany({ where: { identifier } });
 
     // Keep password hashing behind successful OTP validation so unauthenticated
-    // invalid attempts cannot trigger expensive bcrypt work.
+    // invalid attempts cannot trigger expensive hashing work.
     const hashedPassword = await hashPassword(password);
     const updated = await tx.user.updateMany({
       where: { email: identifier },
@@ -129,14 +133,34 @@ export async function consumeEmailOtpAndUpdatePassword({
   }
 }
 
-export async function hashPassword(password: string) {
-  const hashedPassword = await hash(password, 12);
-  return hashedPassword;
-}
+/**
+ * rehashPasswordIfNeeded replaces a just-verified password hash with the
+ * format this host writes. It only overwrites the hash it verified, so a
+ * concurrent password change wins, and it keeps sessions valid because the
+ * password itself is unchanged. A failed rewrite does not fail the login.
+ */
+export async function rehashPasswordIfNeeded({
+  userId,
+  password,
+  verifiedHash,
+}: {
+  userId: string;
+  password: string;
+  verifiedHash: string;
+}) {
+  if (!passwordNeedsRehash(verifiedHash)) return;
 
-export async function verifyPassword(password: string, hashedPassword: string) {
-  const isValid = await compare(password, hashedPassword);
-  return isValid;
+  try {
+    await prisma.user.updateMany({
+      where: { id: userId, password: verifiedHash },
+      data: { password: await hashPassword(password) },
+    });
+  } catch (error) {
+    logger.warn("Failed to upgrade password hash on login", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function isValidPassword(password: string) {

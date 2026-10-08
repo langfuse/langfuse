@@ -8,10 +8,11 @@ import {
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
+import { rehashPasswordIfNeeded } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import {
   hashPassword,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+} from "@/src/features/auth-credentials/lib/passwordHash";
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
@@ -124,7 +125,7 @@ const staticProviders: Provider[] = [
       });
 
       if (!dbUser) {
-        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        // Keep hashing work comparable across failed login paths to reduce timing-based user enumeration.
         await hashPassword(credentials.password);
         throw new Error("Invalid credentials");
       }
@@ -140,6 +141,12 @@ const staticProviders: Provider[] = [
         dbUser.password,
       );
       if (!isValidPassword) throw new Error("Invalid credentials");
+
+      await rehashPasswordIfNeeded({
+        userId: dbUser.id,
+        password: credentials.password,
+        verifiedHash: dbUser.password,
+      });
 
       const userObj = {
         id: dbUser.id,
