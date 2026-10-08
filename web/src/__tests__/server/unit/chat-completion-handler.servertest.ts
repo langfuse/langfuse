@@ -20,10 +20,6 @@ vi.mock("@/src/features/playground/server/authorizeRequest", () => ({
   authorizeRequestOrThrow: mocks.authorize,
 }));
 
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: { llmApiKeys: { findFirst: mocks.findConnection } },
-}));
-
 vi.mock("@opentelemetry/api", () => ({
   context: {
     with: (_context: unknown, callback: () => unknown) => callback(),
@@ -43,6 +39,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     createLLMToolSet: mocks.createToolSet,
     generateLLMText: mocks.generate,
     mapLegacyLLMCompletionParams: mocks.mapLegacyParams,
+    resolveLlmApiKey: mocks.findConnection,
     streamLLMText: mocks.stream,
   };
 });
