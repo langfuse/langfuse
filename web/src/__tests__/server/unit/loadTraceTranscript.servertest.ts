@@ -2,13 +2,24 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { Transcript } from "@langfuse/shared/src/server";
 import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
 
-const mocks = vi.hoisted(() => ({ assemble: vi.fn(), observations: vi.fn() }));
-vi.mock("@langfuse/shared/src/server", () => ({
-  MAX_OBSERVATIONS_PER_TRACE: 10000,
-  orderObservations: (observations: unknown[]) => observations,
-  assembleTranscript: mocks.assemble,
-  getObservationsForTraceFromEventsTable: mocks.observations,
+const mocks = vi.hoisted(() => ({
+  assemble: vi.fn(),
+  observations: vi.fn(),
+  root: vi.fn(),
 }));
+vi.mock("@langfuse/shared/src/server", async () => {
+  const { normalizeSpanIO } =
+    await import("@langfuse/shared/src/utils/normalized-io");
+  return {
+    MAX_OBSERVATIONS_PER_TRACE: 10000,
+    orderObservations: (observations: unknown[]) => observations,
+    assembleTranscript: mocks.assemble,
+    getObservationsForTraceFromEventsTable: mocks.observations,
+    getObservationByIdFromEventsTable: mocks.root,
+    normalizeIO: ({ io }: { io: Parameters<typeof normalizeSpanIO>[0] }) =>
+      normalizeSpanIO(io),
+  };
+});
 const trace = {
   projectId: "project",
   traceId: "trace",
@@ -71,7 +82,109 @@ function fixture(
   });
   return transcript;
 }
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => vi.resetAllMocks());
+
+it("falls back to normalized root input/output with root provenance", async () => {
+  const root = {
+    id: "root",
+    traceId: "trace",
+    parentObservationId: null,
+    type: "SPAN",
+    name: "Root",
+    startTime: new Date(0),
+    endTime: new Date(1000),
+    input: "Question",
+    output: "Answer",
+    metadata: {},
+  };
+  mocks.assemble.mockReturnValue(null);
+  mocks.observations.mockResolvedValue({ observations: [root], totalCount: 1 });
+  mocks.root.mockResolvedValue(root);
+
+  const result = await loadTraceTranscript({
+    ...trace,
+    fallbackToRootIO: true,
+  });
+
+  expect(mocks.root).toHaveBeenCalledWith({
+    projectId: "project",
+    traceId: "trace",
+    id: "root",
+    startTime: new Date(0),
+    fetchWithInputOutput: true,
+  });
+  expect(result.cutoff).toBe(false);
+  expect(result.transcript?.threads).toHaveLength(1);
+  expect(result.transcript?.threads[0]?.currentTurn).toMatchObject({
+    nestingLevel: 0,
+    observations: [{ id: "root", traceId: "trace" }],
+    messages: [
+      {
+        role: "user",
+        source: "input",
+        parts: [{ type: "text", text: "Question" }],
+        observationId: "root",
+        traceId: "trace",
+        startTime: root.startTime,
+        endTime: root.endTime,
+      },
+      {
+        role: "assistant",
+        source: "output",
+        parts: [{ type: "text", text: "Answer" }],
+        observationId: "root",
+        traceId: "trace",
+        startTime: root.startTime,
+        endTime: root.endTime,
+      },
+    ],
+  });
+});
+
+it("does not fetch root I/O when an existing transcript is available", async () => {
+  const original = fixture();
+  const result = await loadTraceTranscript({
+    ...trace,
+    fallbackToRootIO: true,
+  });
+  expect(result.transcript).toBe(original);
+  expect(mocks.root).not.toHaveBeenCalled();
+});
+
+it("leaves an empty transcript unchanged unless fallback is enabled", async () => {
+  mocks.assemble.mockReturnValue(null);
+  mocks.observations.mockResolvedValue({
+    observations: [{ id: "root", parentObservationId: null }],
+    totalCount: 1,
+  });
+  expect((await loadTraceTranscript(trace)).transcript).toBeNull();
+  expect(mocks.root).not.toHaveBeenCalled();
+});
+
+it("leaves the transcript empty when no root was found", async () => {
+  mocks.assemble.mockReturnValue(null);
+  mocks.observations.mockResolvedValue({ observations: [], totalCount: 0 });
+  expect(
+    (await loadTraceTranscript({ ...trace, fallbackToRootIO: true }))
+      .transcript,
+  ).toBeNull();
+  expect(mocks.root).not.toHaveBeenCalled();
+});
+
+it("leaves the transcript empty when the root has no input/output", async () => {
+  mocks.assemble.mockReturnValue(null);
+  mocks.observations.mockResolvedValue({
+    observations: [
+      { id: "root", parentObservationId: null, startTime: new Date(0) },
+    ],
+    totalCount: 1,
+  });
+  mocks.root.mockResolvedValue({ input: null, output: null, metadata: {} });
+  expect(
+    (await loadTraceTranscript({ ...trace, fallbackToRootIO: true }))
+      .transcript,
+  ).toBeNull();
+});
 it("opts into provenance-based reverse multi-call responses without mutating assembly", async () => {
   const original = fixture();
   const snapshot = structuredClone(original);

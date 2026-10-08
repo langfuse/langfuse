@@ -1,8 +1,10 @@
 import {
   assembleTranscript,
+  getObservationByIdFromEventsTable,
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
   orderObservations,
+  normalizeIO,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import type { ToolCallPart } from "@langfuse/shared/src/utils/normalized-io";
@@ -27,6 +29,8 @@ export async function loadTraceTranscript(trace: {
    * Ambiguous responses remain unchanged. Disabled by default.
    */
   pairTextToolResponses?: boolean;
+  /** Use root observation I/O when no generation/tool transcript exists. */
+  fallbackToRootIO?: boolean;
 }): Promise<{
   transcript: Transcript | null;
   /** The trace has more observations than the transcript could read. */
@@ -52,6 +56,50 @@ export async function loadTraceTranscript(trace: {
     return TRANSCRIPT_OBSERVATION_TYPES.has(o.type) ? [] : [o];
   });
   let transcript = assembleTranscript(orderObservations(observations));
+  if (!transcript && trace.fallbackToRootIO) {
+    const root = structure.observations.find(
+      (observation) => observation.parentObservationId === null,
+    );
+    if (root) {
+      const rootWithContent = await getObservationByIdFromEventsTable({
+        projectId: trace.projectId,
+        traceId: trace.traceId,
+        id: root.id,
+        startTime: root.startTime,
+        fetchWithInputOutput: true,
+      });
+      if (rootWithContent) {
+        const { messages } = normalizeIO({
+          kind: "io",
+          io: {
+            input: rootWithContent.input,
+            output: rootWithContent.output,
+            metadata: rootWithContent.metadata,
+          },
+        });
+        if (messages.length > 0) {
+          transcript = {
+            threads: [
+              {
+                conversationHistory: [],
+                currentTurn: {
+                  nestingLevel: 0,
+                  observations: [{ id: root.id, traceId: trace.traceId }],
+                  messages: messages.map((message) => ({
+                    ...message,
+                    observationId: root.id,
+                    traceId: trace.traceId,
+                    startTime: rootWithContent.startTime,
+                    endTime: rootWithContent.endTime,
+                  })),
+                },
+              },
+            ],
+          };
+        }
+      }
+    }
+  }
   // TODO: Evaluate moving general pairing into shared transcript assembly once
   // it preserves resolved call identity for text-only tool responses.
   if (trace.pairTextToolResponses && transcript) {
