@@ -46,6 +46,8 @@ import {
   BatchActionQueue,
   QueueJobs,
   createOrgProjectAndApiKey,
+  getScoreById,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
@@ -112,6 +114,25 @@ describe("scores trpc", () => {
   });
 
   describe("scores.all", () => {
+    // allFromEvents reads scores FINAL with
+    // do_not_merge_across_partitions_select_final = 1, which is only correct
+    // while every version of a sorting key lands in one partition.
+    it("keeps each scores sorting key within one partition", async () => {
+      const [table] = await queryClickhouse<{
+        partition_key: string;
+        sorting_key: string;
+      }>({
+        query: `
+          SELECT partition_key, sorting_key
+          FROM system.tables
+          WHERE database = currentDatabase() AND name = 'scores'
+        `,
+      });
+
+      expect(table.partition_key).toBe("toYYYYMM(timestamp)");
+      expect(table.sorting_key).toBe("project_id, toDate(timestamp), name, id");
+    });
+
     it("preserves evaluator-test filters for score rows and counts on both read paths", async () => {
       const scores = [
         createTraceScore({
@@ -796,6 +817,29 @@ describe("scores trpc", () => {
       });
 
       expect(score.stringValue).toBe("True");
+    });
+  });
+
+  describe("scores.deleteAnnotationScore", () => {
+    it("deletes a correction ingested via the API", async () => {
+      const correction = createTraceScore({
+        project_id: projectId,
+        name: "output",
+        source: "API",
+        data_type: "CORRECTION",
+        value: 0,
+        long_string_value: "corrected response",
+      });
+      await createScoresCh([correction]);
+
+      await caller.scores.deleteAnnotationScore({
+        projectId,
+        id: correction.id,
+      });
+
+      expect(
+        await getScoreById({ projectId, scoreId: correction.id }),
+      ).toBeUndefined();
     });
   });
 

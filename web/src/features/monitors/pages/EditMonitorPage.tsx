@@ -56,6 +56,7 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
     onSuccess: async () => {
       await invalidateMonitorQueriesAfterDelete(utils.monitors);
       showSuccessToast({
+        operation: "monitor.delete",
         title: "Alert deleted",
         description: `"${monitor.name}" has been deleted.`,
       });

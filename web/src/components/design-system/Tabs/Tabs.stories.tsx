@@ -5,31 +5,13 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Tabs } from "./Tabs";
 
-type ListVariant = NonNullable<
-  React.ComponentProps<typeof Tabs.List>["variant"]
->;
-type ListSize = NonNullable<React.ComponentProps<typeof Tabs.List>["size"]>;
-
 const meta = preview.meta({
   component: Tabs,
 });
 
-const listVariants = Object.keys({
-  default: true,
-  underline: true,
-  outline: true,
-} satisfies Record<ListVariant, true>) as ListVariant[];
-
-const listSizes = Object.keys({
-  default: true,
-  md: true,
-  sm: true,
-  auto: true,
-} satisfies Record<ListSize, true>) as ListSize[];
-
 const defaultChildren = (
   <>
-    <Tabs.List>
+    <Tabs.List variant="inset" size="md">
       <Tabs.Trigger value="account" label="Account" />
       <Tabs.Trigger value="password" label="Password" />
     </Tabs.List>
@@ -40,7 +22,7 @@ const defaultChildren = (
 
 const fullWidthChildren = (
   <>
-    <Tabs.List layout="full">
+    <Tabs.List variant="inset" size="md" layout="full">
       <span className="flex-1">
         <Tabs.Trigger value="first" label="First" />
       </span>
@@ -53,6 +35,17 @@ const fullWidthChildren = (
   </>
 );
 
+const underlineChildren = (
+  <>
+    <Tabs.List variant="underline">
+      <Tabs.Trigger value="first" label="First" />
+      <Tabs.Trigger value="second" label="Second" />
+    </Tabs.List>
+    <Tabs.Content value="first">First panel</Tabs.Content>
+    <Tabs.Content value="second">Second panel</Tabs.Content>
+  </>
+);
+
 function ResizableSlidingTabs() {
   const [expanded, setExpanded] = React.useState(false);
 
@@ -62,7 +55,7 @@ function ResizableSlidingTabs() {
         Expand active tab
       </button>
       <Tabs defaultValue="first">
-        <Tabs.List variant="outline">
+        <Tabs.List variant="inset" size="md">
           <span className={expanded ? "w-40" : "w-20"}>
             <Tabs.Trigger value="first" label="First" />
           </span>
@@ -70,6 +63,16 @@ function ResizableSlidingTabs() {
         </Tabs.List>
       </Tabs>
     </div>
+  );
+}
+
+function LinkTabs() {
+  return (
+    <Tabs.List variant="underline" aria-label="Page sections">
+      <Tabs.Trigger href="/traces" active label="Traces" />
+      <Tabs.Trigger href="/observations" active={false} label="Observations" />
+      <Tabs.Trigger href="/sessions" active={false} disabled label="Sessions" />
+    </Tabs.List>
   );
 }
 
@@ -85,7 +88,7 @@ export const Disabled = meta.story({
     defaultValue: "account",
     children: (
       <>
-        <Tabs.List>
+        <Tabs.List variant="inset" size="md">
           <Tabs.Trigger value="account" label="Account" />
           <Tabs.Trigger value="password" disabled label="Password" />
         </Tabs.List>
@@ -108,7 +111,7 @@ export const WithIcons = meta.story({
     defaultValue: "account",
     children: (
       <>
-        <Tabs.List>
+        <Tabs.List variant="inset" size="md">
           <Tabs.Trigger value="account" icon={User} label="Account" />
           <Tabs.Trigger value="password" icon={KeyRound} label="Password" />
         </Tabs.List>
@@ -119,6 +122,23 @@ export const WithIcons = meta.story({
   },
 });
 
+export const Underline = meta.story({
+  args: {
+    defaultValue: "first",
+    children: underlineChildren,
+  },
+});
+
+/** Link tabs render outside a `Tabs` root: navigation, not a tablist. */
+export const Links = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => <LinkTabs />,
+});
+
 export const VariantMatrix = meta.story({
   parameters: {
     controls: {
@@ -127,31 +147,32 @@ export const VariantMatrix = meta.story({
   },
   render: () => (
     <div className="grid gap-6">
-      {listVariants.map((variant) =>
-        listSizes.map((size) => (
-          <div key={`${variant}-${size}`}>
-            <div className="text-muted-foreground mb-2 text-sm">
-              {variant} / {size}
-            </div>
-            <Tabs defaultValue="one">
-              <Tabs.List variant={variant} size={size}>
-                <Tabs.Trigger
-                  value="one"
-                  variant={variant === "underline" ? "underline" : "default"}
-                  size={size === "sm" ? "sm" : "default"}
-                  label="One"
-                />
-                <Tabs.Trigger
-                  value="two"
-                  variant={variant === "underline" ? "underline" : "default"}
-                  size={size === "sm" ? "sm" : "default"}
-                  label="Two"
-                />
-              </Tabs.List>
-            </Tabs>
+      {(["sm", "md"] as const).map((size) => (
+        <div key={size}>
+          <div className="text-muted-foreground mb-2 text-sm">
+            inset / {size}
           </div>
-        )),
-      )}
+          <Tabs defaultValue="one">
+            <Tabs.List variant="inset" size={size}>
+              <Tabs.Trigger value="one" label="One" />
+              <Tabs.Trigger value="two" label="Two" />
+            </Tabs.List>
+          </Tabs>
+        </div>
+      ))}
+      <div>
+        <div className="text-muted-foreground mb-2 text-sm">underline</div>
+        <Tabs defaultValue="one">
+          <Tabs.List variant="underline">
+            <Tabs.Trigger value="one" label="One" />
+            <Tabs.Trigger value="two" label="Two" />
+          </Tabs.List>
+        </Tabs>
+      </div>
+      <div>
+        <div className="text-muted-foreground mb-2 text-sm">links</div>
+        <LinkTabs />
+      </div>
     </div>
   ),
 });
@@ -222,7 +243,7 @@ export const KeepsUnwrappedTriggersContentWidth = meta.story({
   args: {
     defaultValue: "short",
     children: (
-      <Tabs.List variant="outline">
+      <Tabs.List variant="inset" size="md">
         <Tabs.Trigger value="short" label="Python" />
         <Tabs.Trigger value="long" label="TypeScript" />
       </Tabs.List>
@@ -244,7 +265,7 @@ export const TruncatesLabel = meta.story({
   args: {
     defaultValue: "long",
     children: (
-      <Tabs.List>
+      <Tabs.List variant="inset" size="md">
         <span className="w-20">
           <Tabs.Trigger
             value="long"
@@ -276,7 +297,7 @@ export const AlignsSlidingIndicatorInScaledContainer = meta.story({
   args: {
     defaultValue: "short",
     children: (
-      <Tabs.List variant="outline">
+      <Tabs.List variant="inset" size="md">
         <Tabs.Trigger value="short" label="Python" />
         <Tabs.Trigger value="long" label="TypeScript" />
       </Tabs.List>
@@ -306,12 +327,7 @@ export const KeepsUnderlineStyle = meta.story({
   name: "(Test) Keeps Underline Style",
   args: {
     defaultValue: "first",
-    children: (
-      <Tabs.List variant="underline">
-        <Tabs.Trigger value="first" variant="underline" label="First" />
-        <Tabs.Trigger value="second" variant="underline" label="Second" />
-      </Tabs.List>
-    ),
+    children: underlineChildren,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -323,6 +339,27 @@ export const KeepsUnderlineStyle = meta.story({
     await expect(
       canvasElement.querySelector("[data-tabs-indicator]"),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const RendersLinksAsNavigation = meta.story({
+  name: "(Test) Renders Links As Navigation",
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => <LinkTabs />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const active = canvas.getByRole("link", { name: "Traces" });
+
+    await expect(active).toHaveAttribute("aria-current", "page");
+    await expect(
+      canvas.getByRole("link", { name: "Observations" }),
+    ).not.toHaveAttribute("aria-current");
+    await expect(canvas.queryByRole("tab")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("tablist")).not.toBeInTheDocument();
   },
 });
 

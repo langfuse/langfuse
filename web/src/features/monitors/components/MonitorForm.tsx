@@ -263,6 +263,7 @@ export const MonitorForm = ({
         monitorCreateAnalyticsProperties(analyticsSource, variables),
       );
       showSuccessToast({
+        operation: "monitor.create",
         title: "Alert created",
         description: `"${variables.name}" is now active.`,
       });
@@ -276,6 +277,7 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation: "monitor.update",
         title: "Alert saved",
         description: `Your changes to "${variables.name}" have been applied.`,
       });
@@ -855,7 +857,7 @@ export const MonitorForm = ({
                               size="sm"
                               className="gap-1"
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="icon-base" />
                               Add tag
                             </Button>
                           }
@@ -944,7 +946,7 @@ const Header = ({
           {step}
         </span>
       ) : null}
-      {Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null}
+      {Icon ? <Icon className="icon-lg" aria-hidden="true" /> : null}
       {title}
     </h3>
   </div>

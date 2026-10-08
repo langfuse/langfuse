@@ -542,7 +542,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => remove(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </span>
           ))}
@@ -552,7 +552,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => append({ value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add custom model name
           </Button>
         </FormItem>
@@ -594,7 +597,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => removeHeader(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </div>
           ))}
@@ -605,7 +608,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => appendHeader({ key: "", value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add Header
           </Button>
         </FormItem>
@@ -1033,15 +1039,18 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <Tabs.List layout="full" gap="sm" size="auto">
+                              <Tabs.List
+                                variant="inset"
+                                layout="full"
+                                gap="sm"
+                                size="md"
+                              >
                                 <Tabs.Trigger
                                   value={AuthMethod.AccessKeys}
-                                  size="sm"
                                   label="AWS access keys"
                                 />
                                 <Tabs.Trigger
                                   value={AuthMethod.ApiKey}
-                                  size="sm"
                                   label="API key"
                                 />
                               </Tabs.List>
@@ -1402,21 +1411,23 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as AzureAuthMethod)
                               }
                             >
-                              <Tabs.List layout="full" gap="sm" size="auto">
+                              <Tabs.List
+                                variant="inset"
+                                layout="full"
+                                gap="sm"
+                                size="sm"
+                              >
                                 <Tabs.Trigger
                                   value={AuthMethod.ApiKey}
-                                  size="sm"
                                   label="API key"
                                 />
                                 <Tabs.Trigger
                                   value={AuthMethod.EntraServicePrincipal}
-                                  size="sm"
                                   label="Service principal"
                                 />
                                 {!isLangfuseCloud && (
                                   <Tabs.Trigger
                                     value={AuthMethod.DefaultCredentials}
-                                    size="sm"
                                     label="Managed identity"
                                   />
                                 )}
@@ -1597,7 +1608,7 @@ export function CreateLLMApiKeyForm({
                         : "Show advanced settings"}
                     </span>
                     <ChevronDown
-                      className={`text-foreground-tertiary ml-1 size-3.5 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                      className={`text-foreground-tertiary icon-base ml-1 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
                     />
                   </Button>
                 </div>

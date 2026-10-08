@@ -4,6 +4,11 @@ import {
   AuditLogRecordType,
   type Prisma,
 } from "@langfuse/shared/src/db";
+import {
+  formatSubmittedPublicKeyForLog,
+  logger,
+} from "@langfuse/shared/src/server";
+import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
 
 type AuditableResource =
   | "annotationQueue"
@@ -33,6 +38,7 @@ type AuditableResource =
   | "evalTemplate"
   | "job"
   | "blobStorageIntegration"
+  | "externalMediaStorageIntegration"
   | "posthogIntegration"
   | "mixpanelIntegration"
   | "webCalloutEndpoint"
@@ -87,18 +93,68 @@ type AuditLog = {
     }
 );
 
+// Mirrors each audit log record into the application logs so that actors can be
+// correlated with web/worker log lines (e.g. trace deletions) without querying
+// the audit_logs table. Only ids are logged, no emails or names.
+function logAuditEvent(
+  log: AuditLog,
+  actor: {
+    type: AuditLogRecordType;
+    orgId: string;
+    projectId?: string;
+    userId?: string;
+    apiKeyId?: string;
+    publicKey?: string;
+  },
+) {
+  let actorLabel = actor.userId;
+  if (actor.type === AuditLogRecordType.API_KEY) {
+    actorLabel = actor.publicKey
+      ? formatSubmittedPublicKeyForLog(actor.publicKey)
+      : actor.apiKeyId;
+  }
+
+  logger.info(
+    `Audit log: ${log.resourceType}.${log.action} ${log.resourceId} by ${actor.type} ${actorLabel}`,
+    {
+      auditLog: true,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      action: log.action,
+      actorType: actor.type,
+      userId: actor.userId,
+      apiKeyId: actor.apiKeyId,
+      publicKey: actor.publicKey,
+      orgId: actor.orgId,
+      projectId: actor.projectId,
+    },
+  );
+}
+
 export async function auditLog(
   log: AuditLog,
   prisma?: typeof _prisma | Prisma.TransactionClient,
 ) {
+  // Audit log records are an enterprise feature, so they are only persisted
+  // when the instance is licensed for them. logAuditEvent below is deliberately
+  // NOT gated: it is operator telemetry rather than the audited record itself
+  // (ids only, no before/after diff), it is the sole actor trail for mutations
+  // that have no parallel logger call of their own, and the actor logging added
+  // alongside it elsewhere — batch actions, trace deletion — is ungated too.
+  const persistRecord = isAuditLogEnabled();
+
   const db = prisma ?? _prisma;
-  const shared = {
+  // Defer JSON.stringify(before/after) until we know the record will be
+  // persisted — a full prompt or observation object is non-trivial to
+  // serialise, and unlicensed self-hosted instances call auditLog() on every
+  // mutation only to discard it at the persistRecord gate below.
+  const makeShared = () => ({
     resourceType: log.resourceType,
     resourceId: log.resourceId,
     action: log.action,
     before: log.before ? JSON.stringify(log.before) : undefined,
     after: log.after ? JSON.stringify(log.after) : undefined,
-  };
+  });
 
   if ("apiKeyId" in log) {
     // Sequential find + create, not $transaction. Interactive transactions
@@ -109,20 +165,35 @@ export async function auditLog(
       select: {
         isInAppAgentKey: true,
         createdByUserId: true,
+        publicKey: true,
       },
     });
+
+    const userId =
+      apiKey?.isInAppAgentKey === true
+        ? (apiKey.createdByUserId ?? undefined)
+        : undefined;
+
+    // Actor telemetry is ungated — see top-of-function comment.
+    logAuditEvent(log, {
+      type: AuditLogRecordType.API_KEY,
+      orgId: log.orgId,
+      projectId: log.projectId,
+      userId,
+      apiKeyId: log.apiKeyId,
+      publicKey: apiKey?.publicKey,
+    });
+
+    if (!persistRecord) return;
 
     await db.auditLog.create({
       data: {
         apiKeyId: log.apiKeyId,
-        userId:
-          apiKey?.isInAppAgentKey === true
-            ? (apiKey.createdByUserId ?? undefined)
-            : undefined,
+        userId,
         orgId: log.orgId,
         projectId: log.projectId,
         type: AuditLogRecordType.API_KEY,
-        ...shared,
+        ...makeShared(),
       },
     });
 
@@ -130,6 +201,16 @@ export async function auditLog(
   }
 
   if ("session" in log) {
+    // Actor telemetry is ungated — see top-of-function comment.
+    logAuditEvent(log, {
+      type: AuditLogRecordType.USER,
+      orgId: log.session.orgId,
+      projectId: log.session.projectId,
+      userId: log.session.user.id,
+    });
+
+    if (!persistRecord) return;
+
     await db.auditLog.create({
       data: {
         userId: log.session.user.id,
@@ -138,7 +219,7 @@ export async function auditLog(
         projectId: log.session.projectId,
         userProjectRole: log.session.projectRole,
         type: AuditLogRecordType.USER,
-        ...shared,
+        ...makeShared(),
       },
     });
 
@@ -146,6 +227,16 @@ export async function auditLog(
   }
 
   if ("userId" in log) {
+    // Actor telemetry is ungated — see top-of-function comment.
+    logAuditEvent(log, {
+      type: AuditLogRecordType.USER,
+      orgId: log.orgId,
+      projectId: log.projectId,
+      userId: log.userId,
+    });
+
+    if (!persistRecord) return;
+
     await db.auditLog.create({
       data: {
         userId: log.userId,
@@ -154,7 +245,7 @@ export async function auditLog(
         projectId: log.projectId,
         userProjectRole: log.projectRole,
         type: AuditLogRecordType.USER,
-        ...shared,
+        ...makeShared(),
       },
     });
 

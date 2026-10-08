@@ -203,7 +203,7 @@ async function testDecisionModelConnection(params: {
         kind: {
           type: "choice",
           instructions: "What kind of message is `message`?",
-          criteria: { greeting: null, other: null },
+          choices: [{ value: "greeting" }, { value: "other" }],
         },
       },
     });

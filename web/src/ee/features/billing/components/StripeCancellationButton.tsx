@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
+import { showSuccessToast } from "@/src/features/notifications";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
 
@@ -21,7 +22,7 @@ export const StripeCancellationButton = ({
   variant,
   className,
 }: {
-  orgId: string | undefined;
+  orgId: string;
   variant: "secondary" | "default";
   className?: string;
 }) => {
@@ -31,7 +32,11 @@ export const StripeCancellationButton = ({
 
   const cancelMutation = api.cloudBilling.cancelStripeSubscription.useMutation({
     onSuccess: () => {
-      toast.success("Subscription will be cancelled at period end");
+      showSuccessToast({
+        operation: "subscription.cancel",
+        title: "Subscription will be cancelled at period end",
+        description: "",
+      });
       setLoading(false);
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
@@ -46,7 +51,11 @@ export const StripeCancellationButton = ({
   const reactivateMutation =
     api.cloudBilling.reactivateStripeSubscription.useMutation({
       onSuccess: () => {
-        toast.success("Subscription reactivated");
+        showSuccessToast({
+          operation: "subscription.reactivate",
+          title: "Subscription reactivated",
+          description: "",
+        });
         setLoading(false);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
@@ -57,8 +66,6 @@ export const StripeCancellationButton = ({
         toast.error("Failed to reactivate subscription");
       },
     });
-
-  if (!orgId) return null;
 
   const onReactivate = async () => {
     try {

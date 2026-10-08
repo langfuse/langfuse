@@ -38,7 +38,7 @@ function CloseReviewPanelButton() {
       aria-label="Close side panel"
       onClick={() => closeReviewPanel(store, router)}
     >
-      <X className="size-4" />
+      <X className="icon-sm text-icon-foreground" />
     </Button>
   );
 }
@@ -191,7 +191,7 @@ export function TraceReviewPanel({ projectId }: { projectId: string }) {
   const commentsKey = useStore(store, (state) => state.comments?.key);
   const hasAnnotation = useStore(store, (state) => state.annotation !== null);
   const { query } = useRouter();
-  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
   const annotationOpen = query.annotation === "open" && canAnnotate;
   return (
     <ReviewPanel
@@ -214,7 +214,7 @@ export function SessionReviewPanel({ projectId }: { projectId: string }) {
   const active = useStore(store, (state) => state.active);
   const comments = useStore(store, (state) => state.comments);
   const annotation = useStore(store, (state) => state.annotation);
-  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
   return (
     <ReviewPanel active={active}>
       {comments && (

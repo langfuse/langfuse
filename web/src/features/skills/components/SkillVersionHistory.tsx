@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { type MouseEvent, useState } from "react";
+import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -8,12 +9,15 @@ import {
 } from "@/src/features/prompts/components/timeline";
 import { cn } from "@/src/utils/tailwind";
 import { SkillLabelsSelect } from "./SkillMetadataSelect";
+import { SkillVersionComparisonController } from "./SkillVersionComparison";
 
 export function SkillVersionHistory(
   props:
     | { kind: "new" }
     | {
         kind: "versions";
+        projectId: string;
+        name: string;
         versions: Array<{
           version: number;
           labels: string[];
@@ -87,9 +91,9 @@ export function SkillVersionHistory(
           onClick={() => setIsCollapsed((collapsed) => !collapsed)}
         >
           {isCollapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
+            <PanelLeftOpen className="icon-base text-icon-foreground" />
           ) : (
-            <PanelLeftClose className="h-4 w-4" />
+            <PanelLeftClose className="icon-base text-icon-foreground" />
           )}
         </Button>
       </div>
@@ -161,31 +165,61 @@ export function SkillVersionHistory(
                           }
                         />
                       </div>
-                      <button
-                        type="button"
-                        className="flex w-full flex-col gap-1 text-left"
-                        aria-current={
-                          !props.isDraft && version === props.selectedVersion
-                            ? "page"
-                            : undefined
-                        }
-                        onClick={() => selectVersion(version)}
-                      >
-                        {commitMessage ? (
-                          <span
-                            className="text-muted-foreground max-w-full truncate text-xs"
-                            title={commitMessage}
-                          >
-                            {commitMessage}
-                          </span>
-                        ) : null}
-                        <span
-                          className="text-muted-foreground flex flex-wrap gap-1 text-xs break-words"
-                          title={`Created ${createdAt.toLocaleString()}`}
+                      <div className="flex items-start gap-1">
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 flex-col gap-1 text-left"
+                          aria-current={
+                            !props.isDraft && version === props.selectedVersion
+                              ? "page"
+                              : undefined
+                          }
+                          onClick={() => selectVersion(version)}
                         >
-                          {createdAt.toLocaleString()} by {creator || createdBy}
-                        </span>
-                      </button>
+                          {commitMessage ? (
+                            <span
+                              className="text-muted-foreground max-w-full truncate text-xs"
+                              title={commitMessage}
+                            >
+                              {commitMessage}
+                            </span>
+                          ) : null}
+                          <span
+                            className="text-muted-foreground flex flex-wrap gap-1 text-xs break-words"
+                            title={`Created ${createdAt.toLocaleString()}`}
+                          >
+                            {createdAt.toLocaleString()} by{" "}
+                            {creator || createdBy}
+                          </span>
+                        </button>
+                        {version !== props.selectedVersion ? (
+                          <SkillVersionComparisonController
+                            {...props}
+                            versions={sortedVersions}
+                          >
+                            {({ openComparison }) => {
+                              function handleCompareClick(
+                                event: MouseEvent<HTMLButtonElement>,
+                              ) {
+                                event.stopPropagation();
+                                openComparison(version);
+                              }
+                              return (
+                                <div className="shrink-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:hover)]:opacity-0">
+                                  <IconButton
+                                    icon={FileDiffIcon}
+                                    label={`Compare version ${version} with selected version ${props.selectedVersion}`}
+                                    title="Compare with selected version"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCompareClick}
+                                  />
+                                </div>
+                              );
+                            }}
+                          </SkillVersionComparisonController>
+                        ) : null}
+                      </div>
                     </TimelineItem>
                   ),
                 )

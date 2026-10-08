@@ -3,7 +3,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ApiKeyId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import {
+  projectApiKeyCreationSchema,
+  apiKeyToResponse,
+} from "@/src/ee/features/admin-api/server/apiKeys";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
@@ -35,15 +40,17 @@ export async function handleGetApiKeys(
       note: true,
       publicKey: true,
       displaySecretKey: true,
+      roleAssignments: { select: { systemRole: true } },
     },
     orderBy: {
       createdAt: "asc",
     },
   });
 
-  return res.status(200).json({ apiKeys });
+  return res.status(200).json({ apiKeys: apiKeys.map(apiKeyToResponse) });
 }
 
+/** handleCreateApiKey provisions a project key and records its audit event. */
 export async function handleCreateApiKey(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -51,14 +58,7 @@ export async function handleCreateApiKey(
   orgId: string,
   createdByApiKeyId?: string,
 ) {
-  // Validate the request body
-  const createApiKeySchema = z.object({
-    note: z.string().optional(),
-    publicKey: z.string().optional(),
-    secretKey: z.string().optional(),
-  });
-
-  const validationResult = createApiKeySchema.safeParse(req.body);
+  const validationResult = projectApiKeyCreationSchema.safeParse(req.body);
 
   if (!validationResult.success) {
     return res.status(400).json({
@@ -67,11 +67,10 @@ export async function handleCreateApiKey(
     });
   }
 
-  const { note, publicKey, secretKey } = validationResult.data;
+  const { name, note, expiresAt, role, publicKey, secretKey } =
+    validationResult.data;
 
-  // Validate predefined keys if provided
   if (publicKey || secretKey) {
-    // Both keys must be provided together
     if (!publicKey || !secretKey) {
       return res.status(400).json({
         message:
@@ -79,7 +78,6 @@ export async function handleCreateApiKey(
       });
     }
 
-    // Validate key format
     if (!publicKey.startsWith("pk-lf-")) {
       return res.status(400).json({
         message: "publicKey must start with 'pk-lf-'",
@@ -93,19 +91,24 @@ export async function handleCreateApiKey(
     }
   }
 
+  if (!createdByApiKeyId) {
+    return res.status(400).json({
+      message: "Missing authenticating API key",
+    });
+  }
+
   try {
-    // Create the API key
-    const apiKeyMeta = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
+    const apiKeyMeta = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId(role),
+      createdBy: ApiKeyId(createdByApiKeyId),
+      name,
       note,
-      scope: "PROJECT",
-      createdByApiKeyId,
+      expiresAt,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,
     });
 
-    // Log the API key creation
     await auditLog({
       resourceType: "apiKey",
       resourceId: apiKeyMeta.id,
@@ -113,16 +116,20 @@ export async function handleCreateApiKey(
       orgId: orgId,
       projectId: projectId,
       orgRole: "ADMIN",
-      apiKeyId: "ORG_KEY",
+      apiKeyId: createdByApiKeyId,
     });
 
     logger.info(
       `Created API key ${apiKeyMeta.id} for project ${projectId} via public API`,
     );
 
-    return res.status(201).json(apiKeyMeta);
+    return res.status(201).json({
+      ...apiKeyMeta,
+      name: apiKeyMeta.note,
+      expiresAt: expiresAt ?? null,
+      role,
+    });
   } catch (error) {
-    // Handle database unique constraint violations
     if (
       error instanceof Error &&
       (error.message.includes("Unique constraint") ||

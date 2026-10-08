@@ -4,6 +4,10 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["views", "relationJoins", "metrics"]
+  // native resolves to linux-musl(-arm64)-openssl-3.0.x in the Alpine image
+  // builds; those engines link the system libcrypto.so.3, so Postgres TLS can
+  // run inside the image's FIPS-validated OpenSSL provider.
+  binaryTargets   = ["native"]
 }
 
 datasource db {
@@ -81,6 +85,7 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  roleAssignments           RoleAssignment[]
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
@@ -125,6 +130,8 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
+  ownedRoleAssignments             RoleAssignment[]         @relation("RoleAssignmentOwnerOrganization")
 
   @@map("organizations")
 }
@@ -146,6 +153,7 @@ model Project {
   projectMembers                    ProjectMembership[]
   organization                      Organization                        @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   apiKeys                           ApiKey[]
+  roleAssignments                   RoleAssignment[]
   dataset                           Dataset[]
   invitations                       MembershipInvitation[]
   sessions                          TraceSession[]
@@ -164,6 +172,7 @@ model Project {
   PosthogIntegration                PosthogIntegration[]
   MixpanelIntegration               MixpanelIntegration[]
   BlobStorageIntegration            BlobStorageIntegration[]
+  ExternalMediaStorageIntegration   ExternalMediaStorageIntegration?
   webCalloutEndpoints               WebCalloutEndpoint[]
   scoreConfig                       ScoreConfig[]
   BatchExport                       BatchExport[]
@@ -196,6 +205,7 @@ model Project {
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
+  topicClusteringRuns               TopicClusteringRun[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
   @@index([orgId])
@@ -229,6 +239,7 @@ model ApiKey {
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
+  roleAssignments     RoleAssignment[]
 
   @@index(orgId)
   @@index(projectId)
@@ -237,6 +248,45 @@ model ApiKey {
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
   @@map("api_keys")
+}
+
+enum SystemRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+  NONE
+  LEGACY_PROJECT_API_KEY
+  LEGACY_ORGANIZATION_API_KEY
+  SCORES_INGEST
+  INGEST
+  AI_GATEWAY
+}
+
+model RoleAssignment {
+  id                String        @id @default(cuid())
+  orgId             String        @map("org_id")
+  organization      Organization  @relation("RoleAssignmentTenant", fields: [orgId], references: [id], onDelete: Cascade)
+  principalUserId   String?       @map("principal_user_id")
+  principalUser     User?         @relation(fields: [principalUserId], references: [id], onDelete: Cascade)
+  principalApiKeyId String?       @map("principal_api_key_id")
+  principalApiKey   ApiKey?       @relation(fields: [principalApiKeyId], references: [id], onDelete: Cascade)
+  systemRole        SystemRole    @map("system_role")
+  ownerOrgId        String?       @map("owner_org_id")
+  ownerOrg          Organization? @relation("RoleAssignmentOwnerOrganization", fields: [ownerOrgId], references: [id], onDelete: Cascade)
+  ownerProjectId    String?       @map("owner_project_id")
+  ownerProject      Project?      @relation(fields: [ownerProjectId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([principalUserId, ownerOrgId, systemRole], map: "role_assignments_user_org_role_key")
+  @@unique([principalUserId, ownerProjectId, systemRole], map: "role_assignments_user_project_role_key")
+  @@unique([principalApiKeyId, ownerOrgId, systemRole], map: "role_assignments_api_key_org_role_key")
+  @@unique([principalApiKeyId, ownerProjectId, systemRole], map: "role_assignments_api_key_project_role_key")
+  @@index([orgId])
+  @@index([ownerOrgId])
+  @@index([ownerProjectId])
+  @@map("role_assignments")
 }
 
 enum GatewayIngestionMode {
@@ -1082,6 +1132,8 @@ model EvaluatorVersion {
   sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
   questions          Json?
 
+  topicClusteringRuns TopicClusteringRun[]
+
   @@unique([evaluatorId, version(sort: Desc)])
   @@map("evaluator_versions")
 }
@@ -1310,6 +1362,11 @@ model PosthogIntegration {
   createdAt              DateTime                         @default(now()) @map("created_at")
   exportSource           AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill               Boolean                          @default(true)
+
   // Last deterministic customer-config fault (bad hostname) that disabled the
   // integration. Written by the worker, surfaced in the integration settings
   // status section, and cleared on a successful run.
@@ -1328,6 +1385,11 @@ model MixpanelIntegration {
   enabled                       Boolean
   createdAt                     DateTime                         @default(now()) @map("created_at")
   exportSource                  AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill                      Boolean                          @default(true)
 
   @@map("mixpanel_integrations")
 }
@@ -1366,6 +1428,11 @@ model BlobStorageIntegration {
   // Run tracking
   runStartedAt DateTime? @map("run_started_at")
 
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill     Boolean   @default(true)
+
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
@@ -1377,6 +1444,25 @@ model BlobStorageIntegration {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("blob_storage_integrations")
+}
+
+model ExternalMediaStorageIntegration {
+  projectId String  @id @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type            ExternalMediaStorageIntegrationType @map("type")
+  bucketName      String                              @map("bucket_name")
+  prefix          String?                             @map("prefix")
+  accessKeyId     String?                             @map("access_key_id")
+  secretAccessKey String?                             @map("secret_access_key")
+  region          String                              @map("region")
+  endpoint        String?                             @map("endpoint")
+  forcePathStyle  Boolean                             @map("force_path_style")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("external_media_storage_integrations")
 }
 
 model WebCalloutEndpoint {
@@ -1412,8 +1498,14 @@ enum BlobStorageIntegrationType {
   S3
   S3_COMPATIBLE
   AZURE_BLOB_STORAGE
+  GOOGLE_CLOUD_STORAGE
 
   @@map("BlobStorageIntegrationType")
+}
+
+enum ExternalMediaStorageIntegrationType {
+  S3
+  S3_COMPATIBLE
 }
 
 enum BlobStorageExportMode {
@@ -2014,4 +2106,23 @@ model CloudSpendAlert {
 
   @@index([orgId])
   @@map("cloud_spend_alerts")
+}
+
+model TopicClusteringRun {
+  id              String           @id @default(cuid())
+  projectId       String           @map("project_id")
+  facetId         String           @map("facet_id")
+  facetVersion    Int              @map("facet_version")
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  facet           EvaluatorVersion @relation(fields: [facetId, facetVersion], references: [evaluatorId, version], onDelete: Cascade)
+  status          String           @default("pending")
+  config          Json             @default("{}")
+  error           String?
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
+  topicVersionIds String[]         @default([]) @map("topic_version_ids")
+
+  @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@map("topic_clustering_runs")
 }

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 /**
  * Reports whether the natural width of the element on `contentRef` still fits
@@ -6,6 +7,10 @@ import { useLayoutEffect, useRef, useState } from "react";
  * a wide presentation for a compact one at the width where the wide one
  * actually stops fitting, instead of at a fixed breakpoint that has to assume
  * the widest possible content.
+ *
+ * `fits` is undefined until the first measurement, so callers can hold back
+ * both presentations instead of painting the wrong one. Every later change is
+ * committed before the browser paints, so the swap never flashes.
  *
  * The measured content has to stay mounted and sized to its content while the
  * compact presentation is shown. Once it unmounts its natural width is no
@@ -21,7 +26,7 @@ export function useFitsAvailableWidth<
 >() {
   const availableRef = useRef<TAvailable>(null);
   const contentRef = useRef<TContent>(null);
-  const [fits, setFits] = useState(true);
+  const [fits, setFits] = useState<boolean>();
 
   useLayoutEffect(() => {
     const available = availableRef.current;
@@ -31,19 +36,20 @@ export function useFitsAvailableWidth<
       return;
     }
 
-    const measure = () => {
-      // Sub-pixel layout rounds against the content at the exact boundary, so
-      // spend a pixel of slack rather than collapsing a row that just fits.
-      setFits(content.scrollWidth <= available.clientWidth + 1);
-    };
+    // Sub-pixel layout rounds against the content at the exact boundary, so
+    // spend a pixel of slack rather than collapsing a row that just fits.
+    const measure = () => content.scrollWidth <= available.clientWidth + 1;
 
-    measure();
+    setFits(measure());
 
     if (typeof ResizeObserver === "undefined") {
       return;
     }
 
-    const resizeObserver = new ResizeObserver(measure);
+    // Resize callbacks run before paint; a synchronous commit keeps it that way.
+    const resizeObserver = new ResizeObserver(() => {
+      flushSync(() => setFits(measure()));
+    });
     resizeObserver.observe(available);
     resizeObserver.observe(content);
 

@@ -4,9 +4,8 @@
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
  */
 
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 
 export function SessionBadge({
   sessionId,
@@ -16,18 +15,12 @@ export function SessionBadge({
   projectId: string;
 }) {
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        text="session"
-        title={sessionId}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      text="session"
+      title={sessionId}
+    />
   );
 }
 
@@ -42,18 +35,12 @@ export function UserIdBadge({
   const text = userId;
 
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        label={label}
-        text={text}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      label={label}
+      text={text}
+    />
   );
 }
 
@@ -68,29 +55,23 @@ export function TargetTraceBadge({
   const text = targetTraceId;
 
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="ph-no-capture inline-flex"
-    >
-      <Badge
-        color="ghost"
-        label={label}
-        text={text}
-        trailingIcon={ArrowUpRight}
-        trailingIconTone="link"
-      />
-    </Link>
+      noCapture
+      label={label}
+      text={text}
+    />
   );
 }
 
 export function EnvironmentBadge({ environment }: { environment: string }) {
-  return <Badge color="ghost" label="env" text={environment} />;
+  return <Badge font="mono" color="ghost" label="env" text={environment} />;
 }
 
 export function ReleaseBadge({ release }: { release: string }) {
-  return <Badge color="ghost" label="release" text={release} />;
+  return <Badge font="mono" color="ghost" label="release" text={release} />;
 }
 
 export function VersionBadge({ version }: { version: string }) {
-  return <Badge color="ghost" label="version" text={version} />;
+  return <Badge font="mono" color="ghost" label="version" text={version} />;
 }

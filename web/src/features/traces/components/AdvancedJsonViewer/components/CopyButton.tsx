@@ -59,7 +59,7 @@ export function CopyButton({ value, theme, className }: CopyButtonProps) {
       aria-label={copied ? "Copied!" : "Copy value"}
       title={copied ? "Copied!" : "Copy value"}
     >
-      <Icon size={9} />
+      <Icon className="icon-sm" />
     </button>
   );
 }

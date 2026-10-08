@@ -8,7 +8,7 @@ import {
   buildEventBucketPrefix,
   compileLangfuseMediaMessages,
   createLLMOutput,
-  createTypeSafeDecisionModelClient,
+  createDecisionModelClient,
   decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   generateLLMText,
@@ -338,15 +338,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
 
     callDecisionModel: async (params) => {
       const { apiKey } = params.modelConfig;
-      if (apiKey.adapter !== LLMAdapter.TypeSafe) {
-        throw new Error(
-          `Decision-model adapter is not supported: ${apiKey.adapter}`,
-        );
-      }
       const secretKey = apiKey.secretKey;
       if (typeof secretKey !== "string") {
         throw new UnrecoverableError(
-          "TypeSafe connection is missing its secret key",
+          "Decision-model connection is missing its secret key",
         );
       }
 
@@ -359,11 +354,12 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         );
       } catch {
         throw new UnrecoverableError(
-          "TypeSafe connection secrets could not be decrypted",
+          "Decision-model connection secrets could not be decrypted",
         );
       }
 
-      const client = createTypeSafeDecisionModelClient({
+      const client = createDecisionModelClient({
+        adapter: apiKey.adapter,
         apiKey: decryptedSecretKey,
         model: params.modelConfig.model,
         baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
@@ -400,7 +396,7 @@ export function createMockEvalExecutionDeps(
         Object.entries(request.questions).map(([id, question]) => {
           switch (question.type) {
             case "choice": {
-              const [choice = "mock"] = Object.keys(question.criteria);
+              const choice = question.choices[0]?.value ?? "mock";
               return [
                 id,
                 {
@@ -416,7 +412,7 @@ export function createMockEvalExecutionDeps(
                 id,
                 { type: "score", score: 0, probabilities: {}, confidence: 1 },
               ];
-            case "boolean":
+            case "predicate":
               return [id, { type: "boolean", probability: 1 }];
           }
         }),

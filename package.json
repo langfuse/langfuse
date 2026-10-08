@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "4.50.0",
+  "version": "4.54.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -47,7 +47,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
-    "openapi:export": "pnpm dlx fern-api@3.88.0 export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && pnpm dlx fern-api@3.88.0 export --api client web/public/generated/api-client/openapi.yml && pnpm dlx fern-api@3.88.0 export --api organizations web/public/generated/organizations-api/openapi.yml",
+    "openapi:export": "pnpm dlx fern-api@3.88.0 export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && pnpm dlx fern-api@3.88.0 export --api client web/public/generated/api-client/openapi.yml && pnpm dlx fern-api@3.88.0 export --api organizations web/public/generated/organizations-api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts organizations",
     "openapi:check": "pnpm run openapi:export && bash scripts/openapi/assert-generated-current.sh",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
@@ -69,6 +69,7 @@
     "turbo": "2.11.6"
   },
   "release-it": {
+    "npm": false,
     "git": {
       "commitMessage": "chore: release v${version}",
       "tagName": "v${version}",
@@ -82,6 +83,9 @@
     "plugins": {
       "@release-it/bumper": {
         "out": [
+          {
+            "file": "./package.json"
+          },
           {
             "file": "./packages/shared/src/constants/VERSION.ts",
             "type": "application/typescript"

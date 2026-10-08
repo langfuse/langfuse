@@ -12,6 +12,11 @@ export const VERTEXAI_USE_DEFAULT_CREDENTIALS =
 // workload identity, environment, Azure CLI) via Microsoft Entra ID
 export const AZURE_USE_DEFAULT_CREDENTIALS = "__AZURE_DEFAULT_CREDENTIALS__";
 
+// Sentinel the blob-storage form sends as the GCS secret to request the
+// deployment's default credentials (ADC) instead of a service account key.
+// Never persisted: a keyless GCS integration stores secretAccessKey = null.
+export const GCS_USE_DEFAULT_CREDENTIALS = "__GCS_DEFAULT_CREDENTIALS__";
+
 export const BedrockConfigSchema = z.object({ region: z.string() });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 

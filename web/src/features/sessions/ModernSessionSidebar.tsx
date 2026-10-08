@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronDown,
@@ -177,7 +177,7 @@ function ObservationListRows({
                   className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
                   aria-label={`Actions for ${observation.name}`}
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
+                  <MoreHorizontal className="icon-base text-icon-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={0}>
@@ -237,13 +237,11 @@ const TurnCard = React.memo(
       sidebarTrace;
     const isTraceLevelIOOnly =
       hasMatchingTraceLevelIO && observations?.length === 0;
-    let observationListClassName = "-mx-1";
-    if (observations?.length) {
-      observationListClassName = "mt-2";
-    }
-    if (isTraceLevelIOOnly) {
-      observationListClassName = "-mx-1 mt-2";
-    }
+    const observationListClassName = useMemo(() => {
+      if (isTraceLevelIOOnly) return "-mx-1 mt-2";
+      if (observations?.length) return "mt-2";
+      return "-mx-1";
+    }, [isTraceLevelIOOnly, observations?.length]);
 
     return (
       <div
@@ -286,10 +284,9 @@ const TurnCard = React.memo(
           >
             <ChevronDown
               className={cn(
-                "h-3 w-3 transition-transform duration-150",
+                "icon-sm transition-transform duration-150",
                 isCollapsed ? "-rotate-90" : "rotate-0",
               )}
-              strokeWidth={1.6}
             />
           </button>
         </div>
@@ -331,15 +328,10 @@ export function ModernSessionSidebar(
         state: "loaded";
         traces: ModernSessionSidebarTrace[];
         activeTraceId: string | undefined;
-        filterControls: ModernSessionSidebarFilterControls;
         search: string;
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
-        onFilterObservationByName: (
-          name: string,
-          operator: "any of" | "none of",
-        ) => void;
         onSelect: (index: number, observationId?: string) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         hasMoreObservations: boolean;
@@ -347,6 +339,11 @@ export function ModernSessionSidebar(
         observationLoadError: boolean;
         onLoadMoreObservations: () => void;
         onViewportUnderfilled?: () => void;
+        filterControls: ModernSessionSidebarFilterControls;
+        onFilterObservationByName: (
+          name: string,
+          operator: "any of" | "none of",
+        ) => void;
       },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
@@ -507,10 +504,7 @@ export function ModernSessionSidebar(
       <div className="shrink-0 border-b">
         <div className="flex items-center gap-1 px-2 py-2.5">
           <div className="relative min-w-0 flex-1">
-            <Search
-              className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
-              strokeWidth={1.6}
-            />
+            <Search className="text-foreground-tertiary icon-base absolute top-1/2 left-2 -translate-y-1/2" />
             <Input
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
@@ -529,7 +523,7 @@ export function ModernSessionSidebar(
                 className="relative h-7 w-7 shrink-0 rounded-sm"
                 aria-label="Filter observations"
               >
-                <ListFilter className="h-3.5 w-3.5" />
+                <ListFilter className="icon-base text-icon-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <ModernSessionViewDropdownMenu controls={filterControls} />
@@ -582,7 +576,7 @@ export function ModernSessionSidebar(
                         aria-label="Save filters as view"
                         onClick={filterControls.onOpenFilterDialog}
                       >
-                        <Save className="h-3 w-3" />
+                        <Save className="icon-sm text-icon-foreground" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Save as view</TooltipContent>
@@ -598,7 +592,7 @@ export function ModernSessionSidebar(
                       aria-label="Edit filters"
                       onClick={filterControls.onOpenFilterDialog}
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="icon-sm text-icon-foreground" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Edit filters</TooltipContent>
@@ -613,7 +607,7 @@ export function ModernSessionSidebar(
                       aria-label="Clear filters"
                       onClick={filterControls.onClearFilters}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="icon-sm text-icon-foreground" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Clear filters</TooltipContent>
