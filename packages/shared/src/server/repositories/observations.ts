@@ -2025,6 +2025,7 @@ export const getObservationCountsByProjectAndDay = async ({
       endDate: convertDateToClickhouseDateTime(endDate),
     },
     clickhouseConfigs: { request_timeout: 120_000 },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
