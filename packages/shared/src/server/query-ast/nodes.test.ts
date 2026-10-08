@@ -46,26 +46,15 @@ describe("tenancy injection", () => {
     );
   });
 
-  it("injects project_id IN when the context carries projectIds", () => {
+  it("has no multi-project scope", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core")
       .select("environment");
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, {
-      projectIds: ["proj-a", "proj-b"],
-    });
-    expect(compiled.toLowerCase()).toMatch(/project_id in /);
-    expect(Object.values(params)).toContainEqual(["proj-a", "proj-b"]);
-  });
-
-  it("refuses a context with an empty projectIds list", () => {
-    const qb = getClickhouseKysely()
-      .selectFrom("events_core")
-      .select("environment");
-
-    expect(() => compileClickhouseQuery(qb, { projectIds: [] })).toThrow(
-      /no tenancy scope/,
-    );
+    expect(() =>
+      // @ts-expect-error - a query is scoped to exactly one project
+      compileClickhouseQuery(qb, { projectIds: ["proj-a", "proj-b"] }),
+    ).toThrow(/no tenancy scope/);
   });
 
   it("refuses kysely.compile() when the tenancy pass did not run", () => {

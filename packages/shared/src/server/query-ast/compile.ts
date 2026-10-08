@@ -37,7 +37,7 @@ export type ClickhouseCompilable = {
  * registry, and the dialect compiler refuses to emit SQL unless the tree was
  * identity-stamped by those passes (a copied property is not enough). The
  * runtime `requireExecutionContext` guard remains as defense-in-depth for the
- * cases the type cannot express (an empty `projectId` or `projectIds`) and
+ * cases the type cannot express (an empty `projectId`) and
  * for callers reaching this through an `any` boundary.
  */
 export function compileClickhouseQuery(
