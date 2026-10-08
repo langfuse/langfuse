@@ -39,40 +39,40 @@ export function logRetryableJobFailure(params: {
 /**
  * Winston's JSON format serialises an Error nested under a key as `{}`, so the
  * error's own fields, message and stack are lifted next to `fields`, matching
- * the line winston writes for a bare Error.
+ * the line winston writes for a bare Error. `cause` and `errors` are
+ * non-enumerable, so the spread misses them.
  */
 function withFields(
   error: unknown,
   fields: Record<string, unknown>,
 ): Record<string, unknown> {
   if (!(error instanceof Error)) return { error, ...fields };
-  return { ...error, message: error.message, stack: error.stack, ...fields };
+  return {
+    ...error,
+    message: error.message,
+    stack: error.stack,
+    ...(error.cause === undefined ? {} : { cause: error.cause }),
+    ...(error instanceof AggregateError ? { errors: error.errors } : {}),
+    ...fields,
+  };
 }
 
-type JobIdentityShape = {
+type ProjectScopedPayload = {
   payload?: {
     projectId?: unknown;
     authCheck?: { scope?: { projectId?: unknown } };
-    data?: { eventBodyId?: unknown; fileKey?: unknown };
   };
 };
 
 /**
- * Project and entity a queue job carries, so a dropped job can be attributed
- * to its project and its events located in blob storage for replay.
+ * Project a queue job belongs to. Entity and event IDs are caller-supplied and
+ * can carry PII, so failure logs identify the job by project and BullMQ job id
+ * only; the failed set keeps the full payload for replay.
  */
-export function jobIdentityFields(jobData: unknown): Record<string, string> {
-  const payload = (jobData as JobIdentityShape | undefined)?.payload;
-  const candidates = {
-    projectId: payload?.projectId ?? payload?.authCheck?.scope?.projectId,
-    eventBodyId: payload?.data?.eventBodyId,
-    fileKey: payload?.data?.fileKey,
-  };
-  return Object.fromEntries(
-    Object.entries(candidates).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
-  );
+export function jobProjectId(jobData: unknown): string | undefined {
+  const payload = (jobData as ProjectScopedPayload | undefined)?.payload;
+  const projectId = payload?.projectId ?? payload?.authCheck?.scope?.projectId;
+  return typeof projectId === "string" ? projectId : undefined;
 }
 
 /**

@@ -21,7 +21,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import {
   exceedsNonSlowDownAttemptBudget,
-  jobIdentityFields,
+  jobProjectId,
   logRetryableJobFailure,
 } from "./jobFailureLog";
 
@@ -103,7 +103,8 @@ describe("logRetryableJobFailure", () => {
   });
 
   it("keeps the error's message and stack next to extra fields", () => {
-    const error = new Error("NoSuchKey");
+    const cause = new Error("socket hang up");
+    const error = new Error("NoSuchKey", { cause });
     logRetryableJobFailure({
       message: "ingestion failed",
       error,
@@ -117,39 +118,29 @@ describe("logRetryableJobFailure", () => {
     expect(payload).toMatchObject({
       message: "NoSuchKey",
       stack: error.stack,
+      cause,
       projectId: "project-1",
     });
   });
 });
 
-describe("jobIdentityFields", () => {
-  it("reads project and entity from an ingestion job", () => {
+describe("jobProjectId", () => {
+  it("reads the project of an ingestion job without exposing entity IDs", () => {
     expect(
-      jobIdentityFields({
+      jobProjectId({
         payload: {
           authCheck: { scope: { projectId: "project-1" } },
-          data: { type: "trace-create", eventBodyId: "trace-1" },
+          data: { eventBodyId: "trace-1", fileKey: "event-1" },
         },
       }),
-    ).toEqual({ projectId: "project-1", eventBodyId: "trace-1" });
-  });
-
-  it("reads the batch file of an OTel ingestion job", () => {
-    expect(
-      jobIdentityFields({
-        payload: {
-          authCheck: { scope: { projectId: "project-1" } },
-          data: { fileKey: "otel/project-1/batch.json" },
-        },
-      }),
-    ).toEqual({ projectId: "project-1", fileKey: "otel/project-1/batch.json" });
+    ).toBe("project-1");
   });
 
   it("reads a top-level projectId and ignores missing payloads", () => {
-    expect(jobIdentityFields({ payload: { projectId: "project-1" } })).toEqual({
-      projectId: "project-1",
-    });
-    expect(jobIdentityFields(undefined)).toEqual({});
+    expect(jobProjectId({ payload: { projectId: "project-1" } })).toBe(
+      "project-1",
+    );
+    expect(jobProjectId(undefined)).toBeUndefined();
   });
 });
 

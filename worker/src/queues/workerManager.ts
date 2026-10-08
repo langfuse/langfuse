@@ -15,7 +15,7 @@ import {
   markQueueWorkerRegistered,
 } from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
-import { jobIdentityFields, logRetryableJobFailure } from "./jobFailureLog";
+import { jobProjectId, logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
 import { classifyJobFailure } from "./jobFailureReason";
 
@@ -181,7 +181,8 @@ export class WorkerManager {
         job,
         attemptsIncludeCurrentFailure: true,
         fields: {
-          ...jobIdentityFields(job?.data),
+          projectId: jobProjectId(job?.data),
+          jobId: job?.id,
           failureReason: reason,
           // true once BullMQ stops retrying: the job's events are dropped.
           terminal: Boolean(job?.finishedOn),
