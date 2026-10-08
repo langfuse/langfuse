@@ -13,6 +13,7 @@ pub(crate) mod native_schema;
 mod native_task;
 mod otel_input;
 mod otel_media;
+mod otel_media_task;
 mod telemetry;
 mod topics;
 

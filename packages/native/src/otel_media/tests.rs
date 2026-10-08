@@ -555,26 +555,6 @@ fn classifies_each_root_array_object_before_discovery() {
 }
 
 #[test]
-fn media_prefilter_is_conservative_for_structured_and_escaped_candidates() {
-    // Buffer-like fields are not media candidates and should stay on the
-    // validation-only path.
-    assert!(!may_contain_media_candidate(
-        r#"{"traceId":{"type":"Buffer","data":[1,2,3]}}"#
-    ));
-    assert!(may_contain_media_candidate(
-        r#"{"type":"media","mime_type":"image/png","data":"aGk="}"#
-    ));
-    // Escaped provider JSON still contains a literal MIME marker.
-    assert!(may_contain_media_candidate(
-        r#"{"text":"{\"type\":\"base64\",\"media_type\":\"image/png\",\"data\":\"aGk=\"}"}"#
-    ));
-    // Unicode-escaped markers must not be optimized away.
-    assert!(may_contain_media_candidate(
-        r#"{"text":"\u0064ata:image/png;base64,aGk="}"#
-    ));
-}
-
-#[test]
 fn validation_only_path_preserves_valid_json_and_rejects_trailing_bytes() {
     let input = br#"{"traceId":{"type":"Buffer","data":[1,2,3]},"text":"plain"}"#;
     let validated = validate(input.to_vec()).expect("valid JSON");

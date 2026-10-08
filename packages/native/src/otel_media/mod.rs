@@ -15,6 +15,7 @@ mod json;
 mod payload;
 mod rules;
 mod scanner;
+mod structural_walk;
 
 pub use payload::{validate, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
 

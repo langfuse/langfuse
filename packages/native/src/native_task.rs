@@ -1,9 +1,15 @@
 //! Run owned Rust work on libuv and expose only the completed result to Node.
 
 use napi::bindgen_prelude::*;
+use napi::JsError;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 pub(crate) type NativeResult<T> = Result<T, &'static str>;
+
+/// Preserve a native error code when constructing its JavaScript error on the JS thread.
+pub(crate) fn to_js_error(env: Env, error: Error<&'static str>) -> Error {
+    Error::from(JsError::from(error).into_unknown(env))
+}
 
 pub struct OwnedTask<T> {
     work: Option<Box<dyn FnOnce() -> NativeResult<T> + Send>>,
@@ -35,7 +41,7 @@ impl<T: Send + ToNapiValue + TypeName + 'static> Task for OwnedTask<T> {
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> Result<T> {
         // Construct the JS error here so Promise rejection preserves its custom code.
-        output.map_err(|error| Error::from(napi::JsError::from(error).into_unknown(env)))
+        output.map_err(|error| to_js_error(env, error))
     }
 }
 
