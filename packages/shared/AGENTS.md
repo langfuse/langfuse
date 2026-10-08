@@ -28,6 +28,10 @@
   generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
+- Agents prototype: `src/server/repositories/agents.ts` owns window-bounded metadata
+  aggregates; browser-safe contracts/constants live in `src/features/agents/`.
+  Identity is resolved per span by `OtelIngestionProcessor` on both write paths.
+  See `../../web/src/features/agents/README.md` for accounting and migration seams.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
 - Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
