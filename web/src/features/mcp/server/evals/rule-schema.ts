@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  CreateRuleSchema,
+  CreateRuleBaseSchema,
   ListRulesSchema,
   RuleAssignmentInputSchema,
   RuleIdSchema,
@@ -65,7 +65,7 @@ export type EvaluationRuleAssignmentInput = z.infer<
   typeof EvaluationRuleAssignmentInputSchema
 >;
 
-export const CreateEvaluationRuleBaseSchema = CreateRuleSchema.omit({
+export const CreateEvaluationRuleBaseSchema = CreateRuleBaseSchema.omit({
   projectId: true,
   targetObject: true,
   filter: true,
@@ -83,7 +83,7 @@ export const CreateEvaluationRuleBaseSchema = CreateRuleSchema.omit({
     .describe("Conditions selecting which observations the rule runs on."),
 });
 
-export const CreateEvaluationRuleInputSchema = CreateRuleSchema.omit({
+export const CreateEvaluationRuleInputSchema = CreateRuleBaseSchema.omit({
   projectId: true,
   targetObject: true,
   triggerKind: true,

@@ -67,7 +67,7 @@ export const ListRulesSchema = z.object({
     .optional(),
 });
 
-export const CreateRuleSchema = RuleMetadataSchema.extend({
+export const CreateRuleBaseSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z
     .enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT])
@@ -79,47 +79,53 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
   triggerKind: EvaluationRuleTriggerKindSchema.default("OBSERVATION"),
   scoreResultTrigger: ScoreResultTriggerSchema.nullable().default(null),
-}).superRefine((rule, ctx) => {
-  if (rule.triggerKind === "OBSERVATION") {
-    if (rule.scoreResultTrigger !== null) {
+});
+
+export const CreateRuleSchema = CreateRuleBaseSchema.superRefine(
+  (rule, ctx) => {
+    if (rule.triggerKind === "OBSERVATION") {
+      if (rule.scoreResultTrigger !== null) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["scoreResultTrigger"],
+          message:
+            "Observation rules cannot define an evaluator result trigger",
+        });
+      }
+      return;
+    }
+
+    if (rule.scoreResultTrigger === null) {
       ctx.addIssue({
         code: "custom",
         path: ["scoreResultTrigger"],
-        message: "Observation rules cannot define an evaluator result trigger",
+        message:
+          "Evaluator result rules require a trigger evaluator and scores",
       });
     }
-    return;
-  }
-
-  if (rule.scoreResultTrigger === null) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["scoreResultTrigger"],
-      message: "Evaluator result rules require a trigger evaluator and scores",
-    });
-  }
-  if (rule.filter.length > 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["filter"],
-      message: "Evaluator result rules cannot define observation filters",
-    });
-  }
-  if (rule.targetObject !== EvalTargetObject.EVENT) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["targetObject"],
-      message: "Evaluator result rules must target observations",
-    });
-  }
-  if (rule.sampling !== 1) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["sampling"],
-      message: "Evaluator result rules run for every matching result",
-    });
-  }
-});
+    if (rule.filter.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["filter"],
+        message: "Evaluator result rules cannot define observation filters",
+      });
+    }
+    if (rule.targetObject !== EvalTargetObject.EVENT) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["targetObject"],
+        message: "Evaluator result rules must target observations",
+      });
+    }
+    if (rule.sampling !== 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sampling"],
+        message: "Evaluator result rules run for every matching result",
+      });
+    }
+  },
+);
 
 export const UpdateRuleSchema = RuleIdSchema.extend({
   name: RuleMetadataSchema.shape.name.optional(),

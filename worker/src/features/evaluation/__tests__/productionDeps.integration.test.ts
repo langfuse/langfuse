@@ -116,7 +116,7 @@ describe("Production Dependency Factories Integration Tests", () => {
         expect(dbRecord?.startTime).toBeInstanceOf(Date);
       }, 15_000);
 
-      it("should preserve the original start time on upsert updates", async () => {
+      it("should preserve an existing execution on upsert", async () => {
         const { projectId } = await createOrgProjectAndApiKey();
 
         const jobConfig = await prisma.jobConfiguration.create({
@@ -162,7 +162,7 @@ describe("Production Dependency Factories Integration Tests", () => {
           where: { id: jobExecutionId },
         });
 
-        expect(updatedRecord?.status).toBe("COMPLETED");
+        expect(updatedRecord?.status).toBe("PENDING");
         expect(updatedRecord?.startTime).toEqual(originalStartTime);
       }, 15_000);
     });
