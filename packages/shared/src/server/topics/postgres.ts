@@ -214,6 +214,8 @@ export async function saveTopicRule(
 ): Promise<TopicRule> {
   const facetIds = [...new Set(input.facetIds)];
   return prisma.$transaction(async (tx) => {
+    // Serializes first-time creation; the single-rule check below is not a constraint.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`topics-rule:${input.projectId}`}, 0))`;
     const facetCount = await tx.evaluator.count({
       where: {
         projectId: input.projectId,

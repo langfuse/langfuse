@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  lock: vi.fn(),
   facetCount: vi.fn(),
   ruleCount: vi.fn(),
   findRule: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("../../db", () => ({
   prisma: {
     $transaction: (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
+        $executeRaw: mocks.lock,
         evaluator: { count: mocks.facetCount },
         evaluationRule: {
           count: mocks.ruleCount,
@@ -88,6 +90,10 @@ describe("saveTopicRule", () => {
         facetIds: ["intent"],
       }),
     ).rejects.toThrow(/already has a Topics rule/);
+    // The project lock serializes concurrent first-time saves before the check.
+    expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.ruleCount.mock.invocationCallOrder[0],
+    );
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
