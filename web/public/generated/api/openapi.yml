@@ -3595,6 +3595,158 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/organizations/llm-connections:
+    get:
+      description: >-
+        Get all organization-level LLM connections. Requires an
+        organization-scoped API key.
+      operationId: llmConnections_listOrganization
+      tags:
+        - LlmConnections
+      parameters:
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedLlmConnections'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    put:
+      description: >-
+        Create or update an organization-level LLM connection. The connection is
+        upserted on provider and inherited by projects without a provider
+        override. Requires an organization-scoped API key.
+      operationId: llmConnections_upsertOrganization
+      tags:
+        - LlmConnections
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmConnection'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertLlmConnectionRequest'
+  /api/public/organizations/llm-connections/{id}:
+    delete:
+      description: >-
+        Delete an organization-level LLM connection by id. Evaluators in
+        projects without an override for the provider are automatically paused.
+        Requires an organization-scoped API key.
+      operationId: llmConnections_deleteOrganization
+      tags:
+        - LlmConnections
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteLlmConnectionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
