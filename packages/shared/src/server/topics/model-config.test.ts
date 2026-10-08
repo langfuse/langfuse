@@ -61,14 +61,15 @@ beforeEach(() => {
 });
 
 describe("saveTopicsModelSettings", () => {
-  it("rejects Anthropic connections because they cannot embed", async () => {
-    await expect(
-      saveTopicsModelSettings("project", {
-        ...settings,
-        clustering: slot("anthropic", "claude-sonnet"),
-      }),
-    ).rejects.toThrow("Anthropic has no embeddings API");
-    expect(mocks.upsert).not.toHaveBeenCalled();
+  it("saves an Anthropic connection when its test call succeeds", async () => {
+    await saveTopicsModelSettings("project", {
+      ...settings,
+      clustering: slot("anthropic", "claude-sonnet"),
+    });
+    expect(mocks.testCall).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "claude-sonnet" }),
+    );
+    expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
   it("saves a partial setup but enables Topics only with all three models", async () => {

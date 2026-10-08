@@ -17,19 +17,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/src/components/ui/sheet";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
-import { Textarea } from "@/src/components/ui/textarea";
 import { PopoverClose, PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -200,12 +191,12 @@ function TopicsWorkspaceView({
     canWrite,
     onTriggered: openExecution,
     timeRange: validTimeRange ? currentTimeRange : null,
-    facetEditor:
-      canWrite && facets.data?.length ? (
-        <FacetEditor projectId={projectId} facets={facets.data} />
-      ) : null,
   });
-  const modelSettings = useTopicModelSettings({ projectId, canWrite });
+  const modelSettings = useTopicModelSettings({
+    projectId,
+    canWrite,
+    facets: facets.data ?? [],
+  });
   const actions = (
     <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
       {modelSettings.action}
@@ -276,7 +267,6 @@ function TopicsWorkspaceView({
         <div className="ph-no-capture mb-6">{modelSettings.notice}</div>
       )}
       {configuration}
-      {modelSettings.dialog}
       <Sheet
         open={historyOpen || executionId !== null}
         onOpenChange={showExecutionList}
@@ -386,99 +376,6 @@ function TopicsWorkspaceView({
         )}
       </div>
     </Page>
-  );
-}
-
-function FacetEditor({
-  projectId,
-  facets,
-}: {
-  projectId: string;
-  facets: TopicFacet[];
-}) {
-  const utils = api.useUtils();
-  const [facetId, setFacetId] = useState("new");
-  const [name, setName] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const isBuiltIn = facets.some(
-    (facet) => facet.id === facetId && facet.isBuiltIn,
-  );
-  const save = api.topics.saveFacet.useMutation({
-    onSuccess: () => utils.topics.facets.invalidate({ projectId }),
-  });
-  return (
-    <details className="border-t pt-6">
-      <summary className="cursor-pointer font-bold">
-        Add a facet or revise a question
-      </summary>
-      <div className="mt-4 flex flex-col gap-3">
-        <Select
-          value={facetId}
-          onValueChange={(value) => {
-            setFacetId(value);
-            const facet = facets.find((f) => f.id === value);
-            setName(facet?.name ?? "");
-            setPrompt(facet?.versions[0]?.prompt ?? "");
-          }}
-        >
-          <SelectTrigger aria-label="Facet to edit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="ph-no-capture">
-            <SelectItem value="new">New facet</SelectItem>
-            {facets.map((facet) => (
-              <SelectItem
-                key={facet.id}
-                value={facet.id}
-                disabled={facet.isBuiltIn}
-              >
-                {facet.name} · {facet.isBuiltIn ? "built-in" : "new version"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          aria-label="Facet name"
-          placeholder="Facet name"
-          value={name}
-          disabled={facetId !== "new"}
-          onChange={(event) => setName(event.target.value)}
-        />
-        <Textarea
-          aria-label="Facet question"
-          placeholder="What should each trace summary describe?"
-          value={prompt}
-          disabled={isBuiltIn}
-          onChange={(event) => setPrompt(event.target.value)}
-        />
-        <p className="text-muted-foreground text-xs">
-          Built-in questions are read-only. Revising a custom question creates
-          an immutable version; existing summaries and maps retain their
-          original question.
-        </p>
-        <div className="self-start">
-          <Button
-            text="Save facet"
-            disabled={
-              isBuiltIn ||
-              save.isPending ||
-              !name.trim() ||
-              prompt.trim().length < 10
-            }
-            onClick={() =>
-              save.mutate({
-                projectId,
-                ...(facetId === "new" ? {} : { facetId }),
-                name,
-                prompt,
-              })
-            }
-          />
-        </div>
-        {save.error && <ErrorMessage message={save.error.message} />}
-        {save.isSuccess && <p className="text-sm">Facet saved.</p>}
-      </div>
-    </details>
   );
 }
 

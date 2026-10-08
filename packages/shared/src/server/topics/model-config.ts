@@ -14,7 +14,7 @@ import { testModelCall } from "../llm/testModelCall";
 import { LLMAdapter, type LLMApiKeySchema } from "../llm/types";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
-  TOPICS_SUPPORTED_ADAPTERS,
+  TOPICS_MODEL_SLOTS,
   type TopicsModelSettings,
   type TopicsModelSlotName,
 } from "../../topics";
@@ -56,8 +56,7 @@ function resolveSlot(
   key: LlmApiKeys | null,
   model: string | null,
 ): TopicsModel | null {
-  if (!key || !model || !TOPICS_SUPPORTED_ADAPTERS.includes(key.adapter))
-    return null;
+  if (!key || !model) return null;
   return {
     slot,
     provider: key.provider,
@@ -191,10 +190,10 @@ export async function readTopicsModelSettings(projectId: string) {
   };
 }
 
-export async function saveTopicsModelSettings(
+async function loadTopicsModelKeys(
   projectId: string,
   settings: TopicsModelSettings,
-): Promise<void> {
+) {
   const ids = [
     settings.summary,
     settings.embedding,
@@ -204,18 +203,30 @@ export async function saveTopicsModelSettings(
     where: { projectId, id: { in: ids } },
   });
   for (const id of ids) {
-    const key = keys.find((candidate) => candidate.id === id);
-    if (!key)
+    if (!keys.some((key) => key.id === id))
       throw new InvalidRequestError(
         "LLM connection not found in this project.",
       );
-    if (!TOPICS_SUPPORTED_ADAPTERS.includes(key.adapter))
-      throw new InvalidRequestError(
-        key.adapter === LLMAdapter.Anthropic
-          ? `"${key.provider}" is an Anthropic connection. Topics needs OpenAI, Azure OpenAI, Amazon Bedrock, or Google connections because Anthropic has no embeddings API.`
-          : `"${key.provider}" cannot be used for Topics.`,
-      );
   }
+  return keys;
+}
+
+/** Real call per configured slot. The message is the provider error for that row. */
+export async function checkTopicsModelSettings(
+  projectId: string,
+  settings: TopicsModelSettings,
+): Promise<Partial<Record<TopicsModelSlotName, string>>> {
+  return testTopicsModelSlots(
+    settings,
+    await loadTopicsModelKeys(projectId, settings),
+  );
+}
+
+export async function saveTopicsModelSettings(
+  projectId: string,
+  settings: TopicsModelSettings,
+): Promise<void> {
+  const keys = await loadTopicsModelKeys(projectId, settings);
   if (
     settings.enabled &&
     (!settings.summary || !settings.embedding || !settings.clustering)
@@ -270,29 +281,42 @@ const TEST_SCHEMAS = {
 /**
  * Makes one real call per configured slot, like the evaluator model check:
  * structured output for summaries and clustering, and an embedding whose
- * length must match the configured dimensions.
+ * length must match the configured dimensions. A slot with no error is omitted.
  */
-async function testTopicsModels(
+async function testTopicsModelSlots(
   settings: TopicsModelSettings,
   keys: LlmApiKeys[],
-): Promise<void> {
-  const key = (id: string) => keys.find((candidate) => candidate.id === id)!;
-  const checks = (["summary", "embedding", "clustering"] as const).flatMap(
-    (name) => {
+): Promise<Partial<Record<TopicsModelSlotName, string>>> {
+  const errors: Partial<Record<TopicsModelSlotName, string>> = {};
+  await Promise.all(
+    TOPICS_MODEL_SLOTS.map(async (name) => {
       const slot = settings[name];
-      if (!slot) return [];
-      const llmApiKey = key(slot.llmApiKeyId);
-      const check = async () => {
-        if (name !== "embedding")
-          return testModelCall({
+      if (!slot) return;
+      const llmApiKey = keys.find(
+        (candidate) => candidate.id === slot.llmApiKeyId,
+      );
+      if (!llmApiKey) {
+        errors[name] = "LLM connection not found in this project.";
+        return;
+      }
+      try {
+        if (name !== "embedding") {
+          await testModelCall({
             provider: llmApiKey.provider,
             model: slot.model,
             apiKey: llmApiKey as z.infer<typeof LLMApiKeySchema>,
             structuredOutputSchema: TEST_SCHEMAS[name],
             timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           });
+          return;
+        }
+        const resolved = resolveSlot(name, llmApiKey, slot.model);
+        if (!resolved) {
+          errors[name] = "LLM connection not found in this project.";
+          return;
+        }
         const { embedding } = await generateTopicEmbedding({
-          model: resolveSlot(name, llmApiKey, slot.model)!,
+          model: resolved,
           summary: "Topics model check",
           dimensions: settings.embeddingDimensions,
         });
@@ -300,19 +324,29 @@ async function testTopicsModels(
           throw new Error(
             `The model returned ${embedding.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
           );
-      };
-      return [
-        check().then(
-          () => null,
-          (error: unknown) =>
-            `${TOPICS_MODEL_SLOT_DETAILS[name].label} (${slot.model}): ${
-              error instanceof Error ? error.message.slice(0, 300) : "failed"
-            }`,
-        ),
-      ];
-    },
+      } catch (error) {
+        errors[name] =
+          error instanceof Error
+            ? error.message.slice(0, 300)
+            : "The test call failed.";
+      }
+    }),
   );
-  const failures = (await Promise.all(checks)).filter(Boolean);
+  return errors;
+}
+
+async function testTopicsModels(
+  settings: TopicsModelSettings,
+  keys: LlmApiKeys[],
+): Promise<void> {
+  const errors = await testTopicsModelSlots(settings, keys);
+  const failures = TOPICS_MODEL_SLOTS.flatMap((name) => {
+    const message = errors[name];
+    const slot = settings[name];
+    return message && slot
+      ? [`${TOPICS_MODEL_SLOT_DETAILS[name].label} (${slot.model}): ${message}`]
+      : [];
+  });
   if (failures.length)
     throw new InvalidRequestError(
       `The test call failed for ${failures.join("; ")}`,

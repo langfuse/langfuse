@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
-import { LLMAdapter } from "../server/llm/types";
 
 export const topicIdSchema = z
   .string()
@@ -32,14 +31,6 @@ export const TOPICS_MODEL_SLOTS = [
   "clustering",
 ] as const;
 export type TopicsModelSlotName = (typeof TOPICS_MODEL_SLOTS)[number];
-// Every slot must support embeddings or structured output; Anthropic has no embeddings API.
-export const TOPICS_SUPPORTED_ADAPTERS: readonly string[] = [
-  LLMAdapter.OpenAI,
-  LLMAdapter.Azure,
-  LLMAdapter.Bedrock,
-  LLMAdapter.GoogleAIStudio,
-  LLMAdapter.VertexAI,
-];
 export const TOPICS_MODEL_SLOT_DETAILS: Record<
   TopicsModelSlotName,
   { label: string; recommendation: string }

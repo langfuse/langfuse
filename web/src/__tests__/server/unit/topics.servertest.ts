@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   isTopicsEnabled: vi.fn(),
   isTopicsProjectEnabled: vi.fn(),
   getTopicsModels: vi.fn(),
+  checkTopicsModelSettings: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
@@ -1231,4 +1232,40 @@ describe("Topics current results", () => {
       ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     },
   );
+});
+
+describe("Topics model settings", () => {
+  const settings = {
+    projectId,
+    summary: null,
+    embedding: { llmApiKeyId: "key", model: "text-embedding-3-small" },
+    embeddingDimensions: 1024,
+    clustering: null,
+    enabled: false,
+  };
+
+  it("returns the slot check to a writer and rejects a viewer before testing", async () => {
+    const errors = {
+      embedding: "You are not allowed to generate embeddings from this model",
+    };
+    mocks.checkTopicsModelSettings.mockResolvedValue(errors);
+
+    await expect(
+      caller("VIEWER").testModelSettings(settings),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller().testModelSettings({ ...settings, projectId: "foreign" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.checkTopicsModelSettings).not.toHaveBeenCalled();
+
+    await expect(caller().testModelSettings(settings)).resolves.toEqual(errors);
+    expect(mocks.checkTopicsModelSettings).toHaveBeenCalledOnce();
+    expect(mocks.checkTopicsModelSettings).toHaveBeenCalledWith(projectId, {
+      summary: null,
+      embedding: settings.embedding,
+      embeddingDimensions: 1024,
+      clustering: null,
+      enabled: false,
+    });
+  });
 });

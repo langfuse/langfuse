@@ -35,7 +35,7 @@ vi.mock("./TopicPipelineForm", () => ({
   useTopicPipelineForm: () => ({ actions: null, configuration: null }),
 }));
 vi.mock("./TopicModelSettings", () => ({
-  useTopicModelSettings: () => ({ action: null, dialog: null, notice: null }),
+  useTopicModelSettings: () => ({ action: null, notice: null }),
 }));
 vi.mock("./CurrentTopics", () => ({
   CurrentTopics: ({

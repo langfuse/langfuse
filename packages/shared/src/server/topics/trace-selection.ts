@@ -36,15 +36,24 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     projectId: input.projectId,
     prisma,
     objectType: "OBSERVATION",
-    filterState: input.filter.map((filter) =>
-      filter.column === "tags" ? { ...filter, column: "traceTags" } : filter,
-    ),
+    filterState: input.filter.flatMap((filter) => {
+      if (filter.column === "isRootObservation") return [];
+      if (filter.column === "tags")
+        return [{ ...filter, column: "traceTags" as const }];
+      return [filter];
+    }),
   });
   if (hasNoMatches) return [];
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
     filter: filterState.concat([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
       {
         column: "startTime",
         type: "datetime",
