@@ -73,9 +73,16 @@ project permissions. Processing additionally requires the project allowlist.
   colors, mapped-cohort counts, camera geometry and collision-bounded detail labels.
   Zones represent existing topics, not a new clustering hierarchy; halos and
   deterministic depth are decorative, not density, severity or quality measures.
-  One uniform scale preserves relative 2D distances. The camera keeps surrounding
-  topics visible when a selection focuses a cloud. At closer scales, stored trace
-  excerpts appear in the map; the inspector pins full summaries and opens traces.
+  The bird's-eye cloud uses a uniform scale for the saved 2D distances and shows
+  block labels only on hover. Zoom progressively interpolates each topic's cloud
+  into a stable card grid for reading; those display positions are not embedding
+  distances and never change the saved coordinates or topic membership. The
+  camera keeps surrounding topics visible when a selection focuses a cloud.
+  A focused topic opens into its own grid while surrounding topics stay as clouds,
+  leaving its reading slots clear of neighboring grids.
+  Automatic cards avoid other dots, and hovered traces receive first priority.
+  At closer scales, longer stored trace excerpts appear in the map; the inspector
+  pins full summaries and opens traces.
   Previous/Next controls expose every plotted trace to keyboard users, including
   coincident points and fullscreen, without mounting thousands of focusable dots.
   `map/TopicMapCanvas.tsx` draws the cloud via a frame-batched subscription to a
@@ -85,8 +92,8 @@ project permissions. Processing additionally requires the project allowlist.
   `usePanZoomGestures` shares wheel input with the timeline: scroll pans, pinch or
   Ctrl/Command-scroll zooms at the pointer, and two touch contacts pinch and pan.
   Drag capture starts after a threshold so clicks remain clicks. Arrow keys pan,
-  +/- zoom and 0/Home fit the map. OS reduced motion disables focus flights and
-  pointer parallax. Missing-coordinate warnings remain below the map. This internal
+  +/- zoom and 0/Home fit the current selection. OS reduced motion disables focus
+  flights and pointer parallax. Missing-coordinate warnings remain below the map. This internal
   PoC adds no analytics events for camera/hover/fullscreen; the entire renderer is
   blocked from session replay. Browser fullscreen denial is expected UI state.
 - `server/currentResults.ts` joins latest per-trace/facet assignments to their

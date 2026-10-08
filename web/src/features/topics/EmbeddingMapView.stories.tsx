@@ -228,6 +228,9 @@ export const ExploreZoneAndTrace = meta.story({
     await expect(
       canvas.queryAllByRole("button", { name: /^Select trace:/ }),
     ).toHaveLength(0);
+    await expect(canvas.queryAllByTestId("topic-map-zone-card")).toHaveLength(
+      0,
+    );
     await userEvent.click(
       canvas.getByRole("button", { name: /^Explore Inventory timeouts,/ }),
     );
@@ -256,17 +259,31 @@ export const ExploreZoneAndTrace = meta.story({
       name: /^Select trace:/,
     })[0];
     const trace = denseData.points.find(
-      (point) =>
-        `Select trace: ${point.summary}` ===
-        summaryButton.getAttribute("aria-label"),
+      (point) => point.traceId === summaryButton.getAttribute("data-trace-id"),
     );
     if (!trace)
       throw new Error("The inline summary has no matching fixture trace.");
+    await userEvent.hover(summaryButton);
+    await expect(summaryButton).toHaveAttribute("data-hovered", "true");
+    await expect(summaryButton).toBeVisible();
     await userEvent.click(summaryButton);
     await expect(args.onSelectTrace).toHaveBeenCalledWith(trace.traceId);
     const inspector = within(canvas.getByLabelText("Map details"));
     await expect(inspector.getByText(trace.traceId)).toBeVisible();
     await expect(inspector.getByText(trace.summary)).toBeVisible();
+    const stage = canvas.getByRole("group", {
+      name: /^Interactive topic map/,
+    });
+    stage.focus();
+    await userEvent.keyboard("0");
+    await expect(args.onSelectTopic).toHaveBeenLastCalledWith(
+      "inventory-timeouts",
+    );
+    await expect(inspector.getByText(trace.traceId)).toBeVisible();
+    await userEvent.keyboard("{Home}");
+    await expect(args.onSelectTopic).toHaveBeenLastCalledWith(
+      "inventory-timeouts",
+    );
     await userEvent.click(
       inspector.getByRole("button", { name: "Open trace" }),
     );

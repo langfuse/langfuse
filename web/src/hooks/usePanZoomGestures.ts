@@ -183,6 +183,12 @@ export function usePanZoomGestures(options: Options) {
   const onPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (!enabled || !pointerPan || !contacts.current.has(event.pointerId))
       return;
+    // An uncaptured press can release outside the surface without a pointerup.
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      releasePointer(event);
+      suppressClick.current = false;
+      return;
+    }
     const point = { x: event.clientX, y: event.clientY };
     contacts.current.set(event.pointerId, point);
     const previous = pinch.current;
@@ -232,7 +238,14 @@ export function usePanZoomGestures(options: Options) {
     if (!contacts.current.has(event.pointerId)) return;
     contacts.current.delete(event.pointerId);
     pinch.current = null;
-    if (contacts.current.size === 1) {
+    if (contacts.current.size >= 2) {
+      const [a, b] = [...contacts.current.values()];
+      pinch.current = {
+        distance: Math.hypot(b.x - a.x, b.y - a.y),
+        midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
+      press.current = null;
+    } else if (contacts.current.size === 1) {
       const [pointerId, point] = [...contacts.current.entries()][0];
       press.current = {
         pointerId,

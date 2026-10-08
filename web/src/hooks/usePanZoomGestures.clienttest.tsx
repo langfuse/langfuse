@@ -49,7 +49,7 @@ function pointer(
   pointerId: number,
   x: number,
   y: number,
-  options: { isPrimary?: boolean; pointerType?: string } = {},
+  options: { isPrimary?: boolean; pointerType?: string; buttons?: number } = {},
 ): ReactPointerEvent<HTMLElement> {
   return {
     currentTarget: element,
@@ -59,6 +59,7 @@ function pointer(
     pointerType: options.pointerType ?? "touch",
     isPrimary: options.isPrimary ?? false,
     button: 0,
+    buttons: options.buttons ?? 1,
     preventDefault: vi.fn(),
   } as unknown as ReactPointerEvent<HTMLElement>;
 }
@@ -235,6 +236,63 @@ describe("pan and zoom device input", () => {
     flushFrame();
     expect(onPan).toHaveBeenLastCalledWith(10, 0);
     expect(onZoom).toHaveBeenCalledOnce();
+  });
+
+  it("continues pinching when three contacts become a different pair", () => {
+    const element = surface();
+    const onZoom = vi.fn();
+    const onPan = vi.fn();
+    const target = { current: element };
+    const { result } = renderHook(() =>
+      usePanZoomGestures({ target, onPan, onZoom }),
+    );
+    act(() => {
+      result.current.pointerHandlers.onPointerDown(
+        pointer(element, 1, 120, 140, { isPrimary: true }),
+      );
+      result.current.pointerHandlers.onPointerDown(
+        pointer(element, 2, 220, 140),
+      );
+      result.current.pointerHandlers.onPointerDown(
+        pointer(element, 3, 320, 140),
+      );
+      result.current.pointerHandlers.onPointerUp(pointer(element, 1, 120, 140));
+      result.current.pointerHandlers.onPointerMove(
+        pointer(element, 3, 420, 140),
+      );
+    });
+    flushFrame();
+    expect(onZoom).toHaveBeenCalledExactlyOnceWith(1, { x: 0.625, y: 0.5 });
+    expect(onPan).toHaveBeenCalledExactlyOnceWith(50, 0);
+    expect(result.current.isDragging).toBe(true);
+  });
+
+  it("forgets a mouse press released outside the surface before capture", () => {
+    const element = surface();
+    const onPan = vi.fn();
+    const target = { current: element };
+    const { result } = renderHook(() =>
+      usePanZoomGestures({ target, onPan, onZoom: vi.fn() }),
+    );
+    act(() => {
+      result.current.pointerHandlers.onPointerDown(
+        pointer(element, 1, 21, 100, {
+          isPrimary: true,
+          pointerType: "mouse",
+        }),
+      );
+      result.current.pointerHandlers.onPointerMove(
+        pointer(element, 1, 20, 100, { pointerType: "mouse" }),
+      );
+      // The release happens outside, so the next event is an unpressed hover.
+      result.current.pointerHandlers.onPointerMove(
+        pointer(element, 1, 100, 100, { pointerType: "mouse", buttons: 0 }),
+      );
+    });
+    flushFrame();
+    expect(element.setPointerCapture).not.toHaveBeenCalled();
+    expect(onPan).not.toHaveBeenCalled();
+    expect(result.current.isDragging).toBe(false);
   });
 
   it("uses the latest camera callbacks for a pending frame and cancels on unmount", () => {

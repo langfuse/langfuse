@@ -7,6 +7,7 @@ export function createTopicMapStore() {
     scope: null as string | null,
     pointer: { x: 0, y: 0 },
     hoveredId: null as string | null,
+    hoveredZoneId: null as string | null,
     isFullscreen: false,
     reducedMotion: true,
     fullscreenError: false,

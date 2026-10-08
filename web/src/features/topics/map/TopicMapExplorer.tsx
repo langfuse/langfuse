@@ -19,11 +19,14 @@ import { TopicMapCanvas } from "./TopicMapCanvas";
 import { createTopicMapStore, type TopicMapStore } from "./topic-map-store";
 import {
   fitCamera,
+  displayedWorldPoint,
   fitMapPoints,
   hitPoint,
+  hitZone,
   panCamera,
   prepareMapLabels,
   prepareTopicMap,
+  readingLayoutBlend,
   zoomCamera,
   type Camera,
   type MapData,
@@ -117,23 +120,37 @@ export function TopicMapExplorer({
     );
     onSelectTopic(id);
   };
+  const fitSelection = () =>
+    flyTo(
+      fitCamera(selectedZone?.bounds ?? model.bounds, model.bounds, size),
+      selectedTopic,
+      true,
+    );
   const zoom = (levels: number, anchor = { x: 0.5, y: 0.5 }) =>
     setCamera(zoomCamera(getCamera(), levels, anchor, model.bounds, size));
   const focusTrace = (id: string) => {
     const point = model.pointById.get(id);
     if (!point) return;
     onSelectTrace(id);
-    flyTo(
-      { x: point.x, y: point.y, zoom: Math.max(4, getCamera().zoom) },
+    const targetZoom = Math.max(4, getCamera().zoom);
+    const position = displayedWorldPoint(
+      point,
+      targetZoom,
+      model.bounds,
+      size,
       selectedTopic,
     );
+    flyTo({ ...position, zoom: targetZoom }, selectedTopic);
   };
   const gestures = usePanZoomGestures({
     target: stageRef,
     onPan: (dx, dy) =>
       setCamera(panCamera(getCamera(), dx, dy, model.bounds, size)),
     onZoom: zoom,
-    onInteractionStart: cancelFlight,
+    onInteractionStart: () => {
+      cancelFlight();
+      store.setState({ hoveredId: null, hoveredZoneId: null });
+    },
   });
   // Browser fullscreen and OS motion preferences are external subscriptions.
   useEffect(() => {
@@ -144,6 +161,7 @@ export function TopicMapExplorer({
         ...(motion.matches && {
           pointer: { x: 0, y: 0 },
           hoveredId: null,
+          hoveredZoneId: null,
         }),
       });
     const updateFullscreen = () =>
@@ -208,18 +226,7 @@ export function TopicMapExplorer({
           <IconButton
             icon={LocateFixed}
             label="Fit map (0)"
-            onClick={() => {
-              cancelFlight();
-              flyTo(
-                fitCamera(
-                  selectedZone?.bounds ?? model.bounds,
-                  model.bounds,
-                  size,
-                ),
-                selectedTopic,
-                true,
-              );
-            }}
+            onClick={fitSelection}
           />
           <IconButton
             icon={Minus}
@@ -283,11 +290,40 @@ export function TopicMapExplorer({
                 x: (at.x / size.width - 0.5) * 2,
                 y: (at.y / size.height - 0.5) * 2,
               };
-          const hovered = hitPoint(model, getCamera(), size, pointer, at);
-          store.setState({ pointer, hoveredId: hovered?.traceId ?? null });
+          const hovered = hitPoint(
+            model,
+            getCamera(),
+            size,
+            pointer,
+            at,
+            selectedTopic,
+          );
+          const label =
+            event.target instanceof Element
+              ? event.target.closest<HTMLElement>("[data-topic-zone]")
+              : null;
+          const traceLabel =
+            event.target instanceof Element
+              ? event.target.closest<HTMLElement>("[data-topic-trace]")
+              : null;
+          store.setState({
+            pointer,
+            hoveredId:
+              traceLabel?.dataset.topicTrace ??
+              (label ? null : (hovered?.traceId ?? null)),
+            hoveredZoneId:
+              label?.dataset.topicZone ??
+              hovered?.groupId ??
+              hitZone(model, getCamera(), size, at)?.id ??
+              null,
+          });
         }}
         onPointerLeave={() =>
-          store.setState({ pointer: { x: 0, y: 0 }, hoveredId: null })
+          store.setState({
+            pointer: { x: 0, y: 0 },
+            hoveredId: null,
+            hoveredZoneId: null,
+          })
         }
         onClick={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -298,6 +334,7 @@ export function TopicMapExplorer({
             size,
             store.getState().pointer,
             { x: event.clientX - rect.left, y: event.clientY - rect.top },
+            selectedTopic,
           );
           onSelectTrace(point?.traceId ?? null);
         }}
@@ -330,8 +367,7 @@ export function TopicMapExplorer({
             cancelFlight();
             if (event.key === "+" || event.key === "=") zoom(0.5);
             else if (event.key === "-") zoom(-0.5);
-            else if (event.key === "0" || event.key === "Home")
-              chooseZone(null);
+            else if (event.key === "0" || event.key === "Home") fitSelection();
             else if (event.key === "Escape") {
               if (document.fullscreenElement === sectionRef.current)
                 toggleFullscreen();
@@ -378,7 +414,12 @@ export function TopicMapExplorer({
           </div>
         )}
         <div className="text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <span>{model.populationLabel} · Saved 2D projection</span>
+          <LayoutReadout
+            store={store}
+            initialCamera={initialCamera}
+            scope={selectedTopic}
+            population={model.populationLabel}
+          />
           <span>Drag / scroll to pan · Pinch / Ctrl or ⌘ + scroll to zoom</span>
         </div>
       </div>
@@ -431,6 +472,30 @@ function ZoomReadout({
   );
 }
 
+function LayoutReadout({
+  store,
+  initialCamera,
+  scope,
+  population,
+}: {
+  store: TopicMapStore;
+  initialCamera: Camera;
+  scope: string | null;
+  population: string;
+}) {
+  const camera = useStore(store, (s) => s.camera);
+  const cameraScope = useStore(store, (s) => s.scope);
+  const current = cameraScope === scope && camera ? camera : initialCamera;
+  return (
+    <span>
+      {population} ·{" "}
+      {readingLayoutBlend(current.zoom) > 0
+        ? "Reading layout"
+        : "Saved 2D projection"}
+    </span>
+  );
+}
+
 function MapLabels({
   model,
   size,
@@ -453,6 +518,8 @@ function MapLabels({
   const camera = useStore(store, (s) => s.camera);
   const scope = useStore(store, (s) => s.scope);
   const pointer = useStore(store, (s) => s.pointer);
+  const hoveredZoneId = useStore(store, (s) => s.hoveredZoneId);
+  const hoveredId = useStore(store, (s) => s.hoveredId);
   const currentCamera =
     scope === selectedTopic && camera ? camera : initialCamera;
   const labels = prepareMapLabels(
@@ -461,6 +528,9 @@ function MapLabels({
     size,
     pointer,
     selectedTraceId,
+    hoveredZoneId,
+    hoveredId,
+    selectedTopic,
   );
   return (
     <div className="pointer-events-none absolute inset-0">
@@ -482,6 +552,8 @@ function MapLabels({
         <button
           key={zone.id}
           type="button"
+          data-topic-zone={zone.id}
+          data-testid="topic-map-zone-card"
           onClick={() => onSelectZone(zone.id)}
           className={cn(
             "bg-background/85 hover:bg-background focus-visible:outline-ring pointer-events-auto absolute flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md px-2.5 py-1.5 text-center shadow-sm backdrop-blur-sm transition-colors focus-visible:outline-2",
@@ -510,14 +582,21 @@ function MapLabels({
           )}
         </button>
       ))}
-      {labels.traces.map(({ point, card, excerpt }) => (
+      {labels.traces.map(({ point, card, excerpt, reading }) => (
         <button
           key={point.traceId}
           type="button"
+          data-topic-trace={point.traceId}
+          data-trace-id={point.traceId}
+          data-testid="topic-map-trace-card"
+          data-hovered={point.traceId === hoveredId}
+          aria-pressed={point.traceId === selectedTraceId}
           onClick={() => onSelectTrace(point.traceId)}
           className={cn(
-            "bg-background/90 hover:bg-background focus-visible:outline-ring pointer-events-auto absolute w-48 cursor-pointer rounded-md border px-2.5 py-2 text-left text-[11px] leading-relaxed shadow-sm backdrop-blur-sm focus-visible:outline-2",
-            point.traceId === selectedTraceId &&
+            "bg-background/90 hover:bg-background focus-visible:outline-ring pointer-events-auto absolute w-48 cursor-pointer rounded-md border px-2.5 py-2 text-left leading-relaxed shadow-sm backdrop-blur-sm focus-visible:outline-2",
+            reading ? "text-xs" : "text-[11px]",
+            (point.traceId === selectedTraceId ||
+              point.traceId === hoveredId) &&
               "border-primary ring-primary ring-1",
           )}
           style={{
@@ -530,7 +609,11 @@ function MapLabels({
           }}
           aria-label={`Select trace: ${point.summary}`}
         >
-          <span className="line-clamp-3">{excerpt}</span>
+          <span
+            className={card.height >= 110 ? "line-clamp-6" : "line-clamp-3"}
+          >
+            {excerpt}
+          </span>
         </button>
       ))}
     </div>
@@ -557,10 +640,11 @@ function MapInspector({
   onOpenTrace: (id: string) => void;
 }) {
   const hoveredId = useStore(store, (s) => s.hoveredId);
+  const hoveredZoneId = useStore(store, (s) => s.hoveredZoneId);
   const activeId = selectedTraceId ?? hoveredId;
   const active = activeId ? model.pointById.get(activeId) : undefined;
   const zone = model.zones.find(
-    (z) => z.id === (active?.groupId ?? selectedTopic),
+    (z) => z.id === (active?.groupId ?? selectedTopic ?? hoveredZoneId),
   );
   const browsePoints = selectedTopic
     ? (model.zones.find((item) => item.id === selectedTopic)?.points ?? [])
@@ -663,6 +747,7 @@ function MapInspector({
                   key={item.id}
                   type="button"
                   onClick={() => onSelectZone(item.id)}
+                  aria-label={`Explore ${item.name}, ${item.countLabel}`}
                   className="flex cursor-pointer items-center gap-1.5 py-1 text-xs hover:underline"
                 >
                   <span

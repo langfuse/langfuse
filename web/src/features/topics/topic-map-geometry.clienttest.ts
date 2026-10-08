@@ -3,6 +3,7 @@ import { __test } from "./EmbeddingMapView";
 import {
   baseScale,
   displayedPoint,
+  displayedWorldPoint,
   fitCamera,
   hitPoint,
   panCamera,
@@ -63,7 +64,11 @@ function worldAtScreen(at: { x: number; y: number }, view: Camera, plot: Size) {
   };
 }
 
-function traceLabelFixture(positions: { x: number; y: number }[], plot: Size) {
+function traceLabelFixture(
+  positions: { x: number; y: number }[],
+  plot: Size,
+  zoom = 3,
+) {
   const prepared = prepareTopicMap(
     data([
       point("corner-a", -100, -100),
@@ -76,7 +81,7 @@ function traceLabelFixture(positions: { x: number; y: number }[], plot: Size) {
   );
   const view = {
     ...fitCamera(prepared.bounds, prepared.bounds, plot),
-    zoom: 4,
+    zoom,
   };
   const scale = baseScale(prepared.bounds, plot) * view.zoom;
   const points = prepared.points.map((p) => {
@@ -229,6 +234,19 @@ describe("topic map camera", () => {
 });
 
 describe("topic map preparation", () => {
+  it("does not use individual trace text as missing historical topic context", () => {
+    const trace = point("historical-trace", 0, 0);
+    for (const description of [undefined, "", "   "]) {
+      const model = prepareTopicMap(data([trace]), [
+        { id: "billing", name: "Billing", description },
+      ]);
+      expect(model.zones[0].description).not.toBe(trace.summary);
+      expect(model.zones[0].description).toMatch(
+        /description.*(available|saved)/i,
+      );
+    }
+  });
+
   it("groups the discovery cohort separately from outliers and unavailable assignments", () => {
     const model = prepareTopicMap(
       data([
@@ -283,6 +301,8 @@ describe("topic map preparation", () => {
 
     for (const p of first.points) {
       expect(p.depth).toBe(reordered.pointById.get(p.traceId)?.depth);
+      expect(p.gridIndex).toBe(reordered.pointById.get(p.traceId)?.gridIndex);
+      expect(p.gridCount).toBe(reordered.pointById.get(p.traceId)?.gridCount);
       expect(p.depth).toBeGreaterThanOrEqual(0);
       expect(p.depth).toBeLessThan(1);
     }
@@ -381,9 +401,423 @@ describe("topic map preparation", () => {
       hitPoint(model, view, size, movingPointer, { x: -100, y: -100 }),
     ).toBeNull();
   });
+
+  it("morphs into a stable responsive reading grid without changing saved coordinates", () => {
+    const model = prepareTopicMap(
+      data(
+        Array.from({ length: 12 }, (_, i) =>
+          point(`trace-${String(i).padStart(2, "0")}`, i * 2, i % 3),
+        ),
+      ),
+      topics,
+    );
+    const canonical = model.points.map((p) => ({ x: p.x, y: p.y }));
+    const plot = { width: 1200, height: 1000 };
+    const zone = model.zones[0];
+    const view = { x: zone.x, y: zone.y, zoom: 10 };
+    const positions = model.points.map((p) =>
+      displayedPoint(p, view, model.bounds, plot, pointer),
+    );
+
+    // Four columns become one on a narrow viewport, preserving the trace order.
+    expect(positions[1].y).toBeCloseTo(positions[0].y, 8);
+    expect(positions[1].x - positions[0].x).toBeGreaterThan(250);
+    expect(positions[4].x).toBeCloseTo(positions[0].x, 8);
+    expect(positions[4].y - positions[0].y).toBeGreaterThan(140);
+    const mobile = { width: 360, height: 800 };
+    const narrow = model.points.map((p) =>
+      displayedPoint(p, view, model.bounds, mobile, pointer),
+    );
+    expect(narrow[1].x).toBeCloseTo(narrow[0].x, 8);
+    expect(narrow[1].y).toBeGreaterThan(narrow[0].y);
+    for (const zoom of [10, 20, 32]) {
+      const a = displayedPoint(
+        model.points[0],
+        { ...view, zoom },
+        model.bounds,
+        plot,
+        pointer,
+      );
+      const b = displayedPoint(
+        model.points[1],
+        { ...view, zoom },
+        model.bounds,
+        plot,
+        pointer,
+      );
+      expect(b.x - a.x).toBeCloseTo(
+        ((positions[1].x - positions[0].x) * zoom) / 10,
+        8,
+      );
+    }
+    expect(model.points.map((p) => ({ x: p.x, y: p.y }))).toEqual(canonical);
+  });
+
+  it("shares the displayed position between focus, cards, hit testing, and fading parallax", () => {
+    const model = prepareTopicMap(
+      data(
+        Array.from({ length: 6 }, (_, i) => point(`trace-${i}`, i * 5, i % 2)),
+      ),
+      topics,
+    );
+    const selected = model.points[3];
+    for (const zoom of [3, 6.5, 10, 20]) {
+      const world = displayedWorldPoint(selected, zoom, model.bounds, size);
+      const view = { ...world, zoom };
+      const shown = displayedPoint(selected, view, model.bounds, size, pointer);
+      expect(shown.x).toBeCloseTo(size.width / 2, 8);
+      expect(shown.y).toBeCloseTo(size.height / 2, 8);
+      expect(hitPoint(model, view, size, pointer, shown)?.traceId).toBe(
+        selected.traceId,
+      );
+      const label = prepareMapLabels(
+        model,
+        view,
+        size,
+        pointer,
+        null,
+        null,
+        selected.traceId,
+      ).traces[0];
+      expect(label.point.traceId).toBe(selected.traceId);
+      expect(label.position).toEqual(shown);
+      if (zoom >= 10) {
+        expect(
+          displayedPoint(selected, view, model.bounds, size, { x: 1, y: -1 }),
+        ).toEqual(shown);
+      }
+    }
+    const cloud = displayedWorldPoint(selected, 3, model.bounds, size);
+    expect(cloud).toEqual({ x: selected.x, y: selected.y });
+    const before = displayedWorldPoint(selected, 3 - 0.001, model.bounds, size);
+    const after = displayedWorldPoint(selected, 3 + 0.001, model.bounds, size);
+    expect(Math.hypot(before.x - after.x, before.y - after.y)).toBeLessThan(
+      0.01,
+    );
+  });
+
+  it("keeps a reading-grid trace under the cursor when continuing to zoom", () => {
+    const model = prepareTopicMap(
+      data(
+        Array.from({ length: 8 }, (_, i) => point(`trace-${i}`, i * 3, i % 2)),
+      ),
+      topics,
+    );
+    const view = { ...fitCamera(model.bounds, model.bounds, size), zoom: 10 };
+    const readingPoint = model.points[3];
+    const at = displayedPoint(readingPoint, view, model.bounds, size, pointer);
+    const anchor = { x: at.x / size.width, y: at.y / size.height };
+    const zoomed = zoomCamera(view, 1, anchor, model.bounds, size);
+    const after = displayedPoint(
+      readingPoint,
+      zoomed,
+      model.bounds,
+      size,
+      pointer,
+    );
+    expect(after.x).toBeCloseTo(at.x, 8);
+    expect(after.y).toBeCloseTo(at.y, 8);
+    expect(displayedWorldPoint(readingPoint, 20, model.bounds, size)).toEqual(
+      displayedWorldPoint(readingPoint, 10, model.bounds, size),
+    );
+  });
+
+  it("keeps surrounding topics in the cloud while reading a selected zone", () => {
+    const model = prepareTopicMap(
+      data([
+        point("foreign-trace", 0, 0, { topicId: "retrieval" }),
+        point("corner-a", -100, -100),
+        point("corner-b", 100, -100),
+        point("corner-c", -100, 100),
+        point("corner-d", 100, 100),
+        point("billing-trace", 0, 0),
+      ]),
+      topics,
+    );
+    const foreign = model.pointById.get("foreign-trace")!;
+    const billing = model.pointById.get("billing-trace")!;
+    const view = { ...fitCamera(model.bounds, model.bounds, size), zoom: 10 };
+    expect(
+      displayedWorldPoint(foreign, 10, model.bounds, size, "billing"),
+    ).toEqual({ x: foreign.x, y: foreign.y });
+    expect(
+      displayedWorldPoint(billing, 10, model.bounds, size, "billing"),
+    ).not.toEqual({ x: billing.x, y: billing.y });
+    const automatic = prepareMapLabels(
+      model,
+      view,
+      size,
+      pointer,
+      null,
+      null,
+      null,
+      "billing",
+    ).traces;
+    expect(automatic.length).toBeGreaterThan(0);
+    expect(automatic.every((label) => label.point.groupId === "billing")).toBe(
+      true,
+    );
+    const hovered = prepareMapLabels(
+      model,
+      view,
+      size,
+      pointer,
+      "billing-trace",
+      null,
+      "foreign-trace",
+      "billing",
+    ).traces;
+    expect(hovered[0].point.traceId).toBe("foreign-trace");
+    const position = displayedPoint(
+      foreign,
+      view,
+      model.bounds,
+      size,
+      pointer,
+      "billing",
+    );
+    expect(hovered[0].position).toEqual(position);
+    expect(
+      hitPoint(model, view, size, pointer, position, "billing")?.traceId,
+    ).toBe("foreign-trace");
+    const selected = prepareMapLabels(
+      model,
+      view,
+      size,
+      pointer,
+      "foreign-trace",
+      null,
+      null,
+      "billing",
+    ).traces;
+    expect(selected[0].point.traceId).toBe("foreign-trace");
+  });
 });
 
 describe("topic map level of detail", () => {
+  it.each([
+    { edge: "left", x: 2, y: 250 },
+    { edge: "right", x: 358, y: 250 },
+    { edge: "top", x: 180, y: 2 },
+    { edge: "bottom", x: 180, y: 498 },
+    { edge: "clipped left", x: -4, y: 250 },
+    { edge: "clipped bottom", x: 180, y: 504 },
+    { edge: "top-left corner", x: 2, y: 2 },
+    { edge: "bottom-right corner", x: 358, y: 498 },
+  ])(
+    "keeps a hovered trace card inside the stage near the $edge",
+    ({ x, y }) => {
+      const plot = { width: 360, height: 500 };
+      const { model, view } = traceLabelFixture([{ x, y }], plot);
+      const labels = prepareMapLabels(
+        model,
+        view,
+        plot,
+        pointer,
+        null,
+        null,
+        "label-0",
+      ).traces;
+      expect(labels).toHaveLength(1);
+      const { card, position } = labels[0];
+      expect(card.x).toBeGreaterThanOrEqual(0);
+      expect(card.y).toBeGreaterThanOrEqual(0);
+      expect(card.x + card.width).toBeLessThanOrEqual(plot.width);
+      expect(card.y + card.height).toBeLessThanOrEqual(plot.height);
+      const dx = Math.max(
+        card.x - position.x,
+        0,
+        position.x - card.x - card.width,
+      );
+      const dy = Math.max(
+        card.y - position.y,
+        0,
+        position.y - card.y - card.height,
+      );
+      expect(Math.hypot(dx, dy)).toBeGreaterThanOrEqual(11.99);
+    },
+  );
+
+  it("gives the hovered trace the first card ahead of a distinct selection", () => {
+    const { model, view } = traceLabelFixture(
+      [
+        { x: 200, y: 150 },
+        { x: 205, y: 155 },
+        { x: 210, y: 160 },
+      ],
+      size,
+    );
+    const labels = prepareMapLabels(
+      model,
+      view,
+      size,
+      pointer,
+      "label-0",
+      null,
+      "label-2",
+    ).traces;
+
+    expect(labels[0].point.traceId).toBe("label-2");
+    expect(labels[1].point.traceId).toBe("label-0");
+  });
+
+  it("keeps a hover card available in a crowded overview while preserving its own dot", () => {
+    const positions = Array.from({ length: 1410 }, (_, i) => ({
+      x: 30 + (i % 47) * 20,
+      y: 30 + Math.floor(i / 47) * 18,
+    }));
+    const { model, view } = traceLabelFixture(positions, size, 1);
+    const hoveredId = "label-705";
+    const labels = prepareMapLabels(
+      model,
+      view,
+      size,
+      pointer,
+      null,
+      null,
+      hoveredId,
+    );
+    const hovered = labels.traces[0];
+    expect(hovered.point.traceId).toBe(hoveredId);
+    expect(labels.traces).toHaveLength(1);
+    const dot = displayedPoint(
+      hovered.point,
+      view,
+      model.bounds,
+      size,
+      pointer,
+    );
+    expect(
+      dot.x < hovered.card.x ||
+        dot.x > hovered.card.x + hovered.card.width ||
+        dot.y < hovered.card.y ||
+        dot.y > hovered.card.y + hovered.card.height,
+    ).toBe(true);
+    expect(
+      model.points.some((p) => {
+        if (p.traceId === hoveredId) return false;
+        const other = displayedPoint(p, view, model.bounds, size, pointer);
+        return (
+          other.x > hovered.card.x &&
+          other.x < hovered.card.x + hovered.card.width &&
+          other.y > hovered.card.y &&
+          other.y < hovered.card.y + hovered.card.height
+        );
+      }),
+    ).toBe(true);
+  });
+
+  it("does not show a zone hover card beside an overview trace hover card", () => {
+    const model = prepareTopicMap(data([point("trace", 0, 0)]), topics);
+    const view = fitCamera(model.bounds, model.bounds, size);
+    const labels = prepareMapLabels(
+      model,
+      view,
+      size,
+      pointer,
+      null,
+      "billing",
+      "trace",
+    );
+    expect(labels.traces).toHaveLength(1);
+    expect(labels.zones).toHaveLength(0);
+  });
+
+  it("shows the diagnostic sentence in a close reading card", () => {
+    const summary =
+      "The assistant used the retrieve_order tool to inspect the shipment status and confirm the customer request. It then checked the fulfillment record and attempted a tracking lookup. The carrier timed out after three attempts, leaving the delivery estimate unresolved.";
+    const model = prepareTopicMap(
+      data([point("timeout", 0, 0, { summary })]),
+      topics,
+    );
+    const selected = model.points[0];
+    const world = displayedWorldPoint(selected, 10, model.bounds, size);
+    const labels = prepareMapLabels(
+      model,
+      { ...world, zoom: 10 },
+      size,
+      pointer,
+      null,
+      null,
+      selected.traceId,
+    );
+    expect(labels.traces[0].excerpt).toBe(summary);
+    expect(labels.traces[0].reading).toBe(true);
+    expect(labels.traces[0].card.width).toBeGreaterThan(240);
+    expect(labels.traces[0].card.height).toBeGreaterThan(130);
+  });
+
+  it("keeps automatic summary cards clear of every visible trace dot", () => {
+    const { model, view } = traceLabelFixture(
+      [
+        { x: 200, y: 150 },
+        { x: 270, y: 180 },
+        { x: 600, y: 400 },
+      ],
+      size,
+    );
+    const labels = prepareMapLabels(model, view, size, pointer, null).traces;
+
+    expect(labels.length).toBeGreaterThan(0);
+    for (const { card } of labels) {
+      for (const point of model.points) {
+        const dot = displayedPoint(point, view, model.bounds, size, pointer);
+        const coversDot =
+          dot.x > card.x - 7 &&
+          dot.x < card.x + card.width + 7 &&
+          dot.y > card.y - 7 &&
+          dot.y < card.y + card.height + 7;
+        expect(coversDot).toBe(false);
+      }
+    }
+  });
+
+  it("keeps automatic zone context clear of trace dots", () => {
+    const { model, view } = traceLabelFixture(
+      [
+        { x: 480, y: 280 },
+        { x: 500, y: 300 },
+        { x: 520, y: 320 },
+        { x: 550, y: 300 },
+      ],
+      size,
+      2,
+    );
+    const members = model.points.filter((p) => p.traceId.startsWith("label-"));
+    model.zones = [
+      {
+        id: "billing",
+        name: "Billing",
+        description: topics[0].description,
+        color: members[0].color,
+        points: members,
+        bounds: {
+          minX: Math.min(...members.map((p) => p.x)),
+          maxX: Math.max(...members.map((p) => p.x)),
+          minY: Math.min(...members.map((p) => p.y)),
+          maxY: Math.max(...members.map((p) => p.y)),
+        },
+        x: members.reduce((sum, p) => sum + p.x, 0) / members.length,
+        y: members.reduce((sum, p) => sum + p.y, 0) / members.length,
+        countLabel: `${members.length} mapped traces`,
+        shareLabel: "100% of map",
+      },
+    ];
+    const labels = prepareMapLabels(model, view, size, pointer, null);
+    expect(labels.zones).toHaveLength(1);
+    expect(labels.traces).toHaveLength(0);
+    const card = labels.zones[0].label;
+    for (const point of members) {
+      const dot = displayedPoint(point, view, model.bounds, size, pointer);
+      expect(
+        dot.x > card.x - 7 &&
+          dot.x < card.x + card.width + 7 &&
+          dot.y > card.y - 7 &&
+          dot.y < card.y + card.height + 7,
+      ).toBe(false);
+    }
+  });
+
   it("avoids overlapping summary cards across neighboring density cells", () => {
     const { model, view } = traceLabelFixture(
       [
@@ -458,7 +892,11 @@ describe("topic map level of detail", () => {
       null,
     );
     expect(overviewLabels.traces).toHaveLength(0);
-    expect(overviewLabels.zones[0].detail).toBeNull();
+    expect(overviewLabels.zones).toHaveLength(0);
+    expect(
+      prepareMapLabels(model, overview, size, pointer, null, "billing").zones[0]
+        .detail,
+    ).toBeNull();
     const zoneLabels = prepareMapLabels(
       model,
       { ...overview, zoom: 2 },
@@ -475,7 +913,7 @@ describe("topic map level of detail", () => {
       pointer,
       "trace-39",
     ).traces;
-    expect(labels).toHaveLength(1);
+    expect(labels.length).toBeGreaterThan(0);
     expect(labels[0].point.traceId).toBe("trace-39");
     expect(labels[0].excerpt).toBe(model.pointById.get("trace-39")?.summary);
   });
@@ -486,16 +924,18 @@ describe("topic map level of detail", () => {
     );
     const model = prepareTopicMap(data(points), topics);
     const plot = { width: 4000, height: 2500 };
-    const view = { ...fitCamera(model.bounds, model.bounds, plot), zoom: 3 };
-    const labels = prepareMapLabels(model, view, plot, pointer, null).traces;
+    for (const zoom of [3, 10]) {
+      const view = { ...fitCamera(model.bounds, model.bounds, plot), zoom };
+      const labels = prepareMapLabels(model, view, plot, pointer, null).traces;
 
-    expect(labels.length).toBeGreaterThan(0);
-    expect(labels.length).toBeLessThanOrEqual(24);
-    expect(new Set(labels.map((label) => label.point.traceId)).size).toBe(
-      labels.length,
-    );
-    expect(model.points).toHaveLength(2500);
-    for (const label of labels)
-      expect(label.point.summary).toContain(label.excerpt);
+      expect(labels.length).toBeGreaterThan(0);
+      expect(labels.length).toBeLessThanOrEqual(64);
+      expect(new Set(labels.map((label) => label.point.traceId)).size).toBe(
+        labels.length,
+      );
+      expect(model.points).toHaveLength(2500);
+      for (const label of labels)
+        expect(label.point.summary).toContain(label.excerpt);
+    }
   });
 });

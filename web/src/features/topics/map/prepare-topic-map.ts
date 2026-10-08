@@ -13,6 +13,9 @@ export type MapPoint = MapData["points"][number] & {
   groupId: string;
   color: string;
   depth: number;
+  gridIndex: number;
+  gridCount: number;
+  gridCenter: { x: number; y: number };
 };
 type MapZone = {
   id: string;
@@ -159,6 +162,9 @@ export function prepareTopicMap(
       color: topicColor(topics.findIndex((t) => t.id === point.topicId)),
       // This is decorative depth, independent of embedding distance or quality.
       depth: visualDepth(point.traceId),
+      gridIndex: 0,
+      gridCount: 0,
+      gridCenter: { x: 0, y: 0 },
     }),
   );
   const grouped = new Map<string, MapPoint[]>();
@@ -169,7 +175,21 @@ export function prepareTopicMap(
   }
   const zones = Array.from(grouped, ([id, members]): MapZone => {
     const topic = known.get(id);
-    let description = topic?.description ?? members[0].summary;
+    const center = {
+      x: members.reduce((sum, p) => sum + p.x, 0) / members.length,
+      y: members.reduce((sum, p) => sum + p.y, 0) / members.length,
+    };
+    // Reading order belongs to trace identity, independently of selection or input order.
+    [...members]
+      .sort((a, b) => a.traceId.localeCompare(b.traceId))
+      .forEach((point, gridIndex) => {
+        point.gridIndex = gridIndex;
+        point.gridCount = members.length;
+        point.gridCenter = center;
+      });
+    let description =
+      topic?.description?.trim() ||
+      "No description is available for this topic.";
     if (id === "outliers")
       description = "Summaries outside the discovered topics.";
     if (id === "awaiting_map")
@@ -183,8 +203,7 @@ export function prepareTopicMap(
       color: topic?.color ?? topicColor(-1),
       points: members,
       bounds: pointBounds(members),
-      x: members.reduce((sum, p) => sum + p.x, 0) / members.length,
-      y: members.reduce((sum, p) => sum + p.y, 0) / members.length,
+      ...center,
       countLabel: `${members.length.toLocaleString()} mapped traces`,
       shareLabel: `${Math.round((members.length / Math.max(points.length, 1)) * 100)}% of map`,
     };
@@ -198,17 +217,74 @@ export function prepareTopicMap(
   };
 }
 
+export function readingLayoutBlend(zoom: number) {
+  const progress = Math.min(1, Math.max(0, (zoom - 3) / 7));
+  return progress * progress * (3 - 2 * progress);
+}
+
+function traceCardSize(zoom: number, size: Size) {
+  const blend = readingLayoutBlend(zoom);
+  const readingWidth = Math.min(264, Math.max(1, size.width - 48));
+  const cloudWidth = Math.min(192, Math.max(1, size.width - 24));
+  return {
+    width: cloudWidth + (readingWidth - cloudWidth) * blend,
+    height: 76 + 68 * blend,
+  };
+}
+
+export function displayedWorldPoint(
+  point: MapPoint,
+  zoom: number,
+  bounds: Bounds,
+  size: Size,
+  readingTopic: string | null = null,
+) {
+  const blend = readingLayoutBlend(zoom);
+  if (!blend || (readingTopic && point.groupId !== readingTopic))
+    return { x: point.x, y: point.y };
+  const card = traceCardSize(10, size);
+  const pitchX = card.width + 24;
+  const pitchY = card.height + 24;
+  const columns = Math.min(
+    point.gridCount,
+    Math.max(1, Math.floor((size.width - 48) / pitchX)),
+  );
+  const rows = Math.ceil(point.gridCount / columns);
+  const scale = baseScale(bounds, size) * 10;
+  const dx =
+    ((point.gridIndex % columns) - (columns - 1) / 2) * pitchX -
+    (card.width + 12) / 2;
+  const dy =
+    (Math.floor(point.gridIndex / columns) - (rows - 1) / 2) * pitchY -
+    card.height / 2;
+  const grid = {
+    x: point.gridCenter.x + dx / scale,
+    y: point.gridCenter.y - dy / scale,
+  };
+  return {
+    x: point.x + (grid.x - point.x) * blend,
+    y: point.y + (grid.y - point.y) * blend,
+  };
+}
+
 export function displayedPoint(
   point: MapPoint,
   camera: Camera,
   bounds: Bounds,
   size: Size,
   pointer: { x: number; y: number },
+  readingTopic: string | null = null,
 ) {
-  const position = screenPoint(point, camera, bounds, size);
+  const position = screenPoint(
+    displayedWorldPoint(point, camera.zoom, bounds, size, readingTopic),
+    camera,
+    bounds,
+    size,
+  );
+  const parallax = point.depth * 6 * (1 - readingLayoutBlend(camera.zoom));
   return {
-    x: position.x + pointer.x * point.depth * 6,
-    y: position.y + pointer.y * point.depth * 6,
+    x: position.x + pointer.x * parallax,
+    y: position.y + pointer.y * parallax,
   };
 }
 
@@ -218,14 +294,58 @@ export function hitPoint(
   size: Size,
   pointer: { x: number; y: number },
   at: { x: number; y: number },
+  readingTopic: string | null = null,
 ) {
   let nearest: MapPoint | null = null;
   let distance = 12;
   for (const point of model.points) {
-    const p = displayedPoint(point, camera, model.bounds, size, pointer);
+    const p = displayedPoint(
+      point,
+      camera,
+      model.bounds,
+      size,
+      pointer,
+      readingTopic,
+    );
     const d = Math.hypot(p.x - at.x, p.y - at.y);
     if (d < distance) {
       nearest = point;
+      distance = d;
+    }
+  }
+  return nearest;
+}
+
+export function zoneHalo(
+  zone: TopicMapModel["zones"][number],
+  camera: Camera,
+  bounds: Bounds,
+  size: Size,
+) {
+  const center = screenPoint(zone, camera, bounds, size);
+  const scale = baseScale(bounds, size) * camera.zoom;
+  return {
+    ...center,
+    rx: Math.max(28, (zone.bounds.maxX - zone.bounds.minX) * scale * 0.62),
+    ry: Math.max(28, (zone.bounds.maxY - zone.bounds.minY) * scale * 0.62),
+  };
+}
+
+export function hitZone(
+  model: TopicMapModel,
+  camera: Camera,
+  size: Size,
+  at: { x: number; y: number },
+) {
+  if (readingLayoutBlend(camera.zoom) >= 1) return null;
+  let nearest: TopicMapModel["zones"][number] | null = null;
+  let distance = 1;
+  for (const zone of model.zones) {
+    if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
+    const halo = zoneHalo(zone, camera, model.bounds, size);
+    const d = Math.hypot((at.x - halo.x) / halo.rx, (at.y - halo.y) / halo.ry);
+    if (d < distance) {
+      nearest = zone;
       distance = d;
     }
   }
@@ -238,7 +358,164 @@ export function prepareMapLabels(
   size: Size,
   pointer: { x: number; y: number },
   selectedId: string | null,
+  hoveredZoneId: string | null = null,
+  hoveredId: string | null = null,
+  readingTopic: string | null = null,
 ) {
+  type Rectangle = { x: number; y: number; width: number; height: number };
+  const blend = readingLayoutBlend(camera.zoom);
+  const hoveredZone = hoveredId ? null : hoveredZoneId;
+  const displayed = model.points
+    .map((point) => ({
+      point,
+      position: displayedPoint(
+        point,
+        camera,
+        model.bounds,
+        size,
+        pointer,
+        readingTopic,
+      ),
+    }))
+    .filter(
+      ({ position: p }) =>
+        p.x >= -12 &&
+        p.x <= size.width + 12 &&
+        p.y >= -12 &&
+        p.y <= size.height + 12,
+    );
+  // A small screen-space index keeps collision work local even for dense cohorts.
+  const cells = new Map<string, (typeof displayed)[number][]>();
+  for (const dot of displayed) {
+    const key = `${Math.floor(dot.position.x / 64)},${Math.floor(dot.position.y / 64)}`;
+    const cell = cells.get(key) ?? [];
+    cell.push(dot);
+    cells.set(key, cell);
+  }
+  const overlapsDot = (card: Rectangle, dot: { x: number; y: number }) => {
+    const dx = Math.max(card.x - dot.x, 0, dot.x - card.x - card.width);
+    const dy = Math.max(card.y - dot.y, 0, dot.y - card.y - card.height);
+    return Math.hypot(dx, dy) < 11.99;
+  };
+  const coveredDots = (card: Rectangle, firstOnly: boolean) => {
+    let count = 0;
+    for (
+      let x = Math.floor((card.x - 12) / 64);
+      x <= Math.floor((card.x + card.width + 12) / 64);
+      x++
+    ) {
+      for (
+        let y = Math.floor((card.y - 12) / 64);
+        y <= Math.floor((card.y + card.height + 12) / 64);
+        y++
+      ) {
+        for (const dot of cells.get(`${x},${y}`) ?? []) {
+          if (overlapsDot(card, dot.position)) {
+            count++;
+            if (firstOnly) return count;
+          }
+        }
+      }
+    }
+    return count;
+  };
+  const placed: Rectangle[] = [];
+  const intersects = (a: Rectangle, b: Rectangle) =>
+    a.x < b.x + b.width + 8 &&
+    a.x + a.width + 8 > b.x &&
+    a.y < b.y + b.height + 8 &&
+    a.y + a.height + 8 > b.y;
+  const placeCard = (
+    position: { x: number; y: number },
+    width: number,
+    height: number,
+    hovered: boolean,
+    preserveDot: boolean,
+  ): Rectangle | null => {
+    if (size.width < width + 24 || size.height < height + 44) return null;
+    const { x, y } = position;
+    const candidates = [
+      [x + 12, y - 7],
+      [x - width - 12, y - 7],
+      [x - width / 2, y - height - 12],
+      [x - width / 2, y + 12],
+      [x + 12, y - height - 12],
+      [x - width - 12, y - height - 12],
+      [x + 12, y + 12],
+      [x - width - 12, y + 12],
+    ];
+    let fallback: { card: Rectangle; count: number } | null = null;
+    for (const [left, top] of candidates) {
+      const card = {
+        x: Math.min(Math.max(12, left), size.width - width - 12),
+        y: Math.min(Math.max(12, top), size.height - height - 32),
+        width,
+        height,
+      };
+      if (preserveDot && overlapsDot(card, position)) continue;
+      if (placed.some((other) => intersects(card, other))) continue;
+      const count = coveredDots(card, !hovered);
+      if (!count) {
+        placed.push(card);
+        return card;
+      }
+      if (hovered && (!fallback || count < fallback.count))
+        fallback = { card, count };
+    }
+    if (fallback) {
+      placed.push(fallback.card);
+      return fallback.card;
+    }
+    return null;
+  };
+  const traces: {
+    point: MapPoint;
+    position: { x: number; y: number };
+    card: Rectangle;
+    excerpt: string;
+    reading: boolean;
+  }[] = [];
+  const added = new Set<string>();
+  const addTrace = (point: MapPoint, hovered = false) => {
+    if (added.has(point.traceId) || placed.length >= 64) return;
+    const position = displayedPoint(
+      point,
+      camera,
+      model.bounds,
+      size,
+      pointer,
+      readingTopic,
+    );
+    // Hover follows the canvas's visible dot margin, including clipped edge dots.
+    const margin = hovered ? -12 : 12;
+    if (
+      position.x < margin ||
+      position.x > size.width - margin ||
+      position.y < margin ||
+      position.y > (hovered ? size.height + 12 : size.height - 32)
+    )
+      return;
+    const { width, height } = traceCardSize(camera.zoom, size);
+    const card = placeCard(position, width, height, hovered, true);
+    if (!card) return;
+    const reading = blend >= 0.5;
+    const length = reading ? 320 : 135;
+    traces.push({
+      point,
+      position,
+      card,
+      reading,
+      excerpt:
+        point.summary.length > length
+          ? `${point.summary.slice(0, length - 3)}…`
+          : point.summary,
+    });
+    added.add(point.traceId);
+  };
+  const hovered = hoveredId ? model.pointById.get(hoveredId) : undefined;
+  if (hovered) addTrace(hovered, true);
+  const selected = selectedId ? model.pointById.get(selectedId) : undefined;
+  if (selected && camera.zoom >= 3) addTrace(selected);
   const zonesInView = model.zones
     .map((zone) => ({
       ...zone,
@@ -247,14 +524,12 @@ export function prepareMapLabels(
     .filter(
       ({ position: p }) =>
         p.x > 30 && p.x < size.width - 30 && p.y > 20 && p.y < size.height - 20,
+    )
+    .filter(
+      (zone) => (camera.zoom >= 1.8 && blend < 0.65) || zone.id === hoveredZone,
     );
-  const placed: { x: number; y: number; width: number; height: number }[] = [];
-  const intersects = (a: (typeof placed)[number], b: (typeof placed)[number]) =>
-    a.x < b.x + b.width + 8 &&
-    a.x + a.width + 8 > b.x &&
-    a.y < b.y + b.height + 8 &&
-    a.y + a.height + 8 > b.y;
   const visibleZones = zonesInView.flatMap((zone) => {
+    if (placed.length >= 64) return [];
     const detail = camera.zoom >= 1.8 ? zone.description : null;
     const width = Math.min(
       detail ? 264 : 220,
@@ -263,84 +538,20 @@ export function prepareMapLabels(
     );
     let height = zone.name.length > 28 ? 64 : 52;
     if (detail) height += 44;
-    const { x, y } = zone.position;
-    const candidates = [
-      [x - width / 2, y - height - 18],
-      [x - width - 20, y - height - 18],
-      [x + 20, y - height - 18],
-      [x - width / 2, y + 20],
-      [x - width - 20, y + 20],
-      [x + 20, y + 20],
-    ];
-    for (const [left, top] of candidates) {
-      const label = {
-        x: Math.min(Math.max(12, left), size.width - width - 12),
-        y: Math.min(Math.max(12, top), size.height - height - 32),
-        width,
-        height,
-      };
-      if (placed.some((other) => intersects(label, other))) continue;
-      placed.push(label);
-      return [{ ...zone, label, detail }];
-    }
-    return [];
+    const label = placeCard(
+      zone.position,
+      width,
+      height,
+      zone.id === hoveredZone,
+      false,
+    );
+    return label ? [{ ...zone, label, detail }] : [];
   });
-  const traces: {
-    point: MapPoint;
-    position: { x: number; y: number };
-    card: { x: number; y: number; width: number; height: number };
-    excerpt: string;
-  }[] = [];
   if (camera.zoom >= 3) {
-    const selected = selectedId ? model.pointById.get(selectedId) : undefined;
-    const addLabel = (point: MapPoint) => {
-      const position = displayedPoint(
-        point,
-        camera,
-        model.bounds,
-        size,
-        pointer,
-      );
-      if (
-        position.x < 20 ||
-        position.x > size.width - 20 ||
-        position.y < 30 ||
-        position.y > size.height - 35
-      )
-        return;
-      const card = {
-        x: Math.min(Math.max(12, position.x + 10), size.width - 204),
-        y: Math.min(position.y + 6, size.height - 100),
-        width: 192,
-        height: 76,
-      };
-      if (card.x < 0 || card.y < 0) return;
-      if (
-        traces.some(
-          ({ card: placed }) =>
-            card.x < placed.x + placed.width + 12 &&
-            card.x + card.width + 12 > placed.x &&
-            card.y < placed.y + placed.height + 12 &&
-            card.y + card.height + 12 > placed.y,
-        )
-      )
-        return;
-      // Leave the topic's label readable above the cloud center.
-      if (visibleZones.some(({ label }) => intersects(card, label))) return;
-      traces.push({
-        point,
-        position,
-        card,
-        excerpt:
-          point.summary.length > 135
-            ? `${point.summary.slice(0, 132)}…`
-            : point.summary,
-      });
-    };
-    if (selected) addLabel(selected);
-    for (const point of model.points) {
-      if (point !== selected) addLabel(point);
-      if (traces.length >= 24) break;
+    for (const { point } of displayed) {
+      if (readingTopic && point.groupId !== readingTopic) continue;
+      addTrace(point);
+      if (placed.length >= 64) break;
     }
   }
   return { zones: visibleZones, traces };

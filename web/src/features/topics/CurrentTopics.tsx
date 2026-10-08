@@ -159,12 +159,7 @@ function CurrentFacet({
               timeRange={timeRange}
               projectId={projectId}
               runId={facet.map.runId}
-              topics={facet.map.topics.map((topic) => ({
-                ...topic,
-                description: facet.topics.find(
-                  (current) => current.id === topic.id,
-                )?.description,
-              }))}
+              topics={facet.map.topics}
               selectedTopic={selected}
               onSelectTopic={selectTopic}
               onSelectTrace={setSelectedTraceId}
