@@ -25,6 +25,13 @@ export const LANGFUSE_SDK_LATEST_MAJOR = {
 
 export type IngestionSdkCanonicalName = keyof typeof LANGFUSE_SDK_LATEST_MAJOR;
 
+// First SDK majors whose per-key metadata attributes are decoded like a
+// metadata blob, so JSON-encoded nested objects are stored as dotted keys.
+const LANGFUSE_SDK_STRUCTURED_METADATA_MIN_MAJOR = {
+  python: 5,
+  javascript: 6,
+} as const satisfies Record<IngestionSdkCanonicalName, number>;
+
 export type IngestionSdkUpgradeStatus =
   | "current"
   | "outdated_major"
@@ -132,6 +139,22 @@ export const extractBaseIngestionSdkVersion = (sdkVersion: string): string => {
   }
 
   return version;
+};
+
+export const sendsStructuredMetadataValues = (params: {
+  sdkName: IngestionSdkCanonicalName | null;
+  sdkVersion: string | null | undefined;
+}): boolean => {
+  if (!params.sdkName || !params.sdkVersion) return false;
+
+  const parsedVersion = parseVersionString(
+    extractBaseIngestionSdkVersion(params.sdkVersion),
+  );
+  return (
+    parsedVersion !== null &&
+    parsedVersion.major >=
+      LANGFUSE_SDK_STRUCTURED_METADATA_MIN_MAJOR[params.sdkName]
+  );
 };
 
 export const classifyIngestionSdkVersion = (params: {

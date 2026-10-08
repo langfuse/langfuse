@@ -44,6 +44,7 @@ import {
   type ResourceSpan,
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
+import { flattenJsonToPathArrays } from "./utils";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -414,6 +415,117 @@ describe("raw OTLP empty attribute values", () => {
       ],
       output: { text: "choice", enabled: false, zero: 0, blank: "" },
     });
+  });
+});
+
+describe("per-key metadata values from structured-metadata SDK majors", () => {
+  const metadataAttributes: OtelAttribute[] = [
+    {
+      key: "langfuse.observation.metadata.database",
+      value: { stringValue: '{"host": "localhost", "port": 5432}' },
+    },
+    {
+      key: "langfuse.observation.metadata.steps",
+      value: { stringValue: '[{"name": "web_fetch"}]' },
+    },
+    {
+      key: "langfuse.observation.metadata.retries",
+      value: { stringValue: "3" },
+    },
+    {
+      key: "langfuse.observation.metadata.note",
+      value: { stringValue: "{not json" },
+    },
+  ];
+
+  const processMetadata = async (
+    path: "v3" | "v4",
+    params: {
+      headerSdkName: string;
+      scopeName?: string;
+      scopeVersion: string;
+      telemetrySdkLanguage?: string;
+    },
+  ) => {
+    const batch = buildBatch(metadataAttributes);
+    const scope = batch[0].scopeSpans![0].scope!;
+    scope.name = params.scopeName ?? "langfuse-sdk";
+    scope.version = params.scopeVersion;
+    if (params.telemetrySdkLanguage) {
+      batch[0].resource!.attributes!.push({
+        key: "telemetry.sdk.language",
+        value: { stringValue: params.telemetrySdkLanguage },
+      });
+    }
+    const processor = new OtelIngestionProcessor({
+      projectId: PROJECT_ID,
+      publicKey: "pk-test",
+      sdkName: params.headerSdkName,
+      sdkVersion: params.scopeVersion,
+    });
+    const observation =
+      path === "v4"
+        ? processor.processToEvent(batch)[0]
+        : (await processor.processToIngestionEvents(batch)).find(
+            (event) => event.type === "span-create",
+          )?.body;
+    return observation?.metadata as Record<string, unknown>;
+  };
+
+  it.each(["v3", "v4"] as const)(
+    "decodes JSON objects and arrays like a metadata blob on %s",
+    async (path) => {
+      const metadata = await processMetadata(path, {
+        headerSdkName: "python",
+        scopeVersion: "5.0.0",
+      });
+
+      expect(metadata).toMatchObject({
+        database: { host: "localhost", port: 5432 },
+        steps: [{ name: "web_fetch" }],
+        retries: "3",
+        note: "{not json",
+      });
+      expect(flattenJsonToPathArrays(metadata).names).toEqual(
+        expect.arrayContaining(["database.host", "database.port", "steps"]),
+      );
+    },
+  );
+
+  it.each([
+    {
+      case: "current Python major",
+      headerSdkName: "python",
+      scopeVersion: "4.15.6",
+    },
+    {
+      case: "current JS major",
+      headerSdkName: "javascript",
+      scopeVersion: "5.11.1",
+    },
+    {
+      case: "non-Langfuse scope",
+      headerSdkName: "python",
+      scopeVersion: "5.0.0",
+      scopeName: "openinference",
+    },
+  ])("keeps per-key values as sent for the $case", async (params) => {
+    const metadata = await processMetadata("v4", params);
+
+    expect(metadata).toMatchObject({
+      database: '{"host": "localhost", "port": 5432}',
+      steps: '[{"name": "web_fetch"}]',
+    });
+  });
+
+  it("falls back to telemetry.sdk.language without a Langfuse SDK header", async () => {
+    const metadata = await processMetadata("v4", {
+      headerSdkName: "unknown",
+      scopeVersion: "6.0.0-beta.1",
+      telemetrySdkLanguage: "nodejs",
+    });
+
+    expect(metadata.database).toEqual({ host: "localhost", port: 5432 });
   });
 });
 
