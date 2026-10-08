@@ -99,6 +99,33 @@ export interface DatabaseRow {
 }
 
 /**
+ * Returns a user-facing reason the pivot config cannot be rendered, or null
+ * when it is valid. Callers that already show this state must not throw or
+ * `console.error` — that path is captured as a Sentry event.
+ */
+export function getPivotTableConfigIssue(
+  config: PivotTableConfig,
+): string | null {
+  if (config.dimensions.length > MAX_PIVOT_TABLE_DIMENSIONS) {
+    return `A pivot table supports at most ${MAX_PIVOT_TABLE_DIMENSIONS} dimensions.`;
+  }
+
+  if (config.metrics.length === 0) {
+    return "At least one metric is required for a pivot table.";
+  }
+
+  if (config.metrics.length > MAX_PIVOT_TABLE_METRICS) {
+    return `A pivot table supports at most ${MAX_PIVOT_TABLE_METRICS} metrics.`;
+  }
+
+  if (config.rowLimit !== undefined && config.rowLimit <= 0) {
+    return "Row limit must be a positive number.";
+  }
+
+  return null;
+}
+
+/**
  * Validates that the provided configuration is valid for pivot table generation
  *
  * @param config - Pivot table configuration to validate

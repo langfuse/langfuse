@@ -28,6 +28,7 @@ import {
   extractMetricValues,
   sortPivotTableRows,
   getNextSortState,
+  getPivotTableConfigIssue,
   type PivotTableRow,
   type PivotTableConfig,
   type DatabaseRow,
@@ -226,19 +227,23 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   isLoading = false,
 }) => {
   const units = config?.units;
-  // Transform chart data into pivot table structure
-  const pivotTableRows = useMemo(() => {
-    if (!data || data.length === 0) {
-      return [];
-    }
-
-    // Extract configuration with defaults
-    const pivotConfig: PivotTableConfig = {
-      dimensions: config?.dimensions ?? [],
-      metrics: config?.metrics ?? ["metric"], // Default to 'metric' field from DataPoint
+  const pivotConfig = useMemo((): PivotTableConfig => {
+    return {
+      dimensions: (config?.dimensions ?? []).filter(
+        (dimension) => dimension && dimension !== "none",
+      ),
+      metrics: config?.metrics ?? ["metric"],
       rowLimit: config?.rowLimit ?? DEFAULT_ROW_LIMIT,
       defaultSort: config?.defaultSort,
     };
+  }, [config]);
+  const configIssue = getPivotTableConfigIssue(pivotConfig);
+
+  // Transform chart data into pivot table structure
+  const pivotTableRows = useMemo(() => {
+    if (!data || data.length === 0 || configIssue) {
+      return [];
+    }
 
     // Transform DataPoint[] to DatabaseRow[] format using utility functions
     const databaseRows: DatabaseRow[] = data.map((point) => {
@@ -286,7 +291,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       console.error("Error transforming data to pivot table:", error);
       return [];
     }
-  }, [data, config]);
+  }, [data, pivotConfig, configIssue]);
 
   // Apply sorting to pivot table rows
   const sortedRows = useMemo(() => {
@@ -356,7 +361,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     );
   }
 
-  // Handle transformation errors
+  // Handle invalid config and unexpected transformation failures
   if (pivotTableRows.length === 0) {
     if (isLoading) {
       return <div className="h-full" aria-hidden="true" />;
@@ -366,7 +371,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground text-sm">
-            Unable to process data for pivot table
+            {configIssue ?? "Unable to process data for pivot table"}
           </p>
         </div>
       </div>
