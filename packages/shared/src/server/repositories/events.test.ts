@@ -15,7 +15,10 @@ vi.mock("./clickhouse", () => ({
   clickhouseCompliantRandomCharacters: vi.fn(() => `x${++charCounter}`),
 }));
 
-import { getObservationsV2FromEventsTableForPublicApi } from "./events";
+import {
+  getObservationsForTraceFromEventsTable,
+  getObservationsV2FromEventsTableForPublicApi,
+} from "./events";
 import { type EventsTableFilterState } from "../../types";
 
 const inputContainsFilter: EventsTableFilterState = [
@@ -28,6 +31,30 @@ const captureQuery = () => {
 };
 
 const baseOpts = { projectId: "proj-1", page: 1, limit: 50 } as const;
+
+describe("getObservationsForTraceFromEventsTable root flag", () => {
+  beforeEach(() => {
+    charCounter = 0;
+    vi.clearAllMocks();
+    mockQueryClickhouse.mockResolvedValue([]);
+  });
+
+  it.each([false, true])(
+    "selects natural and application roots with tool data=%s",
+    async (selectToolData) => {
+      await getObservationsForTraceFromEventsTable({
+        projectId: "proj-1",
+        traceId: "trace-1",
+        selectToolData,
+      });
+
+      const query = captureQuery();
+      expect(query).toContain(
+        "toBool((e.parent_span_id = '' or e.is_app_root = true)) as \"is_root_observation\"",
+      );
+    },
+  );
+});
 
 describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
   beforeEach(() => {

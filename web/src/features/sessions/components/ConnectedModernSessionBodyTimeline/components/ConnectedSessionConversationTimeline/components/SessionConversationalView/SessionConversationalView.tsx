@@ -1,5 +1,6 @@
 import {
   type ComponentProps,
+  type ReactNode,
   useLayoutEffect,
   useId,
   useRef,
@@ -44,6 +45,7 @@ export function SessionConversationalView(
         isSearchPending: boolean;
       })
   ) & {
+    searchActions?: ReactNode;
     traces: readonly (ComponentProps<
       typeof SessionConversationTimeline
     >["traces"][number] & { trace: EventSessionTrace })[];
@@ -284,7 +286,7 @@ export function SessionConversationalView(
       className="bg-background relative flex min-h-0 flex-1 flex-col overflow-hidden"
     >
       {!showSidebar && (
-        <div className="shrink-0 border-b px-2 py-2.5">
+        <div className="flex shrink-0 items-center gap-1 border-b px-2 py-2.5">
           <DialogController
             renderDialog={({ closeDialog }) => (
               <Dialog title="Search session" closeOnInteractionOutside>
@@ -354,6 +356,7 @@ export function SessionConversationalView(
               </DialogTrigger>
             )}
           </DialogController>
+          {props.searchActions}
         </div>
       )}
       <ResizablePanelGroup
@@ -370,7 +373,10 @@ export function SessionConversationalView(
             maxSize="50%"
             className="h-full min-h-0"
           >
-            <SessionConversationSidebar {...sidebarProps} />
+            <SessionConversationSidebar
+              {...sidebarProps}
+              searchActions={props.searchActions}
+            />
           </ResizablePanel>
         )}
         {showSidebar && (

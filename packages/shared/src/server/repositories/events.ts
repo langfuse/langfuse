@@ -508,6 +508,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   selectToolData?: boolean;
   /** Restrict to these observation types. All types when omitted. */
   types?: ObservationType[];
+  filter?: FilterState;
   /** Rows read at most; `totalCount` exceeds it when the trace has more. */
   limit?: number;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
@@ -522,6 +523,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   } = params;
 
   const filter: FilterState = [
+    ...(params.filter ?? []),
     {
       column: "traceId",
       operator: "=" as const,

@@ -73,7 +73,7 @@ export function SessionConversationSidebar(
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
       }
-  ) & { searchVisibility?: "hidden" },
+  ) & { searchVisibility?: "hidden"; searchActions?: ReactNode },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
@@ -238,11 +238,11 @@ export function SessionConversationSidebar(
       >
         <div
           className={cn(
-            "shrink-0 p-4",
+            "flex shrink-0 items-center gap-1 p-4",
             props.searchVisibility === "hidden" && "hidden",
           )}
         >
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 flex-1">
             <Search
               size="base"
               color="tertiary"
@@ -256,6 +256,7 @@ export function SessionConversationSidebar(
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
+          {props.searchActions}
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (
@@ -288,11 +289,11 @@ export function SessionConversationSidebar(
     >
       <div
         className={cn(
-          "relative z-10 shrink-0 p-4",
+          "relative z-10 flex shrink-0 items-center gap-1 p-4",
           props.searchVisibility === "hidden" && "hidden",
         )}
       >
-        <div className="relative min-w-0">
+        <div className="relative min-w-0 flex-1">
           <Search
             size="base"
             color="tertiary"
@@ -309,6 +310,7 @@ export function SessionConversationSidebar(
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
+        {props.searchActions}
         {isListScrolled ? (
           <div
             aria-hidden="true"

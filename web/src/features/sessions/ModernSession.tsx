@@ -1,4 +1,4 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
@@ -13,11 +13,10 @@ import {
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type ModernSessionProps = {
+  searchActions?: ReactNode;
+  filterBanner?: ReactNode;
   headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
-  transcriptSource: ComponentProps<
-    typeof ConnectedModernSessionBodyTimeline
-  >["transcriptSource"];
   session: Pick<
     EventSession,
     | "countTraces"
@@ -53,9 +52,10 @@ type ModernSessionProps = {
 };
 
 export function ModernSession({
+  searchActions,
+  filterBanner,
   headerDividerTone,
   isTimelineEnabled,
-  transcriptSource,
   session,
   tracesState,
   projectId,
@@ -115,13 +115,15 @@ export function ModernSession({
           </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
+      {filterBanner}
       {isTimelineEnabled ? (
         <ConnectedModernSessionBodyTimeline
-          transcriptSource={transcriptSource}
+          searchActions={searchActions}
           tracesState={tracesState}
           projectId={projectId}
           sessionId={sessionId}
           openPeek={openPeek}
+          filterState={filterState}
         />
       ) : (
         <ModernSessionFilterControls {...filterControlsProps}>

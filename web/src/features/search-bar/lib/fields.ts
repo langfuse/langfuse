@@ -100,6 +100,7 @@ export type FieldRegistry = {
     | "evaluatorSamples"
     | "ruleSamples"
     | "sessions"
+    | "sessionTraces"
     | "scores"
     | "experiments"
     | "users"
@@ -148,6 +149,7 @@ export type FieldRegistry = {
   /** Placeholder examples. Written per view, never derived from field ids: the
    *  events examples advertise `latency:`/`level:` on a view that has neither. */
   searchExamples: readonly string[];
+  searchPlaceholder?: string;
   /**
    * Field id used in the `has:` hint. Written per view like `searchExamples`:
    * deriving it (e.g. "first nullable field") silently rewrites the hint
@@ -211,6 +213,7 @@ export function fieldRegistryFromColumns(
     defaultTextField?: string;
     freeTextScopeLabel?: string;
     searchExamples?: readonly string[];
+    searchPlaceholder?: string;
     hasExample?: string;
     recentSearches?: boolean;
     aiFilterPrompt?: boolean;
@@ -278,6 +281,7 @@ export function fieldRegistryFromColumns(
     defaultTextField: overlay.defaultTextField ?? null,
     freeTextScopeLabel: overlay.freeTextScopeLabel ?? null,
     searchExamples: overlay.searchExamples ?? [],
+    searchPlaceholder: overlay.searchPlaceholder,
     hasExample: overlay.hasExample ?? null,
     recentSearches: overlay.recentSearches ?? false,
     aiFilterPrompt: overlay.aiFilterPrompt ?? false,
@@ -487,6 +491,7 @@ export function createFieldRegistry({
   defaultTextField,
   freeTextScopeLabel,
   searchExamples,
+  searchPlaceholder,
   hasExample,
   recentSearches,
   aiFilterPrompt,
@@ -508,6 +513,7 @@ export function createFieldRegistry({
   defaultTextField: string | null;
   freeTextScopeLabel: string | null;
   searchExamples: readonly string[];
+  searchPlaceholder?: string;
   hasExample: string | null;
   recentSearches: boolean;
   aiFilterPrompt: boolean;
@@ -549,6 +555,7 @@ export function createFieldRegistry({
     defaultTextField,
     freeTextScopeLabel,
     searchExamples,
+    searchPlaceholder,
     hasExample,
     recentSearches,
     aiFilterPrompt,

@@ -61,6 +61,7 @@ function ProjectSearchBarRow(props: EventsSearchBarRowProps) {
 }
 
 function EventsSearchBarRowContent({
+  inputId,
   aiFeaturesEnabled,
   projectId,
   tableName,
@@ -80,8 +81,11 @@ function EventsSearchBarRowContent({
   className,
   registry = EVENTS_FIELD_REGISTRY,
   size = "default",
+  spacing = "table",
 }: {
   aiFeaturesEnabled: boolean;
+  inputId?: string;
+  spacing?: "table" | "flush";
   projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
@@ -158,7 +162,13 @@ function EventsSearchBarRowContent({
   }, [onRequestColumns, registry]);
 
   return (
-    <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
+    <div
+      className={cn(
+        "min-w-0",
+        spacing === "table" && "px-2 pt-2 pb-1",
+        className,
+      )}
+    >
       {aiOpen && aiAvailable && aiRegistryId && projectId ? (
         <SearchBarAiPrompt
           projectId={projectId}
@@ -175,6 +185,7 @@ function EventsSearchBarRowContent({
       ) : (
         <SearchBarStoreProvider store={store} commit={commit}>
           <ComposerWithPreview
+            inputId={inputId}
             projectId={projectId}
             observed={observed}
             erroredColumns={erroredColumns}
