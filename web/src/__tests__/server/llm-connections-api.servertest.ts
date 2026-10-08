@@ -415,7 +415,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toBe(
-        "Invalid baseURL: Blocked hostname detected",
+        "Invalid base URL: Blocked hostname detected",
       );
     });
 

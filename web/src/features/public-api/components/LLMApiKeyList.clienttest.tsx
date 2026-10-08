@@ -38,6 +38,13 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     llmApiKey: {
       all: { useQuery: vi.fn() },
+      inherited: {
+        useQuery: vi.fn(() => ({
+          data: [],
+          isLoading: false,
+          isError: false,
+        })),
+      },
       delete: { useMutation: () => ({ isPending: false }) },
     },
     useUtils: () => ({ llmApiKey: { invalidate: vi.fn() } }),

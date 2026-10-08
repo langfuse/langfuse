@@ -57,6 +57,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_deleteDatasetRun: "Deleting dataset run",
   langfuse_deleteEvaluationRule: "Deleting evaluation rule",
   langfuse_deleteEvaluator: "Deleting evaluator",
+  langfuse_deleteLlmConnection: "Deleting llm connection",
   langfuse_deleteModel: "Deleting model",
   langfuse_deleteScoreConfig: "Deleting score config",
   langfuse_getAlert: "Inspecting alert",
@@ -91,6 +92,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
     "Browsing managed evaluator templates",
   langfuse_listExperimentItems: "Browsing experiment items",
   langfuse_listExperiments: "Browsing experiments",
+  langfuse_listLlmConnections: "Browsing llm connections",
   langfuse_listModels: "Browsing models",
   langfuse_listObservations: "Browsing observations",
   langfuse_listPrompts: "Browsing prompts",
@@ -102,6 +104,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_updateScoreConfig: "Updating score config",
   langfuse_upsertDataset: "Saving dataset",
   langfuse_upsertDatasetItem: "Saving dataset item",
+  langfuse_upsertLlmConnection: "Saving llm connection",
   langfuse_createEvaluator: "Creating evaluator",
   langfuse_updateEvaluator: "Updating evaluator",
   langfuse_attachEvaluatorToEvaluationRule:
