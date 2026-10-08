@@ -501,6 +501,26 @@ describe("MCP Write Tools", () => {
       });
     });
 
+    it("rejects evaluator type switches while evaluation rules reference it", async () => {
+      const setup = await createMcpTestSetup();
+      const { evaluator } = await createLlmEvaluationRuleForMcpWriteTest(setup);
+
+      await expect(
+        handleUpdateEvaluator(
+          {
+            evaluatorId: evaluator.id,
+            name: evaluator.name,
+            type: "CODE",
+            sourceCode: "export function evaluate() { return { score: 1 }; }",
+            sourceCodeLanguage: "TYPESCRIPT",
+          },
+          setup.context,
+        ),
+      ).rejects.toThrow(
+        "Evaluator type cannot be changed while it is assigned to evaluation rules",
+      );
+    });
+
     it("rejects mappings when creating or updating code evaluators", async () => {
       const { context } = await createMcpTestSetup();
 

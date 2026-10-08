@@ -394,6 +394,7 @@ export class EvaluatorService {
           },
           createdByUserId,
           forceNewVersion: true,
+          allowTypeChange: false,
           block,
         }),
       };
@@ -413,7 +414,7 @@ export class EvaluatorService {
   async update(
     input: UpdateEvaluatorInput,
     createdByUserId: string | null,
-    options?: { forceNewVersion?: boolean },
+    options?: { forceNewVersion?: boolean; allowTypeChange?: boolean },
   ) {
     const block = await validateEvaluatorForPersistence(input);
     const evaluator = await this.prisma.$transaction((tx) =>
@@ -422,6 +423,7 @@ export class EvaluatorService {
         input,
         createdByUserId,
         forceNewVersion: options?.forceNewVersion ?? false,
+        allowTypeChange: options?.allowTypeChange ?? false,
         block,
       }),
     );
@@ -821,6 +823,7 @@ async function updateEvaluator(params: {
   input: UpdateEvaluatorInput;
   createdByUserId: string | null;
   forceNewVersion: boolean;
+  allowTypeChange: boolean;
   block: Awaited<ReturnType<typeof validateEvaluatorForPersistence>>;
 }) {
   const { tx, input, createdByUserId } = params;
@@ -831,16 +834,24 @@ async function updateEvaluator(params: {
   });
   if (!current) throw new LangfuseNotFoundError("Evaluator not found");
   assertEditableEvaluator(current);
-  if (current.type !== input.definition.type) {
+  const typeChanged = current.type !== input.definition.type;
+  if (typeChanged && !params.allowTypeChange) {
     throw new LangfuseConflictError("Evaluator type cannot be changed");
+  }
+  if (typeChanged && current.assignments.length > 0) {
+    throw new LangfuseConflictError(
+      "Evaluator type cannot be changed while it is assigned to evaluation rules",
+    );
   }
 
   const latest = current.versions[0];
   if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
-  const definitionChanged = !isDeepStrictEqual(
-    toEvaluatorDefinition(current.type, latest),
-    input.definition,
-  );
+  const definitionChanged =
+    typeChanged ||
+    !isDeepStrictEqual(
+      toEvaluatorDefinition(current.type, latest),
+      input.definition,
+    );
 
   await repository.updateEvaluatorMetadata({
     tx,
@@ -848,6 +859,7 @@ async function updateEvaluator(params: {
     evaluatorId: input.evaluatorId,
     name: input.name,
     description: input.description,
+    type: typeChanged ? input.definition.type : undefined,
   });
 
   // Name-based upserts from the unstable API preserve every write as a new

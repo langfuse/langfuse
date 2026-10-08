@@ -739,6 +739,7 @@ export function updateEvaluatorMetadata(params: {
   evaluatorId: string;
   name?: string;
   description?: string | null;
+  type?: Exclude<EvalTemplateType, "FACET">;
 }) {
   return params.tx.evaluator.update({
     where: {
@@ -752,6 +753,7 @@ export function updateEvaluatorMetadata(params: {
       ...(params.description === undefined
         ? {}
         : { description: params.description }),
+      ...(params.type === undefined ? {} : { type: params.type }),
     },
   });
 }

@@ -27,11 +27,26 @@ const SetEvaluatorWorkbenchFilterBase = z.object({
   ),
 });
 
+const WorkbenchFilterInput = z
+  .array(ObservationMcpFilterSchema)
+  .max(20)
+  .transform((filter, ctx) => {
+    const parsed = singleFilterList.safeParse(filter);
+    if (parsed.success) return parsed.data;
+
+    const issue = parsed.error.issues[0];
+    ctx.addIssue({
+      code: "custom",
+      path: issue?.path,
+      message:
+        issue?.message ?? "Filter is not compatible with the evaluator table",
+    });
+    return z.NEVER;
+  });
+
 const SetEvaluatorWorkbenchFilterInput = z.object({
   evaluatorId: z.string().min(1),
-  filter: workbenchFilterSize(
-    z.array(ObservationMcpFilterSchema).max(20).pipe(singleFilterList),
-  ),
+  filter: workbenchFilterSize(WorkbenchFilterInput),
 });
 
 export const [
