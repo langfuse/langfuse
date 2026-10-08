@@ -23,12 +23,15 @@ const MAX_VISIBLE_SCORE_GROUPS = 2;
 export const groupScoresByName = <T extends ChipScore>(
   scores: T[],
 ): Record<string, T[]> =>
-  scores.reduce<Record<string, T[]>>((groups, score) => {
-    const bucket = groups[score.name];
-    if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
-    else bucket.push(score);
-    return groups;
-  }, {});
+  scores.reduce<Record<string, T[]>>(
+    (groups, score) => {
+      const bucket = groups[score.name];
+      if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
+      else bucket.push(score);
+      return groups;
+    },
+    Object.create(null) as Record<string, T[]>,
+  );
 
 const partitionScores = <T extends ChipScore>(
   scores: Record<string, T[]>,
