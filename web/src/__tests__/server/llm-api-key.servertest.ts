@@ -152,6 +152,72 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
   });
 
+  it("repoints the default model when creating a project override", async () => {
+    const provider = `override-${randomUUID()}`;
+    const organizationConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("organization-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+    await prisma.defaultLlmModel.create({
+      data: {
+        projectId,
+        llmApiKeyId: organizationConnection.id,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
+      },
+    });
+
+    const projectConnection = await caller.llmApiKey.create({
+      projectId,
+      provider,
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "project-secret",
+    });
+
+    expect(
+      await prisma.defaultLlmModel.findUniqueOrThrow({
+        where: { projectId },
+        select: { llmApiKeyId: true, adapter: true },
+      }),
+    ).toEqual({
+      llmApiKeyId: projectConnection.id,
+      adapter: LLMAdapter.OpenAI,
+    });
+  });
+
+  it("rejects project overrides with a different adapter", async () => {
+    const provider = `override-${randomUUID()}`;
+    await prisma.llmApiKeys.create({
+      data: {
+        organizationId: orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("organization-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        secretKey: "project-secret",
+      }),
+    ).rejects.toThrow(
+      "Project overrides must use the same adapter as the organization connection",
+    );
+    expect(
+      await prisma.llmApiKeys.findFirst({ where: { projectId, provider } }),
+    ).toBeNull();
+  });
+
   it("should create a Bedrock llm api key with a Bedrock API key", async () => {
     const secret = "bedrock-api-key-1234";
 
@@ -1822,7 +1888,7 @@ describe("llmApiKey.all RPC", () => {
       ).toBeNull();
     });
 
-    it("deletes a key-bound default model even when another connection has the same provider", async () => {
+    it("repoints a key-bound default model when deleting a project override", async () => {
       await prisma.llmApiKeys.createMany({
         data: [
           {
@@ -1843,6 +1909,9 @@ describe("llmApiKey.all RPC", () => {
       });
       const projectConnection = await prisma.llmApiKeys.findFirstOrThrow({
         where: { projectId, provider: PROVIDER },
+      });
+      const organizationConnection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { organizationId: orgId, provider: PROVIDER },
       });
       const providerEvaluatorId = await createV2Evaluator([
         { provider: PROVIDER, model: "gpt-4o" },
@@ -1865,17 +1934,7 @@ describe("llmApiKey.all RPC", () => {
         id: projectConnection.id,
       });
 
-      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledOnce();
-      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledWith({
-        projectId,
-        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
-        evaluatorIdsByReason: {
-          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]: [],
-          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]: [
-            defaultModelEvaluatorId,
-          ],
-        },
-      });
+      expect(mockFinalizeEvaluatorBlocks).not.toHaveBeenCalled();
       expect(
         await prisma.evaluator.findUniqueOrThrow({
           where: { id: providerEvaluatorId },
@@ -1887,13 +1946,16 @@ describe("llmApiKey.all RPC", () => {
           where: { id: defaultModelEvaluatorId },
           select: { blockedAt: true, blockReason: true },
         }),
-      ).toEqual({
-        blockedAt: expect.any(Date),
-        blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-      });
+      ).toEqual({ blockedAt: null, blockReason: null });
       expect(
-        await prisma.defaultLlmModel.findUnique({ where: { projectId } }),
-      ).toBeNull();
+        await prisma.defaultLlmModel.findUniqueOrThrow({
+          where: { projectId },
+          select: { llmApiKeyId: true, adapter: true },
+        }),
+      ).toEqual({
+        llmApiKeyId: organizationConnection.id,
+        adapter: LLMAdapter.OpenAI,
+      });
     });
   });
 });

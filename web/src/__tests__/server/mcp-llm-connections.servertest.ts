@@ -40,6 +40,24 @@ describe("MCP LLM connection tools", () => {
     const fixture = await createMcpTestSetup();
     const provider = `mcp-project-${randomUUID()}`;
     const secretKey = "sk-project-mcp-secret";
+    const organizationConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: fixture.orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "encrypted-organization-secret",
+        displaySecretKey: "...cret",
+      },
+    });
+    await prisma.defaultLlmModel.create({
+      data: {
+        projectId: fixture.projectId,
+        llmApiKeyId: organizationConnection.id,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
+      },
+    });
 
     const created = (await handleUpsertLlmConnection(
       {
@@ -53,6 +71,12 @@ describe("MCP LLM connection tools", () => {
 
     expect(created).not.toHaveProperty("secretKey");
     expect(JSON.stringify(created)).not.toContain(secretKey);
+    expect(
+      await prisma.defaultLlmModel.findUniqueOrThrow({
+        where: { projectId: fixture.projectId },
+        select: { llmApiKeyId: true },
+      }),
+    ).toEqual({ llmApiKeyId: created.id });
 
     const listed = (await handleListLlmConnections(
       { page: 1, limit: 50 },
@@ -65,6 +89,40 @@ describe("MCP LLM connection tools", () => {
     expect(
       await prisma.llmApiKeys.findUnique({ where: { id: connection!.id } }),
     ).toBeNull();
+    expect(
+      await prisma.defaultLlmModel.findUniqueOrThrow({
+        where: { projectId: fixture.projectId },
+        select: { llmApiKeyId: true },
+      }),
+    ).toEqual({ llmApiKeyId: organizationConnection.id });
+  });
+
+  it("rejects project upserts with a different organization adapter", async () => {
+    const fixture = await createMcpTestSetup();
+    const provider = `mcp-project-${randomUUID()}`;
+    await prisma.llmApiKeys.create({
+      data: {
+        organizationId: fixture.orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "encrypted-organization-secret",
+        displaySecretKey: "...cret",
+      },
+    });
+
+    await expect(
+      handleUpsertLlmConnection(
+        {
+          provider,
+          adapter: LLMAdapter.Anthropic,
+          secretKey: "sk-project-mcp-secret",
+          withDefaultModels: true,
+        },
+        fixture.context,
+      ),
+    ).rejects.toThrow(
+      "Project overrides must use the same adapter as the organization connection",
+    );
   });
 
   it("requires update access before replacing a project connection", async () => {
