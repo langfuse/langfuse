@@ -1,14 +1,14 @@
 import { useState, type ComponentProps } from "react";
 import { fn } from "storybook/test";
 import preview from "../../../../.storybook/preview";
-import { SearchComposer } from "./SearchComposer";
+import { ComposerWithPreview } from "./ComposerWithPreview";
 import { SearchBarStoreProvider } from "../store/SearchBarStoreProvider";
 import { createSearchBarStore } from "../store/searchBarStore";
 
 function ComposerHost({
   draft = "",
   ...props
-}: ComponentProps<typeof SearchComposer> & { draft?: string }) {
+}: ComponentProps<typeof ComposerWithPreview> & { draft?: string }) {
   const [store] = useState(() => {
     const created = createSearchBarStore();
     if (draft.length > 0) created.getState().actions.setDraft(draft);
@@ -16,13 +16,13 @@ function ComposerHost({
   });
   return (
     <SearchBarStoreProvider store={store} commit={fn()}>
-      <SearchComposer {...props} />
+      <ComposerWithPreview {...props} />
     </SearchBarStoreProvider>
   );
 }
 
 const meta = preview.meta({
-  component: SearchComposer,
+  component: ComposerWithPreview,
   render: (args) => <ComposerHost {...args} />,
   args: { observed: undefined, onActivateAi: fn() },
   decorators: [
