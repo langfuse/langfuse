@@ -329,6 +329,7 @@ export const getScoresForExperiments = async <
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const includeMetadataPayload = !excludeMetadata;
@@ -396,6 +397,7 @@ export const getTraceScoresForDatasetRuns = async (
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   const includeMetadataPayload = false;
