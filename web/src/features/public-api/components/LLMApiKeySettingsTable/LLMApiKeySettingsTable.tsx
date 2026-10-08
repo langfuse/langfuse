@@ -167,19 +167,22 @@ const adapterLabels: Record<LLMAdapter, string> = {
 };
 
 function AdapterName({ adapter }: { adapter: LLMAdapter }) {
-  let Icon = Route;
-  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure) {
-    Icon = SiOpenai;
-  } else if (adapter === LLMAdapter.Anthropic) {
-    Icon = SiAnthropic;
-  }
-
   return (
     <div className="flex items-center gap-2">
       <span className="bg-muted flex size-7 items-center justify-center rounded-md border">
-        <Icon className="icon-base" aria-hidden="true" />
+        <AdapterIcon adapter={adapter} />
       </span>
       <span>{adapterLabels[adapter]}</span>
     </div>
   );
+}
+
+function AdapterIcon({ adapter }: { adapter: LLMAdapter }) {
+  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure) {
+    return <SiOpenai className="icon-base" aria-hidden="true" />;
+  }
+  if (adapter === LLMAdapter.Anthropic) {
+    return <SiAnthropic className="icon-base" aria-hidden="true" />;
+  }
+  return <Route className="icon-base" aria-hidden="true" />;
 }

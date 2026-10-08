@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { PropsWithChildren } from "react";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { api } from "@/src/utils/api";
 import { LlmApiKeyList } from "./LLMApiKeyList";
 
@@ -62,6 +64,14 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: vi.fn(),
 }));
 
+function TestProvider({ children }: PropsWithChildren) {
+  return (
+    <TooltipProvider>
+      <LayerProvider>{children}</LayerProvider>
+    </TooltipProvider>
+  );
+}
+
 describe("LLM connection editing", () => {
   beforeEach(() => {
     vi.mocked(api.llmApiKey.inherited.useQuery).mockReturnValue({
@@ -92,7 +102,7 @@ describe("LLM connection editing", () => {
     const { rerender } = render(
       <LlmApiKeyList projectId="project" organizationId="organization" />,
       {
-        wrapper: LayerProvider,
+        wrapper: TestProvider,
       },
     );
     fireEvent.click(screen.getByText("First").closest("tr")!);
@@ -133,7 +143,7 @@ describe("LLM connection editing", () => {
     render(
       <LlmApiKeyList projectId="project" organizationId="organization" />,
       {
-        wrapper: LayerProvider,
+        wrapper: TestProvider,
       },
     );
     fireEvent.click(screen.getByRole("button", { name: "Project Connection" }));
@@ -164,7 +174,7 @@ describe("LLM connection editing", () => {
     render(
       <LlmApiKeyList projectId="project" organizationId="organization" />,
       {
-        wrapper: LayerProvider,
+        wrapper: TestProvider,
       },
     );
 
@@ -206,7 +216,7 @@ describe("LLM connection editing", () => {
 
     render(
       <LlmApiKeyList projectId="project" organizationId="organization" />,
-      { wrapper: LayerProvider },
+      { wrapper: TestProvider },
     );
 
     expect(
