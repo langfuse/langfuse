@@ -149,7 +149,10 @@ function ToolGroupHoverContent({
               <div className="flex min-w-0 items-center gap-2">
                 <Wrench className="text-muted-foreground icon-base shrink-0" />
                 <span
-                  className="ph-no-capture text-foreground block truncate text-sm font-bold"
+                  className={cn(
+                    "ph-no-capture text-foreground block truncate text-sm",
+                    !isNotCalledGroup && "font-bold",
+                  )}
                   title={tool.name}
                 >
                   {toolDefinitionNumber !== undefined && (
