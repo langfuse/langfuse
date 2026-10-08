@@ -38,7 +38,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
         Your provider will charge based on usage.
       </p>
       <InheritedLlmConnections projectId={props.projectId} />
-      <h3 className="mt-6 mb-2 text-base font-medium">Project connections</h3>
+      <h3 className="mt-6 mb-2 text-base">Project connections</h3>
       <ConnectedLLMApiKeySettingsTable
         owner={{ scope: "project", projectId: props.projectId }}
       />
@@ -64,7 +64,7 @@ function InheritedLlmConnections({ projectId }: { projectId: string }) {
 
   return (
     <section>
-      <h3 className="mb-2 text-base font-medium">Organization connections</h3>
+      <h3 className="mb-2 text-base">Organization connections</h3>
       <p className="text-muted-foreground mb-3 text-sm">
         These connections are managed in organization settings and inherited by
         this project. A project connection with the same provider takes

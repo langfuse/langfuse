@@ -5,12 +5,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import {
+  CreateLLMApiKeyForm,
   type LlmApiKeyListItem,
   type LlmConnectionFormOwner,
 } from "./CreateLLMApiKeyForm";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 
 export function UpdateLLMApiKeyDialog({
   owner,

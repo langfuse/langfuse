@@ -30,7 +30,6 @@ import {
   blockEvaluatorsUsingProvider,
   ChatMessageType,
   createTypeSafeDecisionModelClient,
-  DECISION_MODEL_ADAPTERS,
   decryptAndParseExtraHeaders,
   EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
@@ -573,6 +572,15 @@ export class LlmConnectionService {
       storedHeaders: existingKey.extraHeaders,
       isBaseURLChanged,
     });
+    let encryptedExtraHeaders: string | null | undefined;
+    let extraHeaderKeys: string[] | undefined;
+    if (extraHeaders) {
+      encryptedExtraHeaders = encrypt(JSON.stringify(extraHeaders));
+      extraHeaderKeys = Object.keys(extraHeaders);
+    } else if (isBaseURLChanged) {
+      encryptedExtraHeaders = null;
+      extraHeaderKeys = [];
+    }
 
     const key = await this.repository.update({
       owner: params.owner,
@@ -584,16 +592,8 @@ export class LlmConnectionService {
               displaySecretKey: getDisplaySecretKey(params.input.secretKey),
             }
           : {}),
-        extraHeaders: extraHeaders
-          ? encrypt(JSON.stringify(extraHeaders))
-          : isBaseURLChanged
-            ? null
-            : undefined,
-        extraHeaderKeys: extraHeaders
-          ? Object.keys(extraHeaders)
-          : isBaseURLChanged
-            ? []
-            : undefined,
+        extraHeaders: encryptedExtraHeaders,
+        extraHeaderKeys,
         baseURL: params.input.baseURL,
         withDefaultModels: params.input.withDefaultModels,
         customModels: params.input.customModels,
