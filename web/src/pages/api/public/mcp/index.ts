@@ -88,13 +88,19 @@ export default async function handler(
       allowedAccessLevels: ["project"],
       allowInAppAgentKey: true,
     });
-    const authResult = projectAuthResult.success
-      ? projectAuthResult
-      : await shadowAuth({
-          req,
-          action: "organizationLlmApiKeys:read",
-          allowedAccessLevels: ["organization"],
-        });
+    let authResult = projectAuthResult;
+    if (!projectAuthResult.success) {
+      const organizationAuthResult = await shadowAuth({
+        req,
+        action: "organizationLlmApiKeys:read",
+        allowedAccessLevels: ["organization"],
+      });
+      authResult =
+        organizationAuthResult.success ||
+        projectAuthResult.error.httpCode !== 403
+          ? organizationAuthResult
+          : projectAuthResult;
+    }
 
     if (!authResult.success) {
       throw authResult.error;
