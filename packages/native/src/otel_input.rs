@@ -193,6 +193,7 @@ fn media_descriptor(index: usize, media: &ExtractedMedia) -> ExtractedOtelMedia 
         kind: media.kind.as_str().to_owned(),
         original_byte_length: media.original_byte_length() as f64,
         original_json_depth: media.original_json_depth(),
+        original_has_json_escapes: media.original_has_json_escapes(),
     }
 }
 
@@ -205,6 +206,7 @@ pub struct ExtractedOtelMedia {
     pub kind: String,
     pub original_byte_length: f64,
     pub original_json_depth: u8,
+    pub original_has_json_escapes: bool,
 }
 
 #[napi]

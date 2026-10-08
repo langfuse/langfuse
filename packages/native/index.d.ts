@@ -72,6 +72,7 @@ export interface ExtractedOtelMedia {
   kind: string
   originalByteLength: number
   originalJsonDepth: number
+  originalHasJsonEscapes: boolean
 }
 
 /**
