@@ -481,10 +481,10 @@
        keyword=blue. Scoped to the filter grammar (key:value pills); retune
        freely, a designer can own these later. Operators reuse muted-foreground.
        Values from the langfuse-search-bar prototype. */
-    --qlang-field: 262 60% 47%;
-    --qlang-value: 152 60% 30%;
-    --qlang-number: 24 75% 42%;
-    --qlang-keyword: 221 83% 53%;
+    --qlang-field: 263.4 69.3% 42.2%; /* violet-800 */
+    --qlang-value: 162.9 93.5% 24.3%; /* emerald-700 */
+    --qlang-number: 17.5 88.3% 40.4%; /* orange-700 */
+    --qlang-keyword: 224.3 76.3% 48%; /* blue-700 */
 
     --json-value-string: var(--color-green-800);
     --json-value-number: var(--color-blue-800);

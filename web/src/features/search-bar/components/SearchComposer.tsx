@@ -1532,7 +1532,7 @@ export function SearchComposer({
             className={cn(
               "absolute top-0.75 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
               "bg-background text-muted-foreground font-sans text-xs",
-              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
+              "hover:text-foreground transition-colors",
               // Match the app's focus ring (ring-ring) instead of the browser's
               // default blue outline, like the shared Button used elsewhere.
               "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
