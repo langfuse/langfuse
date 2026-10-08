@@ -779,10 +779,19 @@ function TableRefetchBar({ active }: { active: boolean }) {
 
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
-  if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
+  const ascending = orderBy.order === "ASC";
   return (
-    <span className="ml-1" title="Sort by this column">
-      ▼
+    <span className="ml-1 inline-flex shrink-0 items-center">
+      <svg
+        viewBox="0 0 24 24"
+        className="icon-base text-icon-foreground fill-current"
+        aria-hidden="true"
+      >
+        <path d={ascending ? "M7 14h10l-5-6z" : "M7 10h10l-5 6z"} />
+      </svg>
+      <span className="sr-only">
+        {ascending ? "sorted ascending" : "sorted descending"}
+      </span>
     </span>
   );
 }
@@ -1049,7 +1058,7 @@ function TableBodyComponent<TData>({
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
+            <div className="text-muted-foreground pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center text-sm">
               {noResultsMessage ?? (
                 <>
                   No results.{" "}

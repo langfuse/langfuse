@@ -53,17 +53,11 @@ function descriptionScalar(
   return scalar;
 }
 
-/**
- * Writes the standard OpenAPI `deprecated` flag and a `**Deprecated:** …`
- * notice onto every operation Fern marks deprecated.
- *
- * Printing the parsed document reflows a handful of long descriptions the
- * exporter had folded differently, which is why the result is checked against
- * the expected document: formatting may move, meaning may not.
- */
+/** stampDeprecations marks deprecated operations and properties, adding notices to operations. */
 export function stampDeprecations(
   source: string,
   operations: DeprecatedOperation[],
+  properties: string[][] = [],
 ): string {
   const document = parseDocument(source);
   if (document.errors.length > 0) {
@@ -112,8 +106,23 @@ export function stampDeprecations(
     target.description = description;
   }
 
+  for (const propertyPath of properties) {
+    const property = document.getIn(propertyPath, true);
+    if (!isMap(property)) {
+      throw new Error(
+        `OpenAPI schema does not contain property ${propertyPath.join("/")}`,
+      );
+    }
+    property.set("deprecated", true);
+    const expectedProperty = propertyPath.reduce<Record<string, unknown>>(
+      (node, key) => node[key] as Record<string, unknown>,
+      expected as unknown as Record<string, unknown>,
+    );
+    expectedProperty.deprecated = true;
+  }
+
   const text = document.toString({ lineWidth: LINE_WIDTH });
-  // Nothing may change beyond the two fields on the operations we touched.
+  // Only targeted deprecation metadata may change.
   assert.deepStrictEqual(parse(text, RESOLVE_OPTIONS), expected);
 
   return text;

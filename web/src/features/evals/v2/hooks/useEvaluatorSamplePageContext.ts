@@ -31,7 +31,7 @@ export function useEvaluatorSamplePageContext({
     if (!observationId || !traceId || !startTime) return;
 
     if (selectedConversationId) {
-      evaluatorAssistantTestResultStore.expect({
+      evaluatorAssistantTestResultStore.expectFromPageContext({
         projectId,
         evaluatorId,
         conversationId: selectedConversationId,
@@ -39,7 +39,7 @@ export function useEvaluatorSamplePageContext({
       });
     }
 
-    return registerInAppAgentPageContext(
+    const unregister = registerInAppAgentPageContext(
       projectId,
       `evaluator-sample:${evaluatorId}`,
       [
@@ -55,6 +55,9 @@ export function useEvaluatorSamplePageContext({
         },
       ],
     );
+    return () => {
+      unregister();
+    };
   }, [
     evaluatorId,
     observationId,

@@ -56,16 +56,20 @@ export function performEvaluatorAssistantToolSideEffects({
         toolCall.toolArguments,
         "evaluatorId",
       );
+      const observationId = getStringFromToolArguments(
+        toolCall.toolArguments,
+        "observationId",
+      );
       const result = getEvaluatorTestResult(toolCall);
       if (evaluatorId && result) {
         const published = evaluatorAssistantTestResultStore.publish({
           projectId,
           evaluatorId,
           conversationId,
-          observationId: getStringFromToolArguments(
-            toolCall.toolArguments,
-            "observationId",
-          ),
+          observationId:
+            toolCall.toolError && observationId === null
+              ? undefined
+              : observationId,
           toolCallId: toolCall.toolCallId,
           result,
         });

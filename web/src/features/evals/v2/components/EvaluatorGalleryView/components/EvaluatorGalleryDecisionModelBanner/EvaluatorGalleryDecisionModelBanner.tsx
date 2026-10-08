@@ -19,9 +19,8 @@ export function EvaluatorGalleryDecisionModelBanner({
         <div className="min-w-0 flex-1">
           <span className="font-bold">New: decision-model evaluators.</span>{" "}
           <span className="text-muted-foreground">
-            Ask TypeSafe Jev typed questions about each observation and get
-            calibrated answers in one call, at a fraction of an LLM judge&apos;s
-            cost. Experimental.
+            Ask Jev or the OpenAI Decisions API typed questions about each
+            observation in one call. Experimental.
           </span>
         </div>
       </div>

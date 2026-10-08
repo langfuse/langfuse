@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { signIn } from "./utils/auth";
 
 /**
  * The app shell is fully height- and width-constrained: page content scrolls
@@ -7,14 +8,6 @@ import { test, expect, type Page } from "@playwright/test";
  */
 
 const SHORT_VIEWPORT = { width: 1190, height: 560 };
-
-async function signIn(page: Page) {
-  await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-  await expect(page).toHaveURL("/");
-}
 
 /** Document overflow in CSS px, per axis. */
 function documentOverflow(page: Page) {
@@ -31,6 +24,7 @@ test("a right drawer's absolutely-positioned content does not scroll the documen
   page,
 }) => {
   await page.setViewportSize(SHORT_VIEWPORT);
+  await page.goto("/auth/sign-in");
   await signIn(page);
   await page.getByRole("button", { name: "Support" }).click();
   const drawerBody = page.locator("#secondary div.overflow-y-auto").first();
@@ -57,6 +51,7 @@ test("a vertical document scrollbar does not spawn a horizontal one", async ({
   page,
 }) => {
   await page.setViewportSize(SHORT_VIEWPORT);
+  await page.goto("/auth/sign-in");
   await signIn(page);
   // Viewport units ignore scrollbars, so a shell sized off `100vw` overshoots
   // the space beside the sidebar by the scrollbar's width once one is showing.

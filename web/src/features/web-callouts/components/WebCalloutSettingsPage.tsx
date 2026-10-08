@@ -176,6 +176,9 @@ function WebCalloutEndpointDialog(props: {
     onSuccess: async () => {
       await utils.webCallouts.invalidate();
       showSuccessToast({
+        operation: props.endpoint
+          ? "web_callout_endpoint.update"
+          : "web_callout_endpoint.create",
         title: props.endpoint
           ? "Callout endpoint updated"
           : "Callout endpoint created",

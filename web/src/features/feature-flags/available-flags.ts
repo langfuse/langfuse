@@ -1,16 +1,34 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const featurePreviewFlags = [
+export const organizationOnlyFeaturePreviewFlags = [
+  "externalMediaStorage",
+] as const;
+
+export const userFeaturePreviewFlags = [
   "modernSession",
   "sessionTimeline",
 ] as const;
 
+export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
+
+export const featurePreviewFlags = [
+  ...organizationOnlyFeaturePreviewFlags,
+  ...userFeaturePreviewFlags,
+] as const;
+
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
+
+export const isOrganizationOnlyFeaturePreviewFlag = (
+  flag: FeaturePreviewFlag,
+): flag is (typeof organizationOnlyFeaturePreviewFlags)[number] =>
+  organizationOnlyFeaturePreviewFlags.some(
+    (organizationFlag) => organizationFlag === flag,
+  );
 
 const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
 
 export const personalFeaturePreviewFlags = [
-  ...featurePreviewFlags,
+  ...userFeaturePreviewFlags,
   ...adminOnlyFeaturePreviewFlags,
 ] as const;
 
@@ -53,10 +71,11 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
+  externalMediaStorage: "External Media Storage",
   modernSession: "Compact Session View",
   sessionTimeline: "Session Timeline",
   langfuseTopics: "Langfuse Topics",
-} satisfies Record<PersonalFeaturePreviewFlag, string>;
+} satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
@@ -66,6 +85,9 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
+  if (flag === "externalMediaStorage") {
+    return true;
+  }
   if (flag === "modernSession" || flag === "sessionTimeline") {
     return context.v4BetaEnabled;
   }
@@ -74,7 +96,8 @@ export const isFeaturePreviewAvailable = (
 };
 
 export const availableFlags = [
-  ...personalFeaturePreviewFlags,
+  ...featurePreviewFlags,
+  ...adminOnlyFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "searchBar",

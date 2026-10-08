@@ -3,8 +3,18 @@ import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type {
+  ToastInteractionEventProperties,
+  ToastShownEventProperties,
+} from "@/src/features/notifications/toastAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
+
+type ToastEventMap = {
+  "toast:shown": ToastShownEventProperties;
+  "toast:report_issue": ToastInteractionEventProperties;
+  "toast:dismiss": ToastInteractionEventProperties;
+};
 
 // resource:action, only use snake_case
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
@@ -156,7 +166,15 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
-  skills: ["new_form_open", "version_create", "version_download", "delete"],
+  skills: [
+    "new_form_open",
+    "version_create",
+    "version_download",
+    "version_compare",
+    "delete",
+    "import_open",
+    "import",
+  ],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
@@ -289,7 +307,6 @@ const events = {
     "add_widget_dialog_open",
     "add_widget_tab_switch",
     "widget_added",
-    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -363,7 +380,10 @@ const events = {
   // props carry user content.
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
-  toast: ["report_issue", "dismiss"],
+  // User-visible toast denominator. Metadata only: `path` is a static tRPC
+  // procedure, `operation` is a static action id, and `errorId` is the opaque
+  // ID shown in the toast. Never send toast text or error payloads.
+  toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
@@ -489,7 +509,9 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
-type TypedEventMap = AnnotationEventMap & EvalOnboardingEventMap;
+type TypedEventMap = AnnotationEventMap &
+  EvalOnboardingEventMap &
+  ToastEventMap;
 
 type EventProperties = TypedEventMap & {
   [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;

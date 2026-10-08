@@ -231,7 +231,7 @@ export const handleMixpanelIntegrationProjectJob = async (
     },
     include: {
       project: {
-        select: { name: true },
+        select: { name: true, createdAt: true },
       },
     },
   });
@@ -253,13 +253,45 @@ export const handleMixpanelIntegrationProjectJob = async (
   const runStartTime = new Date();
 
   try {
+    // Resume from lastSyncAt. On first run, fall back to the project's
+    // createdAt since no trace data can precede it.
+    const minTimestamp =
+      mixpanelIntegration.lastSyncAt || mixpanelIntegration.project.createdAt;
+    const uncappedMaxTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
+
+    // Cap maxTimestamp at the next UTC day boundary after minTimestamp so a
+    // lagging integration advances one day per run instead of re-reading an
+    // ever-growing window until the ClickHouse query times out. Healthy
+    // integrations are unaffected because uncappedMaxTimestamp wins whenever
+    // the sync is within one day of present.
+    const nextDayBoundary = new Date(
+      Date.UTC(
+        minTimestamp.getUTCFullYear(),
+        minTimestamp.getUTCMonth(),
+        minTimestamp.getUTCDate() + 1,
+      ),
+    );
+    const maxTimestamp = new Date(
+      Math.min(nextDayBoundary.getTime(), uncappedMaxTimestamp.getTime()),
+    );
+
+    if (maxTimestamp <= minTimestamp) {
+      logger.info(
+        `[MIXPANEL] Skipping Mixpanel integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      );
+      return;
+    }
+
+    logger.info(
+      `[MIXPANEL] Syncing project ${projectId} from ${minTimestamp.toISOString()} to ${maxTimestamp.toISOString()}`,
+    );
+
     // Fetch relevant data and send it to Mixpanel
     const executionConfig: MixpanelExecutionConfig = {
       projectId,
       projectName: mixpanelIntegration.project.name,
-      // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-      minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
-      maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
+      minTimestamp,
+      maxTimestamp,
       decryptedMixpanelProjectToken: decrypt(
         mixpanelIntegration.encryptedMixpanelProjectToken,
       ),

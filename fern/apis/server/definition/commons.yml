@@ -148,7 +148,7 @@ types:
         type: nullable<string>
         docs: The version of the observation
       metadata:
-        type: map<string, unknown>
+        type: optional<map<string, unknown>>
         docs: Additional metadata of the observation
       output:
         type: unknown
@@ -454,7 +454,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: map<string, unknown>
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>
@@ -539,7 +539,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: map<string, unknown>
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>

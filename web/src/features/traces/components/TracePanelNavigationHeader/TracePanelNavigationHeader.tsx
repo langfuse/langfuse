@@ -206,7 +206,7 @@ function TracePanelNavigationHeaderExpanded({
   );
 
   return (
-    <Command className="h-auto shrink-0 overflow-hidden rounded-none border-b">
+    <Command className="h-auto shrink-0 overflow-hidden rounded-none border-b bg-transparent">
       {/* Container queries keep the primary view switch visible for as long as
           it fits. Search moves below the controls before that switch collapses,
           and remains the same input across every layout. */}
@@ -372,7 +372,7 @@ function ViewModeSwitch({
       value={activeView}
       onValueChange={(value) => onSelect(value as TraceViewMode)}
     >
-      <Tabs.List size="md" aria-label="Trace view">
+      <Tabs.List variant="inset" size="md" aria-label="Trace view">
         <Tabs.Trigger value="tree" label="Tree" />
         {/* One Timeline. What it IS depends on the Compact Timeline feature
             preview — see TracePanelNavigation — rather than on a third segment

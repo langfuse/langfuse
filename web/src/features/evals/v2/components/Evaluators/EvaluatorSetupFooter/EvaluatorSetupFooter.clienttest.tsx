@@ -25,6 +25,7 @@ describe("EvaluatorSetupFooter", () => {
           nameAIAssistanceAvailable={false}
           codeValidation={{ isValid: false, isPending: false }}
           assistantAction={null}
+          fallbackDecisionModel={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />
@@ -55,6 +56,7 @@ describe("EvaluatorSetupFooter", () => {
           nameAIAssistanceAvailable={false}
           codeValidation={null}
           assistantAction={null}
+          fallbackDecisionModel={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />
@@ -99,6 +101,7 @@ describe("EvaluatorSetupFooter", () => {
           nameAIAssistanceAvailable={false}
           codeValidation={null}
           assistantAction={null}
+          fallbackDecisionModel={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />
@@ -138,9 +141,9 @@ describe("EvaluatorSetupFooter", () => {
           codeValidation={null}
           assistantAction={{
             label,
-            triggerRef: { current: null },
             onClick: onAssistantClick,
           }}
+          fallbackDecisionModel={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />

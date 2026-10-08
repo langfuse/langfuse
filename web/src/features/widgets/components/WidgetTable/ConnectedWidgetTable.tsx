@@ -150,6 +150,7 @@ function ConnectedDashboardWidgetTableContent({
           widget_id: widgetId,
         });
         showSuccessToast({
+          operation: "widget.copy",
           title: "Widget copied",
           description: "Paste it on any dashboard with Cmd/Ctrl+V.",
         });
@@ -182,6 +183,7 @@ function ConnectedDashboardWidgetTableContent({
         });
         utils.dashboardWidgets.invalidate();
         showSuccessToast({
+          operation: "widget.clone",
           title: "Widget cloned",
           description: `Created "${exportSource.name} (Copy)".`,
         });

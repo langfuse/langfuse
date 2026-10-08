@@ -258,8 +258,29 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
   LLMAdapter.TypeSafe,
 ];
 
+/** OpenAI models the Decisions API accepts. */
+export const OPENAI_DECISION_MODEL_IDS: readonly string[] = ["gpt-6-luna"];
+
+export function isOpenAIDecisionModel(model: string): boolean {
+  return OPENAI_DECISION_MODEL_IDS.includes(model);
+}
+
 export function isDecisionModelAdapter(adapter: string): boolean {
   return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
+}
+
+/** Adapters that can answer a decision-model evaluator. OpenAI stays a text adapter too. */
+export function supportsDecisionModels(adapter: string): boolean {
+  return adapter === LLMAdapter.TypeSafe || adapter === LLMAdapter.OpenAI;
+}
+
+export function isAllowedDecisionModel(
+  adapter: string,
+  model: string,
+): boolean {
+  if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
+  if (adapter === LLMAdapter.OpenAI) return isOpenAIDecisionModel(model);
+  return false;
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -394,15 +415,16 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
-  "claude-sonnet-4-5-20250929",
   "claude-sonnet-5",
   "claude-sonnet-5-5",
+  "claude-sonnet-4-5-20250929",
   "claude-fable-5",
   "claude-fable-5-1",
   "claude-mythos-5",
   "claude-mythos-5-1",
   "claude-opus-5-5",
   "claude-opus-5",
+  "claude-haiku-5-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
   "claude-opus-4-7",
@@ -453,12 +475,8 @@ export const googleAIStudioModels = [
   "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-2.0-flash",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",

@@ -1,28 +1,19 @@
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
+import { createProjectScopedRegistrationStore } from "./projectScopedRegistrationStore";
 
-const pageContexts = new Map<
-  string,
-  { owner: symbol; projectId: string; context: AgUiContext }
->();
+const pageContexts = createProjectScopedRegistrationStore<AgUiContext>();
 
 export function registerInAppAgentPageContext(
   projectId: string,
   key: string,
   context: AgUiContext,
 ) {
-  const owner = Symbol(key);
-  const scopedKey = `${projectId}:${key}`;
-  pageContexts.set(scopedKey, { owner, projectId, context });
-
+  const unregister = pageContexts.register(projectId, key, context);
   return () => {
-    if (pageContexts.get(scopedKey)?.owner === owner) {
-      pageContexts.delete(scopedKey);
-    }
+    unregister();
   };
 }
 
 export function getInAppAgentPageContext(projectId: string): AgUiContext {
-  return Array.from(pageContexts.values()).flatMap((entry) =>
-    entry.projectId === projectId ? entry.context : [],
-  );
+  return pageContexts.values(projectId).flat();
 }

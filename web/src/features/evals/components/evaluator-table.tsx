@@ -543,6 +543,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 setEditConfigId(null);
                 utils.evals.allConfigs.invalidate();
                 showSuccessToast({
+                  operation: "evaluator.update",
                   title: "Evaluator updated successfully",
                   description:
                     "Changes will automatically be reflected future evaluator runs",

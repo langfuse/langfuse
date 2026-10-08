@@ -233,6 +233,42 @@ describe("evaluator Assistant tool side effects", () => {
     evaluatorAssistantTestResultStore.clear("project-1", "evaluator-1");
   });
 
+  it("publishes a tool error when validation fails before observation arguments are available", () => {
+    evaluatorAssistantTestResultStore.expect({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      conversationId: "conversation-1",
+      observationId: "observation-1",
+    });
+
+    performEvaluatorAssistantToolSideEffects({
+      toolCalls: [
+        {
+          toolCallId: "failed-test",
+          toolName: "langfuse_testEvaluator",
+          toolArguments: { evaluatorId: "evaluator-1" },
+          toolError:
+            "Validation failed: observationId: Invalid input: expected string",
+        },
+      ],
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      source: "live",
+      utils: {} as InvalidationUtils,
+    });
+
+    expect(
+      evaluatorAssistantTestResultStore.get("project-1", "evaluator-1"),
+    ).toEqual({
+      toolCallId: "failed-test",
+      result: {
+        requestError:
+          "Validation failed: observationId: Invalid input: expected string",
+      },
+    });
+    evaluatorAssistantTestResultStore.clear("project-1", "evaluator-1");
+  });
+
   it("ignores redacted silent evaluator test output", () => {
     evaluatorAssistantTestResultStore.expect({
       projectId: "project-1",

@@ -1,8 +1,10 @@
 // The feature-flags feature's public server surface (RFC rules 8 and 10).
 export {
   featurePreviewFlags,
+  userFeaturePreviewFlags,
   personalFeaturePreviewFlags,
   isAdminOnlyFeaturePreviewFlag,
+  isOrganizationOnlyFeaturePreviewFlag,
   INTERNAL_FEATURE_FLAG,
   filterFeaturePreviewFlags,
 } from "@/src/features/feature-flags/available-flags";
@@ -15,6 +17,7 @@ export {
   setUserFeaturePreviewWithAuthorization,
 } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 export {
+  getContextualFeatureFlags,
   getFeaturePreviewOptOutFlag,
   hasInternalAccess,
 } from "@/src/features/feature-flags/utils";

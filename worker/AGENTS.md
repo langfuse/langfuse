@@ -58,7 +58,10 @@
   tool-response size uses comparable character counts over message parts.
   Allowlisted projects are then summarized from that assembled transcript.
   Allow one pending tokenization promise per batch while
-  buffering the next trace, and drain it even on read failure. Never flush a failed
+  buffering completed traces behind the serial summary chain. Pause reads only
+  above the configured queued-payload threshold, then resume as soon as completed
+  summaries reduce it to that threshold or below. The client idle timeout must
+  account for these pauses. Drain accepted summaries even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`

@@ -47,6 +47,8 @@ export interface MediaTagProps {
   label?: string;
   /** Optional context shown above the preview in the peek popover. */
   description?: string;
+  /** Optional raw reference shown inside the unavailable-media fallback. */
+  errorDetail?: string;
   /** Optional text label for the open action. The default is icon-only. */
   openActionLabel?: string;
   /** Visual framing for the collapsed chip. */
@@ -174,18 +176,25 @@ function PeekBody({
   kind,
   status,
   url,
+  errorDetail,
   onPreviewError,
 }: {
   kind: MediaKind;
   status: MediaTagStatus;
   url?: string;
+  errorDetail?: string;
   onPreviewError: () => void;
 }) {
   if (status === "error") {
     return (
-      <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
+      <div className="text-muted-foreground flex min-h-24 w-64 flex-col items-center justify-center gap-2 p-2">
         <ImageOff className="icon-lg" />
         <span className="text-xs">Failed to load media</span>
+        {errorDetail ? (
+          <code className="max-w-full text-left text-[10px] leading-4 break-all select-text">
+            {errorDetail}
+          </code>
+        ) : null}
       </div>
     );
   }
@@ -214,6 +223,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
       contentLength,
       label,
       description,
+      errorDetail,
       openActionLabel,
       intent,
       open,
@@ -305,6 +315,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               kind={kind}
               status={previewStatus}
               url={url}
+              errorDetail={errorDetail}
               onPreviewError={() => setFailedPreviewUrl(url ?? null)}
             />
           </div>

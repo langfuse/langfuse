@@ -1,5 +1,6 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -15,6 +16,11 @@ import {
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import type { InAppAgentError } from "./utils/utils";
+import {
+  activateInAppAgentContextualLanding,
+  clearInAppAgentContextualLanding,
+  registerInAppAgentContextualLanding,
+} from "@/src/features/in-app-agent/lib/contextualLanding";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -58,7 +64,10 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/" }),
+  useRouter: () => ({
+    asPath: "/project/project-1/evals/evaluator-1",
+    query: { projectId: "project-1" },
+  }),
 }));
 
 vi.mock("./InAppAiAgentProvider", () => ({
@@ -140,12 +149,12 @@ describe("InAppAgentWindow quick actions", () => {
       screen.queryByRole("button", { name: /stop run/i }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Observability",
+      "Observe",
       "Prompts",
       "Evaluation",
       "Dashboard",
     ]);
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -162,7 +171,7 @@ describe("InAppAgentWindow quick actions", () => {
         quickActionResetKey: "/project/project-1/observations",
       }),
     );
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -209,6 +218,63 @@ describe("InAppAgentWindow quick actions", () => {
     expect(
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
+  });
+
+  it("replaces the generic picker with a contextual landing only for an empty transcript", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    const contextualLanding = {
+      id: "evaluator",
+      title: "Create a code evaluator with AI",
+      description: "Describe what this evaluator should check.",
+      examples: [
+        {
+          id: "groundedness",
+          label: "Check groundedness",
+          prompt: "Fail when the answer contradicts context",
+        },
+      ],
+      placeholder: "Describe the evaluator...",
+      onSubmit,
+    };
+    const { rerender } = render(windowElement({ contextualLanding, onSubmit }));
+
+    expect(
+      screen.getByText("Create a code evaluator with AI"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveAttribute("placeholder", "Describe the evaluator...");
+
+    fireEvent.click(screen.getByRole("button", { name: "Check groundedness" }));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        "Fail when the answer contradicts context",
+        undefined,
+      );
+    });
+
+    rerender(
+      windowElement({
+        contextualLanding,
+        onSubmit,
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Existing conversation" },
+          },
+        ],
+      }),
+    );
+    expect(
+      screen.queryByText("Create a code evaluator with AI"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -287,17 +353,145 @@ describe("InAppAgentWindow header", () => {
 
 describe("ControlledInAppAgentWindow composer", () => {
   beforeEach(() => {
+    clearInAppAgentContextualLanding("project-1");
     controlledAgent.value.error = null;
     controlledAgent.value.isRunning = true;
     controlledAgent.value.isSelectedConversationHydrating = false;
     controlledAgent.value.isSubmitting = false;
     controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.messages = [];
+    controlledAgent.value.selectedConversationId = undefined;
     controlledAgent.value.selectConversation = vi.fn();
     controlledAgent.value.execution = {
       run: null,
       isCancelling: false,
       cancel: vi.fn(),
     };
+  });
+
+  it("delegates contextual examples once, keeps failures retryable, and clears on success", async () => {
+    let resolveSubmit: (submitted: boolean) => void = () => undefined;
+    const onSubmit = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
+    const unregister = registerInAppAgentContextualLanding("project-1", {
+      id: "evaluator",
+      title: "Create a code evaluator with AI",
+      description: "Describe what this evaluator should check.",
+      examples: [
+        {
+          id: "groundedness",
+          label: "Check groundedness",
+          prompt: "Fail when the answer contradicts context",
+        },
+      ],
+      onSubmit,
+    });
+    act(() => {
+      activateInAppAgentContextualLanding("project-1", "evaluator");
+    });
+    controlledAgent.value.isRunning = false;
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const example = screen.getByRole("button", { name: "Check groundedness" });
+    fireEvent.click(example);
+    fireEvent.click(example);
+    expect(onSubmit).toHaveBeenCalledOnce();
+
+    resolveSubmit(false);
+    await waitFor(() => {
+      expect(example).toBeEnabled();
+    });
+    fireEvent.click(example);
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+
+    resolveSubmit(true);
+    await waitFor(() => {
+      expect(
+        screen.getByText("Welcome to the Langfuse Assistant"),
+      ).toBeInTheDocument();
+    });
+    unregister();
+  });
+
+  it("delegates typed contextual input and clears the landing on new conversation and close", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    const unregister = registerInAppAgentContextualLanding("project-1", {
+      id: "evaluator",
+      title: "Improve this evaluator",
+      description: "Describe what should change.",
+      examples: [],
+      onSubmit,
+    });
+    activateInAppAgentContextualLanding("project-1", "evaluator");
+    controlledAgent.value.isRunning = false;
+    const onClose = vi.fn();
+
+    const { unmount } = render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={onClose}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "Use a 1–5 score" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith("Use a 1–5 score");
+    });
+
+    act(() => {
+      activateInAppAgentContextualLanding("project-1", "evaluator");
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    );
+    expect(controlledAgent.value.selectConversation).toHaveBeenCalledWith(null);
+    expect(
+      screen.getByText("Welcome to the Langfuse Assistant"),
+    ).toBeInTheDocument();
+
+    act(() => {
+      activateInAppAgentContextualLanding("project-1", "evaluator");
+    });
+    const assistantHeader = screen
+      .getByRole("region", { name: "Assistant" })
+      .querySelector("header");
+    if (!assistantHeader) {
+      throw new Error("Expected the Assistant header");
+    }
+    fireEvent.click(
+      within(assistantHeader).getByRole("button", {
+        name: "Minimize assistant",
+      }),
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(
+      screen.getByText("Welcome to the Langfuse Assistant"),
+    ).toBeInTheDocument();
+
+    unmount();
+    unregister();
   });
 
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {

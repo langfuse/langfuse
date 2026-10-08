@@ -1,7 +1,8 @@
-import type { RefObject } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
+import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import {
@@ -19,6 +20,7 @@ export function EvaluatorSetupFooter({
   nameAIAssistanceAvailable,
   codeValidation,
   assistantAction,
+  fallbackDecisionModel,
   onClose,
   onSave,
 }: {
@@ -30,9 +32,9 @@ export function EvaluatorSetupFooter({
   codeValidation: { isValid: boolean; isPending: boolean } | null;
   assistantAction: {
     label: "Create with AI" | "Edit with AI";
-    triggerRef: RefObject<HTMLButtonElement | null>;
     onClick: () => void;
   } | null;
+  fallbackDecisionModel: JudgeModel | null;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -46,7 +48,8 @@ export function EvaluatorSetupFooter({
   } = useStore(
     store,
     useShallow((state) => {
-      const { definition, mappings } = prepareEvaluatorDraft(state);
+      const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
+      const { definition, mappings } = prepareEvaluatorDraft(draft);
       const hasCompleteMappings =
         state.type !== "LLM_AS_JUDGE" ||
         mappings.every(({ fieldState }) =>
@@ -57,7 +60,7 @@ export function EvaluatorSetupFooter({
         currentSnapshot: JSON.stringify({
           name: state.name.trim(),
           description: state.description.trim() || null,
-          definition,
+          definition: prepareEvaluatorDraft(state).definition,
         }),
         canSubmit: Boolean(definition) && hasCompleteMappings,
         promptMessagesReason:
@@ -69,7 +72,10 @@ export function EvaluatorSetupFooter({
             ? getScoreOutputValidation(state.scoreOutput).reason
             : null,
         nameMissing: !state.name.trim(),
-        hasValidModel: selectHasValidModel(state),
+        hasValidModel:
+          state.type === "DECISION_MODEL"
+            ? Boolean(draft.selectedModel)
+            : selectHasValidModel(state),
       };
     }),
   );
