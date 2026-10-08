@@ -9,6 +9,14 @@ import {
   LazyTraceEventsRow,
   asCommentCounts,
 } from "@/src/features/sessions";
+import { TableViewPresetTableName } from "@langfuse/shared";
+import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { SessionAnnotationViewSelector } from "./SessionAnnotationViewSelector";
+import {
+  getSessionAnnotationViewStorageKey,
+  resolveSessionAnnotationView,
+} from "./sessionAnnotationView";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -35,6 +43,7 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  annotationQueueId?: string;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -45,9 +54,40 @@ const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, annotationQueueId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const { isV4 } = useReadPath();
+
+  // Persist the selected session view per queue on the client so annotators
+  // choose it once per queue, not once per item. Defaults to today's
+  // behaviour (no view selected) until a view is picked.
+  const [selectedViewId, setSelectedViewId] = useLocalStorage<string | null>(
+    getSessionAnnotationViewStorageKey(annotationQueueId ?? "default"),
+    null,
+  );
+
+  const { TableViewPresetsList } = useViewData({
+    tableName: TableViewPresetTableName.SessionDetail,
+    projectId,
+  });
+  const savedViews = useMemo(
+    () =>
+      (TableViewPresetsList ?? [])
+        .filter((view) => !view.isSystem)
+        .map((view) => ({
+          id: view.id,
+          name: view.name,
+          filters: view.filters,
+        })),
+    [TableViewPresetsList],
+  );
+  const resolvedView = useMemo(
+    () => resolveSessionAnnotationView({ selectedViewId, savedViews }),
+    [selectedViewId, savedViews],
+  );
+  const activeFilterState = resolvedView.filterState.length
+    ? resolvedView.filterState
+    : EMPTY_FILTER_STATE;
 
   // Fetch traces separately when v4 beta is enabled (events table path)
   // The byIdWithScoresFromEvents endpoint doesn't include traces array
@@ -179,7 +219,7 @@ export const SessionAnnotationProcessor: React.FC<
             )}
           </CommentDrawerController>
         </div>
-        <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
+        <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between gap-2 px-4 sm:grid-cols-[1fr_auto]">
           <div className="flex max-w-full min-w-0 shrink flex-col">
             <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data?.environment && (
@@ -190,6 +230,16 @@ export const SessionAnnotationProcessor: React.FC<
               </Badge>
             </div>
           </div>
+          {isV4 ? (
+            <div className="flex justify-start sm:justify-end">
+              <SessionAnnotationViewSelector
+                selectedViewId={selectedViewId}
+                savedViews={savedViews}
+                activeViewName={resolvedView.viewLabel}
+                onSelect={(viewId) => setSelectedViewId(viewId)}
+              />
+            </div>
+          ) : null}
         </div>
         <Separator />
       </div>
@@ -233,8 +283,8 @@ export const SessionAnnotationProcessor: React.FC<
                   openPeek={openPeek}
                   traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   showCorrections
-                  filterState={EMPTY_FILTER_STATE}
-                  viewLabel={null}
+                  filterState={activeFilterState}
+                  viewLabel={resolvedView.viewLabel}
                   hideTracePanel
                   index={index}
                 />

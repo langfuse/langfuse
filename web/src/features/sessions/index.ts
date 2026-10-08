@@ -10,6 +10,7 @@ export { LazyTraceEventsRow } from "@/src/features/sessions/TraceEventsRow";
 export { asCommentCounts } from "@/src/features/sessions/sessionDetailPageTypes";
 export {
   SESSION_DETAIL_SYSTEM_PRESETS,
+  SESSION_DETAIL_VIEW_TRIGGER_ID,
   getSessionDetailPresetToApply,
 } from "@/src/features/sessions/session-detail-presets";
 export { default as SessionsTable } from "@/src/features/sessions/SessionsTable";
