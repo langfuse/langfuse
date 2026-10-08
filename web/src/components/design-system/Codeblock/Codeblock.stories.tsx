@@ -37,9 +37,18 @@ export const LightThemeTokenRendering = Default.extend({
       '"Hello, Langfuse!"',
     );
     const theme = args.theme === "dark" ? themes.vsDark : themes.github;
-    const keywordStyle = theme.styles.find((style) =>
-      style.types.includes("keyword"),
-    )!.style;
+    const keywordStyle = theme.styles
+      .filter((rule) => {
+        if (!rule.types.includes("keyword")) return false;
+        if (rule.languages && !rule.languages.includes(args.language)) {
+          return false;
+        }
+        return true;
+      })
+      .reduce<(typeof theme.styles)[number]["style"]>(
+        (style, rule) => ({ ...style, ...rule.style }),
+        {},
+      );
     await expect(keyword).toHaveStyle(keywordStyle);
     await expect(
       canvas.getByRole("button", { name: "Copy code" }),

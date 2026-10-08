@@ -362,12 +362,12 @@ export const ToolPreviewJsonHighlighting = meta.story({
 const largeToolPreviewCases = [
   {
     name: "highlight-limit",
-    input: JSON.stringify({ text: "x".repeat(9_989) }),
-    output: JSON.stringify({ text: "x".repeat(9_990) }),
+    input: { text: "x".repeat(9_984) },
+    output: { text: "x".repeat(9_985) },
   },
   {
     name: "large-multiline",
-    input: JSON.stringify({ text: "x".repeat(9_990) }),
+    input: { text: "x".repeat(9_985) },
     output: `${"\n".repeat(10_000)}full value ends here`,
   },
 ];
@@ -386,8 +386,12 @@ export const LargeToolPreviews = meta.story({
       await userEvent.click(expand);
       const controls = within(row);
       const [inputPreview, outputPreview] = row.querySelectorAll("pre");
-      await expect(inputPreview.textContent).toBe(input);
-      await expect(outputPreview.textContent).toBe(output);
+      const expectedInput = JSON.stringify(input, undefined, 2);
+      const expectedOutput =
+        typeof output === "string"
+          ? output
+          : JSON.stringify(output, undefined, 2);
+      await expect(outputPreview.textContent).toBe(expectedOutput);
       await expect(inputPreview).toHaveClass("max-h-48");
       await expect(outputPreview).toHaveClass("max-h-96");
       await expect(outputPreview.childElementCount).toBe(0);
@@ -396,8 +400,11 @@ export const LargeToolPreviews = meta.story({
       ).toBeNull();
 
       if (name === "highlight-limit") {
-        await expect(input.length).toBe(10_000);
-        await expect(output.length).toBe(10_001);
+        await expect(expectedInput.length).toBe(10_000);
+        await expect(expectedOutput.length).toBe(10_001);
+        await expect(
+          inputPreview.querySelector(".token.string")?.textContent,
+        ).toBe(JSON.stringify(input.text));
         await expect(
           inputPreview.querySelector(".token.property"),
         ).toBeInTheDocument();
@@ -405,6 +412,7 @@ export const LargeToolPreviews = meta.story({
           controls.getByRole("combobox", { name: "Tool input language" }),
         ).toHaveTextContent("Auto (JSON)");
       } else {
+        await expect(inputPreview.textContent).toBe(expectedInput);
         await expect(inputPreview.childElementCount).toBe(0);
         await expect(controls.queryByRole("combobox")).toBeNull();
         await expect(
@@ -434,40 +442,47 @@ export const ToolPreviewLanguageOverrides = meta.story({
     const outputSelect = canvas.getByRole("combobox", {
       name: "Tool output language",
     });
-    const [inputPreview, outputPreview] = canvasElement.querySelectorAll("pre");
+    const [inputContainer, outputContainer] = Array.from(
+      canvasElement.querySelectorAll("pre"),
+      (preview) => preview.parentElement!,
+    );
     const body = within(document.body);
 
     await userEvent.click(inputSelect);
     await userEvent.click(body.getByRole("option", { name: "Plain text" }));
     await expect(inputSelect).toHaveTextContent("Plain text");
-    await expect(inputPreview.querySelector(".token.property")).toBeNull();
-    await expect(inputPreview).toHaveTextContent('"query": "example"');
+    await expect(inputContainer.querySelector(".token.property")).toBeNull();
+    await expect(inputContainer.querySelector("pre")).toHaveTextContent(
+      '"query": "example"',
+    );
     await expect(outputSelect).toHaveTextContent("Auto (JSON)");
     await expect(
-      outputPreview.querySelector(".token.property"),
+      outputContainer.querySelector(".token.property"),
     ).toBeInTheDocument();
 
     await userEvent.click(outputSelect);
     await userEvent.click(body.getByRole("option", { name: "Python" }));
     await expect(outputSelect).toHaveTextContent("Python");
-    await expect(outputPreview.querySelector(".token.property")).toBeNull();
+    await expect(outputContainer.querySelector(".token.property")).toBeNull();
     await expect(inputSelect).toHaveTextContent("Plain text");
 
     await userEvent.click(inputSelect);
     await userEvent.click(body.getByRole("option", { name: "Auto (JSON)" }));
     await expect(
-      inputPreview.querySelector(".token.property"),
+      inputContainer.querySelector(".token.property"),
     ).toBeInTheDocument();
     await expect(outputSelect).toHaveTextContent("Python");
 
     await userEvent.click(outputSelect);
     await userEvent.click(body.getByRole("option", { name: "Plain text" }));
-    await expect(outputPreview.querySelector(".token.property")).toBeNull();
-    await expect(outputPreview).toHaveTextContent('"answer": 42');
+    await expect(outputContainer.querySelector(".token.property")).toBeNull();
+    await expect(outputContainer.querySelector("pre")).toHaveTextContent(
+      '"answer": 42',
+    );
     await userEvent.click(outputSelect);
     await userEvent.click(body.getByRole("option", { name: "Auto (JSON)" }));
     await expect(
-      outputPreview.querySelector(".token.property"),
+      outputContainer.querySelector(".token.property"),
     ).toBeInTheDocument();
   },
 });
