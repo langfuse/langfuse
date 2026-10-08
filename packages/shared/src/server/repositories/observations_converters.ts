@@ -291,6 +291,14 @@ export function convertObservationPartial(
         : null,
     }),
 
+    // Skill fields
+    ...(record.skills_available !== undefined && {
+      skillsAvailable: record.skills_available,
+    }),
+    ...(record.skills_resource_loaded !== undefined && {
+      skillsResourceLoaded: record.skills_resource_loaded,
+    }),
+
     // Pricing tier fields
     ...(record.usage_pricing_tier_id !== undefined && {
       usagePricingTierId: record.usage_pricing_tier_id ?? null,
@@ -362,6 +370,8 @@ export function convertObservationPartial(
     promptId: partial.promptId ?? null,
     promptName: partial.promptName ?? null,
     promptVersion: partial.promptVersion ?? null,
+    skillsAvailable: partial.skillsAvailable ?? [],
+    skillsResourceLoaded: partial.skillsResourceLoaded ?? [],
     latency: partial.latency ?? null,
     timeToFirstToken: partial.timeToFirstToken ?? null,
     providedUsageDetails: partial.providedUsageDetails ?? {},

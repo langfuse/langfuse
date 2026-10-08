@@ -46,7 +46,13 @@ describe.runIf(
         .sort(),
     ).toEqual(
       liveColumns
-        .map((column) => [column.name, normalizeType(column.type)])
+        .map((column) => [
+          column.name,
+          // Native input converts each serialized skill object into the hinted JSON type.
+          ["skills_available", "skills_resource_loaded"].includes(column.name)
+            ? "Array(String)"
+            : normalizeType(column.type),
+        ])
         .sort(),
     );
     for (const column of nativeColumns.filter((column) => column.usesDefault)) {
@@ -333,6 +339,20 @@ function columnValueArbitrary(type: string): Arbitrary<unknown> {
     fc.fullUnicodeString({ maxLength: 24 }),
     fc.constantFrom("", "true"),
   );
+  if (normalized.startsWith("Array(JSON(")) {
+    return fc.array(
+      fc.record({
+        langfuseSkillId: fc.option(text, { nil: null }),
+        langfuseSkillVersion: fc.option(
+          fc.integer({ min: 1, max: 4_294_967_295 }),
+          { nil: null },
+        ),
+        skillName: text,
+        ...(normalized.includes("filePathString") ? { filePath: text } : {}),
+      }),
+      { maxLength: 4 },
+    );
+  }
   const nullable = normalized.match(/^Nullable\((.*)\)$/);
   if (nullable)
     return fc.option(columnValueArbitrary(nullable[1]), { nil: null });

@@ -251,6 +251,8 @@ clickhouse_table_schema! {
     tags: Vec<String> => DefaultPolicy::None,
     tool_calls: Vec<String> => DefaultPolicy::None,
     tool_call_names: Vec<String> => DefaultPolicy::None,
+    skills_available: Vec<String> => DefaultPolicy::None,
+    skills_resource_loaded: Vec<String> => DefaultPolicy::None,
     metadata_names: Vec<String> => @metadata_names DefaultPolicy::None,
     metadata_values: Vec<String> => @metadata_values DefaultPolicy::None,
     experiment_metadata_names: Vec<String> => DefaultPolicy::None,

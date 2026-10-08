@@ -264,6 +264,7 @@ export class ObservationTypeMapperRegistry {
         invoke_agent: "AGENT",
         create_agent: "AGENT",
         execute_tool: "TOOL",
+        load_skill: "TOOL",
       },
     ),
 

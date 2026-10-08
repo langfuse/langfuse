@@ -1,3 +1,7 @@
+import type {
+  SkillsAvailable,
+  SkillsResourceLoaded,
+} from "../../features/skills/trace";
 import {
   asBoolean,
   asNumberRecord,
@@ -66,6 +70,8 @@ export type InternalTraceEventInput = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
+  skillsAvailable?: SkillsAvailable;
+  skillsResourceLoaded?: SkillsResourceLoaded;
   modelId?: string;
   modelName?: string;
   modelParameters?: string | Record<string, unknown>;

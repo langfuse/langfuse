@@ -553,6 +553,8 @@ export function ConnectedObservationDetailView({
                   attributes,
                   attributesAnchorTime: observation.startTime,
                   modelParameters,
+                  skillsAvailable: observation.skillsAvailable,
+                  skillsResourceLoaded: observation.skillsResourceLoaded,
                 }}
                 metadata={observationWithIOCompat.data?.metadata ?? undefined}
                 parsedMetadata={parsedMetadata}
