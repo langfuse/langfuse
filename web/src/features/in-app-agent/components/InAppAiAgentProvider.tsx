@@ -976,7 +976,10 @@ function InAppAiAgentProviderInner({
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
-      if (conversationId === _selectedConversationId) {
+      if (
+        conversationId !== null &&
+        conversationId === _selectedConversationId
+      ) {
         return;
       }
 

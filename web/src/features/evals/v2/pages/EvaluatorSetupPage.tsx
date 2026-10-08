@@ -121,6 +121,7 @@ export function openEvaluatorAssistantLanding({
 }) {
   selectConversation(null);
   if (!activateLanding()) {
+    clearLanding();
     return false;
   }
   if (openAssistant()) {
