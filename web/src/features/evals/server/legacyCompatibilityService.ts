@@ -1232,6 +1232,10 @@ export class LegacyEvalCompatibilityService {
         });
         if (!source) throw new LangfuseNotFoundError("Evaluator not found");
 
+        await lockEvaluatorResultRuleGraph({
+          prisma: tx,
+          projectId: params.projectId,
+        });
         // Serialize concurrent version creation: the next version number is
         // read here and written below, and the pair is unique.
         await tx.$executeRaw`SELECT "id" FROM "evaluators" WHERE "id" = ${source.evaluatorId} AND "project_id" = ${params.projectId} FOR UPDATE`;
@@ -1288,10 +1292,6 @@ export class LegacyEvalCompatibilityService {
           }),
         });
 
-        await lockEvaluatorResultRuleGraph({
-          prisma: tx,
-          projectId: params.projectId,
-        });
         const version = await tx.evaluatorVersion.create({
           data: {
             evaluatorId: source.evaluatorId,
