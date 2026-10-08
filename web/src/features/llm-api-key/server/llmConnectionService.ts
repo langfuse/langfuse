@@ -92,7 +92,9 @@ export type SafeLlmConnection = {
 type TestLlmConnectionParams = Omit<
   LlmConnectionWriteInput,
   "withDefaultModels"
->;
+> & {
+  validateBaseUrlBeforeTest?: boolean;
+};
 
 const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
   const common = {
@@ -307,7 +309,9 @@ async function testLlmConnection(
   params: TestLlmConnectionParams,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await validateBaseUrl(params);
+    if (params.validateBaseUrlBeforeTest !== false) {
+      await validateBaseUrl(params);
+    }
     validateSecret({ adapter: params.adapter, secretKey: params.secretKey });
 
     const model = params.customModels?.length
@@ -411,6 +415,22 @@ export class LlmConnectionService {
       data: connections.map(toSafeConnection),
       totalCount,
     };
+  }
+
+  async listInherited(params: {
+    owner: Extract<LlmConnectionOwner, { type: "project" }>;
+    includeDecisionModels?: boolean;
+  }): Promise<Array<SafeLlmConnection & { overriddenByProject: boolean }>> {
+    const result = await this.repository.listOrganizationConnectionsForProject({
+      projectId: params.owner.projectId,
+      organizationId: params.owner.organizationId,
+      includeDecisionModels: params.includeDecisionModels ?? false,
+    });
+
+    return result.connections.map((connection) => ({
+      ...toSafeConnection(connection),
+      overriddenByProject: result.overriddenProviders.has(connection.provider),
+    }));
   }
 
   async create(params: {
@@ -582,6 +602,7 @@ export class LlmConnectionService {
           params.input.config ??
           LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
           undefined,
+        validateBaseUrlBeforeTest: isBaseURLChanged,
       });
     } catch (error) {
       logger.error(error);

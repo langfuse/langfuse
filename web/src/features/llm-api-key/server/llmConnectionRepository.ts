@@ -69,6 +69,38 @@ export class LlmConnectionRepository {
     return this.db.llmApiKeys.count({ where: ownerWhere(owner) });
   }
 
+  async listOrganizationConnectionsForProject(params: {
+    projectId: string;
+    organizationId: string;
+    includeDecisionModels: boolean;
+  }): Promise<{
+    connections: LlmApiKeys[];
+    overriddenProviders: Set<string>;
+  }> {
+    const [connections, projectConnections] = await Promise.all([
+      this.db.llmApiKeys.findMany({
+        where: {
+          organizationId: params.organizationId,
+          ...(params.includeDecisionModels
+            ? {}
+            : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.db.llmApiKeys.findMany({
+        where: { projectId: params.projectId },
+        select: { provider: true },
+      }),
+    ]);
+
+    return {
+      connections,
+      overriddenProviders: new Set(
+        projectConnections.map((connection) => connection.provider),
+      ),
+    };
+  }
+
   create(params: {
     owner: LlmConnectionOwner;
     data: Omit<
