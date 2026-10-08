@@ -527,8 +527,12 @@ export const SessionPage: React.FC<{
       queryParams: ["observation", "display", "timestamp", "traceId"],
       tableName: "sessions",
       isV4: false,
-      extractParamsValuesFromRow: (row: any) => ({
+      extractParamsValuesFromRow: (row: {
+        timestamp: Date;
+        observationId?: string;
+      }) => ({
         timestamp: row.timestamp.toISOString(),
+        ...(row.observationId ? { observation: row.observationId } : {}),
       }),
     }),
     [projectId],
@@ -1199,7 +1203,10 @@ const LoadedSessionEventsPage: React.FC<{
       isV4: true,
       // observationId: set by a card's "Open in trace view" on a truncated
       // observation so the peek opens AT that observation (LFE-10958).
-      extractParamsValuesFromRow: (row: any) => ({
+      extractParamsValuesFromRow: (row: {
+        timestamp: Date;
+        observationId?: string;
+      }) => ({
         timestamp: row.timestamp.toISOString(),
         ...(row.observationId ? { observation: row.observationId } : {}),
       }),

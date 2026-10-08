@@ -5,7 +5,7 @@
  * - Tracks selected node ID (synced to URL query param)
  * - Manages collapsed/expanded state for tree nodes
  * - Handles search query with debounced input
- * - Tracks selected tab (preview/log/scores) - synced to URL query param `traceTab`
+ * - Tracks selected detail tab - synced to URL query param `traceTab`
  * - Tracks view preference (formatted/json) - synced to URL query param AND localStorage
  *
  * View Preference Behavior:
@@ -34,20 +34,8 @@ import {
   type JsonViewPreference,
 } from "@/src/components/ui/jsonViewPreference";
 
-// Valid tab values for detail view
-export type DetailTab =
-  | "preview"
-  | "attributes"
-  | "log"
-  | "scores"
-  | "messages";
-const VALID_TABS: DetailTab[] = [
-  "preview",
-  "attributes",
-  "log",
-  "scores",
-  "messages",
-];
+import { DETAIL_TABS, type DetailTab } from "../constants/detailTabs";
+export type { DetailTab } from "../constants/detailTabs";
 const DEFAULT_TAB: DetailTab = "preview";
 
 // Valid view preference values
@@ -102,7 +90,7 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Validate and provide defaults for tab
-  const selectedTab: DetailTab = VALID_TABS.includes(tabParam as DetailTab)
+  const selectedTab: DetailTab = DETAIL_TABS.includes(tabParam as DetailTab)
     ? (tabParam as DetailTab)
     : DEFAULT_TAB;
 
