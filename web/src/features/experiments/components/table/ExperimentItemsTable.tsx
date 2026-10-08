@@ -44,7 +44,10 @@ import {
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy";
-import { useAdjustableRowHeight } from "@/src/components/table/data-table-row-height-switch";
+import {
+  getRowHeightIOCharLimit,
+  useAdjustableRowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import {
   useColumnOrder,
   useColumnVisibility,
@@ -801,6 +804,13 @@ export default function ExperimentItemsTable({
     [filterTargets, defaultFilterTargetExperimentId],
   );
 
+  // Small stays on the short preview. Medium, Large, and a custom height have
+  // room for the longer text, so ask for the expanded read.
+  const ioCharLimit =
+    rowHeightMode === "custom"
+      ? getRowHeightIOCharLimit("l")
+      : getRowHeightIOCharLimit(rowHeight);
+
   // Use the custom hook for experiment items data fetching
   const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
@@ -817,6 +827,7 @@ export default function ExperimentItemsTable({
         limit: paginationState.pageSize,
       },
       itemVisibility,
+      ioCharLimit,
     });
 
   const { rows: scoreRows, scoreColumns: scoreColumnDefs } =
