@@ -2645,7 +2645,7 @@ export class OtelIngestionProcessor {
         "ai.telemetry.metadata.tags",
         "ai.telemetry.metadata.langfusePrompt",
       ]),
-      decodeValues,
+      decodeValues: decodeValues ? { domain, dropScope } : undefined,
     });
 
     return {
@@ -3506,13 +3506,14 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     prefixes: string[];
     excludedKeys?: Set<string>;
-    decodeValues?: boolean;
+    // Set for structured-metadata SDKs, which JSON-encode every value.
+    decodeValues?: Omit<MetadataDropContext, "attributeKey">;
   }): Record<string, unknown> {
     const {
       attributes,
       prefixes,
       excludedKeys = new Set<string>(),
-      decodeValues = false,
+      decodeValues,
     } = params;
     const metadata: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(attributes)) {
@@ -3526,27 +3527,26 @@ export class OtelIngestionProcessor {
           continue;
         }
 
-        metadata[metadataKey] = decodeValues
-          ? OtelIngestionProcessor.decodeMetadataValue(value)
-          : value;
+        if (!decodeValues || typeof value !== "string") {
+          metadata[metadataKey] = value;
+          continue;
+        }
+
+        // Decoded values match what a metadata blob holds for the key, and an
+        // undecodable value is dropped like an unparseable blob.
+        try {
+          metadata[metadataKey] = JSON.parse(value);
+        } catch {
+          this.recordMetadataDropped(
+            "parse_failure",
+            { ...decodeValues, attributeKey: prefix },
+            this.classifyParseFailure(value),
+          );
+        }
       }
     }
 
     return metadata;
-  }
-
-  // Structured-metadata SDKs JSON-encode every per-key value, so decoding it
-  // yields the same value a metadata blob holds for that key. A value that is
-  // not valid JSON is kept as sent rather than dropped.
-  private static decodeMetadataValue(value: unknown): unknown {
-    if (typeof value !== "string") {
-      return value;
-    }
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
   }
 
   // Langfuse SDK spans from a major that opts into decoded per-key metadata.

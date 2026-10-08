@@ -542,15 +542,30 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     },
   );
 
-  it("keeps a per-key value that is not valid JSON as sent", async () => {
+  it("drops a per-key value that is not valid JSON and counts it", async () => {
+    recordIncrementMock.mockClear();
     const result = await processMetadata("v4", [
       {
         key: "langfuse.observation.metadata.note",
         value: { stringValue: "{not json" },
       },
+      {
+        key: "langfuse.observation.metadata.environment",
+        value: { stringValue: '"prod"' },
+      },
     ]);
 
-    expect(result.note).toBe("{not json");
+    expect(result).not.toHaveProperty("note");
+    expect(result.environment).toBe("prod");
+    expect(droppedCalls()).toHaveLength(1);
+    expect(droppedCalls()[0][2]).toEqual(
+      expect.objectContaining({
+        reason: "parse_failure",
+        domain: "observation",
+        attributeKey: "langfuse.observation.metadata",
+        kind: "truncated_json",
+      }),
+    );
   });
 
   it.each([
