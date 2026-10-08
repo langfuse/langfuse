@@ -26,7 +26,6 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
 import {
   hasPromptToolStructuredOutputConflict,
-  PRODUCTION_LABEL,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
   type LlmSchema,
 } from "@langfuse/shared";
@@ -36,6 +35,7 @@ import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 
 export const PromptModelStep: React.FC<PromptModelStepProps> = ({
@@ -238,8 +238,9 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 {prompt.labels.length > 0 && (
                                   <div className="min-w-0">
                                     <LabelList
-                                      labels={prompt.labels}
-                                      productionLabel={PRODUCTION_LABEL}
+                                      labels={toPromptLabelListItems(
+                                        prompt.labels,
+                                      )}
                                       maxVisible={2}
                                     />
                                   </div>

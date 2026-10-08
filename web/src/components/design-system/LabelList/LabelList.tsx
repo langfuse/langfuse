@@ -1,7 +1,6 @@
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { cva } from "class-variance-authority";
-import { LATEST_PROMPT_LABEL, PRODUCTION_LABEL } from "@langfuse/shared";
 
 import { BadgeShell } from "../Badge/Badge";
 import { HoverCard } from "../HoverCard/HoverCard";
@@ -29,30 +28,29 @@ const DEFAULT_MAX_VISIBLE = 5;
 const CHIP_GAP = 4;
 
 export function LabelList(props: LabelListProps) {
-  const { labels, productionLabel, layout = "contained" } = props;
+  const { labels, layout = "contained" } = props;
   const isSingleLine = layout === "contained" && props.shouldWrap === false;
-  const sortedLabels = sortLabels(labels);
   const { listRef, probeRef, fittingCount } = useFittingCount(
-    sortedLabels,
+    labels,
     isSingleLine,
   );
   const visibleCount = isSingleLine
     ? fittingCount
     : (props.maxVisible ?? DEFAULT_MAX_VISIBLE);
-  const visibleLabels = sortedLabels.slice(0, visibleCount);
-  const hiddenCount = sortedLabels.length - visibleLabels.length;
-  const renderChip = (label: string) => (
+  const visibleLabels = labels.slice(0, visibleCount);
+  const hiddenCount = labels.length - visibleLabels.length;
+  const renderChip = (label: LabelListItem) => (
     <LabelChip
-      key={label}
-      label={label}
-      isProduction={label === productionLabel}
+      key={label.name}
+      name={label.name}
+      isProduction={label.isProduction ?? false}
     />
   );
   const overflow =
     hiddenCount > 0 ? (
       <LabelOverflow
-        chips={sortedLabels.map(renderChip)}
-        totalCount={sortedLabels.length}
+        chips={labels.map(renderChip)}
+        totalCount={labels.length}
         hiddenCount={hiddenCount}
       />
     ) : null;
@@ -78,19 +76,24 @@ export function LabelList(props: LabelListProps) {
         aria-hidden
         className="pointer-events-none invisible absolute flex w-max gap-1"
       >
-        {sortedLabels.map(renderChip)}
+        {labels.map(renderChip)}
         <BadgeShell color="filled" font="mono" size="md">
-          +{sortedLabels.length}
+          +{labels.length}
         </BadgeShell>
       </div>
     </div>
   );
 }
 
+export type LabelListItem = {
+  name: string;
+  /** Shows the production marker. */
+  isProduction?: boolean;
+};
+
 type LabelListProps = {
-  labels: string[];
-  /** This label gets the production marker. */
-  productionLabel?: string;
+  /** Rendered in the given order. */
+  labels: LabelListItem[];
 } & (
   | {
       layout?: "contained";
@@ -111,11 +114,13 @@ type LabelListProps = {
     }
 );
 
-function useFittingCount(labels: string[], isEnabled: boolean) {
+function useFittingCount(labels: LabelListItem[], isEnabled: boolean) {
   const listRef = useRef<HTMLDivElement>(null);
   const probeRef = useRef<HTMLDivElement>(null);
   const [fittingCount, setFittingCount] = useState(labels.length);
-  const labelsKey = labels.join("\u0000");
+  const labelsKey = labels
+    .map((label) => `${label.name}:${label.isProduction ?? false}`)
+    .join("\u0000");
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -163,16 +168,6 @@ function sumWithGaps(widths: number[]): number {
   );
 }
 
-function sortLabels(labels: string[]): string[] {
-  return [...labels].sort((a, b) => {
-    if (a === PRODUCTION_LABEL) return -1;
-    if (b === PRODUCTION_LABEL) return 1;
-    if (a === LATEST_PROMPT_LABEL) return -1;
-    if (b === LATEST_PROMPT_LABEL) return 1;
-    return a.localeCompare(b);
-  });
-}
-
 function LabelOverflow({
   chips,
   totalCount,
@@ -211,10 +206,10 @@ function LabelOverflow({
 }
 
 function LabelChip({
-  label,
+  name,
   isProduction,
 }: {
-  label: string;
+  name: string;
   isProduction: boolean;
 }) {
   return (
@@ -222,8 +217,8 @@ function LabelChip({
       {isProduction && (
         <span className="bg-dark-green size-1.5 shrink-0 rounded-full" />
       )}
-      <span className="truncate py-0.5" title={label}>
-        {label}
+      <span className="truncate py-0.5" title={name}>
+        {name}
       </span>
     </BadgeShell>
   );
