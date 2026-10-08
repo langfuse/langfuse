@@ -2195,6 +2195,7 @@ export const getAggregatedScoresForPrompts = async (
         : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
