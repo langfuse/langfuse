@@ -138,8 +138,8 @@ core never changes. The pipeline:
    reasoning `summary`/`encrypted_content`, `finish_reason` (message-level,
    envelope-level, or `response_metadata`). The part parser itself
    recognizes, in order: shared typed blocks (text, reasoning), the
-   provider-declared typed blocks (OpenAI, Anthropic, AI-SDK block types,
-   including provider-executed built-in items), untyped keyed parts (Gemini
+   provider-declared typed blocks (OpenAI, Anthropic, AI-SDK, LangChain block
+   types, including provider-executed built-in items), untyped keyed parts (Gemini
    `functionCall`, `inlineData`, `executableCode`, bare `{text}` with
    `thought`/`thoughtSignature`), shape-sniffed tool calls without a
    recognized type, and finally the `data`/`custom` fallback. Messages that produce no parts
@@ -224,7 +224,8 @@ or the fixture documents it.
 ## Format coverage
 
 OpenAI Chat Completions + Responses API, Anthropic Messages, Vercel AI SDK,
-Gemini/Vertex, LangChain/LangGraph (incl. the `lc` serialization envelope),
+Gemini/Vertex, LangChain/LangGraph (incl. the `lc` serialization envelope
+and v1 standard content blocks),
 Microsoft Agent Framework, Pydantic AI, Semantic Kernel, agno/koog-style
 loose shapes, GenAI event streams, and raw passthrough. Providers without
 dedicated handling (Bedrock, Mistral, Cohere, …) ride the generic
