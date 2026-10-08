@@ -184,13 +184,6 @@ export function useSessionConversationTimelineController(
             )
           : undefined;
       const mountedTarget = rowId || observationId ? row : entry;
-      row
-        ?.querySelectorAll<HTMLDetailsElement>(
-          "details[data-markdown-fallback]",
-        )
-        .forEach((fallback) => {
-          fallback.open = true;
-        });
       const measurements = virtualizer.measurementsCache;
       const itemOffset = measurements[currentIndex]?.start;
       if (itemOffset === undefined) {
@@ -215,7 +208,7 @@ export function useSessionConversationTimelineController(
       if (previousTarget === undefined || Math.abs(previousTarget - top) > 1) {
         previousTarget = top;
         stableSince = performance.now();
-        feed.scrollTo({ top, behavior: "smooth" });
+        feed.scrollTo({ top, behavior: "auto" });
       }
       if (
         virtualizer.isScrolling ||

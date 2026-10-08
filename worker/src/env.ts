@@ -44,6 +44,16 @@ const EnvSchema = z.object({
     .optional()
     .transform((date) => (date ? new Date(date) : null)),
 
+  // CHB REST credentials, mirroring web/src/env.mjs. The worker needs them for
+  // one read: the spend-alert job asks for the open period's accrued usage.
+  CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+  CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+  // CHB's resource-server identifier. Defaulted because it is the same value
+  // in every CHB tenant, and overridable in case that stops being true.
+  CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),

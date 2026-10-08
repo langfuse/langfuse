@@ -2271,7 +2271,7 @@ function SessionConversationalViewStory({
           className="absolute top-0 left-0"
           onClick={() => setTranscriptsLoaded(true)}
         >
-          Load transcripts
+          Load messages
         </button>
       )}
       <SessionConversationalView
@@ -2742,7 +2742,7 @@ export const DelayedTranscriptNavigation = meta.story({
       sidebar.getByRole("button", { name: "2 Navigation turn 2" }),
     ).toHaveAttribute("aria-current", "true");
     await userEvent.click(
-      canvas.getByRole("button", { name: "Load transcripts" }),
+      canvas.getByRole("button", { name: "Load messages" }),
     );
     await expectNavigation(
       canvasElement,
@@ -2760,20 +2760,31 @@ export const SidebarFollowResume = meta.story({
     const canvas = within(canvasElement);
     const feed = canvas.getByLabelText("Session conversation timeline");
     const list = canvas.getByRole("region", { name: "Session turns" });
-    list.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true }));
-    feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
-    await waitFor(() => expect(list.scrollTop).toBeGreaterThan(0), {
-      timeout: 3_000,
-    });
     const sidebar = within(canvas.getByRole("complementary"));
-    const active = await sidebar.findByRole("button", {
-      name: /^32\.2 Navigation turn 32/,
-    });
-    await expect(active).toHaveAttribute("aria-current", "true");
-    const activeRect = active.getBoundingClientRect();
-    const listRect = list.getBoundingClientRect();
-    await expect(activeRect.top).toBeGreaterThanOrEqual(listRect.top);
-    await expect(activeRect.bottom).toBeLessThanOrEqual(listRect.bottom);
+    list.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true }));
+    await waitFor(
+      () => {
+        // Newly mounted rows replace estimates, moving the end of the timeline.
+        feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
+        expect(
+          sidebar.getByRole("button", { name: /^32\.2 Navigation turn 32/ }),
+        ).toHaveAttribute("aria-current", "true");
+      },
+      { timeout: 3_000 },
+    );
+    await waitFor(
+      () => {
+        const active = sidebar.getByRole("button", {
+          name: /^32\.2 Navigation turn 32/,
+        });
+        expect(active).toHaveAttribute("aria-current", "true");
+        const activeRect = active.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        expect(activeRect.top).toBeGreaterThanOrEqual(listRect.top);
+        expect(activeRect.bottom).toBeLessThanOrEqual(listRect.bottom);
+      },
+      { timeout: 3_000 },
+    );
   },
 });
 export const NestedThreadsHidden = meta.story({
@@ -3049,7 +3060,7 @@ export const CollapsedLargeMessage = meta.story({
                         parts: [
                           {
                             type: "text",
-                            text: `${"> ".repeat(101)}Deeply nested diagnostic output\n\n${"Diagnostic line: operation completed successfully.\n".repeat(300)}`,
+                            text: `${"> ".repeat(101)}Deeply nested diagnostic output\n\n${"Diagnostic line: operation completed successfully.\n".repeat(300)}Search match near the end`,
                           },
                         ],
                       },
@@ -3087,23 +3098,51 @@ export const CollapsedLargeMessage = meta.story({
         selector: "pre",
       },
     );
-    await expect(content).not.toBeVisible();
+    const toggle = await timeline.findByRole("button", { name: "Show more" });
+    const preview = canvasElement.ownerDocument.getElementById(
+      toggle.getAttribute("aria-controls") ?? "",
+    );
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(preview).toHaveClass("max-h-96");
+    await expect(content.getBoundingClientRect().height).toBeGreaterThan(
+      preview?.getBoundingClientRect().height ?? 0,
+    );
     await expect(
       timeline.getByText("Summary: all operations completed successfully."),
     ).toBeVisible();
-    await userEvent.click(timeline.getByText("Expand content"));
-    await expect(content).toBeVisible();
-    await userEvent.click(timeline.getByText("Collapse content"));
-    await expect(content).not.toBeVisible();
+    await userEvent.click(toggle);
+    await expect(
+      timeline.getByRole("button", { name: "Show less" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(preview).not.toHaveClass("max-h-96");
+    await userEvent.click(timeline.getByRole("button", { name: "Show less" }));
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(preview).toHaveClass("max-h-96");
     const sidebar = within(within(canvasElement).getByRole("complementary"));
     await userEvent.type(
       sidebar.getByRole("textbox"),
-      "Deeply nested diagnostic output",
+      "Search match near the end",
     );
     await userEvent.click(
       await sidebar.findByRole("button", { name: "Assistant message" }),
     );
-    await waitFor(() => expect(content).toBeVisible());
+    await waitFor(() => {
+      expect(
+        timeline.getByRole("button", { name: "Show less" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(preview).not.toHaveClass("max-h-96");
+    });
+    await userEvent.click(timeline.getByRole("button", { name: "Show less" }));
+    await expect(preview).toHaveClass("max-h-96");
+    await userEvent.click(
+      sidebar.getByRole("button", { name: "Assistant message" }),
+    );
+    await waitFor(() => {
+      expect(
+        timeline.getByRole("button", { name: "Show less" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(preview).not.toHaveClass("max-h-96");
+    });
   },
 });
 export const ManySimpleTurns = meta.story({
@@ -3213,9 +3252,7 @@ export const PendingSearch = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const sidebar = within(canvas.getByRole("complementary"));
-    await expect(
-      sidebar.getByText("Loading transcripts..."),
-    ).toBeInTheDocument();
+    await expect(sidebar.getByText("Loading messages...")).toBeInTheDocument();
     await expect(
       sidebar.queryByRole("button", { name: "1 First turn" }),
     ).not.toBeInTheDocument();
