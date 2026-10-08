@@ -152,7 +152,7 @@ export function ChatMessageList({
           <PrettyJsonView
             title="Additional Input"
             json={additionalInput}
-            currentView={currentView}
+            currentView={shouldRenderMarkdown ? "pretty" : "json"}
           />
         )}
 
