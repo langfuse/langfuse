@@ -11,6 +11,7 @@ import {
 } from "../../../core/normalize/tool-definitions";
 import type {
   IOConvention,
+  PartHandlerContext,
   MessageSource,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
@@ -47,52 +48,56 @@ function pydanticAiMessages(
   ];
 }
 
-/** A request can contain system prompts, user prompts, and tool returns. */
+// tryUnwrapMessage returns one message; split mixed-role Pydantic request parts in the claim instead.
 function pydanticAiMessage(message: PydanticMessage) {
   if (message.kind === "response") {
-    return [{ role: "assistant", parts: message.parts.map(pydanticAiPart) }];
+    return [{ role: "assistant", parts: message.parts }];
   }
   return message.parts.map((part) => {
     const kind = asRecord(part)?.part_kind;
-    const role =
-      kind === "system-prompt"
-        ? "system"
-        : kind === "tool-return"
-          ? "tool"
-          : "user";
-    return { role, parts: [pydanticAiPart(part)] };
+    let role = "user";
+    if (kind === "system-prompt") role = "system";
+    if (kind === "tool-return") role = "tool";
+    // Prompt content may itself contain several multimodal parts.
+    if (kind === "system-prompt" || kind === "user-prompt") {
+      return { role, content: asRecord(part)?.content };
+    }
+    return { role, parts: [part] };
   });
 }
 
-function pydanticAiPart(value: unknown): unknown {
-  const part = asRecord(value);
-  if (!part) return value;
+function pydanticAiPart(
+  part: Record<string, unknown>,
+  context: PartHandlerContext,
+) {
   const { part_kind, tool_name, tool_call_id, args, ...rest } = part;
+  let value: Record<string, unknown>;
   switch (part_kind) {
-    case "system-prompt":
-    case "user-prompt":
-      return part.content;
     case "text":
-      return { ...rest, type: "text" };
+      value = { ...rest, type: "text" };
+      break;
     case "tool-call":
-      return {
+      value = {
         ...rest,
         type: "tool-call",
         toolName: tool_name,
         toolCallId: tool_call_id,
         input: args,
       };
+      break;
     case "tool-return":
-      return {
+      value = {
         ...rest,
         type: "tool-result",
         toolName: tool_name,
         toolCallId: tool_call_id,
         output: part.content,
       };
+      break;
     default:
-      return value;
+      return unmatched;
   }
+  return claimed(context.normalizePartValue(value)[0] ?? null);
 }
 
 /** Builtin tools use `kind` where the common tool parser expects `type`. */
@@ -140,6 +145,7 @@ function pydanticAiToolDefinitionSources(
 export const pydanticAiProvider = {
   name: "pydantic-ai",
   claimMessages: pydanticAiMessages,
+  tryNormalizeUntypedPart: pydanticAiPart,
   // Pydantic AI tool declarations: { name, description,
   // parameters_json_schema }.
   tryNormalizeToolDefinition: (value: Record<string, unknown>) => {
