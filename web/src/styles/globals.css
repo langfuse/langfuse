@@ -151,6 +151,7 @@
 
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
+  --color-line-dotted: hsl(var(--line-dotted));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
@@ -357,6 +358,7 @@
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
     --border-contrast: 240 4.9% 83.9%; /* zinc-300 */
+    --line-dotted: 240 5.2% 33.9%; /* zinc-600 */
     --input: 240 5.9% 90%; /* zinc-200 */
 
     --primary: 240 5.9% 10%; /* zinc-900 */
@@ -479,10 +481,10 @@
        keyword=blue. Scoped to the filter grammar (key:value pills); retune
        freely, a designer can own these later. Operators reuse muted-foreground.
        Values from the langfuse-search-bar prototype. */
-    --qlang-field: 262 60% 47%;
-    --qlang-value: 152 60% 30%;
-    --qlang-number: 24 75% 42%;
-    --qlang-keyword: 221 83% 53%;
+    --qlang-field: 263.4 69.3% 42.2%; /* violet-800 */
+    --qlang-value: 162.9 93.5% 24.3%; /* emerald-700 */
+    --qlang-number: 17.5 88.3% 40.4%; /* orange-700 */
+    --qlang-keyword: 224.3 76.3% 48%; /* blue-700 */
 
     --json-value-string: var(--color-green-800);
     --json-value-number: var(--color-blue-800);
@@ -582,6 +584,7 @@
     /* Hairline must read on EVERY surface tier, including popover (12%). */
     --border: 0 0% 20%;
     --border-contrast: 0 0% 26%;
+    --line-dotted: 0 0% 42%;
     --input: 0 0% 18%;
 
     --primary: 0 0% 90%;
@@ -931,6 +934,24 @@
     );
     pointer-events: none;
   }
+}
+
+/* Vertical twin of underline-dotted, e.g. timeline connectors. */
+@utility dotted-line-y {
+  background-image: linear-gradient(
+    to bottom,
+    hsl(var(--line-dotted)) 1px,
+    transparent 1px
+  );
+  background-repeat: repeat-y;
+  background-size: 1px 4px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black calc(var(--spacing) * 3),
+    black calc(100% - var(--spacing) * 3),
+    transparent
+  );
 }
 
 @utility scrollbar-visible {
