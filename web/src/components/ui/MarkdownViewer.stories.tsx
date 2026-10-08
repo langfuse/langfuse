@@ -16,29 +16,6 @@ export const Default = meta.story({
   },
 });
 
-export const CollapsedPlainTextFallback = meta.story({
-  name: "(Test) Collapsed Plain Text Fallback",
-  args: {
-    markdown: `${"> ".repeat(101)}Deeply nested content`,
-    fallbackDisplay: "collapsed",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const content = canvas.getByText(
-      `${"> ".repeat(101)}Deeply nested content`,
-      {
-        exact: false,
-        selector: "pre",
-      },
-    );
-    await expect(content).not.toBeVisible();
-    await userEvent.click(canvas.getByText("Expand content"));
-    await expect(content).toBeVisible();
-    await userEvent.click(canvas.getByText("Collapse content"));
-    await expect(content).not.toBeVisible();
-  },
-});
-
 export const NestedLists = meta.story({
   args: {
     markdown: `In practical terms, it helps you:

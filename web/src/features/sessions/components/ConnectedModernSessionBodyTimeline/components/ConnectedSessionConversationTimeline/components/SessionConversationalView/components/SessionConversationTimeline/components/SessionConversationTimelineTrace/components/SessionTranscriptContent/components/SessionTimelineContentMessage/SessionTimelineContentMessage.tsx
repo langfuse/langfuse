@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelinePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/SessionTimelinePart";
 import { cn } from "@/src/utils/tailwind";
+import { SessionTimelineMessageContent } from "./components/SessionTimelineMessageContent/SessionTimelineMessageContent";
 
 const rolePresentation = {
   user: {
@@ -13,7 +14,7 @@ const rolePresentation = {
     icon: UserRound,
     wrapper: "justify-end",
     container:
-      "bg-blue-50 dark:bg-[color-mix(in_srgb,var(--color-muted)_85%,var(--color-light-blue))] max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
+      "bg-blue-50 dark:bg-[color-mix(in_srgb,var(--color-muted)_85%,var(--color-light-blue))] max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5 [--session-message-toggle-hover:var(--color-blue-100)] dark:[--session-message-toggle-hover:color-mix(in_srgb,var(--color-muted)_75%,var(--color-light-blue))]",
   },
   assistant: {
     label: "Assistant",
@@ -169,19 +170,21 @@ export function SessionTimelineContentMessage({
                 </button>
               ) : null}
               {!isJsonOnly || isJsonExpanded ? (
-                <div
-                  className={cn(
-                    "flex flex-col gap-2 text-sm",
-                    isJsonOnly && "mt-2",
-                  )}
-                >
-                  {group.parts.map((part, partIndex) => (
-                    <SessionTimelinePart
-                      key={`${part.type}-${partIndex}`}
-                      part={part}
-                    />
-                  ))}
-                </div>
+                <SessionTimelineMessageContent>
+                  <div
+                    className={cn(
+                      "flex flex-col gap-2 text-sm",
+                      isJsonOnly && "mt-2",
+                    )}
+                  >
+                    {group.parts.map((part, partIndex) => (
+                      <SessionTimelinePart
+                        key={`${part.type}-${partIndex}`}
+                        part={part}
+                      />
+                    ))}
+                  </div>
+                </SessionTimelineMessageContent>
               ) : null}
               {(timestamp || onOpenObservation) &&
                 groupIndex === groups.length - 1 && (

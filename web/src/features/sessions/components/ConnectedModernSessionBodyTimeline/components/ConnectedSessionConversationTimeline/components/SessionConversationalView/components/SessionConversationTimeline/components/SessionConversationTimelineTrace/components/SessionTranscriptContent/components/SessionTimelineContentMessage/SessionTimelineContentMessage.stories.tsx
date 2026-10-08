@@ -1,5 +1,5 @@
 import preview from "@/.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { SessionTimelineContentMessage } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
 
@@ -11,6 +11,111 @@ const meta = preview.meta({
 
 export default meta;
 
+export const TallPlainText = meta.story({
+  args: {
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: "A long plain text paragraph that wraps across multiple lines. ".repeat(
+          250,
+        ),
+      },
+    ],
+    onOpenObservation: () => {},
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = await canvas.findByRole("button", { name: "Show more" });
+    const content = canvasElement.ownerDocument.getElementById(
+      toggle.getAttribute("aria-controls") ?? "",
+    );
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(content).toHaveClass("max-h-96");
+    await userEvent.click(toggle);
+    await expect(
+      canvas.getByRole("button", { name: "Show less" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(content).not.toHaveClass("max-h-96");
+    await userEvent.click(canvas.getByRole("button", { name: "Show less" }));
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      canvas.getByRole("button", { name: "Open observation" }),
+    ).toBeInTheDocument();
+  },
+});
+
+export const TallMarkdown = meta.story({
+  args: {
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: "## Heading\n\nA **formatted** paragraph.\n\n".repeat(40),
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = await canvas.findByRole("button", { name: "Show more" });
+    const content = canvasElement.ownerDocument.getElementById(
+      toggle.getAttribute("aria-controls") ?? "",
+    );
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(content).toHaveClass("max-h-96");
+    await userEvent.click(toggle);
+    await expect(
+      canvas.getAllByRole("heading", { name: "Heading" }),
+    ).toHaveLength(40);
+    await expect(
+      canvas.getByRole("button", { name: "Show less" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(content).not.toHaveClass("max-h-96");
+    await userEvent.click(canvas.getByRole("button", { name: "Show less" }));
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(content).toHaveClass("max-h-96");
+  },
+});
+
+export const ResponsiveMessage = meta.story({
+  name: "(Test) Rechecks Preview Height on Resize",
+  args: {
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: "A paragraph that wraps as the available width changes. ".repeat(
+          12,
+        ),
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const originalWidth = canvasElement.style.width;
+    try {
+      canvasElement.style.width = "800px";
+      await waitFor(() =>
+        expect(
+          canvas.queryByRole("button", { name: "Show more" }),
+        ).not.toBeInTheDocument(),
+      );
+      canvasElement.style.width = "200px";
+      await expect(
+        await canvas.findByRole("button", { name: "Show more" }),
+      ).toHaveAttribute("aria-expanded", "false");
+      canvasElement.style.width = "800px";
+      await waitFor(() =>
+        expect(
+          canvas.queryByRole("button", { name: "Show more" }),
+        ).not.toBeInTheDocument(),
+      );
+    } finally {
+      canvasElement.style.width = originalWidth;
+    }
+  },
+});
+
 export const NamedUser = meta.story({
   args: {
     role: "user",
@@ -21,6 +126,12 @@ export const NamedUser = meta.story({
         text: "Find the latest documentation and summarize the relevant section.",
       },
     ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "Show more" }),
+    ).not.toBeInTheDocument();
   },
 });
 
