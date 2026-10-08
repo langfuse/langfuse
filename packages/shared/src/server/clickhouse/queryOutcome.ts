@@ -135,15 +135,16 @@ export type ClickHouseQueryTable =
  * otherwise steal the label. Still best-effort: a subquery/CTE reading a
  * different table in its own `FROM` can win by priority order (first match
  * wins). The events read path is single-table (`FROM events_full`/`events_core`,
- * no v3 joins), so those labels are reliable.
+ * no v3 joins), so those labels are reliable. `dataset_run_items` ranks above
+ * `scores` because dataset run tables filtered by a score read scores in a CTE.
  */
 const TABLE_LABEL_PATTERNS: ReadonlyArray<[ClickHouseQueryTable, RegExp]> = [
   ["events_full", /\bfrom\s+(?:\w+\.)?events_full\b/i],
   ["events_core", /\bfrom\s+(?:\w+\.)?events_core\b/i],
   ["observations", /\bfrom\s+(?:\w+\.)?observations\b/i],
   ["traces", /\bfrom\s+(?:\w+\.)?traces\b/i],
-  ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
   ["dataset_run_items", /\bfrom\s+(?:\w+\.)?dataset_run_items_rmt\b/i],
+  ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
   ["blob_storage_file_log", /\bfrom\s+(?:\w+\.)?blob_storage_file_log\b/i],
 ];
 

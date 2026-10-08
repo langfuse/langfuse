@@ -127,6 +127,16 @@ describe("ClickHouse query outcome metric", () => {
       ).toBe("scores");
     });
 
+    // Dataset run tables filtered by a score read scores in a CTE; the scan
+    // under load is dataset_run_items_rmt, and the scores dedup shapes must not
+    // claim it.
+    it("labels a dataset run items query with a scores filter CTE as dataset_run_items", () => {
+      const query =
+        "WITH scores_aggregated AS (SELECT s.trace_id FROM scores s FINAL WHERE s.project_id = {projectId: String}) SELECT dri.id FROM dataset_run_items_rmt dri LEFT JOIN scores_aggregated sa ON dri.trace_id = sa.trace_id";
+      expect(clickHouseQueryTableLabel(query)).toBe("dataset_run_items");
+      expect(clickHouseQueryShape(query)).toBe("other");
+    });
+
     it("matches a schema-qualified FROM table", () => {
       expect(
         clickHouseQueryTableLabel("SELECT * FROM default.events_full"),
