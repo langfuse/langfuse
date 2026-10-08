@@ -319,13 +319,13 @@ export const PromptDetail = ({
       <div
         className={cn(
           "flex shrink-0 items-center justify-between",
-          mobile ? "mb-1" : "-mx-3 border-b py-1 pr-3 pl-1",
+          mobile ? "mb-1" : "-mx-3 border-b py-1.5 pr-3 pl-1",
         )}
       >
         <CommandInput
           showBorder={false}
           variant="toolbar"
-          placeholder="Search..."
+          placeholder="Search"
           className="border-none py-0 focus:ring-0"
         />
 
