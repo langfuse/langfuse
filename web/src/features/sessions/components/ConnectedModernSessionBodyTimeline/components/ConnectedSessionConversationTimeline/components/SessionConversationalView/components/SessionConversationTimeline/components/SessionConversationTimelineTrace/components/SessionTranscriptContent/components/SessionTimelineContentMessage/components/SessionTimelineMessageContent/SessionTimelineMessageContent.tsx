@@ -13,7 +13,7 @@ export function SessionTimelineMessageContent({
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const contentId = useId();
-  const [isTall, setIsTall] = useState(false);
+  const [exceedsPreviewHeight, setExceedsPreviewHeight] = useState(false);
   const [expansion, setExpansion] = useState<{
     isExpanded: boolean;
     requestId: number | undefined;
@@ -22,7 +22,7 @@ export function SessionTimelineMessageContent({
     expansion.isExpanded ||
     (expandRequestId !== undefined && expansion.requestId !== expandRequestId);
   const measureContent = useCallback(() => {
-    setIsTall(
+    setExceedsPreviewHeight(
       (contentRef.current?.getBoundingClientRect().height ?? 0) >
         MESSAGE_PREVIEW_HEIGHT,
     );
@@ -33,9 +33,11 @@ export function SessionTimelineMessageContent({
     <div className="min-w-0">
       <div
         id={contentId}
-        className={cn(isTall && !isExpanded && "max-h-96 overflow-hidden")}
+        className={cn(
+          exceedsPreviewHeight && !isExpanded && "max-h-96 overflow-hidden",
+        )}
         onFocusCapture={(event) => {
-          if (!isTall || isExpanded) return;
+          if (!exceedsPreviewHeight || isExpanded) return;
           const previewBounds = event.currentTarget.getBoundingClientRect();
           const targetBounds = event.target.getBoundingClientRect();
           if (
@@ -49,7 +51,7 @@ export function SessionTimelineMessageContent({
         <div
           ref={contentRef}
           className={cn(
-            isTall &&
+            exceedsPreviewHeight &&
               !isExpanded &&
               "[mask-image:linear-gradient(to_bottom,black_21rem,transparent_24rem)] [mask-size:100%_24rem] [mask-repeat:no-repeat]",
           )}
@@ -57,7 +59,7 @@ export function SessionTimelineMessageContent({
           {children}
         </div>
       </div>
-      {isTall && (
+      {exceedsPreviewHeight && (
         <div className="mt-2 flex items-center gap-3">
           <div className="bg-border h-px flex-1" aria-hidden="true" />
           <button
