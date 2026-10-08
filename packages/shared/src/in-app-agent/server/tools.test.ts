@@ -25,6 +25,20 @@ describe("createInAppAgentToolPolicy", () => {
     expect(asMember.available.has("listExperimentItems")).toBe(true);
   });
 
+  it("keeps organization-scoped tools unavailable", () => {
+    const asOwner = createInAppAgentToolPolicy({
+      userAccess: { projectRole: "OWNER", isAdmin: false },
+    });
+
+    expect(asOwner.available.has("listOrganizationLlmConnections")).toBe(false);
+    expect(asOwner.available.has("upsertOrganizationLlmConnection")).toBe(
+      false,
+    );
+    expect(asOwner.available.has("deleteOrganizationLlmConnection")).toBe(
+      false,
+    );
+  });
+
   it("drops a stored grant the user's role no longer covers", () => {
     const grants = ["langfuse_createModel"];
 

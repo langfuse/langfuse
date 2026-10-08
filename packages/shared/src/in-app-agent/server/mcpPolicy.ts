@@ -21,9 +21,7 @@ export type InAppAgentUserAccess = {
 
 type InAppAgentMcpToolPolicy = {
   approval: InAppAgentMcpToolApproval;
-  availability: {
-    scope: ProjectScope;
-  };
+  availability: { scope: ProjectScope } | { unavailable: true };
 };
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
@@ -263,6 +261,18 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteLlmConnection: {
     approval: "approval",
     availability: { scope: "llmApiKeys:delete" },
+  },
+  listOrganizationLlmConnections: {
+    approval: "auto",
+    availability: { unavailable: true },
+  },
+  upsertOrganizationLlmConnection: {
+    approval: "approval",
+    availability: { unavailable: true },
+  },
+  deleteOrganizationLlmConnection: {
+    approval: "approval",
+    availability: { unavailable: true },
   },
   listObservations: {
     approval: "auto",
@@ -506,6 +516,10 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
   const policy = IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[params.toolName];
 
   if (!policy) {
+    return false;
+  }
+
+  if ("unavailable" in policy.availability) {
     return false;
   }
 
