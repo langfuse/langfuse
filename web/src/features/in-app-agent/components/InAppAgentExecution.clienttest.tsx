@@ -216,7 +216,12 @@ function FreshConversationProbe() {
 
   return (
     <>
-      <button type="button" onClick={() => selectConversation(null)}>
+      <button
+        type="button"
+        onClick={() => {
+          selectConversation(null);
+        }}
+      >
         Reset conversation
       </button>
       <button

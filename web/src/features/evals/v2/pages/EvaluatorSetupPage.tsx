@@ -96,7 +96,7 @@ export function getEvaluatorSetupHeaderState() {
 
 export function getEvaluatorAssistantLandingMode({
   mode,
-  evaluatorType,
+  evaluatorType: _evaluatorType,
   isAssistantAvailable,
 }: {
   mode: "create" | "edit";
