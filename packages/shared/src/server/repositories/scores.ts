@@ -2788,7 +2788,10 @@ export const getScoresForAnalyticsIntegrations = async function* (
   }
 };
 
-export const hasAnyScore = async (projectId: string) => {
+export const hasAnyScore = async (
+  projectId: string,
+  preferredClickhouseService?: PreferredClickhouseService,
+) => {
   const query = `    SELECT 1
     FROM scores
     WHERE project_id = {projectId: String}
@@ -2801,6 +2804,7 @@ export const hasAnyScore = async (projectId: string) => {
       projectId,
     },
     tags: { projectId },
+    preferredClickhouseService,
   });
 
   return rows.length > 0;
