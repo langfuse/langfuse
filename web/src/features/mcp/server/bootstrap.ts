@@ -28,6 +28,7 @@ import { experimentsFeature } from "./experiments";
 import { externalMediaStorageFeature } from "./externalMediaStorage";
 import { monitorsFeature } from "./monitors";
 import { v4MigrationFeature } from "./v4Migration";
+import { llmConnectionsFeature } from "./llmConnections";
 
 const MCP_FEATURES = [
   promptsFeature,
@@ -47,6 +48,7 @@ const MCP_FEATURES = [
   externalMediaStorageFeature,
   monitorsFeature,
   v4MigrationFeature,
+  llmConnectionsFeature,
 ] as const satisfies readonly McpFeatureModule[];
 
 type McpFeature = (typeof MCP_FEATURES)[number];

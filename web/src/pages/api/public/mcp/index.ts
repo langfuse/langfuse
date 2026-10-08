@@ -44,6 +44,7 @@ import {
 } from "@/src/features/public-api/server";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -81,12 +82,19 @@ export default async function handler(
     }
 
     // Each tool authorizes its own action.
-    const authResult = await shadowAuth({
+    const projectAuthResult = await shadowAuth({
       req,
       action: __dangerouslySkipAuthz,
       allowedAccessLevels: ["project"],
       allowInAppAgentKey: true,
     });
+    const authResult = projectAuthResult.success
+      ? projectAuthResult
+      : await shadowAuth({
+          req,
+          action: "organizationLlmApiKeys:read",
+          allowedAccessLevels: ["organization"],
+        });
 
     if (!authResult.success) {
       throw authResult.error;
@@ -94,17 +102,30 @@ export default async function handler(
 
     const { scope, ctx } = authResult;
 
-    // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (scope.accessLevel !== "project" || !scope.projectId) {
+    if (
+      scope.accessLevel !== "project" &&
+      scope.accessLevel !== "organization"
+    ) {
       throw new ForbiddenError(
-        "Access denied: MCP requires project-scoped API keys with BasicAuth",
+        "Access denied: MCP requires project- or organization-scoped API keys with BasicAuth",
+      );
+    }
+    if (
+      scope.accessLevel === "organization" &&
+      !hasEntitlementBasedOnPlan({
+        plan: scope.plan,
+        entitlement: "admin-api",
+      })
+    ) {
+      throw new ForbiddenError(
+        "This feature is not available on your current plan.",
       );
     }
 
     addUserToSpan({
       apiKeyId: scope.apiKeyId,
       publicKey: scope.publicKey,
-      projectId: scope.projectId,
+      projectId: scope.accessLevel === "project" ? scope.projectId : undefined,
       orgId: scope.orgId,
       plan: scope.plan,
     });
@@ -130,23 +151,37 @@ export default async function handler(
     // Build ServerContext from authenticated scope. In-app-agent keys need a
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
-    const context: ServerContext = {
-      projectId: scope.projectId,
-      orgId: scope.orgId,
-      userId: undefined, // API keys don't have associated users
-      apiKeyId: scope.apiKeyId,
-      accessLevel: "project",
-      publicKey: scope.publicKey,
-      plan: scope.plan,
-      rateLimitOverrides: scope.rateLimitOverrides,
-      userAgent: req.headers["user-agent"],
-      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
-      auth: ctx,
-    };
+    const context: ServerContext =
+      scope.accessLevel === "project"
+        ? {
+            projectId: scope.projectId,
+            orgId: scope.orgId,
+            userId: undefined,
+            apiKeyId: scope.apiKeyId,
+            accessLevel: "project",
+            publicKey: scope.publicKey,
+            plan: scope.plan,
+            rateLimitOverrides: scope.rateLimitOverrides,
+            userAgent: req.headers["user-agent"],
+            inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
+            auth: ctx,
+          }
+        : {
+            orgId: scope.orgId,
+            userId: undefined,
+            apiKeyId: scope.apiKeyId,
+            accessLevel: "organization",
+            publicKey: scope.publicKey,
+            plan: scope.plan,
+            rateLimitOverrides: scope.rateLimitOverrides,
+            userAgent: req.headers["user-agent"],
+            auth: ctx,
+          };
 
     logger.debug("MCP request authenticated", {
       method: req.method,
-      projectId: context.projectId,
+      projectId:
+        context.accessLevel === "project" ? context.projectId : undefined,
       orgId: context.orgId,
       userAgent: req.headers["user-agent"],
       contentType: req.headers["content-type"],

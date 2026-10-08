@@ -83,7 +83,9 @@ export function createMcpServer(context: ServerContext): Server {
     const tools = await toolRegistry.getToolDefinitions(context);
 
     logger.debug("MCP ListTools", {
-      projectId: context.projectId,
+      projectId:
+        context.accessLevel === "project" ? context.projectId : undefined,
+      orgId: context.orgId,
       toolCount: tools.length,
       toolNames: tools.map((t) => t.name),
     });
@@ -96,7 +98,9 @@ export function createMcpServer(context: ServerContext): Server {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {
-      projectId: context.projectId,
+      projectId:
+        context.accessLevel === "project" ? context.projectId : undefined,
+      orgId: context.orgId,
       toolName: name,
     });
 
@@ -113,7 +117,8 @@ export function createMcpServer(context: ServerContext): Server {
     // Execute handler with context
     // Handler performs validation and error handling via defineTool wrapper
     const clickHouseCtx = contextWithLangfuseProps({
-      projectId: context.projectId,
+      projectId:
+        context.accessLevel === "project" ? context.projectId : undefined,
       apiKeyId: context.apiKeyId,
       clickhouse: {
         surface: "mcp",
@@ -148,7 +153,10 @@ function assertToolAuthorized(
   const decision = shadowAuthorize({
     ctx: context.auth,
     action: definition.action,
-    resource: { projectId: context.projectId },
+    resource:
+      context.accessLevel === "project"
+        ? { projectId: context.projectId }
+        : { orgId: context.orgId },
     legacyDecision: {
       success: true,
       scope: { accessLevel: context.accessLevel },

@@ -125,7 +125,9 @@ class ToolRegistry {
 
       // Add all tools from enabled feature
       for (const tool of feature.tools) {
-        definitions.push(tool.definition);
+        if (tool.definition.accessLevel === context.accessLevel) {
+          definitions.push(tool.definition);
+        }
       }
     }
 
@@ -152,6 +154,7 @@ class ToolRegistry {
   ): Promise<RegisteredTool | undefined> {
     const tool = this.tools.get(name);
     if (!tool) return undefined;
+    if (tool.definition.accessLevel !== context.accessLevel) return undefined;
 
     const feature = this.getFeatureForTool(name);
     if (!feature) return undefined;
