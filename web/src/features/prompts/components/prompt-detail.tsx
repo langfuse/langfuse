@@ -729,11 +729,9 @@ export const PromptDetail = ({
                         content={String(promptGraph.data.resolvedPrompt)}
                       />
                     ) : (
-                      <CodeSection
-                        title="Text Prompt"
-                        content={prompt.prompt}
-                        renderedContent={renderRichPromptContent(prompt.prompt)}
-                      />
+                      <CodeSection title="Text Prompt" content={prompt.prompt}>
+                        {renderRichPromptContent(prompt.prompt)}
+                      </CodeSection>
                     )
                   ) : (
                     <JSONView json={prompt.prompt} title="Prompt" />

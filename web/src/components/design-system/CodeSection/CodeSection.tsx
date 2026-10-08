@@ -72,10 +72,10 @@ type CodeSectionAction = {
 };
 
 type CodeSectionProps = {
-  /** Text shown in the body and copied by the built-in copy button. */
+  /** Text copied by the built-in copy button; also the body when there are no children. */
   content: string;
-  /** Display override for `content`, e.g. highlighted variables; copy still uses `content`. */
-  renderedContent?: ReactNode;
+  /** Custom body, e.g. highlighted variables; copy still uses `content`. */
+  children?: ReactNode;
   /** Omitted = no header row; actions move into the body's top-right corner. */
   title?: string;
   variant?: "filled" | "outline" | "plain";
@@ -91,7 +91,7 @@ type CodeSectionProps = {
 
 export function CodeSection({
   content,
-  renderedContent,
+  children,
   title,
   variant = "filled",
   actions = [],
@@ -193,7 +193,7 @@ export function CodeSection({
           dir="auto"
           style={{ unicodeBidi: "plaintext" }}
         >
-          {renderedContent ?? content}
+          {children ?? content}
         </code>
         {title ? null : actionGroup}
       </div>

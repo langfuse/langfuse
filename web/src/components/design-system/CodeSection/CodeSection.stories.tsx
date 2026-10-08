@@ -72,11 +72,11 @@ export const WithActions = meta.story({
   },
 });
 
-export const RenderedContent = meta.story({
+export const CustomBody = meta.story({
   args: {
     title: "Text Prompt",
     content: "Answer {{question}} using {{context}}.",
-    renderedContent: (
+    children: (
       <>
         Answer <span className="text-primary-accent">{"{{question}}"}</span>{" "}
         using <span className="text-primary-accent">{"{{context}}"}</span>.
