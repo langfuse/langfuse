@@ -96,6 +96,7 @@ describe("MCP LLM connection tools", () => {
         provider,
         adapter: LLMAdapter.OpenAI,
         secretKey,
+        withDefaultModels: true,
       },
       fixture.context,
     )) as Record<string, unknown>;
@@ -126,6 +127,7 @@ describe("MCP LLM connection tools", () => {
         provider,
         adapter: LLMAdapter.OpenAI,
         secretKey,
+        withDefaultModels: true,
       },
       fixture.context,
     )) as Record<string, unknown>;

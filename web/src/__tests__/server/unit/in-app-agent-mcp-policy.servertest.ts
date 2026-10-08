@@ -24,7 +24,11 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
 
     const registeredToolNames = toolRegistry
       .getFeatures()
-      .flatMap((feature) => feature.tools.map((tool) => tool.definition.name))
+      .flatMap((feature) =>
+        feature.tools
+          .filter((tool) => tool.definition.accessLevel === "project")
+          .map((tool) => tool.definition.name),
+      )
       .sort();
     const classifiedToolNames = Object.keys(
       IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
