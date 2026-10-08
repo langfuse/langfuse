@@ -294,6 +294,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               </Alert>
               {paused ? (
                 <PausedNotice
+                  canReactivate={canSave}
                   shortLabel={paused.shortLabel}
                   pausedAgo={paused.pausedAgo}
                   message={paused.message}
@@ -1115,11 +1116,13 @@ function TraceScopeFrame({
 }
 
 function PausedNotice({
+  canReactivate,
   message,
   onConfigureProviders,
   pausedAgo,
   shortLabel,
 }: {
+  canReactivate: boolean;
   message: string;
   onConfigureProviders: () => void;
   pausedAgo: string;
@@ -1150,7 +1153,13 @@ function PausedNotice({
               <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
               Open LLM connections
             </LegacyButton>
-            <LegacyButton type="button" variant="outline" size="sm">
+            {/* Saving re-runs the model tests and clears the pause. */}
+            <LegacyButton
+              type="submit"
+              variant="outline"
+              size="sm"
+              disabled={!canReactivate}
+            >
               <RefreshCcw className="icon-base text-icon-foreground mr-1.5" />
               Reactivate
             </LegacyButton>
