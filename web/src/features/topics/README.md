@@ -70,7 +70,7 @@ project permissions. Processing additionally requires the project allowlist.
   `EmbeddingMapView.tsx` preserves the controlled selection contract as a drop-in
   adapter to `map/TopicMapExplorer.tsx`. The renderer owns no queries or clustering.
   `map/prepare-topic-map.ts` prepares stable cohort orientation, topic zones,
-  colors, mapped-cohort counts, camera geometry and collision-bounded detail labels.
+  colors, mapped-cohort counts, camera geometry, spatial reading grids and collision-bounded node footprints.
   Zones represent existing topics, not a new clustering hierarchy; halos and
   deterministic depth are decorative, not density, severity or quality measures.
   The bird's-eye cloud uses a uniform scale for the saved 2D distances and shows
@@ -80,20 +80,26 @@ project permissions. Processing additionally requires the project allowlist.
   camera keeps surrounding topics visible when a selection focuses a cloud.
   A focused topic opens into its own grid while surrounding topics stay as clouds,
   leaving its reading slots clear of neighboring grids.
-  Automatic cards avoid other dots, and hovered traces receive first priority.
-  At closer scales, longer stored trace excerpts appear in the map; the inspector
+  Each trace grows continuously from a circle into a rounded rectangle, reveals a
+  trace icon, then fades in its stored summary when its actual footprint allows it.
+  Neighbor clearance constrains expansion, including offscreen neighbors. Spatial
+  rows preserve cloud order as the grid forms; hovering never reallocates nodes.
+  Explicit hover hints fade and scale gently while summaries lack inline space.
+  Camera movement clears hover until fresh physical pointer movement, and the
+  same painted frame supplies Canvas, inline content and hit testing. The inspector
   pins full summaries and opens traces.
   Previous/Next controls expose every plotted trace to keyboard users, including
   coincident points and fullscreen, without mounting thousands of focusable dots.
-  `map/TopicMapCanvas.tsx` draws the cloud via a frame-batched subscription to a
-  per-mount vanilla store; only labels/details subscribe to their changing state.
+  `map/TopicMapCanvas.tsx` interpolates camera, depth, hover emphasis and responsive
+  layout changes via a frame-batched subscription to a per-mount vanilla store.
+  Inline summaries and animated hover hints subscribe to its shared presentation.
   The measured stage fills its container and expands with native browser fullscreen,
   retaining the camera. Opening a trace exits fullscreen before using the peek panel.
   `usePanZoomGestures` shares wheel input with the timeline: scroll pans, pinch or
   Ctrl/Command-scroll zooms at the pointer, and two touch contacts pinch and pan.
   Drag capture starts after a threshold so clicks remain clicks. Arrow keys pan,
   +/- zoom and 0/Home fit the current selection. OS reduced motion disables focus
-  flights and pointer parallax. Missing-coordinate warnings remain below the map. This internal
+  flights, presentation interpolation and pointer parallax, with immediate hints. Missing-coordinate warnings remain below the map. This internal
   PoC adds no analytics events for camera/hover/fullscreen; the entire renderer is
   blocked from session replay. Browser fullscreen denial is expected UI state.
 - `server/currentResults.ts` joins latest per-trace/facet assignments to their

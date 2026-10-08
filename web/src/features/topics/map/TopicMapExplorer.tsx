@@ -16,15 +16,24 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
 import { cn } from "@/src/utils/tailwind";
 import { TopicMapCanvas } from "./TopicMapCanvas";
-import { createTopicMapStore, type TopicMapStore } from "./topic-map-store";
+import styles from "./topic-map.module.css";
+import {
+  clearTopicMapHover,
+  createTopicMapStore,
+  finishTopicMapHover,
+  getTopicMapHover,
+  setTopicMapHover,
+  type TopicMapStore,
+} from "./topic-map-store";
 import {
   fitCamera,
-  displayedWorldPoint,
+  displayedNodeWorldPoint,
   fitMapPoints,
-  hitPoint,
+  hitMapNode,
   hitZone,
   panCamera,
-  prepareMapLabels,
+  prepareMapHover,
+  prepareNodeLayout,
   prepareTopicMap,
   readingLayoutBlend,
   zoomCamera,
@@ -67,6 +76,10 @@ export function TopicMapExplorer({
     width: stageSize?.width || 960,
     height: stageSize?.height || 560,
   };
+  const layout = useMemo(
+    () => prepareNodeLayout(model, { width: size.width, height: size.height }),
+    [model, size.width, size.height],
+  );
   const selectedZone = model.zones.find((zone) => zone.id === selectedTopic);
   const initialCamera = fitCamera(
     selectedZone?.bounds ?? model.bounds,
@@ -81,11 +94,14 @@ export function TopicMapExplorer({
       ? state.camera
       : initialCamera;
   };
-  const setCamera = (camera: Camera | null, scope = selectedTopic) =>
+  const setCamera = (camera: Camera | null, scope = selectedTopic) => {
+    clearTopicMapHover(store);
     store.setState({ camera, scope });
+  };
   const cancelFlight = () => cancelAnimationFrame(animationRef.current);
   const flyTo = (target: Camera, scope: string | null, fit = false) => {
     cancelFlight();
+    clearTopicMapHover(store);
     const start = getCamera();
     if (store.getState().reducedMotion) {
       setCamera(fit ? null : target, scope);
@@ -133,11 +149,10 @@ export function TopicMapExplorer({
     if (!point) return;
     onSelectTrace(id);
     const targetZoom = Math.max(4, getCamera().zoom);
-    const position = displayedWorldPoint(
+    const position = displayedNodeWorldPoint(
       point,
       targetZoom,
-      model.bounds,
-      size,
+      layout,
       selectedTopic,
     );
     flyTo({ ...position, zoom: targetZoom }, selectedTopic);
@@ -149,25 +164,24 @@ export function TopicMapExplorer({
     onZoom: zoom,
     onInteractionStart: () => {
       cancelFlight();
-      store.setState({ hoveredId: null, hoveredZoneId: null });
+      clearTopicMapHover(store);
     },
   });
   // Browser fullscreen and OS motion preferences are external subscriptions.
   useEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updateMotion = () =>
+    const updateMotion = () => {
+      if (motion.matches) setTopicMapHover(store, null, null, { x: 0, y: 0 });
       store.setState({
         reducedMotion: motion.matches,
-        ...(motion.matches && {
-          pointer: { x: 0, y: 0 },
-          hoveredId: null,
-          hoveredZoneId: null,
-        }),
       });
-    const updateFullscreen = () =>
+    };
+    const updateFullscreen = () => {
+      clearTopicMapHover(store);
       store.setState({
         isFullscreen: document.fullscreenElement === sectionRef.current,
       });
+    };
     updateMotion();
     motion.addEventListener("change", updateMotion);
     document.addEventListener("fullscreenchange", updateFullscreen);
@@ -179,6 +193,7 @@ export function TopicMapExplorer({
   }, [store]);
   const toggleFullscreen = async () => {
     cancelFlight();
+    clearTopicMapHover(store);
     store.setState({ fullscreenError: false });
     try {
       if (document.fullscreenElement === sectionRef.current)
@@ -189,6 +204,7 @@ export function TopicMapExplorer({
     }
   };
   const openTrace = async (id: string) => {
+    clearTopicMapHover(store);
     try {
       if (document.fullscreenElement === sectionRef.current)
         await document.exitFullscreen();
@@ -278,7 +294,21 @@ export function TopicMapExplorer({
         {...gestures.pointerHandlers}
         onPointerMove={(event) => {
           gestures.pointerHandlers.onPointerMove(event);
-          if (gestures.isDragging || event.pointerType !== "mouse") return;
+          if (event.pointerType !== "mouse") return;
+          const pointerAt = { x: event.clientX, y: event.clientY };
+          if (event.buttons !== 0) {
+            clearTopicMapHover(store);
+            store.setState({ pointerAt });
+            return;
+          }
+          const previous = store.getState().pointerAt;
+          if (
+            previous &&
+            Math.hypot(pointerAt.x - previous.x, pointerAt.y - previous.y) <=
+              0.5
+          )
+            return;
+          if (gestures.isDragging) return;
           const rect = event.currentTarget.getBoundingClientRect();
           const at = {
             x: event.clientX - rect.left,
@@ -290,52 +320,63 @@ export function TopicMapExplorer({
                 x: (at.x / size.width - 0.5) * 2,
                 y: (at.y / size.height - 0.5) * 2,
               };
-          const hovered = hitPoint(
-            model,
-            getCamera(),
-            size,
-            pointer,
-            at,
-            selectedTopic,
-          );
+          const frame = store.getState().frame;
+          const intended = getCamera();
+          if (
+            store.getState().isMoving ||
+            !frame ||
+            frame.model !== model ||
+            frame.readingTopic !== selectedTopic ||
+            frame.size.width !== size.width ||
+            frame.size.height !== size.height ||
+            frame.camera.zoom !== intended.zoom ||
+            frame.camera.x !== intended.x ||
+            frame.camera.y !== intended.y
+          ) {
+            setTopicMapHover(store, null, null, pointer, pointerAt);
+            return;
+          }
+          const hovered = hitMapNode(frame, at);
           const label =
             event.target instanceof Element
-              ? event.target.closest<HTMLElement>("[data-topic-zone]")
+              ? event.target.closest<HTMLElement>(
+                  '[data-topic-zone]:not([data-active="false"])',
+                )
               : null;
           const traceLabel =
             event.target instanceof Element
-              ? event.target.closest<HTMLElement>("[data-topic-trace]")
+              ? event.target.closest<HTMLElement>(
+                  '[data-topic-trace]:not([data-active="false"])',
+                )
               : null;
-          store.setState({
-            pointer,
-            hoveredId:
-              traceLabel?.dataset.topicTrace ??
+          setTopicMapHover(
+            store,
+            traceLabel?.dataset.topicTrace ??
               (label ? null : (hovered?.traceId ?? null)),
-            hoveredZoneId:
-              label?.dataset.topicZone ??
+            label?.dataset.topicZone ??
               hovered?.groupId ??
-              hitZone(model, getCamera(), size, at)?.id ??
+              hitZone(model, frame.camera, size, at)?.id ??
               null,
-          });
+            pointer,
+            pointerAt,
+          );
         }}
         onPointerLeave={() =>
-          store.setState({
-            pointer: { x: 0, y: 0 },
-            hoveredId: null,
-            hoveredZoneId: null,
-          })
+          setTopicMapHover(store, null, null, { x: 0, y: 0 })
         }
         onClick={(event) => {
           if (event.target !== event.currentTarget) return;
           const rect = event.currentTarget.getBoundingClientRect();
-          const point = hitPoint(
-            model,
-            getCamera(),
-            size,
-            store.getState().pointer,
-            { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            selectedTopic,
-          );
+          const frame = store.getState().frame;
+          const point =
+            frame &&
+            frame.model === model &&
+            frame.readingTopic === selectedTopic
+              ? hitMapNode(frame, {
+                  x: event.clientX - rect.left,
+                  y: event.clientY - rect.top,
+                })
+              : null;
           onSelectTrace(point?.traceId ?? null);
         }}
         onDoubleClick={(event) => {
@@ -392,6 +433,7 @@ export function TopicMapExplorer({
       >
         <TopicMapCanvas
           model={model}
+          layout={layout}
           size={size}
           camera={initialCamera}
           store={store}
@@ -402,7 +444,6 @@ export function TopicMapExplorer({
           model={model}
           size={size}
           store={store}
-          initialCamera={initialCamera}
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
           onSelectZone={chooseZone}
@@ -500,7 +541,6 @@ function MapLabels({
   model,
   size,
   store,
-  initialCamera,
   selectedTopic,
   selectedTraceId,
   onSelectZone,
@@ -509,113 +549,140 @@ function MapLabels({
   model: TopicMapModel;
   size: Size;
   store: TopicMapStore;
-  initialCamera: Camera;
   selectedTopic: string | null;
   selectedTraceId: string | null;
   onSelectZone: (id: string) => void;
   onSelectTrace: (id: string) => void;
 }) {
-  const camera = useStore(store, (s) => s.camera);
-  const scope = useStore(store, (s) => s.scope);
-  const pointer = useStore(store, (s) => s.pointer);
-  const hoveredZoneId = useStore(store, (s) => s.hoveredZoneId);
-  const hoveredId = useStore(store, (s) => s.hoveredId);
-  const currentCamera =
-    scope === selectedTopic && camera ? camera : initialCamera;
-  const labels = prepareMapLabels(
-    model,
-    currentCamera,
-    size,
-    pointer,
-    selectedTraceId,
-    hoveredZoneId,
-    hoveredId,
-    selectedTopic,
-  );
+  const state = useStore(store);
+  const frame = state.frame;
+  const hover = getTopicMapHover(state, frame);
+  const current =
+    frame !== null &&
+    frame.model === model &&
+    frame.size.width === size.width &&
+    frame.size.height === size.height &&
+    frame.readingTopic === selectedTopic;
   return (
     <div className="pointer-events-none absolute inset-0">
-      <svg className="absolute inset-0 h-full w-full" aria-hidden>
-        {labels.zones.map((zone) => (
-          <line
-            key={zone.id}
-            x1={zone.position.x}
-            y1={zone.position.y}
-            x2={zone.label.x + zone.label.width / 2}
-            y2={zone.label.y + zone.label.height / 2}
-            stroke={zone.color}
-            strokeOpacity={0.25}
-            strokeWidth={1}
-          />
-        ))}
-      </svg>
-      {labels.zones.map((zone) => (
-        <button
-          key={zone.id}
-          type="button"
-          data-topic-zone={zone.id}
-          data-testid="topic-map-zone-card"
-          onClick={() => onSelectZone(zone.id)}
-          className={cn(
-            "bg-background/85 hover:bg-background focus-visible:outline-ring pointer-events-auto absolute flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md px-2.5 py-1.5 text-center shadow-sm backdrop-blur-sm transition-colors focus-visible:outline-2",
-            selectedTopic === zone.id && "ring-1 ring-current",
-          )}
-          style={{
-            left: zone.label.x,
-            top: zone.label.y,
-            width: zone.label.width,
-            height: zone.label.height,
-            color: zone.color,
-          }}
-          aria-pressed={selectedTopic === zone.id}
-          aria-label={`Explore ${zone.name}, ${zone.countLabel}`}
-        >
-          <span className="line-clamp-2 shrink-0 text-xs font-bold">
-            {zone.name}
-          </span>
-          <span className="text-muted-foreground shrink-0 text-[10px] whitespace-nowrap">
-            {zone.countLabel} · {zone.shareLabel}
-          </span>
-          {zone.detail && (
-            <span className="text-foreground line-clamp-2 shrink-0 text-left text-[11px] leading-relaxed">
-              {zone.detail}
-            </span>
-          )}
-        </button>
-      ))}
-      {labels.traces.map(({ point, card, excerpt, reading }) => (
-        <button
-          key={point.traceId}
-          type="button"
-          data-topic-trace={point.traceId}
-          data-trace-id={point.traceId}
-          data-testid="topic-map-trace-card"
-          data-hovered={point.traceId === hoveredId}
-          aria-pressed={point.traceId === selectedTraceId}
-          onClick={() => onSelectTrace(point.traceId)}
-          className={cn(
-            "bg-background/90 hover:bg-background focus-visible:outline-ring pointer-events-auto absolute w-48 cursor-pointer rounded-md border px-2.5 py-2 text-left leading-relaxed shadow-sm backdrop-blur-sm focus-visible:outline-2",
-            reading ? "text-xs" : "text-[11px]",
-            (point.traceId === selectedTraceId ||
-              point.traceId === hoveredId) &&
-              "border-primary ring-primary ring-1",
-          )}
-          style={{
-            left: card.x,
-            top: card.y,
-            width: card.width,
-            height: card.height,
-            borderLeftColor: point.color,
-            borderLeftWidth: 2,
-          }}
-          aria-label={`Select trace: ${point.summary}`}
-        >
-          <span
-            className={card.height >= 110 ? "line-clamp-6" : "line-clamp-3"}
+      {current &&
+        frame!.nodes
+          .filter((node) => node.textOpacity > 0.001)
+          .map((node) => (
+            <button
+              key={node.point.traceId}
+              type="button"
+              data-topic-node=""
+              data-topic-trace={node.point.traceId}
+              data-trace-id={node.point.traceId}
+              data-testid="topic-map-trace-card"
+              data-hovered={node.point.traceId === hover.hoveredId}
+              data-icon-opacity={node.iconOpacity}
+              data-text-opacity={node.textOpacity}
+              tabIndex={node.textOpacity >= 0.9 ? 0 : -1}
+              aria-pressed={node.point.traceId === selectedTraceId}
+              aria-label={`Select trace: ${node.point.summary}`}
+              onClick={() => onSelectTrace(node.point.traceId)}
+              className="text-foreground focus-visible:outline-ring pointer-events-auto absolute cursor-pointer overflow-hidden rounded-lg px-3 py-2.5 text-left text-xs leading-relaxed focus-visible:outline-2"
+              style={{
+                left: node.rect.x,
+                top: node.rect.y,
+                width: node.rect.width,
+                height: node.rect.height,
+                opacity: node.textOpacity,
+              }}
+            >
+              <span
+                className="mb-2 block pl-6 text-[10px] font-bold"
+                style={{ color: node.point.color }}
+              >
+                Trace summary
+              </span>
+              <span className="block">{node.excerpt}</span>
+            </button>
+          ))}
+      {state.hoverLabels.map((label) => {
+        if (!frame || frame.model !== model) return null;
+        const active =
+          current &&
+          label.active &&
+          (label.kind === "trace"
+            ? hover.hoveredId === label.id
+            : hover.hoveredZoneId === label.id) &&
+          (label.kind !== "trace" ||
+            (frame.nodeById.get(label.id)?.textOpacity ?? 1) < 0.65);
+        const source = active ? frame : label.frame;
+        if (!source) return null;
+        const hints = prepareMapHover(
+          source,
+          label.kind === "trace" ? label.id : null,
+          label.kind === "zone" ? label.id : null,
+        );
+        const trace = hints.traces[0];
+        const zone = hints.zones[0];
+        if (!trace && !zone) return null;
+        const rect = trace?.card ?? zone!.label;
+        return (
+          <button
+            key={label.token}
+            type="button"
+            data-testid="topic-map-hover-card"
+            data-topic-trace={trace?.point.traceId}
+            data-topic-zone={zone?.id}
+            data-trace-id={trace?.point.traceId}
+            data-active={active}
+            data-hovered={active && label.kind === "trace"}
+            tabIndex={active ? 0 : -1}
+            aria-hidden={!active}
+            aria-label={
+              trace
+                ? `Select trace: ${trace.point.summary}`
+                : `Explore ${zone!.name}, ${zone!.countLabel}`
+            }
+            onClick={() =>
+              active &&
+              (trace
+                ? onSelectTrace(trace.point.traceId)
+                : onSelectZone(zone!.id))
+            }
+            onTransitionEnd={(event) => {
+              if (!active && event.propertyName === "opacity")
+                finishTopicMapHover(store, label.token);
+            }}
+            className={cn(
+              "bg-background/95 text-foreground focus-visible:outline-ring absolute cursor-pointer overflow-hidden rounded-lg border px-3 py-2.5 text-left text-xs leading-relaxed shadow-md backdrop-blur-sm focus-visible:outline-2",
+              styles.hoverCard,
+              active ? styles.enter : styles.exit,
+              active && "pointer-events-auto",
+            )}
+            style={{
+              left: rect.x,
+              top: rect.y,
+              width: rect.width,
+              height: rect.height,
+              borderLeftColor: trace?.point.color ?? zone!.color,
+              borderLeftWidth: 2,
+            }}
           >
-            {excerpt}
-          </span>
-        </button>
-      ))}
+            {trace ? (
+              <span className="line-clamp-6">{trace.excerpt}</span>
+            ) : (
+              <>
+                <span
+                  className="block text-xs font-bold"
+                  style={{ color: zone!.color }}
+                >
+                  {zone!.name}
+                </span>
+                <span className="text-muted-foreground mb-1 block text-[10px]">
+                  {zone!.countLabel} · {zone!.shareLabel}
+                </span>
+                <span className="line-clamp-3 text-[11px]">{zone!.detail}</span>
+              </>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -639,8 +706,14 @@ function MapInspector({
   onClearTrace: () => void;
   onOpenTrace: (id: string) => void;
 }) {
-  const hoveredId = useStore(store, (s) => s.hoveredId);
-  const hoveredZoneId = useStore(store, (s) => s.hoveredZoneId);
+  const hoveredId = useStore(
+    store,
+    (s) => getTopicMapHover(s, s.frame).hoveredId,
+  );
+  const hoveredZoneId = useStore(
+    store,
+    (s) => getTopicMapHover(s, s.frame).hoveredZoneId,
+  );
   const activeId = selectedTraceId ?? hoveredId;
   const active = activeId ? model.pointById.get(activeId) : undefined;
   const zone = model.zones.find(

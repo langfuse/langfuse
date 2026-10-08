@@ -174,6 +174,106 @@ function ControlledExplorer(args: ExplorerProps) {
   );
 }
 
+async function zoomToInlineNodes(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  let previous = canvas.getByLabelText("Zoom level").textContent;
+  let changedAt = performance.now();
+  await waitFor(() => {
+    const current = canvas.getByLabelText("Zoom level").textContent;
+    if (current !== previous) {
+      previous = current;
+      changedAt = performance.now();
+    }
+    expect(performance.now() - changedAt).toBeGreaterThan(150);
+  });
+  for (
+    let attempt = 0;
+    attempt < 10 &&
+    Number.parseInt(
+      canvas.getByLabelText("Zoom level").textContent ?? "0",
+      10,
+    ) < 1000;
+    attempt++
+  ) {
+    const before = canvas.getByLabelText("Zoom level").textContent;
+    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
+    await waitFor(() =>
+      expect(canvas.getByLabelText("Zoom level").textContent).not.toBe(before),
+    );
+  }
+  await waitFor(
+    () =>
+      expect(
+        canvas.queryAllByRole("button", { name: /^Select trace:/ }).length,
+      ).toBeGreaterThan(0),
+    { timeout: 2000 },
+  );
+}
+
+async function hoverInlineNode(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+  const result: {
+    hovered?: { node: HTMLElement; clientX: number; clientY: number };
+  } = {};
+  let attempt = 0;
+  await waitFor(
+    () => {
+      const stageRect = stage.getBoundingClientRect();
+      const candidates = Array.from(
+        canvasElement.querySelectorAll<HTMLElement>("[data-topic-node]"),
+      )
+        .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+        .filter(
+          ({ rect }) =>
+            rect.left + rect.width / 2 > stageRect.left + 8 &&
+            rect.left + rect.width / 2 < stageRect.right - 8 &&
+            rect.top + rect.height / 2 > stageRect.top + 8 &&
+            rect.top + rect.height / 2 < stageRect.bottom - 8,
+        )
+        .sort(
+          (a, b) =>
+            Math.hypot(
+              a.rect.left +
+                a.rect.width / 2 -
+                (stageRect.left + stageRect.width / 2),
+              a.rect.top +
+                a.rect.height / 2 -
+                (stageRect.top + stageRect.height / 2),
+            ) -
+            Math.hypot(
+              b.rect.left +
+                b.rect.width / 2 -
+                (stageRect.left + stageRect.width / 2),
+              b.rect.top +
+                b.rect.height / 2 -
+                (stageRect.top + stageRect.height / 2),
+            ),
+        );
+      expect(candidates.length).toBeGreaterThan(0);
+      const { node, rect } = candidates[0];
+      const clientX = rect.left + rect.width / 2 + (attempt++ % 2 ? 2 : -2);
+      const clientY = rect.top + rect.height / 2;
+      node.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          isPrimary: true,
+          clientX,
+          clientY,
+        }),
+      );
+      expect(node).toHaveAttribute("data-hovered", "true");
+      result.hovered = { node, clientX, clientY };
+    },
+    { timeout: 2000 },
+  );
+  if (!result.hovered)
+    throw new Error("No visible inline node could be hovered.");
+  return result.hovered;
+}
+
 const meta = preview.meta({
   component: EmbeddingMapView,
   args: {
@@ -235,11 +335,7 @@ export const ExploreZoneAndTrace = meta.story({
       canvas.getByRole("button", { name: /^Explore Inventory timeouts,/ }),
     );
     await expect(args.onSelectTopic).toHaveBeenCalledWith("inventory-timeouts");
-    await waitFor(() =>
-      expect(
-        canvas.queryAllByRole("button", { name: /^Select trace:/ }).length,
-      ).toBeGreaterThan(0),
-    );
+    await zoomToInlineNodes(canvasElement);
 
     const zoomBefore = Number.parseInt(
       canvas.getByLabelText("Zoom level").textContent ?? "0",
@@ -255,15 +351,12 @@ export const ExploreZoneAndTrace = meta.story({
       ).toBeGreaterThan(zoomBefore),
     );
 
-    const summaryButton = canvas.getAllByRole("button", {
-      name: /^Select trace:/,
-    })[0];
+    const { node: summaryButton } = await hoverInlineNode(canvasElement);
     const trace = denseData.points.find(
       (point) => point.traceId === summaryButton.getAttribute("data-trace-id"),
     );
     if (!trace)
       throw new Error("The inline summary has no matching fixture trace.");
-    await userEvent.hover(summaryButton);
     await expect(summaryButton).toHaveAttribute("data-hovered", "true");
     await expect(summaryButton).toBeVisible();
     await userEvent.click(summaryButton);
@@ -290,5 +383,117 @@ export const ExploreZoneAndTrace = meta.story({
     await expect(args.onOpenTrace).toHaveBeenCalledWith(trace.traceId);
     await userEvent.click(canvas.getByRole("button", { name: "All topics" }));
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
+  },
+});
+
+export const NavigationClearsHover = meta.story({
+  name: "(Test) Navigation Clears Hover",
+  args: {
+    topics: denseTopics,
+    data: denseData,
+    selectedTopic: "inventory-timeouts",
+    selectedTraceId: null,
+  },
+  render: (args) => <ControlledExplorer {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const stage = canvas.getByRole("group", {
+      name: /^Interactive topic map/,
+    });
+    await zoomToInlineNodes(canvasElement);
+    const { node, ...at } = await hoverInlineNode(canvasElement);
+    const send = (type: string, offset: number, buttons: number) =>
+      node.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          isPrimary: true,
+          buttons,
+          clientX: at.clientX + offset,
+          clientY: at.clientY,
+        }),
+      );
+    const activeHover = () =>
+      canvasElement.querySelector('[data-hovered="true"]');
+    const capture = stage.setPointerCapture;
+    stage.setPointerCapture = () => undefined;
+    try {
+      await expect(activeHover()).not.toBeNull();
+      send("pointerdown", 0, 1);
+      send("pointermove", 4, 1);
+      await waitFor(() => expect(activeHover()).toBeNull());
+      stage.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          buttons: 0,
+          clientX: at.clientX + 4,
+          clientY: at.clientY,
+        }),
+      );
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+
+      const { clientX, clientY } = await hoverInlineNode(canvasElement);
+      const move = () =>
+        stage.dispatchEvent(
+          new PointerEvent("pointermove", {
+            bubbles: true,
+            pointerType: "mouse",
+            clientX,
+            clientY,
+          }),
+        );
+      await expect(activeHover()).not.toBeNull();
+      stage.focus();
+      await userEvent.keyboard("+");
+      await waitFor(() => expect(activeHover()).toBeNull());
+      move();
+      await expect(activeHover()).toBeNull();
+
+      await hoverInlineNode(canvasElement);
+      const section = canvas.getByRole("region", { name: "Embedding map" });
+      const originalStyleWidth = section.style.width;
+      const originalStageWidth = stage.getBoundingClientRect().width;
+      try {
+        section.style.width = `${section.getBoundingClientRect().width - 80}px`;
+        await waitFor(() =>
+          expect(stage.getBoundingClientRect().width).toBeLessThan(
+            originalStageWidth,
+          ),
+        );
+        await waitFor(() => expect(activeHover()).toBeNull());
+        section.style.width = originalStyleWidth;
+        await waitFor(() =>
+          expect(stage.getBoundingClientRect().width).toBe(originalStageWidth),
+        );
+        let previousBounds = "";
+        let changedAt = performance.now();
+        await waitFor(
+          () => {
+            const bounds = Array.from(
+              canvasElement.querySelectorAll<HTMLElement>("[data-topic-node]"),
+            )
+              .map((node) => node.getAttribute("style"))
+              .join(";");
+            if (bounds !== previousBounds) {
+              previousBounds = bounds;
+              changedAt = performance.now();
+            }
+            expect(performance.now() - changedAt).toBeGreaterThan(150);
+          },
+          { timeout: 2000 },
+        );
+        await expect(activeHover()).toBeNull();
+      } finally {
+        section.style.width = originalStyleWidth;
+      }
+    } finally {
+      stage.setPointerCapture = capture;
+    }
   },
 });
