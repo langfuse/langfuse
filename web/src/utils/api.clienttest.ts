@@ -516,18 +516,25 @@ describe("isExpectedTrpcClientError", () => {
     // evalsV2.create / update throw PRECONDITION_FAILED when live
     // model preflight hits a retryable provider, timeout, abort, or
     // classified configuration error. The setup page already toasts it.
+    // Both wordings are the same 412 class; Sentry groups them as
+    // separate issues until this path allowlist lands.
+    const preflightMessages = [
+      "The model did not respond within 95 seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
+      "The LLM provider could not complete the model request during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
+    ];
     for (const path of EXPECTED_TRPC_PRECONDITION_FAILED_PATHS) {
-      expect(
-        isExpectedTrpcClientError(
-          trpcServerError({
-            code: "PRECONDITION_FAILED",
-            httpStatus: 412,
-            path,
-            message:
-              "The model did not respond within 95 seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
-          }),
-        ),
-      ).toBe(true);
+      for (const message of preflightMessages) {
+        expect(
+          isExpectedTrpcClientError(
+            trpcServerError({
+              code: "PRECONDITION_FAILED",
+              httpStatus: 412,
+              path,
+              message,
+            }),
+          ),
+        ).toBe(true);
+      }
     }
   });
 
@@ -896,14 +903,14 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("suppresses an evaluator model-preflight timeout (breadcrumb, no capture)", () => {
+  it("suppresses an evaluator model-preflight failure (breadcrumb, no capture)", () => {
     reportTrpcErrorWithoutToast(
       trpcServerError({
         code: "PRECONDITION_FAILED",
         httpStatus: 412,
         path: EXPECTED_TRPC_PRECONDITION_FAILED_PATHS[0],
         message:
-          "The model did not respond within 95 seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
+          "The LLM provider could not complete the model request during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
       }),
       "evals",
     );
