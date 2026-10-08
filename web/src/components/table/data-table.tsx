@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useRef,
   useEffect,
+  useLayoutEffect,
   type CSSProperties,
   type UIEventHandler,
 } from "react";
@@ -971,7 +972,21 @@ function TableBodyComponent<TData>({
     startHeight: number;
   } | null>(null);
   const [previewPx, setPreviewPx] = useState<number | null>(null);
+  const previewCommitRef = useRef<number | null>(null);
+  const keyGestureStartRef = useRef<number | null>(null);
+  const tableBodyRef = useRef<HTMLTableSectionElement>(null);
+  const [measuredPx, setMeasuredPx] = useState<number | undefined>(undefined);
   const effectiveRowHeightPx = previewPx ?? rowHeightPx;
+
+  useLayoutEffect(() => {
+    if (!rowResizeEnabled) return;
+    const sized =
+      tableBodyRef.current?.querySelector<HTMLElement>("[data-row-height]");
+    const height = sized?.getBoundingClientRect().height;
+    if (height == null || height <= 0) return;
+    const rounded = Math.round(height);
+    setMeasuredPx((current) => (current === rounded ? current : rounded));
+  }, [rowResizeEnabled, rowHeight, rowModelRows.length, data.isLoading]);
 
   const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // button is 0 for a primary press. Some pointers report -1 until the
@@ -1019,6 +1034,18 @@ function TableBodyComponent<TData>({
     }
   };
 
+  const commitKeyboardResize = () => {
+    const next = previewCommitRef.current;
+    const start = keyGestureStartRef.current;
+    if (next == null && start == null) return;
+    previewCommitRef.current = null;
+    keyGestureStartRef.current = null;
+    setPreviewPx(null);
+    if (next != null && start != null && next !== Math.round(start)) {
+      onCommitRowHeight?.(next);
+    }
+  };
+
   const onResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
@@ -1026,17 +1053,23 @@ function TableBodyComponent<TData>({
     const sized = event.currentTarget
       .closest("td")
       ?.querySelector<HTMLElement>("[data-row-height]");
-    const current =
+    const fallback =
       effectiveRowHeightPx ??
+      measuredPx ??
       sized?.getBoundingClientRect().height ??
       MIN_CUSTOM_ROW_HEIGHT_PX;
+    const current = previewCommitRef.current ?? fallback;
+    if (keyGestureStartRef.current == null) {
+      keyGestureStartRef.current = current;
+    }
     const delta = event.key === "ArrowDown" ? 16 : -16;
     const next = clampCustomRowHeightPx(current + delta);
-    if (next !== Math.round(current)) onCommitRowHeight?.(next);
+    previewCommitRef.current = next;
+    setPreviewPx(next);
   };
 
   return (
-    <TableBody>
+    <TableBody ref={tableBodyRef}>
       {data.isLoading || !data.data ? (
         Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
           <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
@@ -1181,7 +1214,9 @@ function TableBodyComponent<TData>({
                       isPrimaryHandle ? MAX_CUSTOM_ROW_HEIGHT_PX : undefined
                     }
                     aria-valuenow={
-                      isPrimaryHandle ? effectiveRowHeightPx : undefined
+                      isPrimaryHandle
+                        ? (effectiveRowHeightPx ?? measuredPx)
+                        : undefined
                     }
                     aria-hidden={isPrimaryHandle ? undefined : true}
                     tabIndex={isPrimaryHandle ? 0 : undefined}
@@ -1190,6 +1225,8 @@ function TableBodyComponent<TData>({
                     onPointerUp={finishResize}
                     onPointerCancel={finishResize}
                     onKeyDown={isPrimaryHandle ? onResizeKeyDown : undefined}
+                    onKeyUp={isPrimaryHandle ? commitKeyboardResize : undefined}
+                    onBlur={isPrimaryHandle ? commitKeyboardResize : undefined}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -1197,6 +1234,7 @@ function TableBodyComponent<TData>({
                     className={cn(
                       "absolute inset-x-0 bottom-0 h-2 cursor-row-resize touch-none select-none",
                       "bg-secondary opacity-0 group-hover/row:opacity-100",
+                      "focus-visible:bg-primary-accent focus-visible:opacity-100",
                       previewPx != null && "bg-primary-accent opacity-100",
                     )}
                   />

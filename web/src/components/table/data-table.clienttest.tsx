@@ -225,10 +225,21 @@ describe("DataTable custom row height", () => {
 
     const handle = screen.getByRole("slider", { name: "Row height" });
     expect(handle).toHaveAttribute("aria-orientation", "vertical");
+    expect(handle).toHaveAttribute("aria-valuenow", "96");
     act(() => {
+      fireEvent.keyDown(handle, { key: "ArrowDown" });
       fireEvent.keyDown(handle, { key: "ArrowDown" });
     });
 
-    expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(112);
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    expect(handle).toHaveAttribute("aria-valuenow", "128");
+    for (const box of document.querySelectorAll("[data-row-height]")) {
+      expect(box).toHaveStyle({ height: "128px" });
+    }
+
+    act(() => {
+      fireEvent.keyUp(handle, { key: "ArrowDown" });
+    });
+    expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(128);
   });
 });
