@@ -359,20 +359,28 @@ describe("flattenJsonToPathArrays", () => {
   it.each([
     {
       order: "literal dotted key first",
-      metadata: { "db.host": "1.2.3.4", db: { host: "localhost" } },
+      metadata: {
+        "db.host": "1.2.3.4",
+        env: "prod",
+        db: { host: "localhost" },
+      },
       expected: "1.2.3.4",
     },
     {
       order: "nested object first",
-      metadata: { db: { host: "localhost" }, "db.host": "1.2.3.4" },
+      metadata: {
+        db: { host: "localhost" },
+        env: "prod",
+        "db.host": "1.2.3.4",
+      },
       expected: "localhost",
     },
   ])(
     "stores a path that a dotted key and a nested object share once, first write wins ($order)",
     ({ metadata, expected }) => {
       expect(flattenJsonToPathArrays(metadata)).toEqual({
-        names: ["db.host"],
-        values: [expected],
+        names: ["db.host", "env"],
+        values: [expected, "prod"],
       });
     },
   );
