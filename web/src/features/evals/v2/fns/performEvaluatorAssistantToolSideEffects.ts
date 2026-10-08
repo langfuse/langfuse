@@ -1,8 +1,9 @@
-import { safeJsonParse } from "@langfuse/shared";
+import { safeJsonParse, singleFilterList } from "@langfuse/shared";
 
 import type { api } from "@/src/utils/api";
 import { evaluatorAssistantTestResultStore } from "../store/evaluatorAssistantTestResultStore";
 import { evaluatorAssistantUpdateSignalStore } from "../store/evaluatorAssistantUpdateSignalStore";
+import { applyEvaluatorWorkbenchFilter } from "../store/evaluatorWorkbenchFilterRegistry";
 
 export type EvaluatorAssistantCompletedToolCall = {
   toolCallId: string;
@@ -31,6 +32,22 @@ export function performEvaluatorAssistantToolSideEffects({
   >();
 
   for (const toolCall of toolCalls) {
+    if (
+      source === "live" &&
+      toolCall.toolName === "langfuse_setEvaluatorWorkbenchFilter" &&
+      !toolCall.toolError
+    ) {
+      const parsedArguments = getToolArguments(toolCall.toolArguments);
+      const evaluatorId =
+        typeof parsedArguments?.evaluatorId === "string"
+          ? parsedArguments.evaluatorId
+          : null;
+      const filter = singleFilterList.safeParse(parsedArguments?.filter);
+      if (evaluatorId && filter.success && filter.data.length <= 20) {
+        applyEvaluatorWorkbenchFilter(projectId, evaluatorId, filter.data);
+      }
+    }
+
     if (
       toolCall.toolName === "langfuse_updateEvaluator" &&
       !toolCall.toolError
@@ -103,16 +120,23 @@ function getStringFromToolArguments(
   toolArguments: unknown,
   key: "evaluatorId" | "observationId" | "type",
 ) {
+  const parsedArguments = getToolArguments(toolArguments);
+  if (!parsedArguments) {
+    return null;
+  }
+
+  const value = parsedArguments[key];
+  return typeof value === "string" ? value : null;
+}
+
+function getToolArguments(toolArguments: unknown) {
   const parsedArguments =
     typeof toolArguments === "string"
       ? safeJsonParse(toolArguments)
       : toolArguments;
-  if (typeof parsedArguments !== "object" || parsedArguments === null) {
-    return null;
-  }
-
-  const value = (parsedArguments as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : null;
+  return typeof parsedArguments === "object" && parsedArguments !== null
+    ? (parsedArguments as Record<string, unknown>)
+    : null;
 }
 
 function getEvaluatorTestResult(toolCall: EvaluatorAssistantCompletedToolCall) {

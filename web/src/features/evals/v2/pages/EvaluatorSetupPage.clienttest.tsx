@@ -59,7 +59,7 @@ describe("getEvaluatorAssistantLandingMode", () => {
         evaluatorType: "DECISION_MODEL",
         isAssistantAvailable: true,
       },
-      expected: null,
+      expected: "create",
     },
     {
       name: "Decision Model editing",
@@ -68,7 +68,7 @@ describe("getEvaluatorAssistantLandingMode", () => {
         evaluatorType: "DECISION_MODEL",
         isAssistantAvailable: true,
       },
-      expected: null,
+      expected: "edit",
     },
     {
       name: "template LLM judge creation",
@@ -103,12 +103,37 @@ describe("getEvaluatorAssistantLandingMode", () => {
 });
 
 describe("openEvaluatorAssistantLanding", () => {
-  it("selects a fresh conversation and activates the landing before opening", () => {
+  it("resets an existing selection before activating the landing and opening", () => {
     const callOrder: string[] = [];
+    let selectedConversationId: string | null = "existing-conversation";
 
     expect(
       openEvaluatorAssistantLanding({
-        selectConversation: () => callOrder.push("new-conversation"),
+        selectConversation: (conversationId) => {
+          selectedConversationId = conversationId;
+          callOrder.push("reset");
+        },
+        activateLanding: () => {
+          expect(selectedConversationId).toBeNull();
+          callOrder.push("activate");
+          return true;
+        },
+        openAssistant: () => {
+          expect(selectedConversationId).toBeNull();
+          callOrder.push("open");
+          return true;
+        },
+        clearLanding: () => callOrder.push("clear"),
+      }),
+    ).toBe(true);
+    expect(callOrder).toEqual(["reset", "activate", "open"]);
+  });
+
+  it("resets before every repeated footer click", () => {
+    const callOrder: string[] = [];
+    const open = () =>
+      openEvaluatorAssistantLanding({
+        selectConversation: () => callOrder.push("reset"),
         activateLanding: () => {
           callOrder.push("activate");
           return true;
@@ -118,9 +143,38 @@ describe("openEvaluatorAssistantLanding", () => {
           return true;
         },
         clearLanding: () => callOrder.push("clear"),
+      });
+
+    expect(open()).toBe(true);
+    expect(open()).toBe(true);
+    expect(callOrder).toEqual([
+      "reset",
+      "activate",
+      "open",
+      "reset",
+      "activate",
+      "open",
+    ]);
+  });
+
+  it("cleans up when the landing cannot activate", () => {
+    const callOrder: string[] = [];
+
+    expect(
+      openEvaluatorAssistantLanding({
+        selectConversation: () => callOrder.push("reset"),
+        activateLanding: () => {
+          callOrder.push("activate");
+          return false;
+        },
+        openAssistant: () => {
+          callOrder.push("open");
+          return true;
+        },
+        clearLanding: () => callOrder.push("clear"),
       }),
-    ).toBe(true);
-    expect(callOrder).toEqual(["new-conversation", "activate", "open"]);
+    ).toBe(false);
+    expect(callOrder).toEqual(["reset", "activate", "clear"]);
   });
 
   it("clears the landing when the Assistant cannot open", () => {

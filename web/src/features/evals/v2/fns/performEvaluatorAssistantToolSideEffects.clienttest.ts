@@ -1,11 +1,75 @@
 import type { api } from "@/src/utils/api";
 import { evaluatorAssistantTestResultStore } from "../store/evaluatorAssistantTestResultStore";
 import { evaluatorAssistantUpdateSignalStore } from "../store/evaluatorAssistantUpdateSignalStore";
+import { registerEvaluatorWorkbenchFilter } from "../store/evaluatorWorkbenchFilterRegistry";
 import { performEvaluatorAssistantToolSideEffects } from "./performEvaluatorAssistantToolSideEffects";
 
 type InvalidationUtils = ReturnType<typeof api.useUtils>;
 
 describe("evaluator Assistant tool side effects", () => {
+  it("applies live workbench filters without replaying hydrated history", () => {
+    const apply = vi.fn();
+    const unregister = registerEvaluatorWorkbenchFilter(
+      "project-1",
+      "evaluator-1",
+      apply,
+    );
+    const toolCall = {
+      toolCallId: "set-filter-1",
+      toolName: "langfuse_setEvaluatorWorkbenchFilter",
+      toolArguments: {
+        evaluatorId: "evaluator-1",
+        filter: [
+          {
+            type: "stringOptions",
+            column: "type",
+            operator: "any of",
+            value: ["GENERATION"],
+          },
+        ],
+      },
+    };
+
+    performEvaluatorAssistantToolSideEffects({
+      toolCalls: [toolCall],
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      source: "live",
+      utils: {} as InvalidationUtils,
+    });
+    performEvaluatorAssistantToolSideEffects({
+      toolCalls: [{ ...toolCall, toolCallId: "set-filter-history" }],
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      source: "hydrated",
+      utils: {} as InvalidationUtils,
+    });
+
+    expect(apply).toHaveBeenCalledOnce();
+    unregister();
+  });
+
+  it("gracefully ignores a workbench filter when its UI is absent", () => {
+    expect(() =>
+      performEvaluatorAssistantToolSideEffects({
+        toolCalls: [
+          {
+            toolCallId: "set-filter-absent",
+            toolName: "langfuse_setEvaluatorWorkbenchFilter",
+            toolArguments: {
+              evaluatorId: "evaluator-absent",
+              filter: [],
+            },
+          },
+        ],
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        source: "live",
+        utils: {} as InvalidationUtils,
+      }),
+    ).not.toThrow();
+  });
+
   it("refreshes the updated evaluator only", async () => {
     const evaluatorInvalidate = vi.fn(() => Promise.resolve());
     const publishUpdate = vi.spyOn(

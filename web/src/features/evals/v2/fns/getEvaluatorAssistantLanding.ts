@@ -9,7 +9,7 @@ export function getEvaluatorAssistantLanding({
 }: {
   id: string;
   mode: "create" | "edit";
-  evaluatorType: "CODE" | "LLM_AS_JUDGE";
+  evaluatorType: "CODE" | "LLM_AS_JUDGE" | "DECISION_MODEL";
   onSubmit: (input: string) => Promise<boolean>;
 }): InAppAgentContextualLanding {
   return {

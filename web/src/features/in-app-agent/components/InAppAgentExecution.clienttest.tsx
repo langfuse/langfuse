@@ -18,6 +18,11 @@ import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
 import { registerInAppAgentPageContext } from "@/src/features/in-app-agent/lib/pageContext";
+import {
+  activateInAppAgentContextualLanding,
+  getInAppAgentContextualLanding,
+  registerInAppAgentContextualLanding,
+} from "@/src/features/in-app-agent/lib/contextualLanding";
 
 const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
@@ -203,6 +208,30 @@ function ReopenAssistantButton() {
     >
       Reopen assistant
     </button>
+  );
+}
+
+function FreshConversationProbe() {
+  const { selectConversation, submit } = useInAppAiAgent();
+
+  return (
+    <>
+      <button type="button" onClick={() => selectConversation(null)}>
+        Reset conversation
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          submit("Author the evaluator", {
+            newConversation: true,
+            conversationId: "handoff-conversation",
+            entryPoint: "code-evaluator-editor",
+          }).catch(() => undefined);
+        }}
+      >
+        Submit handoff
+      </button>
+    </>
   );
 }
 
@@ -1196,6 +1225,50 @@ describe("in-app agent concurrent conversations", () => {
       );
     });
     expect(providerMocks.cancelRun).not.toHaveBeenCalled();
+  });
+
+  it("resets a blank selection repeatedly without persisting it and preserves the handoff id on first submit", async () => {
+    providerMocks.startRun.mockImplementation(
+      async (input: { conversationId: string }) => ({
+        conversationId: input.conversationId,
+        runId: "run-1",
+      }),
+    );
+    const unregister = registerInAppAgentContextualLanding("project-1", {
+      id: "evaluator",
+      title: "Create with AI",
+      description: "Describe the evaluator.",
+      examples: [],
+      onSubmit: async () => true,
+    });
+    activateInAppAgentContextualLanding("project-1", "evaluator");
+
+    render(
+      <InAppAiAgentProvider defaultOpen>
+        <FreshConversationProbe />
+      </InAppAiAgentProvider>,
+    );
+
+    const reset = screen.getByRole("button", { name: "Reset conversation" });
+    fireEvent.click(reset);
+    expect(getInAppAgentContextualLanding("project-1")).toBeUndefined();
+    expect(providerMocks.startRun).not.toHaveBeenCalled();
+
+    activateInAppAgentContextualLanding("project-1", "evaluator");
+    fireEvent.click(reset);
+    expect(getInAppAgentContextualLanding("project-1")).toBeUndefined();
+    expect(providerMocks.startRun).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit handoff" }));
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationId: "handoff-conversation",
+          message: "Author the evaluator",
+        }),
+      );
+    });
+    unregister();
   });
 
   it("waits for startRun before fetching a new conversation", async () => {

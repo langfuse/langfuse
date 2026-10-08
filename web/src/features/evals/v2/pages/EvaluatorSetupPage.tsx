@@ -77,9 +77,9 @@ import {
 import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
 import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
-import { startCodeEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startCodeEvaluatorAssistantHandoff";
-import { startJudgeEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startJudgeEvaluatorAssistantHandoff";
+import { startEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startEvaluatorAssistantHandoff";
 import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/hooks/useEvaluatorSamplePageContext";
+import { useEvaluatorWorkbenchPageContext } from "@/src/features/evals/v2/hooks/useEvaluatorWorkbenchPageContext";
 import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantTestResultSync";
 import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
@@ -103,7 +103,7 @@ export function getEvaluatorAssistantLandingMode({
   evaluatorType: Exclude<EvalTemplateType, "FACET">;
   isAssistantAvailable: boolean;
 }) {
-  if (!isAssistantAvailable || evaluatorType === "DECISION_MODEL") return null;
+  if (!isAssistantAvailable) return null;
   if (mode === "edit") return "edit";
   return "create";
 }
@@ -335,6 +335,12 @@ export function EvaluatorSetupPage(
     selectedConversationId,
     store: evaluatorSetupStore,
   });
+  useEvaluatorWorkbenchPageContext({
+    projectId,
+    evaluatorId,
+    mode: props.mode,
+    store: evaluatorSetupStore,
+  });
   const [onboardingAnalytics] = useState(() =>
     props.mode === "create"
       ? createEvalOnboardingAnalytics({
@@ -385,8 +391,16 @@ export function EvaluatorSetupPage(
       sourceCodeLanguage: state.sourceCodeLanguage,
     })),
   );
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    modelDraft.type === "DECISION_MODEL",
+  );
   const assistantEvaluatorType =
-    codeDraft.type === "DECISION_MODEL" ? null : codeDraft.type;
+    codeDraft.type !== "DECISION_MODEL" ||
+    modelDraft.selectedModel ||
+    fallbackDecisionModel
+      ? codeDraft.type
+      : null;
   const assistantLandingMode = getEvaluatorAssistantLandingMode({
     mode: props.mode,
     evaluatorType: codeDraft.type,
@@ -423,10 +437,6 @@ export function EvaluatorSetupPage(
     sourceCode: codeDraft.sourceCode,
     sourceCodeLanguage: codeDraft.sourceCodeLanguage,
   });
-  const fallbackDecisionModel = useFallbackDecisionModel(
-    projectId,
-    modelDraft.type === "DECISION_MODEL",
-  );
   // The default decision model arrives with the connection list. It is applied
   // on save, not stored, so it must not count as an edit.
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
@@ -935,7 +945,7 @@ export function EvaluatorSetupPage(
 
   const submitEvaluatorAssistantRequest = async (
     request: string,
-    evaluatorType: "CODE" | "LLM_AS_JUDGE",
+    evaluatorType: "CODE" | "LLM_AS_JUDGE" | "DECISION_MODEL",
   ) => {
     setTestResult(null);
     const conversationId = createInAppAgentConversationId();
@@ -959,24 +969,16 @@ export function EvaluatorSetupPage(
       }
       return persistedEvaluatorId;
     };
-    const handoff =
-      evaluatorType === "CODE"
-        ? await startCodeEvaluatorAssistantHandoff({
-            request,
-            sampleObservation,
-            conversationId,
-            openAssistant: () => openAssistant("evaluator_editor"),
-            persistEvaluator,
-            submitToAssistant,
-          })
-        : await startJudgeEvaluatorAssistantHandoff({
-            request,
-            sampleObservation,
-            conversationId,
-            openAssistant: () => openAssistant("evaluator_editor"),
-            persistEvaluator,
-            submitToAssistant,
-          });
+    const handoff = await startEvaluatorAssistantHandoff({
+      request,
+      mode: props.mode,
+      currentType: evaluatorType,
+      sampleObservation,
+      conversationId,
+      openAssistant: () => openAssistant("evaluator_editor"),
+      persistEvaluator,
+      submitToAssistant,
+    });
     if (!handoff) return false;
 
     if (!handoff.started) {

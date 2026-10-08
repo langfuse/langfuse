@@ -152,6 +152,12 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "evaluator:CUD" },
   },
+  // This only changes the open workbench's sample table. Evaluator and rule
+  // persistence still require their separately approved tools.
+  setEvaluatorWorkbenchFilter: {
+    approval: "auto",
+    availability: { scope: "evaluator:CUD" },
+  },
   createEvaluator: {
     approval: "approval",
     availability: { scope: "evaluator:CUD" },

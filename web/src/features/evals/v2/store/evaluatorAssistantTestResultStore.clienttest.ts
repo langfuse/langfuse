@@ -110,6 +110,39 @@ describe("evaluatorAssistantTestResultStore", () => {
     store.clear("project-1", "evaluator-1");
   });
 
+  it("does not let workbench page-context updates overwrite the active handoff sample", () => {
+    const store = createEvaluatorAssistantTestResultStore();
+    store.expect({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      conversationId: "conversation-1",
+      observationId: "handoff-observation",
+    });
+
+    store.expectFromPageContext({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      conversationId: "conversation-1",
+      observationId: "newly-selected-observation",
+    });
+
+    expect(
+      store.publish({
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        conversationId: "conversation-1",
+        observationId: "handoff-observation",
+        toolCallId: "handoff-test",
+        result: { success: true },
+      }),
+    ).toBe(true);
+    expect(store.get("project-1", "evaluator-1")).toEqual({
+      toolCallId: "handoff-test",
+      result: { success: true },
+    });
+    store.clear("project-1", "evaluator-1");
+  });
+
   it("keeps the latest retry result from the expected conversation", () => {
     const store = createEvaluatorAssistantTestResultStore();
     store.expect({

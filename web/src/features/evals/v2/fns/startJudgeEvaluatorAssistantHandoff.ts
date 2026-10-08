@@ -4,12 +4,14 @@ import type { EvaluatorAssistantSampleObservation } from "@/src/features/evals/v
 export async function startJudgeEvaluatorAssistantHandoff({
   request,
   sampleObservation,
+  mode = "create",
   conversationId,
   openAssistant,
   persistEvaluator,
   submitToAssistant,
 }: {
   request: string;
+  mode?: "create" | "edit";
   conversationId: string;
   sampleObservation?: EvaluatorAssistantSampleObservation | null;
   openAssistant: () => boolean;
@@ -33,6 +35,7 @@ export async function startJudgeEvaluatorAssistantHandoff({
       evaluatorId,
       request,
       sampleObservation,
+      mode,
     }),
     {
       newConversation: true,

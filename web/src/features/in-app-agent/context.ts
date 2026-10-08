@@ -1,7 +1,10 @@
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { FilterState } from "@langfuse/shared";
-import { sanitizeSelectedEvaluatorSampleContext } from "@/src/features/evals";
+import {
+  sanitizeEvaluatorWorkbenchContext,
+  sanitizeSelectedEvaluatorSampleContext,
+} from "@/src/features/evals";
 
 type InAppAgentContext = AgUiContext;
 
@@ -202,6 +205,14 @@ export function sanitizeInAppAgentContext(
   );
   if (selectedEvaluatorSample) {
     sanitizedContext.push(selectedEvaluatorSample);
+  }
+
+  const evaluatorWorkbench = sanitizeEvaluatorWorkbenchContext(
+    context,
+    projectId,
+  );
+  if (evaluatorWorkbench) {
+    sanitizedContext.push(evaluatorWorkbench);
   }
 
   sanitizedContext.push(...sanitizeUserContext(context));

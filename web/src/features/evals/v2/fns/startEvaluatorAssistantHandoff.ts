@@ -1,17 +1,19 @@
-import { getCodeEvaluatorAssistantPrompt } from "@/src/features/evals/v2/fns/getCodeEvaluatorAssistantPrompt";
+import { getEvaluatorAuthoringPrompt } from "@/src/features/evals/v2/fns/getEvaluatorAuthoringPrompt";
 import type { EvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/types/EvaluatorAssistantSampleObservation";
 
-export async function startCodeEvaluatorAssistantHandoff({
+export async function startEvaluatorAssistantHandoff({
   request,
+  mode,
+  currentType,
   sampleObservation,
-  mode = "create",
   conversationId,
   openAssistant,
   persistEvaluator,
   submitToAssistant,
 }: {
   request: string;
-  mode?: "create" | "edit";
+  mode: "create" | "edit";
+  currentType: "CODE" | "LLM_AS_JUDGE" | "DECISION_MODEL";
   conversationId: string;
   sampleObservation?: EvaluatorAssistantSampleObservation | null;
   openAssistant: () => boolean;
@@ -21,7 +23,7 @@ export async function startCodeEvaluatorAssistantHandoff({
     options: {
       newConversation: true;
       conversationId: string;
-      entryPoint: "code-evaluator-editor";
+      entryPoint: "code-evaluator-editor" | "judge-evaluator-editor";
     },
   ) => Promise<boolean>;
 }) {
@@ -31,16 +33,20 @@ export async function startCodeEvaluatorAssistantHandoff({
   if (!evaluatorId) return null;
 
   const started = await submitToAssistant(
-    getCodeEvaluatorAssistantPrompt({
+    getEvaluatorAuthoringPrompt({
       evaluatorId,
+      mode,
+      currentType,
       request,
       sampleObservation,
-      mode,
     }),
     {
       newConversation: true,
       conversationId,
-      entryPoint: "code-evaluator-editor",
+      entryPoint:
+        currentType === "CODE"
+          ? "code-evaluator-editor"
+          : "judge-evaluator-editor",
     },
   );
 

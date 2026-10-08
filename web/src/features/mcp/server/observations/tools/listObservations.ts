@@ -165,7 +165,7 @@ const isObservationMcpFilterType = (
 ): type is ObservationMcpFilterType =>
   type in OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE;
 
-const ObservationMcpFilterBaseSchema = z
+export const ObservationMcpFilterBaseSchema = z
   .object({
     column: z.string(),
     operator: z.string(),
@@ -205,7 +205,7 @@ const normalizeExactObservationIdFilter = (filter: unknown) => {
   };
 };
 
-const ObservationMcpFilterSchema = z.preprocess(
+export const ObservationMcpFilterSchema = z.preprocess(
   normalizeExactObservationIdFilter,
   z
     .object({ column: z.string() })

@@ -49,6 +49,27 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
       ],
       placeholder: "Describe what this judge should evaluate...",
     },
+    DECISION_MODEL: {
+      title: "Create a decision model evaluator with AI",
+      description:
+        "Describe which observations and structured decisions to evaluate. The Assistant will inspect samples, configure the evaluator, and test it.",
+      examples: [
+        {
+          id: "support-routing",
+          label: "Classify support requests and flag urgent cases",
+          prompt:
+            "For support-request generations, classify the topic and decide whether the case is urgent",
+        },
+        {
+          id: "response-review",
+          label: "Check policy compliance and response completeness",
+          prompt:
+            "For customer-support generations, decide whether the response follows policy and fully answers the request",
+        },
+      ],
+      placeholder:
+        "Describe the observations and structured decisions to evaluate...",
+    },
   },
   edit: {
     CODE: {
@@ -96,6 +117,26 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
         },
       ],
       placeholder: "Describe how to change this judge...",
+    },
+    DECISION_MODEL: {
+      title: "Improve this decision model evaluator",
+      description:
+        "Describe what should change. The Assistant will inspect matching observations, update the saved evaluator, and test it.",
+      examples: [
+        {
+          id: "question",
+          label: "Add a decision for whether escalation is required",
+          prompt:
+            "Add a decision for whether the support request requires escalation",
+        },
+        {
+          id: "scope",
+          label: "Limit samples to production support generations",
+          prompt:
+            "Evaluate only production support generations and keep the existing decisions",
+        },
+      ],
+      placeholder: "Describe how to change this decision model...",
     },
   },
 } as const;

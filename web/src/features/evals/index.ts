@@ -1,5 +1,6 @@
 export { performEvaluatorAssistantToolSideEffects } from "@/src/features/evals/v2/fns/performEvaluatorAssistantToolSideEffects";
 export { sanitizeSelectedEvaluatorSampleContext } from "@/src/features/evals/v2/fns/sanitizeSelectedEvaluatorSampleContext";
+export { sanitizeEvaluatorWorkbenchContext } from "@/src/features/evals/v2/fns/sanitizeEvaluatorWorkbenchContext";
 export { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
 export { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
 export { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
