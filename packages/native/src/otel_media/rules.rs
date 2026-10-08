@@ -154,12 +154,19 @@ pub(super) fn is_media_reference(value: &str) -> bool {
 pub(super) fn may_contain_serialized_media(value: &str) -> bool {
     let has_data = value.contains("\"data\"");
     let has_mime_type = value.contains("\"mime_type\"");
-    (has_data && (value.contains("\"media_type\"") || has_mime_type))
+    let has_provider_shape = (has_data && (value.contains("\"media_type\"") || has_mime_type))
         || (value.contains("\"content\"") && has_mime_type)
         || ((has_data || value.contains("\"image\"")) && value.contains("\"mediaType\""))
         || (has_data
             && (value.contains("\"inline_data\"") || value.contains("\"inlineData\""))
-            && (has_mime_type || value.contains("\"mimeType\"")))
+            && (has_mime_type || value.contains("\"mimeType\""));
+    // In JSON.stringify(JSON.stringify(metadata)), quotes in the metadata
+    // document are escaped, so the precise provider-key checks above do not
+    // match. The broad marker scan is safe for a quoted root and keeps this
+    // path from affecting ordinary object documents.
+    let has_quoted_root_candidate =
+        value.trim_start().starts_with('"') && may_contain_media_candidate(value);
+    has_provider_shape || has_quoted_root_candidate
 }
 
 /// Return true when a validated document might contain a media candidate.
@@ -171,5 +178,13 @@ pub(super) fn may_contain_media_candidate(value: &str) -> bool {
 }
 
 pub(super) fn may_be_serialized_json(value: &str) -> bool {
-    matches!(value.trim_start().as_bytes().first(), Some(b'{' | b'['))
+    match value.trim_start().as_bytes().first() {
+        Some(b'{' | b'[') => true,
+        // SDKs can JSON-encode a metadata value that is already JSON text or a
+        // string. It then arrives as a JSON string root. Limit this path to
+        // strings with media markers so ordinary quoted values do not trigger
+        // another validation and structural walk.
+        Some(b'"') => may_contain_media_candidate(value),
+        _ => false,
+    }
 }
