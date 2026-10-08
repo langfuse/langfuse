@@ -226,6 +226,7 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
+  --animate-appear-delayed: appear 0s linear 150ms forwards;
   /* Cycle length comes from REFETCH_SWEEP_MS in components/table/data-table.tsx,
      which sets --table-refetch-cycle on the element: the same number also
      releases the busy flag on a whole sweep, so the two must not drift. */

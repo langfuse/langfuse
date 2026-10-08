@@ -23,7 +23,9 @@ import {
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { cn } from "@/src/utils/tailwind";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -52,6 +54,7 @@ import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/Dropdo
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface TraceDetailViewHeaderProps {
+  isLoading?: false;
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
     input: string | null;
@@ -67,7 +70,53 @@ export interface TraceDetailViewHeaderProps {
   };
 }
 
-export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
+const titleRowClassName =
+  "grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]";
+const titleClassName = "flex w-full min-w-0 flex-row items-center gap-2";
+const actionsClassName =
+  "flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end";
+
+const LOADING_BADGE_WIDTHS = ["w-36", "w-24", "w-32", "w-32"];
+
+export const TraceDetailViewHeader = memo(function TraceDetailViewHeader(
+  props: TraceDetailViewHeaderProps | { isLoading: true },
+) {
+  if (props.isLoading === true) return <TraceDetailViewHeaderLoading />;
+  return <LoadedTraceDetailViewHeader {...props} />;
+});
+
+function TraceDetailViewHeaderLoading() {
+  const isMobile = useIsMobile();
+  return (
+    <DetailViewHeaderShell>
+      <div className={titleRowClassName}>
+        <div className={cn(titleClassName, "min-h-7")}>
+          <Skeleton className="size-6 rounded-sm" />
+          <Skeleton className="h-4 w-48" />
+          {isMobile && <Skeleton className="ml-auto size-8 rounded-md" />}
+        </div>
+        {!isMobile && (
+          <div className={actionsClassName}>
+            <Skeleton className="h-6 w-20 rounded-md" />
+            <Skeleton className="h-6 w-24 rounded-md" />
+            <Skeleton className="h-6 w-24 rounded-md" />
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        <CollapsibleBadgeRow>
+          {LOADING_BADGE_WIDTHS.map((width, index) => (
+            <BadgeShell key={index} color="ghost">
+              <Skeleton className={cn("h-3", width)} />
+            </BadgeShell>
+          ))}
+        </CollapsibleBadgeRow>
+      </div>
+    </DetailViewHeaderShell>
+  );
+}
+
+function LoadedTraceDetailViewHeader({
   trace,
   parsedMetadata,
   projectId,
@@ -106,8 +155,8 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   return (
     <DetailViewHeaderShell>
       {/* Title row with actions */}
-      <div className="grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="flex w-full min-w-0 flex-row items-center gap-2">
+      <div className={titleRowClassName}>
+        <div className={titleClassName}>
           <EntityTitle as="span" type="TRACE" title={trace.name || trace.id} />
           {!isMobile && (
             <ConnectedDetailHeaderActionsMenuController
@@ -243,7 +292,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
-          <div className="flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end">
+          <div className={actionsClassName}>
             <ConnectedTraceObservationAddToDropdownMenuController
               analyticsData={{ source: "TraceDetail", isV4 }}
               projectId={projectId}
@@ -344,4 +393,4 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       </div>
     </DetailViewHeaderShell>
   );
-});
+}
