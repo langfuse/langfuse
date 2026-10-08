@@ -7,6 +7,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -54,6 +55,7 @@ import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 
 export interface TraceDetailViewProps {
+  isLoading?: false;
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
     input: string | null;
@@ -65,7 +67,42 @@ export interface TraceDetailViewProps {
   projectId: string;
 }
 
-export function TraceDetailView({
+const rootClassName = "flex h-full flex-col overflow-hidden";
+
+const LOADING_SECTIONS = ["input", "output", "metadata"];
+
+export function TraceDetailView(
+  props: TraceDetailViewProps | { isLoading: true },
+) {
+  if (props.isLoading === true) return <TraceDetailViewLoading />;
+  return <LoadedTraceDetailView {...props} />;
+}
+
+/** Header, tab bar and preview sections as placeholders in their own slots. */
+function TraceDetailViewLoading() {
+  return (
+    <div className={rootClassName}>
+      <TraceDetailViewHeader isLoading />
+      <Tabs value="none" layout="fill">
+        <TraceDetailTabsBarList isLoading />
+        <Tabs.Content value="none" layout="fill">
+          <div className="flex min-h-0 w-full flex-1 flex-col gap-6 overflow-auto px-4 pt-4 pb-4">
+            {LOADING_SECTIONS.map((section) => (
+              <div key={section} className="space-y-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-11/12" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            ))}
+          </div>
+        </Tabs.Content>
+      </Tabs>
+    </div>
+  );
+}
+
+function LoadedTraceDetailView({
   trace,
   observations,
   scores,
@@ -247,7 +284,7 @@ export function TraceDetailView({
       count={comments.get(trace.id)}
     >
       {({ disabled, openDrawer }) => (
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className={rootClassName}>
           {/* Header section (extracted component) */}
           <TraceDetailViewHeader
             trace={trace}

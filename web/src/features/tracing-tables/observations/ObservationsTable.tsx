@@ -1392,6 +1392,7 @@ export default function ObservationsTable({
           search={
             !hideControls ? (
               <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
                 key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName={observationsFilterConfig.tableName}
