@@ -220,7 +220,8 @@ export function SearchBarAiPrompt({
       <div
         className={cn(
           "border-input bg-background rounded-md border px-2",
-          size === "large" ? "min-h-9 py-1.25" : "py-0.5",
+          // Mirrors ComposerSurface so switching modes keeps the bar height.
+          size === "large" ? "min-h-9 py-1.25" : "min-h-8 py-0.75",
           "focus-within:ring-ring focus-within:ring-1",
           error && "border-destructive focus-within:ring-destructive/40",
         )}
@@ -270,7 +271,8 @@ export function SearchBarAiPrompt({
             // ring box-shadow (the "blue box"). border-0 + focus:ring-0 drop both
             // (it's `:focus`, not `:focus-visible`), so the only focus indicator
             // is the container's subtle focus-within ring, matching the grammar bar.
-            className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
+            // py-0 drops its default vertical padding so the row stays leading-6.
+            className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent py-0 text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
             onChange={(event) => {
               setValue(event.target.value);
               if (error) setError(null);
