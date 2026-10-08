@@ -10,7 +10,9 @@ import {
 import type { z } from "zod";
 import { ChatMessageList } from "@/src/features/traces";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/ui/badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -451,6 +453,7 @@ export const PromptDetail = ({
                 `/project/${projectId}/prompts/${entry.id}?tab=${currentTab}`
               }
               listKey="prompts"
+              compact
             />
           </>
         ),
@@ -506,12 +509,11 @@ export const PromptDetail = ({
                         className="contents cursor-default!"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Badge
-                          variant="outline"
-                          className="mr-1 h-6 text-nowrap"
-                        >
-                          # {prompt.version}
-                        </Badge>
+                        <span className="mr-1 inline-flex">
+                          <BadgeShell font="mono" size="md">
+                            # {prompt.version}
+                          </BadgeShell>
+                        </span>
                         <span className="mb-0 line-clamp-2 min-w-0 text-lg font-bold break-all md:break-normal md:wrap-break-word">
                           {prompt.commitMessage ?? prompt.name}
                         </span>
@@ -538,7 +540,8 @@ export const PromptDetail = ({
                   {({ Trigger, disabled, title }) => (
                     <Trigger asChild>
                       <Button
-                        variant="outline"
+                        variant="ghost"
+                        size="sm"
                         disabled={disabled}
                         title={title}
                         className={cn(
@@ -562,7 +565,8 @@ export const PromptDetail = ({
                   >
                     <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                       <Button
-                        variant="outline"
+                        variant="ghost"
+                        size="sm"
                         disabled={!hasExperimentWriteAccess}
                         onClick={() => capture("dataset_run:new_form_open")}
                       >
@@ -602,7 +606,8 @@ export const PromptDetail = ({
                   {({ disabled, openDrawer }) => (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                       disabled={disabled}
                       onClick={() =>
                         openDrawer({
@@ -633,9 +638,11 @@ export const PromptDetail = ({
                 </CommentDrawerController>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <MoreVertical className="icon-base text-icon-foreground" />
-                    </Button>
+                    <IconButton
+                      icon={MoreVertical}
+                      label="More actions"
+                      size="sm"
+                    />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
@@ -690,7 +697,12 @@ export const PromptDetail = ({
               </div>
             </Tabs.Content>
             <Tabs.Content value="prompt" layout="fill">
-              <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+              <div
+                className={cn(
+                  "mb-2 flex max-h-full min-h-0 w-full flex-col gap-3 overflow-y-auto pt-3",
+                  IO_SECTIONS_FLUSH_CLASS,
+                )}
+              >
                 {promptGraph.data?.graph && (
                   <div className="flex items-center justify-end py-2">
                     <Tabs

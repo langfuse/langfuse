@@ -5,9 +5,10 @@ import {
   Timeline,
   TimelineItem,
 } from "@/src/features/prompts/components/timeline";
-import { Badge } from "@/src/components/ui/badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { CommandItem } from "@/src/components/ui/command";
-import { Button } from "@/src/components/ui/button";
 import { DialogController } from "@/src/components/ui/dialog";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -88,19 +89,19 @@ const PromptHistoryTraceNode = (props: {
           <div className="flex flex-wrap items-start gap-1">
             <SetPromptVersionLabels
               title={
-                <Badge
+                <BadgeShell
                   onClick={(e) => {
                     e.stopPropagation();
                     props.index === 0
                       ? props.setCurrentPromptVersion(undefined)
                       : props.setCurrentPromptVersion(prompt.version);
                   }}
-                  variant="outline"
-                  className="bg-background/50 h-6 shrink-0"
+                  font="mono"
+                  size="md"
                   data-version-trigger="false"
                 >
                   # {prompt.version}
-                </Badge>
+                </BadgeShell>
               }
               promptLabels={prompt.labels}
               prompt={prompt}
@@ -157,19 +158,23 @@ const PromptHistoryTraceNode = (props: {
                     isHovered ||
                     props.currentPromptVersion === prompt.version ||
                     isOpen ? (
-                      <Button
-                        variant="outline"
-                        type="button"
-                        size="icon"
-                        className="h-7 w-7 px-0"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openDialog();
-                        }}
-                        title="Compare with selected prompt"
+                      <Tooltip
+                        label="Compare with selected prompt"
+                        hoverableContent={false}
                       >
-                        <FileDiffIcon className="icon-base text-icon-foreground" />
-                      </Button>
+                        {({ getTriggerProps }) => (
+                          <IconButton
+                            {...getTriggerProps()}
+                            icon={FileDiffIcon}
+                            label="Compare with selected prompt"
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDialog();
+                            }}
+                          />
+                        )}
+                      </Tooltip>
                     ) : null
                   }
                 </DialogController>

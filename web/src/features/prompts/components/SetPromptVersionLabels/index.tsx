@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Input } from "@/src/components/ui/input";
 import {
   InputCommand,
@@ -185,17 +187,24 @@ export function SetPromptVersionLabels({
               maxVisibleLabels={maxVisibleLabels}
             />
           )}
-          <Button
-            variant="outline"
-            title="Add prompt label"
+          <span
             className={cn(
-              "bg-muted-gray text-primary h-6 w-6",
+              "inline-flex",
               showOnlyOnHover && "opacity-0 group-hover:opacity-100",
               !hasAccess && "cursor-not-allowed group-hover:opacity-50",
             )}
           >
-            <CircleFadingArrowUp className="icon-base text-icon-foreground shrink-0" />
-          </Button>
+            <Tooltip label="Add prompt label" hoverableContent={false}>
+              {({ getTriggerProps }) => (
+                <IconButton
+                  {...getTriggerProps()}
+                  icon={CircleFadingArrowUp}
+                  label="Add prompt label"
+                  size="sm"
+                />
+              )}
+            </Tooltip>
+          </span>
         </div>
       </PopoverTrigger>
       <PopoverContent

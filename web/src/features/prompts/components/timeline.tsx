@@ -42,7 +42,7 @@ export function TimelineItem({
       ref={ref}
       className={cn(
         "group relative mb-2 flex w-full cursor-pointer flex-col gap-1 rounded-sm p-2",
-        isActive ? "bg-muted" : "hover:bg-muted/50",
+        isActive ? "bg-muted text-foreground" : "hover:bg-muted/50",
         className,
       )}
       onClick={onClick}
