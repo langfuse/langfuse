@@ -2136,6 +2136,7 @@ export const getNumericScoreHistogram = async (
     query,
     params: input.params,
     tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
 };
 
