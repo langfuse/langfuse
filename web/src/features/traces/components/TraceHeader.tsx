@@ -1,9 +1,12 @@
+import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { TagButton } from "@/src/features/tag";
 import {
   SessionBadge,
@@ -15,6 +18,7 @@ import {
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -22,9 +26,46 @@ import { cn } from "@/src/utils/tailwind";
 
 const MAX_VISIBLE_TAGS = 3;
 
-export function TraceHeader() {
-  const { trace, observations, mergedScores } = useTraceData();
+const LOADING_BADGE_WIDTHS = ["w-16", "w-14", "w-24", "w-20", "w-40"];
+
+export function TraceHeader({ isLoading = false }: { isLoading?: boolean }) {
+  if (isLoading) return <TraceHeaderLoading />;
+  return <LoadedTraceHeader />;
+}
+
+function TraceHeaderFrame({ children }: { children: ReactNode }) {
   const { traceContext } = useViewPreferences();
+  return (
+    <div
+      className={cn(
+        "shrink-0 border-b",
+        traceContext === "fullscreen" && "px-4 pt-1 pb-1.5",
+        // Peek's title bar already pads above, so no top padding here.
+        traceContext === "peek" && "pt-0 pr-2 pb-2 pl-4",
+        traceContext !== "fullscreen" && traceContext !== "peek" && "px-2 py-2",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TraceHeaderLoading() {
+  return (
+    <TraceHeaderFrame>
+      <CollapsibleBadgeRow>
+        {LOADING_BADGE_WIDTHS.map((width) => (
+          <BadgeShell key={width} color="ghost">
+            <Skeleton className={cn("h-3", width)} />
+          </BadgeShell>
+        ))}
+      </CollapsibleBadgeRow>
+    </TraceHeaderFrame>
+  );
+}
+
+function LoadedTraceHeader() {
+  const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
 
   const aggregatedMetrics = useMemo(
@@ -43,13 +84,8 @@ export function TraceHeader() {
   const hiddenTagCount = trace.tags.length - visibleTags.length;
 
   return (
-    <div
-      className={cn(
-        "shrink-0 border-b",
-        traceContext === "fullscreen" ? "px-3 pt-1 pb-1.5" : "px-2 py-2",
-      )}
-    >
-      <div className="flex flex-wrap items-center gap-4">
+    <TraceHeaderFrame>
+      <CollapsibleBadgeRow>
         {trace.latency != null && (
           <LatencyBadge latencySeconds={trace.latency} />
         )}
@@ -87,15 +123,11 @@ export function TraceHeader() {
               <TagButton key={tag} tag={tag} loading={false} viewOnly />
             ))}
             {hiddenTagCount > 0 && (
-              <Button
-                variant="tertiary"
-                size="icon-sm"
-                className="w-fit"
+              <OverflowCountBadge
+                count={hiddenTagCount}
                 aria-label={`Show ${hiddenTagCount} more tags`}
                 onClick={() => setShowAllTags(true)}
-              >
-                +{hiddenTagCount}
-              </Button>
+              />
             )}
             {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
               <Button
@@ -110,7 +142,7 @@ export function TraceHeader() {
             )}
           </div>
         )}
-      </div>
-    </div>
+      </CollapsibleBadgeRow>
+    </TraceHeaderFrame>
   );
 }

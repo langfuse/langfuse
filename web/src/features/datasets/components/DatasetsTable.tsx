@@ -134,6 +134,7 @@ function DatasetsMultiSelectActionMenu({
   const deleteManyMutation = api.datasets.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "dataset.bulk_delete",
         title: "Datasets deleted",
         description:
           "Selected datasets will be deleted. Associated run items and media links are cleaned up asynchronously.",

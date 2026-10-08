@@ -19,6 +19,7 @@ export function DeleteSsoConfigDialogController({
     onSuccess: () => {
       utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
+        operation: "sso.disable",
         title: "SSO disabled",
         description: `SSO for @${selectedDomain} has been removed.`,
       });

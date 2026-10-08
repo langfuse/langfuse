@@ -8,11 +8,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
 // Tool definition extracted from messages
@@ -117,21 +113,27 @@ function getStatusText(callCount: number) {
 }
 
 function ToolGroupHoverContent({
+  kind,
   tools,
   toolCallCounts,
   toolNameToDefinitionNumber,
 }: {
+  kind: ToolGroupKind;
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolNameToDefinitionNumber?: Map<string, number>;
 }) {
+  const isNotCalledGroup = kind !== "called";
   return (
-    <HoverCardContent
-      side="bottom"
-      align="start"
-      sideOffset={6}
-      className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-    >
+    <>
+      {isNotCalledGroup && (
+        <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
+          <span className="text-foreground text-sm font-bold">Not called</span>
+          <span className="text-foreground-tertiary font-mono text-xs">
+            {tools.length} {tools.length === 1 ? "tool" : "tools"}
+          </span>
+        </div>
+      )}
       <div className="flex flex-col gap-1 p-2">
         {tools.map((tool, index) => {
           const callCount = toolCallCounts.get(tool.name) ?? 0;
@@ -147,7 +149,10 @@ function ToolGroupHoverContent({
               <div className="flex min-w-0 items-center gap-2">
                 <Wrench className="text-muted-foreground icon-base shrink-0" />
                 <span
-                  className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
+                  className={cn(
+                    "ph-no-capture text-foreground block truncate text-sm",
+                    !isNotCalledGroup && "font-bold",
+                  )}
                   title={tool.name}
                 >
                   {toolDefinitionNumber !== undefined && (
@@ -156,21 +161,23 @@ function ToolGroupHoverContent({
                   {tool.name}
                 </span>
               </div>
-              <Badge
-                variant={callCount > 0 ? undefined : "secondary"}
-                className={cn(
-                  "shrink-0 text-xs font-bold",
-                  callCount > 0 &&
-                    "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-                )}
-              >
-                {getStatusText(callCount)}
-              </Badge>
+              {!isNotCalledGroup && (
+                <Badge
+                  variant={callCount > 0 ? undefined : "secondary"}
+                  className={cn(
+                    "shrink-0 text-xs font-bold",
+                    callCount > 0 &&
+                      "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+                  )}
+                >
+                  {getStatusText(callCount)}
+                </Badge>
+              )}
             </div>
           );
         })}
       </div>
-    </HoverCardContent>
+    </>
   );
 }
 
@@ -247,13 +254,25 @@ function ToolGroupSummary({
   }
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>{summaryButton}</HoverCardTrigger>
-      <ToolGroupHoverContent
-        tools={tools}
-        toolCallCounts={toolCallCounts}
-        toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-      />
+    <HoverCard
+      openDelay={200}
+      closeDelay={100}
+      placement="bottom-start"
+      sideOffset={6}
+      content={
+        <div className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto">
+          <ToolGroupHoverContent
+            kind={kind}
+            tools={tools}
+            toolCallCounts={toolCallCounts}
+            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+          />
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div {...getTriggerProps()}>{summaryButton}</div>
+      )}
     </HoverCard>
   );
 }
@@ -285,26 +304,30 @@ function ToolCallStatusBadge({
   }
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <div className="inline-flex">{badge}</div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        side="bottom"
-        align="end"
-        sideOffset={6}
-        className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-      >
-        <div className="border-border border-b px-3 py-2">
-          <div className="text-foreground text-xs font-bold">
-            Tool call arguments
+    <HoverCard
+      openDelay={200}
+      closeDelay={100}
+      placement="bottom-end"
+      sideOffset={6}
+      content={
+        <div className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto">
+          <div className="border-border border-b px-3 py-2">
+            <div className="text-foreground text-xs font-bold">
+              Tool call arguments
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
+            </div>
           </div>
-          <div className="text-muted-foreground text-xs">
-            {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
-          </div>
+          <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
         </div>
-        <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
-      </HoverCardContent>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div className="inline-flex" tabIndex={0} {...getTriggerProps()}>
+          {badge}
+        </div>
+      )}
     </HoverCard>
   );
 }
@@ -342,7 +365,7 @@ function ToolDefinitionRow({
         <div className="flex min-w-0 items-center gap-2">
           <Wrench className="text-muted-foreground icon-base shrink-0" />
           <span
-            className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
+            className="ph-no-capture text-foreground block truncate text-sm font-bold"
             title={tool.name}
           >
             {toolDefinitionNumber !== undefined && (
@@ -377,9 +400,9 @@ function ToolDefinitionRow({
                   setCurrentView(value as "formatted" | "json")
                 }
               >
-                <Tabs.List size="sm">
-                  <Tabs.Trigger value="formatted" size="sm" label="Formatted" />
-                  <Tabs.Trigger value="json" size="sm" label="Raw" />
+                <Tabs.List variant="inset" size="sm">
+                  <Tabs.Trigger value="formatted" label="Formatted" />
+                  <Tabs.Trigger value="json" label="Raw" />
                 </Tabs.List>
               </Tabs>
             </div>

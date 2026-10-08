@@ -62,6 +62,7 @@ export {
   addPrefixToScoreKeys,
   collectPresentScoreKeys,
   convertScoreColumnsToAnalyticsData,
+  getScoreDataTypeExplanation,
   getScoreDataTypeIcon,
   revealScoreColumns,
   scoreFilters,

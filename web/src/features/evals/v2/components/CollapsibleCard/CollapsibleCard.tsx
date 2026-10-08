@@ -32,11 +32,11 @@ export function CollapsibleCard({
     <>
       <ChevronDown
         className={cn(
-          "text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform",
+          "text-foreground-tertiary icon-base shrink-0 transition-transform",
           open ? "rotate-0" : "-rotate-90",
         )}
       />
-      <span className="flex min-w-0 flex-1 items-baseline gap-2">{header}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-2">{header}</span>
     </>
   );
 

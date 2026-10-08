@@ -13,6 +13,7 @@ import {
   writeProjectError,
 } from "@/src/features/public-api/server";
 
+/** handler deletes project keys for authorized organization credentials. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -61,7 +62,6 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Check if project exists and belongs to the organization
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
@@ -75,7 +75,6 @@ export default async function handler(
         .json({ message: "Project not found or you don't have access to it" });
     }
 
-    // Handle different HTTP methods
     switch (req.method) {
       case "DELETE":
         return await handleDeleteApiKey(
@@ -84,6 +83,7 @@ export default async function handler(
           projectId,
           apiKeyId,
           authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
         );
       default:
         res.status(405).json({ message: "Method Not Allowed" });

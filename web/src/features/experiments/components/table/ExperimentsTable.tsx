@@ -980,6 +980,7 @@ export default function ExperimentsTable({
           <StickySearchableTableFilterLayout
             search={
               <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
                 key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                 isV4={true}
                 filterState={queryFilter.searchBarFilterState}

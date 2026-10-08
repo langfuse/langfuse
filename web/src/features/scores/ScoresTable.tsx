@@ -343,6 +343,7 @@ export default function ScoresTable({
   const scoreDeleteMutation = api.scores.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "score.bulk_delete",
         title: "Scores deleted",
         description:
           "Selected scores will be deleted. Scores are removed asynchronously and may continue to be visible for up to 15 minutes.",
@@ -1159,6 +1160,7 @@ export default function ScoresTable({
 
   const scoresSearchBar = (
     <ScoresSearchBar
+      size={showControlsInPageHeader ? "large" : "default"}
       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
       isV4={isV4}
       projectId={projectId}

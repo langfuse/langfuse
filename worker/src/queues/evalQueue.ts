@@ -323,6 +323,11 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       return true;
     } catch (e) {
       const llmError = classifyEvaluatorLlmError(e);
+      // Media may still be uploading when evaluation starts after ingestion.
+      // Retry only this evaluator job instead of making the error globally retryable.
+      const isMediaNotFoundError =
+        llmError?.kind === "validation" &&
+        llmError.validationError?.code === "media-not-found";
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
@@ -355,7 +360,9 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         }
       }
 
-      const isTerminalError = Boolean(llmError) || isUnrecoverableError(e);
+      const isUnrecoverable = isUnrecoverableError(e);
+      const isTerminalError =
+        (Boolean(llmError) && !isMediaNotFoundError) || isUnrecoverable;
       const totalAttempts = job.opts.attempts ?? 1;
       const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
@@ -371,9 +378,10 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           data: {
             status: JobExecutionStatus.ERROR,
             endTime: new Date(),
-            error: isTerminalError
-              ? (llmError?.message ?? (e as Error).message)
-              : "An internal error occurred",
+            error:
+              llmError || isUnrecoverable
+                ? (llmError?.message ?? (e as Error).message)
+                : "An internal error occurred",
             executionTraceId,
           },
         });
@@ -383,7 +391,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      if (isTerminalError) return;
+      if (isTerminalError || (isMediaNotFoundError && isFinalAttempt)) return;
 
       traceException(e);
       logger.error(

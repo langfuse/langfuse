@@ -363,6 +363,7 @@ export function DatasetItemsTable({
   const isMobile = useMediaQuery({ query: "(max-width: 767.98px)" });
   const searchBar = (
     <TableSearchBar
+      size="large"
       key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
       projectId={projectId}
       tableName="dataset-items"

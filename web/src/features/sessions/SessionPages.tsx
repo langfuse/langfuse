@@ -1,8 +1,10 @@
+import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
+import { Spinner } from "@/src/components/layouts/spinner";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -323,8 +325,6 @@ const SessionScores = ({
   );
 };
 
-const HEADER_ACTION_CLASS =
-  "text-foreground-secondary hover:bg-accent hover:text-foreground-secondary";
 type SessionAnnotatePayload = AnnotateDrawerPayload<{
   type: "session";
   sessionId: string;
@@ -643,9 +643,9 @@ export const SessionPage: React.FC<{
                 {!router.query.peek && (
                   <DetailPageNav
                     key="nav"
-                    currentId={encodeURIComponent(sessionId)}
+                    currentId={sessionId}
                     path={(entry) =>
-                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                      `/project/${projectId}/sessions/${entry.id}`
                     }
                     listKey="sessions"
                   />
@@ -1044,24 +1044,26 @@ export const SessionEventsPage: React.FC<{
       />
     );
 
+  if (session.error && !session.data && !session.isFetching) {
+    return (
+      <ErrorPage
+        title="Failed to load session"
+        message="The session could not be loaded. Please try again."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => {
+            session.refetch();
+          },
+        }}
+      />
+    );
+  }
+
   if (!session.data) {
     return (
-      <Page
-        headerProps={{
-          title: sessionId,
-          itemType: "SESSION",
-          breadcrumb: [
-            {
-              name: "Sessions",
-              href: `/project/${projectId}/sessions`,
-            },
-          ],
-        }}
-      >
-        <div className="h-full p-4">
-          <JsonSkeleton className="h-full w-full" numRows={8} />
-        </div>
-      </Page>
+      <div className="bg-background fixed inset-0 z-50 flex">
+        <Spinner message="Loading" />
+      </div>
     );
   }
 
@@ -1722,7 +1724,7 @@ const LoadedSessionEventsPage: React.FC<{
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       {...getTriggerProps()}
                     >
                       <Plus
@@ -1743,7 +1745,7 @@ const LoadedSessionEventsPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       onClick={() =>
                         openDrawer({
                           scoreTarget: { type: "session", sessionId },
@@ -1763,9 +1765,9 @@ const LoadedSessionEventsPage: React.FC<{
                       {disabled ? (
                         <LockIcon className="icon-base text-icon-foreground" />
                       ) : (
-                        <Plus className="icon-base text-icon-foreground" />
+                        <SquarePen className="icon-base text-icon-foreground" />
                       )}
-                      Score
+                      Annotate
                       {isModernSessionEnabled && annotationCount > 0 ? (
                         <ActionButtonCountBadge count={annotationCount} />
                       ) : null}
@@ -1783,7 +1785,7 @@ const LoadedSessionEventsPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       onClick={() =>
                         openDrawer({
                           type: "comments",
@@ -1819,9 +1821,9 @@ const LoadedSessionEventsPage: React.FC<{
                 {!router.query.peek && (
                   <DetailPageNav
                     key="nav"
-                    currentId={encodeURIComponent(sessionId)}
+                    currentId={sessionId}
                     path={(entry) =>
-                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                      `/project/${projectId}/sessions/${entry.id}`
                     }
                     listKey="sessions"
                     compact

@@ -188,6 +188,7 @@ async function runImport(params: {
     params.onImport(result.snapshot);
 
     showSuccessToast({
+      operation: "widget.import",
       title: "Widget uploaded successfully",
       description: "Widget configuration has been loaded.",
     });

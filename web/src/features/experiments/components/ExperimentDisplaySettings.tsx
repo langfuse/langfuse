@@ -97,7 +97,7 @@ export function ExperimentDisplaySettings({
           selected={layout === "matrix"}
           onSelect={() => onLayoutChange("matrix")}
         >
-          AVG scores across runs
+          Score matrix: scores as rows, runs as columns
         </OptionItem>
 
         <DropdownMenuSeparator />
