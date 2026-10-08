@@ -1,5 +1,11 @@
-/* eslint-disable no-nested-ternary */
+import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
+import { groupScoresByName } from "@/src/components/grouped-score-badge";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import {
+  formatMetricCost,
+  formatMetricTokens,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+/* eslint-disable no-nested-ternary */
 import { type ScoreDomain } from "@langfuse/shared";
 import { Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
@@ -28,11 +34,7 @@ import {
 } from "@/src/components/ui/popover";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import {
-  compactNumberFormatter,
-  numberFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { numberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
@@ -68,9 +70,6 @@ type SessionHeaderDetail = {
 const ChipKey = ({ children }: { children: React.ReactNode }) => (
   <span>{children}</span>
 );
-
-const compactTokenFormatter = (tokens: number) =>
-  compactNumberFormatter(tokens, 0).toLowerCase();
 
 const scoreChipValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
@@ -342,20 +341,22 @@ export function ModernSessionHeader({
     ),
   });
 
-  pills.push({
-    key: "cost",
-    searchText: `cost ${totalCost}`,
-    type: "cost",
-    content: (
-      <Badge
-        font="mono"
-        color="ghost"
-        data-session-header-pill="true"
-        text={usdFormatter(totalCost, 2, 3)}
-        title={`exact $${totalCost.toFixed(6)}`}
-      />
-    ),
-  });
+  if (totalCost > 0) {
+    pills.push({
+      key: "cost",
+      searchText: `cost ${totalCost}`,
+      type: "cost",
+      content: (
+        <Badge
+          font="mono"
+          color="ghost"
+          data-session-header-pill="true"
+          text={formatMetricCost(totalCost)}
+          title={`exact $${totalCost.toFixed(6)}`}
+        />
+      ),
+    });
+  }
 
   if (totalTokens > 0) {
     pills.push({
@@ -372,7 +373,7 @@ export function ModernSessionHeader({
             color="ghost"
             interactive
             data-session-header-pill="true"
-            text={`${compactTokenFormatter(totalTokens)} tokens`}
+            text={formatMetricTokens(totalTokens)}
           />
         </BreakdownTooltip>
       ),
@@ -399,14 +400,16 @@ export function ModernSessionHeader({
     (detail) => !visibleUserDetailKeySet.has(detail.key),
   );
 
-  scores.forEach((score) => {
+  Object.entries(groupScoresByName([...scores])).forEach(([name, group]) => {
     pills.push({
-      key: `score-${score.id}`,
-      searchText: `score ${score.name} ${scoreChipValue(score)}`,
+      key: `score-${name}`,
+      searchText: group
+        .map((score) => `score ${score.name} ${scoreChipValue(score)}`)
+        .join(" "),
       type: "score",
       content: (
         <span data-session-header-pill="true" className="inline-flex min-w-0">
-          <ScoreBadge name={score.name} scores={[score]} />
+          <ScoreBadge name={name} scores={group} />
         </span>
       ),
     });
@@ -490,14 +493,11 @@ export function ModernSessionHeader({
               }}
             >
               <PopoverTrigger asChild>
-                <BadgeShell font="mono" asChild data-session-header-pill="true">
-                  <button
-                    type="button"
-                    aria-label={`Show ${overflowItemCount} more session details`}
-                  >
-                    +{overflowItemCount}
-                  </button>
-                </BadgeShell>
+                <OverflowCountBadge
+                  count={overflowItemCount}
+                  data-session-header-pill="true"
+                  aria-label={`Show ${overflowItemCount} more session details`}
+                />
               </PopoverTrigger>
               <PopoverContent
                 align="end"

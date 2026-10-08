@@ -1875,6 +1875,7 @@ export default function ObservationsEventsTable({
                 searchBarMode ? (
                   <div className="flex min-w-0 flex-col gap-2">
                     <EventsSearchBarRow
+                      size={showControlsInPageHeader ? "large" : "default"}
                       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                       registry={searchRegistry}
                       projectId={projectId}
@@ -2008,6 +2009,7 @@ export default function ObservationsEventsTable({
               <div className="flex min-w-0 items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <EventsSearchBarRow
+                    size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
                     projectId={projectId}

@@ -443,6 +443,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={queryFilter.draftResetKey}
               projectId={projectId}
               tableName={evaluatorFilterConfig.tableName}
