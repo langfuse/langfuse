@@ -560,6 +560,8 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
 | --surface-sunken                 | Off-white panel behind detail content (99%, lighter than zinc-50)  | Trace detail panel, nav sidebar  |
 | --surface-output                 | Background of output blocks in the trace preview (zinc-100)        | IOPreview, MarkdownViewer, CodeView |
+| --badge-border                   | Outline badge border; a step stronger than --border in dark        | BadgeShell (primary)             |
+| --line-dotted                    | Dotted connector lines; dimmed in dark                             | dotted-line-y, prompt timeline   |
 | --surface                        | Sticky table chrome fill; follows --surface-context                | Table headers, footers           |
 | --observation-<type>-line        | Observation type colour for stroked icons and borders              | ItemTypeIcon, graph nodes        |
 | --observation-<type>-fill        | Observation type colour for fills under white icons                | ItemTypeTile, timeline bars      |

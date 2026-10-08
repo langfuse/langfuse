@@ -17,7 +17,7 @@ const badgeVariants = cva(
         sm: "h-4.5 gap-1 px-1.5",
       },
       color: {
-        primary: "border-border bg-transparent text-foreground-secondary",
+        primary: "border-badge-border bg-transparent text-foreground-secondary",
         red: "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
         yellow:
           "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
