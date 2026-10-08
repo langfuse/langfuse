@@ -156,6 +156,86 @@ describe(
       }),
     ])("preserves raw provider field semantics: %s", expectMediaParity);
 
+    it("extracts media from SDK JSON-string-wrapped OTLP metadata", async () => {
+      const providerBody = Buffer.from("provider attachment ".repeat(256));
+      const uriMetadata = JSON.stringify({ image: MEDIA_URI });
+      const rawUriMetadata = MEDIA_URI;
+      const providerMetadata = JSON.stringify({
+        type: "file",
+        mediaType: "image/png",
+        data: providerBody.toString("base64"),
+      });
+      const input = JSON.stringify({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    attributes: [
+                      {
+                        key: "metadata.attachment",
+                        value: { stringValue: JSON.stringify(uriMetadata) },
+                      },
+                      {
+                        key: "metadata.raw-attachment",
+                        value: { stringValue: JSON.stringify(rawUriMetadata) },
+                      },
+                      {
+                        key: "metadata.provider",
+                        value: { stringValue: JSON.stringify(providerMetadata) },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      const original = JSON.parse(input) as unknown;
+      const validated = await validateOtelJson(Buffer.from(input));
+      const batch = await validated.extract(true);
+      try {
+        expect(batch.media).toHaveLength(3);
+        expect(batch.media.map((media) => media.contentType)).toEqual([
+          "image/png",
+          "image/png",
+          "image/png",
+        ]);
+        await expect(batch.mediaBody(0)).resolves.toEqual(MEDIA_BODY);
+        await expect(batch.mediaBody(1)).resolves.toEqual(MEDIA_BODY);
+        await expect(batch.mediaBody(2)).resolves.toEqual(providerBody);
+
+        const compact = JSON.parse(batch.json()) as {
+          resourceSpans: Array<{
+            scopeSpans: Array<{
+              spans: Array<{
+                attributes: Array<{ value: { stringValue: string } }>;
+              }>;
+            }>;
+          }>;
+        };
+        const attributes = compact.resourceSpans[0]!.scopeSpans[0]!.spans[0]!
+          .attributes;
+        expect(JSON.parse(JSON.parse(attributes[0]!.value.stringValue))).toEqual({
+          image: batch.media[0]!.reference,
+        });
+        expect(JSON.parse(attributes[1]!.value.stringValue)).toBe(
+          batch.media[1]!.reference,
+        );
+        expect(
+          JSON.parse(JSON.parse(attributes[2]!.value.stringValue)),
+        ).toMatchObject({ data: batch.media[2]!.reference });
+        expect(canonicalizeNativeReferences(compact, batch.media)).toEqual(
+          original,
+        );
+      } finally {
+        await batch.dispose();
+        await validated.dispose();
+      }
+    });
+
     it.each(["data:malformed@", "data:broken ", "data:bad,", "data:"])(
       "finds a valid URI after %s",
       (prefix) =>

@@ -252,6 +252,55 @@ fn preserves_json_escaping_and_scans_nested_stringified_json() {
 }
 
 #[test]
+fn scans_sdk_json_string_wrappers_within_the_embedded_json_budget() {
+    let (uri, uri_body) = large_data_uri(b"sdk-uri");
+    let (provider_data, provider_body) = large_base64(b"sdk-provider");
+    let uri_metadata = format!(r#"{{"image":"{uri}"}}"#);
+    let provider_metadata = format!(
+        r#"{{"type":"file","mediaType":"image/png","data":"{provider_data}"}}"#
+    );
+    // The SDK JSON-encodes the metadata value, so stringValue contains a
+    // quoted JSON representation of either metadata JSON text or a raw string.
+    let uri_string_value = serde_json::to_string(&uri_metadata).unwrap();
+    let raw_uri_string_value = serde_json::to_string(&uri).unwrap();
+    let provider_string_value = serde_json::to_string(&provider_metadata).unwrap();
+    let input = serde_json::to_vec(&json!({
+        "resourceSpans": [{
+            "scopeSpans": [{
+                "spans": [{
+                    "attributes": [
+                        {
+                            "key": "metadata.attachment",
+                            "value": {"stringValue": uri_string_value}
+                        },
+                        {
+                            "key": "metadata.raw-attachment",
+                            "value": {"stringValue": raw_uri_string_value}
+                        },
+                        {
+                            "key": "metadata.provider",
+                            "value": {"stringValue": provider_string_value}
+                        }
+                    ]
+                }]
+            }]
+        }]
+    }))
+    .unwrap();
+
+    let result = extract_media(&input).expect("valid OTLP JSON");
+
+    assert_eq!(result.media.len(), 3);
+    assert_eq!(result.media[0].decode().unwrap(), uri_body);
+    assert_eq!(result.media[1].decode().unwrap(), uri_body);
+    assert_eq!(result.media[2].decode().unwrap(), provider_body);
+    let mut expected = String::from_utf8(input).unwrap();
+    expected = expected.replace(&uri, &result.media[0].reference());
+    expected = expected.replace(&provider_data, &result.media[2].reference());
+    assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
+}
+
+#[test]
 fn limits_embedded_documents_without_losing_uri_text_or_siblings() {
     let (provider_data, provider_body) = large_base64(b"provider");
     let (deep_uri, deep_body) = large_data_uri(b"at-limit");
