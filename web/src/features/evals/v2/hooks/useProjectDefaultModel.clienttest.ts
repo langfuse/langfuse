@@ -53,7 +53,7 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     llmApiKey: {
-      all: {
+      effective: {
         useQuery: () => ({
           data: { data: [] },
           isPending: false,

@@ -115,6 +115,36 @@ export class LlmConnectionRepository {
     };
   }
 
+  async listEffectiveForProject(params: {
+    projectId: string;
+    organizationId: string;
+    includeDecisionModels: boolean;
+  }): Promise<LlmApiKeys[]> {
+    const connections = await this.db.llmApiKeys.findMany({
+      where: {
+        OR: [
+          { projectId: params.projectId },
+          { organizationId: params.organizationId },
+        ],
+        ...(params.includeDecisionModels
+          ? {}
+          : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const projectProviders = new Set(
+      connections
+        .filter((connection) => connection.projectId === params.projectId)
+        .map((connection) => connection.provider),
+    );
+
+    return connections.filter(
+      (connection) =>
+        connection.projectId === params.projectId ||
+        !projectProviders.has(connection.provider),
+    );
+  }
+
   create(params: {
     owner: LlmConnectionOwner;
     data: Omit<

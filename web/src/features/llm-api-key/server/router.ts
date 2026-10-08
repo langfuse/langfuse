@@ -101,6 +101,29 @@ export const llmApiKeyRouter = createTRPCRouter({
       });
     }),
 
+  effective: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        includeDecisionModels: z.boolean().optional().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:read",
+      });
+      return new LlmConnectionService().listEffective({
+        owner: {
+          type: "project",
+          projectId: input.projectId,
+          organizationId: ctx.session.orgId,
+        },
+        includeDecisionModels: input.includeDecisionModels,
+      });
+    }),
+
   test: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {

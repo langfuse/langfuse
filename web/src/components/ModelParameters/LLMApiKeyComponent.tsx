@@ -24,7 +24,7 @@ export const LLMApiKeyComponent = (p: {
     );
   }
 
-  const apiKeys = api.llmApiKey.all.useQuery({
+  const apiKeys = api.llmApiKey.effective.useQuery({
     projectId: p.projectId,
   });
 

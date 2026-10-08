@@ -442,6 +442,19 @@ export class LlmConnectionService {
     }));
   }
 
+  async listEffective(params: {
+    owner: Extract<LlmConnectionOwner, { type: "project" }>;
+    includeDecisionModels?: boolean;
+  }): Promise<{ data: SafeLlmConnection[] }> {
+    const connections = await this.repository.listEffectiveForProject({
+      projectId: params.owner.projectId,
+      organizationId: params.owner.organizationId,
+      includeDecisionModels: params.includeDecisionModels ?? false,
+    });
+
+    return { data: connections.map(toSafeConnection) };
+  }
+
   async exists(params: {
     owner: LlmConnectionOwner;
     provider: string;
@@ -601,7 +614,7 @@ export class LlmConnectionService {
     if (extraHeaders) {
       encryptedExtraHeaders = encrypt(JSON.stringify(extraHeaders));
       extraHeaderKeys = Object.keys(extraHeaders);
-    } else if (isBaseURLChanged) {
+    } else if (isBaseURLChanged || params.input.extraHeaders !== undefined) {
       encryptedExtraHeaders = null;
       extraHeaderKeys = [];
     }
@@ -753,6 +766,11 @@ export class LlmConnectionService {
           defaultModel?.provider === connection.provider
             ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
             : EMPTY_EVALUATOR_BLOCK;
+        if (defaultModel?.provider === connection.provider) {
+          await tx.defaultLlmModel.deleteMany({
+            where: { projectId, provider: connection.provider },
+          });
+        }
         results.push({ projectId, providerBlock, defaultModelBlock });
       }
 

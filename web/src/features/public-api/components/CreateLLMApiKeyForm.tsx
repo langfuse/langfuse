@@ -673,16 +673,18 @@ export function CreateLLMApiKeyForm({
           : undefined;
     }
 
-    const extraHeaders =
-      values.extraHeaders.length > 0
-        ? values.extraHeaders.reduce(
-            (acc, header) => {
-              acc[header.key] = header.value ?? "";
-              return acc;
-            },
-            {} as Record<string, string>,
-          )
-        : undefined;
+    let extraHeaders: Record<string, string> | undefined;
+    if (values.extraHeaders.length > 0) {
+      extraHeaders = values.extraHeaders.reduce<Record<string, string>>(
+        (headers, header) => {
+          headers[header.key] = header.value ?? "";
+          return headers;
+        },
+        {},
+      );
+    } else if (mode === "update") {
+      extraHeaders = {};
+    }
 
     const connectionInput = {
       id: existingKey?.id ?? "",
@@ -705,26 +707,20 @@ export function CreateLLMApiKeyForm({
     };
 
     try {
-      const testResult =
-        owner.scope === "project"
-          ? mode === "create"
-            ? await mutTestLLMApiKey.mutateAsync({
-                ...connectionInput,
-                projectId: owner.projectId,
-              })
-            : await mutTestUpdateLLMApiKey.mutateAsync({
-                ...connectionInput,
-                projectId: owner.projectId,
-              })
-          : mode === "create"
-            ? await mutTestOrganizationLlmApiKey.mutateAsync({
-                ...connectionInput,
-                orgId: owner.organizationId,
-              })
-            : await mutTestUpdateOrganizationLlmApiKey.mutateAsync({
-                ...connectionInput,
-                orgId: owner.organizationId,
-              });
+      let testResult;
+      if (owner.scope === "project") {
+        const input = { ...connectionInput, projectId: owner.projectId };
+        testResult =
+          mode === "create"
+            ? await mutTestLLMApiKey.mutateAsync(input)
+            : await mutTestUpdateLLMApiKey.mutateAsync(input);
+      } else {
+        const input = { ...connectionInput, orgId: owner.organizationId };
+        testResult =
+          mode === "create"
+            ? await mutTestOrganizationLlmApiKey.mutateAsync(input)
+            : await mutTestUpdateOrganizationLlmApiKey.mutateAsync(input);
+      }
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
@@ -739,26 +735,20 @@ export function CreateLLMApiKeyForm({
       return;
     }
 
-    const mutation =
-      owner.scope === "project"
-        ? mode === "create"
-          ? mutCreateLlmApiKey.mutateAsync({
-              ...connectionInput,
-              projectId: owner.projectId,
-            })
-          : mutUpdateLlmApiKey.mutateAsync({
-              ...connectionInput,
-              projectId: owner.projectId,
-            })
-        : mode === "create"
-          ? mutCreateOrganizationLlmApiKey.mutateAsync({
-              ...connectionInput,
-              orgId: owner.organizationId,
-            })
-          : mutUpdateOrganizationLlmApiKey.mutateAsync({
-              ...connectionInput,
-              orgId: owner.organizationId,
-            });
+    let mutation;
+    if (owner.scope === "project") {
+      const input = { ...connectionInput, projectId: owner.projectId };
+      mutation =
+        mode === "create"
+          ? mutCreateLlmApiKey.mutateAsync(input)
+          : mutUpdateLlmApiKey.mutateAsync(input);
+    } else {
+      const input = { ...connectionInput, orgId: owner.organizationId };
+      mutation =
+        mode === "create"
+          ? mutCreateOrganizationLlmApiKey.mutateAsync(input)
+          : mutUpdateOrganizationLlmApiKey.mutateAsync(input);
+    }
 
     return mutation
       .then(() => {
