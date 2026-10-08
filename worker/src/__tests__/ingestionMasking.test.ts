@@ -371,9 +371,9 @@ describe("Ingestion Masking", () => {
           expect(await batch!.mediaBody(0)).toEqual(
             accepted ? maskedMediaBody : originalMediaBody,
           );
-          expect(JSON.parse(batch!.json()).input).toBe(
-            batch!.media[0].reference,
-          );
+          expect(
+            JSON.parse(batch!.takeJsonBuffer().toString("utf8")).input,
+          ).toBe(batch!.media[0].reference);
           expectPreparationMetrics("native", true);
         } finally {
           await prepared?.batch?.dispose();
@@ -422,7 +422,9 @@ describe("Ingestion Masking", () => {
           expect(Buffer.from(body as Uint8Array)).toEqual(sanitized);
           expect(fetch).toHaveBeenCalledTimes(1);
           const batch = prepared.batch!;
-          expect(JSON.parse(batch.json())[0].note).toBe("��");
+          expect(
+            JSON.parse(batch.takeJsonBuffer().toString("utf8"))[0].note,
+          ).toBe("��");
           expect(batch.media).toHaveLength(1);
           expect(await batch.mediaBody(0)).toEqual(mediaBody);
           expectPreparationMetrics("native", true);
@@ -451,9 +453,9 @@ describe("Ingestion Masking", () => {
         } else {
           const prepared = await preparation;
           try {
-            expect(JSON.parse(prepared.batch!.json())).toEqual([
-              { input: "\ud800" },
-            ]);
+            expect(
+              JSON.parse(prepared.batch!.takeJsonBuffer().toString("utf8")),
+            ).toEqual([{ input: "\ud800" }]);
           } finally {
             await prepared.batch?.dispose();
           }

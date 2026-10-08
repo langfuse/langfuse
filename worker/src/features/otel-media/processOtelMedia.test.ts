@@ -336,7 +336,7 @@ describe("processOtelEventMedia", () => {
     );
     const batch = await validated.extract(true);
     try {
-      const payload = JSON.parse(batch.json());
+      const payload = JSON.parse(batch.takeJsonBuffer().toString("utf8"));
       expect(payload.input).not.toBe(original.input);
       await processOtelEventMedia({
         earlyBatch: batch,
@@ -694,7 +694,7 @@ describe("processOtelEventMedia", () => {
       const target = {
         traceId: "trace-id",
         spanId: "observation-id",
-        input: JSON.parse(batch.json()),
+        input: JSON.parse(batch.takeJsonBuffer().toString("utf8")),
       };
       const result = await resolveExtractedMedia({
         batch,
@@ -789,7 +789,7 @@ describe("processOtelEventMedia", () => {
       const batch = await validated.extract(true);
       try {
         expect(batch.media).toHaveLength(1);
-        const target = JSON.parse(batch.json()) as {
+        const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
           input: string | { nested: string };
         };
         const input = target.input;
@@ -844,7 +844,9 @@ describe("processOtelEventMedia", () => {
     const batch = await validated.extract(true);
     try {
       expect(batch.media).toHaveLength(1);
-      const target = JSON.parse(batch.json()) as { input: string };
+      const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
+        input: string;
+      };
 
       await resolveExtractedMedia({
         batch,
@@ -883,7 +885,9 @@ describe("processOtelEventMedia", () => {
     );
     const batch = await validated.extract(true);
     try {
-      const target = JSON.parse(batch.json()) as { input: string };
+      const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
+        input: string;
+      };
       const references = batch.media.map((entry) => entry.reference);
       expect(references).toHaveLength(2);
 
@@ -1011,7 +1015,7 @@ describe("processOtelEventMedia", () => {
       const validated = await validateOtelJson(Buffer.from(source));
       const batch = await validated.extract(true);
       try {
-        const target = JSON.parse(batch.json()) as {
+        const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
           traceId: string;
           spanId: string;
           input: string;
