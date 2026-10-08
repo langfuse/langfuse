@@ -35,6 +35,7 @@ import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Tes
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { RuleSamplingSection } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleSamplingSection";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
@@ -77,6 +78,8 @@ export type ConfigureTopicsSaveDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   facets: FacetDraft[];
+  filters: FilterState;
+  sampling: number;
   idleSeconds: string;
 };
 
@@ -86,6 +89,8 @@ export type ConfigureTopicsDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   facets: FacetDraft[];
+  filters: FilterState;
+  sampling: number;
   idleSeconds: string;
   embeddingLocked: boolean;
 };
@@ -193,6 +198,15 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const [facets, setFacets] = useState(draft.facets);
   const [browsing, setBrowsing] = useState(facets[0]?.id ?? ADD_FACET_TAB);
   const [idleSeconds, setIdleSeconds] = useState(draft.idleSeconds);
+  const [filters, setFilters] = useState(draft.filters);
+  const [samplingStore] = useState(() =>
+    createRuleSetupStore({
+      name: "",
+      filter: [],
+      sampling: draft.sampling,
+      assignments: [],
+    }),
+  );
   const modelsReady = Boolean(summary && embedding && clustering);
   const enabledFacets = facets.filter((facet) => facet.enabled);
   const testsReady =
@@ -262,6 +276,8 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   embeddingDimensions: dimensions,
                   clustering,
                   facets,
+                  filters,
+                  sampling: samplingStore.getState().sampling,
                   idleSeconds,
                 }),
               )
@@ -377,7 +393,14 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                     considering the trace done and summarizing it.
                   </p>
                 </div>
-                {sampleScope ? <RuleScope projectId={projectId} /> : null}
+                {sampleScope ? (
+                  <RuleScope
+                    projectId={projectId}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    samplingStore={samplingStore}
+                  />
+                ) : null}
               </Stepper>
             </div>
             {saveError ? (
@@ -709,25 +732,69 @@ function previewStatus(
   return null;
 }
 
-function RuleScope({ projectId }: { projectId?: string }) {
-  if (!projectId) return <SampleTraceScope />;
-  return <ProjectTraceScope projectId={projectId} />;
+function RuleScope({
+  projectId,
+  filters,
+  onFiltersChange,
+  samplingStore,
+}: {
+  projectId?: string;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+  samplingStore: RuleSetupStore;
+}) {
+  if (!projectId)
+    return (
+      <SampleTraceScope
+        filters={filters}
+        onFiltersChange={onFiltersChange}
+        samplingStore={samplingStore}
+      />
+    );
+  return (
+    <ProjectTraceScope
+      projectId={projectId}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+      samplingStore={samplingStore}
+    />
+  );
 }
 
-function SampleTraceScope() {
+function SampleTraceScope({
+  filters,
+  onFiltersChange,
+  samplingStore,
+}: {
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+  samplingStore: RuleSetupStore;
+}) {
   return (
     <TraceScopeFrame
       projectId={undefined}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+      samplingStore={samplingStore}
       countLabel="Sample"
       rows={SAMPLE_TRACES_IN_SCOPE}
     />
   );
 }
 
-function ProjectTraceScope({ projectId }: { projectId: string }) {
+function ProjectTraceScope({
+  projectId,
+  filters,
+  onFiltersChange,
+  samplingStore,
+}: {
+  projectId: string;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+  samplingStore: RuleSetupStore;
+}) {
   const [range] = useState(() => relativeTopicTimeRange(7));
   const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
-  const [filters, setFilters] = useState<FilterState>([]);
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [searchType, setSearchType] = useState<TracingSearchType[]>([]);
   const startTimeFilter = useMemo<TimeFilter[]>(
@@ -855,7 +922,8 @@ function ProjectTraceScope({ projectId }: { projectId: string }) {
       status={status}
       searchType={searchType}
       onModeChange={setMode}
-      onFiltersChange={setFilters}
+      onFiltersChange={onFiltersChange}
+      samplingStore={samplingStore}
       onSearchQueryChange={setSearchQuery}
       onSearchTypeChange={setSearchType}
     />
@@ -877,6 +945,7 @@ function TraceScopeFrame({
   tooltip,
   rows,
   status,
+  samplingStore,
   onModeChange,
   onFiltersChange,
   onSearchQueryChange,
@@ -902,6 +971,7 @@ function TraceScopeFrame({
     input: string;
   }>;
   status?: string | null;
+  samplingStore: RuleSetupStore;
   onModeChange?: (mode: EvaluatorFilterExperience) => void;
   onFiltersChange?: (filters: FilterState) => void;
   onSearchQueryChange?: (query: string | null) => void;
@@ -922,14 +992,6 @@ function TraceScopeFrame({
   const setFilters = onFiltersChange ?? setLocalFilters;
   const setSearchQuery = onSearchQueryChange ?? setLocalSearchQuery;
   const setSearchType = onSearchTypeChange ?? setLocalSearchType;
-  const [samplingStore] = useState(() =>
-    createRuleSetupStore({
-      name: "",
-      filter: [],
-      sampling: 1,
-      assignments: [],
-    }),
-  );
   const search = useEventsSearchBar({
     projectId,
     tableName: "topics-setup",
@@ -1043,7 +1105,11 @@ function TraceScopeFrame({
           </table>
         </div>
       </section>
-      <RuleSamplingSection store={samplingStore} />
+      <RuleSamplingSection
+        store={samplingStore}
+        description="Set the percentage of matching traces Topics processes."
+        tooltip="Topics processes this share of the traces that match the filter. A lower rate processes fewer traces."
+      />
     </div>
   );
 }

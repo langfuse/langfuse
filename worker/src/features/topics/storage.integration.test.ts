@@ -150,6 +150,14 @@ describe("Topics eval-backed configuration", () => {
       facetIds: [facet.id, facet.id],
     });
     expect(rule.facetIds).toEqual([facet.id]);
+    await expect(
+      saveTopicRule({
+        projectId,
+        name: "Second selection",
+        filter: [],
+        facetIds: [facet.id],
+      }),
+    ).rejects.toThrow(/already has a Topics rule/);
     expect(
       await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
     ).toMatchObject({

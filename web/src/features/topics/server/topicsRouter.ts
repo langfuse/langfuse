@@ -11,6 +11,7 @@ import {
   topicRuleConfigSchema,
   topicTimeRangeSchema,
   topicsModelSettingsSchema,
+  topicsSetupSchema,
   type TopicTimeRange,
   type TopicExecutionSummary,
   type TopicFacetRef,
@@ -41,6 +42,7 @@ import {
   readTopicsModelSettings,
   checkTopicsModelSettings,
   saveTopicsModelSettings,
+  saveTopicsSetup,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "@langfuse/shared/topics/server";
@@ -334,6 +336,11 @@ export const topicsRouter = createTRPCRouter({
     .input(topicsModelSettingsSchema.extend({ projectId: topicIdSchema }))
     .mutation(({ input: { projectId, ...settings } }) =>
       saveTopicsModelSettings(projectId, settings),
+    ),
+  saveSetup: topicsWriteProcedure
+    .input(topicsSetupSchema.extend({ projectId: topicIdSchema }))
+    .mutation(({ input: { projectId, ...setup } }) =>
+      saveTopicsSetup(projectId, setup),
     ),
   summaryCounts: topicsProcedure
     .input(

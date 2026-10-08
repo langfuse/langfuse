@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { DEFAULT_TOPIC_FACETS } from "./default-facets";
+
+export { DEFAULT_TOPIC_FACETS };
 
 export const topicIdSchema = z
   .string()
@@ -100,7 +103,46 @@ export const topicTraceSelectionSnapshotSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
     excludedTraceIds: z.array(topicTraceIdSchema).default([]),
   });
-export type TopicRule = z.infer<typeof topicRuleConfigSchema> & {
+export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
+  sampling: z.number().min(0).max(1).default(1),
+  idleTimeMs: z.number().int().min(0).max(86_400_000).nullable().default(null),
+});
+
+export const topicsSetupSchema = topicsModelSettingsSchema.extend({
+  facets: z
+    .array(
+      z.object({
+        name: z.string(),
+        enabled: z.boolean(),
+      }),
+    )
+    .superRefine((facets, ctx) => {
+      const expected = DEFAULT_TOPIC_FACETS.map((facet) => facet.name);
+      const names = facets.map((facet) => facet.name);
+      if (
+        names.length !== expected.length ||
+        new Set(names).size !== names.length ||
+        expected.some((name) => !names.includes(name))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Include each built-in facet once.",
+        });
+      }
+      if (!facets.some((facet) => facet.enabled)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Turn on at least one facet.",
+        });
+      }
+    }),
+  filter: topicRuleConfigSchema.shape.filter,
+  sampling: z.number().min(0).max(1),
+  idleSeconds: z.number().int().min(0).max(86_400),
+});
+export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
+
+export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   id: string;
   projectId: string;
   name: string;

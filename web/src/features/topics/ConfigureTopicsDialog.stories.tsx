@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import {
@@ -38,6 +38,8 @@ const emptyDraft = {
   embeddingDimensions: "1024",
   clustering: null,
   facets: builtInFacets,
+  filters: [],
+  sampling: 1,
   idleSeconds: "600",
   embeddingLocked: false,
 } satisfies ConfigureTopicsDraft;
@@ -58,6 +60,10 @@ const filledDraft = {
     },
   ],
   idleSeconds: "600",
+  filters: [
+    { column: "name", type: "string", operator: "=", value: "billing" },
+  ],
+  sampling: 0.4,
   embeddingLocked: true,
 } satisfies ConfigureTopicsDraft;
 
@@ -87,6 +93,38 @@ export const Configured = meta.story({
     defaultOpen: true,
     notice: "none",
     triggerVariant: "secondary",
+  },
+});
+
+export const SavesTheSheet = meta.story({
+  name: "(Test) Save sends facets, filter, idle time, and sampling",
+  args: {
+    draft: filledDraft,
+    defaultOpen: true,
+    notice: "none",
+    triggerVariant: "secondary",
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const idle = body.getByRole("spinbutton", {
+      name: "Seconds to wait after the last observation",
+    });
+    await userEvent.clear(idle);
+    await userEvent.type(idle, "90");
+    await userEvent.click(body.getByRole("tab", { name: "Outcome" }));
+    await userEvent.click(body.getByRole("switch", { name: "Enable Outcome" }));
+    await userEvent.click(body.getByRole("button", { name: "Save" }));
+    await expect(args.onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idleSeconds: "90",
+        sampling: 0.4,
+        filters: filledDraft.filters,
+        facets: expect.arrayContaining([
+          expect.objectContaining({ name: "Intent", enabled: true }),
+          expect.objectContaining({ name: "Outcome", enabled: false }),
+        ]),
+      }),
+    );
   },
 });
 

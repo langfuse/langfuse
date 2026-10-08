@@ -10,8 +10,10 @@ import {
   supportedModels,
 } from "@langfuse/shared";
 import {
+  DEFAULT_TOPIC_FACETS,
   topicsModelSettingsSchema,
   type TopicFacet,
+  type TopicRule,
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 import {
@@ -19,8 +21,7 @@ import {
   type ConfigureTopicsSaveDraft,
   type TopicSlotCheck,
 } from "./ConfigureTopicsDialog";
-
-const MAX_ENABLED_FACETS = 5;
+import { topicsSetupPayload } from "./topics-setup";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 type Connection = RouterOutputs["llmApiKey"]["all"]["data"][number];
@@ -31,12 +32,15 @@ export function useTopicModelSettings({
   projectId,
   canWrite,
   facets,
+  facetsReady,
 }: {
   projectId: string;
   canWrite: boolean;
   facets: TopicFacet[];
+  facetsReady: boolean;
 }) {
   const settings = api.topics.modelSettings.useQuery({ projectId });
+  const rules = api.topics.rules.useQuery({ projectId });
   const connections = api.llmApiKey.all.useQuery({ projectId });
   const configured = Boolean(
     settings.data?.summary &&
@@ -68,15 +72,19 @@ export function useTopicModelSettings({
       </Alert>
     );
 
-  const ready = Boolean(settings.data && connections.data);
+  const ready = Boolean(
+    settings.data && connections.data && rules.isSuccess && facetsReady,
+  );
+  const rule = rules.data?.length === 1 ? rules.data[0] : null;
   const action = ready ? (
     <ConfigureTopicsSettings
-      key={settings.dataUpdatedAt}
+      key={`${settings.dataUpdatedAt}-${rules.dataUpdatedAt}`}
       projectId={projectId}
       canWrite={canWrite}
       stored={settings.data!}
       connections={connections.data!.data}
       facets={facets}
+      rule={rule}
     />
   ) : (
     <ConfigureTopicsDialog
@@ -88,6 +96,8 @@ export function useTopicModelSettings({
         embeddingDimensions: "1024",
         clustering: null,
         facets: [],
+        filters: [],
+        sampling: 1,
         idleSeconds: "600",
         embeddingLocked: false,
       }}
@@ -110,12 +120,14 @@ function ConfigureTopicsSettings({
   stored,
   connections,
   facets,
+  rule,
 }: {
   projectId: string;
   canWrite: boolean;
   stored: StoredSettings;
   connections: Connection[];
   facets: TopicFacet[];
+  rule: TopicRule | null;
 }) {
   const utils = api.useUtils();
   const requests = useRef({ summary: 0, embedding: 0, clustering: 0 });
@@ -128,8 +140,12 @@ function ConfigureTopicsSettings({
   }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const test = api.topics.testModelSettings.useMutation();
-  const save = api.topics.saveModelSettings.useMutation({
-    onSuccess: () => utils.topics.modelSettings.invalidate({ projectId }),
+  const save = api.topics.saveSetup.useMutation({
+    onSuccess: () => {
+      utils.topics.modelSettings.invalidate({ projectId });
+      utils.topics.facets.invalidate({ projectId });
+      utils.topics.rules.invalidate({ projectId });
+    },
   });
   const providerGroups = connections.map<[string, string[]]>((connection) => [
     connection.provider,
@@ -150,8 +166,11 @@ function ConfigureTopicsSettings({
     embedding: judgeModel(stored.embedding, connections),
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: judgeModel(stored.clustering, connections),
-    facets: facetDrafts(facets),
-    idleSeconds: "600",
+    facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
+    filters: rule?.filter ?? [],
+    sampling: rule?.sampling ?? 1,
+    idleSeconds:
+      rule?.idleTimeMs != null ? String(rule.idleTimeMs / 1000) : "600",
     embeddingLocked: false,
   };
   const paused = stored.blockMessage
@@ -277,11 +296,12 @@ function ConfigureTopicsSettings({
     try {
       await save.mutateAsync({
         projectId,
-        summary,
-        embedding,
-        embeddingDimensions: parsedDimensions.data,
-        clustering,
-        enabled: true,
+        ...topicsSetupPayload(value, {
+          summary,
+          embedding,
+          embeddingDimensions: parsedDimensions.data,
+          clustering,
+        }),
       });
     } catch (error) {
       const message =
@@ -418,31 +438,36 @@ function slotValue(
   return llmApiKeyId ? { llmApiKeyId, model: model.model } : null;
 }
 
-function facetDrafts(facets: TopicFacet[]) {
-  const rows = facets.flatMap((facet) => {
-    const question = facet.versions[0]?.prompt;
-    return question
-      ? [
-          {
-            id: facet.id,
-            name: facet.name,
-            question,
-            builtIn: facet.isBuiltIn,
-            enabled: false,
-          },
-        ]
-      : [];
+function facetDrafts(
+  facets: TopicFacet[],
+  enabledIds: ReadonlySet<string> | null,
+) {
+  const byName = new Map(facets.map((facet) => [facet.name, facet]));
+  const builtIn = DEFAULT_TOPIC_FACETS.map((preset) => {
+    const existing = byName.get(preset.name);
+    return {
+      id: existing?.id ?? preset.name,
+      name: preset.name,
+      question: existing?.versions[0]?.prompt ?? preset.prompt,
+      builtIn: true,
+      enabled: enabledIds
+        ? Boolean(existing && enabledIds.has(existing.id))
+        : true,
+    };
   });
-  const enabledIds = new Set(
-    [
-      ...rows.filter((facet) => facet.builtIn),
-      ...rows.filter((facet) => !facet.builtIn),
-    ]
-      .slice(0, MAX_ENABLED_FACETS)
-      .map((facet) => facet.id),
-  );
-  return rows.map((facet) => ({
-    ...facet,
-    enabled: enabledIds.has(facet.id),
-  }));
+  const custom = facets.flatMap((facet) => {
+    if (facet.isBuiltIn) return [];
+    const question = facet.versions[0]?.prompt;
+    if (!question) return [];
+    return [
+      {
+        id: facet.id,
+        name: facet.name,
+        question,
+        builtIn: false,
+        enabled: enabledIds?.has(facet.id) ?? false,
+      },
+    ];
+  });
+  return [...builtIn, ...custom];
 }

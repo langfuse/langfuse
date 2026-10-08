@@ -15,7 +15,10 @@ project permissions. Processing additionally requires the project allowlist.
   in-flight poll cannot satisfy completion. The query retains the tRPC prefix
   for mutation and manual invalidation.
   The polling/completion race is covered directly by a frontend hook test.
-  Configure Topics opens a side sheet for models, facets, and the trace filter.
+  Configure Topics opens a side sheet for models, facets, and which traces to run.
+  Saving it stores the models, creates the four built-in facets as evaluators
+  with a first version, and saves one rule for the filter, idle time, and
+  sampling rate. A project can have only one Topics rule.
   Process traces or Update topics opens its own run dialog. Overlay owners stay
   outside the responsive header menu. Facet versions contain only prompts;
   processing settings and embedding dimensions are frozen on executions.

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   topicProcessingConfigSchema,
   topicEmbeddingConfigSchema,
+  DEFAULT_TOPIC_FACETS,
   type TopicExecution,
   type TopicExecutionInput,
 } from "@langfuse/shared/topics";
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   isTopicsProjectEnabled: vi.fn(),
   getTopicsModels: vi.fn(),
   checkTopicsModelSettings: vi.fn(),
+  saveTopicsSetup: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
@@ -1267,5 +1269,66 @@ describe("Topics model settings", () => {
       clustering: null,
       enabled: false,
     });
+  });
+});
+
+describe("Topics setup", () => {
+  const setup = {
+    projectId,
+    summary: { llmApiKeyId: "key", model: "gpt" },
+    embedding: { llmApiKeyId: "key", model: "embed" },
+    embeddingDimensions: 1024,
+    clustering: { llmApiKeyId: "key", model: "cluster" },
+    enabled: true,
+    facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
+      name: facet.name,
+      enabled: facet.name !== "Sentiment",
+    })),
+    filter: [
+      {
+        column: "name",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "billing",
+      },
+    ],
+    sampling: 0.25,
+    idleSeconds: 120,
+  };
+
+  it("saves setup for a writer and rejects a viewer before saving", async () => {
+    mocks.saveTopicsSetup.mockResolvedValue({ id: "rule-a" });
+
+    await expect(caller("VIEWER").saveSetup(setup)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(
+      caller().saveSetup({ ...setup, projectId: "foreign" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
+
+    await expect(caller().saveSetup(setup)).resolves.toEqual({ id: "rule-a" });
+    expect(mocks.saveTopicsSetup).toHaveBeenCalledOnce();
+    expect(mocks.saveTopicsSetup).toHaveBeenCalledWith(projectId, {
+      summary: setup.summary,
+      embedding: setup.embedding,
+      embeddingDimensions: 1024,
+      clustering: setup.clustering,
+      enabled: true,
+      facets: setup.facets,
+      filter: setup.filter,
+      sampling: 0.25,
+      idleSeconds: 120,
+    });
+  });
+
+  it("rejects a setup with every facet turned off", async () => {
+    await expect(
+      caller().saveSetup({
+        ...setup,
+        facets: setup.facets.map((facet) => ({ ...facet, enabled: false })),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
   });
 });

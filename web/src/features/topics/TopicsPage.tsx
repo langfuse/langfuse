@@ -196,6 +196,7 @@ function TopicsWorkspaceView({
     projectId,
     canWrite,
     facets: facets.data ?? [],
+    facetsReady: facets.isSuccess,
   });
   const actions = (
     <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
