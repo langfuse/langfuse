@@ -251,7 +251,7 @@ function TraceLoading({ desktopLayout }: { desktopLayout: DesktopLayout }) {
             isLoading
             showGraph={false}
             tree={<TraceTree isLoading />}
-            timeline={null}
+            timeline={<TraceTree isLoading />}
             graph={null}
             info={<TracePanelDetail isLoading />}
           />
