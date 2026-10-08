@@ -591,6 +591,7 @@ export function DashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "widget.copy",
         title: "Widget copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });

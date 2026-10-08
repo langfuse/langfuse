@@ -114,6 +114,7 @@ function DatasetExperimentsView({
     }
 
     showSuccessToast({
+      operation: "experiment.trigger",
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {

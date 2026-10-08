@@ -65,6 +65,7 @@ export function DeleteEvalTemplateDialog({
   const templateMutation = api.evals.deleteEvalTemplate.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Evaluator deleted",
         description: `Evaluator "${templateName}" was deleted.`,
       });

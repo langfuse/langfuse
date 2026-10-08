@@ -39,6 +39,7 @@ import {
 import { buildEventBucketPrefix } from "./eventBucketPath";
 import { isTraceIdInSample } from "./sampling";
 import {
+  createS3ThrottledIngestionError,
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
@@ -253,6 +254,8 @@ export const processEventBatch = async (
    * ASYNC PROCESSING *
    ********************/
   let s3UploadErrored = false;
+  let s3UploadThrottled = false;
+  let s3UploadFailedOtherwise = false;
   await instrumentAsync({ name: "s3-upload-events" }, async () => {
     // S3 Event Upload is blocking, but non-failing.
     // If a promise rejects, we log it below, but do not throw an error.
@@ -275,6 +278,7 @@ export const processEventBatch = async (
 
         // Check if this is a SlowDown error and mark the project for secondary queue
         if (isS3SlowDownError(result.reason)) {
+          s3UploadThrottled = true;
           logger.warn(
             "S3 SlowDown error during upload, marking project for secondary queue",
             {
@@ -288,6 +292,7 @@ export const processEventBatch = async (
             reason: "s3_slowdown",
           });
         } else {
+          s3UploadFailedOtherwise = true;
           markProjectIngestFailure(authCheck.scope.projectId!, {
             source: "process_event_batch",
             reason: "s3_upload_error",
@@ -300,6 +305,10 @@ export const processEventBatch = async (
       }
     });
   });
+
+  if (s3UploadThrottled && !s3UploadFailedOtherwise) {
+    throw createS3ThrottledIngestionError(source);
+  }
 
   // Send each event individually to IngestionQueue for ClickHouse processing
   if (s3UploadErrored) {

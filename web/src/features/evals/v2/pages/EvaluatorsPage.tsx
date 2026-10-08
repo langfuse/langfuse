@@ -344,6 +344,7 @@ export default function EvaluatorsPage() {
         isAllMatching: deleteAll,
       });
       showSuccessToast({
+        operation: "evaluator.bulk_delete",
         title: "Evaluators deleted",
         description: `${deletedCount} evaluator${deletedCount === 1 ? "" : "s"} deleted.`,
       });
@@ -697,6 +698,7 @@ export default function EvaluatorsPage() {
             <SearchableTableFilterLayout
               search={
                 <TableSearchBar
+                  size="large"
                   key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                   projectId={projectId}
                   tableName={filterConfig.tableName}

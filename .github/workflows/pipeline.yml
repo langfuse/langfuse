@@ -1385,6 +1385,18 @@ jobs:
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
+      # Playwright writes a screenshot, an error context and a trace for every
+      # failure, and the reporter prints the command to open them — but they
+      # die with the runner, so a flake here is reported with no way to see
+      # what the browser was actually showing.
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   e2e-server-tests:
     runs-on: blacksmith-8vcpu-ubuntu-2404

@@ -147,24 +147,18 @@ function InAppAgentQuickActionPicker({
             }
           }}
         >
-          <Tabs.List
-            aria-label="Quick action category"
-            variant="underline"
-            size="auto"
-            layout="full"
-          >
-            {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
-              <span key={context} className="min-w-0 flex-1">
+          <div className="max-w-full min-w-0 overflow-x-auto">
+            <Tabs.List aria-label="Quick action category" variant="underline">
+              {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
                 <Tabs.Trigger
+                  key={context}
                   value={context}
                   disabled={isDisabled}
-                  variant="underline"
-                  size="lg"
                   label={IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
                 />
-              </span>
-            ))}
-          </Tabs.List>
+              ))}
+            </Tabs.List>
+          </div>
         </Tabs>
       </div>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
@@ -1625,7 +1619,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   : "Let me know what I can do for you..."
               }
               rows={1}
-              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="placeholder:text-muted-foreground max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
             <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
               <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">

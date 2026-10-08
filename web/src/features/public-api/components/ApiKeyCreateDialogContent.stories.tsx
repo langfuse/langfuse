@@ -12,7 +12,8 @@ const sessionWithRoleSelection = {
   environment: {
     enableExperimentalFeatures: false,
     selfHostedInstancePlan: null,
-    apiKeyRoleSelectionEnabled: true,
+    apiKeyProjectRoleSelectionEnabled: true,
+    apiKeyOrgRoleSelectionEnabled: true,
   },
 } as unknown as Session;
 

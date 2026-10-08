@@ -35,7 +35,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { showSuccessToast } from "@/src/features/notifications";
 import { cn } from "@/src/utils/tailwind";
 
@@ -277,12 +277,11 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           <div className="rounded-md border p-3">
             <div className="flex items-center gap-2">
               <div className="flex-1">
-                <CodeView
-                  className="bg-muted/50"
+                <CodeSection
+                  variant="outline"
                   content={
                     (action.config as SafeWebhookActionConfig).displaySecretKey
                   }
-                  defaultCollapsed={false}
                 />
               </div>
               <div className="flex gap-2">
@@ -325,6 +324,7 @@ const RegenerateWebhookSecretButton = ({
     api.automations.regenerateWebhookSecret.useMutation({
       onSuccess: (data) => {
         showSuccessToast({
+          operation: "webhook_secret.regenerate",
           title: "Webhook Secret Regenerated",
           description: "Your webhook secret has been successfully regenerated.",
         });

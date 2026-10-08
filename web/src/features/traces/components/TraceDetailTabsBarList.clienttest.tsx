@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TabsBar, TabsBarTrigger } from "@/src/components/ui/tabs-bar";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 
 import { TraceDetailTabsBarList } from "./TraceDetailTabsBarList";
 
@@ -31,20 +31,20 @@ function setAvailableWidth(width: number) {
 
 function renderTabsBar() {
   return render(
-    <TabsBar value="preview" onValueChange={vi.fn()}>
+    <Tabs value="preview" onValueChange={vi.fn()}>
       <TraceDetailTabsBarList
         tabs={["preview", "scores"]}
         selectedTab="preview"
         onSelect={vi.fn()}
         triggers={
           <>
-            <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-            <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+            <Tabs.Trigger value="preview" label="Preview" />
+            <Tabs.Trigger value="scores" label="Scores" />
           </>
         }
         trailingControls={<div>Trailing</div>}
       />
-    </TabsBar>,
+    </Tabs>,
   );
 }
 

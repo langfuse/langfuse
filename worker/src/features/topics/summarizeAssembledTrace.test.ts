@@ -255,6 +255,27 @@ describe("summarizeAssembledTrace", () => {
     });
   });
 
+  it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "No problems found.", status: "not_applicable" },
+      },
+      ...usage,
+    });
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+    });
+    const [written] = state.write.mock.calls[0][0];
+    expect(written).toMatchObject({ state: "not_applicable" });
+    expect(written.summary ?? "").toBe("");
+    expect(state.embed).not.toHaveBeenCalled();
+  });
+
   it("keeps the other facets when one facet's output is invalid", async () => {
     const issues: TopicFacet = {
       ...facet,

@@ -8,12 +8,12 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
+import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import {
   type ApiKeyAuthResults,
   type Authenticated,
 } from "@/src/features/apiKey/authenticator";
 import { matchesAdminApiKey } from "@/src/features/apiKey/helpers/matchesAdminApiKey";
-import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 /** AuthenticatorCache stores authorization contexts by credential. */
@@ -37,24 +37,6 @@ export class AuthenticatorCache {
       logger.error("authz context cache read failed, falling open", error);
       return null;
     }
-  }
-
-  /** keyFor derives credential cache keys, excluding environment admins. */
-  private keyFor(credential: Credential): string | null {
-    if (credential.kind === "basic") {
-      return createAuthzContextCacheKey(
-        "basic",
-        createShaHash(credential.secretKey, this.salt),
-      );
-    }
-    if (credential.kind === "bearer") {
-      if (matchesAdminApiKey(credential.token, this.adminApiKey)) return null;
-      return createAuthzContextCacheKey(
-        "bearer",
-        createShaHash(credential.token, this.salt),
-      );
-    }
-    return null;
   }
 
   /** set caches database-key successes until their TTL or expiry. */
@@ -84,6 +66,24 @@ export class AuthenticatorCache {
       logger.error("authz context cache write failed", error);
       return false;
     }
+  }
+
+  /** keyFor derives credential cache keys, excluding environment admins. */
+  private keyFor(credential: Credential): string | null {
+    if (credential.kind === "basic") {
+      return createAuthzContextCacheKey(
+        "basic",
+        createShaHash(credential.secretKey, this.salt),
+      );
+    }
+    if (credential.kind === "bearer") {
+      if (matchesAdminApiKey(credential.token, this.adminApiKey)) return null;
+      return createAuthzContextCacheKey(
+        "bearer",
+        createShaHash(credential.token, this.salt),
+      );
+    }
+    return null;
   }
 }
 

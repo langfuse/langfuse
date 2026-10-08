@@ -102,8 +102,11 @@ function handleStorageError(err: unknown, operation: string): never {
     err.code === "EAI_AGAIN"
   ) {
     logger.error(`DNS lookup failure during ${operation}`, err);
-    throw new ServiceUnavailableError(
-      "Storage service temporarily unavailable due to network issues",
+    throw Object.assign(
+      new ServiceUnavailableError(
+        "Storage service temporarily unavailable due to network issues",
+      ),
+      { cause: err },
     );
   }
   // For other errors, throw with the original cause preserved
@@ -380,16 +383,18 @@ export class StorageServiceFactory {
         ? params.useGoogleCloudStorage
         : env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
     ) {
-      // connectionValidation is intentionally not applied here: GCS is selected
-      // by deployment env for Langfuse-owned storage, not by user-configured
-      // blob storage integrations. Those callers force useGoogleCloudStorage to
-      // false. Add SDK-specific connection-time validation before exposing GCS
-      // as a user-configurable blob export endpoint.
+      // connectionValidation is not applied to GCS: the endpoint is always
+      // Google's, never user-supplied. Only env-selected (Langfuse-owned)
+      // storage falls back to LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
+      // callers that select GCS explicitly (blob storage integrations) get
+      // exactly the credentials they pass, or ADC when none.
       const googleParams = {
         ...params,
         googleCloudCredentials:
-          params.googleCloudCredentials ||
-          env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS,
+          params.useGoogleCloudStorage !== undefined
+            ? params.googleCloudCredentials
+            : params.googleCloudCredentials ||
+              env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS,
       };
       return new GoogleCloudStorageService(googleParams);
     }

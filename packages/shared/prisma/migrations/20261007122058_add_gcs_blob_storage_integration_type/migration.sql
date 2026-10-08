@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "BlobStorageIntegrationType" ADD VALUE IF NOT EXISTS 'GOOGLE_CLOUD_STORAGE';

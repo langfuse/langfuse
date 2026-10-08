@@ -44,6 +44,7 @@ import {
   type ResourceSpan,
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
+import { flattenJsonToPathArrays } from "./utils";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -413,6 +414,201 @@ describe("raw OTLP empty attribute values", () => {
         },
       ],
       output: { text: "choice", enabled: false, zero: 0, blank: "" },
+    });
+  });
+});
+
+describe("per-key metadata values from structured-metadata SDK majors", () => {
+  const metadata = {
+    environment: "prod",
+    version: "1.0",
+    digits: "42",
+    label: "",
+    retries: 3,
+    ratio: 1.5,
+    enabled: true,
+    missing: null,
+    database: { host: "localhost", port: 5432, auth: { user: "app" } },
+    steps: [{ name: "web_fetch", args: { url: "https://example.com" } }],
+    empty: {},
+  };
+
+  const blobAttributes = (
+    domain: "observation" | "trace",
+    space?: number,
+  ): OtelAttribute[] => [
+    {
+      key: `langfuse.${domain}.metadata`,
+      value: { stringValue: JSON.stringify(metadata, null, space) },
+    },
+  ];
+
+  // Structured-metadata SDKs JSON-encode every value, strings included.
+  const perKeyAttributes = (
+    domain: "observation" | "trace",
+    space?: number,
+  ): OtelAttribute[] =>
+    Object.entries(metadata).map(([key, value]) => ({
+      key: `langfuse.${domain}.metadata.${key}`,
+      value: { stringValue: JSON.stringify(value, null, space) },
+    }));
+
+  const processMetadata = async (
+    path: "v3" | "v4",
+    attributes: OtelAttribute[],
+    params: {
+      domain?: "observation" | "trace";
+      // "child" sends the attributes on a child span of an attribute-less root.
+      span?: "root" | "child";
+      headerSdkName?: string;
+      scopeName?: string;
+      scopeVersion?: string;
+      telemetrySdkLanguage?: string;
+    } = {},
+  ) => {
+    const scopeVersion = params.scopeVersion ?? "5.0.0";
+    const batch = buildBatch(params.span === "child" ? [] : attributes);
+    if (params.span === "child") {
+      const spans = batch[0].scopeSpans![0].spans!;
+      spans.push({
+        ...spans[0],
+        spanId: Buffer.from("fedcba9876543210", "hex"),
+        parentSpanId: spans[0].spanId,
+        name: "child-span",
+        attributes: [...spans[0].attributes!, ...attributes],
+      });
+    }
+    const scope = batch[0].scopeSpans![0].scope!;
+    scope.name = params.scopeName ?? "langfuse-sdk";
+    scope.version = scopeVersion;
+    if (params.telemetrySdkLanguage) {
+      batch[0].resource!.attributes!.push({
+        key: "telemetry.sdk.language",
+        value: { stringValue: params.telemetrySdkLanguage },
+      });
+    }
+    const processor = new OtelIngestionProcessor({
+      projectId: PROJECT_ID,
+      publicKey: "pk-test",
+      sdkName: params.headerSdkName ?? "python",
+      sdkVersion: scopeVersion,
+    });
+    if (path === "v4") {
+      return processor.processToEvent(batch).at(-1)?.metadata as Record<
+        string,
+        unknown
+      >;
+    }
+    // v3 writes trace metadata to the trace, observation metadata to the span.
+    // The last matching event belongs to the span carrying the attributes.
+    const eventType =
+      params.domain === "trace" ? "trace-create" : "span-create";
+    const event = (await processor.processToIngestionEvents(batch))
+      .filter((event) => event.type === eventType)
+      .at(-1);
+    return (event?.body as { metadata?: Record<string, unknown> } | undefined)
+      ?.metadata as Record<string, unknown>;
+  };
+
+  it.each([
+    { path: "v3", domain: "observation", span: "root", encoding: "compact" },
+    { path: "v3", domain: "trace", span: "root", encoding: "compact" },
+    { path: "v3", domain: "trace", span: "child", encoding: "compact" },
+    { path: "v4", domain: "observation", span: "root", encoding: "compact" },
+    { path: "v4", domain: "trace", span: "root", encoding: "compact" },
+    { path: "v4", domain: "trace", span: "child", encoding: "compact" },
+    { path: "v3", domain: "observation", span: "root", encoding: "indented" },
+    { path: "v4", domain: "observation", span: "root", encoding: "indented" },
+  ] as const)(
+    "stores per-key values exactly like a blob ($path, $domain on $span span, $encoding JSON)",
+    async ({ path, domain, span, encoding }) => {
+      const space = encoding === "indented" ? 2 : undefined;
+      const fromBlob = await processMetadata(
+        path,
+        blobAttributes(domain, space),
+        { domain, span },
+      );
+      const fromPerKey = await processMetadata(
+        path,
+        perKeyAttributes(domain, space),
+        { domain, span },
+      );
+
+      expect(fromBlob).toMatchObject(metadata);
+      expect(fromPerKey).toEqual(fromBlob);
+      expect(flattenJsonToPathArrays(fromPerKey)).toEqual(
+        flattenJsonToPathArrays(fromBlob),
+      );
+    },
+  );
+
+  it("keeps a per-key value that is not valid JSON as sent and counts it", async () => {
+    recordIncrementMock.mockClear();
+    const result = await processMetadata("v4", [
+      {
+        key: "langfuse.observation.metadata.note",
+        value: { stringValue: "{not json" },
+      },
+      {
+        key: "langfuse.observation.metadata.environment",
+        value: { stringValue: '"prod"' },
+      },
+    ]);
+
+    expect(result).toMatchObject({ note: "{not json", environment: "prod" });
+    expect(droppedCalls()).toHaveLength(0);
+    const undecodedCalls = recordIncrementMock.mock.calls.filter(
+      ([stat]) => stat === "langfuse.ingestion.metadata_undecoded",
+    );
+    expect(undecodedCalls).toHaveLength(1);
+    expect(undecodedCalls[0][2]).toEqual({ kind: "truncated_json" });
+  });
+
+  it.each([
+    {
+      case: "current Python major",
+      headerSdkName: "python",
+      scopeVersion: "4.15.6",
+    },
+    {
+      case: "current JS major",
+      headerSdkName: "javascript",
+      scopeVersion: "5.11.1",
+    },
+    {
+      case: "non-Langfuse scope",
+      headerSdkName: "python",
+      scopeVersion: "5.0.0",
+      scopeName: "openinference",
+    },
+  ])("keeps per-key values as sent for the $case", async (params) => {
+    const result = await processMetadata(
+      "v4",
+      perKeyAttributes("observation"),
+      params,
+    );
+
+    expect(result).toMatchObject({
+      environment: '"prod"',
+      retries: "3",
+      database: '{"host":"localhost","port":5432,"auth":{"user":"app"}}',
+    });
+  });
+
+  it("falls back to telemetry.sdk.language without a Langfuse SDK header", async () => {
+    const result = await processMetadata(
+      "v4",
+      perKeyAttributes("observation"),
+      {
+        headerSdkName: "unknown",
+        scopeVersion: "6.0.0-beta.1",
+        telemetrySdkLanguage: "nodejs",
+      },
+    );
+
+    expect(result).toMatchObject({
+      environment: "prod",
+      database: metadata.database,
     });
   });
 });

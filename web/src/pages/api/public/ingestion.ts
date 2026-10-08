@@ -24,6 +24,7 @@ import {
 } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { setRetryAfterHeader } from "@/src/features/public-api/server/writeError";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import {
@@ -254,6 +255,7 @@ export default async function handler(
         }
       }
 
+      setRetryAfterHeader(res, error);
       return res.status(error.httpCode).json({
         error: error.name,
         message: error.message,

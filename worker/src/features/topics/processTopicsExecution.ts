@@ -204,7 +204,10 @@ async function summarizeTrace(
         result.output.status === "applicable"
           ? "summarized"
           : result.output.status,
-      summary: result.output.summary.trim(),
+      summary:
+        result.output.status === "applicable"
+          ? result.output.summary.trim()
+          : "",
       providedUsageDetails: result.providedUsageDetails,
       usageDetails: result.usageDetails,
       providedCostDetails: result.providedCostDetails,
