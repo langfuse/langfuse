@@ -13,8 +13,8 @@
   them; rebuild and commit the result whenever `src/lib.rs` exports change.
 - Building the worker needs the pinned Rust toolchain: CI runners get it from
   rustup auto-install on first `cargo` use; `worker/Dockerfile` installs the
-  same version from the checksum-pinned standalone installer on UBI9. Bump
-  `rust-toolchain.toml` together with that version and both per-arch sha256
+  same version from the checksum-pinned standalone musl installer on Alpine.
+  Bump `rust-toolchain.toml` together with that version and both per-arch sha256
   values (`https://static.rust-lang.org/dist/rust-<version>-<triple>.tar.gz.sha256`).
   The pin starts equal to `ai-gateway/rust-toolchain.toml` but the files are
   deliberately separate.

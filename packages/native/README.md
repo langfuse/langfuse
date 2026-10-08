@@ -80,8 +80,8 @@ is always present when the worker starts or its tests run. A direct
 ## How it ships
 
 `worker/Dockerfile` installs the toolchain pinned in `rust-toolchain.toml` from
-the checksum-verified standalone Rust installer into its UBI9 builder stage;
-`turbo run build --filter=worker...` compiles the addon for glibc, and
+the checksum-verified standalone Rust installer into its Alpine builder stage;
+`turbo run build --filter=worker...` compiles the addon for musl, and
 `pnpm deploy` copies the `.node` file into the runtime image next to the
 loader. Each architecture builds on a native runner, so no cross
 compilation is involved. The runtime image gains only the compiled library.
