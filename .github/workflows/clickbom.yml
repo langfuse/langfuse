@@ -35,3 +35,5 @@ jobs:
           s3-bucket: ch-sbom-langfuse
           s3-key: sbom.json
           repository: ${{ github.repository }}
+          slack-webhook-url: ${{ secrets.CLICKBOM_SLACK_WEBHOOK_URL }}
+          slack-notify-on: always
