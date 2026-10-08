@@ -4,7 +4,7 @@ import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
-import { resolveLlmApiKey } from "../LlmApiKeyService";
+import { resolveLlmApiKey } from "../LLMApiKeys";
 
 type ValidConfig = {
   provider: string;

@@ -1,7 +1,7 @@
 import { type LlmApiKeys } from "@prisma/client";
 
 import { LLMApiKeySchema, type LLMApiKey } from "../../llm/types";
-import { findProjectLlmApiKeyCandidates } from "../../repositories/llm-api-keys";
+import { findProjectLlmApiKeyCandidates } from "./LlmApiKeyRepository";
 
 export type EffectiveLlmApiKey = {
   connection: LLMApiKey;

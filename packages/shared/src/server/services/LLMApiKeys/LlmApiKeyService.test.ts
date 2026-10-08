@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   findProjectLlmApiKeyCandidates: vi.fn(),
 }));
 
-vi.mock("../../repositories/llm-api-keys", () => ({
+vi.mock("./LlmApiKeyRepository", () => ({
   findProjectLlmApiKeyCandidates: mocks.findProjectLlmApiKeyCandidates,
 }));
 
