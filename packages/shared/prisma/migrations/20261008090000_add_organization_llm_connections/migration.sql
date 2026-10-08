@@ -16,4 +16,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS "llm_api_keys_organization_id_provider_key"
 -- Default models resolve the effective project or organization connection by provider.
 ALTER TABLE "default_llm_models"
   DROP CONSTRAINT IF EXISTS "default_llm_models_llm_api_key_id_fkey",
-  DROP COLUMN IF EXISTS "llm_api_key_id";
+  ALTER COLUMN "llm_api_key_id" DROP NOT NULL;
