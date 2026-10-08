@@ -20,7 +20,6 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
-import { DetailPanelSkeleton } from "@/src/features/traces/components/TraceDetailSkeletons";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
 import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { useMemo } from "react";
@@ -34,7 +33,19 @@ function PanelMessage({ title, body }: { title: string; body: string }) {
   );
 }
 
-export function TracePanelDetail() {
+export function TracePanelDetail({
+  isLoading = false,
+}: {
+  isLoading?: boolean;
+}) {
+  return (
+    <div className="bg-surface-sunken h-full w-full overflow-y-auto [--surface-context:hsl(var(--surface-sunken))]">
+      {isLoading ? <TraceDetailView isLoading /> : <TracePanelDetailContent />}
+    </div>
+  );
+}
+
+function TracePanelDetailContent() {
   const { selectedNodeId } = useSelection();
   const {
     trace,
@@ -56,7 +67,7 @@ export function TracePanelDetail() {
   });
 
   // Memoize to prevent recreation when deps haven't changed
-  const content = useMemo(() => {
+  return useMemo(() => {
     switch (selected.kind) {
       case "observation":
         return (
@@ -67,9 +78,10 @@ export function TracePanelDetail() {
           />
         );
       case "loading":
+        // The observation view shares this shell, so nothing moves when it lands.
         return (
           <SkeletonGroup className="h-full w-full">
-            <DetailPanelSkeleton />
+            <TraceDetailView isLoading />
           </SkeletonGroup>
         );
       case "not-found":
@@ -98,10 +110,4 @@ export function TracePanelDetail() {
         );
     }
   }, [selected, trace, observations, scores, corrections]);
-
-  return (
-    <div className="bg-surface-sunken h-full w-full overflow-y-auto [--surface-context:hsl(var(--surface-sunken))]">
-      {content}
-    </div>
-  );
 }

@@ -37,8 +37,10 @@ import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
+import { SkeletonGroup } from "@/src/components/ui/skeleton";
 
 export type TraceProps = {
+  isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
@@ -85,10 +87,10 @@ type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
  * resolved before the tree is built: past the observation cap the selected row is
  * missing from the loaded list and has to be fetched and merged in.
  */
-export function Trace({ context, layout = "default", ...props }: TraceProps) {
-  const traceContext = context ?? "fullscreen";
+export function Trace(props: TraceProps | TraceLoadingProps) {
+  const traceContext = props.context ?? "fullscreen";
   const desktopLayoutKey =
-    traceContext === "peek" && layout === "observation-focused"
+    traceContext === "peek" && props.layout === "observation-focused"
       ? "peek-observation-focused"
       : traceContext;
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
@@ -96,11 +98,20 @@ export function Trace({ context, layout = "default", ...props }: TraceProps) {
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
       <SelectionProvider>
-        <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+        {props.isLoading === true ? (
+          <TraceLoading desktopLayout={desktopLayout} />
+        ) : (
+          <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+        )}
       </SelectionProvider>
     </ViewPreferencesProvider>
   );
 }
+
+/** Layout only, before the trace arrives; each panel draws its own placeholder. */
+type TraceLoadingProps = Pick<TraceProps, "context" | "layout"> & {
+  isLoading: true;
+};
 
 function TraceWithSelection({
   trace,
@@ -218,14 +229,37 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   return (
     <div
       inert={stale.inert}
-      className={cn(
-        "flex h-full w-full min-w-0 flex-col overflow-hidden",
-        stale.className,
-      )}
+      className={cn(traceContentClassName, stale.className)}
     >
       <TraceHeader />
       <div className="min-h-0 flex-1">{panels}</div>
     </div>
+  );
+}
+
+const traceContentClassName =
+  "flex h-full w-full min-w-0 flex-col overflow-hidden";
+
+function TraceLoading({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+  const isMobile = useIsMobile();
+  return (
+    <SkeletonGroup className={traceContentClassName}>
+      <TraceHeader isLoading />
+      <div className="min-h-0 flex-1">
+        {isMobile ? (
+          <TraceLayoutMobile
+            isLoading
+            showGraph={false}
+            tree={<TraceTree isLoading />}
+            timeline={null}
+            graph={null}
+            info={<TracePanelDetail isLoading />}
+          />
+        ) : (
+          <DesktopTraceWorkspace desktopLayout={desktopLayout} isLoading />
+        )}
+      </div>
+    </SkeletonGroup>
   );
 }
 
@@ -309,10 +343,12 @@ function DesktopTraceWorkspace({
   desktopLayout,
   reviewOpen = false,
   reviewPanel,
+  isLoading = false,
 }: {
   desktopLayout: DesktopLayout;
   reviewOpen?: boolean;
   reviewPanel?: ReactNode;
+  isLoading?: boolean;
 }) {
   return (
     <div className="h-full" data-trace-review-open={reviewOpen || undefined}>
@@ -323,13 +359,13 @@ function DesktopTraceWorkspace({
         reviewPanel={reviewPanel}
       >
         <TraceLayoutDesktop.NavigationPanel>
-          <TracePanelNavigationLayoutDesktop>
-            <TracePanelNavigation />
+          <TracePanelNavigationLayoutDesktop isLoading={isLoading}>
+            {isLoading ? <TraceTree isLoading /> : <TracePanelNavigation />}
           </TracePanelNavigationLayoutDesktop>
         </TraceLayoutDesktop.NavigationPanel>
         <TraceLayoutDesktop.ResizeHandle />
         <TraceLayoutDesktop.DetailPanel>
-          <TracePanelDetail />
+          <TracePanelDetail isLoading={isLoading} />
         </TraceLayoutDesktop.DetailPanel>
       </TraceLayoutDesktop>
     </div>

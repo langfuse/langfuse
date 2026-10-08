@@ -1,6 +1,4 @@
 import { Trace, type TraceProps } from "@/src/features/traces/components/Trace";
-import { SkeletonGroup } from "@/src/components/ui/skeleton";
-import { TraceDetailBodySkeleton } from "@/src/features/traces/components/TraceDetailSkeletons";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import { useLatched } from "@/src/hooks/useLatched";
 
@@ -10,10 +8,11 @@ type TraceDetailData = NonNullable<
 
 /**
  * The trace detail body (`<Trace>`), shared by the peek and the standalone
- * page so the invocation isn't copy-pasted. A cold load shows a shaped
- * skeleton; while `isPlaceholderData`, `<Trace>` keeps the previous trace on
- * screen dimmed and inert. `keySuffix` lets a caller force a remount when the
- * focused item changes (e.g. the observation peek keys on the observation id).
+ * page so the invocation isn't copy-pasted. A cold load renders `<Trace>` in
+ * its loading state; while `isPlaceholderData`, `<Trace>` keeps the previous
+ * trace on screen dimmed and inert. `keySuffix` lets a caller force a remount
+ * when the focused item changes (e.g. the observation peek keys on the
+ * observation id).
  */
 export function TraceDetailBody({
   trace,
@@ -24,7 +23,7 @@ export function TraceDetailBody({
   layout,
 }: {
   trace: TraceDetailData | undefined;
-  context: "peek" | "fullscreen" | "annotation";
+  context: NonNullable<TraceProps["context"]>;
   keySuffix?: string;
   layout?: TraceProps["layout"];
   /** Observation cap this trace was loaded under, when it hit it. */
@@ -38,25 +37,15 @@ export function TraceDetailBody({
     keySuffix ? `${trace?.id}-${keySuffix}` : trace?.id,
     isPlaceholderData,
   );
-  if (!trace)
-    return (
-      <SkeletonGroup className="h-full w-full">
-        <TraceDetailBodySkeleton
-          traceContext={context}
-          navigationCollapsed={
-            context === "annotation" || layout === "observation-focused"
-          }
-        />
-      </SkeletonGroup>
-    );
+  if (!trace) return <Trace isLoading context={context} layout={layout} />;
   return (
     <Trace
       key={traceKey}
       trace={trace}
       scores={trace.scores}
       corrections={trace.corrections}
-      projectId={trace.projectId}
       observations={trace.observations}
+      projectId={trace.projectId}
       context={context}
       layout={layout}
       truncatedAtObservations={truncatedAtObservations}
