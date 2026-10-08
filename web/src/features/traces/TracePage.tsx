@@ -2,6 +2,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
+import { TraceWaitingForArrival } from "@/src/features/traces/components/TraceWaitingForArrival";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import Page from "@/src/components/layouts/page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
@@ -37,6 +38,10 @@ export function TracePage({
 
   if (trace.isUnauthorized)
     return <ErrorPage message="You do not have access to this trace." />;
+
+  // Arrival retries: show the dedicated waiting state before the settled
+  // not-found page so a deep link during ingest lag does not flash an error.
+  if (trace.isWaitingForTrace) return <TraceWaitingForArrival />;
 
   if (trace.isNotFound)
     return (

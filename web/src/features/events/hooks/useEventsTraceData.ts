@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
@@ -16,6 +16,11 @@ import {
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import { partition } from "lodash";
+import {
+  getTraceArrivalEmptyRefetchIntervalMs,
+  getTraceArrivalRetryDelayMs,
+  shouldRetryTraceArrival,
+} from "@/src/features/events/lib/traceArrivalRetry";
 
 interface UseEventsTraceDataProps {
   projectId: string;
@@ -34,6 +39,11 @@ interface UseEventsTraceDataResult {
     | undefined;
   isLoading: boolean;
   error: unknown;
+  /**
+   * True while an empty events result is still being retried — the trace may
+   * still be ingesting. Distinct from `isLoading` (first paint).
+   */
+  isWaitingForTrace: boolean;
   /**
    * The observation cap this trace was loaded under, set ONLY when the trace hit
    * it (so the list is missing its chronological tail). The number comes from the
@@ -58,7 +68,11 @@ export function useEventsTraceData(
 ): UseEventsTraceDataResult {
   const { projectId, traceId, enabled = true } = props;
 
-  // Step 1: Fetch all observations for this trace (without I/O for performance)
+  // Step 1: Fetch all observations for this trace (without I/O for performance).
+  // Missing traces usually 404 in protectedGetEventsTraceProcedure (NOT_FOUND)
+  // before this query returns — so arrival lag uses the same retry/backoff as
+  // the traces-table path. Empty success is still retried via refetchInterval
+  // in case a future read path returns [] instead of throwing.
   const eventsQuery = api.events.byTraceId.useQuery(
     {
       projectId,
@@ -69,8 +83,28 @@ export function useEventsTraceData(
       enabled: enabled && !!traceId,
       retry(failureCount, error) {
         if (error.data?.code === "UNAUTHORIZED") return false;
+        if (error.data?.code === "NOT_FOUND") {
+          return shouldRetryTraceArrival(failureCount);
+        }
         return failureCount < 3;
       },
+      retryDelay: (failureCount, error) => {
+        if (error.data?.code === "NOT_FOUND") {
+          return getTraceArrivalRetryDelayMs(failureCount);
+        }
+        return Math.min(1_000 * 2 ** failureCount, 30_000);
+      },
+      refetchInterval: (query) => {
+        const observations = query.state.data?.observations;
+        if (!query.state.data) return false;
+        if (observations && observations.length > 0) return false;
+        return getTraceArrivalEmptyRefetchIntervalMs(
+          query.state.dataUpdateCount,
+        );
+      },
+      refetchIntervalInBackground: false,
+      // No silentHttpCodes: QueryCache only toasts after retries are exhausted,
+      // so the Not Found toast appears once the arrival backoff has finished.
       staleTime: 60 * 1000, // 1 minute
     },
   );
@@ -126,11 +160,13 @@ export function useEventsTraceData(
     },
   );
 
-  // Step 4: Fetch scores for the trace
+  // Step 4: Fetch scores for the trace. Wait until observations exist — the
+  // events auth middleware 404s missing traces, and a parallel scores fetch
+  // would toast "Trace not found" during arrival retries.
   const scoresQuery = api.events.scoresForTrace.useQuery(
     { traceId, projectId, timestamp: props.timestamp },
     {
-      enabled: enabled && !!traceId,
+      enabled: enabled && !!traceId && (observations?.length ?? 0) > 0,
       staleTime: 60 * 1000,
     },
   );
@@ -178,10 +214,59 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
+  const observationsEmpty =
+    !!eventsQuery.data &&
+    ((eventsQuery.data.observations as EventsTraceObservation[] | undefined)
+      ?.length ?? 0) === 0;
+
+  // tRPC's typed hook result does not expose `dataUpdateCount`, so mirror the
+  // empty-success count from `dataUpdatedAt` changes (aligned with the
+  // refetchInterval callback's `query.state.dataUpdateCount`).
+  const emptyFetchTracker = useRef({
+    traceId: "",
+    count: 0,
+    dataUpdatedAt: 0,
+  });
+  if (traceId !== emptyFetchTracker.current.traceId) {
+    emptyFetchTracker.current = { traceId, count: 0, dataUpdatedAt: 0 };
+  }
+  if (
+    observationsEmpty &&
+    eventsQuery.dataUpdatedAt > 0 &&
+    eventsQuery.dataUpdatedAt !== emptyFetchTracker.current.dataUpdatedAt
+  ) {
+    emptyFetchTracker.current = {
+      traceId,
+      dataUpdatedAt: eventsQuery.dataUpdatedAt,
+      count: emptyFetchTracker.current.count + 1,
+    };
+  } else if (!observationsEmpty && emptyFetchTracker.current.count !== 0) {
+    emptyFetchTracker.current = {
+      traceId,
+      count: 0,
+      dataUpdatedAt: 0,
+    };
+  }
+
+  // Still inside the empty-result backoff window (same 4 retries as the traces
+  // path). Between interval ticks isFetching is false, so key off the count.
+  const isWaitingForEmptyResult =
+    observationsEmpty &&
+    getTraceArrivalEmptyRefetchIntervalMs(emptyFetchTracker.current.count) !==
+      false;
+  // NOT_FOUND from the auth middleware: same waiting window as the traces path.
+  const isWaitingForNotFound =
+    !eventsQuery.data &&
+    eventsQuery.isFetching &&
+    eventsQuery.failureCount > 0 &&
+    !eventsQuery.isError;
+  const isWaitingForTrace = isWaitingForEmptyResult || isWaitingForNotFound;
+
   return {
     data: transformed ?? undefined,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
+    isWaitingForTrace,
     truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
       ? eventsQuery.data.maxObservationsPerTrace
       : undefined,
