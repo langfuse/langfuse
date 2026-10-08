@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import type { PropsWithChildren } from "react";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
@@ -235,9 +234,7 @@ describe("LLM connection editing", () => {
       ),
     ).toBeInTheDocument();
 
-    await userEvent.hover(
-      screen.getByLabelText("About organization connections"),
-    );
+    fireEvent.focus(screen.getByLabelText("About organization connections"));
     expect(
       await screen.findByText(
         "Organization connections are inherited by this project. Project connections with the same provider name take precedence.",
