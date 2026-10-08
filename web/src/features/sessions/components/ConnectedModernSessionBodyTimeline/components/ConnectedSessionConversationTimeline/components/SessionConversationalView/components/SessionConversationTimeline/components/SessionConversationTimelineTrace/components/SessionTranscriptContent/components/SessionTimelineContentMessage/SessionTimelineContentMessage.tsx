@@ -44,12 +44,14 @@ export function SessionTimelineContentMessage({
   senderName,
   timestamp,
   onOpenObservation,
+  expandRequestId,
 }: {
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
   timestamp?: Date | null;
   onOpenObservation?: () => void;
+  expandRequestId?: number;
 }) {
   const presentation = rolePresentation[role];
   const Icon = presentation.icon;
@@ -170,7 +172,9 @@ export function SessionTimelineContentMessage({
                 </button>
               ) : null}
               {!isJsonOnly || isJsonExpanded ? (
-                <SessionTimelineMessageContent>
+                <SessionTimelineMessageContent
+                  expandRequestId={expandRequestId}
+                >
                   <div
                     className={cn(
                       "flex flex-col gap-2 text-sm",

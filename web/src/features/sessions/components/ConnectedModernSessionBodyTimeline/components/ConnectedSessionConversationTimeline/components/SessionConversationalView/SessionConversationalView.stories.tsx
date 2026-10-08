@@ -3060,7 +3060,7 @@ export const CollapsedLargeMessage = meta.story({
                         parts: [
                           {
                             type: "text",
-                            text: `${"> ".repeat(101)}Deeply nested diagnostic output\n\n${"Diagnostic line: operation completed successfully.\n".repeat(300)}`,
+                            text: `${"> ".repeat(101)}Deeply nested diagnostic output\n\n${"Diagnostic line: operation completed successfully.\n".repeat(300)}Search match near the end`,
                           },
                         ],
                       },
@@ -3121,12 +3121,28 @@ export const CollapsedLargeMessage = meta.story({
     const sidebar = within(within(canvasElement).getByRole("complementary"));
     await userEvent.type(
       sidebar.getByRole("textbox"),
-      "Deeply nested diagnostic output",
+      "Search match near the end",
     );
     await userEvent.click(
       await sidebar.findByRole("button", { name: "Assistant message" }),
     );
-    await waitFor(() => expect(content).toBeVisible());
+    await waitFor(() => {
+      expect(
+        timeline.getByRole("button", { name: "Show less" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(preview).not.toHaveClass("max-h-96");
+    });
+    await userEvent.click(timeline.getByRole("button", { name: "Show less" }));
+    await expect(preview).toHaveClass("max-h-96");
+    await userEvent.click(
+      sidebar.getByRole("button", { name: "Assistant message" }),
+    );
+    await waitFor(() => {
+      expect(
+        timeline.getByRole("button", { name: "Show less" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(preview).not.toHaveClass("max-h-96");
+    });
   },
 });
 export const ManySimpleTurns = meta.story({

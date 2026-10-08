@@ -6,13 +6,21 @@ const MESSAGE_PREVIEW_HEIGHT = 384;
 
 export function SessionTimelineMessageContent({
   children,
+  expandRequestId,
 }: {
   children: ReactNode;
+  expandRequestId?: number;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const contentId = useId();
   const [isTall, setIsTall] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [expansion, setExpansion] = useState<{
+    isExpanded: boolean;
+    requestId: number | undefined;
+  }>({ isExpanded: false, requestId: undefined });
+  const isExpanded =
+    expansion.isExpanded ||
+    (expandRequestId !== undefined && expansion.requestId !== expandRequestId);
   const measureContent = useCallback(() => {
     setIsTall(
       (contentRef.current?.getBoundingClientRect().height ?? 0) >
@@ -26,7 +34,17 @@ export function SessionTimelineMessageContent({
       <div
         id={contentId}
         className={cn(isTall && !isExpanded && "max-h-96 overflow-hidden")}
-        inert={isTall && !isExpanded ? true : undefined}
+        onFocusCapture={(event) => {
+          if (!isTall || isExpanded) return;
+          const previewBounds = event.currentTarget.getBoundingClientRect();
+          const targetBounds = event.target.getBoundingClientRect();
+          if (
+            targetBounds.bottom > previewBounds.bottom ||
+            event.currentTarget.scrollTop > 0
+          ) {
+            setExpansion({ isExpanded: true, requestId: expandRequestId });
+          }
+        }}
       >
         <div
           ref={contentRef}
@@ -47,7 +65,12 @@ export function SessionTimelineMessageContent({
             className="text-muted-foreground hover:text-foreground shrink-0 rounded-md px-3 py-1 text-xs transition-colors hover:bg-[var(--session-message-toggle-hover,var(--color-muted))]"
             aria-expanded={isExpanded}
             aria-controls={contentId}
-            onClick={() => setIsExpanded((expanded) => !expanded)}
+            onClick={() =>
+              setExpansion({
+                isExpanded: !isExpanded,
+                requestId: expandRequestId,
+              })
+            }
           >
             {isExpanded ? "Show less" : "Show more"}
           </button>
