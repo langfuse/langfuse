@@ -401,12 +401,19 @@ export class LlmConnectionService {
   async list(params: {
     owner: LlmConnectionOwner;
     includeDecisionModels?: boolean;
+    limit?: number;
+    page?: number;
   }): Promise<{ data: SafeLlmConnection[]; totalCount: number }> {
     const includeDecisionModels = params.includeDecisionModels ?? false;
     const [connections, totalCount] = await Promise.all([
       this.repository.list({
         owner: params.owner,
         includeDecisionModels,
+        limit: params.limit,
+        offset:
+          params.limit && params.page
+            ? (params.page - 1) * params.limit
+            : undefined,
       }),
       this.repository.count(params.owner),
     ]);
@@ -469,6 +476,56 @@ export class LlmConnectionService {
     });
 
     return toSafeConnection(key);
+  }
+
+  async upsert(params: {
+    owner: LlmConnectionOwner;
+    input: LlmConnectionWriteInput;
+    actor: AuditLogActor;
+  }): Promise<{ connection: SafeLlmConnection; created: boolean }> {
+    const existing = await this.repository.findByProvider({
+      owner: params.owner,
+      provider: params.input.provider,
+    });
+    if (!existing) {
+      return {
+        connection: await this.create(params),
+        created: true,
+      };
+    }
+
+    await validateBaseUrl(params.input);
+    validateSecret(params.input);
+    const updated = await this.repository.update({
+      owner: params.owner,
+      id: existing.id,
+      data: {
+        adapter: params.input.adapter,
+        secretKey: encrypt(params.input.secretKey),
+        displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+        baseURL: params.input.baseURL ?? null,
+        withDefaultModels: params.input.withDefaultModels,
+        customModels: params.input.customModels ?? [],
+        config: params.input.config ?? null,
+        extraHeaders: params.input.extraHeaders
+          ? encrypt(JSON.stringify(params.input.extraHeaders))
+          : null,
+        extraHeaderKeys: params.input.extraHeaders
+          ? Object.keys(params.input.extraHeaders)
+          : [],
+      },
+    });
+
+    await auditLog({
+      ...params.actor,
+      resourceType: "llmApiKey",
+      resourceId: updated.id,
+      action: "update",
+      before: toSafeConnection(existing),
+      after: toSafeConnection(updated),
+    });
+
+    return { connection: toSafeConnection(updated), created: false };
   }
 
   async update(params: {

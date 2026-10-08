@@ -53,6 +53,8 @@ export class LlmConnectionRepository {
   list(params: {
     owner: LlmConnectionOwner;
     includeDecisionModels: boolean;
+    limit?: number;
+    offset?: number;
   }): Promise<LlmApiKeys[]> {
     return this.db.llmApiKeys.findMany({
       where: {
@@ -62,6 +64,8 @@ export class LlmConnectionRepository {
           : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
       },
       orderBy: { createdAt: "desc" },
+      take: params.limit,
+      skip: params.offset,
     });
   }
 
