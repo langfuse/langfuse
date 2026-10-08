@@ -110,17 +110,17 @@ function readCmapTable(file: Buffer): Buffer {
 /** cmap subtable format 4: segmented coverage of the Basic Multilingual Plane. */
 function readFormat4(view: DataView, base: number, into: Set<number>): void {
   const segmentCount = view.getUint16(base + 6) / 2;
-  const endCodes = base + 14;
-  const startCodes = endCodes + segmentCount * 2 + 2;
-  const idDeltas = startCodes + segmentCount * 2;
-  const idRangeOffsets = idDeltas + segmentCount * 2;
+  const endCodeAt = base + 14;
+  const startCodeAt = endCodeAt + segmentCount * 2 + 2;
+  const idDeltaAt = startCodeAt + segmentCount * 2;
+  const idRangeOffsetAt = idDeltaAt + segmentCount * 2;
 
   for (let segment = 0; segment < segmentCount; segment++) {
-    const start = view.getUint16(startCodes + segment * 2);
+    const start = view.getUint16(startCodeAt + segment * 2);
     if (start === 0xffff) continue;
-    const end = view.getUint16(endCodes + segment * 2);
-    const delta = view.getInt16(idDeltas + segment * 2);
-    const rangeOffset = view.getUint16(idRangeOffsets + segment * 2);
+    const end = view.getUint16(endCodeAt + segment * 2);
+    const delta = view.getInt16(idDeltaAt + segment * 2);
+    const rangeOffset = view.getUint16(idRangeOffsetAt + segment * 2);
 
     for (
       let codepoint = start;
@@ -132,7 +132,7 @@ function readFormat4(view: DataView, base: number, into: Set<number>): void {
         glyph = wrapGlyphId(codepoint + delta);
       } else {
         const at =
-          idRangeOffsets + segment * 2 + rangeOffset + (codepoint - start) * 2;
+          idRangeOffsetAt + segment * 2 + rangeOffset + (codepoint - start) * 2;
         glyph = view.getUint16(at);
         if (glyph !== 0) glyph = wrapGlyphId(glyph + delta);
       }
