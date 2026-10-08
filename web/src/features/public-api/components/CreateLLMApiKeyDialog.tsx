@@ -36,7 +36,7 @@ export function CreateLLMApiKeyDialog({
   });
   const uiCustomization = useUiCustomization();
 
-  if (!hasAccess) return null;
+  if (!projectId || !hasAccess) return null;
 
   return (
     <Dialog

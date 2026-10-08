@@ -593,23 +593,21 @@ export function CreateLLMApiKeyForm({
         });
         return;
       }
-      capture(
-        owner.scope === "project"
-          ? "project_settings:llm_api_key_create"
-          : "organization_settings:llm_api_key_create",
-        {
+      if (owner.scope === "project") {
+        capture("project_settings:llm_api_key_create", {
           provider: values.provider,
-        },
-      );
+        });
+      } else {
+        capture("organization_settings:llm_api_key_create");
+      }
     } else {
-      capture(
-        owner.scope === "project"
-          ? "project_settings:llm_api_key_update"
-          : "organization_settings:llm_api_key_update",
-        {
+      if (owner.scope === "project") {
+        capture("project_settings:llm_api_key_update", {
           provider: values.provider,
-        },
-      );
+        });
+      } else {
+        capture("organization_settings:llm_api_key_update");
+      }
     }
 
     let secretKey = values.secretKey;
