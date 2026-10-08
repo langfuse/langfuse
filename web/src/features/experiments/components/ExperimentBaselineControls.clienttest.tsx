@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
-import { LAYER_ORDER } from "@/src/components/ui/layer";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 const h = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -37,17 +37,6 @@ vi.mock("@/src/features/experiments/hooks/useExperimentNames", () => ({
   }),
 }));
 
-function installOverlayLayers() {
-  const overlayRoot = document.createElement("div");
-  overlayRoot.setAttribute("data-overlay-root", "");
-  for (const layer of LAYER_ORDER) {
-    const layerNode = document.createElement("div");
-    layerNode.setAttribute("data-layer", layer);
-    overlayRoot.appendChild(layerNode);
-  }
-  document.body.appendChild(overlayRoot);
-}
-
 describe("ExperimentBaselineControls analytics", () => {
   beforeAll(() => {
     vi.stubGlobal(
@@ -65,11 +54,6 @@ describe("ExperimentBaselineControls analytics", () => {
     h.capture.mockClear();
     h.onBaselineChange.mockClear();
     h.onBaselineClear.mockClear();
-    installOverlayLayers();
-  });
-
-  afterEach(() => {
-    document.querySelector("[data-overlay-root]")?.remove();
   });
 
   it("captures baseline_changed from the picker once, without the experiment name", () => {
@@ -81,6 +65,7 @@ describe("ExperimentBaselineControls analytics", () => {
         onBaselineChange={h.onBaselineChange}
         onBaselineClear={h.onBaselineClear}
       />,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("combobox"));
@@ -107,6 +92,7 @@ describe("ExperimentBaselineControls analytics", () => {
         onBaselineChange={h.onBaselineChange}
         onBaselineClear={h.onBaselineClear}
       />,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("combobox"));

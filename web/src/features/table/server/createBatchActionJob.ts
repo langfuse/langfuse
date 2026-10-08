@@ -15,7 +15,7 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 type CreateBatchActionJob = {
@@ -44,6 +44,24 @@ type CreateBatchActionJob = {
   // (see traces.deleteMany). When unset, it is inferred from the user's v4
   // beta flag below.
   useEventsTableOverride?: boolean;
+};
+
+const logBatchActionCreated = (params: {
+  batchActionId: string;
+  projectId: string;
+  actionId: string;
+  userId: string;
+}) => {
+  logger.info(
+    `Batch action ${params.actionId} created in project ${params.projectId} by user ${params.userId}`,
+    {
+      batchActionId: params.batchActionId,
+      projectId: params.projectId,
+      actionId: params.actionId,
+      actorType: "USER",
+      userId: params.userId,
+    },
+  );
 };
 
 const ACTIVE_BATCH_ACTION_STATUSES = [
@@ -152,6 +170,13 @@ export const createBatchActionJob = async ({
       action: actionType as string,
     });
 
+    logBatchActionCreated({
+      batchActionId,
+      projectId,
+      actionId,
+      userId: session.user.id,
+    });
+
     return;
   }
 
@@ -188,12 +213,20 @@ export const createBatchActionJob = async ({
         query: queryWithSnapshot,
         targetId: targetId,
         type: actionType,
+        userId: session.user.id,
       },
     },
     {
       jobId: batchActionId,
     },
   );
+
+  logBatchActionCreated({
+    batchActionId,
+    projectId,
+    actionId,
+    userId: session.user.id,
+  });
 
   return;
 };

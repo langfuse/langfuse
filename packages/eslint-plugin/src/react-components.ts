@@ -14,6 +14,12 @@ type ResolveReturnExpression = (
 ) => TSESTree.Expression;
 
 type ReturnExpressionCallbacks = {
+  onComponentFunction?: (
+    node:
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionDeclaration
+      | TSESTree.FunctionExpression,
+  ) => void;
   onReturnExpression?: (
     node: TSESTree.Expression,
     resolve?: ResolveReturnExpression,
@@ -433,6 +439,18 @@ function visitReturnExpressionsInStatement(
   }
 }
 
+export function visitFunctionReturnExpressions(
+  node: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression,
+  onReturnExpression: (node: TSESTree.Expression) => void,
+) {
+  if (node.type === AST_NODE_TYPES.ArrowFunctionExpression && node.expression) {
+    onReturnExpression(node.body);
+    return;
+  }
+
+  visitReturnExpressionsInStatement(node.body, onReturnExpression);
+}
+
 /**
  * Visits complete expressions returned by React components. Unlike the root
  * element visitor, this preserves fragments and sibling relationships for
@@ -497,6 +515,7 @@ export function createComponentReturnExpressionVisitors(
       node.expression
     ) {
       if (!expressionReturnsJsxOrNull(node.body)) return;
+      callbacks.onComponentFunction?.(node);
       const resolve = (expression: TSESTree.Expression) => expression;
       callbacks.onComponentReturns?.([node.body], resolve);
       callbacks.onReturnExpression?.(node.body, resolve);
@@ -519,6 +538,7 @@ export function createComponentReturnExpressionVisitors(
       });
     }
     if (!returnExpressions.some(expressionReturnsJsxOrNull)) return;
+    callbacks.onComponentFunction?.(node);
     callbacks.onComponentReturns?.(returnExpressions, resolve);
     if (!callbacks.onReturnExpression) return;
     for (const expression of returnExpressions) {

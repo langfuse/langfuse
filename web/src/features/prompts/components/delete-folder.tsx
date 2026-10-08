@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -15,7 +16,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Trash, Folder, FileText } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 export function DeleteFolder({ folderPath }: { folderPath: string }) {
   const projectId = useProjectIdFromURL();
@@ -66,7 +67,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
     >
       <DialogTrigger asChild>
         <Button variant="ghost" size="xs" disabled={!hasAccess}>
-          <Trash className="h-4 w-4" />
+          <Trash className="icon-sm text-icon-foreground" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -105,9 +106,9 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                     className="text-muted-foreground flex items-center gap-2"
                   >
                     {p.row_type === "folder" ? (
-                      <Folder className="h-3 w-3 text-blue-500" />
+                      <Folder className="icon-sm text-blue-500" />
                     ) : (
-                      <FileText className="h-3 w-3" />
+                      <FileText className="icon-sm" />
                     )}
                     <span className="break-all">
                       {folderPath}/{p.name}

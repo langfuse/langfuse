@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
@@ -12,6 +13,9 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
   emitChbProjectEvent: mocks.emit,
 }));
 
+import { createApiKey } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -94,14 +98,7 @@ function makeCaller({
             ]
           : [],
       })),
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as any,
@@ -179,5 +176,94 @@ describe("projectsRouter CHB project lifecycle events", () => {
       orgId,
       projectId,
     });
+  });
+});
+
+describe("projectsRouter system role assignments", () => {
+  it("preserves user permissions while deleting project keys on soft deletion", async () => {
+    const orgId = await createOrg("Assignment Delete Org");
+    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
+    const caller = makeCaller({ userId: user.id, orgIds: [orgId], projectId });
+
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+    });
+
+    await expect(
+      prisma.roleAssignment.count({
+        where: { principalApiKeyId: key.id },
+      }),
+    ).resolves.toBe(1);
+
+    const assignment = await prisma.roleAssignment.create({
+      data: {
+        orgId,
+        principalUserId: user.id,
+        ownerProjectId: projectId,
+        systemRole: "VIEWER",
+      },
+    });
+
+    await caller.projects.delete({ projectId });
+
+    await expect(
+      prisma.roleAssignment.count({
+        where: { principalApiKeyId: key.id },
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      prisma.roleAssignment.findUnique({ where: { id: assignment.id } }),
+    ).resolves.toEqual(assignment);
+    await expect(
+      prisma.project.findUnique({ where: { id: projectId } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { deletedAt: null },
+    });
+    await expect(
+      getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: assignment.id,
+        ownerProjectId: projectId,
+        systemRole: "VIEWER",
+      }),
+    ]);
+  });
+
+  it("re-tags a project key's assignment orgId on transfer", async () => {
+    const sourceOrgId = await createOrg("Assignment Source Org");
+    const targetOrgId = await createOrg("Assignment Target Org");
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+    });
+
+    const before = await prisma.roleAssignment.findFirstOrThrow({
+      where: { principalApiKeyId: key.id },
+    });
+    expect(before.orgId).toBe(sourceOrgId);
+
+    await caller.projects.transfer({ projectId, targetOrgId });
+
+    const after = await prisma.roleAssignment.findFirstOrThrow({
+      where: { principalApiKeyId: key.id },
+    });
+    expect(after.orgId).toBe(targetOrgId);
+    expect(after.ownerProjectId).toBe(projectId);
   });
 });

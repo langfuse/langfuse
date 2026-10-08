@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import Link from "next/link";
 import { Bot, SquareTerminal, Sparkles } from "lucide-react";
 
@@ -33,7 +33,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
       <div className="space-y-6">
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <Sparkles className="text-foreground h-5 w-5" />
+            <Sparkles className="text-foreground icon-lg" />
             <span className="font-bold">Agent Skill</span>
           </div>
           <p className="text-primary mb-4 text-sm">
@@ -54,7 +54,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
 
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <Bot className="text-foreground h-5 w-5" />
+            <Bot className="text-foreground icon-lg" />
             <span className="font-bold">MCP Server</span>
           </div>
           <p className="text-primary mb-4 text-sm">
@@ -78,7 +78,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
 
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <SquareTerminal className="text-foreground h-5 w-5" />
+            <SquareTerminal className="text-foreground icon-lg" />
             <span className="font-bold">CLI</span>
           </div>
           <p className="text-primary mb-4 text-sm">

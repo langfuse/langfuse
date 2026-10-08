@@ -21,7 +21,7 @@ import { Card } from "@/src/components/ui/card";
 import { useReadPath } from "@/src/features/events";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "lucide-react";
 
@@ -155,10 +155,10 @@ export const SessionAnnotationProcessor: React.FC<
                 className="gap-1"
               >
                 {disabled ? (
-                  <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                  <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare className="h-4 w-4" />
+                    <MessageSquare className="icon-base text-icon-foreground" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,
@@ -285,6 +285,7 @@ export const SessionAnnotationProcessor: React.FC<
   const rightPanel = (
     <AnnotationDrawerSection
       item={item}
+      isV4={isV4}
       scoreTarget={{
         type: "session",
         sessionId: item.objectId,

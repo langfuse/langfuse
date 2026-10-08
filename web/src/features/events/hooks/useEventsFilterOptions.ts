@@ -6,6 +6,7 @@ import {
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
 import { sortOptionValues } from "@/src/features/filters";
+import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -206,7 +207,9 @@ export function useEventsFilterOptions({
             !EAGER_COLUMN_SET.has(col) &&
             !prev.has(col)
           ) {
-            next ??= new Set(prev);
+            if (next === null) {
+              next = new Set(prev);
+            }
             next.add(col);
           }
         }
@@ -234,6 +237,24 @@ export function useEventsFilterOptions({
     [splitFilter.refiningFilter, lazy, columns, lazyColumns],
   );
 
+  const countPlaceholderOptions = tablePlaceholderOptions({
+    projectId,
+    filter: (plan.bulk.filter ?? []).concat(
+      baseInput.startTimeFilter ?? [],
+      isRootObservation === undefined
+        ? []
+        : [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: isRootObservation,
+            },
+          ],
+    ),
+    timeRange: undefined,
+  });
+
   // Eager bulk query: one ClickHouse scan for the plan's shared columns. Only
   // this query carries includeApproxCount, so the approximate total ("Total ≈
   // X") is computed once here (riding this scan), not per lazy per-column facet.
@@ -248,6 +269,17 @@ export function useEventsFilterOptions({
       enabled,
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
+      meta: countPlaceholderOptions.meta,
+      // Facets remain visible across scopes; counts also require matching scope.
+      placeholderData: (previousData, previousQuery) =>
+        countPlaceholderOptions.placeholderData(previousData, previousQuery) ??
+        (previousData
+          ? {
+              ...previousData,
+              approxTotalCount: null,
+              approxTotalCountIsPartial: false,
+            }
+          : undefined),
     },
   );
 

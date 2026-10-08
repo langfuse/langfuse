@@ -124,6 +124,14 @@ export default [
 
   ...sharedConfig,
 
+  {
+    name: "langfuse/next/no-let-assign-in-react",
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    rules: {
+      "@repo/no-let-assign-in-react": "error",
+    },
+  },
+
   // Disable noisy turbo env var rule - project has many env vars not in turbo.json
   {
     name: "langfuse/next/turbo-overrides",
@@ -155,7 +163,6 @@ export default [
       },
     },
     rules: {
-      "@repo/no-abstracted-overlay-trigger": "warn",
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
@@ -195,8 +202,14 @@ export default [
       "**/*.stories.{ts,tsx}",
     ],
     rules: {
-      "@repo/no-abstracted-overlay-trigger": "off",
       "@repo/no-tailwind-overflow-scroll": "off",
+    },
+  },
+  {
+    name: "langfuse/next/prefer-stories-over-client-tests",
+    files: ["**/*.clienttest.{ts,tsx}"],
+    rules: {
+      "@repo/prefer-stories-over-client-tests": "warn",
     },
   },
 ];

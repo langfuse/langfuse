@@ -95,7 +95,7 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiFlag: () => false,
 }));
 
-import AccountSettingsPage from "@/src/pages/account/settings/index";
+import AccountSettingsPage from "@/src/features/account/AccountSettingsPage";
 
 describe("SignOutAllSessionsButton", () => {
   beforeEach(() => {
@@ -123,6 +123,7 @@ describe("SignOutAllSessionsButton", () => {
       expect(showSuccessToastMock).toHaveBeenCalledWith({
         title: "Signed Out of All Sessions",
         description: "All sessions have been invalidated.",
+        operation: "account.revoke_sessions",
       });
     });
     expect(showErrorToastMock).not.toHaveBeenCalledWith(

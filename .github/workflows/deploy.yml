@@ -15,6 +15,7 @@ on:
           - web-iso
           - worker
           - worker-cpu
+          - ai-gateway
         required: true
       environment:
         description: "Environment to deploy to"
@@ -46,14 +47,21 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu"];
+            const isStaging = context.eventName === "workflow_dispatch"
+              ? context.payload.inputs.environment === "staging"
+              : context.ref === "refs/heads/main";
+            if (isStaging) services.push("ai-gateway");
+
             if (context.eventName === "workflow_dispatch") {
-              if (context.payload.inputs.service === "all") {
-                return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
+              const service = context.payload.inputs.service;
+              if (service === "ai-gateway" && !isStaging) {
+                throw new Error("AI Gateway deployments are only enabled in staging.");
               }
-              return `["${context.payload.inputs.service}"]`
+              return JSON.stringify(service === "all" ? services : [service]);
             }
             if (context.eventName === "push") {
-              return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
+              return JSON.stringify(services);
             }
             return "[]"
           result-encoding: string
@@ -109,6 +117,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
+      IRONBANK_PASS: ${{ secrets.IRONBANK_PASS }}
     strategy:
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
@@ -25,7 +26,6 @@ import {
   type DataTableCellPadding,
   type LangfuseColumnDef,
 } from "@/src/components/table/types";
-import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
   Table,
   TableBody,
@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
@@ -56,6 +56,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
@@ -173,6 +174,8 @@ const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
 ): CSSProperties => {
   const isPinned = column.getIsPinned();
+  const coversRightScrollbarGutter =
+    isPinned === "right" && column.getIsLastColumn("right");
 
   return {
     left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
@@ -180,7 +183,19 @@ const getCommonPinningStyles = <TData,>(
     position: isPinned ? "sticky" : "relative",
     width: column.getSize(),
     zIndex: isPinned ? 10 : 0,
-    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+    backgroundColor: isPinned
+      ? "var(--surface-context, hsl(var(--background)))"
+      : undefined,
+    // Repeated outer shadows paint through the stable scrollbar gutter even
+    // when a table cell clips its contents. Only the outermost right-pinned
+    // column owns them, so adjacent pinned columns retain their normal offsets.
+    boxShadow: coversRightScrollbarGutter
+      ? [
+          "16px 0 0 hsl(var(--background))",
+          "32px 0 0 hsl(var(--background))",
+          "48px 0 0 hsl(var(--background))",
+        ].join(", ")
+      : undefined,
   };
 };
 
@@ -189,13 +204,8 @@ const getPinningClasses = <TData,>(column: Column<TData>): string => {
   const isPinned = column.getIsPinned();
   const isLastLeftPinnedColumn =
     isPinned === "left" && column.getIsLastColumn("left");
-  const isFirstRightPinnedColumn =
-    isPinned === "right" && column.getIsFirstColumn("right");
 
-  return cn(
-    isLastLeftPinnedColumn && "border-r border-border",
-    isFirstRightPinnedColumn && "border-l border-border",
-  );
+  return cn(isLastLeftPinnedColumn && "border-r border-border");
 };
 
 const getCellPaddingClassName = (padding: DataTableCellPadding) => {
@@ -211,8 +221,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 const cellBackgroundClassNames = {
   gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
-  green:
-    "bg-accent-light-green [&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+  green: "bg-surface-output [&_[data-slot=skeleton]]:bg-muted-foreground/20",
 } satisfies Record<DataTableCellBackground, string>;
 
 const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
@@ -312,7 +321,9 @@ export function DataTable<TData extends object, TValue>({
       left: columns
         .filter((col) => col.isPinnedLeft)
         .map((col) => col.id || col.accessorKey),
-      right: [],
+      right: columns
+        .filter((col) => col.isPinnedRight)
+        .map((col) => col.id || col.accessorKey),
     }),
     [columns],
   );
@@ -470,18 +481,24 @@ export function DataTable<TData extends object, TValue>({
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const columnDef = header.column
-                      .columnDef as LangfuseColumnDef<ModelTableRow>;
+                      .columnDef as LangfuseColumnDef<unknown>;
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = columnDef.isFlexWidth
-                      ? "auto"
-                      : isValidCssVariableName({
-                            name: header.id,
-                            includesHyphens: false,
-                          })
-                        ? `calc(var(--header-${header.id}-size) * 1px)`
-                        : 150;
+                    const width = (() => {
+                      if (columnDef.isFlexWidth) {
+                        return "auto";
+                      }
+                      if (
+                        isValidCssVariableName({
+                          name: header.id,
+                          includesHyphens: false,
+                        })
+                      ) {
+                        return `calc(var(--header-${header.id}-size) * 1px)`;
+                      }
+                      return 150;
+                    })();
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -490,6 +507,8 @@ export function DataTable<TData extends object, TValue>({
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
                           getPinningClasses(header.column),
+                          columnDef.headerClassName,
+                          columnDef.hideBelowMd && "hidden md:table-cell",
                         )}
                         style={{
                           ...getCommonPinningStyles(header.column),
@@ -673,7 +692,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
+        <div className="bg-surface sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
             isLoading={
@@ -760,10 +779,19 @@ function TableRefetchBar({ active }: { active: boolean }) {
 
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
-  if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
+  const ascending = orderBy.order === "ASC";
   return (
-    <span className="ml-1" title="Sort by this column">
-      ▼
+    <span className="ml-1 inline-flex shrink-0 items-center">
+      <svg
+        viewBox="0 0 24 24"
+        className="icon-base text-icon-foreground fill-current"
+        aria-hidden="true"
+      >
+        <path d={ascending ? "M7 14h10l-5-6z" : "M7 10h10l-5 6z"} />
+      </svg>
+      <span className="sr-only">
+        {ascending ? "sorted ascending" : "sorted descending"}
+      </span>
     </span>
   );
 }
@@ -837,11 +865,10 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        (rowIsSelected || shouldHighlightAllRows) &&
-          "bg-muted/40 dark:bg-muted",
         selectedRowId && selectedRowId === row.id
-          ? "bg-muted/40 dark:bg-muted"
+          ? "bg-accent dark:bg-accent"
           : undefined,
+        (rowIsSelected || shouldHighlightAllRows) && "bg-accent dark:bg-accent",
         getRowClassName?.(row.original),
       )}
     >
@@ -894,6 +921,8 @@ function TableBodyComponent<TData>({
                     (rowHeight ?? "s") === "s" && "whitespace-nowrap",
                     getPinningClasses(column),
                     getCellBackgroundClassName(columnDef.cellBackground),
+                    columnDef.cellClassName,
+                    columnDef.hideBelowMd && "hidden md:table-cell",
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
@@ -959,6 +988,8 @@ function TableBodyComponent<TData>({
                   isSmallRowHeight && "whitespace-nowrap",
                   getPinningClasses(cell.column),
                   getCellBackgroundClassName(columnDef.cellBackground),
+                  columnDef.cellClassName,
+                  columnDef.hideBelowMd && "hidden md:table-cell",
                 )}
                 style={{
                   ...getCommonPinningStyles(cell.column),
@@ -1027,7 +1058,7 @@ function TableBodyComponent<TData>({
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
+            <div className="text-muted-foreground pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center text-sm">
               {noResultsMessage ?? (
                 <>
                   No results.{" "}

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type GetServerSidePropsContext } from "next";
 import {
   getServerSession,
@@ -14,7 +15,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/utils";
+} from "@/src/features/feature-flags/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -53,7 +54,7 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/utils";
+} from "@/src/ee/features/multi-tenant-sso/server";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
@@ -80,8 +81,8 @@ import { createSupportEmailHash } from "@/src/features/support-chat/createSuppor
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
-} from "@/src/features/events/lib/v4Rollout";
-import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+} from "@/src/features/events/server";
+import { canCreateOrganizations } from "@/src/features/organizations/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -866,6 +867,12 @@ export async function getAuthOptions(signupAttribution?: {
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
               v4WriteMode,
+              apiKeyProjectRoleSelectionEnabled:
+                env.API_AUTH_MIGRATION === "enforce" &&
+                env.API_KEY_PROJECT_ROLES_ENABLE === "true",
+              apiKeyOrgRoleSelectionEnabled:
+                env.API_AUTH_MIGRATION === "enforce" &&
+                env.API_KEY_ORG_ROLES_ENABLE === "true",
             },
             user:
               dbUser !== null

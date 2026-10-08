@@ -2,21 +2,23 @@ import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
-import { type RouterOutput } from "@/src/utils/types";
 import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "zustand";
+import {
+  createAnnotationQueueRun,
+  type AnnotationQueueRun,
+  type QueueRunDependencies,
+} from "../state/annotationQueueRun";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   Dialog,
   DialogBody,
@@ -52,161 +54,179 @@ const ShortcutRow: React.FC<{
   </div>
 );
 
-export const AnnotationQueueItemPage: React.FC<{
+type QueuePageProps = {
   annotationQueueId: string;
   projectId: string;
   queryItemId?: string;
-}> = ({ annotationQueueId, projectId, queryItemId }) => {
+};
+
+export function AnnotationQueueItemPage(props: QueuePageProps) {
   const router = useRouter();
-  const { status: sessionStatus } = useSession();
-  const sessionLoaded = sessionStatus !== "loading";
-  const isSingleItem = router.query.singleItem === "true";
-  const [nextItemData, setNextItemData] = useState<
-    RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
-  >(null);
-  const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
-  const [progressIndex, setProgressIndex] = useState(0);
-
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "annotationQueues:CUD",
-  });
-
-  const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
-
-  const seenItemData = api.annotationQueueItems.byId.useQuery(
-    { projectId, itemId: itemId as string },
-    { enabled: !!itemId && sessionLoaded, refetchOnMount: false },
+  const { status } = useSession();
+  if (!router.isReady) return <Skeleton className="h-full w-full" />;
+  const singleItem = router.query.singleItem === "true";
+  return (
+    <AnnotationQueueRunLoader
+      key={singleItem ? props.queryItemId : "run"}
+      {...props}
+      singleItem={singleItem}
+      sessionReady={status !== "loading"}
+    />
   );
+}
 
-  const fetchAndLockNextMutation =
-    api.annotationQueues.fetchAndLockNext.useMutation();
-
-  // Effects
-  useEffect(() => {
-    async function fetchNextItem() {
-      if (!itemId && !isSingleItem && sessionLoaded) {
-        const nextItem = await fetchAndLockNextMutation.mutateAsync({
-          queueId: annotationQueueId,
-          projectId,
-          seenItemIds,
-        });
-        setNextItemData(nextItem);
-      }
-    }
-    fetchNextItem();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionLoaded]);
-  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
-
-  const unseenPendingItemCount =
-    api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
-      {
-        queueId: annotationQueueId,
-        projectId,
-        seenItemIds,
-      },
-      { refetchOnWindowFocus: false },
-    );
-
+function AnnotationQueueRunLoader({
+  annotationQueueId,
+  projectId,
+  queryItemId,
+  singleItem,
+  sessionReady,
+}: QueuePageProps & { singleItem: boolean; sessionReady: boolean }) {
+  const router = useRouter();
+  const runId = useId();
+  const queryClient = useQueryClient();
+  const queryKey = ["annotation-queue-run", runId];
+  const [run] = useState(() =>
+    createAnnotationQueueRun({ initialItemId: queryItemId, singleItem }),
+  );
   const utils = api.useUtils();
-  const completeMutation = api.annotationQueueItems.complete.useMutation({
-    onSuccess: async () => {
-      utils.annotationQueueItems.invalidate();
-      if (isSingleItem) {
-        return;
-      }
-
-      if (progressIndex >= seenItemIds.length - 1) {
-        const nextItem = await fetchAndLockNextMutation.mutateAsync({
-          queueId: annotationQueueId,
-          projectId,
-          seenItemIds,
-        });
-        setNextItemData(nextItem);
-      }
-
-      if (progressIndex + 1 < totalItems) {
-        setProgressIndex(Math.max(progressIndex + 1, 0));
-      }
-    },
-  });
-
-  const totalItems = useMemo(() => {
-    return seenItemIds.length + (unseenPendingItemCount.data ?? 0);
-  }, [unseenPendingItemCount.data, seenItemIds.length]);
-
-  const relevantItem = useMemo(() => {
-    if (isSingleItem) return seenItemData.data;
-    return progressIndex < seenItemIds.length
-      ? seenItemData.data
-      : nextItemData;
-  }, [
-    progressIndex,
-    seenItemIds.length,
-    seenItemData.data,
-    nextItemData,
-    isSingleItem,
-  ]);
-
-  const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
-
-  useEffect(() => {
-    if (relevantItem?.id && router.query.itemId !== relevantItem.id) {
-      const observation =
-        relevantItem.objectType === AnnotationQueueObjectType.OBSERVATION
-          ? relevantItem.objectId
-          : undefined;
-      router.push(
-        {
-          pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
-          query: observation ? { observation } : undefined,
-        },
-        undefined,
-      );
-    }
-  }, [relevantItem, router, projectId, annotationQueueId]);
-
-  useEffect(() => {
-    if (
-      relevantItem &&
-      !seenItemIds.includes(relevantItem.id) &&
-      !isSingleItem
-    ) {
-      setSeenItemIds((prev) => [...prev, relevantItem.id]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relevantItem]);
-
-  const isNextItemAvailable = totalItems > progressIndex + 1;
-  const isPending = relevantItem?.status === AnnotationQueueStatus.PENDING;
-
-  // LFE-7628 — keyboard-first navigation/completion.
-  const handleNavigateBack = useCallback(() => {
-    setProgressIndex((prev) => prev - 1);
-  }, []);
-
-  const handleNavigateNext = useCallback(async () => {
-    if (progressIndex >= seenItemIds.length - 1) {
-      const nextItem = await fetchAndLockNextMutation.mutateAsync({
+  const fetchNext = api.annotationQueues.fetchAndLockNext.useMutation();
+  const complete = api.annotationQueueItems.complete.useMutation();
+  const dependencies: QueueRunDependencies = {
+    isActive: () =>
+      queryClient.getQueryCache().find({ queryKey })?.isActive() ?? false,
+    loadItem: (itemId) =>
+      utils.annotationQueueItems.byId.fetch({ projectId, itemId }),
+    loadNext: async (seenItemIds) => {
+      const item = await fetchNext.mutateAsync({
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
       });
-      setNextItemData(nextItem);
-    }
-    setProgressIndex(Math.max(progressIndex + 1, 0));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progressIndex, seenItemIds, annotationQueueId, projectId]);
+      return item
+        ? {
+            ...item,
+            lockedByUser: { name: item.lockedByUser.name ?? null },
+          }
+        : null;
+    },
+    cacheItem: (item) =>
+      utils.annotationQueueItems.byId.setData(
+        { projectId, itemId: item.id },
+        item,
+      ),
+    completeItem: (itemId) => complete.mutateAsync({ projectId, itemId }),
+    refreshItems: () => utils.annotationQueueItems.invalidate(),
+    navigate: async (item, initialize) => {
+      if (initialize && router.query.itemId === item.id) {
+        if (item.observationId && !router.query.observation) {
+          return router.replace(
+            {
+              pathname: router.pathname,
+              query: { ...router.query, observation: item.observationId },
+            },
+            undefined,
+            { shallow: true },
+          );
+        }
+        return;
+      }
+      return router.push({
+        pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${item.id}`,
+        query: item.observationId
+          ? { observation: item.observationId }
+          : undefined,
+      });
+    },
+  };
+  const bootstrap = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => run.actions.start(dependencies, signal),
+    enabled: sessionReady,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  if (bootstrap.isPending) return <Skeleton className="h-full w-full" />;
+  if (bootstrap.isError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <p>Unable to load the annotation queue.</p>
+        <Button onClick={() => bootstrap.refetch()}>Try again</Button>
+      </div>
+    );
+  }
+  return (
+    <AnnotationQueueRunContent
+      annotationQueueId={annotationQueueId}
+      projectId={projectId}
+      isSingleItem={singleItem}
+      run={run}
+      dependencies={dependencies}
+    />
+  );
+}
 
-  const handleComplete = useCallback(async () => {
-    if (!relevantItem) return;
-    await completeMutation.mutateAsync({
-      itemId: relevantItem.id,
-      projectId,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relevantItem?.id, projectId]);
+function AnnotationQueueRunContent({
+  annotationQueueId,
+  projectId,
+  isSingleItem,
+  run,
+  dependencies,
+}: {
+  annotationQueueId: string;
+  projectId: string;
+  isSingleItem: boolean;
+  run: AnnotationQueueRun;
+  dependencies: QueueRunDependencies;
+}) {
+  const {
+    history,
+    progressIndex,
+    isTransitioning,
+    exhausted,
+    completedItemIds,
+    error,
+  } = useStore(run.store);
+  const seenItemIds = history.map((item) => item.id);
+  const itemId = history[progressIndex]?.id;
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:CUD",
+  });
+  const seenItemData = api.annotationQueueItems.byId.useQuery(
+    { projectId, itemId: itemId as string },
+    { enabled: !!itemId, refetchOnMount: false },
+  );
+  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
+  const unseenPendingItemCount =
+    api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
+      { queueId: annotationQueueId, projectId, seenItemIds },
+      { refetchOnWindowFocus: false },
+    );
+  const totalItems =
+    seenItemIds.length + (exhausted ? 0 : (unseenPendingItemCount.data ?? 0));
+  const relevantItem = seenItemData.data;
+  const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
+  const isNextItemAvailable = totalItems > progressIndex + 1;
+  const isPending =
+    relevantItem?.status === AnnotationQueueStatus.PENDING &&
+    !completedItemIds.has(itemId);
+  const handleNavigateBack = useCallback(
+    () => run.actions.back(dependencies),
+    [run, dependencies],
+  );
+  const handleNavigateNext = useCallback(
+    () => run.actions.next(dependencies),
+    [run, dependencies],
+  );
+  const handleComplete = useCallback(
+    () => run.actions.complete(dependencies),
+    [run, dependencies],
+  );
 
   // Brief highlight on the button when its shortcut fires.
   const [shortcutPulse, setShortcutPulse] = useState<
@@ -239,12 +259,7 @@ export const AnnotationQueueItemPage: React.FC<{
       // not complete or skip an item the annotator hasn't actually seen yet
       // (e.g. a quick → between ⌘/Ctrl+Enter and onSuccess advancing would skip
       // the next item, which only flashed as a Skeleton).
-      if (
-        objectData.isLoading ||
-        fetchAndLockNextMutation.isPending ||
-        completeMutation.isPending
-      )
-        return;
+      if (objectData.isLoading || isTransitioning) return;
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
@@ -252,7 +267,7 @@ export const AnnotationQueueItemPage: React.FC<{
       // open drawer/dialog so it never steals that surface's own submit.
       if (isCompleteShortcut(event)) {
         if (isOpenDialogPresent()) return;
-        if (isPending && !completeMutation.isPending && !objectData.isError) {
+        if (isPending && !isTransitioning && !objectData.isError) {
           event.preventDefault();
           // An out-of-range numeric score is vetoed on blur (no mutation fires),
           // so completing now would silently drop it. Scan *all* numeric score
@@ -278,7 +293,7 @@ export const AnnotationQueueItemPage: React.FC<{
             active.blur();
           }
           pulse("complete");
-          handleComplete().catch(() => {});
+          handleComplete();
         }
         return;
       }
@@ -317,7 +332,7 @@ export const AnnotationQueueItemPage: React.FC<{
         if (isNextItemAvailable) {
           event.preventDefault();
           pulse("next");
-          handleNavigateNext().catch(() => {});
+          handleNavigateNext();
         }
         return;
       }
@@ -339,10 +354,9 @@ export const AnnotationQueueItemPage: React.FC<{
     isPending,
     isNextItemAvailable,
     progressIndex,
-    completeMutation.isPending,
+    isTransitioning,
     objectData.isError,
     objectData.isLoading,
-    fetchAndLockNextMutation.isPending,
     handleComplete,
     handleNavigateNext,
     handleNavigateBack,
@@ -351,10 +365,9 @@ export const AnnotationQueueItemPage: React.FC<{
 
   if (
     (seenItemData.isPending && itemId) ||
-    (fetchAndLockNextMutation.isPending && !itemId) ||
+    (isTransitioning && !itemId) ||
     unseenPendingItemCount.isPending ||
-    objectData.isLoading ||
-    (!sessionLoaded && !isSingleItem)
+    objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;
   }
@@ -382,7 +395,7 @@ export const AnnotationQueueItemPage: React.FC<{
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
-          <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
+          <SearchXIcon className="text-muted-foreground icon-xl mb-2" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
@@ -422,18 +435,37 @@ export const AnnotationQueueItemPage: React.FC<{
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {renderContent()}
       </div>
+      {error && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-t px-3 py-2 text-sm"
+        >
+          <p>{error.message}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isTransitioning || !hasAccess}
+            onClick={() => run.actions.retry(dependencies)}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
       <div className="grid w-full shrink-0 grid-cols-1 justify-end gap-2 py-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row items-center gap-2">
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip label="Previous item" shortcut={{ keys: ["ArrowLeft"] }}>
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   onClick={handleNavigateBack}
                   variant="outline"
-                  disabled={progressIndex === 0 || !hasAccess}
+                  disabled={
+                    progressIndex === 0 || !hasAccess || isTransitioning
+                  }
                   size="lg"
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
@@ -442,18 +474,12 @@ export const AnnotationQueueItemPage: React.FC<{
                   )}
                   aria-label="Previous item"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="icon-base text-icon-foreground" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowLeft"]} />
                   </span>
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Previous item</span>
-                <span className="ml-2 hidden md:inline-flex">
-                  <KeyboardShortcut keys={["ArrowLeft"]} />
-                </span>
-              </TooltipContent>
+              )}
             </Tooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
             <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
@@ -475,11 +501,17 @@ export const AnnotationQueueItemPage: React.FC<{
         )}
         <div className="flex w-full min-w-[265px] items-center justify-end gap-2">
           {!isSingleItem && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label="Skip to next item"
+              shortcut={{ keys: ["ArrowRight"] }}
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   onClick={handleNavigateNext}
-                  disabled={!isNextItemAvailable || !hasAccess}
+                  disabled={
+                    !isNextItemAvailable || !hasAccess || isTransitioning
+                  }
                   size="lg"
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
@@ -490,25 +522,27 @@ export const AnnotationQueueItemPage: React.FC<{
                   variant="outline"
                   aria-label="Skip to next item"
                 >
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="icon-base text-icon-foreground" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowRight"]} />
                   </span>
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Skip to next item</span>
-                <span className="ml-2 hidden md:inline-flex">
-                  <KeyboardShortcut keys={["ArrowRight"]} />
-                </span>
-              </TooltipContent>
+              )}
             </Tooltip>
           )}
           {!!relevantItem &&
-            (relevantItem.status === AnnotationQueueStatus.PENDING ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+            (isPending ? (
+              <Tooltip
+                label={
+                  isSingleItem
+                    ? "Mark completed"
+                    : "Mark completed + go to next item"
+                }
+                shortcut={isSingleItem ? undefined : { keys: ["Mod", "Enter"] }}
+              >
+                {({ getTriggerProps }) => (
                   <Button
+                    {...getTriggerProps()}
                     onClick={handleComplete}
                     size="lg"
                     className={cn(
@@ -516,9 +550,7 @@ export const AnnotationQueueItemPage: React.FC<{
                       shortcutPulse === "complete" && "ring-primary/40 ring-2",
                     )}
                     disabled={
-                      completeMutation.isPending ||
-                      !hasAccess ||
-                      objectData.isError
+                      isTransitioning || !hasAccess || objectData.isError
                     }
                   >
                     <span>Mark Completed</span>
@@ -531,19 +563,7 @@ export const AnnotationQueueItemPage: React.FC<{
                       </span>
                     )}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <span>
-                    {isSingleItem
-                      ? "Mark completed"
-                      : "Mark completed + go to next item"}
-                  </span>
-                  {!isSingleItem && (
-                    <span className="ml-2 hidden md:inline-flex">
-                      <KeyboardShortcut keys={["Mod", "Enter"]} />
-                    </span>
-                  )}
-                </TooltipContent>
+                )}
               </Tooltip>
             ) : (
               <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
@@ -556,7 +576,7 @@ export const AnnotationQueueItemPage: React.FC<{
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Keyboard className="h-4 w-4" />
+              <Keyboard className="icon-base" />
               Keyboard shortcuts
             </DialogTitle>
           </DialogHeader>
@@ -613,4 +633,4 @@ export const AnnotationQueueItemPage: React.FC<{
       </Dialog>
     </div>
   );
-};
+}

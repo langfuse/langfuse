@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, type ReactNode } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -31,7 +32,10 @@ export function ProviderDialogController({
 }: {
   organizationId: string;
   connection?: GatewayConnection;
-  children: (control: { openDialog: () => void }) => ReactNode;
+  children: (control: {
+    openAddDialog: () => void;
+    openEditDialog: (connection: GatewayConnection) => void;
+  }) => ReactNode;
 }) {
   const [provider, setProvider] = useState<GatewayProvider>(
     connection?.provider ?? "OPENAI",
@@ -56,16 +60,18 @@ export function ProviderDialogController({
   const isError = test.isError || create.isError || update.isError;
 
   const reset = () => {
-    setProvider(connection?.provider ?? "OPENAI");
-    setName(connection?.name ?? "");
+    setProvider("OPENAI");
+    setName("");
     setCredential("");
   };
 
-  const testCredential = async () => {
+  const testCredential = async (
+    selectedConnection: GatewayConnection | null,
+  ) => {
     try {
       await test.mutateAsync({
         orgId: organizationId,
-        provider: connection?.provider ?? provider,
+        provider: selectedConnection?.provider ?? provider,
         credential,
       });
     } catch (error) {
@@ -73,12 +79,15 @@ export function ProviderDialogController({
     }
   };
 
-  const submit = async (closeDialog: () => void) => {
+  const submit = async (
+    selectedConnection: GatewayConnection | null,
+    closeDialog: () => void,
+  ) => {
     try {
-      if (connection) {
+      if (selectedConnection) {
         await update.mutateAsync({
           orgId: organizationId,
-          id: connection.id,
+          id: selectedConnection.id,
           name,
           ...(credential ? { credential } : {}),
         });
@@ -103,27 +112,27 @@ export function ProviderDialogController({
   };
 
   return (
-    <DialogController
+    <DialogController<GatewayConnection | null>
       size="default"
       closeOnInteractionOutside={false}
       onDismiss={reset}
       onBeforeClose={() => !isPending}
-      renderContent={({ closeDialog }) => (
+      renderContent={({ state: selectedConnection, closeDialog }) => (
         <>
           <DialogHeader>
             <DialogTitle>
-              {connection
+              {selectedConnection
                 ? "Edit provider credential"
                 : "Add provider credential"}
             </DialogTitle>
           </DialogHeader>
           <DialogBody>
-            {connection ? (
+            {selectedConnection ? (
               <div>
                 <Label>Provider</Label>
                 <Input
                   className="mt-1.5"
-                  value={providerLabels[connection.provider]}
+                  value={providerLabels[selectedConnection.provider]}
                   disabled
                 />
               </div>
@@ -134,7 +143,7 @@ export function ProviderDialogController({
               name={name}
               credential={credential}
               credentialPlaceholder={
-                connection
+                selectedConnection
                   ? "Leave blank to keep current key"
                   : "Enter secret key"
               }
@@ -163,16 +172,18 @@ export function ProviderDialogController({
               variant="secondary"
               disabled={!credential || isPending}
               loading={test.isPending}
-              onClick={testCredential}
+              onClick={() => testCredential(selectedConnection)}
             >
               Test
             </Button>
             <Button
               disabled={
-                !name.trim() || (!connection && !credential) || isPending
+                !name.trim() ||
+                (!selectedConnection && !credential) ||
+                isPending
               }
               loading={isSaving}
-              onClick={() => submit(closeDialog)}
+              onClick={() => submit(selectedConnection, closeDialog)}
             >
               Test and save
             </Button>
@@ -180,7 +191,22 @@ export function ProviderDialogController({
         </>
       )}
     >
-      {({ openDialog }) => children({ openDialog })}
+      {({ openDialog }) =>
+        children({
+          openAddDialog: () => {
+            setProvider(connection?.provider ?? "OPENAI");
+            setName(connection?.name ?? "");
+            setCredential("");
+            openDialog(connection ?? null);
+          },
+          openEditDialog: (selectedConnection) => {
+            setProvider(selectedConnection.provider);
+            setName(selectedConnection.name);
+            setCredential("");
+            openDialog(selectedConnection);
+          },
+        })
+      }
     </DialogController>
   );
 }

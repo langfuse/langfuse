@@ -1,7 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import type * as React from "react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   MetricStripBand,
@@ -19,6 +21,7 @@ import {
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
+  estimateYLabelWidthPx,
   OutlierBarStrip,
   type OutlierStripDrillTrigger,
 } from "./OutlierBarStrip";
@@ -56,6 +59,25 @@ import { canApplyOutlierStripFilters } from "./lib/filterCompatibility";
 
 /** Target horizontal pixels per bar for granularity picking. */
 const BAR_SLOT_TARGET_PX = 5;
+
+/** Band `px-2` on both sides plus the base `ml-6` y-label gutter and `mr-2`. */
+const PLOT_HORIZONTAL_INSET_PX = 16 + 24 + 8;
+
+/** Gutter steps for the right-aligned y labels; the base step is `ml-6`. */
+const Y_LABEL_GUTTERS = [
+  { px: 24, className: "ml-6" },
+  { px: 32, className: "ml-8" },
+  { px: 40, className: "ml-10" },
+  { px: 48, className: "ml-12" },
+] as const;
+
+function yLabelGutter(labelWidthPx: number) {
+  const needed = labelWidthPx + 4;
+  return (
+    Y_LABEL_GUTTERS.find((gutter) => gutter.px >= needed) ??
+    Y_LABEL_GUTTERS[Y_LABEL_GUTTERS.length - 1]
+  );
+}
 
 type StripMode = OutlierStripSettings["mode"];
 
@@ -167,8 +189,8 @@ export function EventsOutlierStrip({
   const fromMs = fromTimestamp.getTime();
   const toMs = toTimestamp.getTime();
   const validRange = fromMs < toMs;
-  // getBoundingClientRect includes the wrapper's px-2 padding (border-box).
-  const width = Math.max((size?.width ?? 0) - 16, 0);
+  // getBoundingClientRect includes the band's padding (border-box).
+  const width = Math.max((size?.width ?? 0) - PLOT_HORIZONTAL_INSET_PX, 0);
 
   const mode: StripMode = settings.mode;
   const chartWidth = width;
@@ -357,44 +379,52 @@ export function EventsOutlierStrip({
         : "ready";
 
   const header = (
-    <MetricStripHeaderRow>
-      <ModeDropdownController
-        options={MODE_OPTIONS}
-        onChange={handleModeChange}
-      >
-        {({ Trigger }) => (
-          <Trigger asChild>
-            <MetricStripTrigger
-              ariaLabel={`Chart mode: ${modeLabel(mode)}`}
-              label={modeLabel(mode)}
-              variant="metric"
-            />
-          </Trigger>
-        )}
-      </ModeDropdownController>
-      {/* The bar's aggregate must be legible where there is a choice (p95 vs
+    <div className="pt-0.5 pr-2 pl-1">
+      <MetricStripHeaderRow>
+        <ModeDropdownController
+          options={MODE_OPTIONS}
+          onChange={handleModeChange}
+        >
+          {({ Trigger }) => (
+            <Trigger asChild>
+              <MetricStripTrigger
+                ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+                label={modeLabel(mode)}
+                variant="metric"
+              />
+            </Trigger>
+          )}
+        </ModeDropdownController>
+        {/* The bar's aggregate must be legible where there is a choice (p95 vs
           avg); single-option metrics are unambiguous and render no
           aggregation label. A chart that cannot represent the filters is not
           drawn with any aggregate, so it shows none. */}
-      {canApplyFilters && aggOptions.length > 1 && (
-        <AggDropdownController
-          options={aggOptions}
-          onChange={(agg) => setAggregation(mode, agg)}
-        >
-          {({ Trigger }) => (
-            <span className="flex items-baseline gap-1">
-              <Trigger asChild>
-                <MetricStripTrigger
-                  ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
-                  label={aggregation}
-                  variant="aggregation"
-                />
-              </Trigger>
-            </span>
-          )}
-        </AggDropdownController>
-      )}
-    </MetricStripHeaderRow>
+        {canApplyFilters && aggOptions.length > 1 && (
+          <AggDropdownController
+            options={aggOptions}
+            onChange={(agg) => setAggregation(mode, agg)}
+          >
+            {({ Trigger }) => (
+              <span className="flex items-baseline gap-1">
+                <Trigger asChild>
+                  <MetricStripTrigger
+                    ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
+                    label={aggregation}
+                    variant="aggregation"
+                  />
+                </Trigger>
+              </span>
+            )}
+          </AggDropdownController>
+        )}
+      </MetricStripHeaderRow>
+    </div>
+  );
+
+  const yGutter = yLabelGutter(estimateYLabelWidthPx(series.maxValue, mode));
+  const plotWidthPx = Math.max(
+    chartWidth - (yGutter.px - Y_LABEL_GUTTERS[0].px),
+    1,
   );
 
   return (
@@ -408,10 +438,12 @@ export function EventsOutlierStrip({
       // switch, drill-in) — stale data must not read as current.
       stale={queryResult.isPlaceholderData && queryResult.isFetching}
       header={header}
+      // Ready height (header + plot + time labels), so loading doesn't jump.
+      contentHeightClass="h-22.25"
     >
       {!canApplyFilters ? (
         <OutlierBarStrip
-          className="mt-1.5"
+          className="mt-2 mr-2 ml-6"
           dense={[]}
           maxValue={0}
           ticks={[]}
@@ -422,13 +454,13 @@ export function EventsOutlierStrip({
         />
       ) : (
         <OutlierBarStrip
-          className="mt-1.5"
+          className={cn("mt-2 mr-2", yGutter.className)}
           dense={series.dense}
           maxValue={series.maxValue}
           ticks={series.ticks}
           stepMs={stepMs}
           metric={mode}
-          widthPx={chartWidth}
+          widthPx={plotWidthPx}
           onSelectBucket={handleSelectBucket}
           onPreviewPinned={(trigger) =>
             capture("pulse:preview_pinned", {

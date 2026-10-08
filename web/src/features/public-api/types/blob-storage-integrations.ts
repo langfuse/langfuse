@@ -10,8 +10,7 @@ import {
   validateExportFieldGroups,
   exportStartDateNotInFuture,
   EXPORT_START_DATE_FUTURE_ERROR,
-} from "@/src/features/blobstorage-integration/validation";
-
+} from "@/src/features/blobstorage-integration";
 /**
  * Enums
  */
@@ -20,6 +19,7 @@ const BlobStorageIntegrationType = z.enum([
   "S3",
   "S3_COMPATIBLE",
   "AZURE_BLOB_STORAGE",
+  "GOOGLE_CLOUD_STORAGE",
 ]);
 
 const BlobStorageIntegrationFileType = z.enum([

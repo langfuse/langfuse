@@ -1,7 +1,8 @@
+/* eslint-disable no-nested-ternary */
 import { useCallback, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { formatBucketRange } from "@/src/features/events";
 import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
 import { prepareScoreOutlierYTicks } from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
@@ -554,7 +555,7 @@ export function ScoreOutlierBarStrip({
                   onSelectionChange?.(null);
                 }}
               >
-                <X className="h-3 w-3" />
+                <X className="icon-sm" />
               </button>
             </div>
             {previewHasData && (

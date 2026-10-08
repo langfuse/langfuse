@@ -1,8 +1,8 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications";
@@ -13,20 +13,16 @@ import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-d
 import { useState } from "react";
 import {
   DialogContent,
+  DialogTitle,
   DialogTrigger,
   Dialog,
 } from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { Pencil } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { Label } from "@/src/components/ui/label";
-import { Input } from "@/src/components/ui/input";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DefaultEvalModelSuccessMessage = {
+  operation: string;
   title: string;
   description: string;
 };
@@ -150,6 +146,7 @@ export function DefaultEvalModelSetup({
       onSuccess?.();
     },
     successMessage: {
+      operation: "evaluation_model.update",
       title: "Default evaluation model updated",
       description: "All running evaluators will use the new model.",
     },
@@ -213,11 +210,14 @@ export function DefaultEvalModelSetup({
                 setIsEditing(true);
               }}
             >
-              <Pencil className="mr-2 h-4 w-4" />
+              <Pencil className="icon-base mr-2" />
               {setup.selectedModel ? "Edit" : "Set up"}
             </Button>
           </DialogTrigger>
           <DialogContent className="px-3 py-10">
+            <DialogTitle className="sr-only">
+              Default evaluation model
+            </DialogTitle>
             <div className="flex flex-col gap-2">
               <DefaultEvalModelFields setup={setup} />
               <div className="mt-2 flex justify-end gap-2">
@@ -228,6 +228,7 @@ export function DefaultEvalModelSetup({
                   <UpdateButton
                     projectId={projectId}
                     isLoading={setup.isUpsertLoading}
+                    error={setup.formError ?? undefined}
                     executeUpsertMutation={setup.executeUpsertMutation}
                   />
                 ) : (
@@ -262,6 +263,7 @@ export function InlineDefaultEvalModelSetup({
     projectId,
     onSuccess,
     successMessage: {
+      operation: "evaluation_model.set",
       title: "Default evaluation model set",
       description: "LLM-as-a-judge evaluators can now use this model.",
     },
@@ -295,68 +297,41 @@ export function InlineDefaultEvalModelSetup({
 function UpdateButton({
   projectId,
   isLoading,
+  error,
   executeUpsertMutation,
 }: {
   projectId: string;
   isLoading: boolean;
-  executeUpsertMutation: () => void;
+  error?: string;
+  executeUpsertMutation: () => Promise<void>;
 }) {
-  const [confirmationInput, setConfirmationInput] = useState("");
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalDefaultModel:CUD",
   });
 
-  const CONFIRMATION = "update";
-
   return (
-    <Popover key="update-action">
-      <PopoverTrigger asChild>
+    <ConfirmationDialogController
+      title="Update default model?"
+      text="Updating the default model will impact any currently running evaluators that use it. Please confirm that you want to proceed with this change."
+      confirmationText="update"
+      confirmLabel="Confirm"
+      variant="default"
+      loading={isLoading}
+      error={error}
+      onConfirm={executeUpsertMutation}
+    >
+      {({ openDialog }) => (
         <Button
           disabled={!hasWriteAccess}
           onClick={(e) => {
             e.stopPropagation();
+            openDialog();
           }}
         >
           Update
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        onClick={(e) => e.stopPropagation()}
-        className="w-fit max-w-[500px]"
-      >
-        <h2 className="mb-3 font-bold">Please confirm</h2>
-        <p className="mb-3 text-sm">
-          Updating the default model will impact any currently running
-          evaluators that use it. Please confirm that you want to proceed with
-          this change.
-        </p>
-        <div className="mb-4 grid w-full gap-1.5">
-          <Label htmlFor="update-confirmation">
-            Type &quot;{CONFIRMATION}&quot; to confirm
-          </Label>
-          <Input
-            id="update-confirmation"
-            value={confirmationInput}
-            onChange={(e) => setConfirmationInput(e.target.value)}
-          />
-        </div>
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            loading={isLoading}
-            onClick={() => {
-              if (confirmationInput !== CONFIRMATION) {
-                alert("Please type the correct confirmation");
-                return;
-              }
-              executeUpsertMutation();
-            }}
-          >
-            Confirm
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </ConfirmationDialogController>
   );
 }

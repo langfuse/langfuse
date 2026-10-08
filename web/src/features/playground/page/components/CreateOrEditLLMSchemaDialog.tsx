@@ -25,7 +25,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { LLMSchemaNameSchema } from "@/src/features/llm-schemas/validation";
+import { LLMSchemaNameSchema } from "@/src/features/llm-schemas";
 import { api } from "@/src/utils/api";
 
 import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
@@ -225,7 +225,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="h-3 w-3" />
+                          <ArrowUpRight className="icon-sm" />
                         </a>
                       </FormDescription>
                       <FormControl>

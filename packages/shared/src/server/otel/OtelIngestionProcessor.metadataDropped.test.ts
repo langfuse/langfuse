@@ -44,6 +44,7 @@ import {
   type ResourceSpan,
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
+import { flattenJsonToPathArrays } from "./utils";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -58,7 +59,10 @@ const createProcessor = () =>
     sdkVersion: "3.8.1",
   });
 
-type OtelAttribute = { key: string; value: Record<string, unknown> };
+type OtelAttribute = {
+  key: string;
+  value: Record<string, unknown> | null | undefined;
+};
 
 const buildBatch = (attributes: OtelAttribute[]): ResourceSpan[] => [
   {
@@ -97,6 +101,23 @@ const buildBatch = (attributes: OtelAttribute[]): ResourceSpan[] => [
   },
 ];
 
+const getObservations = async (path: "v3" | "v4", batch: ResourceSpan[]) => {
+  const processor = createProcessor();
+  if (path === "v4") {
+    return processor.processToEvent(batch);
+  }
+
+  return (await processor.processToIngestionEvents(batch))
+    .filter((event) => event.type === "span-create")
+    .map((event) => event.body);
+};
+
+const rawEmptyAttributes = (prefix: string) => [
+  { key: `${prefix}.missing`, value: undefined },
+  { key: `${prefix}.null`, value: null },
+  { key: `${prefix}.empty`, value: {} },
+];
+
 const droppedCalls = () =>
   recordIncrementMock.mock.calls.filter(([stat]) => stat === METRIC);
 
@@ -118,6 +139,479 @@ const expectDropTags = (
   expect(tags?.sdkName).toBe("python");
   expect(tags?.sdkVersion).toBe("3.8.1");
 };
+
+// The gateway links a generation to its logs and provider call through these keys.
+const gatewayRequestIds = {
+  request: "0192b6f4-6c1e-7a3b-8c4d-5e6f7a8b9c0d",
+  client: "client-request",
+  upstream: "req_upstream",
+};
+
+describe("gateway metadata", () => {
+  it.each([
+    ["v3", "langfuse-ai-gateway"],
+    ["v4", "langfuse-ai-gateway"],
+    ["v3", "other-instrumentation"],
+    ["v4", "other-instrumentation"],
+  ])(
+    "preserves canonical fields and non-duplicate metadata for %s %s",
+    async (path, scope) => {
+      const completionStartTime = "2025-07-13T05:20:00.500Z";
+      const modelParameters = {
+        service_tier: "default",
+        stream: true,
+        reasoning: { effort: "low" },
+      };
+      const usageDetails = { input: 10, output: 21 };
+      const canonicalAttributes = {
+        "langfuse.observation.type": "generation",
+        "langfuse.observation.level": "ERROR",
+        "langfuse.observation.status_message": "HTTP 429: rate limited",
+        "langfuse.observation.model.name": "test-model",
+        "langfuse.observation.model.parameters":
+          JSON.stringify(modelParameters),
+        "langfuse.observation.usage_details": JSON.stringify(usageDetails),
+        "langfuse.observation.cost_details": JSON.stringify({ total: 0.001 }),
+        "langfuse.observation.completion_start_time": completionStartTime,
+        "user.id": "user-test",
+        "session.id": "session-test",
+        "langfuse.trace.name": "trace-test",
+        "langfuse.trace.tags": JSON.stringify(["tag-a", "tag-b"]),
+        "langfuse.environment": "staging",
+      };
+      const batch = buildBatch(
+        Object.entries({
+          ...canonicalAttributes,
+          "langfuse.observation.input": '[{"role":"user","content":"Hi"}]',
+          "langfuse.observation.output": '[{"type":"message","content":[]}]',
+          "langfuse.observation.metadata": JSON.stringify({
+            "langfuse.gateway.provider.request.id": "req-test",
+            "langfuse.gateway.request.id": gatewayRequestIds.request,
+            "langfuse.gateway.client.request.id": gatewayRequestIds.client,
+            "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
+          }),
+          "langfuse.observation.metadata.langfuse.gateway.api-key.id":
+            "key-test",
+          "custom.attribute": "keep-custom",
+          "langfuse.observation.custom": "keep-unknown",
+        }).map(([key, value]) => ({ key, value: { stringValue: value } })),
+      );
+      batch[0].scopeSpans![0].scope!.name = scope;
+      const processor = createProcessor();
+      const observation =
+        path === "v4"
+          ? processor.processToEvent(batch)[0]
+          : (await processor.processToIngestionEvents(batch)).find(
+              (event) => event.type === "generation-create",
+            )?.body;
+
+      expect(observation).toMatchObject({
+        level: "ERROR",
+        statusMessage: "HTTP 429: rate limited",
+        modelParameters: {
+          service_tier: "default",
+          stream: "true",
+          reasoning: '{"effort":"low"}',
+        },
+        completionStartTime,
+        environment: "staging",
+        input: '[{"role":"user","content":"Hi"}]',
+        output: '[{"type":"message","content":[]}]',
+        ...(path === "v4"
+          ? {
+              type: "GENERATION",
+              userId: "user-test",
+              sessionId: "session-test",
+              traceName: "trace-test",
+              tags: ["tag-a", "tag-b"],
+              modelName: "test-model",
+              providedUsageDetails: usageDetails,
+              providedCostDetails: { total: 0.001 },
+            }
+          : {
+              model: "test-model",
+              usageDetails,
+              costDetails: { total: 0.001 },
+            }),
+      });
+      expect(observation?.metadata).toEqual({
+        "langfuse.gateway.provider.request.id": "req-test",
+        "langfuse.gateway.request.id": gatewayRequestIds.request,
+        "langfuse.gateway.client.request.id": gatewayRequestIds.client,
+        "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
+        "langfuse.gateway.api-key.id": "key-test",
+        attributes: {
+          ...(scope === "langfuse-ai-gateway" ? {} : canonicalAttributes),
+          "custom.attribute": "keep-custom",
+          "langfuse.observation.custom": "keep-unknown",
+        },
+        resourceAttributes: { "service.name": "test-svc" },
+        scope: {
+          name: scope,
+          version: "3.8.1",
+          attributes: { public_key: "pk-test" },
+        },
+      });
+    },
+  );
+});
+
+describe("raw OTLP empty attribute values", () => {
+  it.each(["v3", "v4"] as const)(
+    "omits missing and empty values while preserving fallbacks and siblings on %s",
+    async (path) => {
+      const batch = buildBatch([
+        { key: "ai.operationId", value: undefined },
+        { key: "ai.prompt.messages", value: null },
+        { key: "ai.prompt", value: { stringValue: "prompt-fallback" } },
+        { key: "ai.result.text", value: {} },
+        {
+          key: "ai.response.object",
+          value: { stringValue: "response-fallback" },
+        },
+        { key: "gen_ai.usage.prompt_tokens", value: null },
+        { key: "gen_ai.usage.input_tokens", value: { intValue: "42" } },
+        { key: "gen_ai.usage.completion_tokens", value: {} },
+        { key: "gen_ai.usage.output_tokens", value: { intValue: "7" } },
+        {
+          key: "langfuse.observation.metadata.encodedNull",
+          value: { stringValue: null },
+        },
+      ]);
+      batch[0].resource!.attributes!.push(...rawEmptyAttributes("resource"), {
+        key: "resource.inheritedEmpty",
+        value: Object.create({ stringValue: null }),
+      });
+      const scopeSpan = batch[0].scopeSpans![0];
+      scopeSpan.scope!.name = "ai";
+      scopeSpan.scope!.attributes!.push(...rawEmptyAttributes("scope"));
+      scopeSpan.spans!.push({
+        ...scopeSpan.spans![0],
+        traceId: Buffer.from("fedcba9876543210fedcba9876543210", "hex"),
+        spanId: Buffer.from("fedcba9876543210", "hex"),
+        name: "sibling-span",
+        attributes: [
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "span" },
+          },
+        ],
+      });
+
+      const observations = await getObservations(path, batch);
+      const primary = observations.find(
+        (observation) => observation.name === "test-span",
+      );
+      const sibling = observations.find(
+        (observation) => observation.name === "sibling-span",
+      );
+
+      expect(primary).toMatchObject({
+        name: "test-span",
+        input: "prompt-fallback",
+        output: "response-fallback",
+        ...(path === "v4"
+          ? { providedUsageDetails: { input: 42, output: 7 } }
+          : { usageDetails: { input: 42, output: 7 } }),
+      });
+      expect(primary?.metadata).toMatchObject({
+        encodedNull: null,
+        resourceAttributes: { "service.name": "test-svc" },
+        scope: { attributes: { public_key: "pk-test" } },
+      });
+      expect(primary?.metadata?.resourceAttributes).toEqual({
+        "service.name": "test-svc",
+      });
+      expect(primary?.metadata?.scope?.attributes).toEqual({
+        public_key: "pk-test",
+      });
+      expect(primary?.metadata?.attributes).not.toHaveProperty([
+        "ai.operationId",
+      ]);
+      expect(sibling).toMatchObject({ name: "sibling-span" });
+    },
+  );
+
+  it("preserves typed array values, nested positions, and empty arrays", () => {
+    const batch = buildBatch([
+      {
+        key: "langfuse.observation.metadata.values",
+        value: {
+          arrayValue: {
+            values: [
+              { stringValue: "" },
+              { boolValue: false },
+              { intValue: "0" },
+              { doubleValue: 0 },
+              {},
+              null,
+              {
+                arrayValue: {
+                  values: [
+                    { stringValue: "nested" },
+                    {},
+                    null,
+                    { arrayValue: {} },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        key: "langfuse.observation.metadata.emptyArray",
+        value: { arrayValue: {} },
+      },
+    ]);
+
+    const observation = createProcessor().processToEvent(batch)[0];
+    expect(observation.metadata).toMatchObject({
+      values: ["", false, 0, 0, null, null, ["nested", null, null, []]],
+      emptyArray: [],
+    });
+  });
+
+  it("omits empty event attributes while preserving typed falsy values", () => {
+    const empty = [
+      { key: "missing", value: undefined },
+      { key: "null", value: null },
+      { key: "empty", value: {} },
+    ];
+    const falsy = [
+      { key: "enabled", value: { boolValue: false } },
+      { key: "zero", value: { intValue: "0" } },
+      { key: "blank", value: { stringValue: "" } },
+    ];
+    const batch = buildBatch([]);
+    batch[0].scopeSpans![0].spans![0].events = [
+      {
+        name: "gen_ai.system.message",
+        attributes: [
+          { key: "content", value: { stringValue: "system" } },
+          ...empty,
+          ...falsy,
+        ],
+      },
+      {
+        name: "gen_ai.choice",
+        attributes: [
+          { key: "text", value: { stringValue: "choice" } },
+          ...empty,
+          ...falsy,
+        ],
+      },
+    ];
+
+    expect(createProcessor().processToEvent(batch)[0]).toMatchObject({
+      input: [
+        {
+          role: "system",
+          content: "system",
+          enabled: false,
+          zero: 0,
+          blank: "",
+        },
+      ],
+      output: { text: "choice", enabled: false, zero: 0, blank: "" },
+    });
+  });
+});
+
+describe("per-key metadata values from structured-metadata SDK majors", () => {
+  const metadata = {
+    environment: "prod",
+    version: "1.0",
+    digits: "42",
+    label: "",
+    retries: 3,
+    ratio: 1.5,
+    enabled: true,
+    missing: null,
+    database: { host: "localhost", port: 5432, auth: { user: "app" } },
+    steps: [{ name: "web_fetch", args: { url: "https://example.com" } }],
+    empty: {},
+  };
+
+  const blobAttributes = (
+    domain: "observation" | "trace",
+    space?: number,
+  ): OtelAttribute[] => [
+    {
+      key: `langfuse.${domain}.metadata`,
+      value: { stringValue: JSON.stringify(metadata, null, space) },
+    },
+  ];
+
+  // Structured-metadata SDKs JSON-encode every value, strings included.
+  const perKeyAttributes = (
+    domain: "observation" | "trace",
+    space?: number,
+  ): OtelAttribute[] =>
+    Object.entries(metadata).map(([key, value]) => ({
+      key: `langfuse.${domain}.metadata.${key}`,
+      value: { stringValue: JSON.stringify(value, null, space) },
+    }));
+
+  const processMetadata = async (
+    path: "v3" | "v4",
+    attributes: OtelAttribute[],
+    params: {
+      domain?: "observation" | "trace";
+      // "child" sends the attributes on a child span of an attribute-less root.
+      span?: "root" | "child";
+      headerSdkName?: string;
+      scopeName?: string;
+      scopeVersion?: string;
+      telemetrySdkLanguage?: string;
+    } = {},
+  ) => {
+    const scopeVersion = params.scopeVersion ?? "5.0.0";
+    const batch = buildBatch(params.span === "child" ? [] : attributes);
+    if (params.span === "child") {
+      const spans = batch[0].scopeSpans![0].spans!;
+      spans.push({
+        ...spans[0],
+        spanId: Buffer.from("fedcba9876543210", "hex"),
+        parentSpanId: spans[0].spanId,
+        name: "child-span",
+        attributes: [...spans[0].attributes!, ...attributes],
+      });
+    }
+    const scope = batch[0].scopeSpans![0].scope!;
+    scope.name = params.scopeName ?? "langfuse-sdk";
+    scope.version = scopeVersion;
+    if (params.telemetrySdkLanguage) {
+      batch[0].resource!.attributes!.push({
+        key: "telemetry.sdk.language",
+        value: { stringValue: params.telemetrySdkLanguage },
+      });
+    }
+    const processor = new OtelIngestionProcessor({
+      projectId: PROJECT_ID,
+      publicKey: "pk-test",
+      sdkName: params.headerSdkName ?? "python",
+      sdkVersion: scopeVersion,
+    });
+    if (path === "v4") {
+      return processor.processToEvent(batch).at(-1)?.metadata as Record<
+        string,
+        unknown
+      >;
+    }
+    // v3 writes trace metadata to the trace, observation metadata to the span.
+    // The last matching event belongs to the span carrying the attributes.
+    const eventType =
+      params.domain === "trace" ? "trace-create" : "span-create";
+    const event = (await processor.processToIngestionEvents(batch))
+      .filter((event) => event.type === eventType)
+      .at(-1);
+    return (event?.body as { metadata?: Record<string, unknown> } | undefined)
+      ?.metadata as Record<string, unknown>;
+  };
+
+  it.each([
+    { path: "v3", domain: "observation", span: "root", encoding: "compact" },
+    { path: "v3", domain: "trace", span: "root", encoding: "compact" },
+    { path: "v3", domain: "trace", span: "child", encoding: "compact" },
+    { path: "v4", domain: "observation", span: "root", encoding: "compact" },
+    { path: "v4", domain: "trace", span: "root", encoding: "compact" },
+    { path: "v4", domain: "trace", span: "child", encoding: "compact" },
+    { path: "v3", domain: "observation", span: "root", encoding: "indented" },
+    { path: "v4", domain: "observation", span: "root", encoding: "indented" },
+  ] as const)(
+    "stores per-key values exactly like a blob ($path, $domain on $span span, $encoding JSON)",
+    async ({ path, domain, span, encoding }) => {
+      const space = encoding === "indented" ? 2 : undefined;
+      const fromBlob = await processMetadata(
+        path,
+        blobAttributes(domain, space),
+        { domain, span },
+      );
+      const fromPerKey = await processMetadata(
+        path,
+        perKeyAttributes(domain, space),
+        { domain, span },
+      );
+
+      expect(fromBlob).toMatchObject(metadata);
+      expect(fromPerKey).toEqual(fromBlob);
+      expect(flattenJsonToPathArrays(fromPerKey)).toEqual(
+        flattenJsonToPathArrays(fromBlob),
+      );
+    },
+  );
+
+  it("keeps a per-key value that is not valid JSON as sent and counts it", async () => {
+    recordIncrementMock.mockClear();
+    const result = await processMetadata("v4", [
+      {
+        key: "langfuse.observation.metadata.note",
+        value: { stringValue: "{not json" },
+      },
+      {
+        key: "langfuse.observation.metadata.environment",
+        value: { stringValue: '"prod"' },
+      },
+    ]);
+
+    expect(result).toMatchObject({ note: "{not json", environment: "prod" });
+    expect(droppedCalls()).toHaveLength(0);
+    const undecodedCalls = recordIncrementMock.mock.calls.filter(
+      ([stat]) => stat === "langfuse.ingestion.metadata_undecoded",
+    );
+    expect(undecodedCalls).toHaveLength(1);
+    expect(undecodedCalls[0][2]).toEqual({ kind: "truncated_json" });
+  });
+
+  it.each([
+    {
+      case: "current Python major",
+      headerSdkName: "python",
+      scopeVersion: "4.15.6",
+    },
+    {
+      case: "current JS major",
+      headerSdkName: "javascript",
+      scopeVersion: "5.11.1",
+    },
+    {
+      case: "non-Langfuse scope",
+      headerSdkName: "python",
+      scopeVersion: "5.0.0",
+      scopeName: "openinference",
+    },
+  ])("keeps per-key values as sent for the $case", async (params) => {
+    const result = await processMetadata(
+      "v4",
+      perKeyAttributes("observation"),
+      params,
+    );
+
+    expect(result).toMatchObject({
+      environment: '"prod"',
+      retries: "3",
+      database: '{"host":"localhost","port":5432,"auth":{"user":"app"}}',
+    });
+  });
+
+  it("falls back to telemetry.sdk.language without a Langfuse SDK header", async () => {
+    const result = await processMetadata(
+      "v4",
+      perKeyAttributes("observation"),
+      {
+        headerSdkName: "unknown",
+        scopeVersion: "6.0.0-beta.1",
+        telemetrySdkLanguage: "nodejs",
+      },
+    );
+
+    expect(result).toMatchObject({
+      environment: "prod",
+      database: metadata.database,
+    });
+  });
+});
 
 describe("OTel metadata_dropped metric", () => {
   beforeEach(() => {

@@ -1,13 +1,19 @@
-import crypto from "node:crypto";
-
 import { type ApiKey } from "@langfuse/shared/src/db";
-import { InternalServerError, UnauthorizedError } from "@langfuse/shared";
+import {
+  type InternalServerError,
+  type ServiceUnavailableError,
+  type UnauthorizedError,
+} from "@langfuse/shared";
 import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import { ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { matchesAdminApiKey } from "@/src/features/apiKey/helpers/matchesAdminApiKey";
 import {
+  internalServerError,
+  unauthorizedError,
   type ErrorResult,
   type Success,
 } from "@/src/features/auth/policy/types";
@@ -27,7 +33,7 @@ export class Verifier {
     private readonly adminApiKey: string | undefined = env.ADMIN_API_KEY,
   ) {}
 
-  /** verify resolves a parsed credential to a presentation, or a typed failure. */
+  /** verify resolves a parsed credential to a presentation, or a typed failure; an expired key 401s like an unknown one. */
   async verify(credential: Credential): Promise<VerifyApiKeyResult> {
     if (credential.kind === "basic") {
       return this.verifyBasic(credential.publicKey, credential.secretKey);
@@ -35,7 +41,7 @@ export class Verifier {
     if (credential.kind === "bearer") {
       return this.verifyBearer(credential.token);
     }
-    return unauthorized();
+    return unauthorizedError(invalidCredentials);
   }
 
   /** verifyBasic authenticates a public:secret pair as the privateKey presentation, private key first then a slow bcrypt backfill. */
@@ -44,12 +50,12 @@ export class Verifier {
     secretKey: string,
   ): Promise<VerifyApiKeyResult> {
     const byPrivateKey = await this.verifyPrivateKey(secretKey);
-    if (byPrivateKey) return byPrivateKey;
+    if (byPrivateKey) return rejectExpired(byPrivateKey);
 
     const bySlowHash = await this.backfillSlowHash(publicKey, secretKey);
-    if (bySlowHash) return bySlowHash;
+    if (bySlowHash) return rejectExpired(bySlowHash);
 
-    return unauthorized();
+    return unauthorizedError(invalidCredentials);
   }
 
   /** verifyBearer chains admin, then public (public key), then private (fast hash). */
@@ -58,12 +64,12 @@ export class Verifier {
     if (admin) return admin;
 
     const byPublicKey = await this.verifyPublicKey(token);
-    if (byPublicKey) return byPublicKey;
+    if (byPublicKey) return rejectExpired(byPublicKey);
 
     const byPrivateKey = await this.verifyPrivateKey(token);
-    if (byPrivateKey) return byPrivateKey;
+    if (byPrivateKey) return rejectExpired(byPrivateKey);
 
-    return unauthorized();
+    return unauthorizedError(invalidCredentials);
   }
 
   /** verifyPrivateKey resolves a secret to its privateKey presentation via the fast-hash index, or null when it is not indexed there. */
@@ -78,23 +84,20 @@ export class Verifier {
     return null;
   }
 
-  /** backfillSlowHash bcrypt-verifies a secret against the public key's row, backfilling the fast hash on a match, or null on a miss. */
+  /** backfillSlowHash bcrypt-verifies keys without a fast hash and backfills matching secrets. */
   private async backfillSlowHash(
     publicKey: string,
     secretKey: string,
   ): Promise<VerifyApiKeyResult | null> {
     const found = await this.apiKeyRepo.findByPublicKey(publicKey);
     if (!found.success) return found;
-    if (!found.apiKey) return null;
+    if (!found.apiKey || found.apiKey.fastHashedSecretKey !== null) return null;
 
     let valid: boolean;
     try {
       valid = await verifySecretKey(secretKey, found.apiKey.hashedSecretKey);
     } catch (error) {
-      return {
-        success: false,
-        error: new InternalServerError(`slow verify failed: ${String(error)}`),
-      };
+      return internalServerError(`slow verify failed: ${String(error)}`);
     }
     if (!valid) return null;
 
@@ -105,20 +108,11 @@ export class Verifier {
     return privateKey(found.apiKey);
   }
 
-  /** verifyAdminKey resolves a token that timing-safe matches the admin key, or null; the key is ignored unless set and non-empty after trimming. */
+  /** verifyAdminKey recognizes the configured environment admin. */
   private verifyAdminKey(token: string): VerifyApiKeyResult | null {
-    const adminApiKey = this.adminApiKey?.trim();
-    if (!adminApiKey) return null;
-    try {
-      if (
-        crypto.timingSafeEqual(Buffer.from(token), Buffer.from(adminApiKey))
-      ) {
-        return { success: true, authorization: "admin" };
-      }
-    } catch {
-      return null;
-    }
-    return null;
+    return matchesAdminApiKey(token, this.adminApiKey)
+      ? { success: true, authorization: "admin" }
+      : null;
   }
 
   /** verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown. */
@@ -141,9 +135,16 @@ function privateKey(apiKey: ApiKey): VerifyApiKeyResult {
   return { success: true, authorization: "privateKey", apiKey };
 }
 
-/** unauthorized is the single 401 outcome for any unknown or malformed credential. */
-function unauthorized(): ErrorResult<UnauthorizedError> {
-  return { success: false, error: new UnauthorizedError(invalidCredentials) };
+/** rejectExpired maps a verified key past its expiry to the unknown-key 401. */
+function rejectExpired(result: VerifyApiKeyResult): VerifyApiKeyResult {
+  if (
+    result.success &&
+    result.authorization !== "admin" &&
+    isApiKeyExpired(result.apiKey.expiresAt)
+  ) {
+    return unauthorizedError(invalidCredentials);
+  }
+  return result;
 }
 
 /** VerifiedCredential is the presentation the resolver consumes: an api key with how it was presented, or the admin key. */
@@ -154,4 +155,6 @@ type VerifiedCredential =
 /** VerifyApiKeyResult is the verified credential, or a typed failure; verify returns, never throws. */
 export type VerifyApiKeyResult =
   | (Success & VerifiedCredential)
-  | ErrorResult<UnauthorizedError | InternalServerError>;
+  | ErrorResult<
+      UnauthorizedError | InternalServerError | ServiceUnavailableError
+    >;

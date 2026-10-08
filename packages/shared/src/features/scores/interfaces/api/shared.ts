@@ -15,7 +15,7 @@ import {
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
-import { singleFilter } from "../../../../interfaces/filters";
+import { singleFilterList } from "../../../../interfaces/filters";
 import { InvalidRequestError } from "../../../../errors";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
@@ -69,13 +69,13 @@ export const GetScoresQuery = z.object({
         throw new InvalidRequestError("Invalid JSON in filter parameter");
       }
     })
-    .pipe(z.array(singleFilter).optional()),
+    .pipe(singleFilterList.optional()),
 });
 
 // POST /scores
 // Roughly mirrors ScoreBody in `packages/shared/src/server/ingestion/types.ts`;
 // keep them in sync for fields that cross both surfaces.
-export const PostScoresBody = applyScoreValidation(
+export const PostScoreBody = applyScoreValidation(
   PostScoreBodyFoundationSchema.extend({
     source: PublicApiCreateScoreSourceDomain.default(ScoreSourceEnum.API),
   }).and(
@@ -120,7 +120,18 @@ export const PostScoresBody = applyScoreValidation(
   path: ["configId"],
 });
 
-export const PostScoresResponse = z.object({ id: z.string() });
+// Batch items are validated individually so invalid scores do not reject valid siblings.
+export const PostScoresBody = z.union([PostScoreBody, z.array(z.unknown())]);
+
+export const PostScoresResponse = z.union([
+  z.object({ id: z.string() }),
+  z.object({ message: z.string() }),
+  z.object({
+    accepted: z.number().int().nonnegative(),
+    rejected: z.number().int().nonnegative(),
+    errors: z.array(z.object({ message: z.string() })),
+  }),
+]);
 
 // DELETE /scores/{scoreId}
 // Please note that the DELETE /scores/{scoreId} endpoint supports all score types (trace, session, dataset run) across v1 and v2.

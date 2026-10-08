@@ -27,6 +27,35 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+// ClickHouse rejects unknown settings on every query, so a malformed value
+// must fail the process at startup instead.
+const clickhouseExtraSettingsSchema = (name: string) =>
+  z
+    .string()
+    .transform((value, ctx) => {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        ctx.addIssue({ code: "custom", message: `${name} must be valid JSON` });
+        return z.NEVER;
+      }
+    })
+    .pipe(
+      z.record(
+        z
+          .string()
+          .regex(
+            /^[A-Za-z_][A-Za-z0-9_]*$/,
+            `${name} keys must be ClickHouse setting names`,
+          ),
+        z.union([z.string(), z.number(), z.boolean()]),
+        {
+          error: `${name} must be a JSON object of setting names to string, number, or boolean values`,
+        },
+      ),
+    )
+    .optional();
+
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
 const EnvSchema = z.object({
@@ -42,6 +71,25 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // Internal Topics PoC controls; not a supported self-hosting configuration.
+  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
+  // Unset model IDs make Topics model processing unavailable.
+  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
+  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10800),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),
@@ -165,6 +213,18 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
+  // JSON objects of ClickHouse setting name to value. Every client gets
+  // CLICKHOUSE_EXTRA_SETTINGS; the service variants add to it for clients of
+  // that service. Settings set by Langfuse itself take precedence.
+  CLICKHOUSE_EXTRA_SETTINGS: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS",
+  ),
+  CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY",
+  ),
+  CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY: clickhouseExtraSettingsSchema(
+    "CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY",
+  ),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
@@ -473,6 +533,40 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
+  // no service account key) may write to. Those run as the deployment's own GCP
+  // identity (ADC), so without this allowlist any project owner could export into
+  // any bucket that identity can write. Empty disables keyless GCS exports;
+  // exports with a service account key are unaffected.
+  LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((s) => s.toLowerCase().trim())
+            .filter(Boolean)
+        : [],
+    ),
   LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -534,7 +628,12 @@ const EnvSchema = z.object({
   // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
   // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
   // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
-  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+  // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+  // authenticates through the instance credential chain (GCP application
+  // default credentials) and takes no key.
+  LANGFUSE_AI_PROVIDER: z
+    .enum(["bedrock", "anthropic", "openai", "vertex"])
+    .optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
@@ -562,6 +661,12 @@ const EnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Local AI credentials; production normally uses the AWS role chain.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),
+  // Legacy local profile alias.
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
   LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
     .enum(["url", "inline", "disabled"])
@@ -605,6 +710,10 @@ const EnvSchema = z.object({
 
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+
+  // FIPS mode (EE feature): refuse to start without an enterprise license or
+  // an active OpenSSL FIPS provider. See server/ee/fips.
+  LANGFUSE_REQUIRE_FIPS: z.enum(["true", "false"]).default("false"),
 
   // Ingestion Masking (EE feature)
   LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),

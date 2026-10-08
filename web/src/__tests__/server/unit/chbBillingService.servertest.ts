@@ -1,25 +1,34 @@
 import type { CloudConfigSchema } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   env: { NEXTAUTH_URL: "https://cloud.langfuse.com" },
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   auditLog: vi.fn(),
+  traceCounts: vi.fn(),
+  observationCounts: vi.fn(),
+  scoreCounts: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
-// Only the logger is stubbed: getBillingCycleStart/End are the real cached-cycle
-// fallback this service shares with the Stripe path.
+// The logger and the ClickHouse unit counts are stubbed: getBillingCycleStart/End
+// are the real cached-cycle fallback this service shares with the Stripe path.
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
-  return { ...actual, logger: mocks.logger };
+  return {
+    ...actual,
+    logger: mocks.logger,
+    getTraceCountsByProjectInCreationInterval: mocks.traceCounts,
+    getObservationCountsByProjectInCreationInterval: mocks.observationCounts,
+    getScoreCountsByProjectInCreationInterval: mocks.scoreCounts,
+  };
 });
 
 import {
@@ -48,6 +57,7 @@ const update = vi.fn();
 // Checkout claims the CH organization id with a guarded UPDATE rather than a
 // read-then-write, so the claim is a raw statement returning a row count.
 const executeRaw = vi.fn();
+const projectFindMany = vi.fn();
 
 const clientMock = {
   createCheckoutSession: vi.fn(),
@@ -59,7 +69,11 @@ const clientMock = {
 };
 
 const ctx = {
-  prisma: { organization: { findUnique, update }, $executeRaw: executeRaw },
+  prisma: {
+    organization: { findUnique, update },
+    project: { findMany: projectFindMany },
+    $executeRaw: executeRaw,
+  },
   session: {
     orgId: ORG_ID,
     orgRole: "OWNER",
@@ -110,6 +124,9 @@ describe("chbBillingService", () => {
     update.mockResolvedValue({});
     // Default: the claim succeeds. Tests that exercise the race override it.
     executeRaw.mockResolvedValue(1);
+    // Default: no pending scheduled change, so the schedule-setting paths have
+    // nothing to clear first. Tests that exercise the clear override it.
+    clientMock.getAttachedPlan.mockResolvedValue({ id: ATTACHED_PLAN_ID });
   });
 
   describe("getSubscriptionInfo", () => {
@@ -260,6 +277,7 @@ describe("chbBillingService", () => {
       expect(url).toBe(session.checkoutUrl);
       expect(clientMock.createCheckoutSession).toHaveBeenCalledWith({
         organizationId: undefined,
+        name: "Org",
         email: "user@example.com",
         planCode: "LANGFUSE_PRO",
         returnUrl: `https://cloud.langfuse.com/organization/${ORG_ID}/settings/billing`,
@@ -471,6 +489,45 @@ describe("chbBillingService", () => {
       });
     });
 
+    it("does not clear a schedule when none is pending", async () => {
+      withOrg(chbConfig({ planCode: "LANGFUSE_CORE" }));
+      // beforeEach stubs getAttachedPlan with no `scheduled` field.
+
+      await service().changePlan(ORG_ID, productIdFor("LANGFUSE_PRO_TEAMS"));
+
+      expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
+      expect(clientMock.setScheduledChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("clears a pending scheduled change before setting the new one", async () => {
+      withOrg(chbConfig({ planCode: "LANGFUSE_CORE" }));
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        scheduled: {
+          type: "downgrade",
+          planCode: "LANGFUSE_CORE",
+          startDate: "2026-09-05T00:00:00Z",
+        },
+      });
+
+      await service().changePlan(
+        ORG_ID,
+        productIdFor("LANGFUSE_PRO_TEAMS"),
+        "op-1",
+      );
+
+      // CHB rejects a set while a change is pending, so the clear has to land
+      // first — assert both the call and the order.
+      expect(clientMock.clearScheduledChange).toHaveBeenCalledWith({
+        chOrganizationId: CH_ORG_ID,
+        idempotencyKey:
+          "chb.attachedplan.scheduled.clear:attachedPlanId=plan_1:phase=before-set:op=op-1",
+      });
+      expect(
+        clientMock.clearScheduledChange.mock.invocationCallOrder[0],
+      ).toBeLessThan(clientMock.setScheduledChange.mock.invocationCallOrder[0]);
+    });
+
     it("defers a downgrade to the end of the billing cycle", async () => {
       withOrg(chbConfig({ planCode: "LANGFUSE_PRO_TEAMS" }));
 
@@ -563,6 +620,21 @@ describe("chbBillingService", () => {
       );
     });
 
+    it("clears a pending plan switch before scheduling the cancellation", async () => {
+      withOrg(chbConfig());
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        scheduled: { type: "downgrade", planCode: "LANGFUSE_CORE" },
+      });
+
+      await service().cancel(ORG_ID, "op-3");
+
+      expect(clientMock.clearScheduledChange).toHaveBeenCalledTimes(1);
+      expect(
+        clientMock.clearScheduledChange.mock.invocationCallOrder[0],
+      ).toBeLessThan(clientMock.setScheduledChange.mock.invocationCallOrder[0]);
+    });
+
     it.each([
       ["reactivate", (s: ChbBillingService) => s.reactivate(ORG_ID, "op-4")],
       [
@@ -593,6 +665,23 @@ describe("chbBillingService", () => {
       );
     });
 
+    it("clears a pending change before cancelling immediately", async () => {
+      withOrg(chbConfig());
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        scheduled: { type: "cancel", endDate: "2026-09-01T00:00:00Z" },
+      });
+
+      await expect(
+        service().cancelImmediatelyAndInvoice(ORG_ID, "op-5"),
+      ).resolves.toEqual({ status: "success" });
+
+      expect(clientMock.clearScheduledChange).toHaveBeenCalledTimes(1);
+      expect(
+        clientMock.clearScheduledChange.mock.invocationCallOrder[0],
+      ).toBeLessThan(clientMock.setScheduledChange.mock.invocationCallOrder[0]);
+    });
+
     it("no-ops the immediate cancellation for an org without an attached plan", async () => {
       withOrg(null);
 
@@ -601,7 +690,28 @@ describe("chbBillingService", () => {
         service().cancelImmediatelyAndInvoice(ORG_ID),
       ).resolves.toEqual({ status: "noop" });
       expect(clientMock.setScheduledChange).not.toHaveBeenCalled();
+      // No attached plan → nothing read and nothing cleared either.
+      expect(clientMock.getAttachedPlan).not.toHaveBeenCalled();
+      expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ["cancel", (s: ChbBillingService) => s.cancel(ORG_ID)],
+      ["reactivate", (s: ChbBillingService) => s.reactivate(ORG_ID)],
+      [
+        "clearPlanSwitchSchedule",
+        (s: ChbBillingService) => s.clearPlanSwitchSchedule(ORG_ID),
+      ],
+    ])(
+      "maps %s without an attached plan onto PRECONDITION_FAILED",
+      async (_label, call) => {
+        withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
+
+        expect(await trpcCode(call(service()))).toBe("PRECONDITION_FAILED");
+        expect(clientMock.setScheduledChange).not.toHaveBeenCalled();
+        expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("getInvoices", () => {
@@ -674,6 +784,75 @@ describe("chbBillingService", () => {
     });
   });
 
+  describe("getUsage", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("counts live projects' ingested units over CHB's billing period", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-06T12:00:00Z"));
+      withOrg(chbConfig());
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        period: {
+          startDate: "2026-10-01T00:00:00Z",
+          endDate: "2026-11-01T00:00:00Z",
+        },
+      });
+      projectFindMany.mockResolvedValue([
+        { id: "project-1" },
+        { id: "project-2" },
+      ]);
+      mocks.traceCounts.mockResolvedValue([
+        { projectId: "project-1", count: 10 },
+      ]);
+      mocks.observationCounts.mockResolvedValue([
+        { projectId: "project-1", count: 100 },
+        { projectId: "project-2", count: 50 },
+      ]);
+      mocks.scoreCounts.mockResolvedValue([
+        { projectId: "project-2", count: 5 },
+      ]);
+
+      const usage = await service().getUsage(ORG_ID);
+
+      // CHB's calendar month, not the org's cycle anchored on the 15th or its
+      // cached counter
+      expect(usage).toEqual({
+        usageCount: 165,
+        usageType: "units",
+        billingPeriod: {
+          start: new Date("2026-10-01T00:00:00Z"),
+          end: new Date("2026-11-01T00:00:00Z"),
+        },
+      });
+      expect(projectFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { orgId: ORG_ID, deletedAt: null } }),
+      );
+      const interval = {
+        start: new Date("2026-10-01T00:00:00Z"),
+        end: new Date("2026-10-06T12:00:00Z"),
+        projectIds: ["project-1", "project-2"],
+      };
+      expect(mocks.traceCounts).toHaveBeenCalledWith(interval);
+      expect(mocks.observationCounts).toHaveBeenCalledWith(interval);
+      expect(mocks.scoreCounts).toHaveBeenCalledWith(interval);
+    });
+
+    it("falls back to the cached cycle counter without an attached plan", async () => {
+      withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
+
+      const usage = await service().getUsage(ORG_ID);
+
+      expect(clientMock.getAttachedPlan).not.toHaveBeenCalled();
+      expect(mocks.traceCounts).not.toHaveBeenCalled();
+      expect(usage.usageCount).toBe(4_200);
+      expect(usage.usageType).toBe("units");
+      expect(usage.billingPeriod.start.getUTCDate()).toBe(15);
+    });
+  });
+
   describe("remaining surface", () => {
     it("builds a portal session against the org's CH id", async () => {
       withOrg(chbConfig());
@@ -696,16 +875,6 @@ describe("chbBillingService", () => {
       expect(await trpcCode(service().getCustomerPortalUrl(ORG_ID))).toBe(
         "INTERNAL_SERVER_ERROR",
       );
-    });
-
-    it("reports usage from the cached cycle counter", async () => {
-      withOrg(chbConfig());
-
-      const usage = await service().getUsage(ORG_ID);
-
-      expect(usage.usageCount).toBe(4_200);
-      expect(usage.usageType).toBe("units");
-      expect(usage.billingPeriod.start.getUTCDate()).toBe(15);
     });
 
     it("rejects promotion codes, which CHB has no API for", async () => {

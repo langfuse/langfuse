@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   type default as React,
   useCallback,
@@ -1668,7 +1669,12 @@ export function useSidebarFilterPresentation(
           ) as Array<{
             column: string;
             type: "stringObject";
-            operator: "=" | "contains" | "does not contain";
+            operator:
+              | "="
+              | "contains"
+              | "does not contain"
+              | "is set"
+              | "is not set";
             key: string;
             value: string;
           }>;

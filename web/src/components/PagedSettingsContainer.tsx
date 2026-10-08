@@ -32,13 +32,15 @@ export const PagedSettingsContainer = ({
   fullHeight = false,
 }: SettingsProps) => {
   const router = useRouter();
-  const availablePages = pages.filter((page) =>
-    "show" in page
-      ? typeof page.show === "function"
-        ? page.show()
-        : page.show
-      : true,
-  );
+  const availablePages = pages.filter((page) => {
+    if ("show" in page) {
+      if (typeof page.show === "function") {
+        return page.show();
+      }
+      return page.show;
+    }
+    return true;
+  });
 
   const currentPage =
     availablePages.find((page) => page.slug === activeSlug) ??
@@ -88,7 +90,7 @@ export const PagedSettingsContainer = ({
                     <SelectItem key={page.title} value={page.slug}>
                       {page.title}
                       {"href" in page && (
-                        <ArrowUpRight size={14} className="ml-1 inline" />
+                        <ArrowUpRight className="icon-base ml-1 inline" />
                       )}
                     </SelectItem>
                   ))}
@@ -99,7 +101,7 @@ export const PagedSettingsContainer = ({
         </nav>
         <nav
           className={cn(
-            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid",
+            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid md:gap-y-1",
             fullHeight && "md:top-0",
           )}
           x-chunk="dashboard-04-chunk-0"
@@ -118,7 +120,7 @@ export const PagedSettingsContainer = ({
                   className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
                 >
                   {page.title}
-                  <ArrowUpRight size={14} className="inline" />
+                  <ArrowUpRight className="icon-base inline" />
                 </Link>
               ) : (
                 <span

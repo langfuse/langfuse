@@ -17,6 +17,11 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- Before creating a new component or reusing one from elsewhere in
+  `web/src/components`, first check `web/src/components/design-system` for an
+  existing component that satisfies the use case. Prefer the design-system
+  component and extend it when appropriate; use another component only when
+  the design system has no suitable option.
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
   intermediate tool output stays out of the main context.
@@ -106,6 +111,7 @@ langfuse/
 |- web/                     # Next.js app (UI + tRPC + public REST)
 |- worker/                  # Queue consumers and background processing
 |- packages/shared/         # Shared domain, DB, queue contracts, repositories
+|- packages/native/         # Rust addon (napi-rs) loaded in-process by worker
 |- ee/                      # Enterprise package consumed by web
 |- generated/               # Generated API clients (do not hand-edit)
 |- fern/                    # API definition sources
@@ -114,7 +120,7 @@ langfuse/
 
 - Dependency direction:
   - `web` -> `@langfuse/shared`, `@langfuse/ee`
-  - `worker` -> `@langfuse/shared`
+  - `worker` -> `@langfuse/shared`, `@langfuse/native`
   - `@langfuse/ee` -> `@langfuse/shared`
   - `@langfuse/shared` -> no imports from `web`, `worker`, or `ee`
 - Queue payload schemas and queue-name contracts are owned by
@@ -196,6 +202,11 @@ langfuse/
 
 - `web/**`: `pnpm run lint` plus targeted web tests.
 - `worker/**`: `pnpm run lint` plus targeted worker tests.
+- `packages/native/**`: `pnpm --filter @langfuse/native run lint` (rustfmt +
+  clippy), then `pnpm --filter @langfuse/native run build`,
+  `pnpm --filter worker run typecheck`, and the worker `nativeHello` test,
+  which loads the compiled addon. Building the worker needs a Rust
+  toolchain (`rustup`); see `packages/native/AGENTS.md`.
 - `packages/shared/**` non-schema changes:
   `pnpm run lint` plus one targeted web check and one targeted worker check.
 - `packages/shared/prisma/**` or `packages/shared/clickhouse/**`:
@@ -265,12 +276,10 @@ regenerated outputs. Never hand-edit `generated/**`.
 
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
-- Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
 - After changing skills / AGENTS.md, run `pnpm run agents:sync` and
   `pnpm run agents:check`.
-- **Write agent guidance only in `AGENTS.md`, never in a `CLAUDE.md`.** Every
-  `AGENTS.md` in the tree gets a generated sibling `CLAUDE.md` symlink when running
-  `pnpm run agents:sync`.
+- **Write folder instructions directly in `AGENTS.md`.** Harnesses read these
+  files without provider-specific copies or compatibility symlinks.
 - Put package-local guidance in the narrowest `AGENTS.md` that owns it so that it's only
   loaded into context when needed.
 - When creating or editing `.agents/skills/**`, use

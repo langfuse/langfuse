@@ -1,12 +1,12 @@
 import { renderHook } from "@testing-library/react";
 
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
+import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
@@ -16,13 +16,17 @@ vi.mock("@/src/components/layouts/header", () => ({
   default: () => null,
 }));
 
-vi.mock("@/src/features/rbac/components/MembershipInvitesPage", () => ({
-  MembershipInvitesPage: () => null,
-}));
+vi.mock(
+  "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable",
+  () => ({
+    ConnectedMembershipInvitesSettingsTable: () => null,
+  }),
+);
 
-vi.mock("@/src/features/rbac/components/MembersTable", () => ({
-  MembersTable: () => null,
-}));
+vi.mock(
+  "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable",
+  () => ({ ConnectedMembersSettingsTable: () => null }),
+);
 
 vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
   JSONView: () => null,
@@ -47,12 +51,16 @@ vi.mock("@/src/ee/features/billing/components/BillingSettings", () => ({
   BillingSettings: () => null,
 }));
 
+vi.mock("@/src/features/organization-usage", () => ({
+  OrganizationUsageBreakdown: () => null,
+}));
+
 vi.mock("@/src/features/entitlements/hooks", () => ({
   useHasEntitlement: vi.fn(),
   usePlan: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/sso-settings/components/SSOSettings", () => ({
+vi.mock("@/src/ee/features/sso-settings", () => ({
   SSOSettings: () => null,
 }));
 
@@ -76,7 +84,7 @@ vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
   useIsCloudBillingAvailable: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage", () => ({
+vi.mock("@/src/ee/features/audit-log-viewer", () => ({
   OrgAuditLogsSettingsPage: () => null,
 }));
 
@@ -222,5 +230,47 @@ describe("useOrganizationSettingsPages", () => {
       "ai-gateway-api-keys",
     ]);
     expect(gatewayPages.every((page) => page.show === true)).toBe(true);
+  });
+
+  it("shows the usage page instead of the billing page without cloud billing", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "organizationUsage:read",
+    );
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const show = (slug: string) =>
+      result.current.find((page) => page.slug === slug)?.show;
+
+    expect(show("usage")).toBe(true);
+    expect(show("billing")).toBe(false);
+  });
+
+  it("hides the usage page on cloud, where the billing page embeds the breakdown", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "organizationUsage:read",
+    );
+    vi.mocked(useHasEntitlement).mockImplementation(
+      (entitlement) => entitlement === "cloud-billing",
+    );
+    vi.mocked(useIsCloudBillingAvailable).mockReturnValue(true);
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const show = (slug: string) =>
+      result.current.find((page) => page.slug === slug)?.show;
+
+    expect(show("usage")).toBe(false);
+    expect(show("billing")).toBe(true);
+  });
+
+  it("hides the usage page without usage access", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(useHasOrganizationAccess).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      scope: "organizationUsage:read",
+    });
+    expect(result.current.find((page) => page.slug === "usage")?.show).toBe(
+      false,
+    );
   });
 });

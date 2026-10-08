@@ -2,7 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -122,8 +123,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
 
   return (
     <Popover
-      open={open}
+      open={!disabled && open}
       onOpenChange={(nextOpen) => {
+        if (disabled) return;
         setOpen(nextOpen);
         if (!nextOpen) setSearch("");
       }}
@@ -132,7 +134,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
         <Button
           variant="outline"
           role="combobox"
-          aria-expanded={open}
+          aria-expanded={!disabled && open}
           className={cn(
             "w-full justify-between text-xs font-normal",
             !value && "text-muted-foreground",
@@ -154,10 +156,17 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
               {selectedOption.badge}
             </Badge>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="ml-2 flex">
+            <DropdownIndicator direction="up-down" />
+          </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        onCloseAutoFocus={(event) => {
+          if (disabled) event.preventDefault();
+        }}
+      >
         <Command>
           <CommandInput
             placeholder={searchPlaceholder}
@@ -198,7 +207,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "icon-base mr-2",
                           isEqual(value as T | undefined, option.value)
                             ? "opacity-100"
                             : "opacity-0",
@@ -249,7 +258,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-base mr-2",
                         isEqual(value as T | undefined, option.value)
                           ? "opacity-100"
                           : "opacity-0",

@@ -1,5 +1,5 @@
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 
 // SectionMedia props
 export interface SectionMediaProps {
@@ -12,8 +12,10 @@ export interface SectionMediaProps {
 export function SectionMedia({ media }: SectionMediaProps) {
   return (
     <>
-      <div className="text-muted-foreground my-1 px-2 py-1 text-xs">Media</div>
-      <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
+      <div className="io-message-header px-1 py-1 text-base font-bold">
+        Media
+      </div>
+      <div className="ph-no-capture flex flex-wrap gap-2 pb-4">
         {media.map((m) => (
           <LangfuseMediaView
             mediaAPIReturnValue={m}

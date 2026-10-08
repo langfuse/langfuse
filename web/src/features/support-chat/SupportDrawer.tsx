@@ -2,7 +2,7 @@
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X, Slash } from "lucide-react";
+import { X } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -68,8 +68,8 @@ const SupportDrawerContent = ({
                       </button>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator>
-                    <Slash />
+                  <BreadcrumbSeparator className="text-foreground-tertiary">
+                    /
                   </BreadcrumbSeparator>
                   <BreadcrumbItem>
                     <BreadcrumbPage>Email Engineer</BreadcrumbPage>
@@ -85,7 +85,7 @@ const SupportDrawerContent = ({
               onClick={close}
               aria-label="Close"
             >
-              <X className="h-4 w-4" />
+              <X className="icon-base text-icon-foreground" />
             </Button>
           )}
         </div>

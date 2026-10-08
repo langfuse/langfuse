@@ -1,6 +1,5 @@
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type DefaultViewScope } from "@langfuse/shared/src/server";
 
 interface UseDefaultViewMutationsProps {
@@ -26,6 +25,7 @@ export function useDefaultViewMutations({
       });
       const scopeLabel = variables.scope === "user" ? "your" : "project";
       showSuccessToast({
+        operation: "saved_view.default_set",
         title: "Default view set",
         description: `Set as ${scopeLabel} default`,
       });
@@ -47,6 +47,7 @@ export function useDefaultViewMutations({
       });
       const scopeLabel = variables.scope === "user" ? "Your" : "Project";
       showSuccessToast({
+        operation: "saved_view.default_clear",
         title: "Default cleared",
         description: `${scopeLabel} default view cleared`,
       });

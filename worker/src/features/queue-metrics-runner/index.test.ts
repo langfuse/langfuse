@@ -51,6 +51,10 @@ vi.mock("../../queues/shardedQueueRegistry", () => ({
   })),
 }));
 
+vi.mock("@langfuse/shared/topics/server", () => ({
+  emitTopicStagingMetrics: vi.fn(),
+}));
+
 vi.mock("../v4/v4LegacyApiUsageMetrics", () => ({
   emitV4LegacyApiUsageFreshnessMetrics:
     mocks.emitV4LegacyApiUsageFreshnessMetrics,
@@ -86,8 +90,9 @@ describe("QueueMetricsRunner", () => {
       "paused",
       "failed",
       "active",
+      "delayed",
     );
-    expect(mocks.recordGauge).toHaveBeenCalledTimes(4);
+    expect(mocks.recordGauge).toHaveBeenCalledTimes(5);
     expect(mocks.recordGauge).toHaveBeenCalledWith(
       "langfuse.queue.trace_delete.dlq_oldest_age",
       0,

@@ -5,6 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
   EXCEPTION_TAG_HEADER_NAME,
+  resolveClickhouseService,
 } from "../clickhouse/client";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
@@ -14,10 +15,8 @@ import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
+import { StorageService } from "../services/StorageService";
+import { createEventUploadStorageService } from "../s3";
 import { buildEventBucketPrefix } from "../ingestion/eventBucketPath";
 import {
   ClickHouseSettings,
@@ -33,6 +32,7 @@ import {
 } from "../clickhouse/queryTags";
 import {
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
 } from "../clickhouse/queryOutcome";
@@ -134,16 +134,7 @@ let s3StorageServiceClient: StorageService;
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
+    s3StorageServiceClient = createEventUploadStorageService(bucketName);
   }
   return s3StorageServiceClient;
 };
@@ -276,7 +267,7 @@ export async function upsertClickhouse<
 }
 
 export async function* queryClickhouseStream<T>(
-  opts: ClickhouseQueryOpts,
+  opts: ClickhouseQueryOpts & { queryId?: string },
 ): AsyncGenerator<T> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
@@ -287,7 +278,7 @@ export async function* queryClickhouseStream<T>(
 
   // Client-generated so failures before/without a response still carry a
   // query_id on errors and spans; system.query_log stays pollable by id.
-  const queryId = randomUUID();
+  const queryId = opts.queryId ?? randomUUID();
 
   try {
     setSpanQueryAttributes(span, opts.query);
@@ -628,6 +619,7 @@ function recordSummaryOnSpan(
 
 function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("ch.query.text", query);
+  span.setAttribute("ch.query.shape", clickHouseQueryShape(query));
   span.setAttribute("db.system", "clickhouse");
   span.setAttribute("db.query.text", query);
   span.setAttribute("db.operation.name", "SELECT");
@@ -702,6 +694,10 @@ export async function queryClickhouse<T>(
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const table = clickHouseQueryTableLabel(opts.query);
+  const shape = clickHouseQueryShape(opts.query);
+  const clickhouseService = resolveClickhouseService(
+    opts.preferredClickhouseService,
+  );
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -764,11 +760,19 @@ export async function queryClickhouse<T>(
             : "error",
           normalizedTags,
           table,
+          shape,
+          clickhouseService,
         );
         throw wrapped;
       });
 
-      recordClickHouseQueryOutcome("success", normalizedTags, table);
+      recordClickHouseQueryOutcome(
+        "success",
+        normalizedTags,
+        table,
+        shape,
+        clickhouseService,
+      );
       return rows;
     },
   );

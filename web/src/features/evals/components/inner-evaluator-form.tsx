@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Input } from "@/src/components/ui/input";
@@ -16,7 +17,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
-  singleFilter,
+  singleFilterList,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
@@ -121,11 +122,11 @@ import { cn } from "@/src/utils/tailwind";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
-const TracesTable = lazy(
-  () => import("@/src/components/table/use-cases/traces"),
-);
-const ObservationsTable = lazy(
-  () => import("@/src/components/table/use-cases/observations"),
+const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));
+const ObservationsTable = lazy(() =>
+  import("@/src/features/tracing-tables").then((m) => ({
+    default: m.ObservationsTable,
+  })),
 );
 
 const EventsTable = lazy(
@@ -138,7 +139,7 @@ const TracesPreview = memo(
     filterState,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
   }) => {
     const dateRange = useMemo(() => {
       return {
@@ -188,7 +189,7 @@ const ObservationsPreview = memo(
     compatibilityCheckWasPerformed,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
     isNewCompatible: boolean;
     compatibilityCheckWasPerformed: boolean;
   }) => {
@@ -218,7 +219,7 @@ const ObservationsPreview = memo(
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             {showSdkUpgradeMessage ? (
               <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
-                <AlertTriangle className="text-dark-yellow h-8 w-8" />
+                <AlertTriangle className="text-dark-yellow icon-xl" />
                 <div className="flex flex-col gap-1">
                   <span className="text-foreground font-bold">
                     Please verify your SDK version
@@ -300,7 +301,7 @@ function CodeEvalSourceLink({
         rel="noopener noreferrer"
       >
         Edit source code
-        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+        <ExternalLink className="icon-base text-icon-foreground ml-1" />
       </Link>
     </Button>
   ) : (
@@ -310,7 +311,7 @@ function CodeEvalSourceLink({
       title="Only user-managed templates can be edited"
     >
       Edit source code
-      <ExternalLink className="ml-1 h-3.5 w-3.5" />
+      <ExternalLink className="icon-base text-icon-foreground ml-1" />
     </Button>
   );
 
@@ -322,7 +323,7 @@ function CodeEvalSourceLink({
   );
 }
 
-const EMPTY_FILTER_STATE: z.infer<typeof singleFilter>[] = [];
+const EMPTY_FILTER_STATE: z.infer<typeof singleFilterList>[number][] = [];
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -454,7 +455,7 @@ export const InnerEvaluatorForm = (props: {
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: defaultTarget,
       filter: props.existingEvaluator?.filter
-        ? z.array(singleFilter).parse(props.existingEvaluator.filter)
+        ? singleFilterList.parse(props.existingEvaluator.filter)
         : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
@@ -603,7 +604,7 @@ export const InnerEvaluatorForm = (props: {
       values = props.preprocessFormValues(values);
     }
 
-    const validatedFilter = z.array(singleFilter).safeParse(values.filter);
+    const validatedFilter = singleFilterList.safeParse(values.filter);
 
     if (
       props.existingEvaluator?.timeScope.includes("EXISTING") &&
@@ -688,11 +689,15 @@ export const InnerEvaluatorForm = (props: {
 
     // For modern targets, derive status from runOnLive
     const isModern = !isLegacyEvalTarget(values.target);
-    const status = isModern
-      ? values.runOnLive
-        ? JobConfigState.ACTIVE
-        : JobConfigState.INACTIVE
-      : undefined;
+    const status = (() => {
+      if (isModern) {
+        if (values.runOnLive) {
+          return JobConfigState.ACTIVE;
+        }
+        return JobConfigState.INACTIVE;
+      }
+      return undefined;
+    })();
 
     (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
@@ -871,7 +876,7 @@ export const InnerEvaluatorForm = (props: {
                       {props.mode === "edit" && (
                         <Tooltip>
                           <TooltipTrigger>
-                            <InfoIcon className="text-muted-foreground size-3" />
+                            <InfoIcon className="text-muted-foreground icon-sm" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[200px] p-2">
                             <span className="leading-4">
@@ -892,7 +897,12 @@ export const InnerEvaluatorForm = (props: {
                           }
                         }}
                       >
-                        <Tabs.List layout="packed" gap="lg">
+                        <Tabs.List
+                          variant="inset"
+                          size="md"
+                          layout="packed"
+                          gap="lg"
+                        >
                           <span className="min-w-[100px]">
                             <Tabs.Trigger
                               value="event"
@@ -913,7 +923,6 @@ export const InnerEvaluatorForm = (props: {
                                 Traces
                                 <Badge
                                   variant="secondary"
-                                  size="sm"
                                   className="border-border border font-normal"
                                 >
                                   Legacy
@@ -976,7 +985,12 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <Tabs.List layout="packed" gap="lg">
+                    <Tabs.List
+                      variant="inset"
+                      size="md"
+                      layout="packed"
+                      gap="lg"
+                    >
                       <span className="min-w-[100px]">
                         <Tabs.Trigger
                           value="otel"
@@ -994,7 +1008,6 @@ export const InnerEvaluatorForm = (props: {
                           Low-level SDK methods
                           <Badge
                             variant="secondary"
-                            size="sm"
                             className="border-border border font-normal"
                           >
                             Legacy
@@ -1074,7 +1087,7 @@ export const InnerEvaluatorForm = (props: {
                                 (props.mode === "edit" ? (
                                   <Tooltip>
                                     <TooltipTrigger>
-                                      <InfoIcon className="text-muted-foreground size-3" />
+                                      <InfoIcon className="text-muted-foreground icon-sm" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-[300px] p-2">
                                       <span className="leading-4">
@@ -1222,7 +1235,9 @@ export const InnerEvaluatorForm = (props: {
                                 columns={getFilterColumns()}
                                 filterState={field.value ?? []}
                                 onChange={(
-                                  value: z.infer<typeof singleFilter>[],
+                                  value: z.infer<
+                                    typeof singleFilterList
+                                  >[number][],
                                 ) => {
                                   field.onChange(value);
                                   if (router.query.traceId) {
@@ -1257,7 +1272,7 @@ export const InnerEvaluatorForm = (props: {
                         </FormControl>
                         {!props.disabled && !hasFilters && (
                           <div className="flex max-w-[500px] gap-1">
-                            <AlertTriangle className="text-dark-yellow h-4 w-4" />
+                            <AlertTriangle className="text-dark-yellow icon-base" />
                             <div className="text-dark-yellow text-sm [&_p]:leading-relaxed">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.

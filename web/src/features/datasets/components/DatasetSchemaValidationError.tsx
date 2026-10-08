@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -45,12 +46,12 @@ export const DatasetSchemaValidationError: React.FC<
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="h-auto p-0 text-sm font-bold hover:bg-transparent"
+              className="h-auto gap-1 p-0 text-sm font-bold hover:bg-transparent"
             >
               {isExpanded ? (
-                <ChevronDown className="mr-1 h-4 w-4" />
+                <DropdownIndicator nudge />
               ) : (
-                <ChevronRight className="mr-1 h-4 w-4" />
+                <DropdownIndicator direction="right" nudge />
               )}
               {isExpanded ? "Hide" : "Show"} error details
             </Button>
@@ -68,13 +69,13 @@ export const DatasetSchemaValidationError: React.FC<
                           #{idx + 1}
                         </span>
                         <Link
-                          href={`/project/${projectId}/datasets/${datasetId}/items/${error.datasetItemId}`}
+                          href={`/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(error.datasetItemId)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1 text-sm font-bold hover:underline"
                         >
                           Item: {error.datasetItemId}
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="icon-sm" />
                         </Link>
                       </div>
                       <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">

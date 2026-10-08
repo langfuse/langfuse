@@ -9,7 +9,7 @@ import { TopbarAccount } from "@/src/components/nav/topbar-account";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered
@@ -47,14 +47,12 @@ export const MobileTopBar = ({
             aria-label="Open menu"
             onClick={() => toggleSidebar()}
           >
-            <Menu className="size-5" />
+            <Menu className="icon-lg text-icon-foreground" />
           </Button>
         ) : (
           leadingControl
         )}
-        {envLabel.visible && (
-          <EnvLabelBadge region={envLabel.region} onClick={envLabel.dismiss} />
-        )}
+        {envLabel.visible && <EnvLabelBadge region={envLabel.region} />}
       </div>
 
       {/* Center: the Langfuse wordmark. */}

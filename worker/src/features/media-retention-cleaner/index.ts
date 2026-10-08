@@ -9,6 +9,7 @@ import {
   recordIncrement,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
@@ -58,6 +59,14 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<number> {
+    // Data retention is an enterprise feature. Without a license the setting
+    // cannot be viewed or changed, so stored policies must not be enforced
+    // either: a deployment that loses its license would otherwise keep
+    // deleting data under a policy its operators can no longer reach.
+    if (!isEnterpriseLicenseAvailable()) {
+      return this.defaultIntervalMs;
+    }
+
     // Reset gauge before attempting lock - ensures it doesn't appear stuck
     // if another worker holds the lock
     recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0);

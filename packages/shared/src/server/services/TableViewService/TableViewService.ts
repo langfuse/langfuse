@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db";
+import { coerceLegacyEmptyMetadataFilters } from "../../../interfaces/filters";
 import {
   TableViewPresetTableName,
   type TableViewPresetDomain,
@@ -215,6 +216,7 @@ export class TableViewService {
           select: {
             image: true,
             name: true,
+            email: true,
           },
         },
         filters: true,
@@ -245,7 +247,12 @@ export class TableViewService {
 
     const presets = TableViewPresetsNamesCreatorListSchema.parse([
       ...systemPresets,
-      ...records,
+      // Persisted presets may use the legacy metadata `contains ""` key-presence
+      // idiom that the value guard now rejects; coerce it to `is set` on read.
+      ...records.map((record) => ({
+        ...record,
+        filters: coerceLegacyEmptyMetadataFilters(record.filters),
+      })),
     ]);
 
     if (tableName === TableViewPresetTableName.ObservationsEvents) {
@@ -329,7 +336,10 @@ export class TableViewService {
       );
     }
 
-    return tableViewPresets as unknown as TableViewPresetDomain;
+    return {
+      ...tableViewPresets,
+      filters: coerceLegacyEmptyMetadataFilters(tableViewPresets.filters),
+    } as unknown as TableViewPresetDomain;
   }
 
   /**

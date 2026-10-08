@@ -1,10 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-  HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { SelectItem } from "@/src/components/ui/select";
 import * as React from "react";
 
@@ -24,10 +19,13 @@ export const PropertyHoverCard = ({
   children,
 }: PropertyHoverCardProps) => {
   return (
-    <HoverCard openDelay={0} closeDelay={0}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardPortal>
-        <HoverCardContent hideWhenDetached align="start" side="right">
+    <HoverCard
+      openDelay={0}
+      closeDelay={0}
+      hideWhenDetached
+      placement="right-start"
+      content={
+        <div className="w-64 p-3">
           <div className="mb-1 text-sm font-bold">{label}</div>
           {(unit || type) && (
             <div className="mb-2 flex flex-wrap gap-2 text-xs">
@@ -44,8 +42,10 @@ export const PropertyHoverCard = ({
             </div>
           )}
           {description && <p className="text-xs leading-snug">{description}</p>}
-        </HoverCardContent>
-      </HoverCardPortal>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => <div {...getTriggerProps()}>{children}</div>}
     </HoverCard>
   );
 };

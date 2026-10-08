@@ -39,6 +39,7 @@ export const Default = meta.story({
 // Peek popover forced open with a resolved image.
 export const PreviewImage = meta.story({
   args: {
+    contentType: "image/jpeg",
     open: true,
     status: "ready",
     url: sampleImage,
@@ -147,7 +148,7 @@ export const TruncatedMimeTypePreview = meta.story({
 
 export const InlineWithText = meta.story({
   render: () => (
-    <pre className="font-sans text-sm leading-5">
+    <pre className="font-sans text-sm">
       {'"media": "'}
       <span className="inline-flex">
         <MediaTag contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />

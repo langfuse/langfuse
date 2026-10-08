@@ -11,6 +11,7 @@ import {
   eventsTableCachedInputTokensSql,
   eventsTableTraceNameSql,
 } from "../../eventsTable";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
@@ -175,14 +176,14 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Cached Input Tokens",
     uiTableId: "cachedInputTokens",
     clickhouseTableName: "events_proto",
     clickhouseSelect: eventsTableCachedInputTokensSql,
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
@@ -190,7 +191,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
@@ -198,7 +199,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Tokens",
@@ -206,7 +207,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Metadata",

@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { TracingSearchType } from "@langfuse/shared";
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { useEventsSearchBar } from "@/src/features/search-bar";
 
 describe("embedded events search scopes", () => {
   it.each<TracingSearchType[]>([

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   ScoreDataTypeType,
@@ -34,8 +35,9 @@ import {
   orderByToClickhouseSql,
   StringOptionsFilter,
   DateTimeFilter,
-  CTEQueryBuilder,
   NumberFilter,
+  scoreOnlyFiltersAreSeekEligible,
+  scoreOnlyFiltersHaveIndexedLookup,
 } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
@@ -71,9 +73,10 @@ import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScore
 import {
   eventsTraceMetadata,
   eventsExperimentTraceIds,
-  eventsExperiments,
-  promptEventsForMetrics,
 } from "../queries/clickhouse-sql/query-fragments";
+import { compileClickhouseQuery } from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
+import { limitBy, mapKeys, useFinal } from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import {
   findUiColumnMapping,
@@ -406,6 +409,57 @@ export const getTraceScoresForDatasetRuns = async (
   }));
 };
 
+const experimentItemEventsQuery = (experimentIds: string[]) =>
+  getClickhouseKysely()
+    .selectFrom("events_core as e")
+    .select(["e.project_id", "e.experiment_id", "e.trace_id"])
+    .where("e.experiment_id", "in", experimentIds)
+    .where("e.experiment_id", "!=", "");
+
+const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
+  getClickhouseKysely()
+    .selectFrom(experimentItemEventsQuery(experimentIds).as("e"))
+    .innerJoin("scores as s", (join) =>
+      join
+        .onRef("e.trace_id", "=", "s.trace_id")
+        .onRef("e.project_id", "=", "s.project_id"),
+    )
+    .$call(useFinal(["scores"]))
+    .select((eb) => [
+      "s.id as id",
+      "s.timestamp as timestamp",
+      "s.project_id as project_id",
+      "s.environment as environment",
+      "s.trace_id as trace_id",
+      "s.session_id as session_id",
+      "s.observation_id as observation_id",
+      "s.dataset_run_id as dataset_run_id",
+      "s.name as name",
+      "s.value as value",
+      "s.source as source",
+      "s.comment as comment",
+      "s.author_user_id as author_user_id",
+      "s.config_id as config_id",
+      "s.data_type as data_type",
+      "s.string_value as string_value",
+      "s.queue_id as queue_id",
+      "s.execution_trace_id as execution_trace_id",
+      "s.created_at as created_at",
+      "s.updated_at as updated_at",
+      "s.event_ts as event_ts",
+      "s.is_deleted as is_deleted",
+      eb(eb.fn("length", [mapKeys("s.metadata")]), ">", 0).as("has_metadata"),
+      "e.experiment_id as experiment_id",
+    ])
+    .where("s.data_type", "in", [...AGGREGATABLE_SCORE_TYPES])
+    .orderBy("s.event_ts", "desc")
+    .$call(
+      limitBy({
+        count: 1,
+        columns: ["s.id", "s.project_id", "e.experiment_id"],
+      }),
+    );
+
 export const getScoresForExperimentItems = async (
   projectId: string,
   experimentIds: string[],
@@ -419,48 +473,10 @@ export const getScoresForExperimentItems = async (
 > => {
   if (experimentIds.length === 0) return [];
 
-  // Build events subquery using the query builder
-  const eventsSubquery = eventsExperiments({
-    projectId,
-    experimentIds,
-  })
-    .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
-    .buildWithParams();
-
-  const query = `
-    SELECT
-      s.id as id,
-      s.timestamp as timestamp,
-      s.project_id as project_id,
-      s.environment as environment,
-      s.trace_id as trace_id,
-      s.session_id as session_id,
-      s.observation_id as observation_id,
-      s.dataset_run_id as dataset_run_id,
-      s.name as name,
-      s.value as value,
-      s.source as source,
-      s.comment as comment,
-      s.author_user_id as author_user_id,
-      s.config_id as config_id,
-      s.data_type as data_type,
-      s.string_value as string_value,
-      s.queue_id as queue_id,
-      s.execution_trace_id as execution_trace_id,
-      s.created_at as created_at,
-      s.updated_at as updated_at,
-      s.event_ts as event_ts,
-      s.is_deleted as is_deleted,
-      length(mapKeys(s.metadata)) > 0 AS has_metadata,
-      e.experiment_id as experiment_id
-    FROM (${eventsSubquery.query}) e
-    JOIN scores s FINAL ON e.trace_id = s.trace_id
-      AND e.project_id = s.project_id
-    WHERE s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id, e.experiment_id
-  `;
+  const compiled = compileClickhouseQuery(
+    scoresForExperimentItemsQuery(experimentIds),
+    { projectId },
+  );
 
   const rows = await queryClickhouse<
     Omit<ScoreRecordReadType, "metadata"> & {
@@ -468,13 +484,9 @@ export const getScoresForExperimentItems = async (
       experiment_id: string;
     }
   >({
-    query,
-    params: {
-      projectId,
-      ...eventsSubquery.params,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
-    },
-    tags: { projectId },
+    query: compiled.sql,
+    params: compiled.params,
+    tags: { projectId, route: "scores.getScoresForExperimentItems" },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -513,12 +525,15 @@ const getScoresForTracesInternal = async <
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
-  const levelFilter =
-    level === "trace"
-      ? "AND s.observation_id IS NULL"
-      : level === "observation"
-        ? "AND s.observation_id IS NOT NULL"
-        : "";
+  const levelFilter = (() => {
+    if (level === "trace") {
+      return "AND s.observation_id IS NULL";
+    }
+    if (level === "observation") {
+      return "AND s.observation_id IS NOT NULL";
+    }
+    return "";
+  })();
 
   const query = `
       select
@@ -1438,6 +1453,63 @@ const scoresTraceFilterEventsMapping = [
   },
 ];
 
+// Score columns the count path reconstructs to their latest version via
+// argMax(col, event_ts), replacing FINAL. id / project_id / name are the
+// grouping keys and so are selected directly, not here.
+const SCORE_COUNT_DEDUP_COLUMNS = [
+  "timestamp",
+  "environment",
+  "trace_id",
+  "observation_id",
+  "session_id",
+  "evaluator_id",
+  "evaluation_rule_id",
+  "value",
+  "source",
+  "comment",
+  "author_user_id",
+  "data_type",
+  "string_value",
+  "metadata",
+] as const;
+
+/**
+ * Coarse toDate(timestamp) prune for a dedup subquery's pre-dedup scan (count
+ * and rows paths share it).
+ *
+ * The exact timestamp bound must NOT filter raw rows before dedup (a score's
+ * timestamp is mutable across versions, so it could drop the latest one); it is
+ * re-applied post-dedup in the outer WHERE. This prune only skips partitions /
+ * granules, keeping or dropping whole day-buckets, so the latest version always
+ * survives to the dedup. Operators are relaxed (> / < to >= / <=) and both
+ * sides wrapped in toDate() so boundary-day rows are never lost.
+ */
+const buildScoresDatePrune = (
+  filter: FilterState,
+): { query: string; params: Record<string, unknown> } => {
+  const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
+    (c) => c.uiTableId === "timestamp",
+  );
+  if (!timestampColumn) return { query: "", params: {} };
+
+  const timestampFilters = createFilterFromFilterState(
+    filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column)),
+    scoresTableUiColumnDefinitionsFromEvents,
+    scoresTableCols,
+  ).filter((f): f is DateTimeFilter => f instanceof DateTimeFilter);
+
+  const params: Record<string, unknown> = {};
+  const clauses = timestampFilters.map((f) => {
+    const dateOp = f.operator.startsWith(">") ? ">=" : "<=";
+    const varName = `scoresInnerDatePrune${clickhouseCompliantRandomCharacters()}`;
+    const column = `${f.tablePrefix ? `${f.tablePrefix}.` : ""}${f.field}`;
+    params[varName] = convertDateToClickhouseDateTime(new Date(f.value));
+    return `toDate(${column}) ${dateOp} toDate({${varName}: DateTime64(3, 'UTC')})`;
+  });
+
+  return { query: clauses.join(" AND "), params };
+};
+
 /**
  * v4 variant: scores query using a flat events CTE instead of the physical
  * traces table. Trace-level filters and sort use a "traces" CTE built by
@@ -1484,6 +1556,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     (f) => f.clickhouseTable !== "traces",
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
+
+  // Coarse pre-dedup prune shared by the count and rows subqueries; see
+  // buildScoresDatePrune.
+  const { query: innerDatePruneQuery, params: innerDatePruneParams } =
+    buildScoresDatePrune(filter);
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
@@ -1534,20 +1611,24 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Inner join when trace filters are active (exclude scores without matching traces)
   // Left join when only sorting (keep all scores)
-  const eventsJoin = needsTracesCTE
-    ? traceFilterState.length > 0
-      ? `ANY JOIN traces e ON s.trace_id = e.id`
-      : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
-    : "";
+  const eventsJoin = (() => {
+    if (needsTracesCTE) {
+      if (traceFilterState.length > 0) {
+        return `ANY JOIN traces e ON s.trace_id = e.id`;
+      }
+      return `LEFT ANY JOIN traces e ON s.trace_id = e.id`;
+    }
+    return "";
+  })();
 
-  const select =
-    props.select === "count"
-      ? "count(*) as count"
-      : `
-        s.id,
+  // id and name are aliased because the traces CTE (joined as `e`) also exposes
+  // id and name: without the alias ClickHouse qualifies the output columns as
+  // s.id / s.name to disambiguate, and the row mapper reads bare id / name.
+  const rowSelect = `
+        s.id AS id,
         s.project_id,
         s.environment,
-        s.name,
+        s.name AS name,
         s.value,
         s.string_value,
         s.timestamp,
@@ -1574,17 +1655,125 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
-  const query = `
+  // ── Selective seek ────────────────────────────────────────────────────────
+  // When a score-only conjunct is index-prunable, collect the matching dedup
+  // keys first and reconstruct only those. The seek applies the whole
+  // score-only predicate P to raw rows. A key whose latest version matches P
+  // has a raw row matching P, so the key set is a superset; the outer WHERE
+  // re-applies P after dedup to drop keys seeked via a stale version. The FINAL
+  // rows path does not seek.
+  const rowsUseFinal =
+    props.select === "rows" &&
+    !scoreOnlyFiltersHaveIndexedLookup(scoreOnlyFilters);
+  const seekEligible =
+    !rowsUseFinal && scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
+  const seekSubquery = seekEligible
+    ? `
+        SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`
+    : "";
+
+  // Pre-dedup scan of the GROUP BY paths. Every condition is on dedup-key
+  // columns, so it keeps or drops whole keys.
+  const innerScanWhere = `
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        ${seekSubquery ? `AND (s.project_id, toDate(s.timestamp), s.name, s.id) IN (${seekSubquery}\n        )` : ""}`;
+
+  // Post-dedup outer filters, shared by all paths.
+  const outerConditions = `s.data_type IN ({dataTypes: Array(String)})
+      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
+
+  // No explicit project_id condition: outerConditions already carries it.
+  const rowsScanWhere = `
+        WHERE ${outerConditions}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}`;
+
+  // ── Dedup ─────────────────────────────────────────────────────────────────
+  // Filter after dedup, never before: value / comment / timestamp / trace_id
+  // are mutable, so filtering raw rows can surface a stale version.
+  //
+  // count: one argMax GROUP BY pass, then filter.
+  //
+  // rows: `scores FINAL`. ClickHouse applies filters on non-sorting-key columns
+  // after the merge. do_not_merge_across_partitions_select_final keeps
+  // partition pruning (ClickHouse >= 26.3 drops it under FINAL otherwise); it is
+  // correct because toDate(timestamp) is in the sorting key, so all versions of
+  // a key share a monthly partition.
+  //
+  // rows with a skip-index lookup (trace_id, observation_id, id, ...): the
+  // matches are scattered, and FINAL would read every granule around them with
+  // all columns. Instead, INNER JOIN the seeked keys to their max(event_ts).
+  // LIMIT 1 BY breaks event_ts ties arbitrarily, as FINAL does.
+  //
+  // The trace join, ORDER BY and pagination run outside the dedup subquery.
+  const pageClause = `
+      ${eventsJoin}
+      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`;
+  const query =
+    props.select === "count"
+      ? `
+      ${tracesCTEClause}
+      SELECT count(*) AS count
+      FROM (
+        SELECT
+          s.id,
+          s.project_id,
+          s.name,
+          ${SCORE_COUNT_DEDUP_COLUMNS.map(
+            (c) => `argMax(s.${c}, s.event_ts) AS ${c}`,
+          ).join(",\n          ")}
+        FROM scores s
+        ${innerScanWhere}
+        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
+      ${eventsJoin}
+      WHERE ${outerConditions}
+    `
+      : rowsUseFinal
+        ? `
       ${tracesCTEClause}
       SELECT
-          ${select}
-      FROM scores s final
-      ${eventsJoin}
-      WHERE s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
-      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+          ${rowSelect}
+      FROM (
+        SELECT s.*
+        FROM scores s FINAL
+        ${rowsScanWhere}
+      ) s
+      ${pageClause}
+      SETTINGS do_not_merge_across_partitions_select_final = 1
+    `
+        : `
+      ${tracesCTEClause}
+      SELECT
+          ${rowSelect}
+      FROM (
+        SELECT s.*
+        FROM scores s
+        INNER JOIN (
+          SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+          FROM scores s
+          ${innerScanWhere}
+          GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+        ) latest
+          ON s.project_id = latest.latest_project_id
+          AND toDate(s.timestamp) = latest.latest_date
+          AND s.name = latest.latest_name
+          AND s.id = latest.latest_id
+          AND s.event_ts = latest.latest_event_ts
+        WHERE ${outerConditions}
+        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
+      ${pageClause}
     `;
 
   const input = {
@@ -1592,6 +1781,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       projectId,
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
+      ...innerDatePruneParams,
       ...tracesCTEParams,
       limit,
       offset,
@@ -2014,92 +2204,90 @@ export const getAggregatedScoresForPrompts = async (
   }));
 };
 
-export const buildAggregatedScoresForPromptsFromEventsQuery = (
-  projectId: string,
+const promptEventsForScoresQuery = (
+  promptIds: string[],
+  timeWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) =>
+  getClickhouseKysely()
+    .selectFrom("events_core as e")
+    .select([
+      "e.project_id as project_id",
+      "e.prompt_id as prompt_id",
+      "e.trace_id as trace_id",
+      "e.span_id as span_id",
+      "e.is_deleted as is_deleted",
+    ])
+    .where("e.type", "=", "GENERATION")
+    .where("e.prompt_id", "in", promptIds)
+    .$if(timeWindow.fromTimestamp !== undefined, (qb) =>
+      qb.where("e.start_time", ">=", timeWindow.fromTimestamp!),
+    )
+    .$if(timeWindow.toTimestamp !== undefined, (qb) =>
+      qb.where("e.start_time", "<=", timeWindow.toTimestamp!),
+    )
+    .orderBy("e.event_ts", "desc")
+    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
+
+const aggregatedScoresForPromptsFromEventsQuery = (
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
-  {
-    fromTimestamp,
-    toTimestamp,
-  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
-) => {
-  const promptEvents = promptEventsForMetrics({
-    projectId,
-    promptIds,
-    ...(fromTimestamp
-      ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
-      : {}),
-    ...(toTimestamp
-      ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
-      : {}),
-  });
-
-  const scoreRows = {
-    query: `
-      SELECT
-        e.prompt_id AS prompt_id,
-        s.id AS id,
-        s.name AS name,
-        s.string_value AS string_value,
-        s.value AS value,
-        s.source AS source,
-        s.data_type AS data_type,
-        s.comment AS comment,
-        s.timestamp AS timestamp,
-        s.metadata AS metadata
-      FROM scores s FINAL
-      INNER JOIN prompt_events e
-        ON s.project_id = e.project_id
-        AND s.trace_id = e.trace_id
-        ${fetchScoreRelation === "observation" ? "AND s.observation_id = e.span_id" : ""}
-      WHERE s.project_id = {scoreProjectId: String}
-      AND e.is_deleted = 0
-      AND s.name IS NOT NULL
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ${
-        fetchScoreRelation === "trace"
-          ? `AND s.observation_id IS NULL
-      AND s.trace_id IN (SELECT trace_id FROM prompt_events WHERE is_deleted = 0)`
-          : `AND s.observation_id IS NOT NULL
-      AND (s.trace_id, s.observation_id) IN (SELECT trace_id, span_id FROM prompt_events WHERE is_deleted = 0)`
-      }
-    `,
-    params: {
-      scoreProjectId: projectId,
-      dataTypes: LISTABLE_SCORE_TYPES,
-    },
-    schema: [
-      "prompt_id",
-      "id",
-      "name",
-      "string_value",
-      "value",
-      "source",
-      "data_type",
-      "comment",
-      "timestamp",
-      "metadata",
-    ],
-  };
-
-  return new CTEQueryBuilder()
-    .withCTE("prompt_events", promptEvents)
-    .withCTE("score_rows", scoreRows)
-    .from("score_rows", "s")
-    .select(
-      "s.prompt_id AS prompt_id",
-      "s.id AS id",
-      "s.name AS name",
-      "s.string_value AS string_value",
-      "s.value AS value",
-      "s.source AS source",
-      "s.data_type AS data_type",
-      "s.comment AS comment",
-      "s.timestamp AS timestamp",
-      "length(mapKeys(s.metadata)) > 0 AS has_metadata",
+  timeWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) =>
+  getClickhouseKysely()
+    .with("prompt_events", () =>
+      promptEventsForScoresQuery(promptIds, timeWindow),
     )
-    .groupBy(
-      "s.prompt_id",
+    .selectFrom("scores as s")
+    .$call(useFinal(["scores"]))
+    .innerJoin("prompt_events as e", (join) => {
+      const base = join
+        .onRef("s.project_id", "=", "e.project_id")
+        .onRef("s.trace_id", "=", "e.trace_id");
+      return fetchScoreRelation === "observation"
+        ? base.onRef("s.observation_id", "=", "e.span_id")
+        : base;
+    })
+    .select((eb) => [
+      "e.prompt_id as prompt_id",
+      "s.id as id",
+      "s.name as name",
+      "s.string_value as string_value",
+      "s.value as value",
+      "s.source as source",
+      "s.data_type as data_type",
+      "s.comment as comment",
+      "s.timestamp as timestamp",
+      eb(eb.fn("length", [mapKeys("s.metadata")]), ">", 0).as("has_metadata"),
+    ])
+    .where("e.is_deleted", "=", 0)
+    .where("s.name", "is not", null)
+    .where("s.data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .$if(fetchScoreRelation === "trace", (qb) =>
+      qb
+        .where("s.observation_id", "is", null)
+        .where("s.trace_id", "in", (eb) =>
+          eb
+            .selectFrom("prompt_events")
+            .select("trace_id")
+            .where("is_deleted", "=", 0),
+        ),
+    )
+    .$if(fetchScoreRelation === "observation", (qb) =>
+      qb
+        .where("s.observation_id", "is not", null)
+        .where(({ eb, refTuple, selectFrom }) =>
+          eb(
+            refTuple("s.trace_id", "s.observation_id"),
+            "in",
+            selectFrom("prompt_events")
+              .select(["trace_id", "span_id"])
+              .where("is_deleted", "=", 0)
+              .$asTuple("trace_id", "span_id"),
+          ),
+        ),
+    )
+    .groupBy([
+      "e.prompt_id",
       "s.id",
       "s.name",
       "s.string_value",
@@ -2109,8 +2297,23 @@ export const buildAggregatedScoresForPromptsFromEventsQuery = (
       "s.comment",
       "s.timestamp",
       "s.metadata",
-    )
-    .buildWithParams();
+    ]);
+
+export const buildAggregatedScoresForPromptsFromEventsQuery = (
+  projectId: string,
+  promptIds: string[],
+  fetchScoreRelation: "observation" | "trace",
+  timeWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const compiled = compileClickhouseQuery(
+    aggregatedScoresForPromptsFromEventsQuery(
+      promptIds,
+      fetchScoreRelation,
+      timeWindow,
+    ),
+    { projectId },
+  );
+  return { query: compiled.sql, params: compiled.params };
 };
 
 export const getAggregatedScoresForPromptsFromEvents = async (
@@ -2134,7 +2337,10 @@ export const getAggregatedScoresForPromptsFromEvents = async (
   >({
     query,
     params,
-    tags: { projectId },
+    tags: {
+      projectId,
+      route: "scores.getAggregatedScoresForPromptsFromEvents",
+    },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -2149,10 +2355,12 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   start,
   end,
   projectId,
+  projectIds,
 }: {
   start: Date;
   end: Date;
   projectId?: string;
+  projectIds?: string[];
 }) => {
   const query = `
     SELECT
@@ -2162,6 +2370,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
+    ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
     AND data_type IN ({dataTypes: Array(String)})
     GROUP BY project_id
   `;
@@ -2173,6 +2382,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(projectId ? { projectId } : {}),
+      ...(projectIds ? { projectIds } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout

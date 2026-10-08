@@ -92,6 +92,13 @@ import {
   handleTestEvaluator,
   testEvaluatorTool,
 } from "@/src/features/mcp/server/evals/tools/testEvaluator";
+import {
+  deleteExternalMediaStorageTool,
+  handleConfigureExternalMediaStorage,
+  handleDeleteExternalMediaStorage,
+  handleGetExternalMediaStorage,
+} from "@/src/features/mcp/server/externalMediaStorage/tools";
+import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
@@ -244,6 +251,7 @@ describe("MCP Write Tools", () => {
             evaluatorId: expect.any(Object),
             type: expect.any(Object),
             prompt: expect.any(Object),
+            questions: expect.any(Object),
             sourceCode: expect.any(Object),
             observationId: expect.any(Object),
             traceId: expect.any(Object),
@@ -296,6 +304,65 @@ describe("MCP Write Tools", () => {
             type: "CODE",
             sourceCode: "return { score: 1 };",
             sourceCodeLanguage: "TYPESCRIPT",
+          },
+          observationId,
+          traceId,
+          startTime: new Date(startTime),
+        });
+
+        await expect(
+          handleTestEvaluator(
+            {
+              type: "DECISION_MODEL",
+              questions: [
+                {
+                  id: "relevant",
+                  type: "noul",
+                  scoreName: "relevant",
+                  instructions: "Determine whether the input is relevant.",
+                  criteria: null,
+                },
+              ],
+              modelConfig: {
+                provider: "typesafe",
+                model: "jev-latest",
+              },
+              variableMapping: [
+                {
+                  templateVariable: "input",
+                  selectedColumnId: "input",
+                },
+              ],
+              observationId,
+              traceId,
+              startTime,
+            } as never,
+            setup.context,
+          ),
+        ).resolves.toEqual(unifiedResult);
+        expect(testEvaluatorSpy).toHaveBeenNthCalledWith(3, {
+          orgId: setup.orgId,
+          projectId: setup.projectId,
+          definition: {
+            type: "DECISION_MODEL",
+            questions: [
+              {
+                id: "relevant",
+                type: "noul",
+                scoreName: "relevant",
+                instructions: "Determine whether the input is relevant.",
+                criteria: null,
+              },
+            ],
+            provider: "typesafe",
+            model: "jev-latest",
+            vars: ["input"],
+            variableMapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+              },
+            ],
           },
           observationId,
           traceId,
@@ -1910,6 +1977,71 @@ describe("MCP Write Tools", () => {
       )) as { name: string };
 
       expect(result.name).toBe(promptName);
+    });
+  });
+
+  describe("external media storage tools", () => {
+    it("configures, reads, and deletes project storage with audit logs", async () => {
+      const setup = await createMcpTestSetup();
+
+      await expect(
+        externalMediaStorageFeature.isEnabled(setup.context),
+      ).resolves.toBe(false);
+      await prisma.organization.update({
+        where: { id: setup.context.orgId },
+        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+      });
+      await expect(
+        externalMediaStorageFeature.isEnabled(setup.context),
+      ).resolves.toBe(true);
+
+      await expect(
+        handleConfigureExternalMediaStorage(
+          {
+            type: "S3",
+            bucketName: "media-bucket",
+            region: "us-east-1",
+            accessKeyId: "test-access-key",
+            secretAccessKey: "test-secret-key",
+            prefix: "media/",
+            forcePathStyle: false,
+          },
+          setup.context,
+        ),
+      ).resolves.toEqual({ success: true });
+
+      await expect(
+        handleGetExternalMediaStorage({}, setup.context),
+      ).resolves.toMatchObject({
+        bucketName: "media-bucket",
+        prefix: "media/",
+        secretAccessKeyDisplay: expect.not.stringContaining("test-secret-key"),
+      });
+      await expect(
+        verifyAuditLog({
+          projectId: setup.projectId,
+          apiKeyId: setup.apiKeyId,
+          resourceType: "externalMediaStorageIntegration",
+          resourceId: setup.projectId,
+          action: "update",
+        }),
+      ).resolves.toBeDefined();
+
+      verifyToolAnnotations(deleteExternalMediaStorageTool, {
+        destructiveHint: true,
+      });
+      await expect(
+        handleDeleteExternalMediaStorage({}, setup.context),
+      ).resolves.toEqual({ success: true });
+      await expect(
+        verifyAuditLog({
+          projectId: setup.projectId,
+          apiKeyId: setup.apiKeyId,
+          resourceType: "externalMediaStorageIntegration",
+          resourceId: setup.projectId,
+          action: "delete",
+        }),
+      ).resolves.toBeDefined();
     });
   });
 

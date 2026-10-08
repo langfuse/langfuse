@@ -3,28 +3,44 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef } from "react";
 
+import { cn } from "@/src/utils/tailwind";
+
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border border-transparent text-xs font-normal",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-none font-normal",
   {
     variants: {
-      color: {
-        primary: "bg-primary text-primary-foreground",
-        neutral: "bg-tertiary text-tertiary-foreground",
-        red: "bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
-        yellow: "bg-light-yellow/80 text-dark-yellow",
-        blue: "bg-light-blue text-dark-blue",
-        violet: "bg-light-violet text-dark-violet",
-        teal: "bg-light-teal text-dark-teal",
-        green: "bg-light-green text-dark-green",
-      },
       size: {
-        default: "gap-1 px-2.5 py-0.5",
-        sm: "gap-1 px-1 py-0 leading-tight",
+        default: "h-5.5 gap-1.5 pr-1.5 pl-2",
+        md: "h-5 gap-1 px-1.5",
+        sm: "h-4.5 gap-1 px-1.5",
+      },
+      color: {
+        primary: "border-border bg-transparent text-foreground-secondary",
+        red: "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
+        yellow:
+          "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
+        blue: "border-transparent bg-light-blue text-dark-blue",
+        violet: "border-transparent bg-light-violet text-dark-violet",
+        teal: "border-transparent bg-light-teal text-dark-teal",
+        green: "border-transparent bg-light-green text-dark-green",
+        ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
+        filled: "border-transparent bg-muted text-foreground-secondary",
+      },
+      interactive: {
+        true: "underline-dotted",
+        false: "",
+      },
+      /** Metric values (latency, cost, timestamps) read in mono. */
+      font: {
+        sans: "font-sans",
+        mono: "font-mono",
       },
     },
     defaultVariants: {
-      color: "neutral",
+      color: "primary",
       size: "default",
+      interactive: false,
+      font: "sans",
     },
   },
 );
@@ -44,32 +60,69 @@ export function BadgeShell({
   asChild = false,
   color,
   size,
+  interactive,
+  font,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
 
-  return <Component className={badgeVariants({ color, size })} {...props} />;
+  return (
+    <Component
+      className={cn(
+        "group/badge",
+        badgeVariants({ color, size, interactive, font }),
+      )}
+      {...props}
+    />
+  );
 }
 
 type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
+  /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
+  label?: string;
   trailingIcon?: LucideIcon;
+  /** Link badges tint the arrow and underline the text on hover. */
+  trailingIconTone?: "default" | "link";
 };
 
 export function Badge({
   color,
-  size,
   text,
+  label,
   title,
+  interactive,
   trailingIcon: TrailingIcon,
+  trailingIconTone = "default",
   ...props
 }: BadgeProps) {
   return (
-    <BadgeShell color={color} size={size} {...props}>
-      <span className="truncate" title={title ?? text}>
+    <BadgeShell color={color} {...props}>
+      {label && <span className="shrink-0 py-0.5">{label}:</span>}
+      <span
+        className={cn(
+          "py-0.5 text-ellipsis whitespace-nowrap",
+          interactive
+            ? "underline-dotted overflow-clip"
+            : "overflow-x-clip overflow-y-visible",
+          trailingIconTone === "link" &&
+            "underline-offset-2 group-hover/badge:underline",
+        )}
+        title={title ?? (interactive ? undefined : text)}
+      >
         {text}
       </span>
-      {TrailingIcon && <TrailingIcon aria-hidden className="size-3 shrink-0" />}
+      {TrailingIcon && (
+        <TrailingIcon
+          aria-hidden
+          className={cn(
+            "icon-sm shrink-0",
+            trailingIconTone === "link"
+              ? "text-foreground-tertiary -ml-0.5"
+              : "text-foreground-tertiary",
+          )}
+        />
+      )}
     </BadgeShell>
   );
 }

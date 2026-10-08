@@ -1,15 +1,16 @@
 //! Resolve credentials through trusted Web before any provider execution.
 mod contracts;
-mod signing;
+pub(crate) mod signing;
 
 pub use contracts::{
-    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, ProviderConnection,
-    RequestAttribution, ResolvedRequestContext,
+    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, Provider, ProviderConnection,
+    ProviderCredential, RequestAttribution, ResolvedRequestContext,
 };
 use reqwest::{
     Client, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
+use reqwest_middleware::ClientWithMiddleware;
 use std::{
     fmt,
     net::IpAddr,
@@ -17,6 +18,12 @@ use std::{
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
+const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
+// Web sits behind load balancers that drop idle connections after 60s by default
+// (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
+// socket the balancer is closing, which would fail without a retry.
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
+const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
 struct ResolutionLimits {
     timeout: Duration,
@@ -25,7 +32,7 @@ struct ResolutionLimits {
 
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ControlPlaneConfig {
-    url: Url,
+    web_url: Url,
     service_key: String,
     limits: ResolutionLimits,
 }
@@ -38,7 +45,7 @@ impl ControlPlaneConfig {
     /// base URL. URLs require HTTPS (HTTP is allowed on loopback), with no userinfo,
     /// query, or fragment.
     pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolutionError> {
-        let mut url = Url::parse(web_url).map_err(|_| ResolutionError::Configuration)?;
+        let url = Url::parse(web_url).map_err(|_| ResolutionError::Configuration)?;
         let loopback = url.host_str().is_some_and(|host| {
             host == "localhost"
                 || host
@@ -56,10 +63,8 @@ impl ControlPlaneConfig {
         {
             return Err(ResolutionError::Configuration);
         }
-        let resolve_path = format!("{}{RESOLVE_PATH}", url.path().trim_end_matches('/'));
-        url.set_path(&resolve_path);
         Ok(Self {
-            url,
+            web_url: url,
             service_key: service_key.to_owned(),
             limits: ResolutionLimits {
                 timeout: Duration::from_secs(5),
@@ -67,11 +72,21 @@ impl ControlPlaneConfig {
             },
         })
     }
+
+    pub(crate) fn endpoint(&self, path: &str) -> Url {
+        let mut url = self.web_url.clone();
+        url.set_path(&format!("{}{path}", url.path().trim_end_matches('/')));
+        url
+    }
+
+    pub(crate) fn service_key(&self) -> &str {
+        &self.service_key
+    }
 }
 
 /// Reuses the HTTP connection pool; credentials belong exclusively to each request.
 pub struct ControlPlaneClient {
-    client: Client,
+    client: ClientWithMiddleware,
     config: ControlPlaneConfig,
 }
 
@@ -89,12 +104,18 @@ impl ControlPlaneClient {
             .no_brotli()
             .no_zstd()
             .no_deflate()
+            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+            .tcp_keepalive(TCP_KEEPALIVE)
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
-        Ok(Self { client, config })
+        Ok(Self {
+            client: crate::observability::instrument_client(client, "resolver"),
+            config,
+        })
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.
+    /// `request_id` is the gateway request ID, sent so Web logs carry it.
     ///
     /// # Errors
     /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication or
@@ -104,11 +125,13 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, timestamp).await
+        self.resolve_at(gateway_key, api_format, timestamp, request_id)
+            .await
     }
 
     async fn resolve_at(
@@ -116,6 +139,7 @@ impl ControlPlaneClient {
         gateway_key: &str,
         api_format: ApiFormat,
         timestamp: Duration,
+        request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         if gateway_key.len() > 8192 || !valid_token(gateway_key) {
             return Err(ResolutionError::InvalidCredential);
@@ -123,7 +147,7 @@ impl ControlPlaneClient {
         let started = Instant::now();
         let body = tokio::time::timeout(
             self.config.limits.timeout,
-            self.fetch(gateway_key, api_format, timestamp.as_secs()),
+            self.fetch(gateway_key, api_format, timestamp.as_secs(), request_id),
         )
         .await
         .map_err(|_| ResolutionError::Timeout)??;
@@ -139,6 +163,7 @@ impl ControlPlaneClient {
         gateway_key: &str,
         api_format: ApiFormat,
         timestamp: u64,
+        request_id: &str,
     ) -> Result<Vec<u8>, ResolutionError> {
         let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
             .map_err(|_| ResolutionError::InvalidCredential)?;
@@ -154,9 +179,10 @@ impl ControlPlaneClient {
             .map_err(|_| ResolutionError::Configuration)?;
         let mut response = self
             .client
-            .post(self.config.url.clone())
+            .post(self.config.endpoint(RESOLVE_PATH))
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
+            .header(REQUEST_ID_HEADER, request_id)
             .header(CONTENT_TYPE, "application/json")
             .body(body)
             .send()

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AnnotationQueueObjectType, type Plan } from "@langfuse/shared";
@@ -50,14 +51,7 @@ describe("annotation queues trpc", () => {
             ],
           },
         ],
-        featureFlags: {
-          templateFlag: true,
-          excludeClickhouseRead: false,
-          experimentsV4Enabled: false,
-          observationEvals: false,
-          searchBar: false,
-          v4BetaToggleVisible: false,
-        },
+        featureFlags: testFeatureFlags(),
       },
       environment: {} as Session["environment"],
     };
@@ -276,6 +270,49 @@ describe("annotation queues trpc", () => {
           scoreConfigIds: [scoreConfig.id],
         }),
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+  });
+
+  describe("annotationQueues.delete", () => {
+    it("returns not found when the queue does not exist in the project", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup);
+
+      await expect(
+        caller.annotationQueues.delete({
+          projectId: setup.project.id,
+          queueId: uuidv4(),
+        }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Queue not found in project",
+      });
+    });
+
+    it("deletes an existing queue", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup);
+      const scoreConfig = await createScoreConfig(setup.project.id);
+
+      const queue = await caller.annotationQueues.create({
+        projectId: setup.project.id,
+        name: "queue-to-delete",
+        scoreConfigIds: [scoreConfig.id],
+      });
+
+      await expect(
+        caller.annotationQueues.delete({
+          projectId: setup.project.id,
+          queueId: queue.id,
+        }),
+      ).resolves.toMatchObject({ id: queue.id });
+
+      const remaining = await prisma.annotationQueue.findUnique({
+        where: { id: queue.id },
+      });
+      expect(remaining).toBeNull();
     });
   });
 });

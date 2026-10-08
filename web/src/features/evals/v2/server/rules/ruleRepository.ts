@@ -4,7 +4,9 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import {
+  coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
+  EvalTemplateType,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -28,6 +30,10 @@ import { filtersMatch } from "./ruleFilterMatching";
 export type RulePrisma = PrismaClient | Prisma.TransactionClient;
 
 const MAX_REUSABLE_FILTER_CANDIDATES = 20;
+
+const visibleRuleWhere = {
+  assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+} satisfies Prisma.EvaluationRuleWhereInput;
 
 const latestVersion = {
   orderBy: { version: "desc" as const },
@@ -109,6 +115,7 @@ function ruleWhere(params: {
 
   return {
     projectId: params.projectId,
+    ...visibleRuleWhere,
     ...(params.search
       ? { name: { contains: params.search, mode: "insensitive" as const } }
       : {}),
@@ -199,6 +206,7 @@ export async function listReusableFilterCandidates(params: {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
+      ...visibleRuleWhere,
       targetObject: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
@@ -231,7 +239,7 @@ export async function listRuleFilterOptions(params: {
 }) {
   const [rules, upgradeRequiredRule] = await Promise.all([
     params.prisma.evaluationRule.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId: params.projectId, ...visibleRuleWhere },
       select: {
         name: true,
         createdByUser: { select: { id: true, name: true, email: true } },
@@ -240,6 +248,7 @@ export async function listRuleFilterOptions(params: {
     params.prisma.evaluationRule.findFirst({
       where: {
         projectId: params.projectId,
+        ...visibleRuleWhere,
         ...upgradeRequiredRuleCondition,
       },
       select: { id: true },
@@ -266,7 +275,11 @@ export function findRule(params: {
   ruleId: string;
 }) {
   return params.prisma.evaluationRule.findFirst({
-    where: { id: params.ruleId, projectId: params.projectId },
+    where: {
+      id: params.ruleId,
+      projectId: params.projectId,
+      ...visibleRuleWhere,
+    },
     include: ruleInclude,
   });
 }
@@ -280,6 +293,7 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
+      ...visibleRuleWhere,
       status: JobConfigState.ACTIVE,
       targetObject: EvalTargetObject.EVENT,
       sampling: params.sampling,
@@ -294,7 +308,10 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
 
   return (
     rules.find((rule) =>
-      filtersMatch(rule.filter as FilterState, params.filter),
+      filtersMatch(
+        coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState,
+        params.filter,
+      ),
     ) ?? null
   );
 }
@@ -336,7 +353,11 @@ export function updateRule(params: {
   filter?: Prisma.InputJsonValue;
 }) {
   return params.prisma.evaluationRule.update({
-    where: { id: params.input.ruleId, projectId: params.input.projectId },
+    where: {
+      id: params.input.ruleId,
+      projectId: params.input.projectId,
+      ...visibleRuleWhere,
+    },
     data: {
       ...(params.targetObject === undefined
         ? {}
@@ -372,6 +393,7 @@ export function setRuleStatus(params: {
   return params.prisma.evaluationRule.updateMany({
     where: {
       projectId: params.projectId,
+      ...visibleRuleWhere,
       ...(params.ruleIds === undefined ? {} : { id: { in: params.ruleIds } }),
       ...(params.unassignedOnly ? { assignments: { none: {} } } : {}),
       ...(params.sampling === undefined ? { status: { not: status } } : {}),
@@ -389,7 +411,11 @@ export async function deleteRule(params: {
   ruleId: string;
 }) {
   const result = await params.prisma.evaluationRule.deleteMany({
-    where: { id: params.ruleId, projectId: params.projectId },
+    where: {
+      id: params.ruleId,
+      projectId: params.projectId,
+      ...visibleRuleWhere,
+    },
   });
   if (result.count === 0) return false;
 
@@ -406,13 +432,28 @@ export async function deleteRules(params: {
   projectId: string;
   ruleIds: string[];
 }) {
+  const visibleIds = await params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      id: { in: params.ruleIds },
+      ...visibleRuleWhere,
+    },
+    select: { id: true },
+  });
+  const ruleIds = visibleIds.map(({ id }) => id);
+  if (ruleIds.length === 0) return 0;
+
   const result = await params.prisma.evaluationRule.deleteMany({
-    where: { projectId: params.projectId, id: { in: params.ruleIds } },
+    where: {
+      projectId: params.projectId,
+      id: { in: ruleIds },
+      ...visibleRuleWhere,
+    },
   });
   await params.prisma.jobExecution.deleteMany({
     where: {
       projectId: params.projectId,
-      jobConfigurationId: { in: params.ruleIds },
+      jobConfigurationId: { in: ruleIds },
     },
   });
   return result.count;
@@ -427,6 +468,7 @@ export async function listSelectedRuleIds(params: {
       where: {
         projectId: params.input.projectId,
         id: { in: params.input.ruleIds },
+        ...visibleRuleWhere,
       },
       select: { id: true },
     });
@@ -525,6 +567,8 @@ export async function countRulesForEvaluators(params: {
     where: {
       projectId: params.projectId,
       evaluatorId: { in: params.evaluatorIds },
+      evaluator: { type: { not: EvalTemplateType.FACET } },
+      evaluationRule: visibleRuleWhere,
     },
     _count: { _all: true },
   });
@@ -544,8 +588,14 @@ export async function listRulesForEvaluator(params: {
       where: {
         projectId: params.projectId,
         evaluatorId: params.evaluatorId,
-        evaluator: { projectId: params.projectId },
-        evaluationRule: { projectId: params.projectId },
+        evaluator: {
+          projectId: params.projectId,
+          type: { not: EvalTemplateType.FACET },
+        },
+        evaluationRule: {
+          projectId: params.projectId,
+          ...visibleRuleWhere,
+        },
       },
       orderBy: { createdAt: "desc" },
       select: {

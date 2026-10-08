@@ -70,6 +70,7 @@ const row = (overrides: {
       gatewayAiConnections: [
         {
           id: "connection-1",
+          name: "Production OpenAI",
           provider: "OPENAI",
           encryptedCredential: "encrypted-credential",
         },
@@ -95,6 +96,7 @@ describe("GatewayResolveService", () => {
       version: 1,
       connection: {
         id: "connection-1",
+        name: "Production OpenAI",
         provider: "openai",
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",

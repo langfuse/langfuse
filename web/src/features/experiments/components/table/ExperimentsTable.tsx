@@ -1,12 +1,16 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableMobileFilterControls,
+  DataTableToolbar,
+} from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import {
   useQueryFilterState,
@@ -32,7 +36,7 @@ import {
   buildExperimentPath,
 } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -46,18 +50,20 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import Link from "next/link";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableActionMenu,
+  type TableAction,
+  TableSelectionManager,
+} from "@/src/features/table";
 import { Badge } from "@/src/components/ui/badge";
 import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { useRouter } from "next/router";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import {
   collectPresentScoreKeys,
   collectScoreNameCoverage,
@@ -68,9 +74,10 @@ import {
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
+import { ExperimentChartsLayout } from "../ExperimentChartsLayout";
+import { metricOptionsFromScoreColumns } from "../../fns/metricOptionsFromScoreColumns";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
@@ -217,7 +224,7 @@ function ExperimentsMultiSelectActionMenu({
       type: BatchActionType.Create,
       label: "Compare",
       description: "Compare selected experiments",
-      icon: <GitCompareArrows className="h-4 w-4 sm:mr-2" />,
+      icon: <GitCompareArrows className="icon-base sm:mr-2" />,
       customDialog: true,
       disabled: tooManySelected,
       disabledReason: tooManySelected
@@ -234,7 +241,7 @@ function ExperimentsMultiSelectActionMenu({
             type: BatchActionType.Create,
             label: "Run Evaluator",
             description: "Run evaluators on selected experiments",
-            icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+            icon: <LightbulbIcon className="icon-base sm:mr-2" />,
             customDialog: true,
             accessCheck: {
               scope: "evaluationRule:CUD",
@@ -269,8 +276,8 @@ function ExperimentsMultiSelectActionMenu({
           totalCount={selectedExperimentIds.length}
           onClose={() => {
             setShowRunEvaluationDialog(false);
-            clearSelection();
           }}
+          onSuccess={clearSelection}
           sourceTable="experiments"
         />
       )}
@@ -435,8 +442,11 @@ export default function ExperimentsTable({
     totalCount,
     dataUpdatedAt,
     metricsLoading,
+    metricsError,
+    refetchMetrics,
     isShowingMostRecent,
     mostRecentCount,
+    fallbackDateRange,
   } = useExperimentsTableData({
     projectId,
     filterState,
@@ -509,6 +519,9 @@ export default function ExperimentsTable({
   const {
     scoreColumns: observationItemScoreColumns,
     isLoading: isObservationItemScoreLoading,
+    scoreDefinitions: observationScoreDefinitions,
+    error: observationScoreOptionsError,
+    refetch: refetchObservationScoreOptions,
   } = useScoreColumns<ExperimentsTableRow>({
     rawKey: true,
     displayFormat: "aggregate",
@@ -529,6 +542,9 @@ export default function ExperimentsTable({
   const {
     scoreColumns: experimentScoreColumns,
     isLoading: isExperimentScoreColumnLoading,
+    scoreDefinitions: experimentScoreDefinitions,
+    error: experimentScoreOptionsError,
+    refetch: refetchExperimentScoreOptions,
   } = useScoreColumns<ExperimentsTableRow>({
     scoreColumnKey: "experimentScores",
     projectId,
@@ -543,6 +559,16 @@ export default function ExperimentsTable({
     isFilterDataPending: experiments.status === "loading",
     presentKeys: presentScoreKeys?.experiment,
   });
+
+  const availableMetricOptions = useMemo(
+    () =>
+      metricOptionsFromScoreColumns(
+        observationScoreDefinitions,
+        experimentScoreDefinitions,
+      ),
+    [observationScoreDefinitions, experimentScoreDefinitions],
+  );
+  const chartDateRange = fallbackDateRange ?? tableDateRange;
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
     projectId,
@@ -718,7 +744,7 @@ export default function ExperimentsTable({
       headerTooltip: {
         description: "Average duration of the root span per experiment item.",
       },
-      formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+      formatter: (value) => `Ø ${numberFormatter(value / 1000, 4)}s`,
       metricsLoading,
     }),
     createExperimentMetricColumn<ExperimentsTableRow>({
@@ -948,68 +974,86 @@ export default function ExperimentsTable({
             <TableHeaderControls
               timeRange={timeRange}
               setTimeRange={setTimeRange}
+              desktopOnly
             />
           )}
-          {/* The composer and the toolbar stick together as one band so the
-              toolbar cannot scroll under the composer and render half-clipped;
-              pb-1.5 matches the other bar surfaces' spacing above the table. */}
-          <div className="bg-background sticky top-0 z-30 pb-1.5">
-            <TableSearchBar
-              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-              isV4={true}
-              filterState={queryFilter.searchBarFilterState}
-              setFilterState={setFiltersWrapper}
-              projectId={projectId}
-              tableName={filterConfig.tableName}
-              observed={observedOptions}
-              registry={searchRegistry}
-            />
-            {/* Toolbar spanning full width */}
-            <DataTableToolbar
-              rowClassName="my-1"
-              columns={columns}
-              filterState={queryFilter.filterState}
-              viewConfig={{
-                tableName: TableViewPresetTableName.Experiments,
-                projectId,
-                controllers: viewControllers,
-              }}
-              tableName={filterConfig.tableName}
-              isV4={true}
-              onColumnGroupToggle={handleColumnGroupToggle}
-              columnsWithCustomSelect={["name", "datasetId"]}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={handleColumnVisibilityChange}
-              columnOrder={columnOrder}
-              setColumnOrder={handleColumnOrderChange}
-              orderByState={orderByState}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              timeRange={showControlsInPageHeader ? undefined : timeRange}
-              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              actionButtons={[
-                <ExperimentsMultiSelectActionMenu
-                  key="experiments-multi-select-actions"
-                  projectId={projectId}
-                  store={experimentsTableStore}
-                  datasetIdByExperimentId={datasetIdByExperimentId}
-                />,
-              ]}
-            />
-          </div>
-
-          {isShowingMostRecent && (
-            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
-              No experiments started in the selected time range. Showing the{" "}
-              {mostRecentCount === 1
-                ? "most recent run"
-                : `${mostRecentCount} most recent runs`}{" "}
-              instead.
-            </div>
-          )}
-
-          {/* Content area with sidebar and table */}
-          <ResizableFilterLayout>
+          <StickySearchableTableFilterLayout
+            search={
+              <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
+                key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+                isV4={true}
+                filterState={queryFilter.searchBarFilterState}
+                setFilterState={setFiltersWrapper}
+                projectId={projectId}
+                tableName={filterConfig.tableName}
+                observed={observedOptions}
+                registry={searchRegistry}
+              />
+            }
+            toolbar={
+              <DataTableToolbar
+                rowClassName="my-1"
+                columns={columns}
+                filterState={queryFilter.filterState}
+                viewConfig={{
+                  tableName: TableViewPresetTableName.Experiments,
+                  projectId,
+                  controllers: viewControllers,
+                }}
+                tableName={filterConfig.tableName}
+                isV4={true}
+                onColumnGroupToggle={handleColumnGroupToggle}
+                columnsWithCustomSelect={["name", "datasetId"]}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={handleColumnVisibilityChange}
+                columnOrder={columnOrder}
+                setColumnOrder={handleColumnOrderChange}
+                orderByState={orderByState}
+                rowHeight={rowHeight}
+                setRowHeight={setRowHeight}
+                timeRange={showControlsInPageHeader ? undefined : timeRange}
+                setTimeRange={
+                  showControlsInPageHeader ? undefined : setTimeRange
+                }
+                actionButtons={[
+                  <ExperimentsMultiSelectActionMenu
+                    key="experiments-multi-select-actions"
+                    projectId={projectId}
+                    store={experimentsTableStore}
+                    datasetIdByExperimentId={datasetIdByExperimentId}
+                  />,
+                ]}
+                hideMobileFilterControls
+              />
+            }
+            mobileControls={
+              <DataTableMobileFilterControls
+                viewConfig={{
+                  tableName: TableViewPresetTableName.Experiments,
+                  projectId,
+                  controllers: viewControllers,
+                }}
+                orderByState={orderByState}
+                filterState={queryFilter.filterState}
+                columnOrder={columnOrder}
+                columnVisibility={columnVisibility}
+                timeRange={timeRange}
+                setTimeRange={setTimeRange}
+              />
+            }
+            nonStickyContent={
+              isShowingMostRecent ? (
+                <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+                  No experiments started in the selected time range. Showing the{" "}
+                  {mostRecentCount === 1
+                    ? "most recent run"
+                    : `${mostRecentCount} most recent runs`}{" "}
+                  instead.
+                </div>
+              ) : null
+            }
+          >
             <DataTableControls
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
               key={viewControllers.filterEditorResetKey}
@@ -1020,82 +1064,98 @@ export default function ExperimentsTable({
               {/* Table-width, like the events table's pulse strip: inside the
                   layout so the facet sidebar keeps its full height and the
                   strip resizes with the table. */}
-              {tableDateRange && (
-                <ExperimentMetricStrip
-                  projectId={projectId}
-                  experiments={chartExperiments}
-                  fromTimestamp={tableDateRange.from}
-                  toTimestamp={tableDateRange.to}
-                  isExternalLoading={experiments.status === "loading"}
-                  scoreCoverage={scoreCoverage}
-                />
-              )}
-              <DataTable
-                key={`experiments-table-${dataUpdatedAt}`}
-                tableName="experiments"
-                columns={columns}
-                data={
-                  experiments.status === "loading" || isViewLoading
-                    ? { isLoading: true, isError: false }
-                    : experiments.status === "error"
-                      ? {
-                          isLoading: false,
-                          isError: true,
-                          error: "",
-                        }
-                      : {
-                          isLoading: false,
-                          isError: false,
-                          data: rows,
-                        }
+              <ExperimentChartsLayout
+                projectId={projectId}
+                experiments={chartExperiments}
+                fromTimestamp={chartDateRange?.from}
+                toTimestamp={chartDateRange?.to}
+                isExternalLoading={experiments.status === "loading"}
+                scoreCoverage={scoreCoverage}
+                availableMetricOptions={availableMetricOptions}
+                isMetricOptionsLoading={
+                  metricsLoading ||
+                  isObservationItemScoreLoading ||
+                  isExperimentScoreColumnLoading
                 }
-                pagination={{
-                  totalCount,
-                  onChange: (updater) => {
-                    const newState =
-                      typeof updater === "function"
-                        ? updater({
-                            pageIndex: paginationState.page - 1,
-                            pageSize: paginationState.limit,
-                          })
-                        : updater;
-                    setPaginationState({
-                      page: newState.pageIndex + 1,
-                      limit: newState.pageSize,
-                    });
-                  },
-                  state: {
-                    pageIndex: paginationState.page - 1,
-                    pageSize: paginationState.limit,
-                  },
+                metricOptionsError={
+                  metricsError?.message ??
+                  observationScoreOptionsError?.message ??
+                  experimentScoreOptionsError?.message ??
+                  null
+                }
+                onRetryMetricOptions={() => {
+                  refetchMetrics();
+                  refetchObservationScoreOptions();
+                  refetchExperimentScoreOptions();
                 }}
-                selectionStore={experimentsTableStore}
-                setOrderBy={handleOrderByChange}
-                orderBy={orderByState}
-                columnOrder={columnOrder}
-                onColumnOrderChange={handleColumnOrderChange}
-                columnVisibility={columnVisibility}
-                onColumnVisibilityChange={handleColumnVisibilityChange}
-                rowHeight={rowHeight}
-                onRowClick={(row, event) => {
-                  // Handle Command/Ctrl+click to open experiment in new tab
-                  if (event && (event.metaKey || event.ctrlKey)) {
-                    event.preventDefault();
-                    const experimentId = row.id;
-                    const experimentUrl = `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(experimentId)}`;
-                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
-                    window.open(fullUrl, "_blank");
+              >
+                <DataTable
+                  key={`experiments-table-${dataUpdatedAt}`}
+                  tableName="experiments"
+                  columns={columns}
+                  data={
+                    experiments.status === "loading" || isViewLoading
+                      ? { isLoading: true, isError: false }
+                      : experiments.status === "error"
+                        ? {
+                            isLoading: false,
+                            isError: true,
+                            error: "",
+                          }
+                        : {
+                            isLoading: false,
+                            isError: false,
+                            data: rows,
+                          }
                   }
-                  // For normal clicks, navigate to experiment detail page
-                  else {
-                    router.push(
-                      `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
-                    );
-                  }
-                }}
-              />
+                  pagination={{
+                    totalCount,
+                    onChange: (updater) => {
+                      const newState =
+                        typeof updater === "function"
+                          ? updater({
+                              pageIndex: paginationState.page - 1,
+                              pageSize: paginationState.limit,
+                            })
+                          : updater;
+                      setPaginationState({
+                        page: newState.pageIndex + 1,
+                        limit: newState.pageSize,
+                      });
+                    },
+                    state: {
+                      pageIndex: paginationState.page - 1,
+                      pageSize: paginationState.limit,
+                    },
+                  }}
+                  selectionStore={experimentsTableStore}
+                  setOrderBy={handleOrderByChange}
+                  orderBy={orderByState}
+                  columnOrder={columnOrder}
+                  onColumnOrderChange={handleColumnOrderChange}
+                  columnVisibility={columnVisibility}
+                  onColumnVisibilityChange={handleColumnVisibilityChange}
+                  rowHeight={rowHeight}
+                  onRowClick={(row, event) => {
+                    // Handle Command/Ctrl+click to open experiment in new tab
+                    if (event && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      const experimentId = row.id;
+                      const experimentUrl = `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(experimentId)}`;
+                      const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
+                      window.open(fullUrl, "_blank");
+                    }
+                    // For normal clicks, navigate to experiment detail page
+                    else {
+                      router.push(
+                        `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
+                      );
+                    }
+                  }}
+                />
+              </ExperimentChartsLayout>
             </div>
-          </ResizableFilterLayout>
+          </StickySearchableTableFilterLayout>
         </div>
       </DataTableControlsProvider>
     </>

@@ -28,7 +28,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
 
 // Fallback for legacy rows that predate the worker stamping expiresAt;
 // matches the worker's BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS default.
@@ -174,10 +174,13 @@ export const batchExportRouter = createTRPCRouter({
         scope: "batchExports:create",
       });
 
-      await ctx.prisma.batchExport.update({
+      const { count } = await ctx.prisma.batchExport.updateMany({
         where: { id: input.batchExportId, projectId: input.projectId },
         data: { status: BatchExportStatus.CANCELLED },
       });
+      if (count === 0) {
+        throw new LangfuseNotFoundError("Batch export not found");
+      }
     }),
   downloadUrl: protectedProjectProcedure
     .input(

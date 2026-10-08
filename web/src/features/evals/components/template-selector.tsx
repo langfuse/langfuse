@@ -3,12 +3,12 @@ import { type EvalTemplate } from "@langfuse/shared";
 
 import {
   CheckIcon,
-  ChevronDown,
   Cog,
   ExternalLink,
   AlertCircle,
   ExternalLinkIcon,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Popover,
@@ -164,14 +164,17 @@ export const TemplateSelector = ({
             variant="outline"
             role="combobox"
             aria-expanded={isPopoverOpen}
-            className={cn("w-full justify-between px-2 font-normal", className)}
+            className={cn(
+              "w-full justify-between gap-2 px-2 font-normal",
+              className,
+            )}
           >
             <div className="flex items-center gap-1 overflow-hidden">
               <span className="mr-1 truncate" title={triggerLabel}>
                 {triggerLabel}
               </span>
             </div>
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <DropdownIndicator />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">
@@ -216,7 +219,7 @@ export const TemplateSelector = ({
                             disabled={isInvalid || disabled}
                           >
                             {isActive ? (
-                              <CheckIcon className="mr-2 h-4 w-4" />
+                              <CheckIcon className="icon-base mr-2" />
                             ) : (
                               <div className="mr-2 h-4 w-4" />
                             )}
@@ -229,7 +232,7 @@ export const TemplateSelector = ({
                             {isInvalid && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                                  <AlertCircle className="icon-base ml-1 text-yellow-500" />
                                 </TooltipTrigger>
                                 <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                   <p>Requires project-level evaluation model</p>
@@ -239,7 +242,7 @@ export const TemplateSelector = ({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
-                                    <ExternalLinkIcon className="h-3 w-3" />
+                                    <ExternalLinkIcon className="icon-base" />
                                     Configure default model
                                   </Link>
                                 </TooltipContent>
@@ -272,7 +275,7 @@ export const TemplateSelector = ({
                                 }
                                 disabled={isInvalid || disabled}
                               >
-                                <Cog className="h-4 w-4" />
+                                <Cog className="icon-sm text-icon-foreground" />
                               </Button>
                             )}
                           </InputCommandItem>
@@ -307,7 +310,7 @@ export const TemplateSelector = ({
                           disabled={isInvalid || disabled}
                         >
                           {isActive ? (
-                            <CheckIcon className="mr-2 h-4 w-4" />
+                            <CheckIcon className="icon-base mr-2" />
                           ) : (
                             <div className="mr-2 h-4 w-4" />
                           )}
@@ -323,7 +326,7 @@ export const TemplateSelector = ({
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                                <AlertCircle className="icon-base ml-1 text-yellow-500" />
                               </TooltipTrigger>
                               <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                 <p>Requires project-level evaluation model</p>
@@ -333,7 +336,7 @@ export const TemplateSelector = ({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  <ExternalLinkIcon className="h-3 w-3" />
+                                  <ExternalLinkIcon className="icon-base" />
                                   Configure default model
                                 </Link>
                               </TooltipContent>
@@ -366,7 +369,7 @@ export const TemplateSelector = ({
                               }
                               disabled={isInvalid || disabled}
                             >
-                              <Cog className="h-4 w-4" />
+                              <Cog className="icon-sm text-icon-foreground" />
                             </Button>
                           )}
                         </InputCommandItem>
@@ -387,7 +390,7 @@ export const TemplateSelector = ({
                     }}
                   >
                     Create custom evaluator
-                    <ExternalLink className="ml-auto h-4 w-4" />
+                    <ExternalLink className="icon-base ml-auto" />
                   </InputCommandItem>
                   {!hasDefaultModel && (
                     <InputCommandItem
@@ -400,7 +403,7 @@ export const TemplateSelector = ({
                       }}
                     >
                       Configure default model
-                      <ExternalLink className="ml-auto h-4 w-4" />
+                      <ExternalLink className="icon-base ml-auto" />
                     </InputCommandItem>
                   )}
                 </InputCommandGroup>

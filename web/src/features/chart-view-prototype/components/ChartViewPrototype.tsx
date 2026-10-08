@@ -1,8 +1,10 @@
+/* eslint-disable no-nested-ternary */
 import React, { useCallback, useMemo, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
+
 // Shared, production chart-view components — the harness renders the exact same
 // UI as the real EventsChartView, fed with mock-aggregated data.
 import {
@@ -11,10 +13,10 @@ import {
   ChartTypePicker,
   GranularitySelect,
   MetricSelect,
-} from "@/src/features/chart-view/components/ConfigControls";
-import { ChartCanvas } from "@/src/features/chart-view/components/ChartCanvas";
-import { ChartViewPanel } from "@/src/features/chart-view/components/ChartViewPanel";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
+  ChartCanvas,
+  ChartViewPanel,
+  ViewModeToggle,
+} from "@/src/features/chart-view";
 import {
   coerceConfig,
   DEFAULT_CONFIG,
@@ -76,7 +78,7 @@ export function ChartViewPrototype({
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <Button variant="outline" size="sm" disabled className="h-7 gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal className="icon-base text-icon-foreground" />
             Filters
           </Button>
           <span>{events.length.toLocaleString()} events · last 24h</span>

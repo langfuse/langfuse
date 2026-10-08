@@ -2,7 +2,7 @@
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import {
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,
@@ -64,7 +64,7 @@ export const V4MigrationPanel = ({
           onClick={() => setOpen(false)}
           aria-label="Close"
         >
-          <X className="h-4 w-4" />
+          <X className="icon-base text-icon-foreground" />
         </Button>
       )}
       <div className="flex-1 overflow-y-auto">

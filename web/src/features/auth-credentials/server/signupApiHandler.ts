@@ -3,7 +3,7 @@ import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/cre
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
-import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
+import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/server";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";

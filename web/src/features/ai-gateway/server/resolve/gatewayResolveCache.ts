@@ -32,6 +32,7 @@ export const CachedResolveContext = z.object({
   connection: z
     .object({
       id: z.string(),
+      name: z.string(),
       provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
     })

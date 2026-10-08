@@ -55,6 +55,7 @@ export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
   name: "updateScoreConfig",
   description:
     "Update a score configuration. Use this to rename, describe, or adjust allowed numeric/category fields.",
+  action: "scoreConfigs:CUD",
   baseSchema: McpUpdateScoreConfigBaseSchema,
   inputSchema: McpUpdateScoreConfigInputSchema,
   handler: async (input, context) => {

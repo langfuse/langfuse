@@ -1,7 +1,13 @@
 import { type IncomingHttpHeaders } from "http";
 
-import { type InternalServerError, UnauthorizedError } from "@langfuse/shared";
+import {
+  type ForbiddenError,
+  type InternalServerError,
+  type ServiceUnavailableError,
+  type UnauthorizedError,
+} from "@langfuse/shared";
 
+import { env } from "@/src/env.mjs";
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import {
   parseAuthorizationHeader,
@@ -10,6 +16,8 @@ import {
 import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
 import {
+  forbiddenError,
+  unauthorizedError,
   type AuthorizationContext,
   type ErrorResult,
   type Principal,
@@ -24,27 +32,29 @@ export class Authenticator {
     private readonly cache: AuthenticatorCache = new AuthenticatorCache(),
   ) {}
 
-  /** authenticate runs the full pipeline read-through the context cache and enforces route settings on the resolved principal on every path, returning a typed failure rather than throwing. */
+  /** authenticate resolves credentials and enforces route settings on cache hits and misses. */
   async authenticate(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const credential = parseAuthorizationHeader(params.headers.authorization);
     if (credential.kind === "malformed") {
-      return {
-        success: false,
-        error: new UnauthorizedError(invalidCredentials),
-      };
+      return unauthorizedError(invalidCredentials);
     }
 
-    const result =
-      (await this.cache.get(credential)) ??
-      (await this.verifyAndResolve(credential));
-    if (result.success) {
-      const denied = enforceRouteSettings(result.context.principal, params);
-      if (denied) return denied;
+    let authResult: ApiKeyAuthResults | null = await this.cache.get(credential);
+    if (!authResult) {
+      authResult = await this.verifyAndResolve(credential);
     }
-    return result;
+
+    if (authResult.success) {
+      const denied = enforceRouteSettings(authResult.context.principal, params);
+      if (denied) {
+        return denied;
+      }
+    }
+
+    return authResult;
   }
 
-  /** verifyAndResolve authenticates and materializes on a cache miss, writing every cacheable outcome back to the cache. */
+  /** verifyAndResolve resolves and caches verified credentials. */
   private async verifyAndResolve(
     credential: Credential,
   ): Promise<ApiKeyAuthResults> {
@@ -54,7 +64,14 @@ export class Authenticator {
       return verified;
     }
     const resolved = await this.authz.resolve(verified);
-    await this.cache.set(credential, resolved);
+    const expiresAt = "apiKey" in verified ? verified.apiKey.expiresAt : null;
+    // Revocation requires the persisted fast hash.
+    if (
+      verified.authorization !== "privateKey" ||
+      verified.apiKey.fastHashedSecretKey
+    ) {
+      await this.cache.set(credential, resolved, expiresAt);
+    }
     return resolved;
   }
 }
@@ -66,24 +83,25 @@ export const authenticator = new Authenticator();
 function enforceRouteSettings(
   principal: Principal,
   params: ApiKeyAuthParams,
-): ErrorResult<UnauthorizedError> | null {
-  if (principal.kind === "admin" && !params.isAdminApiKeyAuthAllowed) {
-    return {
-      success: false,
-      error: new UnauthorizedError("Admin API key auth is not allowed here"),
-    };
+): ErrorResult<UnauthorizedError | ForbiddenError> | null {
+  if (principal.kind === "admin") {
+    if (!params.isAdminApiKeyAuthAllowed) {
+      return unauthorizedError("Admin API key auth is not allowed here");
+    }
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      return forbiddenError(
+        "Admin API key auth is not available on Langfuse Cloud",
+      );
+    }
   }
   if (
     principal.kind === "apiKey" &&
     principal.isInAppAgentKey &&
     !params.allowInAppAgentKey
   ) {
-    return {
-      success: false,
-      error: new UnauthorizedError(
-        "Access denied - in-app agent keys are not allowed for this endpoint",
-      ),
-    };
+    return unauthorizedError(
+      "Access denied - in-app agent keys are not allowed for this endpoint",
+    );
   }
   return null;
 }
@@ -98,7 +116,12 @@ export type ApiKeyAuthParams = {
 /** ApiKeyAuthResults is the pipeline's outcome: the resolved context, or a typed failure. */
 export type ApiKeyAuthResults =
   | Authenticated
-  | ErrorResult<UnauthorizedError | InternalServerError>;
+  | ErrorResult<
+      | UnauthorizedError
+      | ForbiddenError
+      | InternalServerError
+      | ServiceUnavailableError
+    >;
 
 /** Authenticated is the pipeline's success outcome: the resolved authorization context. */
 export type Authenticated = Success & { context: AuthorizationContext };

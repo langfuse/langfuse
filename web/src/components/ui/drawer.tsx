@@ -5,7 +5,8 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer, type LayerName } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { type LayerName } from "@/src/context/LayerContext/layers";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
@@ -88,16 +89,21 @@ const Drawer = ({
   const isMediumScreen = useMediaQuery({
     query: `(min-width: ${TAILWIND_MD_MEDIA_QUERY}px)`,
   });
-  const direction =
-    forceDirection === "responsive"
-      ? isMediumScreen
-        ? "right"
-        : "bottom"
-      : forceDirection === "responsive-left"
-        ? isMediumScreen
-          ? "left"
-          : "bottom"
-        : forceDirection;
+  const direction = (() => {
+    if (forceDirection === "responsive") {
+      if (isMediumScreen) {
+        return "right";
+      }
+      return "bottom";
+    }
+    if (forceDirection === "responsive-left") {
+      if (isMediumScreen) {
+        return "left";
+      }
+      return "bottom";
+    }
+    return forceDirection;
+  })();
 
   return (
     <DrawerContext.Provider value={{ blockTextSelection, direction }}>

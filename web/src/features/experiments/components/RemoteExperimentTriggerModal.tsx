@@ -21,11 +21,10 @@ import {
 } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import { type Prisma } from "@langfuse/shared";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const RemoteExperimentTriggerSchema = z.object({
   payload: z.string(),
@@ -72,6 +71,7 @@ export const RemoteExperimentTriggerModal = ({
           );
         } else if (data.success) {
           showSuccessToast({
+            operation: "remote_experiment.trigger",
             title: "Remote experiment triggered",
             description:
               "Your remote experiment may take a few minutes to complete.",

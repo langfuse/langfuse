@@ -1,15 +1,20 @@
 import { type Redis } from "ioredis";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
-import { InternalServerError, UnauthorizedError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InternalServerError,
+  UnauthorizedError,
+} from "@langfuse/shared";
 import {
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   API_KEY_CACHE_KEY_PREFIX,
   createShaHash,
+  hashSecretKey,
 } from "@langfuse/shared/src/server";
 
-import { Authenticator } from "@/src/features/apiKey/authenticator";
+import { Authenticator } from "@/src/features/apiKey/server";
 import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import {
   OrganizationRepository,
@@ -18,6 +23,7 @@ import {
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import { Verifier } from "@/src/features/apiKey/verifier";
 import { type ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
+import { env } from "@/src/env.mjs";
 
 const SALT = "test-salt";
 const ORG = "org_1";
@@ -60,6 +66,7 @@ const store = (key: ApiKey): ApiKeyRepository =>
 
 const orgRow = {
   id: ORG,
+  createdAt: new Date("2026-09-16T00:00:00.000Z"),
   cloudConfig: null,
   cloudFreeTierUsageThresholdState: null,
   projects: [{ id: PRJ }],
@@ -72,6 +79,23 @@ const resolver = new ContextResolver(
       findFirst: async () => orgRow,
     },
   } as unknown as PrismaClient),
+  {
+    roleAssignment: {
+      findMany: async () => [
+        {
+          id: "assignment_1",
+          orgId: ORG,
+          principalApiKeyId: "key_p",
+          principalUserId: null,
+          ownerProjectId: PRJ,
+          ownerOrgId: null,
+          systemRole: "ADMIN",
+          createdAt: new Date(0),
+          updatedAt: new Date(0),
+        },
+      ],
+    },
+  } as unknown as PrismaClient,
 );
 
 /** fakeRedis is an in-memory get/set store; overrides let a test make either op throw. */
@@ -101,9 +125,20 @@ const bearer = (token: string) => ({
 
 describe("Authenticator consolidated context cache", () => {
   let verifier: Verifier;
+  let originalCloudRegion: string | undefined;
 
   beforeEach(() => {
     verifier = new Verifier(store(apiKey()), SALT);
+    originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+  });
+
+  afterEach(() => {
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
   it("miss then hit: first call resolves via verify and caches; second call serves from cache without verifying", async () => {
@@ -117,7 +152,7 @@ describe("Authenticator consolidated context cache", () => {
     const first = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(first.success).toBe(true);
     expect([...redis.map.keys()]).toEqual([
-      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${knownHash}`,
+      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:bearer:${knownHash}`,
     ]);
 
     const verifySpy = vi.spyOn(verifier, "verify");
@@ -142,29 +177,206 @@ describe("Authenticator consolidated context cache", () => {
     expect(key.startsWith(API_KEY_CACHE_KEY_PREFIX)).toBe(false);
   });
 
-  it("negative caching: an unknown credential's 401 is stored and replayed without verifying", async () => {
+  it("does not cache a 401: unknown credentials are verified on every request", async () => {
     const redis = fakeRedis();
     const auth = new Authenticator(
       verifier,
       resolver,
       new AuthenticatorCache(redis, SALT),
     );
-
-    const first = await auth.authenticate(bearer(UNKNOWN_SECRET));
-    expect(first.success).toBe(false);
-    expect(first.error).toBeInstanceOf(UnauthorizedError);
-    const stored = redis.map.get(
-      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash(UNKNOWN_SECRET, SALT)}`,
-    );
-    expect(stored).toBeDefined();
-
     const verifySpy = vi.spyOn(verifier, "verify");
-    const second = await auth.authenticate(bearer(UNKNOWN_SECRET));
-    expect(verifySpy).not.toHaveBeenCalled();
-    expect(second.success).toBe(false);
-    if (!first.success && !second.success) {
-      expect(second.error.message).toBe(first.error.message);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await auth.authenticate(bearer(UNKNOWN_SECRET));
+      expect(result.success).toBe(false);
+      expect(result.error).toBeInstanceOf(UnauthorizedError);
     }
+    expect(verifySpy).toHaveBeenCalledTimes(2);
+    expect(redis.map.size).toBe(0);
+  });
+
+  it("does not let a Basic failure poison a public Bearer credential", async () => {
+    const key = apiKey();
+    const repository = store(key);
+    repository.findByPublicKey = async (publicKey) => ({
+      success: true,
+      apiKey: publicKey === key.publicKey ? key : null,
+    });
+    const auth = new Authenticator(
+      new Verifier(repository, SALT),
+      resolver,
+      new AuthenticatorCache(fakeRedis(), SALT),
+    );
+
+    const poisoned = await auth.authenticate({
+      headers: {
+        authorization: `Basic ${btoa(`unknown:${key.publicKey}`)}`,
+      },
+    });
+    expect(poisoned.success).toBe(false);
+    const legitimate = await auth.authenticate(bearer(key.publicKey));
+    expect(legitimate.success).toBe(true);
+    if (legitimate.success) {
+      expect(legitimate.context.principal).toMatchObject({
+        presentation: "publicKey",
+      });
+    }
+  });
+
+  it("does not reuse a public Bearer success for Basic authentication", async () => {
+    const key = apiKey();
+    const repository = store(key);
+    repository.findByPublicKey = async (publicKey) => ({
+      success: true,
+      apiKey: publicKey === key.publicKey ? key : null,
+    });
+    const auth = new Authenticator(
+      new Verifier(repository, SALT),
+      resolver,
+      new AuthenticatorCache(fakeRedis(), SALT),
+    );
+    expect((await auth.authenticate(bearer(key.publicKey))).success).toBe(true);
+    expect(
+      (
+        await auth.authenticate({
+          headers: {
+            authorization: `Basic ${btoa(`unknown:${key.publicKey}`)}`,
+          },
+        })
+      ).success,
+    ).toBe(false);
+  });
+
+  it("allows slow-hash migration after a failure with a different Basic username", async () => {
+    const key = apiKey({
+      fastHashedSecretKey: null,
+      hashedSecretKey: await hashSecretKey(KNOWN_SECRET),
+    });
+    const repository = store(key);
+    repository.findByPublicKey = async (publicKey) => ({
+      success: true,
+      apiKey: publicKey === key.publicKey ? key : null,
+    });
+    const auth = new Authenticator(
+      new Verifier(repository, SALT),
+      resolver,
+      new AuthenticatorCache(fakeRedis(), SALT),
+    );
+    const basic = (publicKey: string) => ({
+      headers: {
+        authorization: `Basic ${btoa(`${publicKey}:${KNOWN_SECRET}`)}`,
+      },
+    });
+    expect((await auth.authenticate(basic("unknown"))).success).toBe(false);
+    expect((await auth.authenticate(basic(key.publicKey))).success).toBe(true);
+  });
+
+  it("allows private Bearer authentication after Basic fast-hash migration", async () => {
+    const key = apiKey({
+      fastHashedSecretKey: null,
+      hashedSecretKey: await hashSecretKey(KNOWN_SECRET),
+    });
+    const repository = store(key);
+    repository.findByPublicKey = async (publicKey) => ({
+      success: true,
+      apiKey: publicKey === key.publicKey ? { ...key } : null,
+    });
+    repository.backfillFastHash = async (_id, hash) => {
+      key.fastHashedSecretKey = hash;
+    };
+    const auth = new Authenticator(
+      new Verifier(repository, SALT),
+      resolver,
+      new AuthenticatorCache(fakeRedis(), SALT),
+    );
+
+    expect((await auth.authenticate(bearer(KNOWN_SECRET))).success).toBe(false);
+    expect(
+      (
+        await auth.authenticate({
+          headers: {
+            authorization: `Basic ${btoa(`${key.publicKey}:${KNOWN_SECRET}`)}`,
+          },
+        })
+      ).success,
+    ).toBe(true);
+    expect((await auth.authenticate(bearer(KNOWN_SECRET))).success).toBe(true);
+  });
+
+  it("does not cache a private success when fast-hash backfill failed", async () => {
+    const key = apiKey({
+      fastHashedSecretKey: null,
+      hashedSecretKey: await hashSecretKey(KNOWN_SECRET),
+    });
+    const repository = store(key);
+    const findByPublicKey = vi.fn(async () => ({
+      success: true as const,
+      apiKey: key as ApiKey | null,
+    }));
+    repository.findByPublicKey = findByPublicKey;
+    const redis = fakeRedis();
+    const auth = new Authenticator(
+      new Verifier(repository, SALT),
+      resolver,
+      new AuthenticatorCache(redis, SALT),
+    );
+    const request = {
+      headers: {
+        authorization: `Basic ${btoa(`${key.publicKey}:${KNOWN_SECRET}`)}`,
+      },
+    };
+
+    expect((await auth.authenticate(request)).success).toBe(true);
+    findByPublicKey.mockResolvedValue({ success: true, apiKey: null });
+    expect((await auth.authenticate(request)).success).toBe(false);
+  });
+
+  it("preserves arbitrary Basic usernames for fast-hash secrets in both cache states", async () => {
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      new AuthenticatorCache(fakeRedis(), SALT),
+    );
+    for (const publicKey of ["unmatched-cold", "unmatched-warm"]) {
+      expect(
+        (
+          await auth.authenticate({
+            headers: {
+              authorization: `Basic ${btoa(`${publicKey}:${KNOWN_SECRET}`)}`,
+            },
+          })
+        ).success,
+      ).toBe(true);
+    }
+    expect((await auth.authenticate(bearer(KNOWN_SECRET))).success).toBe(true);
+  });
+
+  it.each(["null", "{}", '{"unauthorized":"Invalid credentials"}', "{"])(
+    "ignores cache entries without a readable context: %s",
+    async (raw) => {
+      const redis = fakeRedis({
+        get: (async () => raw) as Redis["get"],
+      });
+      const cache = new AuthenticatorCache(redis, SALT);
+      expect(
+        await cache.get({ kind: "bearer", token: KNOWN_SECRET }),
+      ).toBeNull();
+    },
+  );
+
+  it("ignores contexts from an earlier cache namespace", async () => {
+    const redis = fakeRedis();
+    redis.map.set(
+      `authz:context:${knownHash}`,
+      JSON.stringify({
+        context: { principal: { kind: "admin", userId: null }, policies: [] },
+      }),
+    );
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT),
+    );
+    expect((await auth.authenticate(bearer(KNOWN_SECRET))).success).toBe(true);
   });
 
   it("fails open on a read error: falls through to verify and still authenticates", async () => {
@@ -223,13 +435,13 @@ describe("Authenticator consolidated context cache", () => {
     }
   });
 
-  it("admin key, route disallows: gated off a cache hit", async () => {
+  it("does not cache environment admin authentication and still enforces route opt-in", async () => {
     const redis = fakeRedis();
     const adminVerifier = new Verifier(store(apiKey()), SALT, KNOWN_SECRET);
     const auth = new Authenticator(
       adminVerifier,
       resolver,
-      new AuthenticatorCache(redis, SALT),
+      new AuthenticatorCache(redis, SALT, ""),
     );
 
     const allowed = await auth.authenticate({
@@ -237,14 +449,109 @@ describe("Authenticator consolidated context cache", () => {
       isAdminApiKeyAuthAllowed: true,
     });
     expect(allowed.success).toBe(true);
-    expect(redis.map.size).toBe(1);
+    expect(redis.map.size).toBe(0);
 
     const verifySpy = vi.spyOn(adminVerifier, "verify");
     const gated = await auth.authenticate(bearer(KNOWN_SECRET));
-    expect(verifySpy).not.toHaveBeenCalled();
+    expect(verifySpy).toHaveBeenCalledOnce();
     expect(gated.success).toBe(false);
     if (!gated.success) {
       expect(gated.error).toBeInstanceOf(UnauthorizedError);
+    }
+  });
+
+  it.each(["rotated-admin-secret", ""])(
+    "rejects the old environment admin credential after configuration changes to %j",
+    async (adminApiKey) => {
+      const redis = fakeRedis();
+      const oldAdminKey = "old-admin-secret";
+      const request = {
+        ...bearer(oldAdminKey),
+        isAdminApiKeyAuthAllowed: true,
+      };
+      const oldAuth = new Authenticator(
+        new Verifier(store(apiKey()), SALT, oldAdminKey),
+        resolver,
+        new AuthenticatorCache(redis, SALT, oldAdminKey),
+      );
+      expect((await oldAuth.authenticate(request)).success).toBe(true);
+
+      const newAuth = new Authenticator(
+        new Verifier(store(apiKey()), SALT, adminApiKey),
+        resolver,
+        new AuthenticatorCache(redis, SALT, adminApiKey),
+      );
+      const result = await newAuth.authenticate(request);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(UnauthorizedError);
+      }
+    },
+  );
+
+  it("recognizes a cached database credential as the newly configured environment admin", async () => {
+    const redis = fakeRedis();
+    const auth = new Authenticator(
+      new Verifier(store(apiKey()), SALT, ""),
+      resolver,
+      new AuthenticatorCache(redis, SALT, ""),
+    );
+    const request = {
+      ...bearer(KNOWN_SECRET),
+      isAdminApiKeyAuthAllowed: true,
+    };
+    expect(await auth.authenticate(request)).toMatchObject({
+      success: true,
+      context: { principal: { kind: "apiKey" } },
+    });
+    expect(redis.map.size).toBe(1);
+
+    const adminApiKey = ` ${KNOWN_SECRET} `;
+    const adminVerifier = new Verifier(store(apiKey()), SALT, adminApiKey);
+    const promotedAuth = new Authenticator(
+      adminVerifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT, adminApiKey),
+    );
+    const getSpy = vi.spyOn(redis, "get");
+    const setSpy = vi.spyOn(redis, "set");
+    expect(await promotedAuth.authenticate(request)).toMatchObject({
+      success: true,
+      context: { principal: { kind: "admin" } },
+    });
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(setSpy).not.toHaveBeenCalled();
+
+    const basic = {
+      headers: {
+        authorization: `Basic ${btoa(`unknown:${KNOWN_SECRET}`)}`,
+      },
+    };
+    expect(await promotedAuth.authenticate(basic)).toMatchObject({
+      success: true,
+      context: { principal: { kind: "apiKey" } },
+    });
+    const verifySpy = vi.spyOn(adminVerifier, "verify");
+    expect((await promotedAuth.authenticate(basic)).success).toBe(true);
+    expect(verifySpy).not.toHaveBeenCalled();
+  });
+
+  it("admin key on a cloud region: 403s even when the route allows it", async () => {
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    const auth = new Authenticator(
+      new Verifier(store(apiKey()), SALT, KNOWN_SECRET),
+      resolver,
+      new AuthenticatorCache(fakeRedis(), SALT),
+    );
+    const result = await auth.authenticate({
+      ...bearer(KNOWN_SECRET),
+      isAdminApiKeyAuthAllowed: true,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBeInstanceOf(ForbiddenError);
     }
   });
 
@@ -303,21 +610,25 @@ describe("Authenticator consolidated context cache", () => {
     expect(setSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("get returns null on a miss, distinct from a replayed 401", async () => {
+  it("caps a context's TTL at the key's remaining lifetime", async () => {
+    const expiringVerifier = new Verifier(
+      store(apiKey({ expiresAt: new Date(Date.now() + 10_000) })),
+      SALT,
+    );
     const redis = fakeRedis();
-    const cache = new AuthenticatorCache(redis, SALT);
-    const credential = { kind: "bearer", token: UNKNOWN_SECRET } as const;
+    const setSpy = vi.spyOn(redis, "set");
+    const auth = new Authenticator(
+      expiringVerifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT),
+    );
 
-    expect(await cache.get(credential)).toBeNull();
+    const result = await auth.authenticate(bearer(KNOWN_SECRET));
 
-    await cache.set(credential, {
-      success: false,
-      error: new UnauthorizedError("nope"),
-    });
-    const hit = await cache.get(credential);
-    expect(hit?.success).toBe(false);
-    if (hit && !hit.success) {
-      expect(hit.error).toBeInstanceOf(UnauthorizedError);
-    }
+    expect(result.success).toBe(true);
+    expect(setSpy).toHaveBeenCalledOnce();
+    const ttl = setSpy.mock.calls[0][3] as unknown as number;
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(10);
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
@@ -98,13 +99,17 @@ async function processActionChunk(
   chunkIds: string[],
   projectId: string,
   targetId?: string,
+  userId?: string,
 ): Promise<void> {
   try {
     switch (actionId) {
       case "trace-delete":
         // Legacy queue path. Durable trace-delete BatchActions are processed
         // by TraceDeleteBatchActionRunner.
-        await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
+        await traceDeletionProcessor(projectId, chunkIds, {
+          delayMs: 0,
+          actor: userId ? { type: "USER", userId } : undefined,
+        });
         break;
 
       case "trace-add-to-annotation-queue":
@@ -128,10 +133,18 @@ async function processActionChunk(
         break;
 
       case "score-delete":
+        logger.info(
+          `Batch deleting ${chunkIds.length} scores in project ${projectId} requested by user ${userId ?? "unknown"}`,
+          { projectId, scoreIds: chunkIds, actorType: "USER", userId },
+        );
         await processClickhouseScoreDelete(projectId, chunkIds);
         break;
 
       case "dataset-delete":
+        logger.info(
+          `Batch deleting ${chunkIds.length} datasets in project ${projectId} requested by user ${userId ?? "unknown"}`,
+          { projectId, datasetIds: chunkIds, actorType: "USER", userId },
+        );
         await processDeleteDatasets(projectId, chunkIds);
         break;
 
@@ -212,8 +225,20 @@ export const handleBatchActionJob = async (
     actionId === "score-delete" ||
     actionId === "dataset-delete"
   ) {
-    const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
-      batchActionEvent;
+    const {
+      projectId,
+      tableName,
+      query,
+      cutoffCreatedAt,
+      targetId,
+      type,
+      userId,
+    } = batchActionEvent;
+
+    logger.info(
+      `Processing batch action ${actionId} in project ${projectId} requested by user ${userId ?? "unknown"}`,
+      { projectId, actionId, actorType: "USER", userId },
+    );
 
     if (type === BatchActionType.Create && !targetId) {
       throw new Error(`Target ID is required for create action`);
@@ -279,6 +304,7 @@ export const handleBatchActionJob = async (
         batch.map((r) => r.id),
         projectId,
         targetId,
+        userId,
       );
     }
   } else if (actionId === "eval-create") {
@@ -593,7 +619,7 @@ export const handleBatchActionJob = async (
       }
     } catch (error) {
       await prisma.batchAction.update({
-        where: { id: batchActionId },
+        where: { id: batchActionId, projectId },
         data: {
           status: BatchActionStatus.Failed,
           finishedAt: new Date(),

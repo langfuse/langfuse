@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import {
   fireEvent,
   render,
@@ -8,7 +9,6 @@ import {
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
@@ -117,11 +117,9 @@ function windowElement(
   };
 
   return (
-    <MarkdownContextProvider>
-      <TooltipProvider>
-        <InAppAgentWindow {...props} />
-      </TooltipProvider>
-    </MarkdownContextProvider>
+    <TooltipProvider>
+      <InAppAgentWindow {...props} />
+    </TooltipProvider>
   );
 }
 
@@ -142,12 +140,12 @@ describe("InAppAgentWindow quick actions", () => {
       screen.queryByRole("button", { name: /stop run/i }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Observability",
+      "Observe",
       "Prompts",
       "Evaluation",
       "Dashboard",
     ]);
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -164,7 +162,7 @@ describe("InAppAgentWindow quick actions", () => {
         quickActionResetKey: "/project/project-1/observations",
       }),
     );
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );

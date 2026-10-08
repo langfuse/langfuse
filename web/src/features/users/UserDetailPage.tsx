@@ -1,21 +1,23 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
-import TracesTable from "@/src/components/table/use-cases/traces";
-import ScoresTable from "@/src/components/table/use-cases/scores";
+import { TracesTable } from "@/src/features/traces";
+import { ScoresTable } from "@/src/features/scores";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { SessionsTable } from "@/src/features/sessions";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
@@ -98,7 +100,9 @@ function UserDetailView({
             <ActionButton
               href={`/project/${projectId}?filter=user%3Bstring%3B%3B%3D%3B${userId}`} // dashboard filter serialization
               variant="secondary"
-              icon={<LayoutDashboard className="h-4 w-4" />}
+              icon={
+                <LayoutDashboard className="icon-base text-icon-foreground" />
+              }
             >
               Dashboard
             </ActionButton>
@@ -195,11 +199,23 @@ type TabProps = {
 };
 
 function ScoresTab({ userId, projectId }: TabProps) {
+  const { isV4 } = useReadPath();
+
   return (
     <ScoresTable
       projectId={projectId}
       userId={userId}
       hiddenColumns={["userId"]}
+      renderTracePeek={({ closePeek, expandPeek }) => (
+        <TablePeekViewTraceDetail
+          projectId={projectId}
+          itemType="TRACE"
+          tableName="scores"
+          closePeek={closePeek}
+          expandPeek={expandPeek}
+          isV4={isV4}
+        />
+      )}
     />
   );
 }

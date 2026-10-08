@@ -7,17 +7,17 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Combobox } from "@/src/components/ui/combobox";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { getAddCategoryActionLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScoreCategoryDialog";
-import { type AnalyticsData } from "@/src/features/scores/types";
+import { type AnnotationAnalyticsContext } from "@/src/features/scores/lib/annotationAnalytics";
 
 const CHAR_CUTOFF = 6;
 const DIGIT_SHORTCUTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
-function shouldUseCombobox(
+export function shouldUseCombobox(
   categories: Pick<ScoreConfigCategoryDomain, "label">[],
 ) {
   const hasMoreThanThreeCategories = categories.length > 3;
@@ -38,8 +38,9 @@ export function CategoricalScoreInput({
   value,
   disabled,
   name,
-  source,
+  analyticsData,
   onValueChange,
+  isActive = true,
 }: {
   projectId: string;
   config: ScoreConfigDomain;
@@ -47,8 +48,9 @@ export function CategoricalScoreInput({
   value: string;
   disabled: boolean;
   name: string;
-  source: AnalyticsData["source"] | undefined;
+  analyticsData: AnnotationAnalyticsContext;
   onValueChange: (value: string, numericValue?: number) => void;
+  isActive?: boolean;
 }) {
   const hasConfigCudAccess = useHasProjectAccess({
     projectId,
@@ -73,7 +75,7 @@ export function CategoricalScoreInput({
         setPendingLabel(search.trim());
       }}
     >
-      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+      <Plus className="icon-base mr-2 shrink-0" />
       {getAddCategoryActionLabel(search, existingLabels)}
     </button>
   );
@@ -84,7 +86,7 @@ export function CategoricalScoreInput({
         <Combobox
           name={name}
           value={value}
-          disabled={disabled}
+          disabled={disabled || !isActive}
           onValueChange={onValueChange}
           options={categories.map((category) => ({
             value: category.label,
@@ -101,57 +103,50 @@ export function CategoricalScoreInput({
         />
       ) : (
         <div className="flex items-center gap-1">
-          <ToggleGroup
-            type="single"
-            // Horizontal roving so Radix only uses
-            // ←/→ between True/False, leaving ↑/↓ for
-            // our field navigation (no double-handling).
-            orientation="horizontal"
-            value={value}
-            disabled={disabled}
-            className={`grid flex-1 grid-cols-${categories.length}`}
-            onValueChange={onValueChange}
-          >
-            {categories.map((category) =>
-              category.isOutdated ? (
-                <ToggleGroupItem
-                  key={category.value}
-                  value={category.label}
-                  disabled
-                  variant="outline"
-                  className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
-                >
-                  <span className="truncate" title={category.label}>
-                    {category.label}
-                  </span>
-                  <span>{`(${category.value})`}</span>
-                </ToggleGroupItem>
-              ) : (
-                <ToggleGroupItem
-                  key={category.value}
-                  value={category.label}
-                  variant="outline"
-                  className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
-                >
-                  <span className="truncate" title={category.label}>
-                    {category.label}
-                  </span>
-                  {(() => {
-                    const categoryIndex =
-                      config.categories?.findIndex(
-                        (c) => c.label === category.label,
-                      ) ?? -1;
-                    const digitShortcut = DIGIT_SHORTCUTS[categoryIndex];
-                    return digitShortcut ? (
-                      <span className="ml-0.5 hidden md:group-focus-within:inline-flex">
-                        <KeyboardShortcut size="xs" keys={[digitShortcut]} />
+          <div className="min-w-0 flex-1">
+            {/* Manual activation: ←/→ only move focus, Enter/Space picks. ↑/↓ stay with the form's row navigation. */}
+            <Tabs
+              value={value}
+              onValueChange={onValueChange}
+              activationMode="manual"
+            >
+              <Tabs.List
+                variant="inset"
+                size="md"
+                layout="full"
+                aria-label={config.name}
+              >
+                {categories.map((category) => {
+                  const categoryIndex =
+                    config.categories?.findIndex(
+                      (c) => c.label === category.label,
+                    ) ?? -1;
+                  const digitShortcut = category.isOutdated
+                    ? undefined
+                    : DIGIT_SHORTCUTS[categoryIndex];
+                  return (
+                    <Tabs.Trigger
+                      key={category.value}
+                      value={category.label}
+                      disabled={disabled || category.isOutdated}
+                    >
+                      <span className="min-w-0 truncate" title={category.label}>
+                        {category.label}
                       </span>
-                    ) : null;
-                  })()}
-                </ToggleGroupItem>
-              ),
-            )}
-          </ToggleGroup>
+                      {category.isOutdated ? (
+                        <span>{`(${category.value})`}</span>
+                      ) : null}
+                      {digitShortcut ? (
+                        <span className="hidden md:group-focus-within:inline-flex">
+                          <KeyboardShortcut size="xs" keys={[digitShortcut]} />
+                        </span>
+                      ) : null}
+                    </Tabs.Trigger>
+                  );
+                })}
+              </Tabs.List>
+            </Tabs>
+          </div>
           {canAddCategory ? (
             <Button
               type="button"
@@ -160,17 +155,18 @@ export function CategoricalScoreInput({
               title="Add new category"
               onClick={() => setPendingLabel("")}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="icon-sm text-icon-foreground" />
             </Button>
           ) : null}
         </div>
       )}
       {pendingLabel !== null ? (
         <AddScoreCategoryDialog
+          isActive={isActive}
           projectId={projectId}
           config={config}
           initialLabel={pendingLabel}
-          source={source}
+          analyticsData={analyticsData}
           onClose={() => setPendingLabel(null)}
           onCategoryAdded={onValueChange}
         />

@@ -1,4 +1,5 @@
 import preview from "../../../.storybook/preview";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { MarkdownView } from "./MarkdownViewer";
 
 const meta = preview.meta({
@@ -12,6 +13,29 @@ export const Default = meta.story({
   args: {
     markdown:
       "Langfuse is an **open-source** observability tool for LLM apps. Use `trace.generation()` to record a model call.",
+  },
+});
+
+export const CollapsedPlainTextFallback = meta.story({
+  name: "(Test) Collapsed Plain Text Fallback",
+  args: {
+    markdown: `${"> ".repeat(101)}Deeply nested content`,
+    fallbackDisplay: "collapsed",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const content = canvas.getByText(
+      `${"> ".repeat(101)}Deeply nested content`,
+      {
+        exact: false,
+        selector: "pre",
+      },
+    );
+    await expect(content).not.toBeVisible();
+    await userEvent.click(canvas.getByText("Expand content"));
+    await expect(content).toBeVisible();
+    await userEvent.click(canvas.getByText("Collapse content"));
+    await expect(content).not.toBeVisible();
   },
 });
 
@@ -150,5 +174,21 @@ trace.generation({ name: "answer" });
 - Nested follow-ups
   - Re-run with a tighter prompt
   - Compare cost`,
+  },
+});
+
+export const HeaderControlsOnFocus = meta.story({
+  name: "(Test) Reveals Header Controls On Focus",
+  args: {
+    markdown: "Hover this message to reveal its header controls.",
+    title: "assistant",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const copyButton = canvas.getByTitle("Copy to clipboard");
+    await waitFor(() => expect(copyButton).not.toBeVisible());
+
+    copyButton.focus();
+    await waitFor(() => expect(copyButton).toBeVisible());
   },
 });

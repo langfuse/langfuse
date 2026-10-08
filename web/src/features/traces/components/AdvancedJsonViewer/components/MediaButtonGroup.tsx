@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { File, Image as ImageIcon, Volume2, Video } from "lucide-react";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import {
@@ -90,6 +90,7 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     },
     {
       enabled: Boolean(projectId),
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -246,7 +247,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
                 e.preventDefault();
               }}
             >
-              <group.icon className="h-3.5 w-3.5" />
+              <group.icon className="icon-base" />
               {group.items.length > 1 && (
                 <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-bold">
                   {group.items.length}
