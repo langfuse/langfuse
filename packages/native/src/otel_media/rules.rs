@@ -159,7 +159,7 @@ pub(super) fn may_contain_serialized_media(value: &str) -> bool {
         || ((has_data || value.contains("\"image\"")) && value.contains("\"mediaType\""))
         || (has_data
             && (value.contains("\"inline_data\"") || value.contains("\"inlineData\""))
-            && (has_mime_type || value.contains("\"mimeType\""));
+            && (has_mime_type || value.contains("\"mimeType\"")));
     // In JSON.stringify(JSON.stringify(metadata)), quotes in the metadata
     // document are escaped, so the precise provider-key checks above do not
     // match. The broad marker scan is safe for a quoted root and keeps this
