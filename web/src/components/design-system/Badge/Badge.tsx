@@ -19,10 +19,11 @@ const badgeVariants = cva(
         red: "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
         yellow:
           "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
-        blue: "border-transparent bg-light-blue text-dark-blue",
+        blue: "border-transparent bg-light-blue text-blue-800 dark:text-dark-blue",
         violet: "border-transparent bg-light-violet text-dark-violet",
         teal: "border-transparent bg-light-teal text-dark-teal",
-        green: "border-transparent bg-light-green text-dark-green",
+        green:
+          "border-transparent bg-light-green text-emerald-800 dark:text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
       },
