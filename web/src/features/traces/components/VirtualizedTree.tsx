@@ -141,7 +141,10 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 
   return (
-    <div ref={parentRef} className={cn("h-full overflow-y-auto", className)}>
+    <div
+      ref={parentRef}
+      className={cn("scrollbar-visible h-full overflow-y-auto", className)}
+    >
       <div
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
