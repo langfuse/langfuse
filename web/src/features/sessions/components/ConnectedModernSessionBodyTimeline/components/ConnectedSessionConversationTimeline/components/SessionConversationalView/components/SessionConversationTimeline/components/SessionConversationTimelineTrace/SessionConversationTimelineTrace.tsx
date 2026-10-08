@@ -96,13 +96,13 @@ export function SessionConversationTimelineTrace({
           </Tooltip>
         )}
         {state.type === "transcript" && state.result.cutoff && (
-          <Tooltip label="This transcript may be incomplete because the observation limit was reached.">
+          <Tooltip label="Some messages may be missing because the observation limit was reached.">
             {({ getTriggerProps }) => (
               <button
                 {...getTriggerProps()}
                 type="button"
                 className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
-                aria-label="Transcript may be incomplete"
+                aria-label="Some messages may be missing"
               >
                 <MessageSquareOff className="icon-base" aria-hidden="true" />
               </button>
@@ -114,7 +114,7 @@ export function SessionConversationTimelineTrace({
       {state.type === "loading" && (
         <div
           role="status"
-          aria-label="Loading transcript"
+          aria-label="Loading messages"
           className="flex flex-col gap-5 py-2"
         >
           <div className="flex items-center gap-2 py-1">
@@ -147,12 +147,12 @@ export function SessionConversationTimelineTrace({
       )}
       {state.type === "error" && (
         <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
-          Failed to load transcript.
+          Failed to load messages.
         </div>
       )}
       {state.type === "empty" && (
         <div className="text-muted-foreground flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-xs">
-          <span>This trace has no transcript messages.</span>
+          <span>This trace has no messages.</span>
         </div>
       )}
       {state.type === "transcript" && (

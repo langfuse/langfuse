@@ -2271,7 +2271,7 @@ function SessionConversationalViewStory({
           className="absolute top-0 left-0"
           onClick={() => setTranscriptsLoaded(true)}
         >
-          Load transcripts
+          Load messages
         </button>
       )}
       <SessionConversationalView
@@ -2742,7 +2742,7 @@ export const DelayedTranscriptNavigation = meta.story({
       sidebar.getByRole("button", { name: "2 Navigation turn 2" }),
     ).toHaveAttribute("aria-current", "true");
     await userEvent.click(
-      canvas.getByRole("button", { name: "Load transcripts" }),
+      canvas.getByRole("button", { name: "Load messages" }),
     );
     await expectNavigation(
       canvasElement,
@@ -3213,9 +3213,7 @@ export const PendingSearch = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const sidebar = within(canvas.getByRole("complementary"));
-    await expect(
-      sidebar.getByText("Loading transcripts..."),
-    ).toBeInTheDocument();
+    await expect(sidebar.getByText("Loading messages...")).toBeInTheDocument();
     await expect(
       sidebar.queryByRole("button", { name: "1 First turn" }),
     ).not.toBeInTheDocument();

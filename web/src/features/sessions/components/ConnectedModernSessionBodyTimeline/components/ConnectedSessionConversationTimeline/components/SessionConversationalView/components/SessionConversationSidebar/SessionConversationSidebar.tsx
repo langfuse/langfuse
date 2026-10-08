@@ -255,8 +255,8 @@ export function SessionConversationSidebar(
 
   const searchQuery = props.search.trim();
   const emptyLabel = (() => {
-    if (props.isLoadingTranscripts) return "Loading transcripts...";
-    if (props.transcriptLoadError) return "Failed to load transcripts";
+    if (props.isLoadingTranscripts) return "Loading messages...";
+    if (props.transcriptLoadError) return "Failed to load messages";
     if (props.search) return "No matching turns";
     return "No turns";
   })();
@@ -421,7 +421,7 @@ export function SessionConversationSidebar(
                           )}
                           {transcriptRows === null && (
                             <p className="text-muted-foreground px-1 py-2 text-xs">
-                              Failed to load transcript
+                              Failed to load messages
                             </p>
                           )}
                           {transcriptRows?.length === 0 && (

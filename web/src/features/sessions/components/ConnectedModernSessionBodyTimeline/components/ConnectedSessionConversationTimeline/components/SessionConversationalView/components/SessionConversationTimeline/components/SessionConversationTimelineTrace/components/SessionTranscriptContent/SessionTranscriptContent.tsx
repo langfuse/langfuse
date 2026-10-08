@@ -36,7 +36,7 @@ export function SessionTranscriptContent({
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
-        <p className="text-muted-foreground text-sm">No transcript messages.</p>
+        <p className="text-muted-foreground text-sm">No messages.</p>
       )}
       {visibleThreads
         .filter(
