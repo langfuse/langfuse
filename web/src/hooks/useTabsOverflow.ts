@@ -59,6 +59,10 @@ export function getVisibleTabIndices({
  * by a replica of the overflow trigger. It stays mounted and sized to its
  * content, so hidden tabs remain measurable and the row can bring them back.
  *
+ * `measureKey` must change whenever the tabs' identity, order or labels change,
+ * so the widths are read again in the new order. Size changes inside a replica,
+ * such as a badge appearing, are picked up by observing each replica.
+ *
  * `visibleIndices` is null until the first measurement, so callers can hold
  * the row back instead of painting the wrong set. Every later change is
  * committed before the browser paints, so the swap never flashes.
@@ -70,7 +74,7 @@ export function getVisibleTabIndices({
 export function useTabsOverflow<
   TAvailable extends HTMLElement,
   TMeasure extends HTMLElement,
->(itemCount: number, activeIndex: number) {
+>(measureKey: string, activeIndex: number) {
   const availableRef = useRef<TAvailable>(null);
   const measureRef = useRef<TMeasure>(null);
   const [metrics, setMetrics] = useState<{
@@ -102,10 +106,12 @@ export function useTabsOverflow<
       flushSync(() => setMetrics(read()));
     });
     resizeObserver.observe(available);
-    resizeObserver.observe(measure);
+    for (const replica of measure.children) {
+      resizeObserver.observe(replica);
+    }
 
     return () => resizeObserver.disconnect();
-  }, [itemCount]);
+  }, [measureKey]);
 
   const visibleIndices = useMemo(
     () => (metrics ? getVisibleTabIndices({ ...metrics, activeIndex }) : null),

@@ -73,6 +73,7 @@ function renderTabsBar({
 
 beforeEach(() => {
   availableWidth = 1000;
+  tabWidths.MessagesInternal = 160;
   resizeCallbacks.length = 0;
 
   vi.stubGlobal(
@@ -139,6 +140,35 @@ describe("TraceDetailTabsBarList", () => {
 
     expect(screen.getByRole("tab", { name: "Scores" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "More tabs" })).toBeNull();
+  });
+
+  it("measures the tabs again when their order changes", () => {
+    // Preview 100 and Scores 100 fit next to the trigger in 300px; Messages
+    // 200 does not. Reordering keeps the total width, so only a fresh
+    // measurement in the new order can tell which tabs now fit.
+    tabWidths.MessagesInternal = 200;
+    availableWidth = 300;
+    const { rerender } = renderTabsBar({
+      tabs: ["preview", "scores", "messages"],
+    });
+
+    expect(screen.getByRole("tab", { name: "Scores" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: /Messages/ })).toBeNull();
+
+    rerender(
+      <Tabs value="preview" onValueChange={vi.fn()}>
+        <TraceDetailTabsBarList
+          tabs={["messages", "preview", "scores"]}
+          logViewDescription="Shows all observations."
+          trailingControls={<div>Trailing</div>}
+        />
+      </Tabs>,
+    );
+
+    expect(screen.getByRole("tab", { name: "Preview" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Scores" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: /Messages/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "More tabs" })).toBeTruthy();
   });
 
   it("selects a hidden tab from the overflow menu", async () => {

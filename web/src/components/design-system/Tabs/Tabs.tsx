@@ -438,10 +438,13 @@ function TabsOverflowList({
 }: TabsOverflowListProps) {
   const root = React.use(TabsRootContext);
   const activeIndex = items.findIndex((item) => item.value === root?.value);
+  const measureKey = JSON.stringify(
+    items.map((item) => [item.value, item.label]),
+  );
   const { availableRef, measureRef, visibleIndices } = useTabsOverflow<
     HTMLDivElement,
     HTMLDivElement
-  >(items.length, activeIndex);
+  >(measureKey, activeIndex);
   const visible = new Set(visibleIndices ?? items.map((_, index) => index));
   const hiddenItems = items.filter((_, index) => !visible.has(index));
   const triggerClassName = tabsTriggerVariants({ look: "underline" });
