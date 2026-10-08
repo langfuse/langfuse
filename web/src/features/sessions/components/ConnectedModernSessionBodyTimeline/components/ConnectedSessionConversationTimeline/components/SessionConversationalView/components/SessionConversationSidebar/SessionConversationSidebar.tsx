@@ -9,7 +9,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
   formatIdleGap,
@@ -255,8 +254,8 @@ export function SessionConversationSidebar(
 
   const searchQuery = props.search.trim();
   const emptyLabel = (() => {
-    if (props.isLoadingTranscripts) return "Loading transcripts...";
-    if (props.transcriptLoadError) return "Failed to load transcripts";
+    if (props.isLoadingTranscripts) return "Loading messages...";
+    if (props.transcriptLoadError) return "Failed to load messages";
     if (props.search) return "No matching turns";
     return "No turns";
   })();
@@ -291,7 +290,7 @@ export function SessionConversationSidebar(
         ref={setListElement}
         role="region"
         aria-label="Session turns"
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
@@ -351,13 +350,17 @@ export function SessionConversationSidebar(
                 !sidebarTrace.itemId &&
                 (sidebarTrace.threadCount ?? threads.size) > 1;
               return (
-                <SessionVirtualizedRow
+                <div
                   key={item.key}
-                  itemKey={String(item.key)}
-                  measurementKey={`${String(item.key)}:${isCollapsed}:${props.search}`}
-                  source="modern"
-                  virtualItem={item}
-                  virtualizer={virtualizer}
+                  ref={virtualizer.measureElement}
+                  data-index={item.index}
+                  data-session-virtualizer-row="modern"
+                  style={{
+                    position: "absolute",
+                    top: item.start,
+                    left: 0,
+                    width: "100%",
+                  }}
                 >
                   {props.search.trim() === "" &&
                     idleGapSeconds !== null &&
@@ -421,7 +424,7 @@ export function SessionConversationSidebar(
                           )}
                           {transcriptRows === null && (
                             <p className="text-muted-foreground px-1 py-2 text-xs">
-                              Failed to load transcript
+                              Failed to load messages
                             </p>
                           )}
                           {transcriptRows?.length === 0 && (
@@ -649,7 +652,7 @@ export function SessionConversationSidebar(
                       )}
                     </div>
                   </div>
-                </SessionVirtualizedRow>
+                </div>
               );
             })}
           </div>
