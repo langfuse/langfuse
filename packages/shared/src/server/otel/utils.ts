@@ -235,14 +235,28 @@ export function validateOtelSpanIds(
  * - values: ["baz", "42"]
  *
  * All values are converted to strings for consistent storage.
+ *
+ * Each path is emitted once. A literal dotted key and a nested object can
+ * produce the same path ({"a.b": 1, a: {b: 2}}); the last value written wins,
+ * at the position of the path's first occurrence.
  */
 export function flattenJsonToPathArrays(
   obj: Record<string, unknown>,
   prefix = "",
 ): { names: string[]; values: Array<string | null | undefined> } {
-  const names: string[] = [];
-  const values: Array<string | null | undefined> = [];
+  const flattened = new Map<string, string | null | undefined>();
+  collectJsonPaths(obj, prefix, flattened);
+  return {
+    names: [...flattened.keys()],
+    values: [...flattened.values()],
+  };
+}
 
+function collectJsonPaths(
+  obj: Record<string, unknown>,
+  prefix: string,
+  flattened: Map<string, string | null | undefined>,
+): void {
   for (const [key, value] of Object.entries(obj)) {
     const path = prefix ? `${prefix}.${key}` : key;
 
@@ -252,23 +266,15 @@ export function flattenJsonToPathArrays(
       typeof value === "object" &&
       !Array.isArray(value)
     ) {
-      // Recursively flatten nested objects
-      const nested = flattenJsonToPathArrays(
-        value as Record<string, unknown>,
-        path,
-      );
-      names.push(...nested.names);
-      values.push(...nested.values);
+      collectJsonPaths(value as Record<string, unknown>, path, flattened);
+    } else if (
+      value === null ||
+      value === undefined ||
+      typeof value === "string"
+    ) {
+      flattened.set(path, value);
     } else {
-      // Leaf value - convert to string
-      names.push(path);
-      if (value === null || value === undefined || typeof value === "string") {
-        values.push(value);
-      } else {
-        values.push(JSON.stringify(value));
-      }
+      flattened.set(path, JSON.stringify(value));
     }
   }
-
-  return { names, values };
 }

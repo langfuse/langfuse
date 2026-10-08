@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getOtelIdRejectionReason, validateOtelSpanIds } from "./utils";
+import {
+  flattenJsonToPathArrays,
+  getOtelIdRejectionReason,
+  validateOtelSpanIds,
+} from "./utils";
 
 const TRACE_ID = "bb14c33c23138873afcc5e6f3c2b5f61"; // 16 bytes
 const SPAN_ID = "cb00000daff4e5ae"; // 8 bytes
@@ -349,4 +353,27 @@ describe("validateOtelSpanIds", () => {
       "spanId:absent": 50,
     });
   });
+});
+
+describe("flattenJsonToPathArrays", () => {
+  it.each([
+    {
+      order: "literal dotted key first",
+      metadata: { "db.host": "1.2.3.4", db: { host: "localhost" } },
+      expected: "localhost",
+    },
+    {
+      order: "nested object first",
+      metadata: { db: { host: "localhost" }, "db.host": "1.2.3.4" },
+      expected: "1.2.3.4",
+    },
+  ])(
+    "stores a path that a dotted key and a nested object share once, last write wins ($order)",
+    ({ metadata, expected }) => {
+      expect(flattenJsonToPathArrays(metadata)).toEqual({
+        names: ["db.host"],
+        values: [expected],
+      });
+    },
+  );
 });
