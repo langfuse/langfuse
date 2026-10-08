@@ -108,7 +108,7 @@ async function expectMediaParity(json: string): Promise<void> {
     try {
       // Assert at the NAPI boundary. Running the late TS detector here could
       // repair a missed extraction and let a broken native implementation pass.
-      const compact = batch.json();
+      const compact = (await batch.takeJsonBuffer()).toString("utf8");
       expect(
         canonicalizeNativeReferences(JSON.parse(compact), batch.media),
       ).toEqual(payload.input);
@@ -208,7 +208,9 @@ describe(
         await expect(batch.mediaBody(1)).resolves.toEqual(MEDIA_BODY);
         await expect(batch.mediaBody(2)).resolves.toEqual(providerBody);
 
-        const compact = JSON.parse(batch.json()) as {
+        const compact = JSON.parse(
+          (await batch.takeJsonBuffer()).toString("utf8"),
+        ) as {
           resourceSpans: Array<{
             scopeSpans: Array<{
               spans: Array<{
@@ -312,14 +314,15 @@ describe(
         const batch = await validated.extract(true);
         try {
           const media = batch.media;
+          const compact = (await batch.takeJsonBuffer()).toString("utf8");
           if (shape === "many tiny media") {
             expect(media).toHaveLength(0);
-            expect(batch.json()).toBe(source);
+            expect(compact).toBe(source);
             return;
           }
           expect(media).toHaveLength(count);
-          expect(batch.json()).not.toContain(uri);
-          expect(batch.json().match(/@@@langfuseMedia:/g)).toHaveLength(count);
+          expect(compact).not.toContain(uri);
+          expect(compact.match(/@@@langfuseMedia:/g)).toHaveLength(count);
           for (const index of [0, count - 1]) {
             expect(await batch.mediaBody(index)).toEqual(MEDIA_BODY);
             expect(await batch.originalMedia(index)).toBe(uri);
@@ -348,9 +351,9 @@ describe(
         expect(validated.normalizedBytes()).toEqual(normalized);
         const batch = await validated.extract(true);
         try {
-          expect(JSON.parse(batch.json()).note).toBe(
-            JSON.parse(normalized.toString("utf8")).note,
-          );
+          expect(
+            JSON.parse((await batch.takeJsonBuffer()).toString("utf8")).note,
+          ).toBe(JSON.parse(normalized.toString("utf8")).note);
           expect(batch.media).toHaveLength(1);
           expect(await batch.mediaBody(0)).toEqual(MEDIA_BODY);
           expect(await batch.originalMedia(0)).toBe(MEDIA_URI);
@@ -377,7 +380,9 @@ describe(
       const batch = await validated.extract(true);
       try {
         expect(batch.media).toHaveLength(2);
-        const compact = JSON.parse(batch.json()) as {
+        const compact = JSON.parse(
+          (await batch.takeJsonBuffer()).toString("utf8"),
+        ) as {
           input: string;
           sibling: string;
         };
@@ -427,7 +432,7 @@ describe(
         const batch = await validated.extract(false);
         try {
           expect(batch.media).toHaveLength(0);
-          expect(batch.json()).toBe(input);
+          expect((await batch.takeJsonBuffer()).toString("utf8")).toBe(input);
         } finally {
           await batch.dispose();
           await validated.dispose();
@@ -454,9 +459,9 @@ it(
       expect(batch.media.map((media) => media.contentType)).toEqual(
         contentTypes,
       );
-      expect(JSON.parse(batch.json())).toEqual(
-        batch.media.map((media) => media.reference),
-      );
+      expect(
+        JSON.parse((await batch.takeJsonBuffer()).toString("utf8")),
+      ).toEqual(batch.media.map((media) => media.reference));
     } finally {
       await batch.dispose();
       await validated.dispose();
@@ -481,14 +486,19 @@ it(
         code: "ERR_OTEL_CLOSED",
       });
       const [media] = batch.media;
+      const copied = await batch.copyJsonBuffer();
+      expect(Buffer.isBuffer(copied)).toBe(true);
+      expect(JSON.parse(copied.toString("utf8"))).toEqual({
+        input: media.reference,
+      });
       const compact = batch.takeJsonBuffer();
       expect(Buffer.isBuffer(compact)).toBe(true);
       expect(JSON.parse(compact.toString("utf8"))).toEqual({
         input: media.reference,
       });
-      expect(() => batch.json()).toThrowError(
-        expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
-      );
+      await expect(batch.copyJsonBuffer()).rejects.toMatchObject({
+        code: "ERR_OTEL_JSON_CONSUMED",
+      });
       expect(() => batch.takeJsonBuffer()).toThrowError(
         expect.objectContaining({ code: "ERR_OTEL_JSON_CONSUMED" }),
       );
@@ -503,9 +513,9 @@ it(
       expect(compact.toString("utf8")).toContain(media.reference);
       await expect(body).resolves.toEqual(MEDIA_BODY);
       await expect(original).resolves.toBe(uri);
-      expect(() => batch.json()).toThrowError(
-        expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
-      );
+      await expect(batch.copyJsonBuffer()).rejects.toMatchObject({
+        code: "ERR_OTEL_CLOSED",
+      });
       expect(() => batch.takeJsonBuffer()).toThrowError(
         expect.objectContaining({ code: "ERR_OTEL_CLOSED" }),
       );
@@ -518,6 +528,24 @@ it(
       await expect(batch.originalMedia(0)).rejects.toMatchObject({
         code: "ERR_OTEL_CLOSED",
       });
+
+      const copyValidated = await validateOtelJson(
+        Buffer.from(JSON.stringify({ input: uri })),
+      );
+      const copyBatch = await copyValidated.extract(true);
+      try {
+        const copyReference = copyBatch.media[0]!.reference;
+        const pendingCopy = copyBatch.copyJsonBuffer();
+        await copyBatch.dispose();
+        await copyValidated.dispose();
+        const copiedAfterDispose = await pendingCopy;
+        expect(JSON.parse(copiedAfterDispose.toString("utf8"))).toEqual({
+          input: copyReference,
+        });
+      } finally {
+        await copyBatch.dispose();
+        await copyValidated.dispose();
+      }
     } finally {
       await batch.dispose();
       await validated.dispose();

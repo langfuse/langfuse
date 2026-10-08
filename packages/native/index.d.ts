@@ -3,8 +3,8 @@
 export declare class EarlyOtelBatch {
   /** Release this handle; pending reads retain ownership until they complete. */
   dispose(): Promise<void>
-  /** Copy the compact document into a JS string without consuming it. */
-  json(): string
+  /** Copy the compact document on libuv without consuming the batch's JSON. */
+  copyJsonBuffer(): Promise<Buffer>
   /**
    * Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
    * The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
@@ -46,8 +46,11 @@ export declare class ValidatedOtelJson {
   normalizedBytes(): Buffer | null
   /** Release a superseded masking input without waiting for the JS handle to be collected. */
   dispose(): Promise<void>
-  /** Consume the validated input, optionally extracting media into a new batch. */
-  extract(enabled: boolean): Promise<EarlyOtelBatch>
+  /**
+   * Consume the validated input and create a batch, optionally extracting media.
+   * When `extract_media` is false, the batch retains the JSON without media discovery or hashing.
+   */
+  extract(extractMedia: boolean): Promise<EarlyOtelBatch>
 }
 
 /**

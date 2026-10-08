@@ -1,68 +1,16 @@
 //! Owned raw input and extracted-media handles shared by the TS and Rust paths.
 
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 
 use napi::bindgen_prelude::*;
-use napi::{JsError, JsString};
 use napi_derive::napi;
 
 use crate::native_memory::NativeMemory;
-use crate::native_task::{NativeResult, OwnedTask};
+use crate::native_task::to_js_error;
 use crate::otel_media::{self, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
+use crate::otel_media_task::OtelMediaTask;
 
-const TIMED_MEDIA_OPERATIONS: [&str; 2] = ["validate", "extract"];
 const MAX_MEDIA_PAGE: usize = 4_096;
-
-pub struct OtelMediaTask<T> {
-    operation: &'static str,
-    inner: OwnedTask<T>,
-}
-
-impl<T: Send + ToNapiValue + TypeName + 'static> OtelMediaTask<T> {
-    fn run(
-        operation: &'static str,
-        work: impl FnOnce() -> NativeResult<T> + Send + 'static,
-    ) -> AsyncTask<Self> {
-        AsyncTask::new(Self {
-            operation,
-            inner: OwnedTask::new(work),
-        })
-    }
-}
-
-impl<T: Send + ToNapiValue + TypeName + 'static> Task for OtelMediaTask<T> {
-    type Output = NativeResult<T>;
-    type JsValue = T;
-
-    fn compute(&mut self) -> Result<Self::Output> {
-        let started = TIMED_MEDIA_OPERATIONS
-            .contains(&self.operation)
-            .then(Instant::now);
-        let _span = tracing::debug_span!("otel_media", operation = self.operation).entered();
-        let result = self.inner.compute()?;
-        if result
-            .as_ref()
-            .is_err_and(|error| error.status == "ERR_NATIVE_PANIC")
-        {
-            tracing::error!(operation = self.operation, "native task panicked");
-        }
-        if let Some(started) = started {
-            metrics::counter!("langfuse.native.otel_media.operations",
-                "operation" => self.operation,
-                "outcome" => result.as_ref().err().map_or("success", |error| error.status)
-            )
-            .increment(1);
-            metrics::histogram!("langfuse.native.otel_media.duration_ms", "operation" => self.operation)
-                .record(started.elapsed().as_secs_f64() * 1000.0);
-        }
-        Ok(result)
-    }
-
-    fn resolve(&mut self, env: Env, output: Self::Output) -> Result<T> {
-        self.inner.resolve(env, output)
-    }
-}
 
 #[napi]
 pub struct ValidatedOtelJson {
@@ -76,12 +24,12 @@ impl ValidatedOtelJson {
     #[napi]
     pub fn normalized_bytes(&self, env: Env) -> Result<Option<Buffer>> {
         let (payload, _) = self.payload.as_ref().ok_or_else(|| {
-            Error::from(
-                napi::JsError::from(Error::new(
+            to_js_error(
+                env,
+                Error::new(
                     "ERR_OTEL_CLOSED",
                     "OTEL input already extracted or disposed",
-                ))
-                .into_unknown(env),
+                ),
             )
         })?;
         Ok(payload
@@ -99,9 +47,10 @@ impl ValidatedOtelJson {
         })
     }
 
-    /// Consume the validated input, optionally extracting media into a new batch.
+    /// Consume the validated input and create a batch, optionally extracting media.
+    /// When `extract_media` is false, the batch retains the JSON without media discovery or hashing.
     #[napi(ts_return_type = "Promise<EarlyOtelBatch>")]
-    pub fn extract(&mut self, enabled: bool) -> AsyncTask<OtelMediaTask<EarlyOtelBatch>> {
+    pub fn extract(&mut self, extract_media: bool) -> AsyncTask<OtelMediaTask<EarlyOtelBatch>> {
         // Claim ownership before scheduling, so a later dispose cannot invalidate this task.
         let payload = self.payload.take();
         OtelMediaTask::run("extract", move || {
@@ -111,7 +60,7 @@ impl ValidatedOtelJson {
                     "OTEL input already extracted or disposed",
                 )
             })?;
-            let result = if enabled {
+            let result = if extract_media {
                 validated
                     .compact()
                     .map_err(|error| Error::new(error.code(), error.to_string()))?
@@ -180,10 +129,6 @@ impl EarlyOtelBatch {
     }
 }
 
-fn to_js_error(env: Env, error: Error<&'static str>) -> Error {
-    Error::from(JsError::from(error).into_unknown(env))
-}
-
 fn media_descriptor(index: usize, media: &ExtractedMedia) -> ExtractedOtelMedia {
     ExtractedOtelMedia {
         index: index as u32,
@@ -221,21 +166,21 @@ impl EarlyOtelBatch {
         })
     }
 
-    /// Copy the compact document into a JS string without consuming it.
-    #[napi(ts_return_type = "string")]
-    pub fn json<'env>(&self, env: &'env Env) -> Result<JsString<'env>> {
-        let data = self.data().map_err(|error| to_js_error(*env, error))?;
-        let json = data
-            .json
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let json = json.as_ref().ok_or_else(|| {
-            to_js_error(
-                *env,
-                Error::new("ERR_OTEL_JSON_CONSUMED", "OTEL JSON already consumed"),
-            )
-        })?;
-        env.create_string(json)
+    /// Copy the compact document on libuv without consuming the batch's JSON.
+    #[napi(js_name = "copyJsonBuffer", ts_return_type = "Promise<Buffer>")]
+    pub fn copy_json_buffer(&self) -> AsyncTask<OtelMediaTask<Buffer>> {
+        let data = self.data();
+        OtelMediaTask::run("copy_json", move || {
+            let data = data.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
+            let json = data
+                .json
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let json = json.as_ref().ok_or_else(|| {
+                Error::new("ERR_OTEL_JSON_CONSUMED", "OTEL JSON already consumed")
+            })?;
+            Ok(Buffer::from(json.as_bytes().to_vec()))
+        })
     }
 
     /// Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.

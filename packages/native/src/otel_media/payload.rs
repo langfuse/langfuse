@@ -459,7 +459,7 @@ fn apply_edit_plan(
         // source span decoded once; avoid rescanning large, source-backed media bodies.
         let original_storage = match &storage {
             MediaStorage::Source { range, .. } if *range == entry.edit_range => None,
-            _ => original_value_from_source(
+            _ => decode_outer_json_string_layer(
                 input,
                 &entry.edit_range,
                 storage_bytes(&storage),
@@ -511,10 +511,12 @@ fn escape_json_layer(value: &[u8]) -> Result<Vec<u8>, MediaDecodeError> {
     Ok(encoded.as_bytes()[1..encoded.len() - 1].to_vec())
 }
 
-/// Decode the final source span once, matching the string layer visible after
-/// the outer document has been parsed. Deeper stringified documents remain
-/// escaped for the caller that still owns their serialized representation.
-fn original_value_from_source(
+/// Decode exactly one JSON string escaping layer from the source span.
+///
+/// For example, source text `a\/b` becomes `a/b`, while `a\\\/b` becomes
+/// `a\/b`. This restores the text visible after parsing the outer JSON string;
+/// it does not interpret a Data URI or decode base64.
+fn decode_outer_json_string_layer(
     input: &[u8],
     range: &Range<usize>,
     encoded_data: &[u8],
