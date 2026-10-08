@@ -234,7 +234,10 @@ describe("LLM connection editing", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.focus(screen.getByLabelText("About organization connections"));
+    fireEvent.pointerMove(
+      screen.getByLabelText("About organization connections"),
+      { pointerType: "mouse" },
+    );
     expect(
       await screen.findByText(
         "Organization connections are inherited by this project. Project connections with the same provider name take precedence.",
