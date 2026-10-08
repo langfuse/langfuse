@@ -13,7 +13,7 @@ import type { McpAccessLevel, ServerContext, ServerContextFor } from "../types";
 /**
  * Tool handler function type
  */
-export type ToolHandler<TInput> = (
+type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
 ) => Promise<unknown>;

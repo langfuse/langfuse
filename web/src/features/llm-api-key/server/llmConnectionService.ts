@@ -132,7 +132,7 @@ const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
   throw new Error(`LLM connection "${connection.id}" has no owner`);
 };
 
-export function getDisplaySecretKey(secretKey: string): string {
+function getDisplaySecretKey(secretKey: string): string {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return "Default AWS credentials";
   }
