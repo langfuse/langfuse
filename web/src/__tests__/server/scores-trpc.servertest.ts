@@ -776,6 +776,7 @@ describe("scores trpc", () => {
           projectId,
           name: scoreName,
           value: 1,
+          stringValue: null,
           dataType: "NUMERIC",
           scoreTarget: { type: "trace", traceId },
           configId,
