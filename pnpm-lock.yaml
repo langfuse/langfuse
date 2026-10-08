@@ -792,6 +792,9 @@ importers:
       fflate:
         specifier: 0.8.3
         version: 0.8.3
+      highlight.js:
+        specifier: ^11.12.0
+        version: 11.12.0
       https-proxy-agent:
         specifier: ^7.0.6
         version: 7.0.6(supports-color@8.1.1)
