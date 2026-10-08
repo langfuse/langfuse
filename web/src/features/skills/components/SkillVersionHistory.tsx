@@ -3,10 +3,7 @@ import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Timeline,
-  TimelineItem,
-} from "@/src/features/prompts/components/timeline";
+import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { cn } from "@/src/utils/tailwind";
 import { type SkillEditorStore } from "./skillEditorStore";
 import { SkillLabelsSelect } from "./SkillMetadataSelect";
@@ -97,7 +94,7 @@ export function SkillVersionHistory(
         <div className="overflow-y-auto p-2">
           <Timeline>
             {showDraft ? (
-              <TimelineItem isActive={props.kind === "new" || props.isDraft}>
+              <Timeline.Item isActive={props.kind === "new" || props.isDraft}>
                 <div className="flex items-start gap-1">
                   <button
                     type="button"
@@ -139,7 +136,7 @@ export function SkillVersionHistory(
                     </SkillVersionComparisonController>
                   ) : null}
                 </div>
-              </TimelineItem>
+              </Timeline.Item>
             ) : null}
             {props.kind === "versions"
               ? sortedVersions.map(
@@ -151,9 +148,8 @@ export function SkillVersionHistory(
                     createdBy,
                     creator,
                   }) => (
-                    <TimelineItem
+                    <Timeline.Item
                       key={version}
-                      className="group/skill-version"
                       isActive={
                         !props.isDraft && version === props.selectedVersion
                       }
@@ -227,7 +223,7 @@ export function SkillVersionHistory(
                                 openComparison(version, props.isDraft);
                               };
                               return (
-                                <div className="shrink-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:hover)]:opacity-0">
+                                <div className="shrink-0 group-focus-within/timeline-item:opacity-100 group-hover/timeline-item:opacity-100 [@media(hover:hover)]:opacity-0">
                                   <IconButton
                                     icon={FileDiffIcon}
                                     label={
@@ -250,7 +246,7 @@ export function SkillVersionHistory(
                           </SkillVersionComparisonController>
                         ) : null}
                       </div>
-                    </TimelineItem>
+                    </Timeline.Item>
                   ),
                 )
               : null}
