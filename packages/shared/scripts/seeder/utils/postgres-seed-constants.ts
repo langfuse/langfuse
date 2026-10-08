@@ -1,5 +1,4 @@
 export const DEFAULT_SEED_API_KEY = {
-  id: "seed-api-key",
   public: "pk-lf-1234567890",
   secret: "sk-lf-1234567890",
   note: "seeded key",

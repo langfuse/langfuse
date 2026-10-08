@@ -18,6 +18,7 @@ use std::{
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
+const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 // Web sits behind load balancers that drop idle connections after 60s by default
 // (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
 // socket the balancer is closing, which would fail without a retry.
@@ -114,6 +115,7 @@ impl ControlPlaneClient {
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.
+    /// `request_id` is the gateway request ID, sent so Web logs carry it.
     ///
     /// # Errors
     /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication or
@@ -123,11 +125,13 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, timestamp).await
+        self.resolve_at(gateway_key, api_format, timestamp, request_id)
+            .await
     }
 
     async fn resolve_at(
@@ -135,6 +139,7 @@ impl ControlPlaneClient {
         gateway_key: &str,
         api_format: ApiFormat,
         timestamp: Duration,
+        request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         if gateway_key.len() > 8192 || !valid_token(gateway_key) {
             return Err(ResolutionError::InvalidCredential);
@@ -142,7 +147,7 @@ impl ControlPlaneClient {
         let started = Instant::now();
         let body = tokio::time::timeout(
             self.config.limits.timeout,
-            self.fetch(gateway_key, api_format, timestamp.as_secs()),
+            self.fetch(gateway_key, api_format, timestamp.as_secs(), request_id),
         )
         .await
         .map_err(|_| ResolutionError::Timeout)??;
@@ -158,6 +163,7 @@ impl ControlPlaneClient {
         gateway_key: &str,
         api_format: ApiFormat,
         timestamp: u64,
+        request_id: &str,
     ) -> Result<Vec<u8>, ResolutionError> {
         let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
             .map_err(|_| ResolutionError::InvalidCredential)?;
@@ -176,6 +182,7 @@ impl ControlPlaneClient {
             .post(self.config.endpoint(RESOLVE_PATH))
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
+            .header(REQUEST_ID_HEADER, request_id)
             .header(CONTENT_TYPE, "application/json")
             .body(body)
             .send()

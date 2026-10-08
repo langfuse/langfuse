@@ -1,18 +1,30 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { SkillFilePathSchema } from "@langfuse/shared";
+import { MAX_SKILL_FILES, SkillFilePathSchema } from "@langfuse/shared";
 import { getParentFolderPaths } from "./skillFileTree";
 import { resetSkillName } from "../utils/resetSkillName";
+import { hashSkillFileContent } from "../utils/hashSkillFileContent";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 export type SkillDraftFile = {
   path: string;
-  contentType: string;
-} & (
-  | { content: string; source?: never }
-  | {
-      content?: never;
-      source: { fileId: string; contentLength: number; sha256Hash: string };
-    }
-);
+  content?: string;
+  currentSha: string | null;
+  sourceSha: string | null;
+  sourceContentLength: number | null;
+};
+
+export function createSkillDraftFile(
+  path: string,
+  content: string,
+): SkillDraftFile {
+  return {
+    path,
+    content,
+    currentSha: null,
+    sourceSha: null,
+    sourceContentLength: null,
+  };
+}
 
 export type SkillEditorInitialValue = {
   name: string;
@@ -26,6 +38,7 @@ type SkillEditorState = {
   name: string;
   baseVersion: number | null;
   files: Record<string, SkillDraftFile>;
+  deletedFiles: Record<string, SkillDraftFile>;
   folders: string[];
   activePath: string;
   labels: string[];
@@ -34,6 +47,7 @@ type SkillEditorState = {
   dirty: boolean;
   isImporting: boolean;
   actions: {
+    hashPendingFiles: () => Promise<void>;
     selectFile: (path: string) => void;
     updateActiveFile: (content: string) => void;
     resetName: () => void;
@@ -42,6 +56,7 @@ type SkillEditorState = {
     moveFolder: (path: string, targetFolder: string) => boolean;
     addFolder: (path: string) => boolean;
     deleteFile: (path: string) => void;
+    restoreFile: (path: string) => boolean;
     deleteFolder: (path: string) => boolean;
     syncLabels: (labels: string[]) => void;
     syncTags: (tags: string[]) => void;
@@ -61,10 +76,12 @@ export function createSkillEditorStore(
     initialValue.files.map(({ path }) => path),
   );
 
-  return createStore<SkillEditorState>((set, get) => ({
+  const pendingHashes = new Map<string, Promise<void>>();
+  const store = createStore<SkillEditorState>((set, get) => ({
     name: initialValue.name,
     baseVersion: initialValue.baseVersion,
     files,
+    deletedFiles: {},
     folders,
     activePath: files["SKILL.md"] ? "SKILL.md" : initialValue.files[0]!.path,
     labels: initialValue.labels.filter((label) => label !== "latest"),
@@ -73,40 +90,92 @@ export function createSkillEditorStore(
     dirty: false,
     isImporting: false,
     actions: {
+      hashPendingFiles: async () => {
+        const contents = new Set(
+          Object.values(get().files).flatMap((file) =>
+            file.currentSha === null && file.content !== undefined
+              ? [file.content]
+              : [],
+          ),
+        );
+        await Promise.all(
+          [...contents].map((content) => {
+            const pending = pendingHashes.get(content);
+            if (pending) return pending;
+            const task = hashSkillFileContent(content)
+              .then((currentSha) => {
+                set((state) => {
+                  const matchingFiles = Object.entries(state.files).filter(
+                    ([, file]) =>
+                      file.currentSha === null && file.content === content,
+                  );
+                  if (!matchingFiles.length) return state;
+                  return {
+                    files: {
+                      ...state.files,
+                      ...Object.fromEntries(
+                        matchingFiles.map(([path, file]) => [
+                          path,
+                          { ...file, currentSha },
+                        ]),
+                      ),
+                    },
+                  };
+                });
+              })
+              .catch((error: unknown) => {
+                captureUnknownError("skills.hashFileContent", error);
+              })
+              .finally(() => pendingHashes.delete(content));
+            pendingHashes.set(content, task);
+            return task;
+          }),
+        );
+      },
       resetName: () => {
         const state = get();
         const file = state.files["SKILL.md"];
         if (!file || file.content === undefined) return;
+        const content = resetSkillName(file.content, state.name);
         set({
           files: {
             ...state.files,
             "SKILL.md": {
-              path: file.path,
-              contentType: file.contentType,
-              content: resetSkillName(file.content, state.name),
+              ...file,
+              content,
+              currentSha: null,
             },
           },
           dirty: true,
         });
+        get().actions.hashPendingFiles();
       },
       selectFile: (path) => {
         if (get().files[path]) set({ activePath: path });
       },
-      updateActiveFile: (content) =>
+      updateActiveFile: (content) => {
         set((state) => ({
           files: {
             ...state.files,
             [state.activePath]: {
-              path: state.activePath,
-              contentType: state.files[state.activePath]!.contentType,
+              ...state.files[state.activePath]!,
               content,
+              currentSha: null,
             },
           },
           dirty: true,
-        })),
+        }));
+        get().actions.hashPendingFiles();
+      },
       addFile: (file) => {
         const state = get();
-        if (hasFilePathConflict(file.path, state.files, state.folders)) {
+        if (
+          hasFilePathConflict(
+            file.path,
+            { ...state.files, ...state.deletedFiles },
+            state.folders,
+          )
+        ) {
           return false;
         }
         set((state) => ({
@@ -120,6 +189,7 @@ export function createSkillEditorStore(
           activePath: file.path,
           dirty: true,
         }));
+        get().actions.hashPendingFiles();
         return true;
       },
       moveFile: (path, targetFolder) => {
@@ -137,7 +207,11 @@ export function createSkillEditorStore(
         if (nextPath === path) return true;
         if (
           !SkillFilePathSchema.safeParse(nextPath).success ||
-          hasFilePathConflict(nextPath, state.files, state.folders)
+          hasFilePathConflict(
+            nextPath,
+            { ...state.files, ...state.deletedFiles },
+            state.folders,
+          )
         ) {
           return false;
         }
@@ -162,7 +236,13 @@ export function createSkillEditorStore(
         const name = path.split("/").at(-1)!;
         const nextPath = targetFolder ? `${targetFolder}/${name}` : name;
         if (nextPath === path) return true;
-        if (hasFilePathConflict(nextPath, state.files, state.folders))
+        if (
+          hasFilePathConflict(
+            nextPath,
+            { ...state.files, ...state.deletedFiles },
+            state.folders,
+          )
+        )
           return false;
 
         const relocate = (entryPath: string) =>
@@ -179,8 +259,21 @@ export function createSkillEditorStore(
             ];
           }),
         );
+        const nextDeletedFiles = Object.fromEntries(
+          Object.entries(state.deletedFiles).map(([filePath, file]) => {
+            const movedPath = relocate(filePath);
+            return [
+              movedPath,
+              movedPath === filePath ? file : { ...file, path: movedPath },
+            ];
+          }),
+        );
         if (
-          [...nextFolders, ...Object.keys(nextFiles)].some(
+          [
+            ...nextFolders,
+            ...Object.keys(nextFiles),
+            ...Object.keys(nextDeletedFiles),
+          ].some(
             (entryPath) => !SkillFilePathSchema.safeParse(entryPath).success,
           )
         )
@@ -188,6 +281,7 @@ export function createSkillEditorStore(
 
         set({
           files: nextFiles,
+          deletedFiles: nextDeletedFiles,
           folders: nextFolders,
           activePath: relocate(state.activePath),
           dirty: true,
@@ -198,7 +292,7 @@ export function createSkillEditorStore(
         const state = get();
         if (
           state.folders.includes(path) ||
-          hasFileAtOrAbove(path, state.files)
+          hasFileAtOrAbove(path, { ...state.files, ...state.deletedFiles })
         ) {
           return false;
         }
@@ -214,23 +308,42 @@ export function createSkillEditorStore(
         return true;
       },
       deleteFile: (path) => {
-        if (path === "SKILL.md") return;
+        if (path === "SKILL.md" || !get().files[path]) return;
         set((state) => {
-          const { [path]: _, ...remainingFiles } = state.files;
+          const { [path]: file, ...remainingFiles } = state.files;
           return {
             files: remainingFiles,
+            deletedFiles: file!.sourceSha
+              ? { ...state.deletedFiles, [path]: file! }
+              : state.deletedFiles,
             activePath:
               state.activePath === path ? "SKILL.md" : state.activePath,
             dirty: true,
           };
         });
       },
+      restoreFile: (path) => {
+        const state = get();
+        const file = state.deletedFiles[path];
+        if (!file || Object.keys(state.files).length >= MAX_SKILL_FILES)
+          return false;
+        const { [path]: _, ...remainingDeletedFiles } = state.deletedFiles;
+        set({
+          files: { ...state.files, [path]: file },
+          deletedFiles: remainingDeletedFiles,
+          activePath: path,
+          dirty: true,
+        });
+        get().actions.hashPendingFiles();
+        return true;
+      },
       deleteFolder: (path) => {
         const state = get();
         const isEmpty =
-          !Object.keys(state.files).some((filePath) =>
-            filePath.startsWith(`${path}/`),
-          ) &&
+          ![
+            ...Object.keys(state.files),
+            ...Object.keys(state.deletedFiles),
+          ].some((filePath) => filePath.startsWith(`${path}/`)) &&
           !state.folders.some(
             (folderPath) =>
               folderPath !== path && folderPath.startsWith(`${path}/`),
@@ -247,6 +360,8 @@ export function createSkillEditorStore(
       setCommitMessage: (commitMessage) => set({ commitMessage, dirty: true }),
     },
   }));
+  store.getState().actions.hashPendingFiles();
+  return store;
 }
 
 function hasFileAtOrAbove(

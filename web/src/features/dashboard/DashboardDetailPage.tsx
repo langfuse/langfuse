@@ -45,7 +45,6 @@ import {
 } from "@/src/features/widgets";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
-import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
   DropdownMenu,
@@ -749,6 +748,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         }, 150);
 
         showSuccessToast({
+          operation: "dashboard.import",
           title: "Dashboard imported",
           description: `Added ${newPlacements.length} widget${
             newPlacements.length === 1 ? "" : "s"
@@ -1189,25 +1189,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                       (dashboard.data?.owner === "LANGFUSE"
                         ? " (Langfuse Maintained)"
                         : ""),
-                    titleContent:
-                      hasCUDAccess && dashboard.data ? (
-                        <InlineEditText
-                          value={dashboard.data.name}
-                          required
-                          aria-label="Rename dashboard"
-                          onSave={(name) => {
-                            capture("dashboard:dashboard_renamed_inline", {
-                              dashboard_id: dashboardId,
-                            });
-                            updateDashboardMetadata.mutate({
-                              projectId,
-                              dashboardId,
-                              name,
-                              description: dashboard.data?.description ?? "",
-                            });
-                          }}
-                        />
-                      ) : undefined,
                     breadcrumb: [
                       {
                         name: "Dashboards",
@@ -1252,7 +1233,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             role="status"
                             aria-label="Saving"
                           >
-                            <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+                            <Loader2 className="text-muted-foreground icon-base animate-spin" />
                           </span>
                         )}
                         {hasCUDAccess && hasUnsavedFilterChanges && (
@@ -1268,7 +1249,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         )}
                         {hasRbacCUDAccess && (
                           <Button onClick={handleAddWidget}>
-                            <PlusIcon size={16} className="mr-1 h-4 w-4" />
+                            <PlusIcon className="icon-base text-icon-foreground mr-1" />
                             Add Widget
                           </Button>
                         )}
@@ -1278,7 +1259,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             onClick={handleCloneDashboard}
                             disabled={mutateCloneDashboard.isPending}
                           >
-                            <Copy size={16} className="mr-1 h-4 w-4" />
+                            <Copy className="icon-base text-icon-foreground mr-1" />
                             Clone
                           </Button>
                         )}
@@ -1290,7 +1271,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                 size="icon"
                                 aria-label="More actions"
                               >
-                                <MoreVertical className="h-4 w-4" />
+                                <MoreVertical className="icon-base text-icon-foreground" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -1301,7 +1282,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                     pasteWidgetFromClipboard("dashboard_menu")
                                   }
                                 >
-                                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
+                                  <ClipboardPasteIcon className="icon-base text-icon-foreground mr-2" />
                                   Paste widget
                                 </DropdownMenuItem>
                               )}
@@ -1326,14 +1307,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                   });
                                 }}
                               >
-                                <HomeIcon className="mr-2 h-4 w-4" />
+                                <HomeIcon className="icon-base text-icon-foreground mr-2" />
                                 {isCurrentHome
                                   ? "Shown on Home"
                                   : "Use as Home"}
                               </DropdownMenuItem>
                               {hasCUDAccess && (
                                 <DropdownMenuItem onSelect={openEditDialog}>
-                                  <PencilIcon className="mr-2 h-4 w-4" />
+                                  <PencilIcon className="icon-base text-icon-foreground mr-2" />
                                   Edit name & description
                                 </DropdownMenuItem>
                               )}

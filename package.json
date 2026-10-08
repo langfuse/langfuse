@@ -1,18 +1,24 @@
 {
   "name": "langfuse",
-  "version": "4.47.0",
+  "version": "4.55.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
     "node": "24",
-    "pnpm": "12.6.0"
+    "pnpm": "12.8.2"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.8.2"
+    }
   },
   "scripts": {
     "agents:check": "node scripts/agents/sync-agent-shims.mjs --check --check-paths",
     "agents:sync": "node scripts/agents/sync-agent-shims.mjs",
     "postinstall": "node -e \"const fs = require('node:fs'); const cp = require('node:child_process'); if (!fs.existsSync('scripts/postinstall.sh')) { console.log('Skipping repo postinstall helper: scripts/postinstall.sh is not present in this install context.'); process.exit(0); } cp.execSync('bash scripts/postinstall.sh', { stdio: 'inherit' });\"",
-    "preinstall": "npx only-allow pnpm",
+    "preinstall": "node -e \"if (!process.env.npm_config_user_agent?.startsWith('pnpm/')) { console.error('This repository uses pnpm. Run pnpm install.'); process.exit(1); }\"",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
     "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
     "infra:dev:prune": "docker compose -f ./docker-compose.dev.yml down -v",
@@ -41,7 +47,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
-    "openapi:export": "npx fern-api@3.88.0 export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && npx fern-api@3.88.0 export --api client web/public/generated/api-client/openapi.yml && npx fern-api@3.88.0 export --api organizations web/public/generated/organizations-api/openapi.yml",
+    "openapi:export": "pnpm dlx fern-api@3.88.0 export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && pnpm dlx fern-api@3.88.0 export --api client web/public/generated/api-client/openapi.yml && pnpm dlx fern-api@3.88.0 export --api organizations web/public/generated/organizations-api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts organizations",
     "openapi:check": "pnpm run openapi:export && bash scripts/openapi/assert-generated-current.sh",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
@@ -60,9 +66,10 @@
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
     "ts7": "npm:typescript@^7.0.2",
-    "turbo": "2.11.3"
+    "turbo": "2.11.6"
   },
   "release-it": {
+    "npm": false,
     "git": {
       "commitMessage": "chore: release v${version}",
       "tagName": "v${version}",
@@ -76,6 +83,9 @@
     "plugins": {
       "@release-it/bumper": {
         "out": [
+          {
+            "file": "./package.json"
+          },
           {
             "file": "./packages/shared/src/constants/VERSION.ts",
             "type": "application/typescript"
@@ -108,6 +118,5 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
-  },
-  "packageManager": "pnpm@12.6.0"
+  }
 }

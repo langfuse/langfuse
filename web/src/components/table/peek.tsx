@@ -1,3 +1,4 @@
+import { type PeekOpenOptions } from "./peek/hooks/usePeekNavigation";
 /* eslint-disable @repo/no-null-render */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
@@ -52,7 +53,7 @@ export type DataTablePeekViewProps = {
 
   // Event handlers
   /** Called to open the peek view. If undefined, row clicks won't trigger peek view opening */
-  openPeek?: (id?: string, row?: any) => void;
+  openPeek?: (id?: string, row?: any, options?: PeekOpenOptions) => void;
   /** Called to close the peek view*/
   closePeek: () => void;
   /** Called when the peek view is expanded to full view */
@@ -92,6 +93,8 @@ type TablePeekViewProps = Pick<
    */
   actionsMenu?: React.ReactNode;
   hideExpandToggle?: boolean;
+  /** Keep the content mounted across items instead of remounting per item. */
+  preserveContentAcrossItems?: boolean;
   // Content
   /**
    * The content to display in the peek view.
@@ -163,7 +166,14 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children, footer, tableName, isV4 } = props;
+  const {
+    title,
+    children,
+    footer,
+    tableName,
+    isV4,
+    preserveContentAcrossItems,
+  } = props;
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const itemId = router.query.peek as string | undefined;
@@ -288,7 +298,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 
   const content = (
     <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto" key={itemId}>
+      <div
+        className="flex-1 overflow-auto"
+        key={preserveContentAcrossItems ? undefined : itemId}
+      >
         {children}
       </div>
       {footer && (
@@ -320,6 +333,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               but give portaled child dialogs the same non-modal host as desktop. */}
           <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
             <DrawerContent
+              portalLayer="modal"
               size="full"
               className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
               onPointerDownOutside={preventDismissOnKeptOpen}

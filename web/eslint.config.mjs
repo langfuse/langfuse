@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import { globSync } from "node:fs";
 import boundaries from "eslint-plugin-boundaries";
 import checkFile from "eslint-plugin-check-file";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
@@ -69,6 +70,17 @@ export default [
   globalIgnores(["**/storybook-static/"]),
 
   ...nextConfig,
+  {
+    name: "langfuse/web/client-test-story-cache-key",
+    files: ["src/**/*.clienttest.{ts,tsx}"],
+    settings: {
+      // ESLint caches unchanged client tests; changing the story set must invalidate them.
+      clientTestStoryFiles: [
+        ...globSync("src/**/*.stories.ts"),
+        ...globSync("src/**/*.stories.tsx"),
+      ].sort(),
+    },
+  },
   ...storybook.configs["flat/recommended"],
   {
     name: "langfuse/web/storybook-test-story-names",
@@ -437,6 +449,15 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-raw-font-weight": "error",
+      // Raw sizes of 40px and above are illustrations; the rule allows them by size.
+      // Spinner sizes follow their container, not the icon scale.
+      "@repo/no-raw-icon-size": [
+        "error",
+        {
+          exceptions: ["src/components/design-system/Spinner/Spinner.tsx"],
+          requireSize: true,
+        },
+      ],
       "@repo/no-arbitrary-colors": "error",
     },
   },
@@ -473,7 +494,8 @@ export default [
       "src/components/ui/popover.tsx",
       "src/components/ui/dropdown-menu.tsx",
       "src/components/ui/select.tsx",
-      "src/components/ui/hover-card.tsx",
+      "src/components/design-system/HoverCardController/HoverCardController.tsx",
+      "src/components/design-system/ControlledHoverCard/ControlledHoverCard.tsx",
       "src/components/ui/tooltip.tsx",
     ],
     rules: {

@@ -548,7 +548,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
   latency_milliseconds:
-    "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
+    "if(max(end_time) IS NULL, NULL, date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))) AS latency_milliseconds",
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
   observation_count:
@@ -1488,6 +1488,10 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(user_id, user_id IS NOT NULL AND user_id != '') AS user_ids",
   trace_count: "uniq(trace_id) AS trace_count",
   trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
+  tool_names: "groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names",
+  called_tool_names:
+    "groupUniqArrayArray(tool_call_names) AS called_tool_names",
+  tool_calls_count: "sum(length(tool_calls)) AS tool_calls_count",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
   metadata_names:
@@ -1520,9 +1524,13 @@ const SESSION_AGGREGATION_FIELD_SETS = {
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
   base: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS).filter(
-    (field) => field !== "metadata_names" && field !== "metadata_values",
+    (field) =>
+      field !== "metadata_names" &&
+      field !== "metadata_values" &&
+      !["tool_names", "called_tool_names", "tool_calls_count"].includes(field),
   ) as Array<keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS>,
   metadata: ["metadata_names", "metadata_values"],
+  tools: ["tool_names", "called_tool_names", "tool_calls_count"],
 } as const;
 
 /**

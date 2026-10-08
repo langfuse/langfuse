@@ -25,6 +25,9 @@ import { useExperimentNames } from "@/src/features/experiments/hooks/useExperime
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+
 // Grid view row heights (matching DatasetCompareRunsTable)
 const GRID_VIEW_ROW_HEIGHTS = {
   s: "h-48", // 192px
@@ -98,6 +101,8 @@ export const ExperimentGridView = ({
   setRowSelection,
   highlightAllRows,
 }: ExperimentGridViewProps) => {
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const capture = usePostHogClientCapture();
   const [summaryExpanded, setSummaryExpanded] = useState(true);
   // Keep the explicit baseline separate from the comparison list. A baseline
   // is optional, so c-only URLs render every selected experiment here.
@@ -228,6 +233,27 @@ export const ExperimentGridView = ({
               }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
+              onAnnotate={
+                canAnnotate &&
+                peekView?.openPeek &&
+                expData.traceId &&
+                expData.observationId
+                  ? () => {
+                      capture("annotation:entry_click", {
+                        type: "trace",
+                        source: "DatasetCompare",
+                        isV4: true,
+                        targetType: "observation",
+                        entryPoint: "annotate_button",
+                      });
+                      peekView.openPeek?.(
+                        row.original.itemId,
+                        { ...row.original, clickedExperimentId: expId },
+                        { queryParams: { annotation: "open" } },
+                      );
+                    }
+                  : undefined
+              }
               onExperimentClick={
                 peekView?.openPeek
                   ? (event) => {
@@ -262,6 +288,8 @@ export const ExperimentGridView = ({
     showDiff,
     singleLine,
     peekView,
+    canAnnotate,
+    capture,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns

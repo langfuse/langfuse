@@ -11,27 +11,36 @@ const badgeVariants = cva(
     variants: {
       size: {
         default: "h-5.5 gap-1.5 pr-1.5 pl-2",
+        md: "h-5 gap-1 px-1.5",
         sm: "h-4.5 gap-1 px-1.5",
       },
       color: {
         primary: "border-border bg-transparent text-foreground-secondary",
-        red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
-        yellow: "border-transparent bg-light-yellow/80 text-dark-yellow",
+        red: "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
+        yellow:
+          "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
         blue: "border-transparent bg-light-blue text-dark-blue",
         violet: "border-transparent bg-light-violet text-dark-violet",
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
+        filled: "border-transparent bg-muted text-foreground-secondary",
       },
       interactive: {
-        true: "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
+        true: "underline-dotted",
         false: "",
+      },
+      /** Metric values (latency, cost, timestamps) read in mono. */
+      font: {
+        sans: "font-sans",
+        mono: "font-mono",
       },
     },
     defaultVariants: {
       color: "primary",
       size: "default",
       interactive: false,
+      font: "sans",
     },
   },
 );
@@ -52,13 +61,17 @@ export function BadgeShell({
   color,
   size,
   interactive,
+  font,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
 
   return (
     <Component
-      className={cn(badgeVariants({ color, size, interactive }))}
+      className={cn(
+        "group/badge",
+        badgeVariants({ color, size, interactive, font }),
+      )}
       {...props}
     />
   );
@@ -69,7 +82,7 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
   trailingIcon?: LucideIcon;
-  /** Link badges tint the arrow so the affordance reads before the hover. */
+  /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
 };
 
@@ -85,12 +98,15 @@ export function Badge({
 }: BadgeProps) {
   return (
     <BadgeShell color={color} {...props}>
-      {label && <span className="shrink-0 py-0.5">{label}</span>}
+      {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
-          "overflow-x-clip overflow-y-visible py-0.5 text-ellipsis whitespace-nowrap",
-          interactive &&
-            "decoration-border-contrast underline decoration-dashed decoration-1 underline-offset-[3px]",
+          "py-0.5 text-ellipsis whitespace-nowrap",
+          interactive
+            ? "underline-dotted overflow-clip"
+            : "overflow-x-clip overflow-y-visible",
+          trailingIconTone === "link" &&
+            "underline-offset-2 group-hover/badge:underline",
         )}
         title={title ?? (interactive ? undefined : text)}
       >
@@ -100,7 +116,7 @@ export function Badge({
         <TrailingIcon
           aria-hidden
           className={cn(
-            "size-3 shrink-0",
+            "icon-sm shrink-0",
             trailingIconTone === "link"
               ? "text-foreground-tertiary -ml-0.5"
               : "text-foreground-tertiary",

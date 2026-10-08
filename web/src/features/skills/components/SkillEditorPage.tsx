@@ -1,8 +1,10 @@
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { showErrorToast } from "@/src/features/notifications";
+import { SKILL_LATEST_LABEL } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   NEW_SKILL_INITIAL_VALUE,
@@ -12,6 +14,7 @@ import {
 import {
   createSkillEditorStore,
   type SkillEditorInitialValue,
+  type SkillEditorStore,
 } from "@/src/features/skills/components/skillEditorStore";
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -57,6 +60,12 @@ export function NewSkillPage() {
       projectId={projectId ?? ""}
       store={store}
       canCreate={canCreate}
+      view={{
+        kind: "draft",
+        onDiscard: async () => {
+          await router.push(`/project/${projectId}/skills`);
+        },
+      }}
       history={{ kind: "new" }}
       metadataOptions={{
         labels: ["production"],
@@ -77,10 +86,28 @@ export function NewSkillPage() {
 
 export function ExistingSkillPage() {
   const router = useRouter();
-  const [editorSession, setEditorSession] = useState(0);
   const projectId = useProjectIdFromURL();
   const skillName =
     typeof router.query.skillName === "string" ? router.query.skillName : "";
+  return (
+    <ExistingSkillSession
+      key={`${projectId}:${skillName}`}
+      projectId={projectId ?? ""}
+      skillName={skillName}
+    />
+  );
+}
+
+function ExistingSkillSession({
+  projectId,
+  skillName,
+}: {
+  projectId: string;
+  skillName: string;
+}) {
+  const router = useRouter();
+  const [draftStore, setDraftStore] = useState<SkillEditorStore | null>(null);
+  const isDraft = draftStore !== null && router.query.draft === "true";
   const requestedVersion =
     typeof router.query.version === "string"
       ? Number(router.query.version)
@@ -138,34 +165,98 @@ export function ExistingSkillPage() {
     ],
   };
 
-  let content = <div className="p-6 text-sm">Skill version not found.</div>;
-  if (error) {
-    content = <div className="ph-no-capture p-6 text-sm">{error.message}</div>;
-  } else if (skill.isPending || history.isPending) {
-    content = (
-      <div className="grid gap-3 p-3">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-[600px] w-full" />
-      </div>
-    );
-  } else if (skill.data && history.data) {
+  const content = useMemo(() => {
+    if (error) {
+      return <div className="ph-no-capture p-6 text-sm">{error.message}</div>;
+    }
+    if (skill.isPending || history.isPending) {
+      return (
+        <div className="grid gap-3 p-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-[600px] w-full" />
+        </div>
+      );
+    }
+    return <div className="p-6 text-sm">Skill version not found.</div>;
+  }, [error, skill.isPending, history.isPending]);
+
+  if (
+    !error &&
+    !skill.isPending &&
+    !history.isPending &&
+    skill.data &&
+    history.data
+  ) {
+    const initialValue = toSkillEditorInitialValue({
+      ...skill.data,
+      files: skill.data.files.map((file) => ({
+        path: file.path,
+        currentSha: file.sha256Hash,
+        sourceSha: file.sha256Hash,
+        sourceContentLength: file.contentLength,
+      })),
+    });
+    async function selectDraft() {
+      const draft = draftStore ?? createSkillEditorStore(initialValue);
+      const baseVersion = draft.getState().baseVersion;
+      if (draftStore && baseVersion !== null) {
+        try {
+          const saved = await utils.skills.byName.fetch({
+            projectId,
+            name: skillName,
+            version: baseVersion,
+          });
+          draft
+            .getState()
+            .actions.syncLabels(
+              saved.labels.filter((label) => label !== SKILL_LATEST_LABEL),
+            );
+          draft.getState().actions.syncTags(saved.tags);
+        } catch (error) {
+          showErrorToast(
+            "Could not resume draft",
+            error instanceof Error ? error.message : "Please try again.",
+          );
+          return;
+        }
+      }
+      setDraftStore(draft);
+      await router.push({
+        pathname: router.pathname,
+        query: {
+          projectId,
+          skillName,
+          version: draft.getState().baseVersion,
+          draft: "true",
+        },
+      });
+    }
     return (
       <SkillEditorForInitialValue
         headerProps={headerProps}
-        key={`${skill.data.id}:${editorSession}`}
+        key={isDraft ? "draft" : skill.data.id}
         projectId={projectId ?? ""}
-        initialValue={toSkillEditorInitialValue({
-          ...skill.data,
-          files: skill.data.files.map((file) => ({
-            path: file.path,
-            contentType: file.contentType,
-            source: {
-              fileId: file.id,
-              contentLength: file.contentLength,
-              sha256Hash: file.sha256Hash,
-            },
-          })),
-        })}
+        initialValue={initialValue}
+        store={isDraft ? (draftStore ?? undefined) : undefined}
+        view={
+          isDraft
+            ? {
+                kind: "draft",
+                onDiscard: async () => {
+                  const baseVersion = draftStore!.getState().baseVersion;
+                  setDraftStore(null);
+                  await router.push({
+                    pathname: router.pathname,
+                    query: { projectId, skillName, version: baseVersion },
+                  });
+                },
+              }
+            : {
+                kind: "version",
+                hasDraft: draftStore !== null,
+                onEdit: selectDraft,
+              }
+        }
         canCreate={canCreate}
         metadataOptions={{
           labels: [
@@ -187,12 +278,13 @@ export function ExistingSkillPage() {
           loadMoreError: history.isFetchNextPageError,
           onLoadMore: () => history.fetchNextPage(),
           selectedVersion: skill.data.version,
+          draftStore,
+          onSelectDraft: selectDraft,
           onSelect: async (selectedVersion) => {
             await router.push({
               pathname: router.pathname,
               query: { projectId, skillName, version: selectedVersion },
             });
-            setEditorSession((session) => session + 1);
           },
         }}
         onCreated={async (created) => {
@@ -210,6 +302,7 @@ export function ExistingSkillPage() {
               version: created.version,
             },
           });
+          setDraftStore(null);
         }}
       />
     );
@@ -220,11 +313,15 @@ export function ExistingSkillPage() {
 
 function SkillEditorForInitialValue({
   initialValue,
+  store: draftStore,
   ...props
 }: Omit<ComponentProps<typeof SkillEditor>, "store"> & {
+  store?: SkillEditorStore;
   initialValue: SkillEditorInitialValue;
 }) {
-  const [store] = useState(() => createSkillEditorStore(initialValue));
+  const [store] = useState(
+    () => draftStore ?? createSkillEditorStore(initialValue),
+  );
 
   return <SkillEditor {...props} store={store} />;
 }

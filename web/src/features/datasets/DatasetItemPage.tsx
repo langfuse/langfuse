@@ -142,9 +142,9 @@ function DatasetItemContent({
                   setRenderMode(value === "json" ? "json" : "pretty")
                 }
               >
-                <Tabs.List size="sm">
-                  <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
-                  <Tabs.Trigger value="json" size="sm" label="Raw" />
+                <Tabs.List variant="inset" size="sm">
+                  <Tabs.Trigger value="pretty" label="Formatted" />
+                  <Tabs.Trigger value="json" label="Raw" />
                 </Tabs.List>
               </Tabs>
             )}
@@ -160,12 +160,12 @@ function DatasetItemContent({
             >
               {isVersionPanelOpen ? (
                 <>
-                  <History className="mr-2 h-4 w-4" />
+                  <History className="icon-base text-icon-foreground mr-2" />
                   Hide Version History
                 </>
               ) : (
                 <>
-                  <PanelRightOpen className="mr-2 h-4 w-4" />
+                  <PanelRightOpen className="icon-base text-icon-foreground mr-2" />
                   Show Version History
                 </>
               )}

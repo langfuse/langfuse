@@ -1,6 +1,7 @@
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
@@ -19,9 +20,8 @@ function levelPlaceholder(index: number, count: number) {
 }
 
 /**
- * Ordered levels of a Score question, low to high. The level number is its
- * position; the model only sees the descriptions, so each one has to describe
- * a recognisable situation rather than a degree.
+ * Ordered score levels, low to high. The position is the level number. The
+ * description is what the model reads. The stored score is that position.
  */
 export function ScoreLevelsEditor({
   levels,
@@ -32,23 +32,27 @@ export function ScoreLevelsEditor({
   onChange: (levels: ScoreLevelDraft[]) => void;
   error?: string;
 }) {
-  const update = (index: number, description: string) =>
-    onChange(levels.map((level, i) => (i === index ? { description } : level)));
+  const update = (index: number, patch: Partial<ScoreLevelDraft>) =>
+    onChange(
+      levels.map((level, i) => (i === index ? { ...level, ...patch } : level)),
+    );
   const remove = (index: number) =>
     onChange(levels.filter((_, i) => i !== index));
   const canRemove = levels.length > DECISION_MODEL_LIMITS.minScoreLevels;
 
   return (
     <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-1.5">
+      <Label className="flex items-baseline gap-1.5">
         Levels, low to high
-        <InfoTooltip label="About levels">
-          Each level is one point on the scale. The model judges every level on
-          its own against the state and returns a position between them, so
-          describe situations (“broken, but a workaround exists”), not degrees
-          (“moderately severe”). Two to ten levels; drag to reorder.
-        </InfoTooltip>
-        <span className="text-muted-foreground text-xs font-normal">
+        <span className="inline-flex self-center">
+          <InfoTooltip label="About levels">
+            Each level is one point on the scale. The model judges every level
+            on its own against the state and returns a position between them, so
+            describe situations (“broken, but a workaround exists”), not degrees
+            (“moderately severe”). Two to ten levels; drag to reorder.
+          </InfoTooltip>
+        </span>
+        <span className="text-muted-foreground text-xs leading-none font-normal">
           {levels.length} of {DECISION_MODEL_LIMITS.maxScoreLevels}
         </span>
       </Label>
@@ -67,7 +71,9 @@ export function ScoreLevelsEditor({
             </span>
             <Input
               value={level.description}
-              onChange={(event) => update(index, event.target.value)}
+              onChange={(event) =>
+                update(index, { description: event.target.value })
+              }
               placeholder={levelPlaceholder(index, levels.length)}
               aria-label={`Level ${index} description`}
             />
@@ -84,26 +90,21 @@ export function ScoreLevelsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minScoreLevels} levels`
               }
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="icon-sm" />
             </Button>
           </div>
         )}
       />
-      <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
+      <div className="flex items-center gap-1.5">
+        <TextActionButton
+          text="Add level"
           disabled={levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels}
           onClick={() => onChange([...levels, { description: "" }])}
-        >
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          Add level
-        </Button>
-        <span className="text-muted-foreground text-xs">
+        />
+        <InfoTooltip label="About the score">
           The score is the probability-weighted average of the level numbers, so
           it can be a decimal from 0 to {Math.max(levels.length - 1, 0)}.
-        </span>
+        </InfoTooltip>
       </div>
       {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </div>

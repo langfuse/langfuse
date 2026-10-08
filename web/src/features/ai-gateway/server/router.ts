@@ -215,7 +215,7 @@ export const aiGatewayRouter = createTRPCRouter({
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
-        note: z.string().max(500).optional(),
+        name: z.string().max(500).optional(),
         metadata: GatewayMetadataSchema.default({}),
       }),
     )
@@ -223,7 +223,7 @@ export const aiGatewayRouter = createTRPCRouter({
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
         organizationId: input.orgId,
-        note: input.note,
+        name: input.name,
         metadata: input.metadata,
         session: ctx.session,
       });

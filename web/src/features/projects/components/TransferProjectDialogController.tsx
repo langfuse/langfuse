@@ -50,6 +50,7 @@ export function TransferProjectDialogController({
   const transferProject = api.projects.transfer.useMutation({
     onSuccess: async () => {
       showSuccessToast({
+        operation: "project.transfer",
         title: "Project transferred",
         description:
           "The project is successfully transferred to the new organization. Redirecting...",

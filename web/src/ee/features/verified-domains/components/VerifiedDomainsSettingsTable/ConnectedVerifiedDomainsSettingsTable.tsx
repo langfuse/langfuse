@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
@@ -26,6 +26,7 @@ export function ConnectedVerifiedDomainsSettingsTable({
       utils.ssoConfig.get.invalidate({ orgId });
       const domain = query.data?.find((row) => row.id === variables.id);
       showSuccessToast({
+        operation: "verified_domain.verify",
         title: "Domain verified",
         description: `${domain?.domain ?? "Domain"} is now verified.`,
       });
@@ -39,6 +40,7 @@ export function ConnectedVerifiedDomainsSettingsTable({
       utils.verifiedDomain.list.invalidate({ orgId });
       const domain = query.data?.find((row) => row.id === variables.id);
       showSuccessToast({
+        operation: "verified_domain.remove",
         title: "Domain removed",
         description: `${domain?.domain ?? "Domain"} has been removed.`,
       });
@@ -46,17 +48,16 @@ export function ConnectedVerifiedDomainsSettingsTable({
     onError: (err) => showErrorToast("Failed to remove domain", err.message),
   });
 
-  let data: AsyncTableData<DomainRowData[]> = {
-    status: "success",
-    data: query.data ?? [],
-  };
-  if (query.isLoading) data = { status: "loading" };
-  if (query.isError) {
-    data = {
-      status: "error",
-      error: "Failed to load verified domains. Please try again.",
-    };
-  }
+  const data = useMemo<AsyncTableData<DomainRowData[]>>(() => {
+    if (query.isError) {
+      return {
+        status: "error",
+        error: "Failed to load verified domains. Please try again.",
+      };
+    }
+    if (query.isLoading) return { status: "loading" };
+    return { status: "success", data: query.data ?? [] };
+  }, [query.isError, query.isLoading, query.data]);
 
   return (
     <ConfirmationDialogController<DomainRowData>

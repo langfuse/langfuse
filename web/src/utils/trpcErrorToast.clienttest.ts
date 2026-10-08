@@ -30,6 +30,7 @@ const trpcError = (opts: {
   message: string;
   path?: string;
   zodError?: unknown;
+  traceId?: string;
 }) =>
   TRPCClientError.from({
     error: {
@@ -40,6 +41,7 @@ const trpcError = (opts: {
         httpStatus: opts.httpStatus,
         ...(opts.path !== undefined ? { path: opts.path } : {}),
         ...(opts.zodError !== undefined ? { zodError: opts.zodError } : {}),
+        ...(opts.traceId !== undefined ? { traceId: opts.traceId } : {}),
       },
     },
   });
@@ -108,6 +110,27 @@ describe("trpcErrorToast", () => {
     showErrorToastMock.mockClear();
   });
 
+  it("classifies a pathless response parse failure as tRPC", () => {
+    trpcErrorToast(
+      new TRPCClientError("Unexpected token", {
+        cause: new SyntaxError("Unexpected token"),
+      }),
+    );
+
+    expect(showErrorToastMock).toHaveBeenCalledWith(
+      "Unexpected Response",
+      "The request could not be completed. Please try again or contact support if this persists.",
+      "WARNING",
+      undefined,
+      undefined,
+      "trpc",
+      {
+        errorOrigin: "network",
+        errorCategory: "transient",
+      },
+    );
+  });
+
   it("shows a readable Invalid input toast instead of the Zod JSON dump", () => {
     trpcErrorToast(
       trpcError({
@@ -123,6 +146,15 @@ describe("trpcErrorToast", () => {
       "name: Too small: expected string to have >=1 characters",
       "WARNING",
       "prompts.create",
+      undefined,
+      "trpc",
+      {
+        errorOrigin: "backend",
+        errorCategory: "user_input",
+        operation: "prompts.create",
+        trpcCode: "BAD_REQUEST",
+        httpStatus: 400,
+      },
     );
   });
 
@@ -141,6 +173,79 @@ describe("trpcErrorToast", () => {
       "Invalid input, projectId is required",
       "WARNING",
       "prompts.create",
+      undefined,
+      "trpc",
+      {
+        errorOrigin: "frontend",
+        errorCategory: "internal",
+        operation: "prompts.create",
+        trpcCode: "BAD_REQUEST",
+        httpStatus: 400,
+      },
     );
   });
+
+  it("forwards the OTEL trace id to the toast when present", () => {
+    trpcErrorToast(
+      trpcError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: "prompts.create",
+        message: "Something went wrong",
+        traceId: "abc123def456",
+      }),
+    );
+
+    expect(showErrorToastMock).toHaveBeenCalledWith(
+      "Internal Server Error",
+      "Something went wrong",
+      "ERROR",
+      "prompts.create",
+      "abc123def456",
+      "trpc",
+      {
+        errorOrigin: "backend",
+        errorCategory: "internal",
+        operation: "prompts.create",
+        trpcCode: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+      },
+    );
+  });
+
+  it.each([
+    ["FORBIDDEN", 403, "permission"],
+    ["TOO_MANY_REQUESTS", 429, "rate_limit"],
+    ["NOT_FOUND", 404, "product_state"],
+    ["PAYLOAD_TOO_LARGE", 413, "resource_limit"],
+    ["TIMEOUT", 524, "transient"],
+  ] as const)(
+    "classifies %s (%i) as %s telemetry",
+    (code, httpStatus, errorCategory) => {
+      trpcErrorToast(
+        trpcError({
+          code,
+          httpStatus,
+          path: "prompts.create",
+          message: "Expected failure",
+        }),
+      );
+
+      expect(showErrorToastMock).toHaveBeenCalledWith(
+        expect.any(String),
+        "Expected failure",
+        expect.any(String),
+        "prompts.create",
+        undefined,
+        "trpc",
+        {
+          errorOrigin: errorCategory === "transient" ? "network" : "backend",
+          errorCategory,
+          operation: "prompts.create",
+          trpcCode: code,
+          httpStatus,
+        },
+      );
+    },
+  );
 });

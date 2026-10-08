@@ -7,11 +7,14 @@ service:
   base-path: /api/public
   endpoints:
     create:
-      docs: Create a score (supports trace, observation, session, and dataset run scores)
+      docs: >
+        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if accepted,
+        or 207 with accepted/rejected counts and error messages. Do not automatically retry a 207 batch.
+        The generated reference shows only 200; batches return 202 or 207.
       method: POST
       path: /scores
-      request: CreateScoreRequest
-      response: CreateScoreResponse
+      request: CreateScoresRequest
+      response: CreateScoresResponse
     get-many:
       availability:
         status: deprecated
@@ -108,6 +111,24 @@ service:
       response: commons.Score
 
 types:
+  CreateScoresRequest:
+    discriminated: false
+    union:
+      - CreateScoreRequest
+      - CreateScoreBatchRequest
+
+  CreateScoreBatchRequest:
+    type: list<CreateScoreRequest>
+    examples:
+      - value:
+          - name: "accuracy"
+            value: 0.9
+            traceId: "cdef-1234-5678-90ab"
+          - name: "helpfulness"
+            value: 1
+            dataType: "BOOLEAN"
+            traceId: "cdef-1234-5678-90ab"
+
   CreateScoreRequest:
     properties:
       id: optional<string>
@@ -196,6 +217,18 @@ types:
     enum:
       - API
       - ANNOTATION
+  CreateScoresResponse:
+    discriminated: false
+    union:
+      - CreateScoreResponse
+      - CreateScoreBatchResponse
+      - CreateScoreBatchResults
+
+  CreateScoreBatchResponse:
+    docs: Batch accepted (HTTP 202).
+    properties:
+      message: literal<"Accepted">
+
   CreateScoreResponse:
     properties:
       id:
@@ -256,3 +289,14 @@ types:
       data: list<GetScoresResponseData>
       meta: pagination.MetaResponse
       _deprecation: optional<commons.Deprecation>
+
+  CreateScoreBatchResults:
+    docs: Acceptance counts and errors (HTTP 207).
+    properties:
+      accepted: integer
+      rejected: integer
+      errors: list<CreateScoreBatchError>
+
+  CreateScoreBatchError:
+    properties:
+      message: string

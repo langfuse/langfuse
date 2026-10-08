@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TopicProcessBatchState } from "../topics";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -100,9 +101,19 @@ export const TraceQueueEventSchema = z.object({
   exactTimestamp: z.date().optional(),
   traceEnvironment: z.string().optional(), // Optional to maintain backward compatibility with existing jobs in queue during deployment. 'optional()' can be removed after queue was exhausted
 });
+// Who triggered a queued job (e.g. a deletion). Only used for logging; optional
+// on payloads so that jobs enqueued before this field existed still parse.
+export const ActorSchema = z.object({
+  type: z.enum(["USER", "API_KEY"]),
+  userId: z.string().optional(),
+  apiKeyId: z.string().optional(),
+  publicKey: z.string().optional(),
+});
+export type Actor = z.infer<typeof ActorSchema>;
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
   traceIds: z.array(z.string()),
+  actor: ActorSchema.optional(),
 });
 export const ScoresQueueEventSchema = z.object({
   projectId: z.string(),
@@ -185,62 +196,38 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
+// Fields shared by the batch actions that select rows from a table and apply
+// one action to them.
+const BatchActionTableEventBaseSchema = z.object({
+  projectId: z.string(),
+  query: BatchActionQuerySchema,
+  tableName: z.enum(BatchTableNames),
+  cutoffCreatedAt: z.date(),
+  targetId: z.string().optional(),
+  type: z.enum(BatchActionType),
+  userId: z.string().optional(), // Requesting user, for logging only
+});
+
 export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   "actionId",
   [
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("score-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("dataset-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("trace-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("trace-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("session-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("observation-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
     z.object({
       actionId: z.literal("eval-create"),
@@ -404,6 +391,9 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
+  Topics = "topics",
+  TopicsUpdate = "topics-update",
+  TopicsEmbedding = "topics-embedding",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -447,6 +437,8 @@ export enum QueueName {
 }
 
 export enum QueueJobs {
+  Topics = "topics",
+  TopicsEmbedding = "topics-embedding",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -494,12 +486,31 @@ export const TraceBatchTraceSchema = z.object({
   revision: z.string(),
 });
 
+export const TopicEmbeddingBatchSchema = z.object({
+  projectId: z.string().min(1),
+  executionId: z.string().min(1),
+  batchId: z.string().min(1),
+  summaries: z
+    .array(
+      z.object({
+        facetId: z.string().min(1),
+        facetVersion: z.number().int().positive(),
+        traceId: z.string().min(1),
+      }),
+    )
+    .min(1),
+});
+
 export const TraceBatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
   name: z.literal(QueueJobs.TraceBatch),
   payload: z.union([
-    z.object({ traces: z.array(TraceBatchTraceSchema).min(1) }).strict(),
+    z
+      .object({
+        traces: z.array(TraceBatchTraceSchema).min(1),
+      })
+      .strict(),
     // Persisted single-project jobs must remain readable while consumers drain.
     z
       .object({
@@ -516,6 +527,25 @@ export const TraceBatchEventSchema = z.object({
 });
 
 export type TQueueJobTypes = {
+  [QueueName.Topics]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.Topics;
+    payload: {
+      projectId: string;
+      executionId: string;
+      traceIds?: string[];
+      batchId?: string;
+    };
+    batchState?: TopicProcessBatchState;
+  };
+  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsEmbedding]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsEmbedding;
+    payload: z.infer<typeof TopicEmbeddingBatchSchema>;
+  };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;
