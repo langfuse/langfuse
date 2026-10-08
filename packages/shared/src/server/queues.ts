@@ -332,6 +332,7 @@ const ScoreAutomationExecutionInputSchema = z.object({
   }),
 });
 export const AutomationExecutionQueueEventSchema = z.object({
+  executionId: z.string(),
   projectId: z.string(),
   automationId: z.string(),
   triggerId: z.string(),
@@ -343,38 +344,37 @@ export type AutomationExecutionQueueEventType = z.infer<
   typeof AutomationExecutionQueueEventSchema
 >;
 
-export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
-  z.object({
-    entityType: z.literal("prompt-version"),
-    projectId: z.string(),
-    promptId: z.string(),
-    action: EventActionSchema,
-    prompt: PromptDomainSchema,
-    user: z
-      .object({
-        id: z.string(),
-        name: z.string().nullable(),
-        email: z.string().nullable(),
-      })
-      .optional(),
-  }),
-  z.object({
-    entityType: z.literal("score"),
-    projectId: z.string(),
-    eventId: z.string(),
-    action: EventActionSchema.extract(["created", "updated"]),
-    score: z.object({
+export const EntityChangeEventSchema = z.object({
+  entityType: z.literal("prompt-version"),
+  projectId: z.string(),
+  promptId: z.string(),
+  action: EventActionSchema,
+  prompt: PromptDomainSchema,
+  user: z
+    .object({
       id: z.string(),
-      name: z.string(),
-      dataType: z.string(),
-      value: z.number(),
-      stringValue: z.string().nullish(),
-      longStringValue: z.string().nullish(),
-      observationId: z.string().nullish(),
-    }),
-  }),
-]);
+      name: z.string().nullable(),
+      email: z.string().nullable(),
+    })
+    .optional(),
+});
 export type EntityChangeEventType = z.infer<typeof EntityChangeEventSchema>;
+
+export const ScoreChangeEventSchema = z.object({
+  projectId: z.string(),
+  eventId: z.string(),
+  action: EventActionSchema.extract(["created", "updated"]),
+  score: z.object({
+    id: z.string(),
+    name: z.string(),
+    dataType: z.string(),
+    value: z.number(),
+    stringValue: z.string().nullish(),
+    longStringValue: z.string().nullish(),
+    observationId: z.string().nullish(),
+  }),
+});
+export type ScoreChangeEventType = z.infer<typeof ScoreChangeEventSchema>;
 
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
@@ -464,6 +464,7 @@ export enum QueueName {
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
+  ScoreChangeQueue = "score-change-queue",
   AutomationExecutionQueue = "automation-execution-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
@@ -505,6 +506,7 @@ export enum QueueJobs {
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
+  ScoreChangeJob = "score-change-job",
   AutomationExecutionJob = "automation-execution-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
@@ -699,6 +701,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
+  };
+  [QueueName.ScoreChangeQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: ScoreChangeEventType;
+    name: QueueJobs.ScoreChangeJob;
   };
   [QueueName.AutomationExecutionQueue]: {
     timestamp: Date;

@@ -53,6 +53,13 @@ vi.mock("@/src/utils/api", () => ({
                 categories: null,
                 isArchived: false,
               },
+              {
+                id: "score-config-3",
+                name: "feedback",
+                dataType: "TEXT",
+                categories: null,
+                isArchived: false,
+              },
             ],
           },
           isLoading: false,
@@ -322,6 +329,53 @@ describe("AutomationForm handleActionTypeChange", () => {
         },
         { column: "value", operator: ">=", value: 0.25, type: "number" },
         { column: "value", operator: "<=", value: 0.75, type: "number" },
+      ],
+    });
+  });
+
+  it("matches text scores against their populated string value", async () => {
+    render(<AutomationForm projectId="p1" isEditing={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+      target: { value: "Review feedback" },
+    });
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "Score" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Score name" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "feedback (text)" }),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Score value condition" }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "equals" }));
+    fireEvent.change(screen.getByLabelText("Score value"), {
+      target: { value: "Needs improvement" },
+    });
+    fireEvent.click(screen.getByText("Select annotation queues"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Needs review" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save automation/i }));
+
+    await waitFor(() => {
+      expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(createAutomationMutateAsync.mock.calls[0][0]).toMatchObject({
+      filter: [
+        { column: "name", operator: "=", value: "feedback", type: "string" },
+        {
+          column: "dataType",
+          operator: "=",
+          value: "TEXT",
+          type: "string",
+        },
+        {
+          column: "stringValue",
+          operator: "=",
+          value: "Needs improvement",
+          type: "string",
+        },
       ],
     });
   });

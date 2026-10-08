@@ -1,27 +1,25 @@
 import { v4 } from "uuid";
-import { EntityChangeQueue } from "./redis/entityChangeQueue";
-import { type EntityChangeEventType, QueueJobs, QueueName } from "./queues";
+import { ScoreChangeQueue } from "./redis/scoreChangeQueue";
+import { type ScoreChangeEventType, QueueJobs, QueueName } from "./queues";
 import { logger } from "./logger";
 
-type ScoreChangeEvent = Extract<EntityChangeEventType, { entityType: "score" }>;
-
-export const scoreChangeEventSourcing = async (
-  event: Omit<ScoreChangeEvent, "entityType">,
-) => {
+export const scoreChangeEventSourcing = async (event: ScoreChangeEventType) => {
   try {
-    await EntityChangeQueue.getInstance()?.add(QueueName.EntityChangeQueue, {
+    const queue = ScoreChangeQueue.getInstance();
+    if (!queue) {
+      throw new Error("Score change queue is not available");
+    }
+    await queue.add(QueueName.ScoreChangeQueue, {
       timestamp: new Date(),
       id: v4(),
-      payload: {
-        entityType: "score",
-        ...event,
-      },
-      name: QueueJobs.EntityChangeJob,
+      payload: event,
+      name: QueueJobs.ScoreChangeJob,
     });
   } catch (error) {
     logger.error(
       `Failed to queue score change event for score ${event.score.id} in project ${event.projectId}`,
       error,
     );
+    throw error;
   }
 };

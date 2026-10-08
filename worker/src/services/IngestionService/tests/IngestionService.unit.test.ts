@@ -2,6 +2,7 @@ import { beforeEach, expect, describe, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyObservationFieldOverflow: vi.fn(),
+  scoreChangeEventSourcing: vi.fn(),
   validateAndInflateScoreOverride: undefined as
     | ((...args: unknown[]) => unknown)
     | undefined,
@@ -19,6 +20,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     ...actual,
+    scoreChangeEventSourcing: mocks.scoreChangeEventSourcing,
     validateAndInflateScore: (...args: unknown[]) =>
       mocks.validateAndInflateScoreOverride
         ? mocks.validateAndInflateScoreOverride(...args)
@@ -43,6 +45,7 @@ describe("IngestionService unit tests", () => {
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
+    mocks.scoreChangeEventSourcing.mockReset();
     mocks.validateAndInflateScoreOverride = undefined;
   });
 
@@ -717,6 +720,52 @@ describe("IngestionService unit tests", () => {
           evaluator_test: "true",
         },
       }),
+    );
+  });
+
+  it("uses the stable ingestion event id for score change sourcing", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const scoreEvent: ScoreEventType = {
+      id: "stable-ingestion-event-id",
+      timestamp,
+      type: "score-create",
+      body: {
+        id: "score-id",
+        dataType: "NUMERIC",
+        name: "quality",
+        value: 1,
+        source: "API",
+        traceId: "trace-id",
+        observationId: "observation-id",
+        environment: "default",
+      },
+    };
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [scoreEvent],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(mocks.scoreChangeEventSourcing).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: scoreEvent.id }),
     );
   });
 

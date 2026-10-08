@@ -3,29 +3,27 @@ import { QueueName, TQueueJobTypes } from "../queues";
 import { logger } from "../logger";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 
-export class AutomationExecutionQueue {
+export class ScoreChangeQueue {
   private static instance: Queue<
-    TQueueJobTypes[QueueName.AutomationExecutionQueue]
+    TQueueJobTypes[QueueName.ScoreChangeQueue]
   > | null = null;
 
   public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.AutomationExecutionQueue]
+    TQueueJobTypes[QueueName.ScoreChangeQueue]
   > | null {
-    if (AutomationExecutionQueue.instance) {
-      return AutomationExecutionQueue.instance;
-    }
+    if (ScoreChangeQueue.instance) return ScoreChangeQueue.instance;
 
     const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
-      QueueName.AutomationExecutionQueue,
+      QueueName.ScoreChangeQueue,
     );
-    AutomationExecutionQueue.instance = queueOptionsWithRedis
-      ? new Queue<TQueueJobTypes[QueueName.AutomationExecutionQueue]>(
-          QueueName.AutomationExecutionQueue,
+    ScoreChangeQueue.instance = queueOptionsWithRedis
+      ? new Queue<TQueueJobTypes[QueueName.ScoreChangeQueue]>(
+          QueueName.ScoreChangeQueue,
           {
             ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
-              removeOnFail: true,
+              removeOnFail: 100_000,
               attempts: 5,
               backoff: {
                 type: "exponential",
@@ -36,10 +34,10 @@ export class AutomationExecutionQueue {
         )
       : null;
 
-    AutomationExecutionQueue.instance?.on("error", (error) => {
-      logger.error("AutomationExecutionQueue error", error);
+    ScoreChangeQueue.instance?.on("error", (error) => {
+      logger.error("ScoreChangeQueue error", error);
     });
 
-    return AutomationExecutionQueue.instance;
+    return ScoreChangeQueue.instance;
   }
 }

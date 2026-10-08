@@ -972,6 +972,98 @@ describe("automations trpc", () => {
       });
     });
 
+    it("creates a score-triggered automation for an exact text value", async () => {
+      const { project, caller } = await prepare();
+      const [scoreConfig, queue] = await Promise.all([
+        prisma.scoreConfig.create({
+          data: {
+            projectId: project.id,
+            name: "feedback",
+            dataType: "TEXT",
+          },
+        }),
+        prisma.annotationQueue.create({
+          data: { projectId: project.id, name: "Feedback review" },
+        }),
+      ]);
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Review feedback",
+        eventSource: TriggerEventSource.Score,
+        eventAction: ["created", "updated"],
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.name,
+          },
+          {
+            column: "dataType",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.dataType,
+          },
+          {
+            column: "stringValue",
+            type: "string",
+            operator: "=",
+            value: "Needs improvement",
+          },
+        ],
+        status: JobConfigState.ACTIVE,
+        actionType: "ANNOTATION_QUEUE",
+        actionConfig: {
+          type: "ANNOTATION_QUEUE",
+          queueIds: [queue.id],
+        },
+      });
+
+      expect(response.trigger.filter).toContainEqual({
+        column: "stringValue",
+        type: "string",
+        operator: "=",
+        value: "Needs improvement",
+      });
+    });
+
+    it("rejects an invalid score data type before querying Prisma", async () => {
+      const { project, caller } = await prepare();
+      const queue = await prisma.annotationQueue.create({
+        data: { projectId: project.id, name: "Needs review" },
+      });
+
+      await expect(
+        caller.automations.createAutomation({
+          projectId: project.id,
+          name: "Invalid score type",
+          eventSource: TriggerEventSource.Score,
+          eventAction: ["created", "updated"],
+          filter: [
+            {
+              column: "name",
+              type: "string",
+              operator: "=",
+              value: "quality",
+            },
+            {
+              column: "dataType",
+              type: "string",
+              operator: "=",
+              value: "BOGUS",
+            },
+          ],
+          status: JobConfigState.ACTIVE,
+          actionType: "ANNOTATION_QUEUE",
+          actionConfig: {
+            type: "ANNOTATION_QUEUE",
+            queueIds: [queue.id],
+          },
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("rejects annotation queues from another project", async () => {
       const { project, caller } = await prepare();
       const other = await prepare();

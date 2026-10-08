@@ -124,15 +124,21 @@ const validateScoreAnnotationAutomation = async ({
     });
   }
 
+  const dataType = z
+    .enum(["NUMERIC", "BOOLEAN", "CATEGORICAL", "TEXT"])
+    .safeParse(dataTypeFilter.value);
+  if (!dataType.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid score trigger configuration.",
+    });
+  }
+
   const scoreConfig = await prisma.scoreConfig.findFirst({
     where: {
       projectId,
       name: nameFilter.value,
-      dataType: dataTypeFilter.value as
-        | "NUMERIC"
-        | "BOOLEAN"
-        | "CATEGORICAL"
-        | "TEXT",
+      dataType: dataType.data,
     },
     select: { id: true, dataType: true, categories: true },
   });
@@ -215,7 +221,7 @@ const validateScoreAnnotationAutomation = async ({
     const valueFilter = valueFilters[0];
     const isExact =
       valueFilters.length === 1 &&
-      valueFilter?.column === "longStringValue" &&
+      valueFilter?.column === "stringValue" &&
       valueFilter.type === "string" &&
       valueFilter.operator === "=" &&
       typeof valueFilter.value === "string";

@@ -6,15 +6,11 @@ import {
   matchesTriggerFilter,
   QueueJobs,
   QueueName,
-  type EntityChangeEventType,
+  type ScoreChangeEventType,
 } from "@langfuse/shared/src/server";
 import { v4, v5 } from "uuid";
 
-type ScoreChangeEvent = Extract<EntityChangeEventType, { entityType: "score" }>;
-
-export const scoreProcessor = async (
-  event: ScoreChangeEvent,
-): Promise<void> => {
+export const scoreProcessor = async (event: ScoreChangeEventType) => {
   const observationId = event.score.observationId;
   if (!observationId) {
     return;
@@ -71,6 +67,7 @@ export const scoreProcessor = async (
           id: v4(),
           name: QueueJobs.AutomationExecutionJob,
           payload: {
+            executionId: v4(),
             projectId: event.projectId,
             automationId: automation.id,
             triggerId: trigger.id,

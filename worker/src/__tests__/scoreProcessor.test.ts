@@ -9,7 +9,7 @@ import {
   AutomationExecutionQueue,
   createOrgProjectAndApiKey,
   QueueName,
-  type EntityChangeEventType,
+  type ScoreChangeEventType,
 } from "@langfuse/shared/src/server";
 import { ActionType, prisma } from "@langfuse/shared/src/db";
 import { scoreProcessor } from "../features/entityChange/scoreProcessor";
@@ -75,8 +75,7 @@ describe("scoreProcessor", () => {
       },
     });
     const observationId = v4();
-    const event: Extract<EntityChangeEventType, { entityType: "score" }> = {
-      entityType: "score",
+    const event: ScoreChangeEventType = {
       projectId,
       eventId: `${v4()}:2026-10-05T12:00:00.000Z`,
       action: "created",
@@ -112,6 +111,7 @@ describe("scoreProcessor", () => {
       QueueName.AutomationExecutionQueue,
       expect.objectContaining({
         payload: expect.objectContaining({
+          executionId: expect.any(String),
           projectId,
           automationId: automation.id,
           triggerId: trigger.id,
@@ -162,7 +162,6 @@ describe("scoreProcessor", () => {
     });
 
     await scoreProcessor({
-      entityType: "score",
       projectId,
       eventId: v4(),
       action: "created",
@@ -177,7 +176,6 @@ describe("scoreProcessor", () => {
       },
     });
     await scoreProcessor({
-      entityType: "score",
       projectId,
       eventId: v4(),
       action: "created",

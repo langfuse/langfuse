@@ -585,6 +585,7 @@ model AnnotationQueueItem {
   @@index([objectId, objectType, projectId, queueId])
   @@index([annotatorUserId])
   @@index([createdAt])
+  @@unique([projectId, queueId, objectId, objectType], map: "annotation_queue_items_project_queue_object_unique")
   @@map("annotation_queue_items")
 }
 

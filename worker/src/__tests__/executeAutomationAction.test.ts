@@ -20,7 +20,7 @@ describe("executeAutomationAction", () => {
     projectId = result.projectId;
   });
 
-  it("re-executes an annotation queue action without duplicating queue items", async () => {
+  it("retries an annotation queue action without duplicating queue items or executions", async () => {
     const queues = await Promise.all(
       ["Review", "Escalation"].map((name) =>
         prisma.annotationQueue.create({ data: { projectId, name } }),
@@ -55,6 +55,7 @@ describe("executeAutomationAction", () => {
     });
     const observationId = v4();
     const event: AutomationExecutionQueueEventType = {
+      executionId: v4(),
       projectId,
       automationId: automation.id,
       triggerId: trigger.id,
@@ -91,7 +92,8 @@ describe("executeAutomationAction", () => {
     expect(new Set(items.map((item) => item.queueId))).toEqual(
       new Set(queues.map((queue) => queue.id)),
     );
-    expect(executions).toHaveLength(2);
+    expect(executions).toHaveLength(1);
+    expect(executions[0].id).toBe(event.executionId);
     expect(
       executions.every(
         (execution) =>
@@ -99,5 +101,73 @@ describe("executeAutomationAction", () => {
           execution.sourceId === event.sourceId,
       ),
     ).toBe(true);
+  });
+
+  it("does not duplicate queue items when distinct score events execute concurrently", async () => {
+    const queue = await prisma.annotationQueue.create({
+      data: { projectId, name: "Review" },
+    });
+    const trigger = await prisma.trigger.create({
+      data: {
+        projectId,
+        eventSource: TriggerEventSource.Score,
+        eventActions: ["created", "updated"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+      },
+    });
+    const action = await prisma.action.create({
+      data: {
+        projectId,
+        type: ActionType.ANNOTATION_QUEUE,
+        config: { type: "ANNOTATION_QUEUE", queueIds: [queue.id] },
+      },
+    });
+    const automation = await prisma.automation.create({
+      data: {
+        projectId,
+        name: "Review quality",
+        triggerId: trigger.id,
+        actionId: action.id,
+      },
+    });
+    const observationId = v4();
+    const baseEvent: AutomationExecutionQueueEventType = {
+      executionId: v4(),
+      projectId,
+      automationId: automation.id,
+      triggerId: trigger.id,
+      actionId: action.id,
+      sourceId: v4(),
+      input: {
+        type: "score",
+        action: "updated",
+        score: {
+          id: v4(),
+          name: "quality",
+          dataType: "BOOLEAN",
+          value: 0,
+          stringValue: "False",
+          longStringValue: "",
+          observationId,
+        },
+      },
+    };
+
+    await Promise.all(
+      Array.from({ length: 5 }, (_, index) =>
+        executeAutomationAction({
+          ...baseEvent,
+          executionId: `${baseEvent.executionId}-${index}`,
+          sourceId: `${baseEvent.sourceId}-${index}`,
+        }),
+      ),
+    );
+
+    expect(
+      await prisma.annotationQueueItem.count({
+        where: { projectId, queueId: queue.id, objectId: observationId },
+      }),
+    ).toBe(1);
   });
 });

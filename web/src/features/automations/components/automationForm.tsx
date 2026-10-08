@@ -560,7 +560,7 @@ const buildScoreTriggerFilter = (
     });
   } else {
     filter.push({
-      column: score.dataType === "TEXT" ? "longStringValue" : "stringValue",
+      column: "stringValue",
       type: "string",
       operator: "=",
       value: score.value,

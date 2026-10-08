@@ -1,6 +1,5 @@
-import { v4 } from "uuid";
 import { ActionExecutionStatus } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   getActionById,
   logger,
@@ -11,11 +10,12 @@ import { processAddObservationsToQueue } from "../batchAction/processAddToQueue"
 export const executeAutomationAction = async (
   event: AutomationExecutionQueueEventType,
 ) => {
-  const executionId = v4();
+  const startedAt = new Date();
 
-  await prisma.automationExecution.create({
-    data: {
-      id: executionId,
+  await prisma.automationExecution.upsert({
+    where: { id: event.executionId },
+    create: {
+      id: event.executionId,
       projectId: event.projectId,
       automationId: event.automationId,
       triggerId: event.triggerId,
@@ -23,7 +23,20 @@ export const executeAutomationAction = async (
       status: ActionExecutionStatus.PENDING,
       sourceId: event.sourceId,
       input: event.input,
-      startedAt: new Date(),
+      startedAt,
+    },
+    update: {
+      projectId: event.projectId,
+      automationId: event.automationId,
+      triggerId: event.triggerId,
+      actionId: event.actionId,
+      status: ActionExecutionStatus.PENDING,
+      sourceId: event.sourceId,
+      input: event.input,
+      output: Prisma.DbNull,
+      error: null,
+      startedAt,
+      finishedAt: null,
     },
   });
 
@@ -49,7 +62,7 @@ export const executeAutomationAction = async (
     );
 
     await prisma.automationExecution.update({
-      where: { id: executionId },
+      where: { id: event.executionId },
       data: {
         status: ActionExecutionStatus.COMPLETED,
         output: {
@@ -62,7 +75,7 @@ export const executeAutomationAction = async (
   } catch (error) {
     await prisma.automationExecution
       .update({
-        where: { id: executionId },
+        where: { id: event.executionId },
         data: {
           status: ActionExecutionStatus.ERROR,
           error: error instanceof Error ? error.message : String(error),

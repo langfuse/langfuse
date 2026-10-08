@@ -801,7 +801,7 @@ export class IngestionService {
 
     await scoreChangeEventSourcing({
       projectId,
-      eventId: `${finalScoreRecord.id}:${finalScoreRecord.event_ts}`,
+      eventId: timeSortedEvents.at(-1)!.id,
       action: clickhouseScoreRecord ? "updated" : "created",
       score: {
         id: finalScoreRecord.id,
