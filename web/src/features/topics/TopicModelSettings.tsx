@@ -55,12 +55,12 @@ export function useTopicModelSettings({
   );
 
   let notice = null;
-  if (settings.data?.pausedReason)
+  if (settings.data?.blockMessage)
     notice = (
       <Alert variant="warning">
         <Alert.Title>Automatic Topics processing is paused</Alert.Title>
         <Alert.Description>
-          <p className="break-words">{settings.data.pausedReason}</p>
+          <p className="break-words">{settings.data.blockMessage}</p>
         </Alert.Description>
       </Alert>
     );

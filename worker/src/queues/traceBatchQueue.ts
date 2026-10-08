@@ -1,3 +1,4 @@
+import { EvaluatorBlockReason } from "@prisma/client";
 import { type Processor } from "bullmq";
 import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
@@ -60,12 +61,15 @@ class TopicsBatchProjects {
     return { models, facets: await facets };
   }
 
-  async pause(projectId: string, reason: string) {
+  async pause(
+    projectId: string,
+    block: { blockReason: EvaluatorBlockReason; blockMessage: string },
+  ) {
     if (this.paused.has(projectId)) return;
     this.paused.add(projectId);
     // The project is skipped for this batch even if recording the pause fails.
     try {
-      await pauseTopicsModels(projectId, reason);
+      await pauseTopicsModels(projectId, block);
     } catch (error) {
       logger.error("Failed to pause Topics after a rejected connection", {
         projectId,
@@ -118,10 +122,10 @@ async function summarizeTraceBatch(
         error instanceof TopicsProviderUnavailable &&
         reason === "authentication"
       )
-        await topics.pause(
-          first.projectId,
-          `${error.message} Topics was turned off; fix the connection and turn it on again.`,
-        );
+        await topics.pause(first.projectId, {
+          blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
+          blockMessage: `${error.message} Topics was turned off; fix the connection and turn it on again.`,
+        });
       outcome = { outcome: "failed", reason };
       logger.warn("Topics summary failed for trace", {
         projectId: first.projectId,

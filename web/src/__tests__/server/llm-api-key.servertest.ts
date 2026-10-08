@@ -1855,7 +1855,9 @@ describe("llmApiKey.all RPC", () => {
         }),
       ).toMatchObject({
         enabled: false,
-        pausedReason: expect.stringContaining(`"${PROVIDER}" was deleted`),
+        blockReason: "LLM_CONNECTION_MISSING",
+        blockMessage: expect.stringContaining(`"${PROVIDER}" was deleted`),
+        blockedAt: expect.any(Date),
         summaryLlmApiKeyId: null,
         embeddingLlmApiKeyId: null,
         clusteringLlmApiKeyId: null,

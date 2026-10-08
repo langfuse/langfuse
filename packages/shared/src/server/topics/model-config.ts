@@ -1,4 +1,9 @@
-import type { LlmApiKeys, Prisma, TopicsModelConfig } from "@prisma/client";
+import {
+  EvaluatorBlockReason,
+  type LlmApiKeys,
+  type Prisma,
+  type TopicsModelConfig,
+} from "@prisma/client";
 import { prisma } from "../../db";
 import { InvalidRequestError } from "../../errors";
 import {
@@ -124,11 +129,16 @@ export async function getEnabledTopicsModels(
 /** Turns automatic processing off and records why, for the Topics page. */
 export async function pauseTopicsModels(
   projectId: string,
-  reason: string,
+  block: { blockReason: EvaluatorBlockReason; blockMessage: string },
 ): Promise<void> {
   await prisma.topicsModelConfig.updateMany({
     where: { projectId, enabled: true },
-    data: { enabled: false, pausedReason: reason },
+    data: {
+      enabled: false,
+      blockedAt: new Date(),
+      blockReason: block.blockReason,
+      blockMessage: block.blockMessage,
+    },
   });
 }
 
@@ -149,7 +159,9 @@ export async function pauseTopicsModelsUsingConnection(
     },
     data: {
       enabled: false,
-      pausedReason: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+      blockedAt: new Date(),
+      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
     },
   });
 }
@@ -173,7 +185,9 @@ export async function readTopicsModelSettings(projectId: string) {
       row?.clusteringModel ?? null,
     ),
     enabled: row?.enabled ?? false,
-    pausedReason: row?.pausedReason ?? null,
+    blockedAt: row?.blockedAt ?? null,
+    blockReason: row?.blockReason ?? null,
+    blockMessage: row?.blockMessage ?? null,
   };
 }
 
@@ -227,7 +241,9 @@ export async function saveTopicsModelSettings(
   const data = {
     enabled: settings.enabled,
     // Saving the settings acknowledges the last pause.
-    pausedReason: null,
+    blockedAt: null,
+    blockReason: null,
+    blockMessage: null,
     summaryLlmApiKeyId: settings.summary?.llmApiKeyId ?? null,
     summaryModel: settings.summary?.model ?? null,
     embeddingLlmApiKeyId: settings.embedding?.llmApiKeyId ?? null,

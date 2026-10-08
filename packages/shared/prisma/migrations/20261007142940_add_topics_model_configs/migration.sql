@@ -5,7 +5,10 @@ CREATE TABLE "topics_model_configs" (
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "project_id" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT false,
-    "paused_reason" TEXT,
+    -- Same columns as Evaluator, set when a configured connection is no longer valid.
+    "blocked_at" TIMESTAMP(3),
+    "block_reason" "EvaluatorBlockReason",
+    "block_message" TEXT,
     "summary_llm_api_key_id" TEXT,
     "summary_model" TEXT,
     "embedding_llm_api_key_id" TEXT,

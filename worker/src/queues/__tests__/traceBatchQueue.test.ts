@@ -835,10 +835,10 @@ describe("trace batch queue", () => {
       ["on", "trace-1", models],
       ["on", "trace-2", models],
     ]);
-    expect(pauseTopicsModels).toHaveBeenCalledExactlyOnceWith(
-      "on",
-      expect.stringContaining("Connection rejected (HTTP 401)."),
-    );
+    expect(pauseTopicsModels).toHaveBeenCalledExactlyOnceWith("on", {
+      blockReason: "LLM_CONNECTION_AUTH_INVALID",
+      blockMessage: expect.stringContaining("Connection rejected (HTTP 401)."),
+    });
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.topics.trace_outcomes",
       2,

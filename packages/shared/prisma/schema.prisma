@@ -1329,8 +1329,11 @@ model TopicsModelConfig {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Kill switch for automatic trace processing; facet rules are kept while off.
-  enabled      Boolean @default(false)
-  pausedReason String? @map("paused_reason")
+  enabled Boolean @default(false)
+  // Same columns as Evaluator, set when a configured connection is no longer valid.
+  blockedAt    DateTime?             @map("blocked_at")
+  blockReason  EvaluatorBlockReason? @map("block_reason")
+  blockMessage String?               @map("block_message")
 
   summaryLlmApiKeyId String?     @map("summary_llm_api_key_id")
   summaryLlmApiKey   LlmApiKeys? @relation("TopicsSummaryLlmApiKey", fields: [summaryLlmApiKeyId], references: [id], onDelete: SetNull)
