@@ -2760,20 +2760,31 @@ export const SidebarFollowResume = meta.story({
     const canvas = within(canvasElement);
     const feed = canvas.getByLabelText("Session conversation timeline");
     const list = canvas.getByRole("region", { name: "Session turns" });
-    list.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true }));
-    feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
-    await waitFor(() => expect(list.scrollTop).toBeGreaterThan(0), {
-      timeout: 3_000,
-    });
     const sidebar = within(canvas.getByRole("complementary"));
-    const active = await sidebar.findByRole("button", {
-      name: /^32\.2 Navigation turn 32/,
-    });
-    await expect(active).toHaveAttribute("aria-current", "true");
-    const activeRect = active.getBoundingClientRect();
-    const listRect = list.getBoundingClientRect();
-    await expect(activeRect.top).toBeGreaterThanOrEqual(listRect.top);
-    await expect(activeRect.bottom).toBeLessThanOrEqual(listRect.bottom);
+    list.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true }));
+    await waitFor(
+      () => {
+        // Newly mounted rows replace estimates, moving the end of the timeline.
+        feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
+        expect(
+          sidebar.getByRole("button", { name: /^32\.2 Navigation turn 32/ }),
+        ).toHaveAttribute("aria-current", "true");
+      },
+      { timeout: 3_000 },
+    );
+    await waitFor(
+      () => {
+        const active = sidebar.getByRole("button", {
+          name: /^32\.2 Navigation turn 32/,
+        });
+        expect(active).toHaveAttribute("aria-current", "true");
+        const activeRect = active.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        expect(activeRect.top).toBeGreaterThanOrEqual(listRect.top);
+        expect(activeRect.bottom).toBeLessThanOrEqual(listRect.bottom);
+      },
+      { timeout: 3_000 },
+    );
   },
 });
 export const NestedThreadsHidden = meta.story({
@@ -3087,14 +3098,26 @@ export const CollapsedLargeMessage = meta.story({
         selector: "pre",
       },
     );
-    await expect(content).not.toBeVisible();
+    const toggle = await timeline.findByRole("button", { name: "Show more" });
+    const preview = canvasElement.ownerDocument.getElementById(
+      toggle.getAttribute("aria-controls") ?? "",
+    );
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(preview).toHaveClass("max-h-96");
+    await expect(content.getBoundingClientRect().height).toBeGreaterThan(
+      preview?.getBoundingClientRect().height ?? 0,
+    );
     await expect(
       timeline.getByText("Summary: all operations completed successfully."),
     ).toBeVisible();
-    await userEvent.click(timeline.getByText("Expand content"));
-    await expect(content).toBeVisible();
-    await userEvent.click(timeline.getByText("Collapse content"));
-    await expect(content).not.toBeVisible();
+    await userEvent.click(toggle);
+    await expect(
+      timeline.getByRole("button", { name: "Show less" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(preview).not.toHaveClass("max-h-96");
+    await userEvent.click(timeline.getByRole("button", { name: "Show less" }));
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(preview).toHaveClass("max-h-96");
     const sidebar = within(within(canvasElement).getByRole("complementary"));
     await userEvent.type(
       sidebar.getByRole("textbox"),
