@@ -154,6 +154,11 @@ export function ConnectedLLMApiKeySettingsTable({
             >
               {({ openDialog: openDeleteDialog }) => (
                 <LLMApiKeySettingsTable
+                  actionsDisabledReason={
+                    owner.scope === "organization" && !canUpdate && !canDelete
+                      ? "Only organization owners and admins can modify organization connections."
+                      : undefined
+                  }
                   createAction={{
                     hasAccess: hasCreateAccess,
                     label:
