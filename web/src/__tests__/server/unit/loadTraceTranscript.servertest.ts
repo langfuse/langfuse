@@ -5,9 +5,24 @@ import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTrans
 
 const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),
+  recover: vi.fn(),
+  recoverActual: vi.fn(),
   observations: vi.fn(),
   root: vi.fn(),
 }));
+vi.mock(
+  "@/src/features/events/server/assembleSessionTraceTranscript",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@/src/features/events/server/assembleSessionTraceTranscript")
+      >();
+    mocks.recoverActual.mockImplementation(
+      actual.assembleSessionTraceTranscript,
+    );
+    return { assembleSessionTraceTranscript: mocks.recover };
+  },
+);
 vi.mock("@langfuse/shared/src/server", async () => {
   const { normalizeSpanIO } =
     await import("@langfuse/shared/src/utils/normalized-io");
@@ -68,6 +83,7 @@ function fixture(
     ],
   };
   mocks.assemble.mockReturnValue(transcript);
+  mocks.recover.mockReturnValue(transcript);
   mocks.observations.mockResolvedValue({
     observations: responses.map((name, index) => ({
       ...provenance,
@@ -83,7 +99,13 @@ function fixture(
   });
   return transcript;
 }
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.assemble.mockReset();
+  mocks.observations.mockReset();
+  mocks.root.mockReset();
+  mocks.recover.mockReset().mockImplementation(mocks.recoverActual);
+});
 
 it.each([
   { parentObservationId: null, isRootObservation: true },
@@ -150,6 +172,141 @@ it.each([
         },
       ],
     });
+  },
+);
+
+it.each([1, 2])(
+  "does not complete ambiguous ID-less calls with %i TOOL executions",
+  async (toolCount) => {
+    const input = { code: "return 42" };
+    const call = { type: "tool-call", toolName: "execute", input };
+    const generation = {
+      id: "generation",
+      traceId: "trace",
+      type: "GENERATION" as const,
+      name: "generation",
+      parentObservationId: null,
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: [{ role: "user", content: "Run a tool" }],
+      output: [
+        {
+          role: "assistant",
+          // Different raw encodings survive parser deduplication but normalize
+          // to identical arguments, so neither call uniquely identifies the TOOL.
+          parts:
+            toolCount === 1
+              ? [call, { ...call, input: JSON.stringify(input, null, 2) }]
+              : [call],
+        },
+      ],
+      metadata: {},
+    };
+    const observations = [
+      generation,
+      ...Array.from({ length: toolCount }, (_, index) => ({
+        ...generation,
+        id: `tool-${index}`,
+        type: "TOOL" as const,
+        name: "execute",
+        parentObservationId: generation.id,
+        startTime: new Date(index + 2),
+        input,
+        output: "42",
+        metadata: { callID: `call-${index}` },
+      })),
+    ];
+    mocks.observations.mockResolvedValue({
+      observations,
+      totalCount: observations.length,
+    });
+    mocks.assemble.mockImplementation(assembleTranscript);
+    const result = await loadTraceTranscript({
+      ...trace,
+      recoverToolResponses: true,
+    });
+    const calls = result
+      .transcript!.threads[0]!.currentTurn.messages.flatMap(
+        (message) => message.parts,
+      )
+      .filter((part) => part.type === "tool-call");
+    const baseline = assembleTranscript([{ ...generation, nestingLevel: 0 }]);
+    const originalCalls = baseline!.threads[0]!.currentTurn.messages.flatMap(
+      (message) => message.parts,
+    ).filter((part) => part.type === "tool-call");
+    expect(calls).toEqual(originalCalls);
+    expect(calls.every((part) => part.toolCallId === null)).toBe(true);
+  },
+);
+
+it.each([
+  { name: "JSON", output: { answer: 42 } },
+  {
+    name: "reasoning",
+    output: [
+      {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "Thinking", signature: "signature" },
+        ],
+      },
+    ],
+  },
+])(
+  "preserves generation $name while recovering calls through real assembly",
+  async ({ output }) => {
+    const generation = {
+      id: "generation",
+      traceId: "trace",
+      type: "GENERATION" as const,
+      name: "generation",
+      parentObservationId: null,
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: [{ role: "user", content: "Run a tool" }],
+      output,
+      metadata: {},
+    };
+    const observations = [
+      generation,
+      {
+        ...generation,
+        id: "tool",
+        type: "TOOL" as const,
+        name: "execute",
+        parentObservationId: generation.id,
+        startTime: new Date(2),
+        input: { code: "return 42" },
+        output: "42",
+        metadata: { callID: "call-1" },
+      },
+    ];
+    const snapshot = structuredClone(observations);
+    const baseline = assembleTranscript([{ ...generation, nestingLevel: 0 }]);
+    mocks.observations.mockResolvedValue({ observations, totalCount: 2 });
+    mocks.assemble.mockImplementation(assembleTranscript);
+
+    const result = await loadTraceTranscript({
+      ...trace,
+      recoverToolResponses: true,
+    });
+    const originalParts = baseline!.threads[0]!.currentTurn.messages.filter(
+      (message) => message.source === "output",
+    ).flatMap((message) => message.parts);
+    const recoveredParts = result
+      .transcript!.threads[0]!.currentTurn.messages.filter(
+        (message) =>
+          message.observationId === generation.id &&
+          message.source === "output",
+      )
+      .flatMap((message) => message.parts);
+    expect(recoveredParts.filter((part) => part.type !== "tool-call")).toEqual(
+      originalParts,
+    );
+    expect(
+      recoveredParts.filter((part) => part.type === "tool-call"),
+    ).toMatchObject([{ toolCallId: "call-1" }]);
+    expect(observations).toEqual(snapshot);
   },
 );
 
@@ -349,7 +506,10 @@ it("preserves explicit results that conflict with TOOL metadata", async () => {
     recoverToolResponses: true,
   });
 
-  expect(mocks.assemble).toHaveBeenCalledWith(observations);
+  expect(mocks.recover).toHaveBeenCalledWith(
+    observations,
+    expect.any(Function),
+  );
   const parts = result.transcript!.threads[0]!.currentTurn.messages.flatMap(
     (message) => message.parts,
   );
@@ -367,6 +527,7 @@ it("preserves explicit results that conflict with TOOL metadata", async () => {
 it.each([
   "missing-generation-call",
   "existing-generation-call",
+  "idless-generation-call",
   "existing-tool-result",
 ])(
   "pairs TOOL metadata call IDs through real assembly: %s",
@@ -384,14 +545,16 @@ it.each([
         endTime: new Date(1),
         input: [{ role: "user", content: "Run a tool" }],
         output:
-          scenario === "existing-generation-call"
+          scenario === "existing-generation-call" ||
+          scenario === "idless-generation-call"
             ? [
                 {
                   role: "assistant",
                   parts: [
                     {
                       type: "tool-call",
-                      toolCallId: "call-1",
+                      toolCallId:
+                        scenario === "idless-generation-call" ? null : "call-1",
                       toolName: "execute",
                       input,
                     },
@@ -506,7 +669,10 @@ it.each(["duplicate-call-id", "different-trace", "non-generation-parent"])(
       totalCount: observations.length,
     });
     await loadTraceTranscript({ ...trace, recoverToolResponses: true });
-    expect(mocks.assemble).toHaveBeenCalledWith(observations);
+    expect(mocks.recover).toHaveBeenCalledWith(
+      observations,
+      expect.any(Function),
+    );
     expect(original.threads[0]!.currentTurn.messages[1]!.parts[0]?.type).toBe(
       "text",
     );

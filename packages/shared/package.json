@@ -35,6 +35,14 @@
       "import": "./dist/src/server/transcript/ordering.js",
       "require": "./dist/src/server/transcript/ordering.js"
     },
+    "./src/server/transcript/threads": {
+      "import": "./dist/src/server/transcript/threads.js",
+      "require": "./dist/src/server/transcript/threads.js"
+    },
+    "./src/server/transcript/tool-calls": {
+      "import": "./dist/src/server/transcript/tool-calls.js",
+      "require": "./dist/src/server/transcript/tool-calls.js"
+    },
     "./src/server/transcript/transcript": {
       "import": "./dist/src/server/transcript/transcript.js",
       "require": "./dist/src/server/transcript/transcript.js"

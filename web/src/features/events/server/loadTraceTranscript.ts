@@ -1,3 +1,4 @@
+import { isEqual } from "lodash";
 import {
   assembleTranscript,
   getObservationByIdFromEventsTable,
@@ -9,8 +10,10 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   normalizeSpanIO,
+  type NormalizedMessage,
   type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
+import { assembleSessionTraceTranscript } from "./assembleSessionTraceTranscript";
 
 /** Generations and tools whose I/O one transcript reads at most. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
@@ -68,7 +71,10 @@ export async function loadTraceTranscript(trace: {
     }
     const recovered = recoverToolCalls(observations);
     return pairToolResponses(
-      assembleTranscript(orderObservations(recovered.observations)),
+      assembleSessionTraceTranscript(
+        orderObservations(recovered.observations),
+        recovered.transformOutput,
+      ),
       recovered.observationsByTraceAndId,
     );
   })();
@@ -132,8 +138,8 @@ function recoverToolCalls(observations: Observation[]) {
     Observation["traceId"],
     Map<string, Observation>
   >();
-  const callsByParent = new Map<Observation, ToolCallPart[]>();
-  const toolsByObservation = new Map<Observation, string>();
+  const callsByParent = new Map<string, ToolCallPart[]>();
+  const toolsByObservation = new Map<string, string>();
   const callCountsByTrace = new Map<
     Observation["traceId"],
     Map<string, number>
@@ -197,35 +203,47 @@ function recoverToolCalls(observations: Observation[]) {
       .flatMap((message) => message.parts)
       .find((part): part is ToolCallPart => part.type === "tool-call");
     if (!call) continue;
-    const calls = callsByParent.get(parent);
+    const parentKey = JSON.stringify([parent.traceId, parent.id]);
+    const calls = callsByParent.get(parentKey);
     if (calls) calls.push(call);
-    else callsByParent.set(parent, [call]);
+    else callsByParent.set(parentKey, [call]);
     if (!explicitResults.length) {
-      toolsByObservation.set(observation, callId);
+      toolsByObservation.set(
+        JSON.stringify([observation.traceId, observation.id]),
+        callId,
+      );
     }
   }
 
-  // Keep the original observations for provenance; only assembly sees recovered I/O.
-  const recoveredObservations = observations.map((observation) => {
-    const callId = toolsByObservation.get(observation);
-    if (callId) {
-      return {
-        ...observation,
+  const resolvedCallIds = new Set<string>();
+  const transformOutput = (
+    observation: Observation,
+    messages: NormalizedMessage[],
+  ): NormalizedMessage[] => {
+    if (observation.type === "TOOL") {
+      const callId = toolsByObservation.get(
+        JSON.stringify([observation.traceId, observation.id]),
+      );
+      if (
+        !callId ||
+        !resolvedCallIds.has(JSON.stringify([observation.traceId, callId]))
+      )
+        return messages;
+      return normalizeSpanIO({
+        input: undefined,
+        metadata: undefined,
         output: {
           role: "tool",
           name: observation.name,
           tool_call_id: callId,
           content: observation.output,
         },
-      };
+      }).messages;
     }
-    const calls = callsByParent.get(observation);
-    if (!calls) return observation;
-    const { messages } = normalizeSpanIO({
-      input: undefined,
-      output: observation.output,
-      metadata: observation.metadata,
-    });
+    const calls = callsByParent.get(
+      JSON.stringify([observation.traceId, observation.id]),
+    );
+    if (!calls || observation.type !== "GENERATION") return messages;
     const existingIds = new Set(
       messages.flatMap((message) =>
         message.parts.flatMap((part) =>
@@ -233,16 +251,69 @@ function recoverToolCalls(observations: Observation[]) {
         ),
       ),
     );
-    const missingCalls = calls.filter(
-      (call) => !existingIds.has(call.toolCallId),
+    const idlessCalls = messages.flatMap((message) =>
+      message.parts.filter(
+        (part): part is ToolCallPart =>
+          part.type === "tool-call" && !part.toolCallId,
+      ),
     );
-    if (!missingCalls.length) return observation;
-    return {
-      ...observation,
-      output: [...messages, { role: "assistant", parts: missingCalls }],
-    };
-  });
-  return { observations: recoveredObservations, observationsByTraceAndId };
+    const replacements = new Map<ToolCallPart, ToolCallPart>();
+    const missingCalls: ToolCallPart[] = [];
+    for (const call of calls) {
+      if (existingIds.has(call.toolCallId)) {
+        resolvedCallIds.add(
+          JSON.stringify([observation.traceId, call.toolCallId]),
+        );
+        continue;
+      }
+      const matches = idlessCalls.filter(
+        (existing) =>
+          existing.toolName === call.toolName &&
+          isEqual(existing.input, call.input),
+      );
+      // Ambiguous existing calls cannot safely be completed or duplicated.
+      if (matches.length > 0) {
+        const recoveredMatches = calls.filter(
+          (candidate) =>
+            candidate.toolName === call.toolName &&
+            isEqual(candidate.input, call.input),
+        );
+        if (matches.length === 1 && recoveredMatches.length === 1) {
+          replacements.set(matches[0]!, call);
+          resolvedCallIds.add(
+            JSON.stringify([observation.traceId, call.toolCallId]),
+          );
+        }
+        continue;
+      }
+      missingCalls.push(call);
+      resolvedCallIds.add(
+        JSON.stringify([observation.traceId, call.toolCallId]),
+      );
+    }
+    if (!replacements.size && !missingCalls.length) return messages;
+    const recoveredMessages = messages.map((message) => ({
+      ...message,
+      parts: message.parts.map((part) => {
+        if (part.type !== "tool-call") return part;
+        const replacement = replacements.get(part);
+        return replacement
+          ? { ...part, toolCallId: replacement.toolCallId }
+          : part;
+      }),
+    }));
+    return missingCalls.length
+      ? [
+          ...recoveredMessages,
+          { role: "assistant", source: "output", parts: missingCalls },
+        ]
+      : recoveredMessages;
+  };
+  return {
+    observations,
+    observationsByTraceAndId,
+    transformOutput,
+  };
 }
 
 function pairToolResponses(
