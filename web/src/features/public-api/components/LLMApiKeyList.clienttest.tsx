@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { PropsWithChildren } from "react";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
@@ -234,7 +235,7 @@ describe("LLM connection editing", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.pointerMove(
+    await userEvent.hover(
       screen.getByLabelText("About organization connections"),
     );
     expect(
