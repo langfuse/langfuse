@@ -493,6 +493,8 @@ export function DataTable<TData extends object, TValue>({
           className={cn(
             "relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]",
             table.getVisibleLeafColumns().at(-1)?.getCanResize() && "pr-2",
+            // Room for the last row's resize strip, which hangs 3px below the table.
+            onCustomRowHeightChange != null && "pb-[3px]",
           )}
           style={{ ...columnSizeVars }}
           onScroll={onScroll}
@@ -922,6 +924,21 @@ function TableRowComponent<TData>({
   );
 }
 
+/** Each side of the 6px strip centered on the row's bottom border. */
+const ROW_RESIZE_HALF_PX = 3;
+const ROW_BORDER_PX = 1;
+
+type RowResizeEdge = "above" | "below" | "last";
+
+function rowResizeHandleStyle(edge: RowResizeEdge): CSSProperties {
+  if (edge === "below") return { top: 0, height: ROW_RESIZE_HALF_PX };
+  if (edge === "last") {
+    return { bottom: -ROW_RESIZE_HALF_PX, height: ROW_RESIZE_HALF_PX * 2 };
+  }
+  // Ends on the outer edge of the 1px border, so 3px sits above that line.
+  return { bottom: -ROW_BORDER_PX, height: ROW_RESIZE_HALF_PX };
+}
+
 /** Preset Small, or a dragged height still below this table's Medium line. */
 function rowUsesCompactHeight(
   rowHeight: RowHeight | undefined,
@@ -939,6 +956,7 @@ function rowHeightFrameProps({
   mediumPx,
   topAlignCells,
   measure,
+  clipContent = false,
 }: {
   rowHeight?: RowHeight;
   rowheighttw?: string;
@@ -946,6 +964,7 @@ function rowHeightFrameProps({
   mediumPx: number;
   topAlignCells: boolean;
   measure: boolean;
+  clipContent?: boolean;
 }): {
   className: string;
   style?: CSSProperties;
@@ -962,6 +981,7 @@ function rowHeightFrameProps({
       isSmallRowHeight && !topAlignCells ? "items-center" : "items-start",
       !isSmallRowHeight && "py-1",
       rowHeightPx == null ? rowheighttw : "min-h-0 overflow-hidden",
+      clipContent && "w-full min-w-0 overflow-hidden",
     ),
     style:
       rowHeightPx != null
@@ -1185,13 +1205,28 @@ function TableBodyComponent<TData>({
               mediumRowPx,
             );
             const columnDef = cell.column.columnDef as LangfuseColumnDef<TData>;
+            const isLastRow = row.index === rowModelRows.length - 1;
             const isPrimaryHandle = row.index === 0 && cellIndex === 0;
+            // 3px above this row's border, and 3px at the top of the next
+            // row. The lower half lives in the next row so it can be grabbed
+            // without covering the rest of that row. The last row has no
+            // neighbor, so its strip hangs 3px below its own bottom edge.
+            const resizeEdges: RowResizeEdge[] = [];
+            if (rowResizeEnabled && row.index > 0) resizeEdges.push("below");
+            if (rowResizeEnabled && isLastRow) resizeEdges.push("last");
+            else if (rowResizeEnabled) resizeEdges.push("above");
+            const primaryEdge: RowResizeEdge | null = isPrimaryHandle
+              ? isLastRow
+                ? "last"
+                : "above"
+              : null;
 
             return (
               <TableCell
                 key={cell.id}
                 className={cn(
-                  "overflow-hidden border-b text-xs first:pl-2",
+                  "border-b text-xs first:pl-2",
+                  rowResizeEnabled ? "overflow-visible" : "overflow-hidden",
                   rowResizeEnabled && "relative",
                   getCellPaddingClassName(columnDef.cellPadding ?? cellPadding),
                   isSmallRowHeight && "whitespace-nowrap",
@@ -1215,6 +1250,7 @@ function TableBodyComponent<TData>({
                     mediumPx: mediumRowPx,
                     topAlignCells,
                     measure: rowResizeEnabled,
+                    clipContent: rowResizeEnabled,
                   })}
                 >
                   {isStringCell && isSmallRowHeight ? (
@@ -1243,45 +1279,51 @@ function TableBodyComponent<TData>({
                     flexRender(cell.column.columnDef.cell, cell.getContext())
                   )}
                 </div>
-                {rowResizeEnabled && (
-                  <div
-                    data-row-resize-handle=""
-                    role={isPrimaryHandle ? "slider" : undefined}
-                    aria-orientation={isPrimaryHandle ? "vertical" : undefined}
-                    aria-label={isPrimaryHandle ? "Row height" : undefined}
-                    aria-valuemin={
-                      isPrimaryHandle ? MIN_CUSTOM_ROW_HEIGHT_PX : undefined
-                    }
-                    aria-valuemax={
-                      isPrimaryHandle ? MAX_CUSTOM_ROW_HEIGHT_PX : undefined
-                    }
-                    aria-valuenow={
-                      isPrimaryHandle
-                        ? (effectiveRowHeightPx ?? measuredPx)
-                        : undefined
-                    }
-                    aria-hidden={isPrimaryHandle ? undefined : true}
-                    tabIndex={isPrimaryHandle ? 0 : undefined}
-                    onPointerDown={onResizePointerDown}
-                    onPointerMove={onResizePointerMove}
-                    onPointerUp={finishResize}
-                    onPointerCancel={finishResize}
-                    onKeyDown={isPrimaryHandle ? onResizeKeyDown : undefined}
-                    onKeyUp={isPrimaryHandle ? commitKeyboardResize : undefined}
-                    onBlur={isPrimaryHandle ? commitKeyboardResize : undefined}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    className={cn(
-                      // Invisible strip along the bottom edge. The row-resize
-                      // cursor is the pointer affordance; keyboard focus keeps
-                      // a hairline ring.
-                      "absolute inset-x-0 bottom-0 h-2 cursor-row-resize touch-none bg-transparent select-none",
-                      "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
-                    )}
-                  />
-                )}
+                {resizeEdges.map((edge) => {
+                  const primary = edge === primaryEdge;
+                  return (
+                    <div
+                      key={edge}
+                      data-row-resize-handle=""
+                      data-row-resize-edge={edge}
+                      role={primary ? "slider" : undefined}
+                      aria-orientation={primary ? "vertical" : undefined}
+                      aria-label={primary ? "Row height" : undefined}
+                      aria-valuemin={
+                        primary ? MIN_CUSTOM_ROW_HEIGHT_PX : undefined
+                      }
+                      aria-valuemax={
+                        primary ? MAX_CUSTOM_ROW_HEIGHT_PX : undefined
+                      }
+                      aria-valuenow={
+                        primary
+                          ? (effectiveRowHeightPx ?? measuredPx)
+                          : undefined
+                      }
+                      aria-hidden={primary ? undefined : true}
+                      tabIndex={primary ? 0 : undefined}
+                      onPointerDown={onResizePointerDown}
+                      onPointerMove={onResizePointerMove}
+                      onPointerUp={finishResize}
+                      onPointerCancel={finishResize}
+                      onKeyDown={primary ? onResizeKeyDown : undefined}
+                      onKeyUp={primary ? commitKeyboardResize : undefined}
+                      onBlur={primary ? commitKeyboardResize : undefined}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      style={rowResizeHandleStyle(edge)}
+                      className={cn(
+                        // Invisible. The row-resize cursor is the pointer
+                        // affordance; keyboard focus keeps a hairline ring.
+                        "absolute inset-x-0 z-[1] cursor-row-resize touch-none bg-transparent select-none",
+                        primary &&
+                          "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
+                      )}
+                    />
+                  );
+                })}
               </TableCell>
             );
           });

@@ -163,6 +163,36 @@ describe("DataTable custom row height", () => {
     );
   }
 
+  it("centers a 6px hit area on the row border, 3px on each side", () => {
+    renderResizableTable();
+
+    const handles = [
+      ...document.querySelectorAll<HTMLElement>("[data-row-resize-handle]"),
+    ];
+    const edge = (name: string) =>
+      handles.filter((el) => el.dataset.rowResizeEdge === name);
+
+    // Two columns. The first row owns the 3px above its border. The second
+    // row owns the 3px below that border, and a 6px strip on its own bottom
+    // edge because nothing follows it.
+    expect(edge("above")).toHaveLength(2);
+    expect(edge("below")).toHaveLength(2);
+    expect(edge("last")).toHaveLength(2);
+    for (const el of edge("above")) {
+      expect(el).toHaveStyle({ height: "3px", bottom: "-1px" });
+    }
+    for (const el of edge("below")) {
+      expect(el).toHaveStyle({ height: "3px", top: "0px" });
+    }
+    for (const el of edge("last")) {
+      expect(el).toHaveStyle({ height: "6px", bottom: "-3px" });
+      expect(el).toHaveAttribute("aria-hidden", "true");
+    }
+    expect(screen.getAllByRole("slider", { name: "Row height" })).toHaveLength(
+      1,
+    );
+  });
+
   it("does not render a row resize handle for tables that only use presets", () => {
     render(
       <SortableTable initialOrderBy={{ column: "scoreName", order: "ASC" }} />,
