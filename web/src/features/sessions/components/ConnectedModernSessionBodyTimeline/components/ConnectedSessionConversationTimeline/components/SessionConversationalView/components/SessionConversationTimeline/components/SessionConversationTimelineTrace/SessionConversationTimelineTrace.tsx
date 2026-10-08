@@ -25,7 +25,6 @@ export function SessionConversationTimelineTrace({
   scrollTarget,
   itemId,
   threadIndex,
-  threadNumber,
   displayNumber,
 }: {
   itemId?: string;
@@ -71,9 +70,6 @@ export function SessionConversationTimelineTrace({
           >
             {trace.name ?? "Trace"} · {trace.id}
           </span>
-          {threadNumber !== undefined && (
-            <span className="shrink-0">(Thread {threadNumber})</span>
-          )}
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
         <button
