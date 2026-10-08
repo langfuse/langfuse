@@ -290,20 +290,21 @@ export function CodeView(props: {
   return (
     <div
       className={cn(
-        "flex max-w-full min-w-0 flex-col",
+        "group/iosection flex max-w-full min-w-0 flex-col",
         props.className,
         props.scrollable && "max-h-full min-h-0",
       )}
     >
       <>
         {props.title ? (
-          <div className="my-1 flex shrink-0 items-center justify-between pl-1">
+          <div className="my-1 flex shrink-0 items-center justify-between">
             <div className="text-sm font-bold">{props.title}</div>
             <Button
               variant="ghost"
               size="icon-xs"
               onClick={handleCopy}
-              className=""
+              // pointer-coarse: touch devices have no hover, so copy stays visible.
+              className="opacity-0 group-hover/iosection:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
             >
               {isCopied ? (
                 CopySuccessIcon
@@ -316,7 +317,7 @@ export function CodeView(props: {
       </>
       <div
         className={cn(
-          "relative flex max-w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md border",
+          "bg-surface-output relative flex max-w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md",
           props.scrollable ? "max-h-full min-h-0 overflow-hidden" : "",
         )}
       >

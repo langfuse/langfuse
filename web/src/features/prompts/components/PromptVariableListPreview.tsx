@@ -1,4 +1,4 @@
-import { Badge } from "@/src/components/ui/badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 
 export const PromptVariableListPreview = ({
   variables,
@@ -7,14 +7,14 @@ export const PromptVariableListPreview = ({
 }) => {
   return (
     <div>
-      <p className="text-muted-foreground mb-2 text-sm">
+      <p className="text-foreground-secondary mb-2 text-xs">
         The following variables are available:
       </p>
       <div className="flex min-h-6 flex-wrap gap-2">
         {variables.map((variable) => (
-          <Badge key={variable} variant="outline">
+          <BadgeShell key={variable} font="mono" size="md">
             {variable}
-          </Badge>
+          </BadgeShell>
         ))}
       </div>
     </div>

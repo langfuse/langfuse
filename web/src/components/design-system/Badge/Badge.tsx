@@ -10,6 +10,8 @@ const badgeVariants = cva(
   {
     variants: {
       size: {
+        /** Matches the 24px entity tile next to page titles. */
+        lg: "h-6 gap-1.5 px-2",
         default: "h-5.5 gap-1.5 pr-1.5 pl-2",
         md: "h-5 gap-1 px-1.5",
         sm: "h-4.5 gap-1 px-1.5",
@@ -25,6 +27,7 @@ const badgeVariants = cva(
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
+        inverted: "border-transparent bg-primary text-primary-foreground",
       },
       interactive: {
         true: "underline-dotted",

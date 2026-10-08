@@ -1,12 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import {
-  CircleCheckIcon,
-  CircleFadingArrowUp,
-  CircleIcon,
-  Plus,
-  TagIcon,
-  X,
-} from "lucide-react";
+import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "lucide-react";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";
 import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 import { Badge } from "@/src/components/ui/badge";
@@ -186,7 +179,7 @@ export function SkillLabelsSelect({
                   "opacity-0 group-focus-within/skill-version:opacity-100 group-hover/skill-version:opacity-100 [@media(hover:none)]:opacity-100",
               )}
             >
-              <CircleFadingArrowUp className="icon-base text-icon-foreground" />
+              <Plus className="icon-base text-icon-foreground" />
             </Button>
           </div>
         </Trigger>
