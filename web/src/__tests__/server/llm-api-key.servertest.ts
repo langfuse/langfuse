@@ -1641,11 +1641,8 @@ describe("llmApiKey.all RPC", () => {
     });
 
     expect(updatedKeys.length).toBe(1);
-    // Note: Current router logic doesn't actually clear headers when passing empty object
-    // because Prisma undefined means "don't update", not "set to null"
-    // The headers remain unchanged when an empty object is passed
-    expect(updatedKeys[0].extraHeaders).not.toBeNull();
-    expect(updatedKeys[0].extraHeaderKeys).not.toBeNull();
+    expect(updatedKeys[0].extraHeaders).toBeNull();
+    expect(updatedKeys[0].extraHeaderKeys).toEqual([]);
 
     // Other fields should remain unchanged
     expect(updatedKeys[0].secretKey).toEqual(initialKeys[0].secretKey);
@@ -1820,6 +1817,9 @@ describe("llmApiKey.all RPC", () => {
           reason: null,
         });
       }
+      expect(
+        await prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+      ).toBeNull();
     });
 
     it("keeps evaluators and the default model when an organization fallback remains", async () => {

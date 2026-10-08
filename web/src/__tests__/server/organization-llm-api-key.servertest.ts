@@ -125,6 +125,64 @@ describe("organization LLM connections", () => {
     expect(inherited[0]).not.toHaveProperty("secretKey");
   });
 
+  it("lists inherited connections unless a project connection overrides the provider", async () => {
+    const setup = await createOrgProjectAndApiKey();
+    await prisma.llmApiKeys.createMany({
+      data: [
+        {
+          organizationId: setup.orgId,
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "encrypted-organization-openai",
+          displaySecretKey: "...open",
+        },
+        {
+          organizationId: setup.orgId,
+          provider: "anthropic",
+          adapter: LLMAdapter.Anthropic,
+          secretKey: "encrypted-organization-anthropic",
+          displaySecretKey: "...thro",
+        },
+        {
+          projectId: setup.projectId,
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "encrypted-project-openai",
+          displaySecretKey: "...proj",
+        },
+      ],
+    });
+    const caller = createCaller(
+      createSession({
+        orgId: setup.orgId,
+        projectId: setup.projectId,
+        orgRole: "MEMBER",
+        projectRole: "VIEWER",
+      }),
+    );
+
+    const effective = await caller.llmApiKey.effective({
+      projectId: setup.projectId,
+    });
+
+    expect(effective.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "openai",
+          scope: "project",
+        }),
+        expect.objectContaining({
+          provider: "anthropic",
+          scope: "organization",
+        }),
+      ]),
+    );
+    expect(effective.data).toHaveLength(2);
+    expect(effective.data.every((connection) => !connection.secretKey)).toBe(
+      true,
+    );
+  });
+
   it("rejects organization access across tenants", async () => {
     const [ownSetup, otherSetup] = await Promise.all([
       createOrgProjectAndApiKey(),
