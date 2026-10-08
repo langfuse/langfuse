@@ -51,7 +51,7 @@ function drawMap(
   const ink = `hsl(${theme.getPropertyValue("--foreground").trim()})`;
   const cloudVisibility = 1 - readingLayoutBlend(camera.zoom);
   context.globalAlpha = cloudVisibility;
-  for (const zone of model.zones) {
+  for (const zone of frame.zones) {
     if (!cloudVisibility) break;
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
     const { x, y, rx, ry } = zoneHalo(zone, camera, model.bounds, size);
@@ -175,7 +175,6 @@ export function TopicMapCanvas({
           previous.point,
           scene.camera.zoom,
           layout,
-          selectedTopic,
         );
         scene.offsets.set(id, {
           x: previous.worldPosition.x - next.x,
@@ -224,12 +223,7 @@ export function TopicMapCanvas({
     if (layoutMoving) {
       unsettled = true;
       for (const point of model.points) {
-        const next = displayedNodeWorldPoint(
-          point,
-          scene.camera.zoom,
-          layout,
-          selectedTopic,
-        );
+        const next = displayedNodeWorldPoint(point, scene.camera.zoom, layout);
         const offset = scene.offsets.get(point.traceId);
         positions.set(point.traceId, {
           x: next.x + (offset?.x ?? 0) * offsetWeight,

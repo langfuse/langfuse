@@ -26,6 +26,7 @@ import {
   type TopicMapStore,
 } from "./topic-map-store";
 import {
+  baseScale,
   fitCamera,
   displayedNodeWorldPoint,
   fitMapPoints,
@@ -76,9 +77,21 @@ export function TopicMapExplorer({
     width: stageSize?.width || 960,
     height: stageSize?.height || 560,
   };
+  const readingAnchor = useStore(store, (s) => s.readingAnchor);
+  const effectiveReadingAnchor =
+    selectedTopic ??
+    (model.zones.some((zone) => zone.id === readingAnchor)
+      ? readingAnchor
+      : null);
   const layout = useMemo(
-    () => prepareNodeLayout(model, { width: size.width, height: size.height }),
-    [model, size.width, size.height],
+    () =>
+      prepareNodeLayout(
+        model,
+        { width: size.width, height: size.height },
+        selectedTopic,
+        effectiveReadingAnchor,
+      ),
+    [model, size.width, size.height, selectedTopic, effectiveReadingAnchor],
   );
   const selectedZone = model.zones.find((zone) => zone.id === selectedTopic);
   const initialCamera = fitCamera(
@@ -128,6 +141,7 @@ export function TopicMapExplorer({
     animationRef.current = requestAnimationFrame(step);
   };
   const chooseZone = (id: string | null) => {
+    store.setState({ readingAnchor: null });
     const zone = model.zones.find((item) => item.id === id);
     flyTo(
       fitCamera(zone?.bounds ?? model.bounds, model.bounds, size),
@@ -136,25 +150,56 @@ export function TopicMapExplorer({
     );
     onSelectTopic(id);
   };
-  const fitSelection = () =>
+  const fitSelection = () => {
+    store.setState({ readingAnchor: null });
     flyTo(
       fitCamera(selectedZone?.bounds ?? model.bounds, model.bounds, size),
       selectedTopic,
       true,
     );
-  const zoom = (levels: number, anchor = { x: 0.5, y: 0.5 }) =>
-    setCamera(zoomCamera(getCamera(), levels, anchor, model.bounds, size));
+  };
+  const zoom = (levels: number, anchor = { x: 0.5, y: 0.5 }) => {
+    const before = getCamera();
+    const next = zoomCamera(before, levels, anchor, model.bounds, size);
+    if (next.zoom <= 3) store.setState({ readingAnchor: null });
+    else if (selectedTopic === null && before.zoom <= 3) {
+      const scale = baseScale(model.bounds, size) * before.zoom;
+      const at = {
+        x: before.x + ((anchor.x - 0.5) * size.width) / scale,
+        y: before.y - ((anchor.y - 0.5) * size.height) / scale,
+      };
+      let nearest: (typeof model.zones)[number] | undefined;
+      let distance = Infinity;
+      for (const zone of model.zones) {
+        const candidate = Math.hypot(zone.x - at.x, zone.y - at.y);
+        if (candidate < distance) {
+          distance = candidate;
+          nearest = zone;
+        }
+      }
+      store.setState({ readingAnchor: nearest?.id ?? null });
+    }
+    setCamera(next);
+  };
   const focusTrace = (id: string) => {
     const point = model.pointById.get(id);
     if (!point) return;
     onSelectTrace(id);
-    const targetZoom = Math.max(4, getCamera().zoom);
-    const position = displayedNodeWorldPoint(
-      point,
-      targetZoom,
-      layout,
+    const before = getCamera();
+    const targetZoom = Math.max(4, before.zoom);
+    const nextAnchor =
+      selectedTopic === null && before.zoom <= 3
+        ? point.groupId
+        : effectiveReadingAnchor;
+    if (selectedTopic === null && before.zoom <= 3)
+      store.setState({ readingAnchor: nextAnchor });
+    const targetLayout = prepareNodeLayout(
+      model,
+      size,
       selectedTopic,
+      nextAnchor,
     );
+    const position = displayedNodeWorldPoint(point, targetZoom, targetLayout);
     flyTo({ ...position, zoom: targetZoom }, selectedTopic);
   };
   const gestures = usePanZoomGestures({
@@ -355,7 +400,7 @@ export function TopicMapExplorer({
               (label ? null : (hovered?.traceId ?? null)),
             label?.dataset.topicZone ??
               hovered?.groupId ??
-              hitZone(model, frame.camera, size, at)?.id ??
+              hitZone(frame, at)?.id ??
               null,
             pointer,
             pointerAt,

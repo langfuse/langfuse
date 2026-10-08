@@ -5,6 +5,7 @@ import {
   displayedNodeWorldPoint,
   fitCamera,
   hitMapNode,
+  hitZone,
   panCamera,
   prepareMapHover,
   prepareMapNodes,
@@ -81,7 +82,7 @@ function frameFor(
 ) {
   return prepareMapNodes(
     model,
-    prepareNodeLayout(model, plot),
+    prepareNodeLayout(model, plot, readingTopic),
     { ...fitCamera(model.bounds, model.bounds, plot), zoom },
     plot,
     movingPointer,
@@ -363,6 +364,119 @@ describe("topic map preparation", () => {
   });
 });
 describe("topic map node layout", () => {
+  it("keeps vertically neighboring zone envelopes separate throughout reading zoom", () => {
+    const model = prepareTopicMap(
+      data(
+        ["billing", "retrieval"].flatMap((topicId, group) =>
+          Array.from({ length: 60 }, (_, i) =>
+            point(
+              `${topicId}-${i}`,
+              ((i % 10) - 4.5) * 4,
+              (group === 0 ? 3 : -3) + (Math.floor(i / 10) - 2.5) * 0.2,
+              { topicId },
+            ),
+          ),
+        ),
+      ),
+      topics,
+    );
+    const layout = prepareNodeLayout(model, size);
+    for (let zoom = 3; zoom <= 10; zoom += 0.25) {
+      const ys = (id: string) =>
+        model.zones
+          .find((zone) => zone.id === id)!
+          .points.map((p) => displayedNodeWorldPoint(p, zoom, layout).y);
+      expect(
+        Math.min(...ys("billing")),
+        `Zone envelopes at zoom ${zoom}`,
+      ).toBeGreaterThan(Math.max(...ys("retrieval")));
+    }
+  });
+  it("keeps horizontal neighbors separate and anchors the cloud being read", () => {
+    const input = data([
+      ...["billing", "retrieval"].flatMap((topicId, group) =>
+        Array.from({ length: 60 }, (_, i) =>
+          point(
+            `${topicId}-${i}`,
+            (group === 0 ? -3 : 3) + ((i % 3) - 1) * 0.2,
+            Math.floor(i / 3) - 9.5,
+            { topicId },
+          ),
+        ),
+      ),
+      point("remote", 200, 0, { topicId: "remote" }),
+    ]);
+    const model = prepareTopicMap(input, topics);
+    const layout = prepareNodeLayout(model, size, null, "billing");
+    const billing = model.zones.find((zone) => zone.id === "billing")!;
+    const targetXs = billing.points.map(
+      (p) => layout.worldTargets.get(p.traceId)!.x,
+    );
+    expect((Math.min(...targetXs) + Math.max(...targetXs)) / 2).toBeCloseTo(
+      billing.x,
+      8,
+    );
+    for (let zoom = 3; zoom <= 10; zoom += 0.25) {
+      const xs = (id: string) =>
+        model.zones
+          .find((zone) => zone.id === id)!
+          .points.map((p) => displayedNodeWorldPoint(p, zoom, layout).x);
+      expect(Math.max(...xs("billing"))).toBeLessThan(
+        Math.min(...xs("retrieval")),
+      );
+    }
+    const reordered = prepareNodeLayout(
+      prepareTopicMap(data([...input.points].reverse()), topics),
+      size,
+      null,
+      "billing",
+    );
+    for (const p of model.points)
+      expect(layout.worldTargets.get(p.traceId)?.x).toBeCloseTo(
+        reordered.worldTargets.get(p.traceId)!.x,
+        8,
+      );
+  });
+  it("moves a foreign cloud rigidly out of a focused grid and follows it with zone hints", () => {
+    const model = prepareTopicMap(
+      data([
+        ...Array.from({ length: 60 }, (_, i) =>
+          point(
+            `billing-${i}`,
+            ((i % 10) - 4.5) * 4,
+            3 + (Math.floor(i / 10) - 2.5) * 0.2,
+          ),
+        ),
+        point("foreign-a", -1, -3, { topicId: "retrieval" }),
+        point("foreign-b", 1, -3.2, { topicId: "retrieval" }),
+      ]),
+      topics,
+    );
+    const canonical = structuredClone(model.points);
+    const frame = frameFor(model, 8, size, "billing");
+    const a = frame.nodeById.get("foreign-a")!;
+    const b = frame.nodeById.get("foreign-b")!;
+    const sourceA = model.pointById.get("foreign-a")!;
+    const sourceB = model.pointById.get("foreign-b")!;
+    expect(b.worldPosition.x - a.worldPosition.x).toBeCloseTo(
+      sourceB.x - sourceA.x,
+      8,
+    );
+    expect(b.worldPosition.y - a.worldPosition.y).toBeCloseTo(
+      sourceB.y - sourceA.y,
+      8,
+    );
+    expect(a.expansion).toBe(0);
+    expect(a.textOpacity).toBe(0);
+    expect(a.worldPosition.y).toBeLessThan(sourceA.y);
+    const zone = frame.zones.find((z) => z.id === "retrieval")!;
+    const position = screenPoint(zone, frame.camera, model.bounds, size);
+    expect(hitZone(frame, position)?.id).toBe("retrieval");
+    expect(prepareMapHover(frame, null, "retrieval").zones[0].position).toEqual(
+      position,
+    );
+    expect(model.points).toEqual(canonical);
+  });
   it("orders cells by spatial rows instead of trace identifiers and supports a mobile column", () => {
     const input = data([
       point("z-top-left", -1, 1),
@@ -416,9 +530,9 @@ describe("topic map node layout", () => {
       ]),
       topics,
     );
-    const layout = prepareNodeLayout(model, size);
+    const layout = prepareNodeLayout(model, size, "billing");
     const foreign = model.pointById.get("foreign")!;
-    expect(displayedNodeWorldPoint(foreign, 10, layout, "billing")).toEqual({
+    expect(displayedNodeWorldPoint(foreign, 10, layout)).toEqual({
       x: foreign.x,
       y: foreign.y,
     });

@@ -14,6 +14,7 @@ export function createTopicMapStore() {
   return createStore(() => ({
     camera: null as Camera | null,
     scope: null as string | null,
+    readingAnchor: null as string | null,
     pointer: { x: 0, y: 0 },
     // Client coordinates distinguish physical movement from layout-driven events.
     pointerAt: null as PointerPosition | null,

@@ -60,6 +60,7 @@ export type TopicMapNodeFrame = {
   size: Size;
   pointer: MapPosition;
   readingTopic: string | null;
+  zones: TopicMapModel["zones"];
   nodes: TopicMapNode[];
   nodeById: ReadonlyMap<string, TopicMapNode>;
 };
@@ -246,39 +247,157 @@ function readingNodeSize(size: Size) {
   return { width: Math.max(6, Math.min(264, size.width - 48)), height: 144 };
 }
 
+type ReadingZone = {
+  zone: TopicMapModel["zones"][number];
+  bounds: Bounds;
+};
+
+function separationAxis(a: ReadingZone, b: ReadingZone): "x" | "y" {
+  const first = a.zone.bounds;
+  const second = b.zone.bounds;
+  const gapX = Math.max(first.minX - second.maxX, second.minX - first.maxX);
+  const gapY = Math.max(first.minY - second.maxY, second.minY - first.maxY);
+  if (gapX >= 0 && gapY < 0) return "x";
+  if (gapY >= 0 && gapX < 0) return "y";
+  const spanX = Math.max(
+    first.maxX - first.minX,
+    second.maxX - second.minX,
+    0.1,
+  );
+  const spanY = Math.max(
+    first.maxY - first.minY,
+    second.maxY - second.minY,
+    0.1,
+  );
+  const x = gapX >= 0 ? gapX : Math.abs(a.zone.x - b.zone.x);
+  const y = gapY >= 0 ? gapY : Math.abs(a.zone.y - b.zone.y);
+  return x / spanX >= y / spanY ? "x" : "y";
+}
+
+function separateReadingZones(
+  zones: ReadingZone[],
+  gap: number,
+  anchorZoneId: string | null,
+) {
+  const constraints = {
+    x: new Map<string, { before: string; distance: number }[]>(),
+    y: new Map<string, { before: string; distance: number }[]>(),
+  };
+  for (let i = 0; i < zones.length; i++) {
+    for (let j = i + 1; j < zones.length; j++) {
+      const axis = separationAxis(zones[i], zones[j]);
+      const [a, b] = [zones[i], zones[j]].sort(
+        (a, b) =>
+          a.zone[axis] - b.zone[axis] || a.zone.id.localeCompare(b.zone.id),
+      );
+      const distance =
+        axis === "x"
+          ? a.bounds.maxX - a.zone.x - (b.bounds.minX - b.zone.x) + gap
+          : a.bounds.maxY - a.zone.y - (b.bounds.minY - b.zone.y) + gap;
+      const predecessors = constraints[axis].get(b.zone.id) ?? [];
+      predecessors.push({ before: a.zone.id, distance });
+      constraints[axis].set(b.zone.id, predecessors);
+    }
+  }
+  const offsets = new Map(zones.map(({ zone }) => [zone.id, { x: 0, y: 0 }]));
+  for (const axis of ["x", "y"] as const) {
+    const centers = new Map<string, number>();
+    // Canonical ordering makes each axis a DAG; spacing propagates without iterative repulsion.
+    for (const { zone } of [...zones].sort(
+      (a, b) =>
+        a.zone[axis] - b.zone[axis] || a.zone.id.localeCompare(b.zone.id),
+    )) {
+      let center = zone[axis];
+      for (const constraint of constraints[axis].get(zone.id) ?? [])
+        center = Math.max(
+          center,
+          centers.get(constraint.before)! + constraint.distance,
+        );
+      centers.set(zone.id, center);
+      offsets.get(zone.id)![axis] = center - zone[axis];
+    }
+    const anchor = offsets.get(anchorZoneId ?? "");
+    const drift =
+      anchor?.[axis] ??
+      zones.reduce(
+        (sum, { zone }) =>
+          sum + offsets.get(zone.id)![axis] * zone.points.length,
+        0,
+      ) /
+        Math.max(
+          1,
+          zones.reduce((sum, { zone }) => sum + zone.points.length, 0),
+        );
+    for (const offset of offsets.values()) offset[axis] -= drift;
+  }
+  return offsets;
+}
+
 export function prepareNodeLayout(
   model: TopicMapModel,
   size: Size,
+  readingTopic: string | null = null,
+  anchorZoneId: string | null = readingTopic,
 ): TopicMapNodeLayout {
   const full = readingNodeSize(size);
   const pitchX = full.width + 24;
   const pitchY = full.height + 24;
   const scale = baseScale(model.bounds, size) * 10;
   const worldTargets = new Map<string, MapPosition>();
+  const zones: ReadingZone[] = [];
   for (const zone of model.zones) {
-    const columns = Math.min(
-      zone.points.length,
-      Math.max(1, Math.floor((size.width - 48) / pitchX)),
-    );
-    const rows = Math.ceil(zone.points.length / columns);
-    // Spatial rows preserve the cloud's vertical order; horizontal ranks are local to each row.
-    const vertical = [...zone.points].sort(
-      (a, b) => b.y - a.y || a.x - b.x || a.traceId.localeCompare(b.traceId),
-    );
-    for (let row = 0; row < rows; row++) {
-      const members = vertical
-        .slice(row * columns, (row + 1) * columns)
-        .sort(
-          (a, b) =>
-            a.x - b.x || b.y - a.y || a.traceId.localeCompare(b.traceId),
+    const reading = !readingTopic || readingTopic === zone.id;
+    if (!reading) {
+      for (const point of zone.points)
+        worldTargets.set(point.traceId, { x: point.x, y: point.y });
+    } else {
+      const columns = Math.min(
+        zone.points.length,
+        Math.max(1, Math.floor((size.width - 48) / pitchX)),
+      );
+      const rows = Math.ceil(zone.points.length / columns);
+      // Spatial rows preserve the cloud's vertical order; horizontal ranks are local to each row.
+      const vertical = [...zone.points].sort(
+        (a, b) => b.y - a.y || a.x - b.x || a.traceId.localeCompare(b.traceId),
+      );
+      for (let row = 0; row < rows; row++) {
+        const members = vertical
+          .slice(row * columns, (row + 1) * columns)
+          .sort(
+            (a, b) =>
+              a.x - b.x || b.y - a.y || a.traceId.localeCompare(b.traceId),
+          );
+        members.forEach((point, column) =>
+          worldTargets.set(point.traceId, {
+            x: zone.x + ((column - (members.length - 1) / 2) * pitchX) / scale,
+            y: zone.y - ((row - (rows - 1) / 2) * pitchY) / scale,
+          }),
         );
-      members.forEach((point, column) => {
-        worldTargets.set(point.traceId, {
-          x: zone.x + ((column - (members.length - 1) / 2) * pitchX) / scale,
-          y: zone.y - ((row - (rows - 1) / 2) * pitchY) / scale,
-        });
-      });
+      }
     }
+    const footprint = pointBounds(
+      zone.points.map((p) => worldTargets.get(p.traceId)!),
+    );
+    const padX = (reading ? full.width : 10) / scale / 2;
+    const padY = (reading ? full.height : 10) / scale / 2;
+    zones.push({
+      zone,
+      bounds: {
+        minX: footprint.minX - padX,
+        maxX: footprint.maxX + padX,
+        minY: footprint.minY - padY,
+        maxY: footprint.maxY + padY,
+      },
+    });
+  }
+  const offsets = separateReadingZones(zones, 64 / scale, anchorZoneId);
+  for (const point of model.points) {
+    const target = worldTargets.get(point.traceId)!;
+    const offset = offsets.get(point.groupId)!;
+    worldTargets.set(point.traceId, {
+      x: target.x + offset.x,
+      y: target.y + offset.y,
+    });
   }
   return { bounds: model.bounds, size, worldTargets };
 }
@@ -287,12 +406,10 @@ export function displayedNodeWorldPoint(
   point: MapPoint,
   zoom: number,
   layout: TopicMapNodeLayout,
-  readingTopic: string | null = null,
 ): MapPosition {
   const blend = readingLayoutBlend(zoom);
   const target = layout.worldTargets.get(point.traceId);
-  if (!blend || !target || (readingTopic && point.groupId !== readingTopic))
-    return { x: point.x, y: point.y };
+  if (!blend || !target) return { x: point.x, y: point.y };
   if (blend === 1) return { ...target };
   return {
     x: point.x + (target.x - point.x) * blend,
@@ -317,7 +434,7 @@ export function prepareMapNodes(
   const prepared = model.points.map((point, index) => {
     const worldPosition =
       worldPositions?.get(point.traceId) ??
-      displayedNodeWorldPoint(point, camera.zoom, layout, readingTopic);
+      displayedNodeWorldPoint(point, camera.zoom, layout);
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
     const depth = point.depth * (1 - blend);
     const center = {
@@ -419,7 +536,18 @@ export function prepareMapNodes(
     )
       nodes.push(node);
   }
-  return { model, camera, size, pointer, readingTopic, nodes, nodeById };
+  const zones = model.zones.map((zone) => {
+    const positions = zone.points.map(
+      (p) => nodeById.get(p.traceId)!.worldPosition,
+    );
+    return {
+      ...zone,
+      bounds: pointBounds(positions),
+      x: positions.reduce((sum, p) => sum + p.x, 0) / positions.length,
+      y: positions.reduce((sum, p) => sum + p.y, 0) / positions.length,
+    };
+  });
+  return { model, camera, size, pointer, readingTopic, zones, nodes, nodeById };
 }
 
 function roundedDistance(node: TopicMapNode, at: MapPosition) {
@@ -473,16 +601,12 @@ export function zoneHalo(
   };
 }
 
-export function hitZone(
-  model: TopicMapModel,
-  camera: Camera,
-  size: Size,
-  at: MapPosition,
-) {
+export function hitZone(frame: TopicMapNodeFrame, at: MapPosition) {
+  const { model, camera, size } = frame;
   if (readingLayoutBlend(camera.zoom) >= 1) return null;
   let nearest: TopicMapModel["zones"][number] | null = null;
   let distance = 1;
-  for (const zone of model.zones) {
+  for (const zone of frame.zones) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
     const halo = zoneHalo(zone, camera, model.bounds, size);
     const d = Math.hypot((at.x - halo.x) / halo.rx, (at.y - halo.y) / halo.ry);
@@ -614,7 +738,7 @@ export function prepareMapHover(
       zones: [],
     };
   }
-  const zone = frame.model.zones.find((item) => item.id === hoveredZoneId);
+  const zone = frame.zones.find((item) => item.id === hoveredZoneId);
   if (!zone) return { traces: [], zones: [] };
   const position = screenPoint(
     zone,

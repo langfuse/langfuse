@@ -78,8 +78,12 @@ project permissions. Processing additionally requires the project allowlist.
   into a stable card grid for reading; those display positions are not embedding
   distances and never change the saved coordinates or topic membership. The
   camera keeps surrounding topics visible when a selection focuses a cloud.
-  A focused topic opens into its own grid while surrounding topics stay as clouds,
-  leaving its reading slots clear of neighboring grids.
+  Whole-zone reading envelopes are packed along fixed axes chosen from the saved
+  cloud geometry, so neighboring grids cannot interleave as they expand. A reading
+  anchor is captured when zoom first enters reading mode and remains fixed through
+  pan/zoom; other zones make room around it. A focused topic opens into its own grid
+  while surrounding clouds translate rigidly, preserving their internal geometry.
+  Halos, zone hints and hit testing follow the same displayed zone positions.
   Each trace grows continuously from a circle into a rounded rectangle, reveals a
   trace icon, then fades in its stored summary when its actual footprint allows it.
   Neighbor clearance constrains expansion, including offscreen neighbors. Spatial

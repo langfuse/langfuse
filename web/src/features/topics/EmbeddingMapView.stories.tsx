@@ -2,6 +2,11 @@ import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { EmbeddingMapView } from "./EmbeddingMapView";
+import {
+  fitCamera,
+  prepareTopicMap,
+  screenPoint,
+} from "./map/prepare-topic-map";
 
 type ExplorerProps = ComponentProps<typeof EmbeddingMapView>;
 
@@ -151,6 +156,15 @@ const denseData = {
   ],
   missingSummaryCount: 0,
   unpositionedCount: 0,
+} satisfies ExplorerProps["data"];
+
+const nearbyCloudData = {
+  ...denseData,
+  points: denseData.points.map((point) =>
+    point.topicId === "inventory-timeouts"
+      ? { ...point, x: point.x - 40, y: point.y + 5 }
+      : point,
+  ),
 } satisfies ExplorerProps["data"];
 
 function ControlledExplorer(args: ExplorerProps) {
@@ -495,5 +509,103 @@ export const NavigationClearsHover = meta.story({
     } finally {
       stage.setPointerCapture = capture;
     }
+  },
+});
+
+export const ReadingKeepsZoomedCloud = meta.story({
+  name: "(Test) Reading Keeps Zoomed Cloud",
+  args: {
+    topics: denseTopics,
+    data: nearbyCloudData,
+    selectedTopic: null,
+    selectedTraceId: null,
+    onSelectTopic: fn(),
+  },
+  render: (args) => <ControlledExplorer {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const stage = canvas.getByRole("group", {
+      name: /^Interactive topic map/,
+    });
+    const model = prepareTopicMap(nearbyCloudData, denseTopics);
+    const cloud = model.zones.find((zone) => zone.id === "inventory-timeouts");
+    if (!cloud) throw new Error("The inventory cloud fixture is missing.");
+    const stageRect = stage.getBoundingClientRect();
+    const plot = { width: stageRect.width, height: stageRect.height };
+    const initial = fitCamera(model.bounds, model.bounds, plot);
+    const at = screenPoint(cloud, initial, model.bounds, plot);
+    const zoomInput = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      deltaY: -40 * Math.log2(10),
+      clientX: stageRect.left + at.x,
+      clientY: stageRect.top + at.y,
+    });
+    stage.dispatchEvent(zoomInput);
+    await waitFor(() =>
+      expect(canvas.getByLabelText("Zoom level")).toHaveTextContent("1000%"),
+    );
+    await hoverInlineNode(canvasElement);
+    const result: { node?: HTMLElement } = {};
+    await waitFor(
+      () => {
+        const nodes = Array.from(
+          canvasElement.querySelectorAll<HTMLElement>("[data-topic-node]"),
+        )
+          .map((node) => {
+            const rect = node.getBoundingClientRect();
+            return {
+              node,
+              rect,
+              distance: Math.hypot(
+                rect.left + rect.width / 2 - (stageRect.left + at.x),
+                rect.top + rect.height / 2 - (stageRect.top + at.y),
+              ),
+            };
+          })
+          .filter(
+            ({ node, rect }) =>
+              Number(node.style.opacity) >= 0.9 &&
+              rect.left >= stageRect.left + 4 &&
+              rect.right <= stageRect.right - 4 &&
+              rect.top >= stageRect.top + 4 &&
+              rect.bottom <= stageRect.bottom - 4,
+          )
+          .sort((a, b) => a.distance - b.distance);
+        expect(nodes.length).toBeGreaterThan(0);
+        expect(nodes[0].node.dataset.traceId).toMatch(
+          /^demo-inventory-timeouts-/,
+        );
+        expect(nodes[0].distance).toBeLessThan(200);
+        result.node = nodes[0].node;
+      },
+      { timeout: 2000 },
+    );
+    await expect(args.onSelectTopic).not.toHaveBeenCalled();
+    if (!result.node)
+      throw new Error("No readable trace remains near the zoom anchor.");
+    const node = result.node;
+    const beforePan = node.getBoundingClientRect();
+    stage.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaX: 40,
+        deltaY: -20,
+      }),
+    );
+    await waitFor(
+      () => {
+        const rect = node.getBoundingClientRect();
+        expect(Math.abs(rect.left - (beforePan.left - 40))).toBeLessThan(0.2);
+        expect(Math.abs(rect.top - (beforePan.top + 20))).toBeLessThan(0.2);
+      },
+      { timeout: 2000 },
+    );
+    await expect(canvas.getByLabelText("Zoom level")).toHaveTextContent(
+      "1000%",
+    );
+    await expect(args.onSelectTopic).not.toHaveBeenCalled();
   },
 });
