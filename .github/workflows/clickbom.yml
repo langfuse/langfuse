@@ -1,0 +1,35 @@
+name: Langfuse SBOM
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  clickbom:
+    name: ClickBOM
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Configure AWS Credentials
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.CLICKBOM_GITHUB_OIDC_ROLE }}
+          role-session-name: clickbom-github
+          aws-region: us-east-1
+
+      - name: Upload SBOM
+        uses: ClickHouse/ClickBOM@v2.2.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          s3-bucket: ch-sbom-langfuse
+          s3-key: sbom.json
+          repository: ${{ github.repository }}
