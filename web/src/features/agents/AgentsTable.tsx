@@ -152,14 +152,18 @@ export function AgentsTable({ projectId }: { projectId: string }) {
     },
   );
   const metricByName = new Map(
-    metrics.data?.map((metric) => [metric.agentName, metric]),
+    metrics.isPlaceholderData
+      ? []
+      : metrics.data?.map((metric) => [metric.agentName, metric]),
   );
+  // The ranked list owns trace counts even if later metrics see more data.
   const rows: AgentRow[] =
     agents.data?.agents.map((agent) => ({
-      ...agent,
       ...metricByName.get(agent.agentName),
+      ...agent,
     })) ?? [];
-  const metricsPending = metrics.isPending && !metrics.isError;
+  const metricsPending =
+    (metrics.isPending || metrics.isPlaceholderData) && !metrics.isError;
   const resolveNumber = (value: bigint | null | undefined) =>
     metricsPending ? { type: "loading" as const } : (value ?? undefined);
   const countFormatter = (value: bigint) =>
