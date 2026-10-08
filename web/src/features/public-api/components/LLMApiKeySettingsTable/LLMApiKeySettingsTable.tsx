@@ -21,18 +21,17 @@ export type LLMApiKeySettingsTableRow = LlmApiKeyListItem & {
 export function LLMApiKeySettingsTable({
   createAction,
   deleteAction,
+  emptyState,
   tableName = "LLM connections",
   updateAction,
   ...tableProps
-}: Pick<
-  TableProps<LLMApiKeySettingsTableRow>,
-  "data" | "loadingRowCount" | "noResultsMessage"
-> & {
+}: Pick<TableProps<LLMApiKeySettingsTableRow>, "data" | "loadingRowCount"> & {
   createAction: { hasAccess: boolean; label: string; onClick: () => void };
   deleteAction: {
     hasAccess: boolean;
     onClick: (apiKey: LLMApiKeySettingsTableRow) => void;
   };
+  emptyState: ReactNode;
   updateAction: {
     hasAccess: boolean;
     onClick: (apiKey: LLMApiKeySettingsTableRow) => void;
@@ -150,6 +149,7 @@ export function LLMApiKeySettingsTable({
       tableName={tableName}
       columns={columns}
       actions={actions}
+      emptyState={emptyState}
       toolbarActions={toolbarActions}
       onRowClick={updateAction.hasAccess ? updateAction.onClick : undefined}
       {...tableProps}

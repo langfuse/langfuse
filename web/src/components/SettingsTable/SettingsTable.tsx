@@ -60,6 +60,7 @@ export type SettingsTableProps<TData extends object> = Omit<
     onChange: (value: string) => void;
   };
   filters?: SettingsTableFilter[];
+  emptyState?: ReactNode;
   toolbarContent?: ReactNode;
   toolbarActions?: SettingsTableToolbarAction[];
   rowHeightControl?: {
@@ -75,6 +76,7 @@ export function SettingsTable<TData extends object>({
   columnVisibilityKey,
   search,
   filters,
+  emptyState,
   toolbarContent,
   toolbarActions,
   rowHeightControl,
@@ -108,6 +110,10 @@ export function SettingsTable<TData extends object>({
     toolbarActions ||
     rowHeightControl,
   );
+  const showEmptyState =
+    emptyState !== undefined &&
+    tableProps.data.status === "success" &&
+    tableProps.data.data.length === 0;
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
@@ -233,17 +239,21 @@ export function SettingsTable<TData extends object>({
         </div>
       )}
 
-      <SettingsTableCard>
-        <Table
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          columnOrder={columnOrder}
-          onColumnOrderChange={setColumnOrder}
-          {...tableProps}
-        />
-        {pagination && <PaginationBar {...pagination} />}
-      </SettingsTableCard>
+      {showEmptyState ? (
+        emptyState
+      ) : (
+        <SettingsTableCard>
+          <Table
+            columns={columns}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            columnOrder={columnOrder}
+            onColumnOrderChange={setColumnOrder}
+            {...tableProps}
+          />
+          {pagination && <PaginationBar {...pagination} />}
+        </SettingsTableCard>
+      )}
     </div>
   );
 }

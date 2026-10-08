@@ -223,7 +223,9 @@ const getProjectSettingsPages = ({
       <div className="flex flex-col gap-6">
         <LlmApiKeyList
           projectId={project.id}
+          projectName={project.name}
           organizationId={organization.id}
+          organizationName={organization.name}
         />
       </div>
     ),

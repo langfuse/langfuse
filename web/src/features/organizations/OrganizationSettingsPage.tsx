@@ -17,7 +17,9 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
+import { Building2 } from "lucide-react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { LlmConnectionEmptyState } from "@/src/features/public-api";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
@@ -221,6 +223,13 @@ export const getOrganizationSettingsPages = ({
             scope: "organization",
             organizationId: organization.id,
           }}
+          emptyState={
+            <LlmConnectionEmptyState
+              icon={Building2}
+              title="No organization connections"
+              description={`Organization connections are shared with every project in ${organization.name}.`}
+            />
+          }
         />
       </div>
     ),

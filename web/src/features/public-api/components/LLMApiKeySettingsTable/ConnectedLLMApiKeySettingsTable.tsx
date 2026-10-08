@@ -18,11 +18,13 @@ import {
 
 export function ConnectedLLMApiKeySettingsTable({
   data,
+  emptyState,
   owner,
   overriddenProviders,
   toolbarContent,
 }: {
   data?: AsyncTableData<LLMApiKeySettingsTableRow[]>;
+  emptyState: ReactNode;
   owner: LlmConnectionFormOwner;
   overriddenProviders?: ReadonlySet<string>;
   toolbarContent?: ReactNode;
@@ -169,7 +171,7 @@ export function ConnectedLLMApiKeySettingsTable({
                     onClick: openUpdateDialog,
                   }}
                   data={tableDataWithOverrides}
-                  noResultsMessage="None"
+                  emptyState={emptyState}
                   toolbarContent={toolbarContent}
                   tableName={
                     owner.scope === "project"
