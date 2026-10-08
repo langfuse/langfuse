@@ -580,7 +580,7 @@
     --header-foreground: var(--foreground);
 
     /* Hairline must read on EVERY surface tier, including popover (12%). */
-    --border: 0 0% 15%;
+    --border: 0 0% 20%;
     --border-contrast: 0 0% 26%;
     --input: 0 0% 18%;
 
