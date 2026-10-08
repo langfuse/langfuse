@@ -1,7 +1,15 @@
 import { type LlmApiKeys } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { LlmApiKeyService } from "./LlmApiKeyService";
+import { listEffectiveLlmApiKeys, resolveLlmApiKey } from "./LlmApiKeyService";
+
+const mocks = vi.hoisted(() => ({
+  findProjectLlmApiKeyCandidates: vi.fn(),
+}));
+
+vi.mock("../../repositories/llm-api-keys", () => ({
+  findProjectLlmApiKeyCandidates: mocks.findProjectLlmApiKeyCandidates,
+}));
 
 const projectId = "project-id";
 const organizationId = "organization-id";
@@ -32,25 +40,24 @@ const connection = (
 
 describe("LlmApiKeyService", () => {
   it("prefers a project connection over an organization connection", async () => {
-    const repository = {
-      findByProjectAndOrganization: vi.fn().mockResolvedValue({
-        organizationId,
-        connections: [
-          connection({
-            id: "organization-connection",
-            provider: "openai",
-            organizationId,
-          }),
-          connection({
-            id: "project-connection",
-            provider: "openai",
-            projectId,
-          }),
-        ],
-      }),
-    };
+    mocks.findProjectLlmApiKeyCandidates.mockResolvedValue({
+      organizationConnections: [
+        connection({
+          id: "organization-connection",
+          provider: "openai",
+          organizationId,
+        }),
+      ],
+      projectConnections: [
+        connection({
+          id: "project-connection",
+          provider: "openai",
+          projectId,
+        }),
+      ],
+    });
 
-    const resolved = await new LlmApiKeyService(repository).resolve({
+    const resolved = await resolveLlmApiKey({
       projectId,
       provider: "openai",
     });
@@ -64,20 +71,18 @@ describe("LlmApiKeyService", () => {
   });
 
   it("falls back to the organization connection", async () => {
-    const repository = {
-      findByProjectAndOrganization: vi.fn().mockResolvedValue({
-        organizationId,
-        connections: [
-          connection({
-            id: "organization-connection",
-            provider: "anthropic",
-            organizationId,
-          }),
-        ],
-      }),
-    };
+    mocks.findProjectLlmApiKeyCandidates.mockResolvedValue({
+      projectConnections: [],
+      organizationConnections: [
+        connection({
+          id: "organization-connection",
+          provider: "anthropic",
+          organizationId,
+        }),
+      ],
+    });
 
-    const resolved = await new LlmApiKeyService(repository).resolve({
+    const resolved = await resolveLlmApiKey({
       projectId,
       provider: "anthropic",
     });
@@ -91,32 +96,29 @@ describe("LlmApiKeyService", () => {
   });
 
   it("lists one effective connection per provider with override metadata", async () => {
-    const repository = {
-      findByProjectAndOrganization: vi.fn().mockResolvedValue({
-        organizationId,
-        connections: [
-          connection({
-            id: "organization-openai",
-            provider: "openai",
-            organizationId,
-          }),
-          connection({
-            id: "project-openai",
-            provider: "openai",
-            projectId,
-          }),
-          connection({
-            id: "organization-anthropic",
-            provider: "anthropic",
-            organizationId,
-          }),
-        ],
-      }),
-    };
+    mocks.findProjectLlmApiKeyCandidates.mockResolvedValue({
+      organizationConnections: [
+        connection({
+          id: "organization-openai",
+          provider: "openai",
+          organizationId,
+        }),
+        connection({
+          id: "organization-anthropic",
+          provider: "anthropic",
+          organizationId,
+        }),
+      ],
+      projectConnections: [
+        connection({
+          id: "project-openai",
+          provider: "openai",
+          projectId,
+        }),
+      ],
+    });
 
-    const effective = await new LlmApiKeyService(repository).listEffective(
-      projectId,
-    );
+    const effective = await listEffectiveLlmApiKeys(projectId);
 
     expect(effective).toEqual(
       expect.arrayContaining([
