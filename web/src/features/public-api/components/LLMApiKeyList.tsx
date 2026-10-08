@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 import { useHasProjectAccess } from "@/src/features/rbac";
-import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedLLMApiKeySettingsTable } from "./LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
@@ -49,46 +48,46 @@ export function LlmApiKeyList(props: {
 
   if (!hasAccess) {
     return (
-      <div>
-        <Header title="LLM Connections" />
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to view LLM API keys for this project.
-          </Alert.Description>
-        </Alert>
-      </div>
+      <Alert>
+        <Alert.Title>Access Denied</Alert.Title>
+        <Alert.Description>
+          You do not have permission to view LLM API keys for this project.
+        </Alert.Description>
+      </Alert>
     );
   }
 
   return (
     <div id="llm-api-keys">
-      <Header title="LLM Connections" />
-      <p className="mb-4 text-sm">
-        Connect your LLM services to enable evaluations and playground features.
-        Your provider will charge based on usage.
-      </p>
       <section>
-        <div className="mb-2 flex items-center gap-1">
-          <h3 className="text-base">Organization connections</h3>
-          <InfoTooltip label="About organization connections">
-            Organization connections are inherited by this project. Project
-            connections with the same provider name take precedence.
-          </InfoTooltip>
-        </div>
         <ConnectedLLMApiKeySettingsTable
           owner={{
             scope: "organization",
             organizationId: props.organizationId,
           }}
           data={organizationTableData}
+          toolbarContent={
+            <div className="flex items-center gap-1">
+              <h3 className="text-base font-semibold">
+                Organization connections
+              </h3>
+              <InfoTooltip label="About organization connections">
+                Organization connections are inherited by this project. Project
+                connections with the same provider name take precedence.
+              </InfoTooltip>
+            </div>
+          }
         />
       </section>
-      <h3 className="mt-6 mb-2 text-base">Project connections</h3>
-      <ConnectedLLMApiKeySettingsTable
-        owner={{ scope: "project", projectId: props.projectId }}
-        overriddenProviders={organizationProviders}
-      />
+      <section className="mt-6">
+        <ConnectedLLMApiKeySettingsTable
+          owner={{ scope: "project", projectId: props.projectId }}
+          overriddenProviders={organizationProviders}
+          toolbarContent={
+            <h3 className="text-base font-semibold">Project connections</h3>
+          }
+        />
+      </section>
     </div>
   );
 }

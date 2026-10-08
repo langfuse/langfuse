@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   ActionButton,
   type ActionButtonProps,
@@ -60,6 +60,7 @@ export type SettingsTableProps<TData extends object> = Omit<
     onChange: (value: string) => void;
   };
   filters?: SettingsTableFilter[];
+  toolbarContent?: ReactNode;
   toolbarActions?: SettingsTableToolbarAction[];
   rowHeightControl?: {
     rowHeight: RowHeight;
@@ -74,6 +75,7 @@ export function SettingsTable<TData extends object>({
   columnVisibilityKey,
   search,
   filters,
+  toolbarContent,
   toolbarActions,
   rowHeightControl,
   pagination,
@@ -101,6 +103,7 @@ export function SettingsTable<TData extends object>({
   const hasToolbar = Boolean(
     search ||
     hasFilters ||
+    toolbarContent ||
     columnVisibilityKey ||
     toolbarActions ||
     rowHeightControl,
@@ -121,6 +124,7 @@ export function SettingsTable<TData extends object>({
               hasFilters ? "min-w-72" : "min-w-0",
             )}
           >
+            {toolbarContent}
             {search && (
               <div className="w-full max-w-sm min-w-0">
                 <SearchInput

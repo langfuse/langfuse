@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { Pencil, PlusIcon, Route, Trash } from "lucide-react";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 import { LLMAdapter } from "@langfuse/shared";
@@ -38,6 +38,7 @@ export function LLMApiKeySettingsTable({
     onClick: (apiKey: LLMApiKeySettingsTableRow) => void;
   };
   tableName?: string;
+  toolbarContent?: ReactNode;
 }) {
   const showExtraHeaderKeys =
     tableProps.data.status === "success" &&

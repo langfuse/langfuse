@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -20,10 +20,12 @@ export function ConnectedLLMApiKeySettingsTable({
   data,
   owner,
   overriddenProviders,
+  toolbarContent,
 }: {
   data?: AsyncTableData<LLMApiKeySettingsTableRow[]>;
   owner: LlmConnectionFormOwner;
   overriddenProviders?: ReadonlySet<string>;
+  toolbarContent?: ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -168,6 +170,7 @@ export function ConnectedLLMApiKeySettingsTable({
                   }}
                   data={tableDataWithOverrides}
                   noResultsMessage="None"
+                  toolbarContent={toolbarContent}
                   tableName={
                     owner.scope === "project"
                       ? "Project LLM connections"
