@@ -571,7 +571,7 @@ const getScoresForTracesInternal = async <
     },
     tags: { projectId },
     clickhouseConfigs,
-    preferredClickhouseService,
+    preferredClickhouseService: preferredClickhouseService ?? "ReadOnly",
   });
 
   const includeMetadataPayload = !excludeMetadata;
