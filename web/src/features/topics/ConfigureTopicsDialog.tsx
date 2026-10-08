@@ -241,7 +241,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
         onClick={() => setOpen(true)}
       />
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        <SheetContent
+          overlayClassName="bg-transparent"
+          className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        >
           <SheetHeader className="items-start space-y-1 p-6 pb-4 text-left">
             <SheetTitle>Configure Topics</SheetTitle>
             <SheetDescription>
@@ -410,7 +413,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
         </SheetContent>
       </Sheet>
       <Sheet open={testOpen} onOpenChange={setTestOpen}>
-        <SheetContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <SheetContent
+          overlayClassName="bg-transparent"
+          className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        >
           <SheetHeader className="items-start space-y-1 p-6 pb-4 text-left">
             <SheetTitle>Test Topics</SheetTitle>
             <SheetDescription>
@@ -523,36 +529,33 @@ function ModelSlot({
       ) : null}
     </>
   );
-  const row = (
-    <div className="flex items-center gap-2">
-      <p className="w-36 shrink-0 text-sm font-bold" title={copy.hint}>
-        {copy.label}
-      </p>
-      {locked ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex min-w-0 flex-1 cursor-default items-center gap-2">
-              {controls}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{copy.hint}</TooltipContent>
-        </Tooltip>
-      ) : (
-        controls
-      )}
-    </div>
+  const fields = (
+    <div className="flex min-w-0 flex-1 items-center gap-2">{controls}</div>
   );
   return (
-    <div className="flex flex-col gap-1">
-      {row}
-      {check?.status === "testing" ? (
-        <p className="text-muted-foreground pl-36 text-xs">
-          Testing this model…
-        </p>
-      ) : null}
-      {check?.status === "error" && check.message ? (
-        <p className="text-destructive pl-36 text-xs">{check.message}</p>
-      ) : null}
+    <div className="flex items-start gap-2">
+      <p
+        className="flex h-8 w-36 shrink-0 items-center text-sm font-bold"
+        title={copy.hint}
+      >
+        {copy.label}
+      </p>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {locked ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{fields}</TooltipTrigger>
+            <TooltipContent side="bottom">{copy.hint}</TooltipContent>
+          </Tooltip>
+        ) : (
+          fields
+        )}
+        {check?.status === "testing" ? (
+          <p className="text-muted-foreground text-sm">Testing this model…</p>
+        ) : null}
+        {check?.status === "error" && check.message ? (
+          <p className="text-destructive text-sm">{check.message}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
