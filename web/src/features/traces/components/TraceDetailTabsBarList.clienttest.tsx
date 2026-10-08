@@ -16,7 +16,7 @@ import type { DetailTab } from "../contexts/SelectionContext";
 
 // jsdom has no layout engine, so every width is 0 and every tab would always
 // fit. These widths stand in for the layout the browser would compute: the
-// space left for the tabs next to the trailing controls, each tab's replica in
+// list's share of the row next to the trailing controls, each tab's replica in
 // the measuring row, and the overflow trigger.
 let availableWidth = 1000;
 const tabWidths: Record<string, number> = {
@@ -28,9 +28,8 @@ const overflowWidth = 32;
 const resizeCallbacks: ResizeObserverCallback[] = [];
 
 function isAvailableElement(element: Element | null) {
-  // The measured container is the only element the bar puts directly inside
-  // the tab list.
-  return element?.parentElement?.getAttribute("role") === "tablist";
+  // The list measures itself.
+  return element?.getAttribute("role") === "tablist";
 }
 
 function isReplica(element: Element) {

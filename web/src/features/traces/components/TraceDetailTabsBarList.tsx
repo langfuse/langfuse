@@ -1,7 +1,6 @@
 import { type ReactNode } from "react";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
 
 import type { DetailTab } from "../contexts/SelectionContext";
 
@@ -29,14 +28,19 @@ export function TraceDetailTabsBarList({
   trailingControls: ReactNode;
 }) {
   return (
-    <Tabs.OverflowList
-      items={tabs.map((tab) => ({
-        value: tab,
-        label: labels[tab],
-        badge: tab === "messages" ? <InternalFeatureBadge /> : undefined,
-        tooltip: tab === "log" ? logViewDescription : undefined,
-      }))}
-      trailing={trailingControls}
-    />
+    <div className="flex h-9 shrink-0 items-center border-b">
+      <Tabs.List variant="underline" overflow="menu" aria-label="Detail views">
+        {tabs.map((tab) => (
+          <Tabs.Trigger
+            key={tab}
+            value={tab}
+            label={labels[tab]}
+            internal={tab === "messages"}
+            tooltip={tab === "log" ? logViewDescription : undefined}
+          />
+        ))}
+      </Tabs.List>
+      {trailingControls}
+    </div>
   );
 }

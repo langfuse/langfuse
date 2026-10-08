@@ -3,7 +3,6 @@ import { KeyRound, User } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Badge } from "../Badge/Badge";
 import { Tabs } from "./Tabs";
 
 const meta = preview.meta({
@@ -67,13 +66,9 @@ function ResizableSlidingTabs() {
   );
 }
 
-const overflowItems: React.ComponentProps<typeof Tabs.OverflowList>["items"] = [
+const overflowTabs = [
   { value: "preview", label: "Preview" },
-  {
-    value: "messages",
-    label: "Messages",
-    badge: <Badge text="Internal" color="yellow" size="sm" />,
-  },
+  { value: "messages", label: "Messages", internal: true },
   { value: "attributes", label: "Attributes" },
   { value: "scores", label: "Scores" },
   {
@@ -83,31 +78,48 @@ const overflowItems: React.ComponentProps<typeof Tabs.OverflowList>["items"] = [
   },
 ];
 
+const overflowTriggers = overflowTabs.map((tab) => (
+  <Tabs.Trigger
+    key={tab.value}
+    value={tab.value}
+    label={tab.label}
+    internal={tab.internal}
+    tooltip={tab.tooltip}
+  />
+));
+
+const overflowPanels = overflowTabs.map((tab) => (
+  <Tabs.Content key={tab.value} value={tab.value}>
+    {tab.label} panel
+  </Tabs.Content>
+));
+
 /** The row sits in a fixed-width box so each story shows one overflow case. */
 function OverflowTabs({
-  defaultValue,
+  initialValue,
   width,
 }: {
-  defaultValue: string;
+  initialValue: string;
   width: "w-40" | "w-sm" | "w-2xl";
 }) {
+  const [value, setValue] = React.useState(initialValue);
+
   return (
     <div className={width}>
-      <Tabs defaultValue={defaultValue}>
-        <Tabs.OverflowList
-          aria-label="Detail views"
-          items={overflowItems}
-          trailing={
-            <span className="text-muted-foreground ml-auto shrink-0 px-2 text-xs">
-              trailing
-            </span>
-          }
-        />
-        {overflowItems.map((item) => (
-          <Tabs.Content key={item.value} value={item.value}>
-            {item.label} panel
-          </Tabs.Content>
-        ))}
+      <Tabs value={value} onValueChange={setValue}>
+        <div className="flex h-9 items-center border-b">
+          <Tabs.List
+            variant="underline"
+            overflow="menu"
+            aria-label="Detail views"
+          >
+            {overflowTriggers}
+          </Tabs.List>
+          <span className="text-muted-foreground shrink-0 px-2 text-xs">
+            trailing
+          </span>
+        </div>
+        {overflowPanels}
       </Tabs>
     </div>
   );
@@ -124,22 +136,21 @@ function OverflowTabsWithConditionalTrailing() {
   return (
     <div className="w-xl">
       <Tabs value={value} onValueChange={setValue}>
-        <Tabs.OverflowList
-          aria-label="Detail views"
-          items={overflowItems}
-          trailing={
-            value === "scores" ? null : (
-              <span className="text-muted-foreground ml-auto w-64 shrink-0 px-2 text-xs">
-                trailing
-              </span>
-            )
-          }
-        />
-        {overflowItems.map((item) => (
-          <Tabs.Content key={item.value} value={item.value}>
-            {item.label} panel
-          </Tabs.Content>
-        ))}
+        <div className="flex h-9 items-center border-b">
+          <Tabs.List
+            variant="underline"
+            overflow="menu"
+            aria-label="Detail views"
+          >
+            {overflowTriggers}
+          </Tabs.List>
+          {value === "scores" ? null : (
+            <span className="text-muted-foreground w-64 shrink-0 px-2 text-xs">
+              trailing
+            </span>
+          )}
+        </div>
+        {overflowPanels}
       </Tabs>
     </div>
   );
@@ -217,25 +228,25 @@ const overflowStoryParameters = {
 /** Wide enough for every tab: no overflow trigger. */
 export const OverflowAllFit = meta.story({
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabs defaultValue="preview" width="w-2xl" />,
+  render: () => <OverflowTabs initialValue="preview" width="w-2xl" />,
 });
 
 /** Three tabs fit; Scores and Log View sit behind the overflow trigger. */
 export const OverflowThreeFit = meta.story({
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabs defaultValue="preview" width="w-sm" />,
+  render: () => <OverflowTabs initialValue="preview" width="w-sm" />,
 });
 
 /** The active Log View tab takes the last slot and displaces Attributes. */
 export const OverflowActiveTab = meta.story({
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabs defaultValue="log" width="w-sm" />,
+  render: () => <OverflowTabs initialValue="log" width="w-sm" />,
 });
 
 /** Only the active tab fits next to the overflow trigger. */
 export const OverflowOneFits = meta.story({
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabs defaultValue="scores" width="w-40" />,
+  render: () => <OverflowTabs initialValue="scores" width="w-40" />,
 });
 
 /** Link tabs render outside a `Tabs` root: navigation, not a tablist. */
@@ -475,7 +486,7 @@ export const RendersLinksAsNavigation = meta.story({
 export const ShowsNoOverflowWhenTabsFit = meta.story({
   name: "(Test) Shows No Overflow When Tabs Fit",
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabs defaultValue="preview" width="w-2xl" />,
+  render: () => <OverflowTabs initialValue="preview" width="w-2xl" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
@@ -489,7 +500,7 @@ export const ShowsNoOverflowWhenTabsFit = meta.story({
 export const KeepsActiveTabVisibleInOverflow = meta.story({
   name: "(Test) Keeps Active Tab Visible In Overflow",
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabs defaultValue="log" width="w-40" />,
+  render: () => <OverflowTabs initialValue="log" width="w-40" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const logTab = canvas.getByRole("tab", { name: "Log View" });
@@ -513,7 +524,7 @@ export const KeepsActiveTabVisibleInOverflow = meta.story({
 export const SelectsHiddenTabFromOverflowMenu = meta.story({
   name: "(Test) Selects Hidden Tab From Overflow Menu",
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabs defaultValue="preview" width="w-40" />,
+  render: () => <OverflowTabs initialValue="preview" width="w-40" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(document.body);

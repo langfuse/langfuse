@@ -292,7 +292,7 @@ export function TraceDetailView({
                   (selectedTab === "log" ||
                     (selectedTab === "preview" && isPrettyViewAvailable)) && (
                     <>
-                      <div className="ml-auto h-fit shrink-0 py-0.5 pr-4 pl-2">
+                      <div className="h-fit shrink-0 py-0.5 pr-4 pl-2">
                         <Tabs
                           value={
                             selectedTab === "log" && isLogViewVirtualized

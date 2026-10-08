@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getVisibleTabIndices } from "./useTabsOverflow";
+import { getVisibleTabIndices } from "./getVisibleTabIndices";
 
 // Preview, Messages, Attributes, Scores, Log View at roughly their real widths.
 const widths = [90, 150, 100, 80, 95];
