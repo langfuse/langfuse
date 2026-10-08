@@ -1,6 +1,8 @@
 import { fn } from "storybook/test";
+import { Plug } from "lucide-react";
 
 import preview from "../../../../../.storybook/preview";
+import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";
 import {
   LLMApiKeySettingsTable,
   type LLMApiKeySettingsTableRow,
@@ -17,6 +19,13 @@ export const Default = meta.story({
     },
     deleteAction: { hasAccess: true, onClick: fn() },
     updateAction: { hasAccess: true, onClick: fn() },
+    emptyState: (
+      <LlmConnectionEmptyState
+        icon={Plug}
+        title="No project connections"
+        description="Project connections are only available in llm-app and take precedence over organization connections with the same provider."
+      />
+    ),
     data: {
       status: "success",
       data: [
@@ -59,15 +68,16 @@ export const Default = meta.story({
   },
 });
 
+export const Empty = meta.story({
+  args: {
+    ...Default.input.args,
+    data: { status: "success", data: [] },
+  },
+});
+
 export const Loading = meta.story({
   args: {
-    createAction: {
-      hasAccess: true,
-      label: "Project Connection",
-      onClick: fn(),
-    },
-    deleteAction: { hasAccess: true, onClick: fn() },
-    updateAction: { hasAccess: true, onClick: fn() },
+    ...Default.input.args,
     data: { status: "loading" },
     loadingRowCount: 5,
   },
