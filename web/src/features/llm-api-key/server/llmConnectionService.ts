@@ -442,6 +442,13 @@ export class LlmConnectionService {
     }));
   }
 
+  async exists(params: {
+    owner: LlmConnectionOwner;
+    provider: string;
+  }): Promise<boolean> {
+    return Boolean(await this.repository.findByProvider(params));
+  }
+
   async create(params: {
     owner: LlmConnectionOwner;
     input: LlmConnectionWriteInput;

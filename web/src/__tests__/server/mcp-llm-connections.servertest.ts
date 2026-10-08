@@ -10,6 +10,7 @@ import {
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 import { createMcpTestSetup } from "@/src/__tests__/server/mcp-helpers";
+import { env } from "@/src/env.mjs";
 import type { OrganizationServerContext } from "@/src/features/mcp/types";
 import { authenticator } from "@/src/features/apiKey/server";
 import "@/src/features/mcp/server/bootstrap";
@@ -61,8 +62,8 @@ async function createOrganizationContext(): Promise<{
 }
 
 describe("MCP LLM connection tools", () => {
-  it("requires update access for project upserts", () => {
-    expect(upsertLlmConnectionTool.action).toBe("llmApiKeys:update");
+  it("requires create access before checking update access for replacements", () => {
+    expect(upsertLlmConnectionTool.action).toBe("llmApiKeys:create");
   });
 
   it("only advertises tools matching the API key scope", async () => {
@@ -120,6 +121,54 @@ describe("MCP LLM connection tools", () => {
     expect(
       await prisma.llmApiKeys.findUnique({ where: { id: connection!.id } }),
     ).toBeNull();
+  });
+
+  it("requires update access before replacing a project connection", async () => {
+    const fixture = await createMcpTestSetup();
+    const provider = `mcp-project-auth-${randomUUID()}`;
+    const previousMigration = (env as any).API_AUTH_MIGRATION;
+    const restrictedContext = {
+      ...fixture.context,
+      auth: {
+        ...fixture.context.auth,
+        policies: fixture.context.auth.policies.map((policy) => ({
+          ...policy,
+          actions: policy.actions.filter(
+            (action) => action !== "llmApiKeys:update",
+          ),
+        })),
+      },
+    };
+
+    try {
+      (env as any).API_AUTH_MIGRATION = "enforce";
+      await handleUpsertLlmConnection(
+        {
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-project-original",
+          withDefaultModels: true,
+        },
+        restrictedContext,
+      );
+
+      await expect(
+        handleUpsertLlmConnection(
+          {
+            provider,
+            adapter: LLMAdapter.OpenAI,
+            secretKey: "sk-project-replacement",
+            withDefaultModels: true,
+          },
+          restrictedContext,
+        ),
+      ).rejects.toThrow("does not have access");
+    } finally {
+      (env as any).API_AUTH_MIGRATION = previousMigration;
+      await prisma.llmApiKeys.deleteMany({
+        where: { projectId: fixture.projectId, provider },
+      });
+    }
   });
 
   it("manages organization connections through the shared service", async () => {

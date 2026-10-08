@@ -1,5 +1,6 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
 import {
   GetLlmConnectionsV1Query,
@@ -45,13 +46,25 @@ export default withMiddlewares({
     bodySchema: PutLlmConnectionV1Body,
     responseSchema: PutLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,
-    fn: async ({ body, auth, res }) => {
-      const result = await new LlmConnectionService().upsert({
-        owner: {
-          type: "project",
-          projectId: auth.scope.projectId,
-          organizationId: auth.scope.orgId,
-        },
+    fn: async ({ body, auth, ctx, res }) => {
+      const service = new LlmConnectionService();
+      const owner = {
+        type: "project" as const,
+        projectId: auth.scope.projectId,
+        organizationId: auth.scope.orgId,
+      };
+      if (await service.exists({ owner, provider: body.provider })) {
+        const decision = shadowAuthorize({
+          ctx,
+          action: "llmApiKeys:update",
+          resource: { projectId: auth.scope.projectId },
+          legacyDecision: { success: true, scope: auth.scope },
+        });
+        if (!decision.success) throw decision.error;
+      }
+
+      const result = await service.upsert({
+        owner,
         input: body,
         actor: {
           projectId: auth.scope.projectId,

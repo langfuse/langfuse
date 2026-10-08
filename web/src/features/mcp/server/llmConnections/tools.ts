@@ -9,6 +9,7 @@ import {
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
 import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { runMcpTool } from "../../core/run-mcp-tool";
@@ -60,7 +61,7 @@ export const [upsertLlmConnectionTool, handleUpsertLlmConnection] = defineTool({
   name: "upsertLlmConnection",
   description:
     "Create or replace a project LLM connection by provider. The secret is encrypted and never returned.",
-  action: "llmApiKeys:update",
+  action: "llmApiKeys:create",
   baseSchema: PutLlmConnectionMcpBase,
   inputSchema: PutLlmConnectionV1Body,
   handler: async (input, context) =>
@@ -68,12 +69,32 @@ export const [upsertLlmConnectionTool, handleUpsertLlmConnection] = defineTool({
       spanName: "mcp.llm_connections.upsert",
       context,
       fn: async () => {
-        const result = await new LlmConnectionService().upsert({
-          owner: {
-            type: "project",
-            projectId: context.projectId,
-            organizationId: context.orgId,
-          },
+        const service = new LlmConnectionService();
+        const owner = {
+          type: "project" as const,
+          projectId: context.projectId,
+          organizationId: context.orgId,
+        };
+        if (
+          await service.exists({
+            owner,
+            provider: input.provider,
+          })
+        ) {
+          const decision = shadowAuthorize({
+            ctx: context.auth,
+            action: "llmApiKeys:update",
+            resource: { projectId: context.projectId },
+            legacyDecision: {
+              success: true,
+              scope: { accessLevel: context.accessLevel },
+            },
+          });
+          if (!decision.success) throw decision.error;
+        }
+
+        const result = await service.upsert({
+          owner,
           input,
           actor: context,
         });
