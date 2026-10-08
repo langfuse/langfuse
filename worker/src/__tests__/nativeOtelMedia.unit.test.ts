@@ -183,7 +183,9 @@ describe(
                       },
                       {
                         key: "metadata.provider",
-                        value: { stringValue: JSON.stringify(providerMetadata) },
+                        value: {
+                          stringValue: JSON.stringify(providerMetadata),
+                        },
                       },
                     ],
                   },
@@ -215,9 +217,11 @@ describe(
             }>;
           }>;
         };
-        const attributes = compact.resourceSpans[0]!.scopeSpans[0]!.spans[0]!
-          .attributes;
-        expect(JSON.parse(JSON.parse(attributes[0]!.value.stringValue))).toEqual({
+        const attributes =
+          compact.resourceSpans[0]!.scopeSpans[0]!.spans[0]!.attributes;
+        expect(
+          JSON.parse(JSON.parse(attributes[0]!.value.stringValue)),
+        ).toEqual({
           image: batch.media[0]!.reference,
         });
         expect(JSON.parse(attributes[1]!.value.stringValue)).toBe(
