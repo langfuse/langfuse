@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { brotliDecompressSync } from "node:zlib";
 
@@ -150,9 +150,11 @@ function readFormat12(view: DataView, base: number, into: Set<number>): void {
     const start = view.getUint32(at);
     const end = view.getUint32(at + 4);
     const startGlyph = view.getUint32(at + 8);
-    if (startGlyph === 0 && start === 0) continue;
-    for (let codepoint = start; codepoint <= end; codepoint++)
-      into.add(codepoint);
+    for (let codepoint = start; codepoint <= end; codepoint++) {
+      // Glyph ids run consecutively from startGlyph, so at most the first
+      // character of a group lands on the "missing glyph".
+      if (startGlyph + (codepoint - start) !== 0) into.add(codepoint);
+    }
   }
 }
 
@@ -171,31 +173,42 @@ function readCodepoints(fileName: string): Set<number> {
   return codepoints;
 }
 
-const faces = {
-  regular: readCodepoints("IBMPlexMono-Regular.woff2"),
-  bold: readCodepoints("IBMPlexMono-Bold.woff2"),
-};
+// Discovered rather than listed, so a face added later is held to the same
+// contract instead of slipping in under a suite that stays green.
+const faces = readdirSync(FONT_DIR)
+  .filter((fileName) => fileName.endsWith(".woff2"))
+  .sort()
+  .map((fileName) => [fileName, readCodepoints(fileName)] as const);
 
-describe.each(Object.entries(faces))(
-  "IBM Plex Mono %s",
-  (_face, codepoints) => {
-    it("ships every glyph of the upstream family", () => {
-      expect(codepoints.size).toBe(UPSTREAM_CODEPOINT_COUNT);
-    });
+it("finds the faces fonts.ts loads", () => {
+  expect(faces.map(([fileName]) => fileName)).toEqual([
+    "IBMPlexMono-Bold.woff2",
+    "IBMPlexMono-Regular.woff2",
+  ]);
+});
 
-    it.each(Object.entries(SAMPLES))("covers %s", (_script, sample) => {
-      const missing = [...sample].filter(
-        (character) => !codepoints.has(character.codePointAt(0)!),
-      );
-      expect(missing).toEqual([]);
-    });
-  },
-);
+describe.each(faces)("%s", (_fileName, codepoints) => {
+  it("ships every glyph of the upstream family", () => {
+    expect(codepoints.size).toBe(UPSTREAM_CODEPOINT_COUNT);
+  });
 
-it("declares the same characters in both weights", () => {
+  it.each(Object.entries(SAMPLES))("covers %s", (_script, sample) => {
+    const missing = [...sample].filter(
+      (character) => !codepoints.has(character.codePointAt(0)!),
+    );
+    expect(missing).toEqual([]);
+  });
+});
+
+it("declares the same characters in every weight", () => {
   // A character present in one weight only renders in a fallback font as soon
   // as it is bold, which is the same mixed-typeface bug one weight deep.
-  const onlyRegular = [...faces.regular].filter((cp) => !faces.bold.has(cp));
-  const onlyBold = [...faces.bold].filter((cp) => !faces.regular.has(cp));
-  expect({ onlyRegular, onlyBold }).toEqual({ onlyRegular: [], onlyBold: [] });
+  const [[, reference]] = faces;
+  const disagreements = faces.flatMap(([fileName, codepoints]) =>
+    [
+      ...[...reference].filter((cp) => !codepoints.has(cp)),
+      ...[...codepoints].filter((cp) => !reference.has(cp)),
+    ].map((cp) => `${fileName} U+${cp.toString(16).toUpperCase()}`),
+  );
+  expect(disagreements).toEqual([]);
 });

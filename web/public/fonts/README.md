@@ -63,6 +63,12 @@ Keep the TrueType hinting tables (`cvt`, `fpgm`, `prep`, `gasp`) that this
 produces. `--no-hinting` saves about 12 KB per face and changes how the text
 renders on Windows.
 
+`main` is a moving branch, so a regeneration can pick up a newer release than
+the 930-character version 2.3 recorded above. That is fine — but the count is
+pinned in `fonts.clienttest.ts`, so when it changes, update
+`UPSTREAM_CODEPOINT_COUNT` and the version here in the same commit. The test
+failing on an upgrade is the contract working.
+
 After regenerating, check against the files you replaced: codepoint coverage
 must be a superset, and `unitsPerEm`, ascender, descender, cap height, x-height
 and the advance widths must be unchanged — otherwise every monospace surface in
