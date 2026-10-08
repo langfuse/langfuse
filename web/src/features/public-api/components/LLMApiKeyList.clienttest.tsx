@@ -15,6 +15,11 @@ const organizationQueryResult = vi.hoisted(() => ({
 vi.mock("@/src/components/layouts/header", () => ({
   default: () => null,
 }));
+vi.mock("@/src/components/ui/InfoTooltip/InfoTooltip", () => ({
+  InfoTooltip: ({ children, label }: PropsWithChildren<{ label: string }>) => (
+    <span aria-label={label}>{children}</span>
+  ),
+}));
 vi.mock("@/src/features/rbac", () => ({
   useHasProjectAccess: () => true,
   useHasOrganizationAccess: () => true,
@@ -234,12 +239,11 @@ describe("LLM connection editing", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.pointerMove(
-      screen.getByLabelText("About organization connections"),
-      { pointerType: "mouse" },
-    );
     expect(
-      await screen.findByText(
+      screen.getByLabelText("About organization connections"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
         "Organization connections are inherited by this project. Project connections with the same provider name take precedence.",
       ),
     ).toBeInTheDocument();
