@@ -350,7 +350,7 @@ describe("in-app agent execution", () => {
     );
   });
 
-  it("includes live page context in each Assistant turn", async () => {
+  it("uses the current registered page context when submitting a turn", async () => {
     const unregister = registerInAppAgentPageContext(
       "project-1",
       "evaluator-sample",

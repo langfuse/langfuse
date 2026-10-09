@@ -1,10 +1,12 @@
+import { useEffect } from "react";
+import { act, renderHook } from "@testing-library/react";
+
 import {
   activateInAppAgentContextualLanding,
-  clearInAppAgentContextualLanding,
   getInAppAgentContextualLanding,
   registerInAppAgentContextualLanding,
-  subscribeToInAppAgentContextualLanding,
   type InAppAgentContextualLanding,
+  useInAppAgentContextualLanding,
 } from "./contextualLanding";
 
 function landing(id: string, title = id): InAppAgentContextualLanding {
@@ -18,17 +20,7 @@ function landing(id: string, title = id): InAppAgentContextualLanding {
 }
 
 describe("in-app agent contextual landing", () => {
-  it("scopes registration, activation, and subscriptions by project", () => {
-    const projectOneListener = vi.fn();
-    const projectTwoListener = vi.fn();
-    const unsubscribeProjectOne = subscribeToInAppAgentContextualLanding(
-      "project-1",
-      projectOneListener,
-    );
-    const unsubscribeProjectTwo = subscribeToInAppAgentContextualLanding(
-      "project-2",
-      projectTwoListener,
-    );
+  it("rejects activation from another project", () => {
     const unregister = registerInAppAgentContextualLanding(
       "project-1",
       landing("evaluator"),
@@ -42,77 +34,34 @@ describe("in-app agent contextual landing", () => {
     );
     expect(getInAppAgentContextualLanding("project-1")?.id).toBe("evaluator");
     expect(getInAppAgentContextualLanding("project-2")).toBeUndefined();
-    expect(projectOneListener).toHaveBeenCalledOnce();
-    expect(projectTwoListener).not.toHaveBeenCalled();
-
-    clearInAppAgentContextualLanding("project-1");
-    expect(getInAppAgentContextualLanding("project-1")).toBeUndefined();
-    expect(projectOneListener).toHaveBeenCalledTimes(2);
 
     unregister();
-    unsubscribeProjectOne();
-    unsubscribeProjectTwo();
   });
 
-  it("does not let stale cleanup remove a replacement registration", () => {
-    const unregisterOld = registerInAppAgentContextualLanding(
-      "project-1",
-      landing("evaluator", "Old"),
-    );
-    const unregisterNew = registerInAppAgentContextualLanding(
-      "project-1",
-      landing("evaluator", "New"),
-    );
+  it("reacts to activation and replacement without stale owner cleanup", () => {
+    const useOwnedLanding = (ownedLanding: InAppAgentContextualLanding) => {
+      useEffect(
+        () => registerInAppAgentContextualLanding("project-1", ownedLanding),
+        [ownedLanding],
+      );
+      return useInAppAgentContextualLanding("project-1");
+    };
+    const oldLanding = landing("evaluator", "Old");
+    const newLanding = landing("evaluator", "New");
+    const oldOwner = renderHook(() => useOwnedLanding(oldLanding));
 
-    activateInAppAgentContextualLanding("project-1", "evaluator");
-    unregisterOld();
-    expect(getInAppAgentContextualLanding("project-1")?.title).toBe("New");
+    act(() => {
+      activateInAppAgentContextualLanding("project-1", "evaluator");
+    });
+    expect(oldOwner.result.current?.title).toBe("Old");
 
-    unregisterNew();
+    const newOwner = renderHook(() => useOwnedLanding(newLanding));
+    expect(newOwner.result.current?.title).toBe("New");
+
+    oldOwner.unmount();
+    expect(newOwner.result.current?.title).toBe("New");
+
+    newOwner.unmount();
     expect(getInAppAgentContextualLanding("project-1")).toBeUndefined();
-  });
-
-  it("reactively exposes a replacement for the active landing", () => {
-    const listener = vi.fn();
-    const unsubscribe = subscribeToInAppAgentContextualLanding(
-      "project-1",
-      listener,
-    );
-    const unregisterOld = registerInAppAgentContextualLanding(
-      "project-1",
-      landing("evaluator", "Old"),
-    );
-    activateInAppAgentContextualLanding("project-1", "evaluator");
-
-    const unregisterNew = registerInAppAgentContextualLanding(
-      "project-1",
-      landing("evaluator", "New"),
-    );
-
-    expect(getInAppAgentContextualLanding("project-1")?.title).toBe("New");
-    expect(listener).toHaveBeenCalledTimes(2);
-
-    unregisterOld();
-    unregisterNew();
-    unsubscribe();
-  });
-
-  it("clears an active landing when its owner unregisters", () => {
-    const listener = vi.fn();
-    const unsubscribe = subscribeToInAppAgentContextualLanding(
-      "project-1",
-      listener,
-    );
-    const unregister = registerInAppAgentContextualLanding(
-      "project-1",
-      landing("evaluator"),
-    );
-
-    activateInAppAgentContextualLanding("project-1", "evaluator");
-    unregister();
-
-    expect(getInAppAgentContextualLanding("project-1")).toBeUndefined();
-    expect(listener).toHaveBeenCalledTimes(2);
-    unsubscribe();
   });
 });

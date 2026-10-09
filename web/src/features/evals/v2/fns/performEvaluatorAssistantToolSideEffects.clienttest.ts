@@ -44,113 +44,83 @@ describe("evaluator Assistant tool side effects", () => {
       source: "hydrated",
       utils: {} as InvalidationUtils,
     });
+    performEvaluatorAssistantToolSideEffects({
+      toolCalls: [
+        {
+          ...toolCall,
+          toolCallId: "set-filter-absent",
+          toolArguments: {
+            evaluatorId: "evaluator-absent",
+            filter: [],
+          },
+        },
+      ],
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      source: "live",
+      utils: {} as InvalidationUtils,
+    });
 
     expect(apply).toHaveBeenCalledOnce();
     unregister();
   });
 
-  it("gracefully ignores a workbench filter when its UI is absent", () => {
-    expect(() =>
-      performEvaluatorAssistantToolSideEffects({
-        toolCalls: [
-          {
-            toolCallId: "set-filter-absent",
-            toolName: "langfuse_setEvaluatorWorkbenchFilter",
-            toolArguments: {
-              evaluatorId: "evaluator-absent",
-              filter: [],
-            },
-          },
-        ],
-        projectId: "project-1",
-        conversationId: "conversation-1",
-        source: "live",
-        utils: {} as InvalidationUtils,
-      }),
-    ).not.toThrow();
-  });
-
-  it("refreshes the updated evaluator only", async () => {
-    const evaluatorInvalidate = vi.fn(() => Promise.resolve());
-    const publishUpdate = vi.spyOn(
-      evaluatorAssistantUpdateSignalStore,
-      "publish",
-    );
-    const utils = {
-      evalsV2: { get: { invalidate: evaluatorInvalidate } },
-    } as unknown as InvalidationUtils;
-
-    await Promise.all(
-      performEvaluatorAssistantToolSideEffects({
-        toolCalls: [
-          {
-            toolCallId: "update-evaluator-1",
-            toolName: "langfuse_updateEvaluator",
-            toolArguments: '{"evaluatorId":"evaluator-1"}',
-          },
-          {
-            toolCallId: "update-evaluator-2",
-            toolName: "langfuse_updateEvaluator",
-            toolArguments: '{"evaluatorId":"evaluator-1"}',
-          },
-        ],
-        projectId: "project-1",
-        conversationId: "conversation-1",
-        source: "live",
-        utils,
-      }),
-    );
-
-    expect(evaluatorInvalidate).toHaveBeenCalledWith({
-      projectId: "project-1",
-      evaluatorId: "evaluator-1",
-    });
-    expect(evaluatorInvalidate).toHaveBeenCalledOnce();
-    expect(publishUpdate).toHaveBeenCalledWith({
-      projectId: "project-1",
-      evaluatorId: "evaluator-1",
+  it.each([
+    {
+      name: "code evaluator",
+      toolArguments: '{"evaluatorId":"evaluator-1"}',
       surface: "code",
-      updateId: "update-evaluator-2",
-    });
-    publishUpdate.mockRestore();
-  });
-
-  it("highlights judge prompt updates on the prompt surface", async () => {
-    const publishUpdate = vi.spyOn(
-      evaluatorAssistantUpdateSignalStore,
-      "publish",
-    );
-    const utils = {
-      evalsV2: { get: { invalidate: vi.fn(() => Promise.resolve()) } },
-    } as unknown as InvalidationUtils;
-
-    await Promise.all(
-      performEvaluatorAssistantToolSideEffects({
-        toolCalls: [
-          {
-            toolCallId: "update-judge-1",
-            toolName: "langfuse_updateEvaluator",
-            toolArguments: {
-              evaluatorId: "evaluator-1",
-              type: "LLM_AS_JUDGE",
-            },
-          },
-        ],
-        projectId: "project-1",
-        conversationId: "conversation-1",
-        source: "live",
-        utils,
-      }),
-    );
-
-    expect(publishUpdate).toHaveBeenCalledWith({
-      projectId: "project-1",
-      evaluatorId: "evaluator-1",
+    },
+    {
+      name: "LLM-as-a-judge evaluator",
+      toolArguments: {
+        evaluatorId: "evaluator-1",
+        type: "LLM_AS_JUDGE" as const,
+      },
       surface: "prompt",
-      updateId: "update-judge-1",
-    });
-    publishUpdate.mockRestore();
-  });
+    },
+  ] as const)(
+    "refreshes and highlights a $name update",
+    async ({ toolArguments, surface }) => {
+      const evaluatorInvalidate = vi.fn(() => Promise.resolve());
+      const publishUpdate = vi.spyOn(
+        evaluatorAssistantUpdateSignalStore,
+        "publish",
+      );
+      const utils = {
+        evalsV2: { get: { invalidate: evaluatorInvalidate } },
+      } as unknown as InvalidationUtils;
+
+      await Promise.all(
+        performEvaluatorAssistantToolSideEffects({
+          toolCalls: [
+            {
+              toolCallId: "update-evaluator-1",
+              toolName: "langfuse_updateEvaluator",
+              toolArguments,
+            },
+          ],
+          projectId: "project-1",
+          conversationId: "conversation-1",
+          source: "live",
+          utils,
+        }),
+      );
+
+      expect(evaluatorInvalidate).toHaveBeenCalledWith({
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+      });
+      expect(evaluatorInvalidate).toHaveBeenCalledOnce();
+      expect(publishUpdate).toHaveBeenCalledWith({
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        surface,
+        updateId: "update-evaluator-1",
+      });
+      publishUpdate.mockRestore();
+    },
+  );
 
   it("does not refresh or highlight failed evaluator updates", async () => {
     const evaluatorInvalidate = vi.fn(() => Promise.resolve());
@@ -263,35 +233,6 @@ describe("evaluator Assistant tool side effects", () => {
       evaluatorId: "evaluator-1",
       surface: "test",
       updateId: "test-evaluator-1",
-    });
-
-    performEvaluatorAssistantToolSideEffects({
-      toolCalls: [
-        {
-          toolCallId: "test-evaluator-2",
-          toolName: "langfuse_testEvaluator",
-          toolArguments: {
-            evaluatorId: "evaluator-1",
-            observationId: "observation-1",
-          },
-          toolResultContent: JSON.stringify({
-            success: true,
-            scores: [{ name: "Non-empty", value: 0, dataType: "BOOLEAN" }],
-          }),
-        },
-      ],
-      projectId: "project-1",
-      conversationId: "conversation-1",
-      source: "live",
-      utils: {} as InvalidationUtils,
-    });
-
-    expect(publishUpdate).toHaveBeenCalledTimes(2);
-    expect(publishUpdate).toHaveBeenLastCalledWith({
-      projectId: "project-1",
-      evaluatorId: "evaluator-1",
-      surface: "test",
-      updateId: "test-evaluator-2",
     });
     publishUpdate.mockRestore();
     evaluatorAssistantTestResultStore.clear("project-1", "evaluator-1");

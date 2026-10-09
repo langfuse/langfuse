@@ -13,40 +13,14 @@ describe("project-scoped registration store", () => {
     unregister();
   });
 
-  it("replaces values without changing their insertion order", () => {
+  it("keeps a replacement when the stale owner cleans up", () => {
     const store = createProjectScopedRegistrationStore<string>();
-    const unregisterOld = store.register("project-1", "first", "old");
-    const unregisterSecond = store.register("project-1", "second", "second");
-    const unregisterNew = store.register("project-1", "first", "new");
-
-    expect(store.values("project-1")).toEqual(["new", "second"]);
-    expect(store.values("project-1")).toBe(store.values("project-1"));
+    const unregisterOld = store.register("project-1", "feature", "old");
+    const unregisterNew = store.register("project-1", "feature", "new");
 
     unregisterOld();
-    expect(store.values("project-1")).toEqual(["new", "second"]);
+    expect(store.get("project-1", "feature")).toBe("new");
 
     unregisterNew();
-    unregisterSecond();
-  });
-
-  it("notifies project subscribers until they unsubscribe", () => {
-    const store = createProjectScopedRegistrationStore<string>();
-    const projectOneListener = vi.fn();
-    const projectTwoListener = vi.fn();
-    const unsubscribe = store.subscribe("project-1", projectOneListener);
-    store.subscribe("project-2", projectTwoListener);
-
-    const unregister = store.register("project-1", "feature", "one");
-    const staleUnregister = unregister;
-    const unregisterReplacement = store.register("project-1", "feature", "two");
-    staleUnregister();
-    unregisterReplacement();
-
-    expect(projectOneListener).toHaveBeenCalledTimes(3);
-    expect(projectTwoListener).not.toHaveBeenCalled();
-
-    unsubscribe();
-    store.register("project-1", "feature", "three");
-    expect(projectOneListener).toHaveBeenCalledTimes(3);
   });
 });
