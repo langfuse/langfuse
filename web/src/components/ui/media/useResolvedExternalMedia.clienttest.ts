@@ -7,6 +7,7 @@ const { queryState, refetchMock } = vi.hoisted(() => ({
     data: {
       url: "https://signed.example.com/photo.jpeg",
       expiresAt: new Date("2026-10-09T14:05:00.000Z"),
+      contentLength: 42,
     },
     isError: false,
     isFetching: false,
@@ -51,6 +52,7 @@ describe("useResolvedExternalMedia", () => {
     );
 
     expect(result.current.status).toBe("ready");
+    expect(result.current.contentLength).toBe(42);
 
     vi.setSystemTime(new Date("2026-10-09T14:06:00.000Z"));
     await act(result.current.refreshIfNeeded);
