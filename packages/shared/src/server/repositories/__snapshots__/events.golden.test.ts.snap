@@ -282,7 +282,7 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
       "param1": "golden-project",
       "param2": "golden-span",
       "param3": "2026-01-01 00:00:00.000",
-      "param4": "2025-12-01 00:00:00.000",
+      "param4": 2025-11-29T00:00:00.000Z,
       "param5": "GENERATION",
       "param6": "golden-trace",
       "param7": 1,
@@ -336,7 +336,7 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     e.updated_at AS updated_at,
     e.event_ts
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String}) AND (toStartOfMinute(start_time) = toStartOfMinute({param3:DateTime64(3)})) AND (start_time >= ({param4:DateTime64(3)} - toIntervalDay(2))) AND (type = {param5:String}) AND (trace_id = {param6:String})
+WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String}) AND (toStartOfMinute(start_time) = toStartOfMinute({param3:DateTime64(3)})) AND (start_time >= {param4:DateTime64(3)}) AND (type = {param5:String}) AND (trace_id = {param6:String})
 ORDER BY
     start_time DESC,
     event_ts DESC
@@ -583,7 +583,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param2": [
         "golden-trace",
       ],
-      "param3": "2025-12-01 00:00:00.000",
+      "param3": 2025-11-29T00:00:00.000Z,
       "param4": "2026-01-01 00:00:00.000",
       "param5": 1,
     },
@@ -648,7 +648,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
             any(experiment_id) AS experiment_id
         FROM events_full AS e
-        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)})) AND (start_time >= ({param3:DateTime64(3)} - toIntervalDay(2)))
+        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)})) AND (start_time >= {param3:DateTime64(3)})
         GROUP BY
             trace_id,
             project_id
