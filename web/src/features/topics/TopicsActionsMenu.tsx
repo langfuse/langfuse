@@ -60,7 +60,7 @@ export function TopicsActionsMenu({
 }
 
 type TopicsActionsMenuProps = {
-  children: ReactNode;
+  children?: ReactNode;
   hasFacets: boolean;
   triggerAction: {
     label: string;

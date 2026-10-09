@@ -7,12 +7,9 @@ import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 
 const controls = (
   <TopicsFilters
-    layout="header"
     facets={[{ facetId: "intent", name: "Intent" }]}
     selectedFacetId="intent"
-    timeWindow="7"
     onSelectFacet={fn()}
-    onSelectTimeWindow={fn()}
   />
 );
 
@@ -57,14 +54,15 @@ export const WaitsForInitialFacets = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Loading topics…")).toBeVisible();
     await expect(
-      canvas.queryByRole("combobox", { name: "Topics facet" }),
+      canvas.queryByRole("tab", { name: "Intent" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Finish loading" }),
     );
     await expect(canvas.queryByText("Loading topics…")).not.toBeInTheDocument();
-    await expect(
-      canvas.getByRole("combobox", { name: "Topics facet" }),
-    ).toHaveTextContent("Intent");
+    await expect(canvas.getByRole("tab", { name: "Intent" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   },
 });
