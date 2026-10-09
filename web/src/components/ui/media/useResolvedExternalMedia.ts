@@ -11,7 +11,7 @@ export function useResolvedExternalMedia(
 ): {
   status: MediaTagStatus;
   url?: string;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 } {
   const projectId = useProjectIdFromURL();
   const query = api.media.resolveExternalMedia.useQuery(
@@ -26,8 +26,8 @@ export function useResolvedExternalMedia(
       staleTime: 4 * 60 * 1000,
     },
   );
-  const refresh = () => {
-    void query.refetch();
+  const refresh = async () => {
+    await query.refetch();
   };
 
   if (!enabled || !projectId) {

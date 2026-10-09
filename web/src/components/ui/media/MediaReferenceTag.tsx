@@ -65,7 +65,9 @@ function S3MediaTag({
     setOpen(nextOpen);
     if (!nextOpen) return;
 
-    if (armed && status === "error") refresh();
+    if (armed && status === "error") {
+      refresh().catch(() => undefined);
+    }
     setArmed(true);
   };
 

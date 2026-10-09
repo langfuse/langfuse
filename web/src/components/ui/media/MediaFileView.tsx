@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
@@ -14,6 +14,13 @@ export type MediaFileViewProps = {
   src: string;
   contentType: MediaContentType;
   defaultExpanded?: boolean;
+};
+
+type MediaFilePreviewProps = {
+  src: string;
+  fileName: string;
+  fileType: "image" | "audio" | "video";
+  compactImageWidth?: string;
 };
 
 export function MediaFileView({
@@ -63,30 +70,6 @@ export function MediaFileView({
     openInNewTab();
   };
 
-  let previewContent: ReactNode = null;
-  if (isImage) {
-    previewContent = (
-      <ResizableImage
-        src={src}
-        alt={fileName}
-        isDefaultVisible={true}
-        shouldValidateImageSource={false}
-        fitContent
-        compactWidth={compactImageWidth}
-      />
-    );
-  } else if (isAudio) {
-    previewContent = <AudioPlayer src={src} />;
-  } else if (isVideo) {
-    previewContent = <VideoPlayer src={src} />;
-  }
-
-  const expandedPreview = isAudio ? (
-    <div className="max-w-xl min-w-72">{previewContent}</div>
-  ) : (
-    previewContent
-  );
-
   return (
     <div
       className={cn(
@@ -97,7 +80,12 @@ export function MediaFileView({
       {isPreviewable && isExpanded ? (
         <div className="flex max-w-3xl items-start gap-2">
           <div className={cn(isImage ? "contents" : "min-w-0 flex-1")}>
-            {expandedPreview}
+            <MediaFilePreview
+              src={src}
+              fileName={fileName}
+              fileType={fileType as MediaFilePreviewProps["fileType"]}
+              compactImageWidth={compactImageWidth}
+            />
           </div>
           <Button
             type="button"
@@ -120,6 +108,36 @@ export function MediaFileView({
       )}
     </div>
   );
+}
+
+function MediaFilePreview({
+  src,
+  fileName,
+  fileType,
+  compactImageWidth,
+}: MediaFilePreviewProps) {
+  if (fileType === "image") {
+    return (
+      <ResizableImage
+        src={src}
+        alt={fileName}
+        isDefaultVisible={true}
+        shouldValidateImageSource={false}
+        fitContent
+        compactWidth={compactImageWidth}
+      />
+    );
+  }
+
+  if (fileType === "audio") {
+    return (
+      <div className="max-w-xl min-w-72">
+        <AudioPlayer src={src} />
+      </div>
+    );
+  }
+
+  return <VideoPlayer src={src} />;
 }
 
 function AudioPlayer({ src }: { src: string }) {
