@@ -99,7 +99,7 @@ const MEDIA_KIND_ICON = {
 } satisfies Record<MediaKind, LucideIcon>;
 
 const mediaTagVariants = cva(
-  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-4 transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
+  "focus-visible:ring-ring inline-flex h-5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-4 transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
   {
     variants: {
       intent: {

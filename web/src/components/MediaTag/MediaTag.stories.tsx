@@ -158,6 +158,14 @@ export const InlineWithText = meta.story({
   ),
 });
 
+export const FormattedView = meta.story({
+  render: () => (
+    <span className="font-mono text-xs/5">
+      <MediaTag contentType="image/png" />
+    </span>
+  ),
+});
+
 export const OfficeFormats = meta.story({
   render: () => (
     <div className="flex flex-wrap items-center gap-3">
