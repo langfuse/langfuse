@@ -143,7 +143,7 @@ export function RuleFilterStep({
       description="Choose what should trigger attached evaluators."
     >
       <RadioGroup
-        className="grid grid-cols-2 gap-3"
+        layout="two-column"
         value={triggerKind}
         onValueChange={handleTriggerKindChange}
       >
