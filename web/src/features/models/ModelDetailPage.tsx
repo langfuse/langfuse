@@ -98,8 +98,8 @@ export default function ModelDetailPage() {
         <div className="text-xl font-bold">Model definitions are disabled</div>
         <div className="text-muted-foreground max-w-md text-center text-sm">
           This Langfuse instance does not resolve model definitions, so it
-          computes no costs and runs no tokenizer. Usage and costs sent with
-          your traces are still recorded.
+          infers no costs or token counts. Usage and costs sent with your traces
+          are still recorded.
         </div>
       </div>
     );
