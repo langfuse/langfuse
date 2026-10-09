@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
@@ -145,12 +146,15 @@ const experimentScoreCTE = (params: {
   // The agnostic arrays carry the canonical column names the level-agnostic
   // filters target; the trace-only mode keeps its prefix so legacy
   // `trace_*` filters still resolve against a trace-only aggregate.
-  const prefix =
-    params.level === "any"
-      ? ""
-      : params.level === "observation"
-        ? "obs_"
-        : "trace_";
+  const prefix = (() => {
+    if (params.level === "any") {
+      return "";
+    }
+    if (params.level === "observation") {
+      return "obs_";
+    }
+    return "trace_";
+  })();
 
   const joinedEventScores = new CTEQueryBuilder()
     .withCTE("event_keys", {
@@ -1420,16 +1424,36 @@ export type ExperimentItemBatchIO = {
   outputs: ExperimentOutputData[]; // From ALL experiments
 };
 
+/** Upper bound for an explicit experiment I/O read. Matches the events batch. */
+const MAX_EXPERIMENT_BATCH_IO_CHAR_LIMIT = 10_000;
+
+/**
+ * Positive integer char cap for an expanded read, or undefined when the caller
+ * wants the default pre-truncated table.
+ */
+const expandedIoCharLimit = (limit: number | undefined): number | undefined => {
+  if (limit === undefined || !Number.isFinite(limit)) return undefined;
+  return Math.min(
+    MAX_EXPERIMENT_BATCH_IO_CHAR_LIMIT,
+    Math.max(1, Math.trunc(limit)),
+  );
+};
+
 /**
  * Get batch IO data for experiment items.
  * Returns input/expectedOutput from base experiment, and output from all experiments.
- * All text fields are truncated to EXPERIMENT_IO_TRUNCATE_LENGTH characters.
+ *
+ * Without `ioCharLimit`, input and output come from the pre-truncated events
+ * table and expected output is capped at EXPERIMENT_IO_TRUNCATE_LENGTH. With
+ * `ioCharLimit`, all three fields are read from the full event text and capped
+ * at that many characters.
  */
 export const getExperimentItemsBatchIO = async (props: {
   projectId: string;
   itemIds: string[];
   baseExperimentId?: string;
   compExperimentIds: string[];
+  ioCharLimit?: number;
 }): Promise<ExperimentItemBatchIO[]> => {
   const { projectId, itemIds, baseExperimentId, compExperimentIds } = props;
 
@@ -1442,12 +1466,19 @@ export const getExperimentItemsBatchIO = async (props: {
     ...compExperimentIds,
   ];
 
+  const expandedLimit = expandedIoCharLimit(props.ioCharLimit);
   const queryBuilder = eventsExperimentsRootSpans({
     projectId,
     experimentIds: allExperimentIds,
     experimentItemIds: itemIds,
-  })
-    .selectIO(true, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
+  });
+  if (expandedLimit !== undefined) {
+    // The pre-truncated table only keeps a short head of input and output, so
+    // a taller row has to read the full event text before applying its cap.
+    queryBuilder.forceFullTable();
+  }
+  queryBuilder
+    .selectIO(true, expandedLimit ?? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
     .selectRaw(
       "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
       "e.experiment_item_id as item_id",
@@ -1469,7 +1500,7 @@ export const getExperimentItemsBatchIO = async (props: {
     query,
     params: {
       ...params,
-      truncateLength: EXPERIMENT_IO_TRUNCATE_LENGTH,
+      truncateLength: expandedLimit ?? EXPERIMENT_IO_TRUNCATE_LENGTH,
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",

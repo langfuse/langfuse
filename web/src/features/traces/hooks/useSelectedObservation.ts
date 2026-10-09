@@ -31,11 +31,18 @@ export function useSelectedObservation({
   traceId,
   projectId,
   observations,
+  enabled = true,
 }: {
   selectedNodeId: string | null;
   traceId: string;
   projectId: string;
   observations: ObservationReturnTypeWithMetadata[];
+  /**
+   * False while `observations` are the previous trace's placeholder: the
+   * selected id belongs to the next trace, so a by-id fetch scoped to this
+   * trace would flash "not found". Stays `loading` instead.
+   */
+  enabled?: boolean;
 }): SelectedObservation {
   // A loaded row wins over the synthetic trace-node id shape: observation ids
   // are caller-supplied, so an observation really can be called
@@ -74,7 +81,7 @@ export function useSelectedObservation({
       verbosity: "compact",
     },
     {
-      enabled: !!observationId && !loadedRow,
+      enabled: enabled && !!observationId && !loadedRow,
       staleTime: 5 * 60 * 1000,
       // The panel renders the missing-observation state itself; a global error
       // toast on top of it would just be alarming noise.
@@ -97,6 +104,8 @@ export function useSelectedObservation({
         observation: loadedRow,
         isOutsideLoadedList: false,
       };
+    // A disabled query still serves a cached row.
+    if (!enabled) return { kind: "loading", observationId };
     if (byId.data)
       return {
         kind: "observation",
@@ -114,5 +123,13 @@ export function useSelectedObservation({
       };
     }
     return { kind: "loading", observationId };
-  }, [observationId, loadedRow, byId.data, hasError, isNotFound, traceId]);
+  }, [
+    observationId,
+    loadedRow,
+    enabled,
+    byId.data,
+    hasError,
+    isNotFound,
+    traceId,
+  ]);
 }

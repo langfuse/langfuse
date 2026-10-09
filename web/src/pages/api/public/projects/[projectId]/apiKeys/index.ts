@@ -1,5 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
+import { isBaseError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -8,9 +9,11 @@ import {
   handleGetApiKeys,
   handleCreateApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { writeProjectError } from "@/src/features/public-api/server/writeError";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import {
+  shadowAuth,
+  writeProjectError,
+} from "@/src/features/public-api/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -89,6 +92,9 @@ export default async function handler(
         return;
     }
   } catch (e) {
+    if (isBaseError(e) && e.isUserError()) {
+      return res.status(e.httpCode).json({ message: e.message });
+    }
     logger.error("Failed to process project API key request", e);
     res.status(500).json({ message: "Internal server error" });
   }

@@ -114,6 +114,7 @@ export async function buildAiSdkModel(params: {
         apiKey,
         config,
         extraHeaders,
+        credentialSource,
         fetch: createFetch(
           isClaudeModel(model.id)
             ? "Anthropic Vertex AI endpoint"
@@ -121,6 +122,11 @@ export async function buildAiSdkModel(params: {
           [VERTEX_AI_AUTH_HEADER],
         ),
       });
+
+    case LLMAdapter.TypeSafe:
+      throw new Error(
+        "TypeSafe decision models cannot generate text; use a decision-model evaluator",
+      );
 
     default: {
       const _exhaustiveCheck: never = model.adapter;

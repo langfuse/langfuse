@@ -116,7 +116,7 @@ export function JsonValue({
     // text highlighter found no search/comment overlays to preserve.
     const mediaDescriptor = classifyMediaValue(str);
     if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
-      return <MediaReferenceTag descriptor={mediaDescriptor} />;
+      return <MediaReferenceTag descriptor={mediaDescriptor} size="sm" />;
     }
 
     return (
@@ -134,12 +134,15 @@ export function JsonValue({
       >
         &quot;
         {segments.map((segment, index) => {
-          const backgroundColor =
-            segment.type === "search"
-              ? theme.searchMatchBackground
-              : segment.type === "comment"
-                ? COMMENT_HIGHLIGHT_COLOR
-                : "transparent";
+          const backgroundColor = (() => {
+            if (segment.type === "search") {
+              return theme.searchMatchBackground;
+            }
+            if (segment.type === "comment") {
+              return COMMENT_HIGHLIGHT_COLOR;
+            }
+            return "transparent";
+          })();
 
           const highlightedSpan = (
             <span key={index} style={{ backgroundColor }}>
@@ -202,12 +205,15 @@ export function JsonValue({
       }}
     >
       {segments.map((segment, index) => {
-        const backgroundColor =
-          segment.type === "search"
-            ? theme.searchMatchBackground
-            : segment.type === "comment"
-              ? COMMENT_HIGHLIGHT_COLOR
-              : "transparent";
+        const backgroundColor = (() => {
+          if (segment.type === "search") {
+            return theme.searchMatchBackground;
+          }
+          if (segment.type === "comment") {
+            return COMMENT_HIGHLIGHT_COLOR;
+          }
+          return "transparent";
+        })();
 
         const highlightedSpan = (
           <span key={index} style={{ backgroundColor }}>

@@ -1,5 +1,6 @@
-import { recordIncrement } from "../instrumentation";
+import { recordDistribution, recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";
+import { type ClickhouseService } from "./client";
 
 /**
  * Terminal outcome of one logical ClickHouse query, counted once per query
@@ -12,6 +13,19 @@ import { type NormalizedClickHouseQueryTags } from "./queryTags";
  */
 export const CLICKHOUSE_QUERY_OUTCOME_METRIC =
   "langfuse.clickhouse.query.outcome";
+
+/**
+ * Per-query cost distributions, read from the `x-clickhouse-summary` response
+ * header and emitted unsampled with the outcome metric's tags. APM keeps only a
+ * small sample of query spans, so these are the series to track query cost over
+ * time per route, table, shape and ClickHouse service.
+ */
+export const CLICKHOUSE_QUERY_PERFORMANCE_METRICS = {
+  elapsedMs: "langfuse.clickhouse.query.elapsed_ms",
+  readBytes: "langfuse.clickhouse.query.read_bytes",
+  readRows: "langfuse.clickhouse.query.read_rows",
+  memoryBytes: "langfuse.clickhouse.query.memory_bytes",
+} as const;
 
 export type ClickHouseQueryOutcome =
   | "success"
@@ -42,6 +56,8 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
  * route here when it gains an SLO.
  */
 const LABELLED_ROUTES = new Set([
+  "GET /api/public/experiments",
+  "GET /api/public/experiment-items",
   "GET /api/public/v2/observations",
   "GET /api/public/v2/metrics",
   "GET /api/public/v3/scores",
@@ -55,6 +71,14 @@ const LABELLED_ROUTES = new Set([
  */
 const LABELLED_BARE_ROUTES = new Set([
   "events.all",
+  "events.batchIO",
+  "events.experimentBatchIO",
+  "events.sessionBatchIO",
+  "events.filterOptions",
+  "experiments.batchIO",
+  "scores.allFromEvents",
+  "scores.countAllFromEvents",
+  "traces.byId",
   "listObservations",
   "trace_redirect",
 ]);
@@ -111,15 +135,16 @@ export type ClickHouseQueryTable =
  * otherwise steal the label. Still best-effort: a subquery/CTE reading a
  * different table in its own `FROM` can win by priority order (first match
  * wins). The events read path is single-table (`FROM events_full`/`events_core`,
- * no v3 joins), so those labels are reliable.
+ * no v3 joins), so those labels are reliable. `dataset_run_items` ranks above
+ * `scores` because dataset run tables filtered by a score read scores in a CTE.
  */
 const TABLE_LABEL_PATTERNS: ReadonlyArray<[ClickHouseQueryTable, RegExp]> = [
   ["events_full", /\bfrom\s+(?:\w+\.)?events_full\b/i],
   ["events_core", /\bfrom\s+(?:\w+\.)?events_core\b/i],
   ["observations", /\bfrom\s+(?:\w+\.)?observations\b/i],
   ["traces", /\bfrom\s+(?:\w+\.)?traces\b/i],
-  ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
   ["dataset_run_items", /\bfrom\s+(?:\w+\.)?dataset_run_items_rmt\b/i],
+  ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
   ["blob_storage_file_log", /\bfrom\s+(?:\w+\.)?blob_storage_file_log\b/i],
 ];
 
@@ -145,8 +170,15 @@ export function clickHouseQueryTableLabel(query: string): ClickHouseQueryTable {
  * than a boolean per shape. A query carrying several predicates (e.g. a
  * by-`span_id` lookup that also bounds `trace_id`) is attributed to its
  * highest-ranked shape.
+ *
+ * Scores reads get their own shapes for the dedup strategy, which decides their
+ * cost more than the filter predicate does. They rank first, but only when the
+ * query's table label is `scores`.
  */
 export type ClickHouseQueryShape =
+  | "scores_final"
+  | "scores_join_seek"
+  | "scores_join"
   | "io_content"
   | "metadata_content"
   | "id_or_ilike"
@@ -204,11 +236,59 @@ const QUERY_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
   ["by_trace_id", BY_TRACE_ID_PATTERN],
 ];
 
-export function clickHouseQueryShape(query: string): ClickHouseQueryShape {
+/**
+ * Scores dedup strategies, matching the SQL the scores UI read emits:
+ *
+ * - `scores_final`: `FROM scores [s] FINAL`.
+ * - `scores_join_seek`: rows joined back to each key's `max(event_ts)`, with
+ *   the key set narrowed first by a `SELECT DISTINCT` seek.
+ * - `scores_join`: the same join without the seek.
+ */
+const SCORES_FINAL_PATTERN =
+  /\bfrom\s+(?:\w+\.)?scores\s+(?:(?:as\s+)?\w+\s+)?final\b/i;
+
+const SCORES_LATEST_JOIN_PATTERN =
+  /\bmax\s*\(\s*(?:\w+\.)?event_ts\s*\)\s+as\s+latest_event_ts\b/i;
+
+const SELECT_DISTINCT_PATTERN = /\bselect\s+distinct\b/i;
+
+function scoresQueryShape(query: string): ClickHouseQueryShape | undefined {
+  if (SCORES_FINAL_PATTERN.test(query)) return "scores_final";
+  if (SCORES_LATEST_JOIN_PATTERN.test(query)) {
+    return SELECT_DISTINCT_PATTERN.test(query)
+      ? "scores_join_seek"
+      : "scores_join";
+  }
+  return undefined;
+}
+
+export function clickHouseQueryShape(
+  query: string,
+  table: ClickHouseQueryTable = clickHouseQueryTableLabel(query),
+): ClickHouseQueryShape {
+  if (table === "scores") {
+    const scoresShape = scoresQueryShape(query);
+    if (scoresShape) return scoresShape;
+  }
   for (const [shape, pattern] of QUERY_SHAPE_PATTERNS) {
     if (pattern.test(query)) return shape;
   }
   return OTHER_SHAPE_LABEL;
+}
+
+function clickHouseQueryMetricTags(
+  tags: NormalizedClickHouseQueryTags,
+  table: ClickHouseQueryTable,
+  shape: ClickHouseQueryShape,
+  clickhouseService: ClickhouseService,
+) {
+  return {
+    surface: tags.surface,
+    route: clickHouseQueryOutcomeRouteLabel(tags.route),
+    table,
+    query_shape: shape,
+    clickhouse_service: clickhouseService,
+  };
 }
 
 export function recordClickHouseQueryOutcome(
@@ -216,12 +296,61 @@ export function recordClickHouseQueryOutcome(
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
   shape: ClickHouseQueryShape,
+  clickhouseService: ClickhouseService,
 ): void {
   recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
-    surface: tags.surface,
-    route: clickHouseQueryOutcomeRouteLabel(tags.route),
-    table,
-    query_shape: shape,
+    ...clickHouseQueryMetricTags(tags, table, shape, clickhouseService),
   });
+}
+
+function summaryNumber(
+  summary: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  if (summary[key] === undefined) return undefined;
+  const value = Number(summary[key]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * Emits the cost distributions from a parsed `x-clickhouse-summary` header.
+ * ClickHouse sends the values as numeric strings; keys an older server does not
+ * send are skipped.
+ */
+export function recordClickHouseQueryPerformance(
+  summary: Record<string, unknown>,
+  tags: NormalizedClickHouseQueryTags,
+  table: ClickHouseQueryTable,
+  shape: ClickHouseQueryShape,
+  clickhouseService: ClickhouseService,
+): void {
+  const metricTags = clickHouseQueryMetricTags(
+    tags,
+    table,
+    shape,
+    clickhouseService,
+  );
+  const elapsedNs = summaryNumber(summary, "elapsed_ns");
+  const values: Array<[string, number | undefined]> = [
+    [
+      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.elapsedMs,
+      elapsedNs === undefined ? undefined : elapsedNs / 1e6,
+    ],
+    [
+      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readBytes,
+      summaryNumber(summary, "read_bytes"),
+    ],
+    [
+      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readRows,
+      summaryNumber(summary, "read_rows"),
+    ],
+    [
+      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.memoryBytes,
+      summaryNumber(summary, "memory_usage"),
+    ],
+  ];
+  for (const [metric, value] of values) {
+    if (value !== undefined) recordDistribution(metric, value, metricTags);
+  }
 }

@@ -15,8 +15,7 @@ import {
   OtelIngestionQueue,
   SecondaryOtelIngestionQueue,
 } from "@langfuse/shared/src/server";
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
-
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 /* 
 This API route is used by Langfuse Cloud to retry failed bullmq jobs.
 */

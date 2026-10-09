@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useMemo } from "react";
 import {
   normalizeOrderByForTable,
@@ -8,31 +9,38 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
 import { DeleteFolder } from "@/src/features/prompts/components/delete-folder";
 import { DuplicateFolder } from "@/src/features/prompts/components/duplicate-folder";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
+import { TagPromptPopover } from "@/src/features/tag";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   promptFilterConfig,
   useQueryFilterState,
   useSidebarFilterState,
 } from "@/src/features/filters";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
-import { buildFullPath } from "@/src/features/folders/utils";
-import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import {
+  useFullTextSearch,
+  TableSearchBar,
+  toObservedOptions,
+} from "@/src/features/search-bar";
+
+import {
+  useFolderPagination,
+  buildFullPath,
+  FolderBreadcrumb,
+} from "@/src/features/folders";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -43,8 +51,7 @@ import {
 } from "@/src/features/column-visibility";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+
 import { PROMPTS_FIELD_REGISTRY } from "@/src/features/prompts/constants/promptsSearchRegistry";
 
 type PromptTableRow = {
@@ -187,12 +194,15 @@ export function PromptTable() {
       const fullPath = prompt.id; // id now contains the full path (used for metrics join)
       // Extract just the name portion (last segment) for display
       const itemName = fullPath.split("/").pop() ?? fullPath;
-      const type =
-        isFolder || prompt.type === "folder"
-          ? "folder"
-          : prompt.type === "chat"
-            ? "chat"
-            : "text";
+      const type = (() => {
+        if (isFolder || prompt.type === "folder") {
+          return "folder";
+        }
+        if (prompt.type === "chat") {
+          return "chat";
+        }
+        return "text";
+      })();
 
       combinedRows.push(
         createRow({
@@ -334,12 +344,14 @@ export function PromptTable() {
       header: "Type",
       enableSorting: true,
       size: 60,
+      hideBelowMd: true,
     }),
     createDateTableColumn({
       accessorKey: "createdAt",
       header: "Latest Version Created At",
       enableSorting: true,
       size: 200,
+      hideBelowMd: true,
       getValue: (value, context) => {
         if (context.row.original.type === "folder") {
           return undefined;
@@ -353,6 +365,7 @@ export function PromptTable() {
       header: "Number of Observations (7d)",
       id: "numberOfObservations",
       size: 170,
+      hideBelowMd: true,
       cell: ({ getValue, row }) => {
         if (row.original.type === "folder") return null;
 
@@ -380,6 +393,7 @@ export function PromptTable() {
       id: "tags",
       enableSorting: true,
       size: 120,
+      hideBelowMd: true,
       cell: ({ getValue, row }) => {
         // height h-6 to ensure consistent row height for normal & folder rows
         if (row.original.type === "folder") return <div className="h-6" />;
@@ -491,46 +505,50 @@ export function PromptTable() {
             navigateToFolder={navigateToFolder}
           />
         )}
-        <TableSearchBar
-          key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-          projectId={projectId}
-          tableName="prompts"
-          registry={PROMPTS_FIELD_REGISTRY}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={queryFilter.setFilterState}
-          observed={toObservedOptions(
-            newFilterOptions,
-            promptFilterOptions.isPending,
-          )}
-          isV4={false}
-          search={{
-            query: searchQuery,
-            type: searchType,
-            setQuery: handleSearchQueryChange,
-            setType: handleSearchTypeChange,
-          }}
-        />
-        <DataTableToolbar
-          tableName="prompts"
-          columns={promptColumns}
-          filterState={queryFilter.filterState}
-          columnsWithCustomSelect={["labels", "tags"]}
-          isV4={false}
-          currentSearchQuery={searchQuery ?? ""}
-          orderByState={orderBy}
-          columnOrder={columnOrder}
-          setColumnOrder={handleColumnOrderChange}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={handleColumnVisibilityChange}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Prompts,
-            projectId,
-            controllers: viewControllers,
-          }}
-        />
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+        <SearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              size="large"
+              key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+              projectId={projectId}
+              tableName="prompts"
+              registry={PROMPTS_FIELD_REGISTRY}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={toObservedOptions(
+                newFilterOptions,
+                promptFilterOptions.isPending,
+              )}
+              isV4={false}
+              search={{
+                query: searchQuery,
+                type: searchType,
+                setQuery: handleSearchQueryChange,
+                setType: handleSearchTypeChange,
+              }}
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              tableName="prompts"
+              columns={promptColumns}
+              filterState={queryFilter.filterState}
+              columnsWithCustomSelect={["labels", "tags"]}
+              isV4={false}
+              currentSearchQuery={searchQuery ?? ""}
+              orderByState={orderBy}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Prompts,
+                projectId,
+                controllers: viewControllers,
+              }}
+            />
+          }
+        >
           <DataTableControls
             key={viewControllers.filterEditorResetKey}
             queryFilter={queryFilter}
@@ -582,7 +600,7 @@ export function PromptTable() {
               cellPadding="comfortable"
             />
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

@@ -3,14 +3,19 @@ import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import {
+  PopoverFilterBuilder,
+  useQueryFilterState,
+  MultiSelect,
+} from "@/src/features/filters";
+
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
   LANGFUSE_HOME_DASHBOARD_ID,
   type ColumnDefinition,
   type FilterState,
 } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
@@ -19,17 +24,14 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import Page from "@/src/components/layouts/page";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
+
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import {
-  useReadPath,
-  type ResolvedReadPath,
-} from "@/src/features/events/hooks/useReadPath";
+import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -40,14 +42,14 @@ import {
 } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "lucide-react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { setupTracingRoute } from "@/src/features/setup";
 
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of
@@ -124,6 +126,8 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
 
   const { selectedEnvironments, setSelectedEnvironments } =
     useEnvironmentFilter(environmentOptions, projectId);
+  const setSelectedEnvironmentsDebounced = useDebounce(setSelectedEnvironments);
+  const setUserFilterStateDebounced = useDebounce(setUserFilterState);
 
   const filterColumns: ColumnDefinition[] = [
     {
@@ -303,6 +307,33 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     resetKey: schedulerResetKey,
   });
 
+  const handleDashboardChange = (id: string) => {
+    capture("dashboard:home_dashboard_peeked", {
+      dashboard_id: id,
+      is_default: id === appliedDefaultId,
+    });
+    setPeekId(id === appliedDefaultId ? null : id);
+  };
+
+  const handleSetDefaultDashboard = () => {
+    capture("dashboard:home_dashboard_set_default", {
+      dashboard_id: dashboardId,
+      source: "home_selector",
+    });
+    setHomeDashboard.mutate({
+      projectId,
+      dashboardId:
+        dashboardId === LANGFUSE_HOME_DASHBOARD_ID ? null : dashboardId,
+    });
+  };
+
+  const handleEditDashboard = () => {
+    capture("dashboard:home_edit_pencil_click", {
+      dashboard_id: dashboardId,
+      dashboard_owner: dashboardOwner,
+    });
+  };
+
   return (
     <DashboardQuerySchedulerProvider
       store={schedulerStore}
@@ -319,7 +350,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 title="Environment"
                 label="Env"
                 values={selectedEnvironments}
-                onValueChange={useDebounce(setSelectedEnvironments)}
+                onValueChange={setSelectedEnvironmentsDebounced}
                 options={environmentOptions.map((env) => ({
                   value: env,
                 }))}
@@ -328,7 +359,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
               <PopoverFilterBuilder
                 columns={filterColumns}
                 filterState={userFilterState}
-                onChange={useDebounce(setUserFilterState)}
+                onChange={setUserFilterStateDebounced}
                 // Analytics (LFE-10781): project-home dashboard filter — a
                 // v3/legacy surface (not the v4 events table).
                 tableName="home-dashboard"
@@ -342,13 +373,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 projectId={projectId}
                 value={dashboardId}
                 defaultDashboardId={appliedDefaultId}
-                onValueChange={(id) => {
-                  capture("dashboard:home_dashboard_peeked", {
-                    dashboard_id: id,
-                    is_default: id === appliedDefaultId,
-                  });
-                  setPeekId(id === appliedDefaultId ? null : id);
-                }}
+                onValueChange={handleDashboardChange}
                 currentDashboardName={dashboardName}
               />
               {Boolean(peekId) && hasRbacCUDAccess && (
@@ -356,19 +381,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   variant="outline"
                   loading={setHomeDashboard.isPending}
                   title="Show this dashboard on Home for everyone in this project"
-                  onClick={() => {
-                    capture("dashboard:home_dashboard_set_default", {
-                      dashboard_id: dashboardId,
-                      source: "home_selector",
-                    });
-                    setHomeDashboard.mutate({
-                      projectId,
-                      dashboardId:
-                        dashboardId === LANGFUSE_HOME_DASHBOARD_ID
-                          ? null
-                          : dashboardId,
-                    });
-                  }}
+                  onClick={handleSetDefaultDashboard}
                 >
                   Set default
                 </Button>
@@ -381,14 +394,9 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
               >
                 <Link
                   href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
-                  onClick={() =>
-                    capture("dashboard:home_edit_pencil_click", {
-                      dashboard_id: dashboardId,
-                      dashboard_owner: dashboardOwner,
-                    })
-                  }
+                  onClick={handleEditDashboard}
                 >
-                  <PencilIcon className="h-4 w-4" />
+                  <PencilIcon className="icon-base text-icon-foreground" />
                   <span className="sr-only">
                     Edit this dashboard in Dashboards
                   </span>
@@ -404,12 +412,106 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 ) : (
                   <Button disabled>
                     <LockIcon
-                      className="mr-2 -ml-0.5 h-4 w-4"
+                      className="icon-base text-icon-foreground mr-2 -ml-0.5"
                       aria-hidden="true"
                     />
                     Configure Tracing
                   </Button>
                 ))}
+            </>
+          ),
+          actionButtonsMenu: ({ closeMenu }) => (
+            <>
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground px-2 text-xs">
+                  Dashboard
+                </span>
+                <div className="[&_[role=combobox]]:w-full [&_[role=combobox]]:max-w-none">
+                  <HomeDashboardSelect
+                    projectId={projectId}
+                    value={dashboardId}
+                    defaultDashboardId={appliedDefaultId}
+                    onValueChange={handleDashboardChange}
+                    currentDashboardName={dashboardName}
+                  />
+                </div>
+                {Boolean(peekId) && hasRbacCUDAccess && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={setHomeDashboard.isPending}
+                    onClick={handleSetDefaultDashboard}
+                    className="w-full justify-start font-normal"
+                  >
+                    Set as project default
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="w-full justify-start gap-2 font-normal"
+                >
+                  <Link
+                    href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
+                    onClick={() => {
+                      handleEditDashboard();
+                      closeMenu();
+                    }}
+                  >
+                    <PencilIcon className="icon-base text-icon-foreground" />
+                    Edit dashboard
+                  </Link>
+                </Button>
+                {!isTracingCheckLoading &&
+                  !hasTracingConfigured &&
+                  project &&
+                  (hasSetupTracingAccess ? (
+                    <Button
+                      asChild
+                      size="sm"
+                      className="w-full justify-start font-normal"
+                    >
+                      <Link
+                        href={setupTracingRoute(project.id)}
+                        onClick={() => closeMenu()}
+                      >
+                        Configure tracing
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      disabled
+                      size="sm"
+                      className="w-full justify-start gap-2 font-normal"
+                    >
+                      <LockIcon className="icon-base" aria-hidden="true" />
+                      Configure tracing
+                    </Button>
+                  ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t pt-2">
+                <span className="text-muted-foreground col-span-2 px-2 text-xs">
+                  Data
+                </span>
+                <MultiSelect
+                  title="Environment"
+                  label="Environment"
+                  values={selectedEnvironments}
+                  onValueChange={setSelectedEnvironmentsDebounced}
+                  options={environmentOptions.map((env) => ({ value: env }))}
+                  className="my-0 w-full overflow-hidden"
+                />
+                <div className="[&_button]:w-full [&_button]:justify-between [&>div]:w-full">
+                  <PopoverFilterBuilder
+                    columns={filterColumns}
+                    filterState={userFilterState}
+                    onChange={setUserFilterStateDebounced}
+                    tableName="home-dashboard"
+                    isV4={false}
+                  />
+                </div>
+              </div>
             </>
           ),
         }}

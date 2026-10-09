@@ -70,7 +70,7 @@ export function EvaluatorRecommendedTemplateCardContent({
 
   return (
     <EvaluatorRecommendedCardContent
-      icon={<Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />}
+      icon={<Icon className={cn("icon-base shrink-0", iconClassName)} />}
       badge={<EvaluatorGalleryMethodBadge type={type} />}
       title={title}
       description={description}

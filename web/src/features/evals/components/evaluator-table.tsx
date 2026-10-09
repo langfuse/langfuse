@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
@@ -6,13 +7,13 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useColumnVisibility } from "@/src/features/column-visibility";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { LEGACY_EVALUATORS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { useSidebarFilterState } from "@/src/features/filters";
@@ -23,7 +24,7 @@ import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { ExternalLinkIcon, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -274,7 +275,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               );
             }}
           >
-            <ExternalLinkIcon className="mr-1 h-3 w-3" />
+            <ExternalLinkIcon className="icon-base text-icon-foreground mr-1" />
             View
           </Button>
         );
@@ -376,7 +377,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-1">
             <IconOnlyButton
               key={id}
-              icon={<Pen className="h-4 w-4" />}
+              icon={<Pen className="icon-base" />}
               label="Edit"
               aria-label="edit"
               disabledReason={
@@ -439,28 +440,31 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        <TableSearchBar
-          key={queryFilter.draftResetKey}
-          projectId={projectId}
-          tableName={evaluatorFilterConfig.tableName}
-          registry={LEGACY_EVALUATORS_FIELD_REGISTRY}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={queryFilter.setFilterState}
-          observed={toObservedOptions(newFilterOptions, false)}
-          search={{ query: searchQuery, setQuery: setSearchQuery }}
-          isV4={false}
-        />
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          tableName="evaluators"
-          columns={columns}
-          filterState={queryFilter.filterState}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-        />
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+        <SearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              size="large"
+              key={queryFilter.draftResetKey}
+              projectId={projectId}
+              tableName={evaluatorFilterConfig.tableName}
+              registry={LEGACY_EVALUATORS_FIELD_REGISTRY}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={toObservedOptions(newFilterOptions, false)}
+              search={{ query: searchQuery, setQuery: setSearchQuery }}
+              isV4={false}
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              tableName="evaluators"
+              columns={columns}
+              filterState={queryFilter.filterState}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+            />
+          }
+        >
           <DataTableControls
             key={queryFilter.draftResetKey}
             queryFilter={queryFilter}
@@ -498,7 +502,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               onColumnVisibilityChange={setColumnVisibility}
             />
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
         <TablePeekViewEvaluatorConfigDetail
           {...peekConfig}
           projectId={projectId}
@@ -540,6 +544,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 setEditConfigId(null);
                 utils.evals.allConfigs.invalidate();
                 showSuccessToast({
+                  operation: "evaluator.update",
                   title: "Evaluator updated successfully",
                   description:
                     "Changes will automatically be reflected future evaluator runs",

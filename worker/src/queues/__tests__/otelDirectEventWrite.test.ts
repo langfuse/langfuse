@@ -5,7 +5,6 @@ import {
   OtelIngestionProcessor,
   QueueJobs,
   type QueueName,
-  recordDistribution,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -29,7 +28,6 @@ import {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getS3EventStorageClient: vi.fn(),
-  recordDistribution: vi.fn(),
 }));
 vi.mock(
   "../../features/evaluation/observationEval",
@@ -92,7 +90,7 @@ describe("direct-v4 trace batch tracking", () => {
         "createEventRecord",
       ).mockImplementation(async (input) => {
         if (input.traceId === "conversion-failed") throw new Error("invalid");
-        return { span_id: input.spanId } as Awaited<
+        return { span_id: input.spanId, event_bytes: 10_000 } as Awaited<
           ReturnType<IngestionService["createEventRecord"]>
         >;
       });
@@ -100,6 +98,7 @@ describe("direct-v4 trace batch tracking", () => {
         .spyOn(IngestionService.prototype, "writeEventRecord")
         .mockImplementation(async (record) => {
           if (record.span_id === "third") throw new Error("write rejected");
+          return record.span_id === "first" ? 101 : 202;
         });
       const processor = otelIngestionQueueProcessorBuilder(false);
       const job = {
@@ -126,13 +125,11 @@ describe("direct-v4 trace batch tracking", () => {
       expect(write).toHaveBeenCalledTimes(3);
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
-        inputs
-          .slice(0, 2)
-          .map(({ traceId, startTimeISO }) => ({ traceId, startTimeISO })),
-      );
-      expect(recordDistribution).toHaveBeenCalledWith(
-        "langfuse.trace_batch.ingestion_trace_count",
-        1,
+        inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
+          traceId,
+          startTimeISO,
+          serializedEventBytes: index === 0 ? 101 : 202,
+        })),
       );
 
       vi.mocked(trackTraceBatchActivity).mockClear();

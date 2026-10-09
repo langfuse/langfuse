@@ -314,15 +314,6 @@ const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
 
 type ListObservationsInput = z.infer<typeof ListObservationsInputSchema>;
 
-const hasObservationIdFilter = (filters: ListObservationsInput["filter"]) =>
-  filters?.some(
-    (filter) =>
-      filter.column === "id" &&
-      filter.type === "stringOptions" &&
-      filter.operator === "any of" &&
-      filter.value.length > 0,
-  ) ?? false;
-
 // Initially, we return io/metadata in full only if some limits are set
 const assertAllowedExpensiveObservationAccess = (
   input: ListObservationsInput,
@@ -344,15 +335,13 @@ const assertAllowedExpensiveObservationAccess = (
 
   if (expensiveColumns.size === 0) return;
 
-  if (input.traceId || hasObservationIdFilter(input.filter)) return;
-
   if (!input.fromStartTime || !input.toStartTime) {
     throw new InvalidRequestError(
       `Accessing observation ${Array.from(expensiveColumns)
         .sort()
         .join(
           ", ",
-        )} requires traceId, an id filter, or both fromStartTime and toStartTime with a maximum range of 14 days.`,
+        )} requires both fromStartTime and toStartTime with a maximum range of 14 days.`,
     );
   }
 
@@ -381,12 +370,13 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
     "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
     "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
-    'For metadata filters, first inspect metadata on selectively scoped observations by passing traceId, an exact id filter, or both fromStartTime and toStartTime with fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
+    'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
-    "Requests that project or filter input, output, or metadata must include traceId, an id filter, or a date range of at most 14 days. Date-scoped input/output projections support a maximum limit of 50.",
+    "Requests that project or filter input, output, or metadata must include both fromStartTime and toStartTime with a date range of at most 14 days, even when scoped by traceId or observation id. Input/output projections support a maximum limit of 50.",
   ].join("\n"),
+  action: "traces:read",
   baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context) => {

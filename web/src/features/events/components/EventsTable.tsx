@@ -1,7 +1,20 @@
+/* eslint-disable no-nested-ternary */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import {
+  useEventsSearchBar,
+  buildAiContext,
+  EventsSearchBarRow,
+  filterStateToQueryText,
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+  useSearchBarEnabled,
+  withMetadataPathOptions,
+  useFullTextSearch,
+} from "@/src/features/search-bar";
+
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -54,15 +67,7 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  buildAiContext,
-  EventsSearchBarRow,
-  filterStateToQueryText,
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-  useSearchBarEnabled,
-  withMetadataPathOptions,
-} from "@/src/features/search-bar";
+
 import { cn } from "@/src/utils/tailwind";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
@@ -74,9 +79,11 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
+  customRowHeightMenu,
   getRowHeightIOCharLimit,
+  isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -100,27 +107,28 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
-import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
+import { ProvidedModelNameCell } from "@/src/features/models";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableSelectionManager,
+  useSelectAll,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
@@ -131,12 +139,15 @@ import {
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
 //   type EventsViewMode,
 // } from "@/src/features/events/hooks/useEventsViewMode";
+
 // import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
+
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import {
   REFRESH_INTERVALS,
@@ -144,19 +155,20 @@ import {
 } from "@/src/components/table/utils/refresh-intervals";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
-import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import {
+  RunEvaluationDialog,
+  AddObservationsToDatasetDialog,
+} from "@/src/features/batch-actions";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
-import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
-  chartFilterExclusionReason,
+  chartFacetExclusionReason,
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
@@ -166,7 +178,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
 
 export type EventsTableRow = {
   // Identity fields
@@ -354,9 +366,14 @@ export default function ObservationsEventsTable({
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "observations",
     "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -505,12 +522,15 @@ export default function ObservationsEventsTable({
   // Facets describe the whole window (see facetStartTimeFilter below); the paged
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
-  const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(
-      dateRange,
-      limitRows ? 0 : paginationState.page - 1,
-      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
-    );
+  const {
+    range: rowsDateRange,
+    pinOnLeavingFirstPage,
+    resetPin,
+  } = usePaginationWindowPin(
+    dateRange,
+    limitRows ? 0 : paginationState.page - 1,
+    { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+  );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
@@ -884,12 +904,20 @@ export default function ObservationsEventsTable({
 
   // The chart is actually on screen (not just enabled). Only then do we mark
   // the filters it can't honour as "not applied", so table mode stays untouched.
-  // Both surfaces use the stateless per-column / per-field reason resolvers
-  // (chartFilterExclusionReason / chartSearchFieldReason) — a filter deactivates
-  // in the sidebar and its search-bar pill identically.
+  // Both surfaces read the same resolvers (chartFacetExclusionReason /
+  // chartSearchFieldReason) — a filter deactivates in the sidebar and its
+  // search-bar pill identically.
   const chartActive = chartEnabled && chartViewMode === "chart";
   // Free-text search is never applied to the chart (it has no aggregate form).
   const chartFreeTextIgnored = chartActive && Boolean(searchQuery);
+  // A facet reads blocked when its column is unsupported OR when it holds a
+  // condition the chart drops (a metadata filter outside its keyed shape, a
+  // presence check), so the sidebar can never show a filter as applied that the
+  // chart query left out.
+  const chartBlockedColumnReason = useCallback(
+    (column: string) => chartFacetExclusionReason(filterState, column),
+    [filterState],
+  );
 
   // Use the custom hook for observations data fetching
   const {
@@ -907,6 +935,15 @@ export default function ObservationsEventsTable({
   } = useEventsTableData({
     projectId,
     filterState,
+    tableDataScope: {
+      projectId,
+      filter:
+        externalFilterState ??
+        queryFilter.effectiveFilterState.concat(embedScopeFilterState),
+      searchQuery,
+      searchType,
+      timeRange: externalDateRange ?? timeRange,
+    },
     paginationState: limitRows
       ? { page: 1, limit: limitRows }
       : paginationState,
@@ -920,7 +957,11 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
-    ioCharLimit: getRowHeightIOCharLimit(rowHeight),
+    ioCharLimit: getRowHeightIOCharLimit(
+      rowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    ),
   });
 
   useApplyAppRootFallback({
@@ -1025,6 +1066,7 @@ export default function ObservationsEventsTable({
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "trace.bulk_delete",
         title: "Traces deleted",
         description:
           "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
@@ -1112,11 +1154,15 @@ export default function ObservationsEventsTable({
   );
 
   const isSelectAllCountUnavailable = isTotalCountLoading || isTotalCountError;
-  const selectAllCountUnavailableReason = isTotalCountLoading
-    ? "Counting selected observations."
-    : isTotalCountError
-      ? "Could not count selected observations. Clear selection and try again."
-      : undefined;
+  const selectAllCountUnavailableReason = (() => {
+    if (isTotalCountLoading) {
+      return "Counting selected observations.";
+    }
+    if (isTotalCountError) {
+      return "Could not count selected observations. Clear selection and try again.";
+    }
+    return undefined;
+  })();
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -1180,7 +1226,7 @@ export default function ObservationsEventsTable({
       label: "Evaluate",
       description: "Run evaluations on selected observations.",
       customDialog: true,
-      icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+      icon: <LightbulbIcon className="icon-base sm:mr-2" />,
       disabled: isSelectAllCountUnavailable,
       disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
@@ -1229,7 +1275,7 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       enableHiding: true,
     }),
     createIOTableColumn<EventsTableRow>({
@@ -1238,7 +1284,7 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       variant: "output",
       enableHiding: true,
     }),
@@ -1252,7 +1298,7 @@ export default function ObservationsEventsTable({
       },
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       enableHiding: true,
     }),
     createStatusTableColumn<EventsTableRow, ObservationLevelType>({
@@ -1282,7 +1328,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
@@ -1312,7 +1358,7 @@ export default function ObservationsEventsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         );
@@ -1529,7 +1575,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !compactRows,
     }),
     {
       accessorKey: "scores",
@@ -1657,6 +1703,12 @@ export default function ObservationsEventsTable({
     currentExpandedFilters: queryFilter.expanded,
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
+    onViewSelected: () => {
+      resetPin();
+      setPaginationState({ ...paginationState, page: 1 });
+      setSelectedRows({});
+      setSelectAll(false);
+    },
     onViewApplied: (viewState) =>
       resetSearchBarDraft({
         filters: projectFiltersForSearchBar(viewState.filters),
@@ -1834,6 +1886,7 @@ export default function ObservationsEventsTable({
                 searchBarMode ? (
                   <div className="flex min-w-0 flex-col gap-2">
                     <EventsSearchBarRow
+                      size={showControlsInPageHeader ? "large" : "default"}
                       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                       registry={searchRegistry}
                       projectId={projectId}
@@ -1930,7 +1983,7 @@ export default function ObservationsEventsTable({
                   queryFilter={queryFilter}
                   filterWithAI={sidebarAiFiltersEnabled}
                   blockedColumnReason={
-                    chartActive ? chartFilterExclusionReason : undefined
+                    chartActive ? chartBlockedColumnReason : undefined
                   }
                   // inline: flow at natural height in the sheet's single scroll
                   // (no internal ScrollArea). Desktop sidebar stays default.
@@ -1967,6 +2020,7 @@ export default function ObservationsEventsTable({
               <div className="flex min-w-0 items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <EventsSearchBarRow
+                    size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
                     projectId={projectId}
@@ -2037,6 +2091,7 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               viewModeToggle={
@@ -2183,10 +2238,9 @@ export default function ObservationsEventsTable({
               queryFilter={queryFilter}
               filterWithAI={sidebarAiFiltersEnabled}
               // In chart mode, block filters the chart can't apply — active or
-              // not — dimmed + hover reason. Stateless per-column resolver,
-              // matching the search bar.
+              // not — dimmed + hover reason, matching the search bar.
               blockedColumnReason={
-                chartActive ? chartFilterExclusionReason : undefined
+                chartActive ? chartBlockedColumnReason : undefined
               }
             />
           )}
@@ -2287,6 +2341,7 @@ export default function ObservationsEventsTable({
                           pageIndex: paginationState.page - 1,
                           pageSize: paginationState.limit,
                         },
+                        options: TRACING_PAGE_SIZE_OPTIONS,
                       }
                 }
                 rowSelection={selectedRows}
@@ -2299,6 +2354,11 @@ export default function ObservationsEventsTable({
                 columnVisibility={columnVisibility}
                 onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={rowHeights.activeHeightPx}
+                onCustomRowHeightChange={
+                  hideControls ? undefined : rowHeights.setCustomPx
+                }
+                onSelectRowHeight={hideControls ? undefined : setRowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab
                   if (event && (event.metaKey || event.ctrlKey)) {
@@ -2353,6 +2413,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowRunEvaluationDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}
@@ -2362,6 +2424,7 @@ export default function ObservationsEventsTable({
 
       {showAddToDatasetDialog && (
         <AddObservationsToDatasetDialog
+          isV4
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
@@ -2374,6 +2437,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowAddToDatasetDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}

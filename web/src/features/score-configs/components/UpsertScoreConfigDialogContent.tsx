@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useState } from "react";
@@ -286,7 +287,7 @@ export function UpsertScoreConfigDialogContent({
                                   index === 0 || index !== fields.length - 1
                                 }
                               >
-                                <Trash className="h-4 w-4" />
+                                <Trash className="icon-base text-icon-foreground" />
                               </Button>
                             )}
                           </div>

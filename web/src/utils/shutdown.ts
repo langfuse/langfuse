@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { stopEventLoopMetrics } from "./eventLoopMetrics";
 
 const TIMEOUT = 110_000;
 
@@ -40,6 +41,7 @@ export const drainAndClose = (): Promise<void> => {
     return drainPromise;
   }
   setSigtermReceived();
+  stopEventLoopMetrics();
 
   drainPromise = new Promise<void>((resolve) => {
     setTimeout(async () => {

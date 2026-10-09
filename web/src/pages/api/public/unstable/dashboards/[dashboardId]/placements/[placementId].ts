@@ -11,7 +11,7 @@ import {
 import {
   deletePublicDashboardPlacement,
   updatePublicDashboardPlacement,
-} from "@/src/features/dashboard/server/public-dashboard-service";
+} from "@/src/features/dashboard/server";
 
 export default withUnstablePublicApiMiddlewares({
   PATCH: createUnstablePublicApiRoute({

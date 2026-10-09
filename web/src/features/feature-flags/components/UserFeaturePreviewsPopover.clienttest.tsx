@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
+import type { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
-import { featurePreviewFlags } from "../available-flags";
+import { userFeaturePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -47,11 +48,12 @@ vi.mock("@/src/components/ui/popover", () => ({
   ),
 }));
 
-vi.mock("@/src/components/ui/hover-card", () => ({
-  HoverCard: ({ children }: { children: ReactNode }) => <>{children}</>,
-  HoverCardTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  HoverCardContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+vi.mock("@/src/components/design-system/HoverCard/HoverCard", () => ({
+  HoverCard: ({ children, content }: ComponentProps<typeof HoverCard>) => (
+    <>
+      {children({ getTriggerProps: () => ({}) })}
+      {content}
+    </>
   ),
 }));
 
@@ -122,9 +124,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
-        normalizedIoPreview: false,
       },
       management: {
         allowed: false,
@@ -138,9 +140,9 @@ describe("UserFeaturePreviewsControl", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        // Derived: the counter's denominator is the number of registered
-        // previews, so a new preview must not fail this test.
-        name: new RegExp(`0/${featurePreviewFlags.length} enabled`, "i"),
+        // Derived: the counter's denominator is the number of user previews,
+        // so a new preview must not fail this test.
+        name: new RegExp(`0/${userFeaturePreviewFlags.length} enabled`, "i"),
       }),
     ).toBeDisabled();
   });
@@ -150,13 +152,18 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
-        normalizedIoPreview: false,
       },
       management: { allowed: true },
     });
 
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Toggle External Media Storage for user",
+      }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: "Toggle Compact Session View for user",
@@ -187,9 +194,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
-        normalizedIoPreview: false,
       },
       management: { allowed: true },
     });
@@ -215,9 +222,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
+        externalMediaStorage: false,
         modernSession: false,
         sessionTimeline: false,
-        normalizedIoPreview: false,
       },
       management: { allowed: true },
     });

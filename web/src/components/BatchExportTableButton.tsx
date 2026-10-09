@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -41,6 +41,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     },
     onSuccess: () => {
       showSuccessToast({
+        operation: "export.queue",
         title: "Export queued",
         description: "You will receive an email when the export is ready.",
         duration: 10000,
@@ -90,11 +91,16 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" title="Export">
+        <Button
+          variant="outline"
+          size="icon"
+          title="Export"
+          className="hidden md:inline-flex"
+        >
           {isExporting ? (
             <Spinner size="sm" />
           ) : (
-            <Download className="h-4 w-4" />
+            <Download className="icon-base text-icon-foreground" />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -104,7 +110,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
           {warningMessage && (
             <div className="text-muted-foreground px-2 py-1.5 text-xs">
               <div className="flex items-start gap-1.5">
-                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <Info className="icon-base mt-0.5 shrink-0" />
                 <span>{warningMessage}</span>
               </div>
             </div>

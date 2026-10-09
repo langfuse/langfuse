@@ -1,8 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
 
 import {
@@ -32,6 +33,7 @@ export function ControlledFeaturePreviewModal({
           isEnabled: variables.enabled,
         });
         showSuccessToast({
+          operation: "user_feature_preview.update",
           title: "Feature preview updated",
           description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
@@ -49,6 +51,15 @@ export function ControlledFeaturePreviewModal({
     authSession.data?.environment.enableExperimentalFeatures === true;
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    ...(authSession.data?.user?.admin === true
+      ? {
+          langfuseTopics: {
+            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
     modernSession: {
       enabled: isModernSessionEnabled,
       disabled:
@@ -78,19 +89,6 @@ export function ControlledFeaturePreviewModal({
             ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
             : undefined,
       onToggle: onToggle("sessionTimeline"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
-    normalizedIoPreview: {
-      enabled:
-        authSession.data?.user?.featureFlags.normalizedIoPreview === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      disabled:
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason:
-        authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
-      onToggle: onToggle("normalizedIoPreview"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
   };

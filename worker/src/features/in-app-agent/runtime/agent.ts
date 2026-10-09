@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
@@ -464,7 +463,9 @@ export async function createAgUiStream(params: {
   };
 
   const runOnFinish = () => {
-    onFinishPromise ??= Promise.resolve(params.options.onFinish?.());
+    if (onFinishPromise === undefined) {
+      onFinishPromise = Promise.resolve(params.options.onFinish?.());
+    }
     return onFinishPromise;
   };
 
@@ -1130,7 +1131,7 @@ async function createMastraAdapter(params: {
   onToolExecutionEnd?: (toolCallId: string) => void;
   stepLimitState: StepLimitState;
 }) {
-  const languageModel = createInAppAgentLanguageModel({
+  const languageModel = await createInAppAgentLanguageModel({
     config: params.options.model,
     awsProfile: params.awsProfile,
   });

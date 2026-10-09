@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
@@ -7,15 +8,21 @@ import { createMocks } from "node-mocks-http";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 // Pins the public-API authorization seam to legacy: sweeps every route across
 // migration modes and key kinds, recording each cell's status. Shadow and
-// enforce must equal legacy (cross-mode); a main-captured snapshot pins legacy
-// across the refactor (cross-branch). Value is status only.
+// enforce must equal legacy, save documented enforce divergences; a snapshot
+// pins legacy itself. Value is status only.
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -108,6 +115,23 @@ const projectRoutes: Route[] = [
     route: "v2/evaluation-rules/[evaluationRuleId]",
     methods: ["GET", "PATCH", "DELETE"],
   },
+  { route: "ingestion", methods: ["POST"] },
+  { route: "otel/v1/traces/index", methods: ["POST"] },
+  { route: "otel/v1/metrics/index", methods: ["POST"] },
+  { route: "prompts", methods: ["GET", "POST"] },
+  { route: "v2/prompts/index", methods: ["GET", "POST"] },
+  { route: "v2/prompts/[promptName]/index", methods: ["GET", "DELETE"] },
+  {
+    route: "v2/prompts/[promptName]/versions/[promptVersion]",
+    methods: ["PATCH"],
+  },
+  { route: "unstable/skills/index", methods: ["GET", "POST"] },
+  { route: "unstable/skills/[skillName]/index", methods: ["GET", "PATCH"] },
+  {
+    route: "unstable/skills/[skillName]/versions/[skillVersion]",
+    methods: ["PATCH", "DELETE"],
+  },
+  { route: "unstable/skills/files/content", methods: ["GET"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
@@ -140,11 +164,8 @@ const orgRoutes: Route[] = [
 const denylistPrefixes = [
   "health", // liveness probe
   "ready", // readiness probe
-  "ingestion", // batch ingestion, own auth path
-  "prompts", // prompt handlers, own auth path
-  "v2/prompts", // prompt list/name handlers, own auth path
   "mcp", // MCP server, own auth path
-  "otel", // ingestion handlers read the raw request stream, not drivable via node-mocks-http
+  "otel/otlp-proto", // generated protobuf, not a route
   "slack", // Slack OAuth, own auth path
 ];
 
@@ -175,6 +196,9 @@ function queryForRoute(route: string): Record<string, string> {
   const query: Record<string, string> = {};
   for (const match of route.matchAll(/\[([^\]]+)\]/g)) {
     query[match[1]!] = nonexistentId;
+  }
+  if (route === "unstable/skills/files/content") {
+    query.sha256Hashes = Buffer.alloc(32).toString("base64");
   }
   return query;
 }
@@ -244,6 +268,12 @@ async function callRoute(
 
 type Cell = { key: string; run: () => Promise<number> };
 
+// node-mocks-http can't supply the raw request stream otel/v1/traces reads, so these cells hang; only the project key passes, identically in every mode.
+const streamReadingCells = new Set([
+  "POST otel/v1/traces/index | project/basic",
+  "POST otel/v1/traces/index | project/bearer",
+]);
+
 /** matrixCells lists every route × method × key kind × header kind cell in source order. */
 function matrixCells(routes: Route[]): Cell[] {
   const cells: Cell[] = [];
@@ -251,10 +281,9 @@ function matrixCells(routes: Route[]): Cell[] {
     for (const method of methods) {
       for (const apiKeyKind of apiKeyKinds) {
         for (const { headerKind, headers } of getHeaders(apiKeyKind, route)) {
-          cells.push({
-            key: `${method} ${route} | ${apiKeyKind}/${headerKind}`,
-            run: () => callRoute(route, method, headers),
-          });
+          const key = `${method} ${route} | ${apiKeyKind}/${headerKind}`;
+          if (streamReadingCells.has(key)) continue;
+          cells.push({ key, run: () => callRoute(route, method, headers) });
         }
       }
     }
@@ -306,10 +335,12 @@ function walkRoutes(): string[] {
   return routes;
 }
 
-// Enforce cells that intentionally diverge from legacy; every other cell must match.
-const enforceDivergences: Record<string, number> = {
-  // org keys hold project:read, which legacy's ["project"] tier gate refused
-  "GET projects/index | org/basic": 200,
+// divergences lists cells whose status differs from the main baseline the
+// snapshot records; `legacy`/`enforce` give that mode's actual status.
+const divergences: Record<string, { legacy?: number; enforce?: number }> = {
+  "GET projects/index | org/basic": { enforce: 200 },
+  // ingestion had no tier gate on main (org key -> 401); shadowAuth adds one -> 403.
+  "POST ingestion | org/basic": { legacy: 403, enforce: 400 },
 };
 
 describe("public-api auth parity", () => {
@@ -322,17 +353,23 @@ describe("public-api auth parity", () => {
     fixtureProjectId = base.projectId;
     keys.project = { publicKey: base.publicKey, secretKey: base.secretKey };
 
-    const org = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: base.orgId,
-      scope: "ORGANIZATION",
+    const orgKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const org = await createApiKey(prisma, {
+      owner: OrganizationId(base.orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(orgKeyCreator.id),
     });
     keys.org = { publicKey: org.publicKey, secretKey: org.secretKey };
 
-    const agent = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: base.projectId,
-      scope: "PROJECT",
+    const agentKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const agent = await createApiKey(prisma, {
+      owner: ProjectId(base.projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(agentKeyCreator.id),
       isInAppAgentKey: true,
     });
     keys.agent = { publicKey: agent.publicKey, secretKey: agent.secretKey };
@@ -349,8 +386,14 @@ describe("public-api auth parity", () => {
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
   });
 
-  it("legacy matches the main-captured baseline", () => {
-    expect(matrices.legacy).toMatchSnapshot();
+  it("legacy matches the captured baseline except documented divergences", () => {
+    const baseline = { ...matrices.legacy };
+    for (const [cell, { legacy }] of Object.entries(divergences)) {
+      if (legacy === undefined) continue;
+      expect(baseline[cell]).toBe(legacy);
+      delete baseline[cell];
+    }
+    expect(baseline).toMatchSnapshot();
   });
 
   it("shadow is byte-identical to legacy", () => {
@@ -358,10 +401,11 @@ describe("public-api auth parity", () => {
   });
 
   it("enforce matches legacy except documented divergences", () => {
-    expect(matrices.enforce).toEqual({
-      ...matrices.legacy,
-      ...enforceDivergences,
-    });
+    const expected = { ...matrices.legacy };
+    for (const [cell, { enforce }] of Object.entries(divergences)) {
+      if (enforce !== undefined) expected[cell] = enforce;
+    }
+    expect(matrices.enforce).toEqual(expected);
   });
 
   it("covers every public route", () => {

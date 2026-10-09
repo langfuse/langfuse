@@ -18,7 +18,14 @@
 - Main exports: `src/index.ts`
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
+- CloudWatch metrics: `recordGauge` batches values; windowed measurements can
+  call `flushMetricsToCloudWatch` from the server barrel after recording to
+  submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Transcript assembly: pass the enriched result of `orderObservations` into
+  `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
+  generation after history is split off; it is not the depth of the first
+  generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
@@ -29,25 +36,77 @@
   the worker owns experiment enablement and lifecycle. Reader options control
   per-query threads/block size and experiment attribution; retain exact tenant
   pairs and per-trace time windows when changing parameter chunking.
+  Rows must stay contiguous by project and trace ID so consumers can finish a
+  trace at the next pair or successful EOF; time buckets must not precede trace ID.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
-- Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
-  recording/diff harness that captures the current SQL at the
-  `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
-  `clickhouse format` for snapshot comparison. Every migrated call site is
-  proven against its baseline here. The Kysely ClickHouse dialect (ARRAY JOIN /
-  LIMIT BY / metadata indexOf nodes, `ExecutionContext` tenancy injection,
-  per-table dedup lowering, virtual views, catalog parity) lives under
-  `src/server/query-ast/kysely/`.
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata indexOf nodes,
+  `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
+  catalog parity). Compile only through `compileClickhouseQuery` in
+  `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
+  harness (`src/server/repositories/goldenHarness.ts`, capturing at the
+  `src/server/repositories/clickhouse.ts` exec seam and normalizing via
+  `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
+  baseline next to the call site (e.g.
+  `src/server/repositories/environments.golden.test.ts`,
+  `src/server/repositories/scores.golden.test.ts`,
+  `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
   unclustered installs): `clickhouse/migrations/canonical/*`
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
+- Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure
+  policy independent of in-memory representation. The callback always exchanges JSON;
+  the optional transport supplies reusable JSON text or UTF-8 bytes and validates
+  responses inside retries. Default callers retain JSON serialization.
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points
+
+- `@langfuse/shared/topics`: client-safe Topics contracts.
+- `@langfuse/shared/topics/server`: Topics persistence, queue handoff and execution
+  progress. See `../../worker/src/features/topics/README.md` for storage and retry
+  invariants before changing this module.
+  - `postgres.ts`: facets reuse evaluator/version storage with type `FACET`;
+    built-in presets are immutable. Saved rules reuse evaluation rules and
+    evaluator assignments; ordering and limits belong to manual requests.
+    Clustering runs reference immutable ClickHouse definitions; reused
+    definitions retain their original creation run.
+  - `clickhouse.ts`: current summaries/assignments and immutable definitions.
+    Source identity prefers `traceId`; `sessionId` may carry parent context.
+    Facet versions use `(projectId, facetId, version)`. Reads require a time
+    range; replacement includes the source minute, with run/origin suffixes
+    for assignments. Definition bounds retain original creation dates on reuse.
+  - `execution-store.ts`: one BatchAction per request, compact counters and run references.
+    Writes accept progress only; immutable settings stay in the stored request.
+    Trace inputs and paid outputs belong outside the execution store.
+  - `trace-selection.ts`: shared bounded observation selection for web previews,
+    ID-only processing requests and worker backfills; retain identical sampling.
+  - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
+    payloads through assignment and save terminal job state before cleanup.
+    Summary references carry facet/version/source fields within project and
+    execution scope; exact storage reads also require facet/version scope.
+  - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
+    worker model calls own usage, cost and vector validation.
+  - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
+    Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
+    Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
+    retain their original version. Token counting belongs to worker model calls.
+  - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
+    including cleanup. Processing also requires
+    `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default); reads/configuration
+    remain feature-flag/RBAC controlled.
+    The internal Topics PoC model IDs come from the default-free
+    `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` env vars;
+    keep them out of the production env template.
+
+- `src/server/transcript`: order minimal `TranscriptObservation` inputs with
+  `orderObservations`, then pass the enriched result and optional
+  `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
+  The optional cap bounds `JSON.stringify(result).length`; see its README.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
@@ -62,7 +121,10 @@
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText` and
   `streamLLMText`), Bedrock default-credential provider auth
-  (`createDefaultBedrockProviderAuth`), and server test utilities.
+  (`createDefaultBedrockProviderAuth`), and server test utilities. Langfuse AI
+  callers select their local profile through `getLangfuseAIAwsProfile`;
+  generic Bedrock auth only uses an explicitly supplied profile or the normal
+  AWS credential chain.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same
@@ -75,6 +137,10 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe tagged IDs,
+  role assignments, role catalog, and permission vocabulary.
+- `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
+  role-assignment reads and writes, mapping database foreign keys to tagged IDs.
 - `@langfuse/shared/instrumentation/bootstrap` via
   `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
@@ -90,12 +156,15 @@
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/ee/fips` (startup FIPS-mode enforcement; it
+  loads only env and the license check, so it can run before anything
+  connects),
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The
-  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and powers
-  the web "Improved Message Rendering" feature preview (the normalized Formatted
-  trace/observation view). Its public contract is still settling, so treat other
-  consumers as experimental until it stabilizes.
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the
+  only parser behind the web Formatted trace/observation view; the legacy
+  ChatML helpers remain for the session feed and the playground (for now). Its result
+  type is not frozen yet, so a new consumer should expect to move with it.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
@@ -117,11 +186,16 @@ the same PR.
 - Dev watch build: `pnpm --filter @langfuse/shared run dev`
 - Lint: `pnpm --filter @langfuse/shared run lint`
 - Lint fix: `pnpm --filter @langfuse/shared run lint:fix`
+- Tests: `pnpm --filter @langfuse/shared run test`; Topics queue integration
+  coverage requires Redis configured through the shared environment.
 - Typecheck: `pnpm --filter @langfuse/shared run typecheck`
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
-- ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
+- ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset` drops all
+  tables and views in the configured database, then migrates and seeds it.
+  Requires `CLICKHOUSE_CLUSTER_ENABLED=false`; use `ch:down` for clustered
+  rollbacks.
 - Materialize direct-migration trees: `pnpm ch:migrations:materialize`
 - Clean direct-migration trees: `pnpm ch:migrations:clean`
 

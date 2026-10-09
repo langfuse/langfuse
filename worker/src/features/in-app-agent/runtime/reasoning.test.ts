@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Vertex Anthropic asks shared for the ADC project and OAuth token so the
+// worker never constructs google-auth-library (pnpm does not expose it).
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  resolveVertexProjectIdFromADC: async () => "adc-project",
+  generateVertexAccessTokenFromADC: async () => "fake-gcp-token",
+}));
+
 import { env } from "@langfuse/shared/src/env";
 import {
   createInAppAgentLanguageModel,
@@ -70,7 +78,7 @@ describe("OpenAI Chat Completions request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -96,7 +104,7 @@ describe("OpenAI Chat Completions request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     const prompt = [
       { role: "system" as const, content: "You are the Langfuse assistant." },
       {
@@ -143,7 +151,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -171,7 +179,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     const prompt = [
       { role: "system" as const, content: "You are the Langfuse assistant." },
       {
@@ -225,7 +233,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -254,7 +262,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: [
         { role: "system" as const, content: "You are the Langfuse assistant." },
@@ -287,7 +295,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -328,7 +336,7 @@ describe("Anthropic Messages request shape", () => {
     });
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -390,6 +398,100 @@ function userPrompt() {
     },
   ];
 }
+
+describe("getInAppAgentReasoningProviderOptions on Vertex", () => {
+  // Claude on Vertex runs the Anthropic Messages model, so it takes the same
+  // canonical "anthropic" provider options as the direct Anthropic path even
+  // though the provider name is "vertex.anthropic.messages".
+  it.each([
+    "claude-sonnet-4-5@20250929",
+    "claude-opus-4-8",
+    "claude-haiku-4-5@20251001",
+  ])("returns adaptive summarized thinking for %s", (modelId) => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "vertex",
+        modelId,
+        titleModelId: modelId,
+        location: "us-east5",
+      }),
+    ).toEqual({
+      anthropic: {
+        thinking: { type: "adaptive", display: "summarized" },
+        effort: "medium",
+      },
+    });
+  });
+
+  it("returns undefined for a Gemini model", () => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "vertex",
+        modelId: "gemini-2.5-pro",
+        titleModelId: "gemini-2.5-flash",
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe("Vertex Claude request shape", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps adaptive summarized thinking on the Vertex rawPredict body", async () => {
+    // Claude on Vertex is the Anthropic Messages model behind a rawPredict
+    // URL: the version moves into the body and the model into the URL. Capture
+    // the real SDK request so a provider change that drops thinking.display —
+    // or the ADC-resolved project — fails here rather than in production.
+    const config = {
+      provider: "vertex" as const,
+      modelId: "claude-sonnet-4-5@20250929",
+      titleModelId: "gemini-2.5-flash",
+      location: "us-east5",
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "msg_1",
+      type: "message",
+      role: "assistant",
+      model: config.modelId,
+      content: [{ type: "text", text: "ok" }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = await createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "hi" }],
+        },
+      ],
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.headers.get("authorization")).toBe(
+      "Bearer fake-gcp-token",
+    );
+    expect(decodeURIComponent(calls[0]?.url ?? "")).toBe(
+      "https://us-east5-aiplatform.googleapis.com/v1/projects/adc-project/locations/us-east5/publishers/anthropic/models/claude-sonnet-4-5@20250929:rawPredict",
+    );
+    expect(calls[0]?.body.thinking).toEqual({
+      type: "adaptive",
+      display: "summarized",
+    });
+    // Adaptive thinking is inert without an effort level: the model answers
+    // with no thinking at all, and these models reject thinking.type.enabled,
+    // so this field is what actually turns reasoning on.
+    expect(calls[0]?.body.output_config).toEqual({ effort: "medium" });
+    expect(calls[0]?.body.anthropic_version).toBeTruthy();
+    expect(calls[0]?.body.model).toBeUndefined();
+  });
+});
 
 function createCaptureFetch(response: unknown) {
   const calls: Array<{

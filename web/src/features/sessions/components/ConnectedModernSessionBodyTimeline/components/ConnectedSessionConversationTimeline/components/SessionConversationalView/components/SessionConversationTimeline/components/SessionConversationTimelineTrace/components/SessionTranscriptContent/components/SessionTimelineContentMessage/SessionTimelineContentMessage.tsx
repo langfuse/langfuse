@@ -1,0 +1,232 @@
+import React, { useState } from "react";
+import { Bot, ChevronDown, UserRound, Wrench } from "lucide-react";
+import {
+  type NormalizedMessage,
+  type ReasoningPart,
+} from "@langfuse/shared/src/utils/normalized-io";
+import { SessionTimelinePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/SessionTimelinePart";
+import { cn } from "@/src/utils/tailwind";
+import { SessionTimelineMessageContent } from "./components/SessionTimelineMessageContent/SessionTimelineMessageContent";
+
+const rolePresentation = {
+  user: {
+    label: "User",
+    icon: UserRound,
+    wrapper: "justify-end",
+    container:
+      "bg-blue-50 dark:bg-[color-mix(in_srgb,var(--color-muted)_85%,var(--color-light-blue))] max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5 [--session-message-toggle-hover:var(--color-blue-100)] dark:[--session-message-toggle-hover:color-mix(in_srgb,var(--color-muted)_75%,var(--color-light-blue))]",
+  },
+  assistant: {
+    label: "Assistant",
+    icon: Bot,
+    wrapper: "justify-start",
+    container: "bg-muted/50 max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
+  },
+  tool: {
+    label: "Tool",
+    icon: Wrench,
+    wrapper: "justify-start",
+    container: "w-full",
+  },
+} satisfies Record<
+  Exclude<NormalizedMessage["role"], "system">,
+  {
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    wrapper: string;
+    container: string;
+  }
+>;
+
+export function SessionTimelineContentMessage({
+  role,
+  parts,
+  senderName,
+  timestamp,
+  onOpenObservation,
+  expandRequestId,
+}: {
+  role: Exclude<NormalizedMessage["role"], "system">;
+  parts: NormalizedMessage["parts"];
+  senderName: NormalizedMessage["senderName"];
+  timestamp?: Date | null;
+  onOpenObservation?: () => void;
+  expandRequestId?: number;
+}) {
+  const presentation = rolePresentation[role];
+  const Icon = presentation.icon;
+  const showSender = Boolean(senderName && senderName !== presentation.label);
+  const [expandedJsonGroupIndices, setExpandedJsonGroupIndices] = useState(
+    () => new Set<number>(),
+  );
+  type MessagePart = NormalizedMessage["parts"][number];
+  type ContentPart = Exclude<MessagePart, ReasoningPart>;
+  const groups: Array<
+    | { type: "reasoning"; parts: ReasoningPart[] }
+    | { type: "content"; parts: ContentPart[] }
+  > = [];
+
+  for (const part of parts) {
+    const previousGroup = groups.at(-1);
+    if (part.type === "reasoning") {
+      if (previousGroup?.type === "reasoning") {
+        previousGroup.parts.push(part);
+      } else {
+        groups.push({ type: "reasoning", parts: [part] });
+      }
+      continue;
+    }
+
+    if (previousGroup?.type === "content") {
+      previousGroup.parts.push(part);
+    } else {
+      groups.push({ type: "content", parts: [part] });
+    }
+  }
+
+  const firstContentGroupIndex = groups.findIndex(
+    (group) => group.type === "content",
+  );
+
+  return (
+    <div className="ph-no-capture flex w-full flex-col gap-2">
+      {groups.map((group, groupIndex) => {
+        if (group.type === "reasoning") {
+          return (
+            <div
+              key={`reasoning-${groupIndex}`}
+              className="flex w-full flex-col gap-1"
+              data-session-message-bubble=""
+              data-session-message-role={role}
+            >
+              {group.parts.map((part, partIndex) => (
+                <SessionTimelinePart
+                  key={`${part.content.kind}-${partIndex}`}
+                  part={part}
+                  trailingContent={
+                    onOpenObservation && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground invisible shrink-0 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible hover:underline"
+                        onClick={onOpenObservation}
+                      >
+                        Open generation
+                      </button>
+                    )
+                  }
+                />
+              ))}
+            </div>
+          );
+        }
+
+        const isJsonOnly = group.parts.every(
+          (part) => part.type === "data" || part.type === "custom",
+        );
+        const isJsonExpanded = expandedJsonGroupIndices.has(groupIndex);
+        const hasToolParts = group.parts.some(
+          (part) => part.type === "tool-call" || part.type === "tool-result",
+        );
+
+        return (
+          <div
+            key={`content-${groupIndex}`}
+            className={cn("flex w-full", presentation.wrapper)}
+          >
+            <article
+              data-session-message-bubble=""
+              data-session-message-role={role}
+              className={cn(
+                "group/bubble min-w-0 overflow-hidden",
+                presentation.container,
+                ((isJsonOnly && isJsonExpanded) || hasToolParts) && "w-full",
+              )}
+            >
+              {showSender && groupIndex === firstContentGroupIndex ? (
+                <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
+                  <Icon className="icon-sm shrink-0" />
+                  <span
+                    className="text-foreground truncate"
+                    title={senderName ?? presentation.label}
+                  >
+                    {senderName ?? presentation.label}
+                  </span>
+                </div>
+              ) : null}
+              {isJsonOnly ? (
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 text-left font-mono text-xs transition-colors"
+                  aria-expanded={isJsonExpanded}
+                  onClick={() =>
+                    setExpandedJsonGroupIndices((current) => {
+                      const next = new Set(current);
+                      if (isJsonExpanded) next.delete(groupIndex);
+                      else next.add(groupIndex);
+                      return next;
+                    })
+                  }
+                >
+                  <ChevronDown
+                    className={cn(
+                      "text-foreground-tertiary icon-sm shrink-0 translate-y-px transition-transform",
+                      !isJsonExpanded && "-rotate-90",
+                    )}
+                    aria-hidden="true"
+                  />
+                  JSON-only message detected
+                </button>
+              ) : null}
+              {!isJsonOnly || isJsonExpanded ? (
+                <SessionTimelineMessageContent
+                  expandRequestId={expandRequestId}
+                >
+                  <div
+                    className={cn(
+                      "flex flex-col gap-2 text-sm",
+                      isJsonOnly && "mt-2",
+                    )}
+                  >
+                    {group.parts.map((part, partIndex) => (
+                      <SessionTimelinePart
+                        key={`${part.type}-${partIndex}`}
+                        part={part}
+                      />
+                    ))}
+                  </div>
+                </SessionTimelineMessageContent>
+              ) : null}
+              {(timestamp || onOpenObservation) &&
+                groupIndex === groups.length - 1 && (
+                  <div
+                    className={cn(
+                      "text-muted-foreground mt-1 flex items-center gap-3 font-mono text-[10px]",
+                      role === "user" ? "justify-end" : "justify-start",
+                    )}
+                  >
+                    {onOpenObservation && (
+                      <button
+                        type="button"
+                        className={cn(
+                          "hover:text-foreground invisible group-focus-within/bubble:visible group-hover/bubble:visible hover:underline",
+                          role !== "user" && "order-1",
+                        )}
+                        onClick={onOpenObservation}
+                      >
+                        Open observation
+                      </button>
+                    )}
+                    {timestamp && (
+                      <time dateTime={timestamp.toISOString()}>
+                        {timestamp.toLocaleTimeString()}
+                      </time>
+                    )}
+                  </div>
+                )}
+            </article>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

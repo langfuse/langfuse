@@ -2,13 +2,16 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 
 import { type NextApiRequest } from "next";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ForbiddenError,
   InternalServerError,
   InvalidRequestError,
+  ServiceUnavailableError,
 } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
+import { Prisma } from "@langfuse/shared/src/db";
 
 const {
   env,
@@ -48,7 +51,7 @@ vi.mock(
   }),
 );
 
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { shadowAuth } from "@/src/features/public-api/server";
 
 const mappedFields = {
   orgId: "org_1",
@@ -155,6 +158,10 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       env.API_AUTH_MIGRATION = "enforce";
     });
 
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     it("returns the scope the new pipeline built, without calling legacy", async () => {
       authzAllows();
       expect(await call()).toEqual({
@@ -178,15 +185,78 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       });
     });
 
-    it("renders a new-pipeline 500 as a 500 denial", async () => {
-      mockEnforceAuth.mockResolvedValue({
-        success: false,
-        error: new InternalServerError("unmappable principal"),
-      });
+    it.each([
+      { name: "500", ErrorClass: InternalServerError },
+      { name: "503", ErrorClass: ServiceUnavailableError },
+    ])(
+      "sanitizes returned $name details while preserving its status and class",
+      async ({ ErrorClass }) => {
+        const diagnostic = "database host private-db:5432 rejected lookup";
+        const error = new ErrorClass(diagnostic);
+        const log = vi.spyOn(logger, "error").mockImplementation(() => logger);
+        mockEnforceAuth.mockResolvedValue({ success: false, error });
+
+        const result = await call();
+
+        expect(result).toMatchObject({
+          success: false,
+          error: {
+            httpCode: error.httpCode,
+            message: new ErrorClass().message,
+          },
+        });
+        if (result.success) throw new Error("Expected authentication failure");
+        expect(result.error).toBeInstanceOf(ErrorClass);
+        expect(error.message).toBe(diagnostic);
+        expect(JSON.stringify(log.mock.calls)).toContain(diagnostic);
+      },
+    );
+
+    it("sanitizes unexpected throws and redacts secrets from diagnostics", async () => {
+      const secret = "sk-lf-test-secret-12345678";
+      const log = vi.spyOn(logger, "error").mockImplementation(() => logger);
+      mockEnforceAuth.mockRejectedValue(new Error(`lookup failed ${secret}`));
+
       expect(await call()).toMatchObject({
         success: false,
-        error: { httpCode: 500 },
+        error: { httpCode: 500, message: new InternalServerError().message },
       });
+      const logged = JSON.stringify(log.mock.calls);
+      expect(logged).toContain("lookup failed");
+      expect(logged).not.toContain(secret);
+    });
+
+    it.each([
+      {
+        name: "typed",
+        error: new ServiceUnavailableError("database connection refused"),
+      },
+      {
+        name: "Prisma",
+        error: new Prisma.PrismaClientInitializationError(
+          "database connection refused",
+          "test",
+          "P1001",
+        ),
+      },
+    ])(
+      "returns a generic 503 for thrown $name infrastructure errors",
+      async ({ error }) => {
+        mockEnforceAuth.mockRejectedValue(error);
+        expect(await call()).toMatchObject({
+          success: false,
+          error: {
+            httpCode: 503,
+            message: new ServiceUnavailableError().message,
+          },
+        });
+      },
+    );
+
+    it("preserves thrown user errors", async () => {
+      const error = new InvalidRequestError("no target");
+      mockEnforceAuth.mockRejectedValue(error);
+      await expect(call()).rejects.toBe(error);
     });
 
     it("403s when the new pipeline denies, leaving the body to the route", async () => {
@@ -261,6 +331,42 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
     env.API_AUTH_MIGRATION = "legacy";
   });
 
+  it.each(["legacy", "shadow"])(
+    "%s preserves legacy success and custom failure with a new-pipeline infrastructure failure",
+    async (mode) => {
+      env.API_AUTH_MIGRATION = mode;
+      const newFailure = {
+        success: false,
+        error: new InternalServerError("private database detail"),
+      };
+      mockEnforceAuth.mockResolvedValue(newFailure);
+      legacyAllows();
+      expect(await call()).toEqual({ success: true, scope: legacyScope.scope });
+
+      mockLegacyProjectAuth.mockRejectedValue({
+        status: 502,
+        message: "custom legacy infrastructure message",
+      });
+      const result = await call();
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          httpCode: 502,
+          message: "custom legacy infrastructure message",
+        },
+      });
+      if (mode === "shadow") {
+        expect(mockShadowAuthDiff).toHaveBeenLastCalledWith(
+          newFailure,
+          expect.objectContaining({ success: false }),
+          "traces:read",
+        );
+      } else {
+        expect(mockEnforceAuth).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   describe("legacy mode never runs the new pipeline", () => {
     it("returns the legacy scope and skips enforceAuth", async () => {
       legacyAllows();
@@ -321,6 +427,20 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
         { success: true, scope: legacyScope.scope },
         "traces:read",
       );
+    });
+
+    it("threads the new pipeline's context to shadow the per-item check", async () => {
+      legacyAllows();
+      mockEnforceAuth.mockResolvedValue({
+        success: true,
+        scope: projectScope("privateKey"),
+        ctx: { principal: {}, policies: [] },
+      });
+      expect(await call()).toMatchObject({
+        success: true,
+        scope: legacyScope.scope,
+        ctx: { policies: [] },
+      });
     });
   });
 

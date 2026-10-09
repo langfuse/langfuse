@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -28,8 +27,7 @@ import {
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-
+import { aggregateScores } from "@/src/features/scores/server";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
@@ -355,6 +353,7 @@ async function getEventListPage(
       minTimestamp: minStartTime,
       excludeMetadata: true,
       includeHasMetadata: true,
+      preferredClickhouseService: "ReadOnly",
     }),
     traceIds.length > 0
       ? getScoresForTraces({
@@ -837,13 +836,19 @@ export async function getEventFilterOptions(
     score: { name: string; dataType: string },
     level: "observation" | "trace",
   ): void => {
-    const typeClass =
-      score.dataType === "NUMERIC"
-        ? "numeric"
-        : score.dataType === "BOOLEAN"
-          ? "boolean"
-          : "categorical"; // CATEGORICAL + TEXT
-    const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
+    const typeClass = (() => {
+      if (score.dataType === "NUMERIC") {
+        return "numeric";
+      }
+      if (score.dataType === "BOOLEAN") {
+        return "boolean";
+      }
+      return "categorical";
+    })(); // CATEGORICAL + TEXT
+    if (scoreNameLevelsByType[typeClass][score.name] === undefined) {
+      scoreNameLevelsByType[typeClass][score.name] = [];
+    }
+    const levels = scoreNameLevelsByType[typeClass][score.name];
     if (!levels.includes(level)) levels.push(level);
   };
   observationLevelScoreNames.forEach((score) =>

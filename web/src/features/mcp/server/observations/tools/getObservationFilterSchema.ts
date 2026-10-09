@@ -6,8 +6,7 @@ import {
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
 } from "@langfuse/shared";
 import { defineTool } from "../../../core/define-tool";
-import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
-
+import { observationEventsFilterConfig } from "@/src/features/events/server";
 const EmptyInputSchema = z.object({});
 
 const OBSERVATION_MCP_FILTER_COLUMNS = eventsTableCols
@@ -42,6 +41,7 @@ export const [
   name: "getObservationFilterSchema",
   description:
     "Show which observation fields can be used in listObservations filters, including the supported operators for each field.",
+  action: "traces:read",
   baseSchema: EmptyInputSchema,
   inputSchema: EmptyInputSchema,
   handler: async () => {

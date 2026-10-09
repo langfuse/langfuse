@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
@@ -22,7 +23,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationAddToDatasetActionSchema } from "../validation";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
 
 const MAX_BATCH_ADD_TO_DATASET_ITEMS = 1000;
 

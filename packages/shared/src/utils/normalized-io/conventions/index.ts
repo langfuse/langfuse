@@ -4,6 +4,7 @@ import { aiSdkProvider } from "./providers/ai-sdk";
 import { anthropicProvider } from "./providers/anthropic";
 import { geminiProvider } from "./providers/gemini";
 import { langchainProvider } from "./providers/langchain";
+import { langfuseAgentPluginsProvider } from "./providers/langfuse-agent-plugins";
 import { openAiProvider } from "./providers/openai";
 import { otelGenaiProvider } from "./providers/otel-genai";
 import { pydanticAiProvider } from "./providers/pydantic-ai";
@@ -38,4 +39,5 @@ export const registeredProviders: readonly IOConvention[] = [
   pydanticAiProvider,
   semanticKernelProvider,
   agnoProvider,
+  langfuseAgentPluginsProvider,
 ];

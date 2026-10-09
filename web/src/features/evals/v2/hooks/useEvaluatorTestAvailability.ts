@@ -1,8 +1,10 @@
 import { useStore } from "zustand";
 
+import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function useEvaluatorTestAvailability({
@@ -19,8 +21,17 @@ export function useEvaluatorTestAvailability({
     store,
     (state) => state.selectedObservation,
   );
+  const evaluatorType = useStore(store, (state) => state.type);
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    evaluatorType === "DECISION_MODEL",
+  );
   const definitionAvailable = useStore(store, (state) =>
-    Boolean(prepareEvaluatorDraft(state).definition),
+    Boolean(
+      prepareEvaluatorDraft(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      ).definition,
+    ),
   );
   const scoreOutputReason = useStore(store, (state) =>
     state.type === "LLM_AS_JUDGE"
@@ -33,15 +44,20 @@ export function useEvaluatorTestAvailability({
       : null,
   );
 
-  return scoreOutputReason
-    ? scoreOutputReason
-    : modelReason
-      ? modelReason
-      : !definitionAvailable
-        ? "Complete the evaluator before running a test."
-        : !selectedObservation
-          ? "Select a sample observation first."
-          : !sampleObject
-            ? "Loading the selected sample."
-            : null;
+  if (scoreOutputReason) {
+    return scoreOutputReason;
+  }
+  if (modelReason) {
+    return modelReason;
+  }
+  if (!definitionAvailable) {
+    return "Complete the evaluator before running a test.";
+  }
+  if (!selectedObservation) {
+    return "Select a sample observation first.";
+  }
+  if (!sampleObject) {
+    return "Loading the selected sample.";
+  }
+  return null;
 }

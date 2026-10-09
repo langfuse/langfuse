@@ -4,33 +4,44 @@ import {
   type ForbiddenError,
   type InternalServerError,
   type LangfuseNotFoundError,
+  type ServiceUnavailableError,
   type UnauthorizedError,
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  isOrgAction,
+  OrganizationId,
+  ProjectId,
+  type Action,
+  type ResourceId,
+  type TenantId,
+} from "@langfuse/shared/rbac";
 
-import { authorize } from "@/src/features/auth/policy/authorize";
-import { authenticator } from "@/src/features/apiKey/authenticator";
+import { authorize } from "@/src/features/rbac/authorize";
+import { authenticator } from "@/src/features/apiKey/server";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,
   internalServerError,
-  isOrgAction,
   notFoundError,
-  type Action,
   type AuthorizationContext,
+  type Decision,
   type ErrorResult,
   type Principal,
   type Success,
 } from "@/src/features/auth/policy/types";
 
+/** __dangerouslySkipAuthz skips the connection-level action check for routes that authorize each call themselves. */
+export const __dangerouslySkipAuthz = "__dangerouslySkipAuthz" as const;
+
 /** orgIdHeader selects the target org. */
-const orgIdHeader = "x-langfuse-organization-id";
+const orgIdHeader = "langfuse-organization-id";
 
 /** projectIdHeader selects the target project for keys without a bound project. */
-const projectIdHeader = "x-langfuse-project-id";
+const projectIdHeader = "langfuse-project-id";
 
-/** enforceAuth authenticates the request and authorizes an action for the given endpoint (combines authz and authn) */
+/** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
 export async function enforceAuth({
   req,
   action,
@@ -49,7 +60,7 @@ export async function enforceAuth({
     case "admin":
       return enforceAdminAuthz(context, req, action);
     case "apiKey":
-      return isOrgAction(action)
+      return action !== __dangerouslySkipAuthz && isOrgAction(action)
         ? enforceOrgAuthz(context, req, action)
         : enforceProjectAuthz(context, req, action);
     default:
@@ -61,7 +72,7 @@ export async function enforceAuth({
 async function enforceAdminAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: ApiAction,
 ): Promise<EnforceAuthResult> {
   const projectId = getHeaderProjectId(req);
   if (!projectId) return forbiddenError(`Missing '${projectIdHeader}' header`);
@@ -69,7 +80,12 @@ async function enforceAdminAuthz(
   const org = await lookupProjectOrgId(projectId);
   if (!org.success) return org;
 
-  const decision = authorize(context, action, { projectId });
+  const decision = authorizeAction(
+    context,
+    OrganizationId(org.orgId),
+    action,
+    ProjectId(projectId),
+  );
   if (!decision.success) return decision;
 
   return access(context, org.orgId, projectId);
@@ -79,12 +95,17 @@ async function enforceAdminAuthz(
 function enforceOrgAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: ApiAction,
 ): EnforceAuthResult {
   const org = getOrgId(context, req);
   if (!org.success) return org;
 
-  const decision = authorize(context, action, { orgId: org.orgId });
+  const decision = authorizeAction(
+    context,
+    OrganizationId(org.orgId),
+    action,
+    OrganizationId(org.orgId),
+  );
   if (!decision.success) return decision;
 
   return access(context, org.orgId);
@@ -94,7 +115,7 @@ function enforceOrgAuthz(
 function enforceProjectAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: ApiAction,
 ): EnforceAuthResult {
   const project = getProjectId(context, req);
   if (!project.success) return project;
@@ -103,15 +124,29 @@ function enforceProjectAuthz(
     return notFoundError("Project not found or you don't have access to it");
   }
 
-  const decision = authorize(context, action, {
-    projectId: project.projectId,
-  });
-  if (!decision.success) return decision;
-
   const orgId = getBoundOrgId(context);
   if (!orgId) return internalServerError(`Missing bound org on api-key`);
 
+  const decision = authorizeAction(
+    context,
+    OrganizationId(orgId),
+    action,
+    ProjectId(project.projectId),
+  );
+  if (!decision.success) return decision;
+
   return access(context, orgId, project.projectId);
+}
+
+/** authorizeAction authorizes against a given action within a tenant, or passes when the route skips authz and authorizes each call itself. */
+function authorizeAction(
+  context: AuthorizationContext,
+  tenant: TenantId,
+  action: ApiAction,
+  resource: ResourceId,
+): Decision {
+  if (action === __dangerouslySkipAuthz) return { success: true };
+  return authorize(context, tenant, action, resource);
 }
 
 /** getOrgId resolves the target org the key's bound org and the header agree on. */
@@ -128,19 +163,16 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project the key's bound project, the URL param, and the header agree on. */
+/** getProjectId prioritizes the bound project, then the query parameter, then the header. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
-  const requested = [
-    getBoundProjectId(context),
-    getUrlProjectId(req),
-    getHeaderProjectId(req),
-  ];
-
-  const projectId = first(requested);
-  if (!equal(requested) || !projectId) {
+  const projectId =
+    getBoundProjectId(context) ??
+    getUrlProjectId(req) ??
+    getHeaderProjectId(req);
+  if (!projectId) {
     return forbiddenError();
   }
 
@@ -180,12 +212,12 @@ function getBoundProjectId(context: AuthorizationContext): string | undefined {
 
 /** getHeaderOrgId returns the target org from the header. */
 function getHeaderOrgId(req: NextApiRequest): string | undefined {
-  return getHeaderValue(req.headers[orgIdHeader]) || undefined;
+  return getHeaderValue(req, orgIdHeader);
 }
 
 /** getHeaderProjectId returns the target project from the header. */
 function getHeaderProjectId(req: NextApiRequest): string | undefined {
-  return getHeaderValue(req.headers[projectIdHeader]) || undefined;
+  return getHeaderValue(req, projectIdHeader);
 }
 
 /** getUrlProjectId returns the target project from the URL param. */
@@ -195,10 +227,14 @@ function getUrlProjectId(req: NextApiRequest): string | undefined {
     : undefined;
 }
 
-/** getHeaderValue normalizes a possibly-repeated header to its first value. */
-const getHeaderValue = (
-  value: string | string[] | undefined,
-): string | undefined => (Array.isArray(value) ? value[0] : value);
+/** getHeaderValue prefers the X-prefixed alias and normalizes repeated headers to their first value. */
+function getHeaderValue(
+  req: NextApiRequest,
+  header: string,
+): string | undefined {
+  const value = req.headers[`x-${header}`] ?? req.headers[header];
+  return (Array.isArray(value) ? value[0] : value) || undefined;
+}
 
 /** equal returns true when every defined value agrees. */
 function equal(os: (string | undefined)[]): boolean {
@@ -231,13 +267,16 @@ function access(
   };
 }
 
-/** EnforceAuthParams is the request, the checked action, and the request's key-kind opt-ins. */
+/** EnforceAuthParams is the request, the connection action, and the request's key-kind opt-ins. */
 export type EnforceAuthParams = {
   req: NextApiRequest;
-  action: Action;
+  action: ApiAction;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };
+
+/** ApiAction is the action a route authorizes at the connection, or the explicit opt-out. */
+export type ApiAction = Action | typeof __dangerouslySkipAuthz;
 
 /** AccessResult is the seam's success outcome: the resolved ApiAccessScope and the context that authorized it. */
 type AccessResult = Success & {
@@ -253,6 +292,7 @@ export type EnforceAuthResult =
       | InternalServerError
       | ForbiddenError
       | LangfuseNotFoundError
+      | ServiceUnavailableError
     >;
 
 /** ResolvedOrg is org target resolution's success outcome. */

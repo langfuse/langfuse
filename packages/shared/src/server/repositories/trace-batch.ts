@@ -7,6 +7,7 @@ import { queryClickhouseStream, TupleParam } from "./clickhouse";
 type TraceBatchEventRow = {
   project_id: string;
   trace_id: string;
+  environment: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -19,6 +20,8 @@ type TraceBatchEventRow = {
   tool_definitions: Record<string, string>;
   tool_calls: string[];
   tool_call_names: string[];
+  level: string;
+  status_message: string | null;
 };
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
@@ -136,12 +139,16 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     .selectRaw(
       "e.project_id",
       "e.trace_id",
+      "e.environment",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
       "e.event_ts",
       "e.type",
       "e.name",
+      // The Topics renderer turns ERROR/WARNING levels into transcript error signals.
+      "e.level",
+      "e.status_message",
     )
     // Load full input/output (false = no truncation) and every metadata key.
     .selectIO(false)
@@ -177,7 +184,13 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       `(${timeGroupPredicates.join(`
       OR `)})`,
       timeGroupParams,
-    );
+    )
+    // Keep each tenant/trace contiguous across time buckets and result blocks.
+    // The transcript assembler orders observations within each trace in memory.
+    .orderByColumns([
+      { column: "e.project_id", direction: "ASC" },
+      { column: "e.trace_id", direction: "ASC" },
+    ]);
 
   return {
     ...builder.buildWithParams(),
@@ -187,6 +200,8 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
 
 /**
  * Stream full events_full payloads into the worker without retaining a whole batch.
+ * Rows are contiguous per (project_id, trace_id); a pair change or successful EOF
+ * completes that trace's query window, not its lifetime of possible late arrivals.
  * Rows reflect the events table's current merge state, as in other event reads;
  * this read-only experiment does not deduplicate versions or enrich model data.
  */
@@ -195,7 +210,9 @@ export async function* getTraceBatchEventStream(
   options: {
     maxThreads?: number;
     maxBlockSize?: number;
+    requestTimeoutMs?: number;
     experimentId?: string;
+    queryId?: string;
   } = {},
 ): AsyncGenerator<TraceBatchEventRow> {
   if (props.traces.length === 0) return;
@@ -203,6 +220,7 @@ export async function* getTraceBatchEventStream(
   const { query, params, projectIds } = buildTraceBatchEventQuery(props);
   yield* queryClickhouseStream<TraceBatchEventRow>({
     query,
+    queryId: options.queryId,
     params,
     useMultipartParamsAuto: true,
     tags: {
@@ -212,6 +230,9 @@ export async function* getTraceBatchEventStream(
     preferredClickhouseService: "EventsReadOnly",
     clickhouseConfigs: {
       compression: { response: true },
+      ...(options.requestTimeoutMs === undefined
+        ? {}
+        : { request_timeout: options.requestTimeoutMs }),
     },
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
     clickhouseSettings: {

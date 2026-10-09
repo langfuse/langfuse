@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
@@ -110,7 +111,9 @@ export const EvalTemplateDetail = () => {
             {template.data?.projectId ? (
               <>
                 <IconOnlyButton
-                  icon={<TrashIcon className="h-4 w-4" />}
+                  icon={
+                    <TrashIcon className="icon-base text-icon-foreground" />
+                  }
                   label="Delete"
                   aria-label="delete"
                   variant="outline"

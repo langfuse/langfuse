@@ -6,28 +6,44 @@ const LayerContext = React.createContext<Map<LayerName, HTMLElement> | null>(
   null,
 );
 
-export function LayerProvider({ children }: { children: React.ReactNode }) {
-  const [layers, setLayers] = React.useState<Map<
-    LayerName,
-    HTMLElement
-  > | null>(null);
-
-  React.useEffect(() => {
-    const root = document.createElement("div");
+function ensureLayerContainers(): Map<LayerName, HTMLElement> {
+  let root = document.querySelector<HTMLElement>("[data-overlay-root]");
+  if (!root) {
+    root = document.createElement("div");
     root.setAttribute("data-overlay-root", "");
+    document.body.appendChild(root);
+  }
 
-    const layerContainers = new Map<LayerName, HTMLElement>();
-    for (const name of LAYER_ORDER) {
-      const layer = document.createElement("div");
+  const layerContainers = new Map<LayerName, HTMLElement>();
+  for (const name of LAYER_ORDER) {
+    let layer = root.querySelector<HTMLElement>(
+      `[data-layer="${CSS.escape(name)}"]`,
+    );
+    if (!layer) {
+      layer = document.createElement("div");
       layer.setAttribute("data-layer", name);
       root.appendChild(layer);
-      layerContainers.set(name, layer);
     }
+    layerContainers.set(name, layer);
+  }
+  return layerContainers;
+}
 
-    document.body.appendChild(root);
-    setLayers(layerContainers);
+export function LayerProvider({ children }: { children: React.ReactNode }) {
+  // Resolve on the first client render. Creating the nodes in an effect leaves
+  // `useLayerContainer` as null for one paint, so Radix/Vaul portals hop
+  // through `document.body` and `hideOthers` logs `aria-hidden … not contained
+  // inside body`.
+  const [layers] = React.useState<Map<LayerName, HTMLElement> | null>(() => {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    return ensureLayerContainers();
+  });
 
-    return () => root.remove();
+  React.useEffect(() => {
+    const root = document.querySelector("[data-overlay-root]");
+    return () => root?.remove();
   }, []);
 
   return (

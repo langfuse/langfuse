@@ -42,16 +42,21 @@ export const scoreLevelFromScore = (score: {
   traceId?: string | null;
   sessionId?: string | null;
   datasetRunId?: string | null;
-}): ScoreLevel =>
-  score.observationId != null
-    ? "observation"
-    : score.traceId != null
-      ? "trace"
-      : score.sessionId != null
-        ? "session"
-        : score.datasetRunId != null
-          ? "experiment"
-          : "trace";
+}): ScoreLevel => {
+  if (score.observationId != null) {
+    return "observation";
+  }
+  if (score.traceId != null) {
+    return "trace";
+  }
+  if (score.sessionId != null) {
+    return "session";
+  }
+  if (score.datasetRunId != null) {
+    return "experiment";
+  }
+  return "trace";
+};
 
 // The global score-level color coding: one hue per level, used identically on
 // every surface. Hue pairs live in the design-system Badge and globals.css:
@@ -113,7 +118,6 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
         <span {...getTriggerProps()}>
           <Badge
             color={scoreTagColors[level]}
-            size="sm"
             text={SCORE_LEVEL_LABELS[level]}
           />
         </span>

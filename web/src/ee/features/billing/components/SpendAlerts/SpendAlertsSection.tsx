@@ -1,11 +1,8 @@
-/* eslint-disable @repo/no-null-render */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { useHasEntitlement } from "@/src/features/entitlements";
 
 interface SpendAlertsSectionProps {
   orgId: string;
@@ -14,21 +11,6 @@ interface SpendAlertsSectionProps {
 export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
-
-  const hasAccess = useHasOrganizationAccess({
-    organizationId: orgId,
-    scope: "langfuseCloudBilling:CRUD",
-  });
-
-  const hasEntitlement = useHasEntitlement("cloud-spend-alerts");
-
-  if (!hasEntitlement) {
-    return null;
-  }
-
-  if (!hasAccess) {
-    return null;
-  }
 
   return (
     <>
@@ -44,7 +26,7 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
           </div>
 
           <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-base mr-2" />
             Create Alert
           </Button>
         </div>

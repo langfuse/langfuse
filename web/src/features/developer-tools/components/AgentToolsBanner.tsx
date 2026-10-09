@@ -1,7 +1,5 @@
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
-import { Button } from "@/src/components/ui/button";
-import Link from "next/link";
 import { Bot } from "lucide-react";
 
 const DOCS_HREF =
@@ -20,17 +18,11 @@ export function AgentToolsBanner() {
           <Callout
             variant="info"
             align="middle"
-            actions={
-              <Button asChild size="sm" variant="secondary">
-                <Link href={DOCS_HREF} target="_blank">
-                  Learn more
-                </Link>
-              </Button>
-            }
+            actions={[{ type: "link", label: "Learn more", href: DOCS_HREF }]}
             onDismiss={onDismiss}
           >
             <div className="flex items-start gap-2 sm:items-center">
-              <Bot className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+              <Bot className="icon-base mt-0.5 shrink-0 sm:mt-0" />
               <span>
                 <span className="font-bold">
                   Langfuse works great with your AI coding agents.

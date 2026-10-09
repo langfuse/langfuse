@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Pencil, Trash, FileDiff, Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -12,11 +13,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
@@ -46,7 +43,7 @@ export function CorrectedOutputField({
   environment = "default",
   compact = false,
 }: CorrectedOutputFieldProps) {
-  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
   const capture = usePostHogClientCapture();
 
   // JSON validation toggle (persisted in localStorage)
@@ -58,7 +55,7 @@ export function CorrectedOutputField({
   // Diff dialog state
   const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
 
-  // One-line link by default; the full section renders on demand.
+  // When no correction exists, keep the section collapsed until it is opened.
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Merge cache + server data
@@ -158,13 +155,12 @@ export function CorrectedOutputField({
   const handleDeleteWithExitEdit = () => {
     handleDelete();
     setIsEditing(false);
+    setIsExpanded(false);
   };
 
-  // Collapsed to a one-line link by default: corrections are used by a small
-  // share of users, so the full editor UI only takes space once asked for.
-  if (!isExpanded) {
+  if (!isExpanded && !effectiveCorrection) {
     return (
-      <div className="px-2 py-2">
+      <div className="py-2">
         <button
           type="button"
           onClick={() => {
@@ -176,8 +172,8 @@ export function CorrectedOutputField({
           }}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
-          <Pencil className="size-3 shrink-0" aria-hidden />
-          {hasContent ? "Corrected output" : "Correct output"}
+          <Pencil className="icon-sm shrink-0" aria-hidden />
+          Correct output
         </button>
       </div>
     );
@@ -193,42 +189,48 @@ export function CorrectedOutputField({
         correctedOutput={value}
         strictJsonMode={strictJsonMode}
       />
-      <div className="px-2">
+      <div className="pt-3">
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
             <div className="flex items-center gap-1">
               <span
-                className={cn(
-                  "text-sm font-bold",
-                  compact ? "text-xs" : "text-sm",
-                )}
+                className={cn("font-bold", compact ? "text-xs" : "text-base")}
               >
                 {compact ? "" : "Corrected Output"}
               </span>
-              <HoverCard>
-                <HoverCardTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground">
-                    <Info className="h-3.5 w-3.5" />
+              <HoverCard
+                placement="right"
+                content={
+                  <div className="w-80 p-3 text-xs">
+                    <p>
+                      Corrected outputs allow you to save the expected output
+                      for a trace or observation. Learn more in the{" "}
+                      <Link
+                        href="https://langfuse.com/docs/observability/features/corrections"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-foreground underline"
+                      >
+                        documentation
+                      </Link>
+                      .
+                    </p>
+                  </div>
+                }
+              >
+                {({ getTriggerProps }) => (
+                  <button
+                    type="button"
+                    aria-label="About corrected outputs"
+                    className="text-muted-foreground hover:text-foreground"
+                    {...getTriggerProps()}
+                  >
+                    <Info className="icon-base" />
                   </button>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-80 text-xs" side="right">
-                  <p>
-                    Corrected outputs allow you to save the expected output for
-                    a trace or observation. Learn more in the{" "}
-                    <Link
-                      href="https://langfuse.com/docs/observability/features/corrections"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      documentation
-                    </Link>
-                    .
-                  </p>
-                </HoverCardContent>
+                )}
               </HoverCard>
             </div>
-            <div className="-mr-1 flex items-center">
+            <div className="flex items-center">
               <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                 {!isValidJson && isEditing && hasContent && (
                   <span className="mr-2 text-xs text-red-500">
@@ -247,7 +249,7 @@ export function CorrectedOutputField({
                 )}
                 {isValidJson && saveStatus === "saved" && (
                   <div className="mr-2 flex items-center gap-1">
-                    <Check className="h-3 w-3" />
+                    <Check className="icon-sm" />
                     <span className="text-muted-foreground text-xs">Saved</span>
                   </div>
                 )}
@@ -260,7 +262,7 @@ export function CorrectedOutputField({
                       className="hover:bg-border"
                       title="View diff between original and corrected output"
                     >
-                      <FileDiff className="h-3 w-3" />
+                      <FileDiff className="icon-sm text-icon-foreground" />
                     </Button>
                     {!isEditing && (
                       <Button
@@ -271,7 +273,7 @@ export function CorrectedOutputField({
                         className="hover:bg-border"
                         title="Edit corrected output"
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Pencil className="icon-sm text-icon-foreground" />
                       </Button>
                     )}
                     <Button
@@ -282,7 +284,7 @@ export function CorrectedOutputField({
                       className="hover:bg-border"
                       title="Delete corrected output"
                     >
-                      <Trash className="h-3 w-3" />
+                      <Trash className="icon-sm text-icon-foreground" />
                     </Button>
                   </>
                 )}
@@ -316,15 +318,13 @@ export function CorrectedOutputField({
               mode={strictJsonMode ? "json" : "text"}
               minHeight={200}
               placeholder="Enter corrected output..."
-              className="bg-accent-light-green"
             />
           ) : (
             <CodeMirrorEditor
               value={displayValue}
               mode={strictJsonMode ? "json" : "text"}
-              minHeight={200}
               editable={false}
-              className="bg-accent-light-green"
+              className="bg-surface-output [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent!"
             />
           )}
         </div>

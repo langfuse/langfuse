@@ -591,6 +591,31 @@ describe("MCP Read Tools", () => {
         ),
       ).toBe(true);
     });
+
+    it("lists decision-model templates", async () => {
+      const result = (await handleListManagedEvaluatorTemplates(
+        { type: "DECISION_MODEL" },
+        mockServerContext(),
+      )) as {
+        templates: Array<{ key: string; evaluator: { type: string } }>;
+      };
+
+      expect(result.templates).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "topic-decision-model",
+            evaluator: expect.objectContaining({
+              type: "DECISION_MODEL",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        result.templates.every(
+          (template) => template.evaluator.type === "DECISION_MODEL",
+        ),
+      ).toBe(true);
+    });
   });
 
   describe("getEvaluator tool", () => {
@@ -911,7 +936,7 @@ describe("MCP Read Tools", () => {
       expect(result.fields.input.sensitive).toBe(true);
       expect(result.fields.input.requiresScope).toBe(true);
       expect(result.fields.input.scopeRequirement).toMatch(
-        /traceId.*id filter.*fromStartTime.*toStartTime/i,
+        /requires both fromStartTime and toStartTime.*maximum range of 14 days.*even when scoped by traceId or observation id/i,
       );
       expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
@@ -1122,15 +1147,18 @@ describe("MCP Read Tools", () => {
     it("should filter by metadata advanced filters", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
+      const startTime = new Date();
       const matchingObservation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         name: `mcp-filter-metadata-match-${nanoid()}`,
         metadata: { region: "us-east", tenant: "acme" },
       });
       const nonMatchingObservation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         name: `mcp-filter-metadata-miss-${nanoid()}`,
         metadata: { region: "eu-west", tenant: "acme" },
       });
@@ -1139,6 +1167,8 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleListObservations(
         {
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
           filter: [
             {
               type: "stringOptions",
@@ -1281,9 +1311,11 @@ describe("MCP Read Tools", () => {
     it("should include payload fields when requested with wildcard projection", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
+      const startTime = new Date();
       const observation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         name: `mcp-list-wildcard-${nanoid()}`,
         input: "visible input",
         output: "visible output",
@@ -1293,7 +1325,13 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleListObservations(
-        { traceId, fields: ["*"], limit: 100 },
+        {
+          traceId,
+          fields: ["*"],
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
+          limit: 50,
+        },
         context,
       )) as { data: Array<Record<string, unknown>> };
 
@@ -1419,10 +1457,12 @@ describe("MCP Read Tools", () => {
     it("should match advanced input filters beyond the events_core truncation boundary", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
+      const startTime = new Date();
       const needle = `needle-${nanoid()}`;
       const matchingObservation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         input: `${"x".repeat(250)} ${needle}`,
       });
 
@@ -1446,6 +1486,8 @@ describe("MCP Read Tools", () => {
               value: needle,
             },
           ],
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
           fields: ["id"],
           limit: 100,
         },
@@ -1464,14 +1506,12 @@ describe("MCP Read Tools", () => {
       ]);
     });
 
-    it("should require selective scope for full io and metadata access", async () => {
+    it("should require a time range for full io and metadata access", async () => {
       const { context } = await createMcpTestSetup();
 
       await expect(
         handleListObservations({ fields: ["input"], limit: 100 }, context),
-      ).rejects.toThrow(
-        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
-      );
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1489,9 +1529,7 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(
-        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
-      );
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1509,7 +1547,14 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).resolves.toMatchObject({ data: [] });
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+
+      await expect(
+        handleListObservations(
+          { traceId: randomUUID(), fields: ["metadata"], limit: 50 },
+          context,
+        ),
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1584,10 +1629,48 @@ describe("MCP Read Tools", () => {
       ).resolves.toMatchObject({ data: [] });
     });
 
-    it("should treat an exact observation id filter as selective scope", async () => {
+    it.each([
+      { traceId: randomUUID() },
+      {
+        filter: [
+          {
+            type: "string" as const,
+            column: "id",
+            operator: "=" as const,
+            value: randomUUID(),
+          },
+        ],
+      },
+    ])("should enforce the time range for scoped access: %j", async (scope) => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          { ...scope, fields: ["input"], limit: 50 },
+          context,
+        ),
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+
+      await expect(
+        handleListObservations(
+          {
+            ...scope,
+            fields: ["metadata"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-16T00:00:00.000Z",
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum range of 14 days/i);
+    });
+
+    it("should allow an exact observation id filter with a time range", async () => {
       const { context, projectId } = await createMcpTestSetup();
+      const startTime = new Date();
       const observation = createObservationEvent({
         projectId,
+        startTime,
         input: "selective input",
       });
 
@@ -1596,6 +1679,8 @@ describe("MCP Read Tools", () => {
       const result = (await handleListObservations(
         {
           fields: ["id", "input"],
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
           filter: [
             {
               type: "string",
@@ -1604,7 +1689,7 @@ describe("MCP Read Tools", () => {
               value: observation.id,
             },
           ],
-          limit: 100,
+          limit: 50,
         },
         context,
       )) as { data: Array<{ id: string; input: string }> };

@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { LayoutDashboard } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { type ChartWidgetInput } from "../lib/chartConfigToWidget";
 
@@ -64,7 +64,7 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
         onClick={() => setOpen(true)}
         disabled={createWidget.isPending}
       >
-        <LayoutDashboard className="h-3.5 w-3.5" />
+        <LayoutDashboard className="icon-base text-icon-foreground" />
         Add to dashboard
       </Button>
       <SelectDashboardDialog

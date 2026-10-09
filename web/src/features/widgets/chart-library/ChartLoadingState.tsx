@@ -1,4 +1,5 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props */
 import { useEffect, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
@@ -11,7 +12,6 @@ const DEFAULT_HINT_DELAY_MS = 2000;
 const PROGRESS_REVEAL_DELAY_MS = 1000;
 
 type ChartLoadingStateProps = {
-  isLoading: boolean;
   className?: string;
   hintClassName?: string;
   spinnerLabel?: string;
@@ -26,7 +26,6 @@ type ChartLoadingStateProps = {
 };
 
 export function ChartLoadingState({
-  isLoading,
   className,
   hintClassName,
   spinnerLabel = "Loading chart data",
@@ -42,14 +41,9 @@ export function ChartLoadingState({
   const [showHint, setShowHint] = useState(false);
   const [showProgressPhase, setShowProgressPhase] = useState(false);
   const shouldShowProgress = progress !== undefined;
-  const isPendingProgressState = isLoading && showSpinner && shouldShowProgress;
+  const isPendingProgressState = showSpinner && shouldShowProgress;
 
   useEffect(() => {
-    if (!isLoading) {
-      setShowHint(false);
-      return;
-    }
-
     const timeoutId = window.setTimeout(() => {
       setShowHint(true);
     }, hintDelayMs);
@@ -57,7 +51,7 @@ export function ChartLoadingState({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [hintDelayMs, isLoading]);
+  }, [hintDelayMs]);
 
   useEffect(() => {
     if (!isPendingProgressState) {
@@ -73,10 +67,6 @@ export function ChartLoadingState({
       window.clearTimeout(timeoutId);
     };
   }, [isPendingProgressState]);
-
-  if (!isLoading) {
-    return null;
-  }
 
   const shouldShowHint = showHintImmediately || showHint;
   const isCompact = layout !== "default";
@@ -108,12 +98,15 @@ export function ChartLoadingState({
     );
   }
 
-  const statusTitle =
-    isPendingProgressState || shouldShowProgress
-      ? "Running query"
-      : showSpinner
-        ? "Loading widget"
-        : "Query needs attention";
+  const statusTitle = (() => {
+    if (isPendingProgressState || shouldShowProgress) {
+      return "Running query";
+    }
+    if (showSpinner) {
+      return "Loading widget";
+    }
+    return "Query needs attention";
+  })();
 
   return (
     <div
