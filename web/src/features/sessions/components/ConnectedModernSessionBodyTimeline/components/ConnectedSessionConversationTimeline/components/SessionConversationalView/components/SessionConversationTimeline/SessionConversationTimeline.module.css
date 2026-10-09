@@ -1,0 +1,21 @@
+.timeline [data-session-navigation-highlight] {
+  border-radius: 0.5rem;
+  animation: navigation-highlight 1.5s ease-out;
+}
+
+@keyframes navigation-highlight {
+  0%,
+  20% {
+    background-color: hsl(var(--muted));
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline [data-session-navigation-highlight] {
+    animation: none;
+    background-color: hsl(var(--muted));
+  }
+}

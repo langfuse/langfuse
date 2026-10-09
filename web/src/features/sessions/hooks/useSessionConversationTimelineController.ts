@@ -14,6 +14,7 @@ const SESSION_TIMELINE_OVERSCAN = 5;
 const SESSION_TIMELINE_ANCHOR_RATIO = 0.2;
 const SESSION_TIMELINE_SCROLL_TIME_CONSTANT_MS = 80;
 const SESSION_TIMELINE_MAX_FRAME_ELAPSED_MS = 64;
+const SESSION_TIMELINE_HIGHLIGHT_MS = 1_500;
 export type SessionConversationTimelineScrollTarget = {
   itemId?: string;
   traceId: string;
@@ -65,11 +66,18 @@ export function useSessionConversationTimelineController(
     fallbackOffset?: number;
   } | null>(null);
   const navigationCleanupRef = useRef<(() => void) | null>(null);
+  const highlightCleanupRef = useRef<(() => void) | null>(null);
   const latestTracesRef = useRef(traces);
   useLayoutEffect(() => {
     latestTracesRef.current = traces;
   }, [traces]);
-  useEffect(() => () => navigationCleanupRef.current?.(), []);
+  useEffect(
+    () => () => {
+      navigationCleanupRef.current?.();
+      highlightCleanupRef.current?.();
+    },
+    [],
+  );
 
   useEffect(() => {
     const feed = feedRef.current;
@@ -90,6 +98,8 @@ export function useSessionConversationTimelineController(
   }, [feedRef, selection]);
 
   const onSelect = (index: number, observationId?: string, rowId?: string) => {
+    highlightCleanupRef.current?.();
+    highlightCleanupRef.current = null;
     navigationCleanupRef.current?.();
     navigationCleanupRef.current = null;
     setSelection(null);
@@ -106,6 +116,7 @@ export function useSessionConversationTimelineController(
     let stableSince = performance.now();
     let previousScrollTop = feed.scrollTop;
     let previousFrameTime = performance.now();
+    let highlightedTarget: HTMLElement | null = null;
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -121,6 +132,7 @@ export function useSessionConversationTimelineController(
     };
     const cancel = () => {
       cleanup();
+      highlightCleanupRef.current?.();
       navigationCleanupRef.current = null;
       feed.scrollTo({ top: feed.scrollTop, behavior: "instant" });
       setSelection(null);
@@ -164,6 +176,7 @@ export function useSessionConversationTimelineController(
       }
       if (currentIndex === -1) {
         cleanup();
+        highlightCleanupRef.current?.();
         navigationCleanupRef.current = null;
         setSelection(null);
         return;
@@ -241,6 +254,28 @@ export function useSessionConversationTimelineController(
           : feed.scrollTop + Math.sign(distance) * step;
       if (reduceMotion ? targetChanged : nextTop !== feed.scrollTop) {
         feed.scrollTo({ top: nextTop, behavior: "instant" });
+      }
+      if (mountedTarget && mountedTarget !== highlightedTarget) {
+        const targetBounds = mountedTarget.getBoundingClientRect();
+        const viewportTop = feed.getBoundingClientRect().top + feed.clientTop;
+        if (
+          targetBounds.bottom > viewportTop &&
+          targetBounds.top < viewportTop + feed.clientHeight
+        ) {
+          highlightCleanupRef.current?.();
+          highlightedTarget = mountedTarget;
+          mountedTarget.dataset.sessionNavigationHighlight = "";
+          const clearHighlight = () => {
+            mountedTarget.removeAttribute("data-session-navigation-highlight");
+            window.clearTimeout(highlightTimeout);
+            highlightCleanupRef.current = null;
+          };
+          const highlightTimeout = window.setTimeout(
+            clearHighlight,
+            SESSION_TIMELINE_HIGHLIGHT_MS,
+          );
+          highlightCleanupRef.current = clearHighlight;
+        }
       }
       if (
         virtualizer.isScrolling ||

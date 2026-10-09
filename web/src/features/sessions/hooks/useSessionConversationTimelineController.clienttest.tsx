@@ -101,6 +101,58 @@ function appendMeasuredRow(
 }
 
 describe("useSessionConversationTimelineController", () => {
+  it.each(["message", "tool", "thread"] as const)(
+    "highlights the %s as it enters the viewport, restarts on repeat selection, and clears on expiry or unmount",
+    async (targetType) => {
+      vi.useFakeTimers({
+        toFake: [
+          "setTimeout",
+          "clearTimeout",
+          "requestAnimationFrame",
+          "cancelAnimationFrame",
+          "performance",
+        ],
+      });
+      vi.mocked(window.matchMedia).mockReturnValue({
+        ...window.matchMedia("(prefers-reduced-motion: reduce)"),
+        matches: false,
+      });
+      const feed = createMeasuredFeed();
+      const row = appendMeasuredRow(feed, "trace:0", "0:0", 700);
+      row.dataset.sessionObservationId = "tool";
+      const target = targetType === "thread" ? row.parentElement! : row;
+      row.parentElement!.getBoundingClientRect = () =>
+        new DOMRect(0, 200 - feed.scrollTop, 100, 800);
+      const { result, unmount } = renderHook(() =>
+        useSessionConversationTimelineController([
+          { trace, itemId: "trace:0" },
+        ]),
+      );
+      const observationId = targetType === "tool" ? "tool" : undefined;
+      const rowId = targetType === "message" ? "0:0" : undefined;
+      act(() => result.current.onSelect(0, observationId, rowId));
+      if (targetType !== "thread") {
+        expect(target).not.toHaveAttribute("data-session-navigation-highlight");
+      }
+      await act(async () => await vi.advanceTimersByTimeAsync(96));
+      expect(feed.querySelector("[data-session-navigation-highlight]")).toBe(
+        target,
+      );
+      if (targetType !== "thread") {
+        expect(feed.scrollTop).toBeLessThan(600);
+      }
+      act(() => result.current.onSelect(0, observationId, rowId));
+      await act(async () => await vi.advanceTimersByTimeAsync(900));
+      expect(target).toHaveAttribute("data-session-navigation-highlight");
+      await act(async () => await vi.advanceTimersByTimeAsync(650));
+      expect(target).not.toHaveAttribute("data-session-navigation-highlight");
+      act(() => result.current.onSelect(0, observationId, rowId));
+      expect(target).toHaveAttribute("data-session-navigation-highlight");
+      unmount();
+      expect(target).not.toHaveAttribute("data-session-navigation-highlight");
+    },
+  );
+
   it.each([0, 9_500])(
     "smoothly approaches a distant unmounted entry from %spx and retargets with integer scroll positions",
     async (initialTop) => {
@@ -351,6 +403,9 @@ describe("useSessionConversationTimelineController", () => {
       await act(async () => await vi.advanceTimersByTimeAsync(500));
       expect(feed.scrollTop).toBe(stoppedTop);
       expect(feed.scrollTo).not.toHaveBeenCalled();
+      expect(
+        feed.querySelector("[data-session-navigation-highlight]"),
+      ).toBeNull();
     },
   );
 
