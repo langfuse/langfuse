@@ -9,8 +9,10 @@ const tracingFormat = function () {
     if (span) {
       const { spanId, traceId } = span.spanContext();
       const traceIdEnd = traceId.slice(traceId.length / 2);
-      info["dd.trace_id"] = BigInt(`0x${traceIdEnd}`).toString();
-      info["dd.span_id"] = BigInt(`0x${spanId}`).toString();
+      info.dd = {
+        trace_id: BigInt(`0x${traceIdEnd}`).toString(),
+        span_id: BigInt(`0x${spanId}`).toString(),
+      };
       info["trace_id"] = traceId;
       info["span_id"] = spanId;
     }
