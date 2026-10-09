@@ -35,6 +35,7 @@ type SelectInputProps<V extends string> = Pick<
     onValueChange?: (value: string) => void;
     onOpenChange?: (open: boolean) => void;
   };
+  optionIndicator?: "radio" | "checkmark";
   error?: boolean;
 };
 
@@ -52,6 +53,7 @@ function SelectInputInner<V extends string>(
     placeholder,
     emptyMessage = "No options available.",
     search,
+    optionIndicator = "radio",
     error,
     ...triggerProps
   }: SelectInputProps<V>,
@@ -137,7 +139,7 @@ function SelectInputInner<V extends string>(
                               }}
                             >
                               <InputDropdown.OptionContent
-                                type="radio"
+                                type={optionIndicator}
                                 checked={value === option.value}
                                 label={option.label}
                                 title={

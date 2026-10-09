@@ -175,6 +175,7 @@ export function RuleEvaluatorResultTriggerSection({
           onValueChange={handleEvaluatorValueChange}
           placeholder="Select an evaluator"
           emptyMessage="No evaluators found."
+          optionIndicator="checkmark"
           search={{
             placeholder: "Search evaluators...",
             value: searchInput,
