@@ -255,7 +255,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
         onClick={() => setOpen(true)}
       />
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        <SheetContent
+          overlayClassName="bg-transparent"
+          className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        >
           <SheetHeader className="items-start space-y-1 p-6 pb-4 text-left">
             <SheetTitle>Configure Topics</SheetTitle>
             <SheetDescription>
@@ -434,7 +437,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
         </SheetContent>
       </Sheet>
       <Sheet open={testOpen} onOpenChange={setTestOpen}>
-        <SheetContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <SheetContent
+          overlayClassName="bg-transparent"
+          className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        >
           <SheetHeader className="items-start space-y-1 p-6 pb-4 text-left">
             <SheetTitle>Test Topics</SheetTitle>
             <SheetDescription>
