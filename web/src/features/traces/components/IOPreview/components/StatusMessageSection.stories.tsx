@@ -1,5 +1,6 @@
 import preview from "../../../../../../.storybook/preview";
 import { StatusMessageSection } from "./StatusMessageSection";
+import { expect } from "storybook/test";
 
 const meta = preview.meta({
   component: StatusMessageSection,
@@ -42,5 +43,9 @@ export const Error = meta.story({
       level: "ERROR",
       message: "Upstream model request timed out after 30 seconds.",
     },
+  },
+  play: async ({ canvas, args }) => {
+    await expect(canvas.getByText("Error")).toBeVisible();
+    await expect(canvas.getByText(args.status.message)).toBeVisible();
   },
 });
