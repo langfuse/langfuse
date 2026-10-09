@@ -87,6 +87,58 @@ describe("S3StorageService region normalization", () => {
       await expect(client.config.region()).resolves.toBe(region);
     },
   );
+
+  it("follows S3's region redirect when region is auto on AWS", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "auto",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+    const hostnames: string[] = [];
+
+    // Answer the first request like S3 does for a bucket in another region,
+    // then succeed. No network I/O happens.
+    const fakeS3 = () => async (args: { request: unknown }) => {
+      hostnames.push((args.request as { hostname: string }).hostname);
+      const redirect = hostnames.length === 1;
+      return {
+        response: {
+          statusCode: redirect ? 301 : 200,
+          headers: {
+            "content-type": "application/xml",
+            ...(redirect ? { "x-amz-bucket-region": "eu-west-1" } : {}),
+          },
+          body: Readable.from([
+            Buffer.from(
+              redirect
+                ? "<Error><Code>PermanentRedirect</Code></Error>"
+                : "<ListBucketResult></ListBucketResult>",
+            ),
+          ]),
+        },
+      };
+    };
+    client.middlewareStack.add(
+      fakeS3 as unknown as Parameters<typeof client.middlewareStack.add>[0],
+      { step: "deserialize", priority: "low", name: "fakeS3", override: true },
+    );
+
+    await service.listFiles("exports/");
+
+    expect(hostnames).toEqual([
+      "test-bucket.s3.us-east-1.amazonaws.com",
+      "test-bucket.s3.eu-west-1.amazonaws.com",
+    ]);
+  });
 });
 
 describe("resolveMediaStorageEndpoints", () => {
@@ -340,6 +392,56 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
       "https://signed-read-url",
     );
     expect(getSignedUrl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("StorageServiceFactory GCS credentials", () => {
+  const original = env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
+  afterEach(() => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = original;
+  });
+
+  const keyFilenameOf = (service: unknown) =>
+    (service as { storage: { authClient: { keyFilename?: string } } }).storage
+      .authClient.keyFilename;
+
+  it("uses ADC, not the deployment storage key, when GCS is selected explicitly without credentials", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    expect(keyFilenameOf(service)).toBeUndefined();
+  });
+
+  it("uses the deployment storage key when GCS is selected by env", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
+    env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
+    try {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+
+      expect(keyFilenameOf(service)).toBe("/etc/deployment-key.json");
+    } finally {
+      env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
+    }
   });
 });
 

@@ -5,7 +5,7 @@ import { DecisionModelResultView } from "./DecisionModelResultView";
 
 const meta = preview.meta({ component: DecisionModelResultView });
 
-export const AllTypes = meta.story({
+export const VariantMatrix = meta.story({
   args: {
     results: [
       {
@@ -36,7 +36,7 @@ export const AllTypes = meta.story({
         type: "noul",
         scoreName: "refund_requested",
         instructions: "Does `input` request a refund?",
-        probability: 0.97,
+        probability: 0.03,
       },
     ],
   },
@@ -60,6 +60,62 @@ export const LowConfidence = meta.story({
         scoreName: "refund_requested",
         instructions: "Does `input` request a refund?",
         probability: 0.52,
+      },
+    ],
+  },
+});
+
+export const LongQuestion = meta.story({
+  args: {
+    results: [
+      {
+        questionId: "q1",
+        type: "choice",
+        scoreName: "primary_topic_user",
+        instructions:
+          "What is the primary topic of the user input when it includes several unrelated requests and a large amount of supporting context?",
+        choice: "implementation",
+        probabilities: {
+          unrelated: 0.01,
+          implementation: 0.94,
+          competition: 0.03,
+          feedback: 0.02,
+        },
+        confidence: 0.91,
+      },
+    ],
+  },
+});
+
+export const LongAnswer = meta.story({
+  args: {
+    results: [
+      {
+        questionId: "q1",
+        type: "choice",
+        scoreName: "routing_destination",
+        instructions: "Where should this request be routed?",
+        choice:
+          "enterprise_customer_success_team_for_complex_implementation_requests",
+        probabilities: {
+          enterprise_customer_success_team_for_complex_implementation_requests: 0.92,
+          support: 0.08,
+        },
+        confidence: 0.84,
+      },
+      {
+        questionId: "q2",
+        type: "score",
+        scoreName: "technical_depth",
+        instructions: "How technical is the response?",
+        score: 1.28,
+        levels: [
+          "Not technical",
+          "Somewhat technical with a detailed explanation of implementation constraints",
+          "Very technical",
+        ],
+        probabilities: { "0": 0.08, "1": 0.56, "2": 0.36 },
+        confidence: 0.61,
       },
     ],
   },
@@ -140,7 +196,7 @@ export const TenLevels = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("No technical detail")).toBeInTheDocument();
     await expect(
-      canvas.getByText("Explains system behavior"),
+      canvas.getByTitle("Explains system behavior"),
     ).toBeInTheDocument();
   },
 });

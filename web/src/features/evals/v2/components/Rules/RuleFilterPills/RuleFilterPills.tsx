@@ -11,12 +11,11 @@ import {
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { InlineFilterState } from "@/src/features/filters";
 import {
-  COMPOSER_SURFACE_CLASSES,
-  COMPOSER_TEXT_CLASSES,
+  ComposerSurface,
+  ComposerText,
   ComposerTokens,
   filterStateToQueryText,
 } from "@/src/features/search-bar";
-import { cn } from "@/src/utils/tailwind";
 
 export function RuleFilterPills({
   filter,
@@ -55,49 +54,53 @@ export function RuleFilterPills({
   if (display === "search-bar") {
     if (disabledReasons?.size) {
       return (
-        <div
-          aria-disabled="true"
-          data-testid="readonly-rule-filter-search"
-          className={cn(COMPOSER_SURFACE_CLASSES, "bg-muted/30")}
-        >
-          <div className={COMPOSER_TEXT_CLASSES}>
-            {filter.length === 0 ? (
-              <span className="text-muted-foreground">No filters</span>
-            ) : (
-              filter.map((condition, index) => {
-                const query = filterStateToQueryText(
-                  [condition],
-                  {},
-                  RULE_FIELD_REGISTRY,
-                );
-                const key = `${index}-${JSON.stringify(condition)}`;
-                const content = query.text ? (
-                  <ComposerTokens
-                    draft={query.text}
-                    showDiagnostics={false}
-                    registry={RULE_FIELD_REGISTRY}
-                  />
+        <ComposerSurface tone="muted">
+          <div aria-disabled="true" data-testid="readonly-rule-filter-search">
+            <ComposerText>
+              <div>
+                {filter.length === 0 ? (
+                  <span className="text-muted-foreground">No filters</span>
                 ) : (
-                  <InlineFilterState
-                    filterState={query.skippedFilters}
-                    className="m-0"
-                  />
-                );
+                  filter.map((condition, index) => {
+                    const query = filterStateToQueryText(
+                      [condition],
+                      {},
+                      RULE_FIELD_REGISTRY,
+                    );
+                    const key = `${index}-${JSON.stringify(condition)}`;
+                    const content = query.text ? (
+                      <ComposerTokens
+                        draft={query.text}
+                        showDiagnostics={false}
+                        registry={RULE_FIELD_REGISTRY}
+                      />
+                    ) : (
+                      <InlineFilterState
+                        filterState={query.skippedFilters}
+                        className="m-0"
+                      />
+                    );
 
-                return (
-                  <span key={key}>
-                    {index > 0 ? (
-                      <span className="text-qlang-keyword mx-1 font-bold uppercase">
-                        and
+                    return (
+                      <span key={key}>
+                        {index > 0 ? (
+                          <span className="text-qlang-keyword mx-1 font-bold uppercase">
+                            and
+                          </span>
+                        ) : null}
+                        {renderWithDisabledReason(
+                          content,
+                          index,
+                          `${key}-filter`,
+                        )}
                       </span>
-                    ) : null}
-                    {renderWithDisabledReason(content, index, `${key}-filter`)}
-                  </span>
-                );
-              })
-            )}
+                    );
+                  })
+                )}
+              </div>
+            </ComposerText>
           </div>
-        </div>
+        </ComposerSurface>
       );
     }
 
@@ -105,28 +108,28 @@ export function RuleFilterPills({
     const hasFilters = Boolean(query.text || query.skippedFilters.length > 0);
 
     return (
-      <div
-        aria-disabled="true"
-        data-testid="readonly-rule-filter-search"
-        className={cn(COMPOSER_SURFACE_CLASSES, "bg-muted/30")}
-      >
-        <div className={COMPOSER_TEXT_CLASSES}>
-          {query.text ? (
-            <ComposerTokens
-              draft={query.text}
-              showDiagnostics={false}
-              registry={RULE_FIELD_REGISTRY}
-            />
-          ) : null}
-          <InlineFilterState
-            filterState={query.skippedFilters}
-            className="m-0"
-          />
-          {!hasFilters ? (
-            <span className="text-muted-foreground">No filters</span>
-          ) : null}
+      <ComposerSurface tone="muted">
+        <div aria-disabled="true" data-testid="readonly-rule-filter-search">
+          <ComposerText>
+            <div>
+              {query.text ? (
+                <ComposerTokens
+                  draft={query.text}
+                  showDiagnostics={false}
+                  registry={RULE_FIELD_REGISTRY}
+                />
+              ) : null}
+              <InlineFilterState
+                filterState={query.skippedFilters}
+                className="m-0"
+              />
+              {!hasFilters ? (
+                <span className="text-muted-foreground">No filters</span>
+              ) : null}
+            </div>
+          </ComposerText>
         </div>
-      </div>
+      </ComposerSurface>
     );
   }
 

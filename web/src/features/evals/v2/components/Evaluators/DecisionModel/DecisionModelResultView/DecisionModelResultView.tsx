@@ -2,44 +2,116 @@ import { Badge } from "@/src/components/ui/badge";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
 
-export type DecisionModelQuestionResult = {
-  questionId: string;
-  scoreName: string;
-  instructions: string;
-} & (
-  | {
-      type: "choice";
-      choice: string;
-      probabilities: Record<string, number>;
-      confidence: number | null;
-    }
-  | {
-      type: "score";
-      score: number;
-      levels: string[];
-      probabilities: Record<string, number>;
-      confidence: number | null;
-    }
-  | { type: "noul"; probability: number }
-);
+/**
+ * Test result of a decision-model evaluator: one row per question with the
+ * full probability distribution, since the model returns no rationale.
+ */
+export function DecisionModelResultView({
+  results,
+}: {
+  results: DecisionModelQuestionResult[];
+}) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {results.map((result) => (
+        <ResultRow key={result.questionId} result={result} />
+      ))}
+    </ul>
+  );
+}
 
-const percent = (value: number) => `${Math.round(value * 100)}%`;
-
-function confidenceTone(confidence: number) {
-  if (confidence >= 0.8) return "text-dark-green";
-  if (confidence >= 0.5) return "text-dark-yellow";
-  return "text-destructive";
+function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
+  const copy = QUESTION_TYPE_COPY[result.type];
+  return (
+    <li className="flex flex-col gap-2 rounded-md border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <Badge variant="secondary" className="min-w-0 font-mono">
+          <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
+          <span className="truncate" title={result.scoreName}>
+            {result.scoreName}
+          </span>
+        </Badge>
+        {result.type !== "noul" && result.confidence !== null ? (
+          <ConfidenceBadge confidence={result.confidence} />
+        ) : null}
+      </div>
+      <div className="flex min-w-0 items-baseline gap-2 text-sm">
+        <span
+          className="text-muted-foreground min-w-0 truncate"
+          title={result.instructions}
+        >
+          {result.instructions}
+        </span>
+        <div
+          className="border-border min-w-4 flex-1 border-t border-dashed"
+          aria-hidden="true"
+        />
+        <ResultAnswer result={result} />
+      </div>
+      <ResultVisual result={result} />
+    </li>
+  );
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   return (
     <span
-      className={cn("font-mono text-xs", confidenceTone(confidence))}
+      className="text-muted-foreground shrink-0 font-mono text-xs"
       title="How concentrated the distribution is (0–1). Not the winner's probability."
     >
-      confidence {confidence.toFixed(2)}
+      confidence {percent(confidence)}
     </span>
   );
+}
+
+function ResultAnswer({ result }: { result: DecisionModelQuestionResult }) {
+  const value = resultValue(result);
+  const detail = resultDetail(result);
+
+  return (
+    <span
+      className="max-w-1/2 min-w-0 shrink-0 truncate font-mono text-sm font-bold"
+      title={detail ? `${value} (${detail})` : value}
+    >
+      {value}
+      {detail ? (
+        <span className="text-muted-foreground font-normal"> ({detail})</span>
+      ) : null}
+    </span>
+  );
+}
+
+function ResultVisual({ result }: { result: DecisionModelQuestionResult }) {
+  switch (result.type) {
+    case "choice":
+      return (
+        <ProbabilityBars
+          entries={Object.entries(result.probabilities)
+            .sort(([, a], [, b]) => b - a)
+            .map(([label, value]) => ({ label, value }))}
+          highlight={result.choice}
+        />
+      );
+    case "score": {
+      const nearest = Math.min(
+        Math.max(Math.round(result.score), 0),
+        Math.max(result.levels.length - 1, 0),
+      );
+      return (
+        <ProbabilityBars
+          entries={result.levels
+            .map((description, index) => ({
+              label: description || String(index),
+              value: result.probabilities[String(index)] ?? 0,
+            }))
+            .sort((left, right) => right.value - left.value)}
+          highlight={result.levels[nearest] || String(nearest)}
+        />
+      );
+    }
+    case "noul":
+      return <NoulGauge probability={result.probability} />;
+  }
 }
 
 function ProbabilityBars({
@@ -96,11 +168,16 @@ function NoulGauge({ probability }: { probability: number }) {
   return (
     <div className="flex flex-col gap-1 text-xs">
       <div className="flex items-center justify-between font-mono">
-        <span className="text-muted-foreground">no</span>
-        <span className="font-bold">
-          P(yes) = {probability.toFixed(2)} → leaning {leaning}
+        <span
+          className={leaning === "no" ? "font-bold" : "text-muted-foreground"}
+        >
+          no
         </span>
-        <span className="text-muted-foreground">yes</span>
+        <span
+          className={leaning === "yes" ? "font-bold" : "text-muted-foreground"}
+        >
+          yes
+        </span>
       </div>
       <div className="bg-muted relative h-2 rounded-full">
         <span
@@ -116,95 +193,54 @@ function NoulGauge({ probability }: { probability: number }) {
   );
 }
 
-function resultValue(
-  result: Exclude<DecisionModelQuestionResult, { type: "score" }>,
-) {
+function resultValue(result: DecisionModelQuestionResult) {
   switch (result.type) {
     case "choice":
       return result.choice;
-    case "noul":
-      return result.probability.toFixed(2);
-  }
-}
-
-function ResultVisual({ result }: { result: DecisionModelQuestionResult }) {
-  switch (result.type) {
-    case "choice":
-      return (
-        <ProbabilityBars
-          entries={Object.entries(result.probabilities)
-            .sort(([, a], [, b]) => b - a)
-            .map(([label, value]) => ({ label, value }))}
-          highlight={result.choice}
-        />
-      );
     case "score": {
       const nearest = Math.min(
         Math.max(Math.round(result.score), 0),
         Math.max(result.levels.length - 1, 0),
       );
-      return (
-        <ProbabilityBars
-          entries={result.levels
-            .map((description, index) => ({
-              label: description || String(index),
-              value: result.probabilities[String(index)] ?? 0,
-            }))
-            .sort((left, right) => right.value - left.value)}
-          highlight={result.levels[nearest] || String(nearest)}
-        />
-      );
+      return result.levels[nearest] || String(nearest);
     }
     case "noul":
-      return <NoulGauge probability={result.probability} />;
+      return result.probability >= 0.5 ? "yes" : "no";
   }
 }
 
-function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
-  const copy = QUESTION_TYPE_COPY[result.type];
-  return (
-    <li className="flex flex-col gap-2 rounded-md border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2 text-sm">
-          <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
-          <Badge variant="secondary" className="font-mono">
-            {result.scoreName}
-          </Badge>
-          <span
-            className="text-muted-foreground truncate"
-            title={result.instructions}
-          >
-            {result.instructions}
-          </span>
-        </span>
-        <span className="flex items-center gap-3">
-          {result.type !== "noul" && result.confidence !== null ? (
-            <ConfidenceBadge confidence={result.confidence} />
-          ) : null}
-          {result.type === "score" ? null : (
-            <Badge className="font-mono">{resultValue(result)}</Badge>
-          )}
-        </span>
-      </div>
-      <ResultVisual result={result} />
-    </li>
-  );
+function resultDetail(result: DecisionModelQuestionResult) {
+  switch (result.type) {
+    case "choice":
+      return null;
+    case "score":
+      return String(result.score);
+    case "noul":
+      return percent(Math.max(result.probability, 1 - result.probability));
+  }
 }
 
-/**
- * Test result of a decision-model evaluator: one row per question with the
- * full probability distribution, since the model returns no rationale.
- */
-export function DecisionModelResultView({
-  results,
-}: {
-  results: DecisionModelQuestionResult[];
-}) {
-  return (
-    <ul className="flex flex-col gap-2">
-      {results.map((result) => (
-        <ResultRow key={result.questionId} result={result} />
-      ))}
-    </ul>
-  );
+function percent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }
+
+export type DecisionModelQuestionResult = {
+  questionId: string;
+  scoreName: string;
+  instructions: string;
+} & (
+  | {
+      type: "choice";
+      choice: string;
+      probabilities: Record<string, number>;
+      confidence: number | null;
+    }
+  | {
+      type: "score";
+      score: number;
+      levels: string[];
+      probabilities: Record<string, number>;
+      confidence: number | null;
+    }
+  | { type: "noul"; probability: number }
+);

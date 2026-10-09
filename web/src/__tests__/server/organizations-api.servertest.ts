@@ -674,11 +674,16 @@ describe("Admin Organizations API", () => {
         name: "Named key",
       },
       { label: "null", role: null, expiresAt: null, name: "Named key" },
-      { label: "empty", role: "", expiresAt: undefined, name: "" },
       {
-        label: "explicit legacy",
+        label: "omitted with empty name",
+        role: undefined,
+        expiresAt: undefined,
+        name: "",
+      },
+      {
+        label: "null with expiration",
         name: undefined,
-        role: "LEGACY_ORGANIZATION_API_KEY",
+        role: null,
         expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
       },
     ])(
@@ -747,6 +752,11 @@ describe("Admin Organizations API", () => {
       { label: "past expiration", body: { expiresAt: "2000-01-01T00:00:00Z" } },
       { label: "invalid expiration", body: { expiresAt: "not-a-date" } },
       { label: "numeric expiration", body: { expiresAt: 4_102_444_800_000 } },
+      { label: "empty role", body: { role: "" } },
+      {
+        label: "explicit legacy role",
+        body: { role: "LEGACY_ORGANIZATION_API_KEY" },
+      },
       {
         label: "wrong-scope legacy role",
         body: { role: "LEGACY_PROJECT_API_KEY" },

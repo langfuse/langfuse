@@ -54,6 +54,7 @@ export default function ExternalMediaStoragePage() {
     onSuccess: async () => {
       await utils.externalMediaStorage.get.invalidate({ projectId });
       showSuccessToast({
+        operation: "external_media_storage.save",
         title: "External media storage saved",
         description: "The integration configuration has been saved.",
       });
@@ -66,6 +67,7 @@ export default function ExternalMediaStoragePage() {
     onSuccess: async () => {
       await utils.externalMediaStorage.get.invalidate({ projectId });
       showSuccessToast({
+        operation: "external_media_storage.delete",
         title: "External media storage deleted",
         description: "The integration configuration has been deleted.",
       });

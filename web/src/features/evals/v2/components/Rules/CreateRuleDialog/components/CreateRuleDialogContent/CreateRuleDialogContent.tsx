@@ -124,6 +124,7 @@ export function CreateRuleDialogContent({
     onCreated?.();
     if (successNotification === "toast") {
       showSuccessToast({
+        operation: "evaluation_rule.create",
         title: "Rule created",
         description: `${rule.name} is active.`,
       });

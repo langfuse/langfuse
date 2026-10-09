@@ -84,7 +84,7 @@ describe("metadata suggestions in the filter sidebar", () => {
 
   it("offers observed keys with their type hint, then the key's values", () => {
     render(<MetadataFacetHarness />);
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByText("Add condition"));
 
     const key = screen.getByPlaceholderText("Key");
     fireEvent.focus(key);
@@ -109,7 +109,7 @@ describe("metadata suggestions in the filter sidebar", () => {
         onChange={() => {}}
       />,
     );
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByText("Add condition"));
     const key = screen.getByPlaceholderText("Key");
     fireEvent.focus(key);
     fireEvent.change(key, { target: { value: "reg" } });
@@ -123,7 +123,7 @@ describe("metadata suggestions in the filter sidebar", () => {
 
   it("never offers what is already typed, and picks with the keyboard", () => {
     render(<MetadataFacetHarness />);
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByText("Add condition"));
 
     const key = screen.getByPlaceholderText("Key");
     fireEvent.focus(key);
@@ -163,7 +163,7 @@ describe("metadata suggestions in the filter sidebar", () => {
 
   it("still accepts a key and value the observed map has never seen", () => {
     render(<MetadataFacetHarness />);
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByText("Add condition"));
 
     const key = screen.getByPlaceholderText("Key");
     fireEvent.change(key, { target: { value: "never-observed" } });

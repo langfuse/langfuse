@@ -11,7 +11,6 @@ const meta = preview.meta({ component: DecisionModelQuestionCard });
 const STATE_KEYS = ["input", "output"];
 
 const base = {
-  index: 0,
   stateKeys: STATE_KEYS,
   expanded: true,
   onExpandedChange: fn(),

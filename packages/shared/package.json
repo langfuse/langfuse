@@ -35,6 +35,14 @@
       "import": "./dist/src/server/transcript/ordering.js",
       "require": "./dist/src/server/transcript/ordering.js"
     },
+    "./src/server/transcript/threads": {
+      "import": "./dist/src/server/transcript/threads.js",
+      "require": "./dist/src/server/transcript/threads.js"
+    },
+    "./src/server/transcript/tool-calls": {
+      "import": "./dist/src/server/transcript/tool-calls.js",
+      "require": "./dist/src/server/transcript/tool-calls.js"
+    },
     "./src/server/transcript/transcript": {
       "import": "./dist/src/server/transcript/transcript.js",
       "require": "./dist/src/server/transcript/transcript.js"
@@ -90,6 +98,10 @@
     "./src/server/ee/licenseCheck": {
       "import": "./dist/src/server/ee/licenseCheck/index.js",
       "require": "./dist/src/server/ee/licenseCheck/index.js"
+    },
+    "./src/server/ee/clickhouseBilling": {
+      "import": "./dist/src/server/ee/clickhouseBilling/index.js",
+      "require": "./dist/src/server/ee/clickhouseBilling/index.js"
     },
     "./query": {
       "import": "./dist/src/features/query/index.js",
@@ -210,6 +222,7 @@
     "@ai-sdk/openai": "^4.0.86",
     "@ai-sdk/openai-compatible": "^3.0.3",
     "@ai-sdk/typesafe-ai": "^3.0.4",
+    "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
     "@aws-sdk/client-s3": "catalog:",
@@ -230,6 +243,7 @@
     "@slack/oauth": "3.0.5",
     "@slack/web-api": "^7.15.0",
     "@smithy/node-http-handler": "4.5.1",
+    "@smithy/signature-v4": "5.6.4",
     "@types/bcryptjs": "^2.4.6",
     "ai": "^7.0.130",
     "ajv": "^8.18.0",

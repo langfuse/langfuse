@@ -52,6 +52,7 @@ function NewWidgetView({ projectId }: { projectId: string }) {
         filterCount: variables.filters.length,
       });
       showSuccessToast({
+        operation: "widget.create",
         title: "Widget created successfully",
         description: "Your widget has been created.",
       });

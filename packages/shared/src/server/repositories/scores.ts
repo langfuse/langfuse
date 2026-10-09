@@ -138,16 +138,19 @@ export const getScoreById = async ({
   projectId,
   scoreId,
   source,
+  preferredClickhouseService,
 }: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<ScoreDomain | undefined> => {
   return _handleGetScoreById({
     projectId,
     scoreId,
     source,
     scoreScope: "all",
+    preferredClickhouseService,
   });
 };
 
@@ -155,6 +158,7 @@ export const getScoresByIds = async (
   projectId: string,
   scoreId: string[],
   source?: ScoreSourceType,
+  preferredClickhouseService?: PreferredClickhouseService,
 ): Promise<ScoreDomain[]> => {
   return _handleGetScoresByIds({
     projectId,
@@ -162,6 +166,7 @@ export const getScoresByIds = async (
     source,
     scoreScope: "all",
     dataTypes: LISTABLE_SCORE_TYPES,
+    preferredClickhouseService,
   });
 };
 
@@ -280,6 +285,7 @@ export const getScoresForSessions = async <
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const includeMetadataPayload = !excludeMetadata;
@@ -329,6 +335,7 @@ export const getScoresForExperiments = async <
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const includeMetadataPayload = !excludeMetadata;
@@ -396,6 +403,7 @@ export const getTraceScoresForDatasetRuns = async (
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   const includeMetadataPayload = false;
@@ -571,7 +579,7 @@ const getScoresForTracesInternal = async <
     },
     tags: { projectId },
     clickhouseConfigs,
-    preferredClickhouseService,
+    preferredClickhouseService: preferredClickhouseService ?? "ReadOnly",
   });
 
   const includeMetadataPayload = !excludeMetadata;
@@ -1212,6 +1220,7 @@ export const getScoresUiCount = async (props: {
     select: "count",
     excludeMetadata: true,
     ...props,
+    preferredClickhouseService: "ReadOnly",
   });
 
   return Number(rows[0].count);
@@ -1924,6 +1933,7 @@ export const getScoreNames = async (
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -1972,6 +1982,7 @@ export const getScoreStringValues = async (
       ...(timestampFilterRes ? timestampFilterRes.params : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -2195,6 +2206,7 @@ export const getAggregatedScoresForPrompts = async (
         : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -2545,6 +2557,7 @@ const buildScoresForBlobStorageExportQuery = (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "ReadOnly" as const,
   };
 };
 
@@ -2788,7 +2801,10 @@ export const getScoresForAnalyticsIntegrations = async function* (
   }
 };
 
-export const hasAnyScore = async (projectId: string) => {
+export const hasAnyScore = async (
+  projectId: string,
+  preferredClickhouseService?: PreferredClickhouseService,
+) => {
   const query = `    SELECT 1
     FROM scores
     WHERE project_id = {projectId: String}
@@ -2801,6 +2817,7 @@ export const hasAnyScore = async (projectId: string) => {
       projectId,
     },
     tags: { projectId },
+    preferredClickhouseService,
   });
 
   return rows.length > 0;
@@ -2830,6 +2847,7 @@ export const getScoreMetadataById = async (
       ...(source !== undefined ? { source } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows

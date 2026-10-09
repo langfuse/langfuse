@@ -1,5 +1,6 @@
 import { TRPCClientError } from "@trpc/client";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
 // Catch network level errors, e.g. by proxy rate-limiting
@@ -92,6 +93,7 @@ export const trpcErrorToast = (error: unknown) => {
         undefined,
         undefined,
         "trpc",
+        classifyTrpcToastError(error),
       );
       return;
     }
@@ -115,6 +117,7 @@ export const trpcErrorToast = (error: unknown) => {
       path,
       traceId,
       "trpc",
+      classifyTrpcToastError(error),
     );
   } else {
     showErrorToast(
@@ -124,6 +127,7 @@ export const trpcErrorToast = (error: unknown) => {
       undefined,
       undefined,
       "trpc",
+      classifyTrpcToastError(error),
     );
   }
 };

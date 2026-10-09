@@ -24,11 +24,6 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
-  TabsBar,
-  TabsBarContent,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -377,9 +372,9 @@ export function ConnectedObservationDetailView({
             treeNodeTotalCost={treeNode?.totalCost}
           />
 
-          <TabsBar
+          <Tabs
             value={selectedTab}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            layout="fill"
             onValueChange={(value) => setSelectedTab(value as DetailTab)}
           >
             <TooltipProvider>
@@ -395,20 +390,18 @@ export function ConnectedObservationDetailView({
                 ]}
                 triggers={
                   <>
-                    <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+                    <Tabs.Trigger value="preview" label="Preview" />
                     {showMessagesTab && (
-                      <TabsBarTrigger value="messages" className="gap-1">
+                      <Tabs.Trigger value="messages">
                         Messages <InternalFeatureBadge />
-                      </TabsBarTrigger>
+                      </Tabs.Trigger>
                     )}
-                    <TabsBarTrigger value="attributes">
-                      Attributes
-                    </TabsBarTrigger>
+                    <Tabs.Trigger value="attributes" label="Attributes" />
                     {showScoresTab ? (
-                      <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                      <Tabs.Trigger value="scores" label="Scores" />
                     ) : null}
                     {showLogViewTab ? (
-                      <TabsBarTrigger value="log">
+                      <Tabs.Trigger value="log">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span>Log View</span>
@@ -419,7 +412,7 @@ export function ConnectedObservationDetailView({
                               : "Shows all observations concatenated. Great for quickly scanning through them."}
                           </TooltipContent>
                         </Tooltip>
-                      </TabsBarTrigger>
+                      </Tabs.Trigger>
                     ) : null}
                   </>
                 }
@@ -446,12 +439,8 @@ export function ConnectedObservationDetailView({
                             handleViewTabChange(value);
                           }}
                         >
-                          <Tabs.List size="sm">
-                            <Tabs.Trigger
-                              value="pretty"
-                              size="sm"
-                              label="Formatted"
-                            />
+                          <Tabs.List variant="inset" size="sm">
+                            <Tabs.Trigger value="pretty" label="Formatted" />
                             {selectedTab === "log" && isLogViewVirtualized ? (
                               <HoverCard
                                 openDelay={200}
@@ -477,7 +466,6 @@ export function ConnectedObservationDetailView({
                                   <span tabIndex={0} {...getTriggerProps()}>
                                     <Tabs.Trigger
                                       value="json"
-                                      size="sm"
                                       disabled
                                       label="Raw"
                                     />
@@ -485,11 +473,7 @@ export function ConnectedObservationDetailView({
                                 )}
                               </HoverCard>
                             ) : (
-                              <Tabs.Trigger
-                                value="json"
-                                size="sm"
-                                label="Raw"
-                              />
+                              <Tabs.Trigger value="json" label="Raw" />
                             )}
                           </Tabs.List>
                         </Tabs>
@@ -515,17 +499,13 @@ export function ConnectedObservationDetailView({
             </TooltipProvider>
 
             {selectedTab === "messages" && (
-              <TabsBarContent
-                value="messages"
-                className="mt-0 min-h-0 flex-1 overflow-auto px-4"
-              >
-                <TraceMessagesView />
-              </TabsBarContent>
+              <Tabs.Content value="messages" layout="fill">
+                <div className="min-h-0 flex-1 overflow-auto px-4">
+                  <TraceMessagesView />
+                </div>
+              </Tabs.Content>
             )}
-            <TabsBarContent
-              value="preview"
-              className="mt-0 flex max-h-full min-h-0 w-full flex-1"
-            >
+            <Tabs.Content value="preview" layout="fill">
               <ObservationPreview
                 currentView={currentView}
                 previewKey={observation.id}
@@ -595,12 +575,9 @@ export function ConnectedObservationDetailView({
                   environment: observation.environment,
                 }}
               />
-            </TabsBarContent>
+            </Tabs.Content>
 
-            <TabsBarContent
-              value="attributes"
-              className="mt-0 flex max-h-full min-h-0 w-full flex-1"
-            >
+            <Tabs.Content value="attributes" layout="fill">
               <ObservationAttributesTab
                 attributes={attributes}
                 attributesAnchorTime={observation.startTime}
@@ -611,13 +588,10 @@ export function ConnectedObservationDetailView({
                 projectId={projectId}
                 currentView={selectedViewTab}
               />
-            </TabsBarContent>
+            </Tabs.Content>
 
             {showScoresTab ? (
-              <TabsBarContent
-                value="scores"
-                className="mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
-              >
+              <Tabs.Content value="scores" layout="fill">
                 <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
                   <ScoresTable
                     projectId={projectId}
@@ -637,23 +611,20 @@ export function ConnectedObservationDetailView({
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />
                 </div>
-              </TabsBarContent>
+              </Tabs.Content>
             ) : null}
 
             {showLogViewTab ? (
-              <TabsBarContent
-                value="log"
-                className="mt-0 flex max-h-full min-h-0 w-full flex-1"
-              >
+              <Tabs.Content value="log" layout="fill">
                 <TraceLogView
                   traceId={traceId}
                   projectId={projectId}
                   currentView={isLogViewVirtualized ? "pretty" : currentView}
                   target="observation"
                 />
-              </TabsBarContent>
+              </Tabs.Content>
             ) : null}
-          </TabsBar>
+          </Tabs>
         </div>
       )}
     </CommentDrawerController>

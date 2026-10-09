@@ -173,7 +173,7 @@ export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
             value={groupBy}
             onValueChange={(value) => setGroupBy(value as GroupBy)}
           >
-            <Tabs.List aria-label="Group usage by">
+            <Tabs.List variant="inset" size="md" aria-label="Group usage by">
               <Tabs.Trigger value="project" label="By project" />
               <Tabs.Trigger value="type" label="By type" />
             </Tabs.List>

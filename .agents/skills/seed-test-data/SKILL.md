@@ -61,8 +61,10 @@ this.
 
 For a v4 experiment with chat messages and nested JSON input/output, run
 `pnpm run seed -- experiment-io`. It creates one dataset, one experiment, and
-three items, then prints the experiment results link. Set `NEXTAUTH_URL` to
-your local app URL when using a port other than 3000.
+three items, then prints the experiment results link. Add `--compare` for a
+second run on that dataset whose chat output is long enough to need a taller
+comparison row. Set `NEXTAUTH_URL` to your local app URL when using a port
+other than 3000.
 
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
 For the 100-trace Intent/Issues evaluation, run

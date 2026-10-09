@@ -32,27 +32,36 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => true,
 }));
 vi.mock("./TopicPipelineForm", () => ({
-  useTopicPipelineForm: () => ({ actions: null, configuration: null }),
+  useTopicPipelineForm: () => ({
+    primaryAction: null,
+    openConfiguration: vi.fn(),
+    configuration: null,
+  }),
 }));
 vi.mock("./CurrentTopics", () => ({
-  CurrentTopics: ({
+  useCurrentTopics: ({
     running,
     refreshAfter,
   }: {
     running: boolean;
     refreshAfter: number;
+  }) => ({ running, refreshAfter, data: [] }),
+  CurrentTopics: ({
+    result,
+  }: {
+    result: { running: boolean; refreshAfter: number };
   }) => (
     <div
       data-testid="current-topics"
-      data-running={running}
-      data-refresh-after={refreshAfter}
+      data-running={result.running}
+      data-refresh-after={result.refreshAfter}
     />
   ),
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
-      facets: { useQuery: () => ({ data: [] }) },
+      facets: { useQuery: () => ({ data: [], isLoading: false }) },
       executions: { useQuery: () => ({ data: [] }) },
       initialize: { useMutation: () => ({}) },
       execution: {
@@ -106,6 +115,7 @@ beforeEach(() => {
   state.executionUpdatedAt = 110;
   state.updatedAt = "2026-09-23T12:00:00Z";
 });
+
 afterEach(() => vi.unstubAllGlobals());
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {

@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
 
@@ -40,6 +40,12 @@ describe("ErrorNotification", () => {
       source: "trpc" as const,
       path: "traces.byId",
       traceId: "0123456789abcdef",
+      analytics: {
+        errorOrigin: "backend" as const,
+        errorCategory: "internal" as const,
+        trpcCode: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+      },
     };
 
     const view = render(<ErrorNotification {...props} />);
@@ -51,6 +57,10 @@ describe("ErrorNotification", () => {
         path: "traces.byId",
         hasErrorId: true,
         errorId: props.traceId,
+        errorOrigin: "backend",
+        errorCategory: "internal",
+        trpcCode: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
       });
     });
 
@@ -85,6 +95,8 @@ describe("ErrorNotification", () => {
         toastType: "WARNING",
         source: "application",
         hasErrorId: false,
+        errorOrigin: "unknown",
+        errorCategory: "unknown",
       });
     });
     expect(mocks.capture.mock.calls[0]?.[1]).not.toHaveProperty("errorId");
@@ -107,7 +119,51 @@ describe("ErrorNotification", () => {
         toastType: "WARNING",
         source: "trpc",
         hasErrorId: false,
+        errorOrigin: "unknown",
+        errorCategory: "unknown",
       });
     });
+  });
+
+  it("uses the same bounded dimensions for error interactions", async () => {
+    const dismissToast = vi.fn();
+    render(
+      <ErrorNotification
+        error="Sensitive error"
+        description="Sensitive details"
+        type="ERROR"
+        dismissToast={dismissToast}
+        toast="toast-4"
+        analytics={{
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+          operation: "form.submit",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Report issue to Langfuse team" }),
+    );
+
+    expect(mocks.capture).toHaveBeenLastCalledWith("toast:report_issue", {
+      toastType: "ERROR",
+      source: "application",
+      errorOrigin: "frontend",
+      errorCategory: "user_input",
+      operation: "form.submit",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(mocks.capture).toHaveBeenLastCalledWith("toast:dismiss", {
+      toastType: "ERROR",
+      source: "application",
+      errorOrigin: "frontend",
+      errorCategory: "user_input",
+      operation: "form.submit",
+    });
+    expect(dismissToast).toHaveBeenCalledWith("toast-4");
+    expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain("Sensitive");
   });
 });

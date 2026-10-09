@@ -78,6 +78,7 @@ export function DatasetVersionHistoryPanel({
     const isoTimestamp = version.toISOString();
     navigator.clipboard.writeText(isoTimestamp);
     showSuccessToast({
+      operation: "dataset_version_timestamp.copy",
       title: "Copied!",
       description: `Version timestamp: ${isoTimestamp}`,
     });

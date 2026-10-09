@@ -891,6 +891,159 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   the AWS Bedrock Public Extended Access SKU, and the legacy Claude
   3.x/Gemini 1.x catalog tail were not re-checked this run — no new evidence,
   standing exclusions.
+- **Claude Haiku 5.5 (added October 7 2026)** — Anthropic released
+  `claude-haiku-5-5`, confirmed via
+  `https://platform.claude.com/docs/en/about-claude/pricing` and
+  `https://platform.claude.com/docs/en/models/overview`. API ID / alias /
+  Bedrock ID / Google Cloud ID / Microsoft Foundry ID / Claude Platform on AWS
+  ID are all the dateless `claude-haiku-5-5` / `anthropic.claude-haiku-5-5`
+  pattern. **Unlike every other Claude 4.6-or-later model, Haiku 5.5 is NOT on
+  the flat 1M-context list** — the pricing page states explicitly: "Claude 4.6
+  and later models (except Claude Haiku 5.5) ... include the full 1M token
+  context window at standard pricing" and "Claude Haiku 5.5 is priced by
+  prompt length: a prompt of over 100,000 tokens pays higher prices." It still
+  has a 1M-token context window (per the models-overview comparison table),
+  but the *price* steps up once the prompt exceeds 100,000 tokens — a materially
+  lower threshold than the 200K/272K thresholds used elsewhere in the catalog.
+  Standard tier (prompt <= 100,000 tokens): $0.10/MTok input, $0.125/MTok 5m
+  cache write, $0.20/MTok 1h cache write, $0.01/MTok cache read (standard
+  0.1x), $0.50/MTok output. Large Context tier (prompt > 100,000 tokens): all
+  five rates exactly 5x the Standard tier ($0.50/$0.625/$1.00/$0.05/$2.50).
+  Modeled as a `usageDetailPattern: "(input|prompt|cached)"`, `gt`, `100000`
+  tier, mirroring the Gemini large-context tier mechanism rather than the
+  service_tier/speed `model_parameters` mechanism. **No Fast mode**: the
+  Fast-mode table lists only Opus 5.5/5/4.8. Batch is $0.05/$0.25 (<=100K) and
+  $0.25/$1.25 (>100K) MTok input/output (50% of standard) but, per existing
+  precedent, no Batch tier was added (no Anthropic model in this file has
+  one). Added to the pricing file and to `anthropicModels` in `types.ts`
+  immediately after `claude-haiku-4-5-20251001`'s sibling block (after
+  `claude-opus-5-5`, not as the first entry). matchPattern:
+  `(?i)^((anthropic\/)?claude-haiku-5-5|(eu\.|us\.|apac\.|au\.|jp\.|global\.)?anthropic\.claude-haiku-5-5(-v1(:0)?)?)$`
+  — verified via the bundled match-pattern tester that it does not collide
+  with `claude-haiku-4-5-20251001` or the Sonnet/Opus 5.5 siblings (all fully
+  anchored with `^...$`).
+- **October 7 2026 audit: Gemini selectable-model lifecycle cleanup; no price
+  drift found** — Re-fetched the full Anthropic pricing page plus the
+  models-overview comparison table (found Claude Haiku 5.5, see above; every
+  other Anthropic price — including `claude-opus-4-1-20250805` and
+  `claude-opus-4-20250514`, both still shown on the main pricing table despite
+  being "retired, except on Bedrock/Google Cloud" — matched verbatim), the
+  OpenAI aggregate Standard/Long-Context/Fast-mode/Flex pricing tables (every
+  price already in the file, from `gpt-6-astra` down through `babbage-002`,
+  matched verbatim; no new flagship model found), the Gemini 3.x pricing page
+  (`gemini-3.8/3.7/3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`,
+  `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`
+  all matched verbatim), and the Gemini models catalog plus deprecations page.
+  The catalog and deprecations page together **confirm three already-suspected
+  selectable-model removals and surface one more**: `gemini-3.1-flash-lite-preview`
+  and `gemini-3-pro-preview` are explicitly labeled "(Shut down)" on
+  `ai.google.dev/gemini-api/docs/models`; `gemini-2.0-flash` is labeled "(Shut
+  down)" there and its deprecations-page shutdown date (June 1, 2026) has
+  passed; `gemini-2.5-flash-lite-preview-09-2025` is not on the models page at
+  all and its deprecations-page shutdown date (March 31, 2026) has also
+  passed. All four were removed from `googleAIStudioModels` (already absent
+  from `vertexAIModels` since the October manual cleanup referenced above).
+  Their pricing entries stay in the file for historical cost lookups.
+  `gemini-2.0-flash-thinking-exp-01-21`, `gemini-1.5-pro`, `gemini-1.5-flash`,
+  and `gemini-1.5-flash-8b` are still not mentioned on either the models
+  catalog or the deprecations page at all (neither "available" nor "shut
+  down") — per the removal criteria this is still ambiguous, not a confirmed
+  shutdown, so they were left in `googleAIStudioModels` unchanged; this
+  remains an open, standing gap, not a new finding. A targeted re-fetch of
+  `gemini-3.5-flash-lite`'s cache-read price on `ai.google.dev/gemini-api/docs/pricing`
+  returned a bare "Not available" without the page's usual explicit Free/Paid
+  column separation — the same column-collapse failure mode documented in the
+  July/August 2026 entries above. Per that standing lesson, this single
+  ambiguous result was not treated as evidence of a change; the file's
+  existing $0.03/MTok cache-read price (confirmed via an explicit
+  Free/Paid-separated fetch in a prior audit) was left unchanged.
+  `gpt-5.3-codex`, `gpt-5-chat-latest`, and the full Gemini 2.5-family pricing
+  page (`ai.google.dev/pricing`) were not independently re-fetched this run;
+  AWS Bedrock and TypeSafe Jev were not re-checked either — no drift signal
+  for any of them, prices carry forward from their last confirmed audit.
+- **October 9 2026 audit: no price or catalog drift; a large OpenAI retirement
+  batch scheduled for October 23, 2026 found (not yet actionable); Gemini
+  2.5-family access-restriction note found (not a shutdown)** — Re-fetched the
+  full Anthropic pricing page (model table, cache-hits footnote, Fast mode and
+  Batch tables) and the Anthropic models-overview comparison table (no model
+  beyond the existing lineup; retirement commitments for Fable 5.1/Opus
+  5.5/Sonnet 5.5/Haiku 5.5 are all "not sooner than" one year after each
+  model's launch), the OpenAI aggregate Standard pricing table, the full
+  OpenAI model catalog, `https://developers.openai.com/api/docs/deprecations`,
+  both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing` for the
+  3.x family, `ai.google.dev/pricing` for the 2.5 family), the Gemini models
+  catalog, `ai.google.dev/gemini-api/docs/deprecations`, the AWS Bedrock
+  pricing page, and the TypeSafe Jev models page. Every price already in the
+  file — including every `gpt-6-astra`/`gpt-6-sol`/`gpt-6.1-sol`/`gpt-6-luna`,
+  every `gpt-5.6`/`gpt-5.5`/`gpt-5.4` tier, `claude-opus-5-5`,
+  `claude-haiku-5-5`, and `gemini-3.6/3.7/3.8-flash`'s introductory rate —
+  matched verbatim; no updates were needed. Two findings:
+  1. **OpenAI's deprecations page lists a 10-model "Legacy GPT model
+     snapshots" retirement batch with shutdown date October 23, 2026**
+     (announced 2026-04-22, confirmed via two independent verbatim-quote
+     fetches of `developers.openai.com/api/docs/deprecations`):
+     `gpt-3.5-turbo-0125` (alias `gpt-3.5-turbo`) → `gpt-5.6-terra`,
+     `gpt-4-0613` (aliases `gpt-4`, `gpt-4-0613-completions`,
+     `gpt-4-completions`) → `gpt-5.6-sol`, `gpt-4-1106-preview` →
+     `gpt-5.6-sol`, `gpt-4-turbo` (alias `gpt-4-turbo-2024-04-09`) →
+     `gpt-5.6-sol`, `gpt-4.1-nano` (alias `gpt-4.1-nano-2025-04-14`) →
+     `gpt-5.6-luna`, `gpt-4o-2024-05-13` → `gpt-5.6-sol`, `o1` (alias
+     `o1-2024-12-17`) → `gpt-5.6-sol`, `o1-pro` (alias `o1-pro-2025-03-19`) →
+     `gpt-5.6-sol` (`reasoning.mode: pro`), `o3-mini` (alias
+     `o3-mini-2025-01-31`) → `gpt-5.6-sol`, `o4-mini` (alias
+     `o4-mini-2025-04-16`) → `gpt-5.6-terra`. **October 23, 2026 is still 14
+     days after this audit's date (October 9, 2026) — the retirement date has
+     not passed yet**, so per the removal criteria in `automated-audit.md`
+     none of these were removed from `openAIModels` this run (it currently
+     lists `gpt-4.1-nano`/`gpt-4.1-nano-2025-04-14`, `gpt-4-0613`,
+     `gpt-4-1106-preview`, `gpt-3.5-turbo`/`gpt-3.5-turbo-0125`,
+     `o3-mini`/`o3-mini-2025-01-31`, `o4-mini`/`o4-mini-2025-04-16`; it does
+     not list bare `gpt-4-turbo`, `o1`/`o1-2024-12-17`, or
+     `o1-pro`/`o1-pro-2025-03-19`, so those three have no selectable-array
+     action regardless). **Re-check this exact page on or after October 23,
+     2026 and remove the still-listed IDs from `openAIModels` once the page
+     confirms the shutdown date has passed** (keep their pricing entries).
+     Lesson for future audits: a first, generically-worded WebFetch of this
+     page summarized the batch as "Past Shutdowns (Already Occurred)" even
+     though the quoted date (October 23, 2026) was still in the future
+     relative to the audit date — the summarizer anchored on the page's own
+     "announced" date (2026-04-22) rather than today's date. A second fetch
+     that explicitly asked for the literal shutdown-date string and explicitly
+     asked whether the page states its own current/last-updated date (it does
+     not) corrected this. Always sanity-check a deprecation-page date against
+     the audit's own run date before treating a listed shutdown as already
+     effective, the same way the existing Gemini free/paid column-collapse
+     lesson requires a verbatim re-quote before trusting a summarized result.
+  2. **Gemini 2.5 Pro / Flash / Flash-Lite show a new access-restriction
+     notice, not a deprecation** — Both `ai.google.dev/pricing` and
+     `ai.google.dev/gemini-api/docs/deprecations` now state: "To ensure
+     reliable performance for everyone, we are limiting access to the 2.5
+     models to users who have actively used them in the past." No shutdown
+     date is given for the three GA 2.5 models themselves (their own preview
+     snapshots, e.g. `gemini-2.5-flash-preview-09-25` and
+     `gemini-2.5-flash-lite-preview-09-2025`, already have separate confirmed
+     past shutdown dates, unaffected by this note). This restricts *new*
+     callers rather than shutting the model down for existing users, so it
+     meets none of the removal criteria in `automated-audit.md` (not shut
+     down, no retirement date, not a preview superseded in-array, still
+     callable through the text-generation endpoint for existing callers) —
+     `gemini-2.5-pro`/`gemini-2.5-flash`/`gemini-2.5-flash-lite` were left in
+     `vertexAIModels`/`googleAIStudioModels` unchanged. Pricing for all three
+     also matched verbatim this run. Re-investigate only if a future fetch
+     shows an actual shutdown date for the GA (non-preview) 2.5 models.
+     `gemini-2.0-flash-lite` is independently confirmed "(Shut down)" on the
+     models catalog and June 1, 2026 on the deprecations page, but it was
+     already absent from both selectable arrays before this run (no action
+     needed). The Vertex AI lifecycle page
+     (`cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions`)
+     still 301-redirects to a `docs.cloud.google.com` host outside the allowed
+     WebFetch domain list — not fetched, consistent with the standing quirk
+     documented above; `vertexAIModels` was not re-verified against it this
+     run. The Daybreak cyber/Rosalind restricted family (this run's catalog
+     fetch again showed only `gpt-5.6-cyber` and `gpt-rosalind-research`, not
+     `gpt-5.5-cyber`/`gpt-5.4-cyber` — groupings of this restricted family
+     continue to vary by fetch) and the AWS Bedrock Public Extended Access SKU
+     were re-confirmed unchanged but remain standing, out-of-scope exclusions.
 
 Capture:
 

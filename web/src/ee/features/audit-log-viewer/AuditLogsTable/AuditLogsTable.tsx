@@ -13,7 +13,10 @@ import {
   SettingsTable,
   type SettingsTableToolbarAction,
 } from "@/src/components/SettingsTable/SettingsTable";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import {
+  resolveRowHeightRendering,
+  type RowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type RouterOutputs } from "@/src/utils/api";
 
@@ -95,14 +98,16 @@ export function AuditLogsTable({
             header: "Before",
             size: 300,
             getCell: (value) => value || undefined,
-            singleLine: rowHeight === "s",
+            singleLine: resolveRowHeightRendering({ preset: rowHeight })
+              .compact,
           }),
           createIOTableColumn<AuditLogRow>({
             accessorKey: "after",
             header: "After",
             size: 300,
             getCell: (value) => value || undefined,
-            singleLine: rowHeight === "s",
+            singleLine: resolveRowHeightRendering({ preset: rowHeight })
+              .compact,
           }),
           createButtonTableColumn<AuditLogRow, AuditLogRow["id"]>({
             accessorFn: (row) => row.id,

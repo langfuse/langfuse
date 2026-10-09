@@ -475,8 +475,9 @@ const Integrations = (props: { projectId: string }) => {
           <span className="font-bold">Blob Storage</span>
           <p className="text-primary mb-4 text-sm">
             Configure scheduled exports of your trace data to S3 compatible
-            storages or Azure Blob Storage. Set up a scheduled export to your
-            own storage for data analysis or backup purposes.
+            storages, Azure Blob Storage, or Google Cloud Storage. Set up a
+            scheduled export to your own storage for data analysis or backup
+            purposes.
           </p>
           <div className="flex items-center gap-2">
             <ActionButton

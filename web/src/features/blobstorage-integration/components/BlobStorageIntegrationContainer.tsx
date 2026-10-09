@@ -30,7 +30,9 @@ export const BlobStorageIntegrationContainer = ({
   projectId,
   writeMode,
 }: {
-  config: Partial<BlobStorageIntegration> | null;
+  config:
+    | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })
+    | null;
   projectId: string;
   writeMode: V4WriteMode;
 }) => {
@@ -79,6 +81,7 @@ export const BlobStorageIntegrationContainer = ({
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
+        operation: "blob_storage.validate",
         title: data.message,
         description: `Test file: ${data.testFileName}`,
       });

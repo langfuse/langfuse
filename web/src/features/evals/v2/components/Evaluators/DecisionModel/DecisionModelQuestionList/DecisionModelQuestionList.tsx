@@ -170,10 +170,9 @@ export function DecisionModelQuestionList({
           }
           onReorder={onReorder}
           gap="md"
-          renderItem={(question, index) => (
+          renderItem={(question) => (
             <DecisionModelQuestionCard
               question={question}
-              index={index}
               stateKeys={stateKeys}
               expanded={expandedId === question.id}
               onExpandedChange={(expanded) =>

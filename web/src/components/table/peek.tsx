@@ -82,6 +82,8 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
+  defaultWidthTarget?: HTMLElement | null;
+  widthStorageKey?: string;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -93,6 +95,8 @@ type TablePeekViewProps = Pick<
    */
   actionsMenu?: React.ReactNode;
   hideExpandToggle?: boolean;
+  /** Keep the content mounted across items instead of remounting per item. */
+  preserveContentAcrossItems?: boolean;
   // Content
   /**
    * The content to display in the peek view.
@@ -164,7 +168,14 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children, footer, tableName, isV4 } = props;
+  const {
+    title,
+    children,
+    footer,
+    tableName,
+    isV4,
+    preserveContentAcrossItems,
+  } = props;
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const itemId = router.query.peek as string | undefined;
@@ -211,6 +222,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     isOpen: !!itemId,
     isExpanded,
     onExpandedChange: setExpanded,
+    defaultWidthTarget: props.defaultWidthTarget,
+    widthStorageKey: props.widthStorageKey,
     onResized: useCallback(
       (widthFraction: number, trigger: "drag" | "keyboard") => {
         capture("peek:resized", {
@@ -289,7 +302,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 
   const content = (
     <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto" key={itemId}>
+      <div
+        className="flex-1 overflow-auto"
+        key={preserveContentAcrossItems ? undefined : itemId}
+      >
         {children}
       </div>
       {footer && (
@@ -308,7 +324,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // fresh provider, dropping that state. It unmounts only on close (the early
   // `return null` above), which is what resets the state (see README).
   return (
-    <PeekTableStateProvider>
+    <PeekTableStateProvider getPanelWidthPx={panel.getPanelWidthPx}>
       {isHandheld ? (
         // Mobile: a vaul bottom drawer with native swipe-down dismissal.
         <Drawer

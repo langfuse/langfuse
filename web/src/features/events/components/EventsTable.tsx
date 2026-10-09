@@ -81,7 +81,9 @@ import {
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
+  customRowHeightMenu,
   getRowHeightIOCharLimit,
+  isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -166,7 +168,7 @@ import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
-  chartFilterExclusionReason,
+  chartFacetExclusionReason,
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
@@ -364,9 +366,14 @@ export default function ObservationsEventsTable({
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "observations",
     "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -897,12 +904,20 @@ export default function ObservationsEventsTable({
 
   // The chart is actually on screen (not just enabled). Only then do we mark
   // the filters it can't honour as "not applied", so table mode stays untouched.
-  // Both surfaces use the stateless per-column / per-field reason resolvers
-  // (chartFilterExclusionReason / chartSearchFieldReason) — a filter deactivates
-  // in the sidebar and its search-bar pill identically.
+  // Both surfaces read the same resolvers (chartFacetExclusionReason /
+  // chartSearchFieldReason) — a filter deactivates in the sidebar and its
+  // search-bar pill identically.
   const chartActive = chartEnabled && chartViewMode === "chart";
   // Free-text search is never applied to the chart (it has no aggregate form).
   const chartFreeTextIgnored = chartActive && Boolean(searchQuery);
+  // A facet reads blocked when its column is unsupported OR when it holds a
+  // condition the chart drops (a metadata filter outside its keyed shape, a
+  // presence check), so the sidebar can never show a filter as applied that the
+  // chart query left out.
+  const chartBlockedColumnReason = useCallback(
+    (column: string) => chartFacetExclusionReason(filterState, column),
+    [filterState],
+  );
 
   // Use the custom hook for observations data fetching
   const {
@@ -942,7 +957,11 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
-    ioCharLimit: getRowHeightIOCharLimit(rowHeight),
+    ioCharLimit: getRowHeightIOCharLimit(
+      rowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    ),
   });
 
   useApplyAppRootFallback({
@@ -1047,6 +1066,7 @@ export default function ObservationsEventsTable({
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "trace.bulk_delete",
         title: "Traces deleted",
         description:
           "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
@@ -1255,7 +1275,7 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       enableHiding: true,
     }),
     createIOTableColumn<EventsTableRow>({
@@ -1264,7 +1284,7 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       variant: "output",
       enableHiding: true,
     }),
@@ -1278,7 +1298,7 @@ export default function ObservationsEventsTable({
       },
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       enableHiding: true,
     }),
     createStatusTableColumn<EventsTableRow, ObservationLevelType>({
@@ -1308,7 +1328,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
@@ -1555,7 +1575,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !compactRows,
     }),
     {
       accessorKey: "scores",
@@ -1866,6 +1886,7 @@ export default function ObservationsEventsTable({
                 searchBarMode ? (
                   <div className="flex min-w-0 flex-col gap-2">
                     <EventsSearchBarRow
+                      size={showControlsInPageHeader ? "large" : "default"}
                       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                       registry={searchRegistry}
                       projectId={projectId}
@@ -1962,7 +1983,7 @@ export default function ObservationsEventsTable({
                   queryFilter={queryFilter}
                   filterWithAI={sidebarAiFiltersEnabled}
                   blockedColumnReason={
-                    chartActive ? chartFilterExclusionReason : undefined
+                    chartActive ? chartBlockedColumnReason : undefined
                   }
                   // inline: flow at natural height in the sheet's single scroll
                   // (no internal ScrollArea). Desktop sidebar stays default.
@@ -1999,6 +2020,7 @@ export default function ObservationsEventsTable({
               <div className="flex min-w-0 items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <EventsSearchBarRow
+                    size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
                     projectId={projectId}
@@ -2071,6 +2093,7 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               viewModeToggle={
@@ -2217,10 +2240,9 @@ export default function ObservationsEventsTable({
               queryFilter={queryFilter}
               filterWithAI={sidebarAiFiltersEnabled}
               // In chart mode, block filters the chart can't apply — active or
-              // not — dimmed + hover reason. Stateless per-column resolver,
-              // matching the search bar.
+              // not — dimmed + hover reason, matching the search bar.
               blockedColumnReason={
-                chartActive ? chartFilterExclusionReason : undefined
+                chartActive ? chartBlockedColumnReason : undefined
               }
             />
           )}
@@ -2334,6 +2356,11 @@ export default function ObservationsEventsTable({
                 columnVisibility={columnVisibility}
                 onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={rowHeights.activeHeightPx}
+                onCustomRowHeightChange={
+                  hideControls ? undefined : rowHeights.setCustomPx
+                }
+                onSelectRowHeight={hideControls ? undefined : setRowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab
                   if (event && (event.metaKey || event.ctrlKey)) {

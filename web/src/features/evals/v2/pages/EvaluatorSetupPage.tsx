@@ -393,6 +393,7 @@ export function EvaluatorSetupPage(
   const reactivate = api.evalsV2.reactivate.useMutation({
     onSuccess: async () => {
       showSuccessToast({
+        operation: "evaluator.reactivate",
         title: "Evaluator reactivated",
         description:
           "The model test succeeded and the evaluator is active again.",
@@ -417,6 +418,7 @@ export function EvaluatorSetupPage(
         isAllMatching: false,
       });
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Evaluator deleted",
         description: "The evaluator and all of its versions were deleted.",
       });
@@ -612,6 +614,7 @@ export function EvaluatorSetupPage(
             : {}),
         });
         showSuccessToast({
+          operation: "evaluator.save",
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
         });

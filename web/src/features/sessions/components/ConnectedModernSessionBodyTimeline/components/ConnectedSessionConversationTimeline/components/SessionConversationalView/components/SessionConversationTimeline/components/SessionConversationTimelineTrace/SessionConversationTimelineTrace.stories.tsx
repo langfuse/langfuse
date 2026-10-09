@@ -147,6 +147,54 @@ const weatherState = transcriptState({
   messages: result.transcript?.threads[0]?.currentTurn.messages ?? [],
   history: result.transcript?.threads[0]?.conversationHistory ?? [],
 });
+
+function toolPreviewState(
+  previews: {
+    name: string;
+    input: Extract<
+      Thread["currentTurn"]["messages"][number]["parts"][number],
+      { type: "tool-call" }
+    >["input"];
+    output: Extract<
+      Thread["currentTurn"]["messages"][number]["parts"][number],
+      { type: "tool-result" }
+    >["output"];
+  }[],
+): TranscriptState {
+  return transcriptState({
+    history: [],
+    messages: previews.flatMap<Thread["currentTurn"]["messages"][number]>(
+      ({ name, input, output }) => [
+        {
+          ...provenance,
+          role: "assistant",
+          source: "output",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: name,
+              toolName: name,
+              input,
+            },
+          ],
+        },
+        {
+          ...provenance,
+          role: "tool",
+          source: "output",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: name,
+              toolName: name,
+              output,
+            },
+          ],
+        },
+      ],
+    ),
+  });
+}
 export const NestedThreadsHidden = meta.story({
   name: "(Test) Nested Threads Hidden",
   args: {
@@ -258,14 +306,254 @@ export const ExpandTool = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand weather" }),
     );
-    await expect(canvas.getByText(/"city": "Berlin"/)).toBeInTheDocument();
-    await expect(canvas.getByText(/"temperature": 12/)).toBeInTheDocument();
+    const [inputPreview, outputPreview] = canvasElement.querySelectorAll("pre");
+    await expect(inputPreview).toHaveTextContent('"city": "Berlin"');
+    await expect(outputPreview).toHaveTextContent('"temperature": 12');
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse weather" }),
     );
+    await expect(outputPreview).not.toBeInTheDocument();
+  },
+});
+
+export const ToolPreviewJsonHighlighting = meta.story({
+  name: "(Test) Highlights JSON Tool Inputs and Outputs",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "json-object",
+        input: { query: "example" },
+        output: { answer: 42 },
+      },
+      {
+        name: "json-string",
+        input: '{"query": "example"}',
+        output: '{"answer": 42}',
+      },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const name of ["json-object", "json-string"]) {
+      const expand = canvas.getByRole("button", { name: `Expand ${name}` });
+      const row = expand.closest("section")!;
+      await userEvent.click(expand);
+      const controls = within(row);
+      await expect(
+        controls.getByRole("combobox", { name: "Tool input language" }),
+      ).toHaveTextContent("Auto (JSON)");
+      await expect(
+        controls.getByRole("combobox", { name: "Tool output language" }),
+      ).toHaveTextContent("Auto (JSON)");
+      const [inputPreview, outputPreview] = row.querySelectorAll("pre");
+      await expect(inputPreview).toHaveClass("max-h-48");
+      await expect(outputPreview).toHaveClass("max-h-96");
+      await expect(
+        inputPreview.querySelector(".token.property"),
+      ).toHaveTextContent('"query"');
+      await expect(
+        outputPreview.querySelector(".token.property"),
+      ).toHaveTextContent('"answer"');
+    }
+  },
+});
+
+const largeToolPreviewCases = [
+  {
+    name: "highlight-limit",
+    input: { text: "x".repeat(9_984) },
+    output: { text: "x".repeat(9_985) },
+  },
+  {
+    name: "large-multiline",
+    input: { text: "x".repeat(9_985) },
+    output: `${"\n".repeat(10_000)}full value ends here`,
+  },
+];
+
+export const LargeToolPreviews = meta.story({
+  name: "(Test) Large Tool Previews Bypass Highlighting Without Truncation",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState(largeToolPreviewCases),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const { name, input, output } of largeToolPreviewCases) {
+      const expand = canvas.getByRole("button", { name: `Expand ${name}` });
+      const row = expand.closest("section")!;
+      await userEvent.click(expand);
+      const controls = within(row);
+      const [inputPreview, outputPreview] = row.querySelectorAll("pre");
+      const expectedInput = JSON.stringify(input, undefined, 2);
+      const expectedOutput =
+        typeof output === "string"
+          ? output
+          : JSON.stringify(output, undefined, 2);
+      await expect(outputPreview.textContent).toBe(expectedOutput);
+      await expect(inputPreview).toHaveClass("max-h-48");
+      await expect(outputPreview).toHaveClass("max-h-96");
+      await expect(outputPreview.childElementCount).toBe(0);
+      await expect(
+        controls.queryByRole("combobox", { name: "Tool output language" }),
+      ).toBeNull();
+
+      if (name === "highlight-limit") {
+        await expect(expectedInput.length).toBe(10_000);
+        await expect(expectedOutput.length).toBe(10_001);
+        await expect(
+          inputPreview.querySelector(".token.string")?.textContent,
+        ).toBe(JSON.stringify(input.text));
+        await expect(
+          inputPreview.querySelector(".token.property"),
+        ).toBeInTheDocument();
+        await expect(
+          controls.getByRole("combobox", { name: "Tool input language" }),
+        ).toHaveTextContent("Auto (JSON)");
+      } else {
+        await expect(inputPreview.textContent).toBe(expectedInput);
+        await expect(inputPreview.childElementCount).toBe(0);
+        await expect(controls.queryByRole("combobox")).toBeNull();
+        await expect(
+          controls.getAllByText("Plain text (large value)"),
+        ).toHaveLength(2);
+      }
+    }
+  },
+});
+
+export const ToolPreviewLanguageOverrides = meta.story({
+  name: "(Test) Independent Tool Preview Language Overrides",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      { name: "search", input: { query: "example" }, output: { answer: 42 } },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand search" }),
+    );
+    const inputSelect = canvas.getByRole("combobox", {
+      name: "Tool input language",
+    });
+    const outputSelect = canvas.getByRole("combobox", {
+      name: "Tool output language",
+    });
+    const [inputContainer, outputContainer] = Array.from(
+      canvasElement.querySelectorAll("pre"),
+      (preview) => preview.parentElement!,
+    );
+    const body = within(document.body);
+
+    await userEvent.click(inputSelect);
+    await userEvent.click(body.getByRole("option", { name: "Plain text" }));
+    await expect(inputSelect).toHaveTextContent("Plain text");
+    await expect(inputContainer.querySelector(".token.property")).toBeNull();
+    await expect(inputContainer.querySelector("pre")).toHaveTextContent(
+      '"query": "example"',
+    );
+    await expect(outputSelect).toHaveTextContent("Auto (JSON)");
     await expect(
-      canvas.queryByText(/"temperature": 12/),
-    ).not.toBeInTheDocument();
+      outputContainer.querySelector(".token.property"),
+    ).toBeInTheDocument();
+
+    await userEvent.click(outputSelect);
+    await userEvent.click(body.getByRole("option", { name: "Python" }));
+    await expect(outputSelect).toHaveTextContent("Python");
+    await expect(outputContainer.querySelector(".token.property")).toBeNull();
+    await expect(inputSelect).toHaveTextContent("Plain text");
+
+    await userEvent.click(inputSelect);
+    await userEvent.click(body.getByRole("option", { name: "Auto (JSON)" }));
+    await expect(
+      inputContainer.querySelector(".token.property"),
+    ).toBeInTheDocument();
+    await expect(outputSelect).toHaveTextContent("Python");
+
+    await userEvent.click(outputSelect);
+    await userEvent.click(body.getByRole("option", { name: "Plain text" }));
+    await expect(outputContainer.querySelector(".token.property")).toBeNull();
+    await expect(outputContainer.querySelector("pre")).toHaveTextContent(
+      '"answer": 42',
+    );
+    await userEvent.click(outputSelect);
+    await userEvent.click(body.getByRole("option", { name: "Auto (JSON)" }));
+    await expect(
+      outputContainer.querySelector(".token.property"),
+    ).toBeInTheDocument();
+  },
+});
+
+export const ToolPreviewFallbacks = meta.story({
+  name: "(Test) Tool Preview Plain Text, HTML Safety, and Empty Values",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      { name: "plain-text", input: null, output: "Hello world" },
+      {
+        name: "html",
+        input: null,
+        output: '<script>alert("unsafe")</script>',
+      },
+      { name: "input-only", input: { query: "example" }, output: null },
+      { name: "empty", input: null, output: null },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: plain-text · html · input-only · empty",
+      }),
+    );
+    for (const name of ["plain-text", "html", "input-only", "empty"]) {
+      await userEvent.click(
+        canvas.getByRole("button", { name: `Expand ${name}` }),
+      );
+    }
+    const plainRow = canvas
+      .getByRole("button", { name: "Collapse plain-text" })
+      .closest("section")!;
+    await expect(
+      within(plainRow).getByRole("combobox", { name: "Tool output language" }),
+    ).toHaveTextContent("Auto (Plain text)");
+    await expect(
+      within(plainRow).queryByRole("combobox", { name: "Tool input language" }),
+    ).toBeNull();
+    await expect(plainRow.querySelector("pre")).toHaveTextContent(
+      "Hello world",
+    );
+
+    const htmlRow = canvas
+      .getByRole("button", { name: "Collapse html" })
+      .closest("section")!;
+    await expect(htmlRow.querySelector("script")).toBeNull();
+    await expect(htmlRow.querySelector("pre")).toHaveTextContent(
+      '<script>alert("unsafe")</script>',
+    );
+
+    const inputRow = canvas
+      .getByRole("button", { name: "Collapse input-only" })
+      .closest("section")!;
+    await expect(
+      within(inputRow).getByRole("combobox", { name: "Tool input language" }),
+    ).toHaveTextContent("Auto (JSON)");
+    await expect(
+      within(inputRow).queryByRole("combobox", {
+        name: "Tool output language",
+      }),
+    ).toBeNull();
+
+    const emptyRow = canvas
+      .getByRole("button", { name: "Collapse empty" })
+      .closest("section")!;
+    await expect(within(emptyRow).queryByRole("combobox")).toBeNull();
+    await expect(
+      within(emptyRow).getByText("No input or output"),
+    ).toBeInTheDocument();
   },
 });
 
@@ -411,12 +699,9 @@ export const PairMatchingToolData = meta.story({
     const toolRow = canvas
       .getByRole("button", { name: "Collapse weather" })
       .closest("section")!;
-    await expect(
-      within(toolRow).getByText(/"city": "Berlin"/),
-    ).toBeInTheDocument();
-    await expect(
-      within(toolRow).getByText(/"temperature": 12/),
-    ).toBeInTheDocument();
+    const [inputPreview, outputPreview] = toolRow.querySelectorAll("pre");
+    await expect(inputPreview).toHaveTextContent('"city": "Berlin"');
+    await expect(outputPreview).toHaveTextContent('"temperature": 12');
   },
 });
 
