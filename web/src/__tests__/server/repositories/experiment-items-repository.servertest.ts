@@ -1628,6 +1628,68 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       ).toBe(true);
     });
 
+    it("reads past the preview when an expanded char limit is requested", async () => {
+      // The default read stays on the pre-truncated table, which is not enough
+      // to fill a tall comparison row. An explicit limit has to come back from
+      // the full event text, capped at the requested length.
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const itemId = randomUUID();
+      const rootId = randomUUID();
+
+      const longInput = "A".repeat(2000);
+      const longExpectedOutput = "B".repeat(2000);
+      const longOutput = "C".repeat(2000);
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          span_id: rootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: rootId,
+          input: longInput,
+          experiment_item_expected_output: longExpectedOutput,
+          output: longOutput,
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const preview = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+      });
+      expect(preview[0].input!.length).toBeLessThan(2000);
+      expect(preview[0].outputs[0].output!.length).toBeLessThan(2000);
+
+      const expanded = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        ioCharLimit: 2000,
+      });
+      expect(expanded[0].input).toBe(longInput);
+      expect(expanded[0].expectedOutput).toBe(longExpectedOutput);
+      expect(expanded[0].outputs[0].output).toBe(longOutput);
+
+      const capped = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        ioCharLimit: 500,
+      });
+      expect(capped[0].input).toHaveLength(500);
+      expect(capped[0].expectedOutput).toHaveLength(500);
+      expect(capped[0].outputs[0].output).toHaveLength(500);
+    });
+
     it("passes a payload of the four characters null through untouched", async () => {
       // A native experiment writes I/O through stringifyValue, which returns a
       // string unchanged — so an expected output that legitimately IS the

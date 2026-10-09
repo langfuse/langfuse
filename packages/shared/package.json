@@ -35,6 +35,14 @@
       "import": "./dist/src/server/transcript/ordering.js",
       "require": "./dist/src/server/transcript/ordering.js"
     },
+    "./src/server/transcript/threads": {
+      "import": "./dist/src/server/transcript/threads.js",
+      "require": "./dist/src/server/transcript/threads.js"
+    },
+    "./src/server/transcript/tool-calls": {
+      "import": "./dist/src/server/transcript/tool-calls.js",
+      "require": "./dist/src/server/transcript/tool-calls.js"
+    },
     "./src/server/transcript/transcript": {
       "import": "./dist/src/server/transcript/transcript.js",
       "require": "./dist/src/server/transcript/transcript.js"
@@ -90,6 +98,10 @@
     "./src/server/ee/licenseCheck": {
       "import": "./dist/src/server/ee/licenseCheck/index.js",
       "require": "./dist/src/server/ee/licenseCheck/index.js"
+    },
+    "./src/server/ee/clickhouseBilling": {
+      "import": "./dist/src/server/ee/clickhouseBilling/index.js",
+      "require": "./dist/src/server/ee/clickhouseBilling/index.js"
     },
     "./query": {
       "import": "./dist/src/features/query/index.js",

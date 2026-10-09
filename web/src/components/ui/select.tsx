@@ -17,7 +17,7 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
  * picker look the same whichever primitive is behind it.
  */
 export const selectTriggerClassName =
-  "border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50";
+  "border-input bg-background ring-offset-background placeholder:text-muted-foreground data-[placeholder]:text-muted-foreground focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50";
 
 const Select = SelectPrimitive.Root;
 

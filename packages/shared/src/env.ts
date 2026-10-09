@@ -27,35 +27,6 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
-// ClickHouse rejects unknown settings on every query, so a malformed value
-// must fail the process at startup instead.
-const clickhouseExtraSettingsSchema = (name: string) =>
-  z
-    .string()
-    .transform((value, ctx) => {
-      try {
-        return JSON.parse(value) as unknown;
-      } catch {
-        ctx.addIssue({ code: "custom", message: `${name} must be valid JSON` });
-        return z.NEVER;
-      }
-    })
-    .pipe(
-      z.record(
-        z
-          .string()
-          .regex(
-            /^[A-Za-z_][A-Za-z0-9_]*$/,
-            `${name} keys must be ClickHouse setting names`,
-          ),
-        z.union([z.string(), z.number(), z.boolean()]),
-        {
-          error: `${name} must be a JSON object of setting names to string, number, or boolean values`,
-        },
-      ),
-    )
-    .optional();
-
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
 const EnvSchema = z.object({
@@ -213,18 +184,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
-  // JSON objects of ClickHouse setting name to value. Every client gets
-  // CLICKHOUSE_EXTRA_SETTINGS; the service variants add to it for clients of
-  // that service. Settings set by Langfuse itself take precedence.
-  CLICKHOUSE_EXTRA_SETTINGS: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS",
-  ),
-  CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY",
-  ),
-  CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY",
-  ),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
@@ -550,6 +509,22 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
+  // no service account key) may write to. Those run as the deployment's own GCP
+  // identity (ADC), so without this allowlist any project owner could export into
+  // any bucket that identity can write. Empty disables keyless GCS exports;
+  // exports with a service account key are unaffected.
+  LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((s) => s.toLowerCase().trim())
+            .filter(Boolean)
+        : [],
     ),
   LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
     .string()

@@ -135,10 +135,13 @@ types:
 
   CreateScoresResponse:
     discriminated: false
+    # Undiscriminated unions match in order. CreateScoreBatchResponse must stay
+    # last: its literal `message` is defaulted in generated clients, so it would
+    # also match 207 bodies and hide rejected scores.
     union:
+      - CreateScoreBatchResults
       - CreateScoreResponse
       - CreateScoreBatchResponse
-      - CreateScoreBatchResults
 
   CreateScoreBatchResponse:
     docs: Batch accepted (HTTP 202).

@@ -18,6 +18,7 @@ import {
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { cn } from "@/src/utils/tailwind";
 
 type CustomTooltipProps = {
   children: (controls: {
@@ -88,7 +89,10 @@ function CustomTooltip({
         <FloatingPortal root={layerContainer}>
           <div
             ref={refs.setFloating}
-            className="bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md"
+            className={cn(
+              "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
+              !hoverableContent && "pointer-events-none",
+            )}
             style={floatingStyles}
             {...getFloatingProps()}
           >

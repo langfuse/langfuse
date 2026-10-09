@@ -151,6 +151,7 @@ describe("trpcErrorToast", () => {
       {
         errorOrigin: "backend",
         errorCategory: "user_input",
+        operation: "prompts.create",
         trpcCode: "BAD_REQUEST",
         httpStatus: 400,
       },
@@ -177,6 +178,7 @@ describe("trpcErrorToast", () => {
       {
         errorOrigin: "frontend",
         errorCategory: "internal",
+        operation: "prompts.create",
         trpcCode: "BAD_REQUEST",
         httpStatus: 400,
       },
@@ -204,6 +206,7 @@ describe("trpcErrorToast", () => {
       {
         errorOrigin: "backend",
         errorCategory: "internal",
+        operation: "prompts.create",
         trpcCode: "INTERNAL_SERVER_ERROR",
         httpStatus: 500,
       },
@@ -238,6 +241,7 @@ describe("trpcErrorToast", () => {
         {
           errorOrigin: errorCategory === "transient" ? "network" : "backend",
           errorCategory,
+          operation: "prompts.create",
           trpcCode: code,
           httpStatus,
         },

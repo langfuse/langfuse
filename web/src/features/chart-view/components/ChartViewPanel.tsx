@@ -133,7 +133,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
             <ChartTypePicker
               value={config.chartType}
               onChange={onChartType}
-              showLabels
+              layout="full"
             />
           </PanelField>
           <PanelField label="Metric">

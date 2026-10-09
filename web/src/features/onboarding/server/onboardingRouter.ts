@@ -7,6 +7,12 @@ import {
   createTRPCRouter,
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
+import {
+  BUILD_INTENT_IDS,
+  BUILD_INTENT_MAX_SELECTIONS,
+  BUILD_INTENT_OTHER_MAX_LENGTH,
+  EXCLUSIVE_BUILD_INTENT,
+} from "@/src/features/onboarding/lib/buildIntent";
 
 export const onboardingRouter = createTRPCRouter({
   status: authenticatedProcedure.query(async ({ ctx }) => {
@@ -23,7 +29,40 @@ export const onboardingRouter = createTRPCRouter({
         .object({
           referralSource: z.string().trim().max(500).optional(),
           aiFeaturesEnabled: z.boolean().optional(),
+          buildIntents: z
+            .array(z.enum(BUILD_INTENT_IDS))
+            .min(1)
+            .max(BUILD_INTENT_MAX_SELECTIONS)
+            .optional(),
+          buildIntentPositions: z
+            .array(
+              z
+                .number()
+                .int()
+                .min(0)
+                .max(BUILD_INTENT_IDS.length - 1),
+            )
+            .max(BUILD_INTENT_MAX_SELECTIONS)
+            .optional(),
+          buildIntentOther: z
+            .string()
+            .trim()
+            .max(BUILD_INTENT_OTHER_MAX_LENGTH)
+            .optional(),
         })
+        .refine(
+          ({ buildIntents }) =>
+            !buildIntents ||
+            (new Set(buildIntents).size === buildIntents.length &&
+              (!buildIntents.includes(EXCLUSIVE_BUILD_INTENT) ||
+                buildIntents.length === 1)),
+          { message: "Build intents must be unique; exploring is exclusive" },
+        )
+        .refine(
+          ({ buildIntents, buildIntentPositions }) =>
+            buildIntentPositions?.length === buildIntents?.length,
+          { message: "Each build intent needs its shown position" },
+        )
         .optional(),
     )
     .mutation(async ({ ctx, input }) => {
@@ -34,6 +73,9 @@ export const onboardingRouter = createTRPCRouter({
         canCreateOrganizations: ctx.session.user.canCreateOrganizations,
         referralSource: input?.referralSource,
         aiFeaturesEnabled: input?.aiFeaturesEnabled,
+        buildIntents: input?.buildIntents,
+        buildIntentPositions: input?.buildIntentPositions,
+        buildIntentOther: input?.buildIntentOther,
       });
     }),
 });
