@@ -41,14 +41,10 @@ import type * as ClickhouseModule from "./clickhouse";
  * doesn't change the query text ClickHouse parses, so it's intentionally left
  * out of the baseline.
  *
- * KNOWN GAP: `queryClickhouseExecRaw` is the one exception — its real seam sends
- * `${query}\nFORMAT ${format}`, so `format` *is* part of the wire-level query
- * text. We deliberately ignore it for now: no exec-raw call site is golden-
- * tested yet (this file only drives `queryClickhouse`). Before the first
- * exec-raw site is migrated onto this harness, thread `format` into
- * CapturedQuery/GoldenQuery and fold `FORMAT <format>` into the normalized SQL,
- * or two exec-raw calls differing only in `format` (e.g. JSONEachRow vs
- * Parquet) would snapshot identically.
+ * `queryClickhouseExecRaw` is the one exception: its real seam sends
+ * `${query}\nFORMAT ${format}`, so `format` is part of the wire-level query
+ * text. The recorder folds it into the captured query the same way, so two
+ * exec-raw calls differing only in `format` snapshot differently.
  */
 export type CapturedQuery = {
   /** Which of the six exec functions the repository called. */
@@ -108,9 +104,10 @@ export function buildClickhouseMock(
       yield* [];
     },
     queryClickhouseExecRaw: async (opts) => {
-      // NOTE: `opts.format` is dropped here on purpose — see CapturedQuery's
-      // "KNOWN GAP". Revisit before any exec-raw call site is golden-tested.
-      capture("queryClickhouseExecRaw", opts);
+      capture("queryClickhouseExecRaw", {
+        ...opts,
+        query: `${opts.query}\nFORMAT ${opts.format}`,
+      });
       return {
         queryId: "golden-harness",
         stream: Readable.from([]),

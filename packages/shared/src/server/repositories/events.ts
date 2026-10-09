@@ -2773,6 +2773,106 @@ export const deleteEventsOlderThanDays = async (
   return true;
 };
 
+function compileObservationsBatchIOFromEventsTable(opts: {
+  projectId: string;
+  observationIds: string[];
+  traceIds: string[];
+  observationTuples: TupleParam[];
+  minTimestamp: string;
+  maxTimestamp: string;
+  truncated: boolean;
+  fullReadCharLimit: number | undefined;
+  sessionId: string | undefined;
+  includeExperimentFields: boolean;
+  includeToolCallFields: boolean;
+}) {
+  const db = getClickhouseKysely();
+  const ctx: ExecutionContext = { projectId: opts.projectId };
+  const { fullReadCharLimit } = opts;
+
+  const charLimit = opts.truncated
+    ? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
+    : fullReadCharLimit;
+  const capIo = (column: string) =>
+    charLimit
+      ? sql.raw(`leftUTF8(e.${column}, ${charLimit})`).as(column)
+      : sql.raw(`e.${column}`).as(column);
+  // events_core already stores these pre-truncated, so only a full read needs
+  // capping — an explicit limit has to bound every large field, not just I/O.
+  const capOnFullRead = (expr: string) =>
+    fullReadCharLimit ? `leftUTF8(${expr}, ${fullReadCharLimit})` : expr;
+  const capEachOnFullRead = (expr: string) =>
+    fullReadCharLimit
+      ? `arrayMap(v -> leftUTF8(v, ${fullReadCharLimit}), ${expr})`
+      : expr;
+
+  const selects = [
+    sql`e.span_id`.as("id"),
+    sql`e.trace_id`.as("trace_id"),
+    capIo("input"),
+    capIo("output"),
+    ...(opts.includeExperimentFields
+      ? [
+          sql
+            .raw(capOnFullRead("e.experiment_item_expected_output"))
+            .as("experiment_item_expected_output"),
+          sql
+            .raw(
+              `mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(${capEachOnFullRead("e.experiment_item_metadata_values")}))`,
+            )
+            .as("experiment_item_metadata"),
+        ]
+      : []),
+    ...(opts.includeToolCallFields
+      ? [
+          sql`e.tool_calls`.as("tool_calls"),
+          sql`e.tool_call_names`.as("tool_call_names"),
+        ]
+      : []),
+    sql
+      .raw(
+        `mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(${capEachOnFullRead("e.metadata_values")}))`,
+      )
+      .as("metadata"),
+  ];
+
+  // Keep the individual filters for primary-key pruning and the tuple filter
+  // for exact trace/observation matching.
+  const query = (
+    opts.truncated
+      ? db.selectFrom("events_core as e")
+      : db.selectFrom("events_full as e")
+  )
+    .select(selects as never)
+    .where("e.span_id", "in", opts.observationIds)
+    .where("e.trace_id", "in", opts.traceIds)
+    .where((eb) =>
+      eb(
+        eb.refTuple("e.trace_id", "e.span_id"),
+        "in",
+        eb.val(opts.observationTuples) as never,
+      ),
+    )
+    .$if(opts.sessionId !== undefined, (qb) =>
+      qb.where("e.trace_id", "in", (eb) =>
+        eb
+          .selectFrom("events_core")
+          .select("trace_id")
+          .where("trace_id", "in", opts.traceIds)
+          .groupBy("trace_id")
+          .having(
+            lit<string>(sql`argMaxIf(session_id, event_ts, session_id <> '')`),
+            "=",
+            opts.sessionId!,
+          ),
+      ),
+    )
+    .where("e.start_time", ">=", dateTimeParam(opts.minTimestamp))
+    .where("e.start_time", "<=", dateTimeParam(opts.maxTimestamp));
+
+  return compileClickhouseQuery(query, ctx);
+}
+
 export const getObservationsBatchIOFromEventsTable = async <
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
@@ -2811,8 +2911,6 @@ export const getObservationsBatchIOFromEventsTable = async <
       ? Math.max(1, Math.trunc(opts.ioCharLimit))
       : undefined;
 
-  // Keep the individual filters for primary-key pruning and the tuple filter
-  // for exact trace/observation matching.
   const observationIds = opts.observations.map((o) => o.id);
   const traceIds = Array.from(new Set(opts.observations.map((o) => o.traceId)));
   const observationTuples = opts.observations.map(
@@ -2823,68 +2921,19 @@ export const getObservationsBatchIOFromEventsTable = async <
   const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
   const maxTimestamp = new Date(opts.maxStartTime.getTime() + 1000); // +1 second buffer
 
-  // Use events_core for truncated reads (lightweight), events_full for full I/O
-  const tableName = truncated ? "events_core" : "events_full";
-  const charLimit = truncated
-    ? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
-    : fullReadCharLimit;
-  const inputSelect = charLimit
-    ? `leftUTF8(e.input, ${charLimit}) as input`
-    : `e.input as input`;
-  const outputSelect = charLimit
-    ? `leftUTF8(e.output, ${charLimit}) as output`
-    : `e.output as output`;
-  // events_core already stores these pre-truncated, so only a full read needs
-  // capping — an explicit limit has to bound every large field, not just I/O.
-  const capOnFullRead = (expr: string) =>
-    fullReadCharLimit ? `leftUTF8(${expr}, ${fullReadCharLimit})` : expr;
-  const capEachOnFullRead = (expr: string) =>
-    fullReadCharLimit
-      ? `arrayMap(v -> leftUTF8(v, ${fullReadCharLimit}), ${expr})`
-      : expr;
-  const metadataValues = capEachOnFullRead("e.metadata_values");
-  const experimentFieldsSelect = opts.includeExperimentFields
-    ? `
-      ${capOnFullRead("e.experiment_item_expected_output")} as experiment_item_expected_output,
-      mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(${capEachOnFullRead("e.experiment_item_metadata_values")})) as experiment_item_metadata,
-    `
-    : "";
-  const toolCallFieldsSelect = opts.includeToolCallFields
-    ? `
-      e.tool_calls as tool_calls,
-      e.tool_call_names as tool_call_names,
-      `
-    : "";
-  const sessionTraceFilter =
-    opts.sessionId !== undefined
-      ? `AND e.trace_id IN (
-          SELECT trace_id
-          FROM events_core
-          WHERE project_id = {projectId: String}
-            AND trace_id IN {traceIds: Array(String)}
-          GROUP BY trace_id
-          HAVING argMaxIf(session_id, event_ts, session_id <> '') = {sessionId: String}
-        )`
-      : "";
-
-  const query = `
-      SELECT
-        e.span_id as id,
-        e.trace_id as trace_id,
-      ${inputSelect},
-      ${outputSelect},
-      ${experimentFieldsSelect}
-      ${toolCallFieldsSelect}
-      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(${metadataValues})) as metadata
-    FROM ${tableName} e
-    WHERE e.project_id = {projectId: String}
-        AND e.span_id IN {observationIds: Array(String)}
-        AND e.trace_id IN {traceIds: Array(String)}
-        AND (e.trace_id, e.span_id) IN {observationTuples: Array(Tuple(String, String))}
-        ${sessionTraceFilter}
-      AND e.start_time >= {minTimestamp: DateTime64(3)}
-      AND e.start_time <= {maxTimestamp: DateTime64(3)}
-  `;
+  const { sql: query, params } = compileObservationsBatchIOFromEventsTable({
+    projectId: opts.projectId,
+    observationIds,
+    traceIds,
+    observationTuples,
+    minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+    maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    truncated,
+    fullReadCharLimit,
+    sessionId: opts.sessionId,
+    includeExperimentFields: opts.includeExperimentFields === true,
+    includeToolCallFields: opts.includeToolCallFields === true,
+  });
 
   const results = await queryClickhouse<{
     id: string;
@@ -2898,15 +2947,7 @@ export const getObservationsBatchIOFromEventsTable = async <
     experiment_item_metadata?: Record<string, string>;
   }>({
     query,
-    params: {
-      projectId: opts.projectId,
-      observationIds,
-      traceIds,
-      observationTuples,
-      sessionId: opts.sessionId,
-      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-    },
+    params,
     tags: { projectId: opts.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
@@ -2957,24 +2998,14 @@ export type ObservationIoStreamField =
 
 // Closed set of SQL expressions keyed by the validated `field` enum — never
 // string-interpolated user input. The length pre-query and the byte stream share
-// this map + the WHERE/params below so they can never drift; a mismatch would
-// make the route's Content-Length integrity check wrong.
+// this map + the builder below so they can never drift; a mismatch would make
+// the route's Content-Length integrity check wrong.
 const OBSERVATION_IO_FIELD_SELECT: Record<ObservationIoStreamField, string> = {
   input: "e.input",
   output: "e.output",
   metadata:
     "toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)))",
 };
-
-// The ±1s window around `startTime` only prunes the primary key
-// (project_id, toStartOfMinute(start_time), xxHash32(trace_id)); it is a
-// performance hint, never an authorization control.
-const OBSERVATION_IO_WHERE = `
-    WHERE e.project_id = {projectId: String}
-      AND e.trace_id = {traceId: String}
-      AND e.span_id = {observationId: String}
-      AND e.start_time >= {minTimestamp: DateTime64(3)}
-      AND e.start_time <= {maxTimestamp: DateTime64(3)}`;
 
 interface ObservationIOReadOpts {
   projectId: string;
@@ -2985,18 +3016,44 @@ interface ObservationIOReadOpts {
   startTime: Date;
 }
 
-function observationIOReadParams(opts: ObservationIOReadOpts) {
-  return {
-    projectId: opts.projectId,
-    traceId: opts.traceId,
-    observationId: opts.observationId,
-    minTimestamp: convertDateToClickhouseDateTime(
-      new Date(opts.startTime.getTime() - 1000),
-    ),
-    maxTimestamp: convertDateToClickhouseDateTime(
-      new Date(opts.startTime.getTime() + 1000),
-    ),
-  };
+// The ±1s window around `startTime` only prunes the primary key
+// (project_id, toStartOfMinute(start_time), xxHash32(trace_id)); it is a
+// performance hint, never an authorization control.
+function compileObservationIOFieldRead(
+  opts: ObservationIOReadOpts,
+  select: (field: string) => string,
+) {
+  const db = getClickhouseKysely();
+  const ctx: ExecutionContext = { projectId: opts.projectId };
+  const fieldSql = OBSERVATION_IO_FIELD_SELECT[opts.field];
+
+  const query = db
+    .selectFrom("events_full as e")
+    .select(sql.raw(select(fieldSql)) as never)
+    .where("e.trace_id", "=", opts.traceId)
+    .where("e.span_id", "=", opts.observationId)
+    .where(
+      "e.start_time",
+      ">=",
+      dateTimeParam(
+        convertDateToClickhouseDateTime(
+          new Date(opts.startTime.getTime() - 1000),
+        ),
+      ),
+    )
+    .where(
+      "e.start_time",
+      "<=",
+      dateTimeParam(
+        convertDateToClickhouseDateTime(
+          new Date(opts.startTime.getTime() + 1000),
+        ),
+      ),
+    )
+    .orderBy("e.event_ts", "desc")
+    .limit(lit<number>(sql`1`));
+
+  return compileClickhouseQuery(query, ctx);
 }
 
 /**
@@ -3015,16 +3072,13 @@ function observationIOReadParams(opts: ObservationIOReadOpts) {
 export const getObservationIOFieldByteLengthFromEventsTable = async (
   opts: ObservationIOReadOpts,
 ): Promise<number | null> => {
-  const query = `
-    SELECT length(${OBSERVATION_IO_FIELD_SELECT[opts.field]}) AS len
-    FROM events_full e
-    ${OBSERVATION_IO_WHERE}
-    ORDER BY e.event_ts DESC
-    LIMIT 1
-  `;
+  const { sql: query, params } = compileObservationIOFieldRead(
+    opts,
+    (field) => `length(${field}) AS len`,
+  );
   const rows = await queryClickhouse<{ len: string }>({
     query,
-    params: observationIOReadParams(opts),
+    params,
     tags: { projectId: opts.projectId, route: "observation-io-stream-length" },
     preferredClickhouseService: "EventsReadOnly",
   });
@@ -3053,20 +3107,17 @@ export const getObservationIOFieldByteLengthFromEventsTable = async (
 export const streamObservationIOFieldFromEventsTable = (
   opts: ObservationIOReadOpts,
 ) => {
-  const query = `
-    SELECT ${OBSERVATION_IO_FIELD_SELECT[opts.field]} AS field
-    FROM events_full e
-    ${OBSERVATION_IO_WHERE}
-    ORDER BY e.event_ts DESC
-    LIMIT 1
-  `;
+  const { sql: query, params } = compileObservationIOFieldRead(
+    opts,
+    (field) => `${field} AS field`,
+  );
 
   // FORMAT RawBLOB emits the selected String column's bytes with no escaping or
   // delimiters; with LIMIT 1 that is exactly this observation's field value.
   return queryClickhouseExecRaw({
     query,
     format: "RawBLOB",
-    params: observationIOReadParams(opts),
+    params,
     tags: {
       projectId: opts.projectId,
       route: "observation-io-stream",
@@ -3100,23 +3151,39 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const minTimestamp = new Date(opts.startTime.getTime() - 1000);
   const maxTimestamp = new Date(opts.startTime.getTime() + 1000);
 
-  const query = `
-    SELECT
-      e.span_id as id,
-      e.input as input,
-      e.output as output,
-      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata
-    FROM events_full e
-    WHERE e.project_id = {projectId: String}
-      AND e.session_id = {sessionId: String}
-      AND xxHash32(e.trace_id) = xxHash32({traceId: String})
-      AND e.trace_id = {traceId: String}
-      AND e.span_id = {observationId: String}
-      AND e.start_time >= {minTimestamp: DateTime64(3)}
-      AND e.start_time <= {maxTimestamp: DateTime64(3)}
-    ORDER BY e.event_ts DESC
-    LIMIT 1
-  `;
+  const db = getClickhouseKysely();
+  const ctx: ExecutionContext = { projectId: opts.projectId };
+  const builder = db
+    .selectFrom("events_full as e")
+    .select([
+      sql`e.span_id`.as("id"),
+      sql`e.input`.as("input"),
+      sql`e.output`.as("output"),
+      sql.raw(EVENTS_METADATA_MAP_SQL).as("metadata"),
+    ] as never)
+    .where("e.session_id", "=", opts.sessionId)
+    .where((eb) =>
+      eb(
+        eb.fn("xxHash32", ["e.trace_id"]),
+        "=",
+        eb.fn("xxHash32", [eb.val(opts.traceId)]),
+      ),
+    )
+    .where("e.trace_id", "=", opts.traceId)
+    .where("e.span_id", "=", opts.observationId)
+    .where(
+      "e.start_time",
+      ">=",
+      dateTimeParam(convertDateToClickhouseDateTime(minTimestamp)),
+    )
+    .where(
+      "e.start_time",
+      "<=",
+      dateTimeParam(convertDateToClickhouseDateTime(maxTimestamp)),
+    )
+    .orderBy("e.event_ts", "desc")
+    .limit(lit<number>(sql`1`));
+  const { sql: query, params } = compileClickhouseQuery(builder, ctx);
 
   const rows = await queryClickhouse<{
     id: string;
@@ -3125,14 +3192,7 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
     metadata: Record<string, string>;
   }>({
     query,
-    params: {
-      projectId: opts.projectId,
-      sessionId: opts.sessionId,
-      traceId: opts.traceId,
-      observationId: opts.observationId,
-      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-    },
+    params,
     tags: { projectId: opts.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });

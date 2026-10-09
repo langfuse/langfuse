@@ -1,3 +1,4 @@
+import { TupleParam } from "@clickhouse/client";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
@@ -93,6 +94,27 @@ describe("typed params from the column registry", () => {
     );
     expect(sql).toMatch(/limit \{p\d+:Int64\}/);
     expect(sql).not.toMatch(/limit \{p\d+:String\}/);
+  });
+
+  it("binds a TupleParam list as Array(Tuple(...)) for a tuple IN", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where((eb) =>
+          eb(
+            eb.refTuple("e.trace_id", "e.span_id"),
+            "in",
+            eb.val([new TupleParam(["t1", "s1"])]) as never,
+          ),
+        ),
+    );
+    expect(sql).toMatch(
+      /\(e\.trace_id, e\.span_id\) in \{p\d+:Array\(Tuple\(String, String\)\)\}/,
+    );
+    expect(Object.values(params)).toContainEqual([
+      new TupleParam(["t1", "s1"]),
+    ]);
   });
 
   it("interns the same typed value to one placeholder across UNION branches", () => {
