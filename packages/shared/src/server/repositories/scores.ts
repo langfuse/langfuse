@@ -138,16 +138,19 @@ export const getScoreById = async ({
   projectId,
   scoreId,
   source,
+  preferredClickhouseService,
 }: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<ScoreDomain | undefined> => {
   return _handleGetScoreById({
     projectId,
     scoreId,
     source,
     scoreScope: "all",
+    preferredClickhouseService,
   });
 };
 
@@ -2839,6 +2842,7 @@ export const getScoreMetadataById = async (
       ...(source !== undefined ? { source } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows
