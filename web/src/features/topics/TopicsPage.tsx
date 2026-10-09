@@ -13,7 +13,6 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   TABLE_AGGREGATION_OPTIONS,
   TIME_RANGES,
-  toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -54,9 +53,9 @@ import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { resolveTopicFacetId } from "./topic-facet-selection";
-import { isValidTopicTimeRange, relativeTopicTimeRange } from "./time-range";
+import { isValidTopicTimeRange } from "./time-range";
 
-const maxTimeRangeMs = 93 * 24 * 60 * 60 * 1000;
+const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
 const sharedTimeRangePresets = [
   ...new Set([...TABLE_AGGREGATION_OPTIONS, ...DASHBOARD_AGGREGATION_OPTIONS]),
 ].sort((a, b) => TIME_RANGES[a].minutes - TIME_RANGES[b].minutes);
@@ -187,15 +186,39 @@ function TopicsWorkspaceView({
           : [],
     ),
   );
-  const currentTimeRange = useMemo(() => {
-    const range = toAbsoluteTimeRange(timeRange) ?? relativeTopicTimeRange(7);
-    if ("from" in timeRange) return range;
-    const rangeEnd = Math.max(range.to.getTime(), completedAt, refreshedAt);
-    return {
-      from: new Date(rangeEnd - (range.to.getTime() - range.from.getTime())),
-      to: new Date(rangeEnd),
-    };
-  }, [timeRange, completedAt, refreshedAt]);
+  const { currentTimeRange, effectiveTimeRange, isTimeRangeCapped } =
+    useMemo(() => {
+      const to =
+        "from" in timeRange
+          ? timeRange.to
+          : new Date(Math.max(Date.now(), completedAt, refreshedAt));
+      const from =
+        "from" in timeRange
+          ? timeRange.from
+          : new Date(
+              to.getTime() -
+                (TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES]
+                  .minutes ?? TIME_RANGES.last7Days.minutes) *
+                  60_000,
+            );
+      const isTimeRangeCapped = to.getTime() - from.getTime() > maxTimeRangeMs;
+      const currentTimeRange = {
+        from: isTimeRangeCapped
+          ? new Date(to.getTime() - maxTimeRangeMs)
+          : from,
+        to,
+      };
+      let effectiveTimeRange = timeRange;
+      if (isTimeRangeCapped) {
+        effectiveTimeRange =
+          "from" in timeRange ? currentTimeRange : { range: "last90Days" };
+      }
+      return {
+        currentTimeRange,
+        effectiveTimeRange,
+        isTimeRangeCapped,
+      };
+    }, [timeRange, completedAt, refreshedAt]);
   const validTimeRange = isValidTopicTimeRange(currentTimeRange);
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
@@ -319,7 +342,7 @@ function TopicsWorkspaceView({
     >
       <PageHeaderControlsPortal>
         <TimeRangePicker
-          timeRange={timeRange}
+          timeRange={effectiveTimeRange}
           onTimeRangeChange={setTimeRange}
           timeRangePresets={topicsTimeRangePresets}
           maxRangeMs={maxTimeRangeMs}
@@ -328,8 +351,16 @@ function TopicsWorkspaceView({
         />
       </PageHeaderControlsPortal>
       <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+        {isTimeRangeCapped && (
+          <p role="status" className="text-muted-foreground shrink-0 text-xs">
+            {"from" in timeRange
+              ? "Showing the final 90 days of your selected range."
+              : "Showing the last 90 days."}{" "}
+            Your selection is preserved on other pages.
+          </p>
+        )}
         {!validTimeRange && (
-          <ErrorMessage message="Select a time range of at most 93 days." />
+          <ErrorMessage message="Select a time range of at most 90 days." />
         )}
         {error && <ErrorMessage message={error} />}
         {configuration}

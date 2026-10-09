@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
   pipeline: vi.fn(),
+  picker: vi.fn(),
 }));
 
 vi.mock("use-query-params", () => ({
@@ -26,15 +27,17 @@ vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
   PageHeaderControlsPortal: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/src/components/date-picker", () => ({
-  TimeRangePicker: ({
-    onTimeRangeChange,
-  }: {
+  TimeRangePicker: (props: {
+    timeRange: TimeRange;
     onTimeRangeChange: (range: TimeRange) => void;
-  }) => (
-    <button onClick={() => onTimeRangeChange({ range: "last30Days" })}>
-      Select last 30 days
-    </button>
-  ),
+  }) => {
+    state.picker(props.timeRange);
+    return (
+      <button onClick={() => props.onTimeRangeChange({ range: "last30Days" })}>
+        Select last 30 days
+      </button>
+    );
+  },
 }));
 vi.mock("next/router", () => ({
   useRouter: () => ({
@@ -210,6 +213,97 @@ it("keeps a URL custom range fixed when an execution completes", () => {
     expect.objectContaining({ timeRange }),
   );
 });
+
+it.each(["stored", "URL"])(
+  "caps an inherited one-year %s range without changing the shared selection",
+  (source) => {
+    useGlobalDateRangeStore
+      .getState()
+      .actions.setProjectDefault("project", "1y");
+    state.dateRange = source === "URL" ? "1y" : undefined;
+    render(<TopicsPage />);
+
+    const { timeRange } = state.currentTopics.mock.lastCall![0];
+    expect(timeRange).toEqual({
+      from: new Date(Date.now() - 90 * 86_400_000),
+      to: new Date(),
+    });
+    expect(state.picker).toHaveBeenLastCalledWith({ range: "last90Days" });
+    expect(state.pipeline).toHaveBeenLastCalledWith(
+      expect.objectContaining({ timeRange }),
+    );
+    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your selection is preserved on other pages.",
+    );
+    expect(state.setQueryParams).not.toHaveBeenCalled();
+    expect(state.dateRange).toBe(source === "URL" ? "1y" : undefined);
+    expect(useGlobalDateRangeStore.getState().defaultsByProject.project).toBe(
+      "1y",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select last 30 days" }),
+    );
+    expect(state.dateRange).toBe("30d");
+    expect(useGlobalDateRangeStore.getState().defaultsByProject.project).toBe(
+      "30d",
+    );
+    expect(state.picker).toHaveBeenLastCalledWith({ range: "last30Days" });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  },
+);
+
+it("caps a custom range at its original end and preserves its URL through completion", () => {
+  const requested = {
+    from: new Date("2026-03-01T12:34:00Z"),
+    to: new Date("2026-09-02T15:45:00Z"),
+  };
+  const expected = {
+    from: new Date(requested.to.getTime() - 90 * 86_400_000),
+    to: requested.to,
+  };
+  state.dateRange = rangeToString(requested);
+  state.status = "running";
+  const view = render(<TopicsPage />);
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ timeRange: expected }),
+  );
+  expect(state.picker).toHaveBeenLastCalledWith(expected);
+  expect(state.pipeline).toHaveBeenLastCalledWith(
+    expect.objectContaining({ timeRange: expected }),
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "final 90 days of your selected range",
+  );
+
+  state.status = "completed";
+  view.rerender(<TopicsPage />);
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ timeRange: expected }),
+  );
+  expect(state.setQueryParams).not.toHaveBeenCalled();
+  expect(state.dateRange).toBe(rangeToString(requested));
+  expect(useGlobalDateRangeStore.getState().defaultsByProject).toEqual({});
+});
+
+it.each([
+  { range: "last90Days" },
+  {
+    from: new Date("2026-04-01T15:45:00Z"),
+    to: new Date(new Date("2026-04-01T15:45:00Z").getTime() + 90 * 86_400_000),
+  },
+] satisfies TimeRange[])(
+  "leaves an exact 90-day range unchanged: %j",
+  (timeRange) => {
+    state.dateRange = rangeToString(timeRange);
+    render(<TopicsPage />);
+    expect(state.picker).toHaveBeenLastCalledWith(timeRange);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(state.setQueryParams).not.toHaveBeenCalled();
+    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+  },
+);
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
