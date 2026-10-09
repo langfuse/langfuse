@@ -484,7 +484,7 @@ function JsonPrettyTable({
         : null;
 
     return (
-      <div className="flex w-max max-w-[40cqw] min-w-[min(10rem,40cqw)] items-start gap-1 text-xs/5 wrap-break-word">
+      <div className="flex w-max max-w-[40cqw] min-w-40 items-start gap-1 text-xs/5 wrap-break-word">
         <div
           className="flex h-[1lh] shrink-0 items-center justify-end"
           style={{ width: `${indentationWidth}px` }}
