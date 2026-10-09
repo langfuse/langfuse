@@ -120,6 +120,7 @@ async function materialize(
     principal,
     policies: roles.flatMap((role) => role.policies),
   };
+  /** @deprecated Public bearer authentication will be removed in the next major version. */
   if (authorization === "publicKey") {
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
