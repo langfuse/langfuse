@@ -45,7 +45,7 @@ export function EvaluatorGallerySidebar({
               className={cn(
                 "font-regular h-8 justify-start px-3",
                 isActive
-                  ? "hover:bg-secondary"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent"
                   : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
               aria-current={isActive ? "page" : undefined}
