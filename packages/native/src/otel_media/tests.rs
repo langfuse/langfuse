@@ -1,7 +1,7 @@
 use super::encoding::BASE64;
 use super::payload::{EarlyMediaError, MediaEncoding, MediaPayloadKind, MediaSource};
-use super::rules::{may_contain_media_candidate, MEDIA_REFERENCE_PREFIX};
-use super::scanner::{discover_measured, media_identity_from_encoded, MIN_EARLY_MEDIA_BYTES};
+use super::rules::{may_contain_media_candidate, MEDIA_REFERENCE_PREFIX, MIN_EARLY_MEDIA_BYTES};
+use super::scanner::{discover_measured, media_identity_from_encoded};
 use super::{extract_media, validate};
 use base64::Engine;
 use proptest::prelude::*;

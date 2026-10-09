@@ -1,18 +1,31 @@
-//! JSON lexical validation and byte-range helpers.
+//! Check JSON syntax and locate byte boundaries within JSON text.
+//!
+//! Validation checks the entire document without constructing its objects or arrays.
+//! The structural walk uses Jiter to traverse those bytes and skips trailing whitespace here.
+//!
+//! ```text
+//! payload::validate
+//!   `-- validate_json         jiter skip/finish; borrowed RawValue if that fails
+//!        -> success/error    source bytes stay unchanged here
+//!
+//! structural_walk
+//!   `-- skip_whitespace      advance to the next token after Jiter's walk
+//! ```
+
+use std::borrow::Cow;
+use std::ops::Range;
 
 use jiter::Jiter;
-use memchr::memchr2;
 use serde::Deserialize;
 use serde_json::value::RawValue;
 
-use super::encoding::hex_digit;
 use super::payload::EarlyMediaError;
 
 /// Validate one complete JSON value without building a JSON tree.
 ///
-/// The fast path skips strings and numbers. Inputs outside its limits use the
-/// `RawValue` fallback, which still borrows the value instead of materializing
-/// a tree; neither path calls back into JavaScript.
+/// The fast path uses jiter's skip parser. If it cannot validate the input, the
+/// `RawValue` fallback checks a borrowed value instead of materializing a tree;
+/// neither path calls back into JavaScript.
 pub(super) fn validate_json(text: &str) -> Result<(), EarlyMediaError> {
     let mut cursor = Jiter::new(text.as_bytes());
     if cursor.next_skip().is_ok() && cursor.finish().is_ok() {
@@ -60,74 +73,25 @@ fn serde_error_offset(input: &[u8], error: &serde_json::Error) -> usize {
         .min(input.len())
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum UnicodeEscapeError {
-    Invalid(&'static str),
-    UnsupportedSurrogate,
-}
-
-pub(super) fn parse_unicode_escape(
-    input: &[u8],
-    slash: usize,
-) -> Result<(usize, char), UnicodeEscapeError> {
-    let digits = input
-        .get(slash + 2..slash + 6)
-        .ok_or(UnicodeEscapeError::Invalid("short unicode escape"))?;
-    let high = digits
-        .iter()
-        .try_fold(0u32, |value, digit| {
-            hex_digit(*digit).map(|digit| value * 16 + u32::from(digit))
-        })
-        .ok_or(UnicodeEscapeError::Invalid("invalid unicode escape"))?;
-    if (0xD800..=0xDBFF).contains(&high) {
-        if input.get(slash + 6..slash + 8) != Some(b"\\u") {
-            return Err(UnicodeEscapeError::UnsupportedSurrogate);
-        }
-        let low_digits = input
-            .get(slash + 8..slash + 12)
-            .ok_or(UnicodeEscapeError::Invalid("short unicode surrogate"))?;
-        let low = low_digits
-            .iter()
-            .try_fold(0u32, |value, digit| {
-                hex_digit(*digit).map(|digit| value * 16 + u32::from(digit))
-            })
-            .ok_or(UnicodeEscapeError::Invalid("invalid unicode surrogate"))?;
-        if !(0xDC00..=0xDFFF).contains(&low) {
-            return Err(UnicodeEscapeError::UnsupportedSurrogate);
-        }
-        let scalar = 0x10000 + ((high - 0xD800) << 10) + low - 0xDC00;
-        return char::from_u32(scalar)
-            .map(|character| (slash + 12, character))
-            .ok_or(UnicodeEscapeError::Invalid("invalid unicode scalar"));
-    }
-    if (0xDC00..=0xDFFF).contains(&high) {
-        return Err(UnicodeEscapeError::UnsupportedSurrogate);
-    }
-    char::from_u32(high)
-        .map(|character| (slash + 6, character))
-        .ok_or(UnicodeEscapeError::Invalid("invalid unicode scalar"))
-}
-
-/// Return the end of a validated JSON string token without decoding escapes.
-pub(super) fn string_end(input: &[u8], start: usize) -> usize {
-    let mut cursor = start + 1;
-    while cursor < input.len() {
-        let Some(relative) = memchr2(b'"', b'\\', &input[cursor..]) else {
-            return input.len();
-        };
-        cursor += relative;
-        match input[cursor] {
-            b'\\' => cursor = cursor.saturating_add(2),
-            b'"' => return cursor + 1,
-            _ => unreachable!("memchr2 only returns a quote or backslash"),
-        }
-    }
-    input.len()
-}
-
 pub(super) fn skip_whitespace(input: &[u8], mut cursor: usize) -> usize {
     while matches!(input.get(cursor), Some(b' ' | b'\n' | b'\r' | b'\t')) {
         cursor += 1;
     }
     cursor
+}
+
+pub(super) fn decode_json_string<'a>(
+    input: &'a [u8],
+    token_range: Range<usize>,
+) -> Option<Cow<'a, str>> {
+    let raw = input.get(token_range.start + 1..token_range.end.checked_sub(1)?)?;
+    if !raw.contains(&b'\\') {
+        return std::str::from_utf8(raw).ok().map(Cow::Borrowed);
+    }
+    let token = input.get(token_range)?;
+    let mut jiter = Jiter::new(token);
+    jiter
+        .next_str()
+        .ok()
+        .map(|value| Cow::Owned(value.to_owned()))
 }
