@@ -445,7 +445,14 @@ export const supportCopilotRefundLoopFixture = {
               startTime: new Date("2026-08-31T12:33:17.441Z"),
               endTime: new Date("2026-08-31T12:33:18.118Z"),
               traceId,
-              parts: [{ type: "data", value: charges }],
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: findChargesToolCallId,
+                  toolName: "stripe_find_charges",
+                  output: charges,
+                },
+              ],
             },
             {
               role: "assistant",
@@ -471,7 +478,14 @@ export const supportCopilotRefundLoopFixture = {
               startTime: new Date("2026-08-31T12:33:19.978Z"),
               endTime: new Date("2026-08-31T12:33:20.893Z"),
               traceId,
-              parts: [{ type: "data", value: refund }],
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: createRefundToolCallId,
+                  toolName: "stripe_create_refund",
+                  output: refund,
+                },
+              ],
             },
             {
               role: "assistant",
