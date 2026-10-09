@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { expect, fn } from "storybook/test";
+import { expect, fireEvent, fn } from "storybook/test";
 import {
   type OnChangeFn,
   type PaginationState,
@@ -18,6 +18,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   resolveRowHeightRendering,
   useRowHeightRendering,
+  type CustomHeights,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Badge } from "@/src/components/ui/badge";
@@ -1530,3 +1531,486 @@ export const TestManualIOCellBackground = meta.story({
     await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
   },
 });
+
+function ResizeProbeCell({ rowIndex }: ResizeProbeCellProps) {
+  const rendering = useRowHeightRendering();
+  const counts = useRef({ renders: 0, commits: 0 });
+  const element = useRef<HTMLSpanElement>(null);
+  counts.current.renders += 1;
+  useEffect(() => {
+    counts.current.commits += 1;
+    element.current?.setAttribute(
+      "data-commit-count",
+      String(counts.current.commits),
+    );
+  });
+  return (
+    <span
+      ref={element}
+      data-testid={`resize-probe-${rowIndex}`}
+      data-render-count={counts.current.renders}
+    >
+      {rendering?.compact ? "compact" : "expanded"}
+    </span>
+  );
+}
+
+const resizeStoryColumns: LangfuseColumnDef<ResizeStoryRow>[] = [
+  {
+    accessorKey: "mode",
+    id: "mode",
+    header: "Cell rendering",
+    cell: ({ row }) => <ResizeProbeCell rowIndex={row.index} />,
+  },
+  { accessorKey: "value", header: "Value" },
+  { accessorKey: "status", header: "Status" },
+];
+
+function RowHeightLifecycleStory({
+  rowHeight = "s",
+  customRowHeights,
+  customRowHeightPx,
+  onCustomRowHeightChange,
+  initialRowCount = 2,
+}: RowHeightLifecycleStoryProps) {
+  const [rows, setRows] = useState<ResizeStoryRow[]>(() =>
+    [
+      { id: "first", value: "First value", status: "Ready", mode: 0 },
+      { id: "following", value: "Following value", status: "Ready", mode: 1 },
+    ].slice(0, initialRowCount),
+  );
+  const [loading, setLoading] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
+  const [presets, setPresets] = useState(customRowHeights);
+  const [heightPx, setHeightPx] = useState<number | undefined>(
+    customRowHeightPx ?? undefined,
+  );
+  const handleValuesRefresh = () => {
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        value: `${row.value} loaded`,
+      })),
+    );
+  };
+  const handleFirstRowReplacement = () => {
+    setRows((current) =>
+      current.map((row, index) =>
+        index === 0 ? { ...row, id: `${row.id}-replacement` } : row,
+      ),
+    );
+  };
+  const handleFollowingRowReplacement = () => {
+    setRows((current) =>
+      current.map((row, index) =>
+        index === 1 ? { ...row, id: `${row.id}-replacement` } : row,
+      ),
+    );
+  };
+  const handleFollowingRowAppend = () => {
+    setRows((current) => [
+      ...current,
+      { id: "following", value: "Following value", status: "Ready", mode: 1 },
+    ]);
+  };
+  const handleLoadingToggle = () => setLoading((current) => !current);
+  const handleShowStatus = () => setShowStatus(true);
+  const handlePresetsRefresh = () =>
+    setPresets((current) => current && { ...current });
+  const handleHeightCommit = (next: number) => {
+    setHeightPx(next);
+    onCustomRowHeightChange?.(next);
+  };
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button onClick={handleValuesRefresh}>Refresh values</Button>
+        <Button onClick={handleFirstRowReplacement}>Replace first row</Button>
+        <Button onClick={handleFollowingRowReplacement}>
+          Replace following row
+        </Button>
+        <Button onClick={handleFollowingRowAppend} disabled={rows.length > 1}>
+          Append following row
+        </Button>
+        <Button onClick={handleLoadingToggle}>
+          {loading ? "Finish loading" : "Start loading"}
+        </Button>
+        <Button onClick={handleShowStatus}>Show status</Button>
+        <Button onClick={handlePresetsRefresh}>Refresh presets</Button>
+      </div>
+      <DataTable<ResizeStoryRow, unknown>
+        tableName="story-row-height-lifecycle"
+        columns={resizeStoryColumns}
+        data={{ isLoading: loading, isError: false, data: rows }}
+        columnVisibility={{ status: showStatus }}
+        hidePagination
+        rowHeight={rowHeight}
+        customRowHeights={presets}
+        customRowHeightPx={heightPx}
+        onCustomRowHeightChange={handleHeightCommit}
+      />
+    </>
+  );
+}
+
+const settleResize = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
+async function pointAtResizeHandle(
+  handle: HTMLElement,
+  type: string,
+  clientY: number,
+  pointerId = 1,
+) {
+  fireEvent(
+    handle,
+    new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      pointerId,
+      clientY,
+    }),
+  );
+  await settleResize();
+}
+
+function resizeFrames(canvasElement: HTMLElement, rowIndex: number) {
+  return Array.from(
+    canvasElement.querySelectorAll<HTMLElement>(
+      `tr[data-row-index="${rowIndex}"] [data-row-height]`,
+    ),
+  );
+}
+
+function resizeProbeCounts(canvasElement: HTMLElement, rowIndex: number) {
+  const probe = canvasElement.querySelector<HTMLElement>(
+    `[data-testid="resize-probe-${rowIndex}"]`,
+  );
+  if (!probe) throw new globalThis.Error(`Missing row ${rowIndex} probe`);
+  return {
+    renders: Number(probe.dataset.renderCount),
+    commits: Number(probe.dataset.commitCount),
+  };
+}
+
+function expectResizeHeight(
+  canvasElement: HTMLElement,
+  rowIndex: number,
+  px: number,
+) {
+  const frames = resizeFrames(canvasElement, rowIndex);
+  expect(frames.length).toBeGreaterThan(0);
+  for (const frame of frames) expect(frame).toHaveStyle({ height: `${px}px` });
+}
+
+export const PixelResizeKeepsCellsMounted = meta.story({
+  name: "(Test) Pixel Resize Keeps Cells Mounted",
+  args: { rowHeight: "m", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ canvas, canvasElement }) => {
+    await settleResize();
+    const before = [0, 1].map((index) =>
+      resizeProbeCounts(canvasElement, index),
+    );
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    await pointAtResizeHandle(handle, "pointerdown", 100);
+    for (const y of [101, 108, 116, 124, 140]) {
+      await pointAtResizeHandle(handle, "pointermove", y);
+    }
+    expect(
+      [0, 1].map((index) => resizeProbeCounts(canvasElement, index)),
+    ).toEqual(before);
+    expectResizeHeight(canvasElement, 0, 136);
+    expectResizeHeight(canvasElement, 1, 96);
+    await pointAtResizeHandle(handle, "pointercancel", 140);
+  },
+});
+
+export const MediumBoundaryUpdatesOnlyResizedRow = meta.story({
+  name: "(Test) Medium Boundary Updates Only Resized Row",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ canvas, canvasElement }) => {
+    await settleResize();
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    await pointAtResizeHandle(handle, "pointerdown", 0);
+    for (const [y, mode] of [
+      [68, "expanded"],
+      [67, "compact"],
+    ] as const) {
+      const before = [0, 1].map((index) =>
+        resizeProbeCounts(canvasElement, index),
+      );
+      await pointAtResizeHandle(handle, "pointermove", y);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(mode);
+      expect(canvas.getByTestId("resize-probe-1")).toHaveTextContent("compact");
+      expect(resizeProbeCounts(canvasElement, 0)).toEqual({
+        renders: before[0].renders + 1,
+        commits: before[0].commits + 1,
+      });
+      expect(resizeProbeCounts(canvasElement, 1)).toEqual(before[1]);
+      const after = resizeProbeCounts(canvasElement, 0);
+      await pointAtResizeHandle(handle, "pointermove", y);
+      expect(resizeProbeCounts(canvasElement, 0)).toEqual(after);
+      expect(resizeProbeCounts(canvasElement, 1)).toEqual(before[1]);
+    }
+    await pointAtResizeHandle(handle, "pointercancel", 67);
+  },
+});
+
+export const EquivalentRefreshKeepsResizeActive = meta.story({
+  name: "(Test) Equivalent Refresh Keeps Resize Active",
+  args: {
+    rowHeight: "s",
+    customRowHeights: {
+      s: "h-48",
+      m: "h-64",
+      l: "h-96",
+    } satisfies CustomHeights,
+    onCustomRowHeightChange: fn(),
+  },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    const frames = resizeFrames(canvasElement, 0);
+    await pointAtResizeHandle(handle, "pointerdown", 0);
+    await pointAtResizeHandle(handle, "pointermove", 100);
+    for (const button of ["Refresh values", "Refresh presets"]) {
+      await userEvent.click(canvas.getByRole("button", { name: button }));
+      await settleResize();
+      expect(canvas.getByRole("slider", { name: "Row height" })).toBe(handle);
+      resizeFrames(canvasElement, 0).forEach((frame, index) =>
+        expect(frame).toBe(frames[index]),
+      );
+      expectResizeHeight(canvasElement, 0, 292);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(
+        "expanded",
+      );
+    }
+    expect(canvas.getByText("First value loaded")).toBeVisible();
+    await pointAtResizeHandle(handle, "pointermove", 160);
+    expectResizeHeight(canvasElement, 0, 352);
+    await pointAtResizeHandle(handle, "pointerup", 160);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledWith(352);
+  },
+});
+
+export const MembershipChangesCancelResize = meta.story({
+  name: "(Test) Row Column And Loading Changes Cancel Resize",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    for (const button of [
+      "Replace first row",
+      "Show status",
+      "Start loading",
+    ]) {
+      const oldHandle = canvas.getByRole("slider", { name: "Row height" });
+      const oldFrames = resizeFrames(canvasElement, 0);
+      await pointAtResizeHandle(oldHandle, "pointerdown", 0);
+      await pointAtResizeHandle(oldHandle, "pointermove", 100);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(
+        "expanded",
+      );
+      await userEvent.click(canvas.getByRole("button", { name: button }));
+      if (button === "Start loading") {
+        expect(oldHandle).not.toBeInTheDocument();
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Finish loading" }),
+        );
+      }
+      await settleResize();
+      const handle = canvas.getByRole("slider", { name: "Row height" });
+      if (button !== "Show status") {
+        expect(handle).not.toBe(oldHandle);
+        expect(resizeFrames(canvasElement, 0)[0]).not.toBe(oldFrames[0]);
+      } else {
+        expect(resizeFrames(canvasElement, 0)).toHaveLength(
+          oldFrames.length + 1,
+        );
+      }
+      expectResizeHeight(canvasElement, 0, 28);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("compact");
+      await pointAtResizeHandle(handle, "pointermove", 160);
+      await pointAtResizeHandle(handle, "pointerup", 160);
+      expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+      expectResizeHeight(canvasElement, 0, 28);
+    }
+  },
+});
+
+export const CanceledPointersRestoreRowHeight = meta.story({
+  name: "(Test) Canceled Pointers Restore Row Height",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    for (const eventType of ["pointercancel", "lostpointercapture"]) {
+      await pointAtResizeHandle(handle, "pointerdown", 0);
+      await pointAtResizeHandle(handle, "pointermove", 100);
+      expectResizeHeight(canvasElement, 0, 128);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(
+        "expanded",
+      );
+      await pointAtResizeHandle(handle, eventType, 100);
+      expectResizeHeight(canvasElement, 0, 28);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("compact");
+      expect(handle).toHaveAttribute("aria-valuenow", "28");
+      expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+      await pointAtResizeHandle(handle, "pointerup", 100);
+      expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+    }
+  },
+});
+
+export const OverlappingPointersKeepFirstResize = meta.story({
+  name: "(Test) Overlapping Pointers Keep First Resize",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement }) => {
+    const first = canvas.getByRole("slider", { name: "Row height" });
+    const second = canvasElement.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="last"]',
+    );
+    if (!second) throw new globalThis.Error("Missing second row handle");
+    await pointAtResizeHandle(first, "pointerdown", 0, 1);
+    await pointAtResizeHandle(first, "pointermove", 100, 1);
+    await pointAtResizeHandle(second, "pointerdown", 0, 2);
+    await pointAtResizeHandle(second, "pointermove", 200, 2);
+    await pointAtResizeHandle(second, "pointerup", 200, 2);
+    expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+    expectResizeHeight(canvasElement, 0, 128);
+    expectResizeHeight(canvasElement, 1, 28);
+    await pointAtResizeHandle(first, "pointerup", 160, 1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledWith(188);
+    expectResizeHeight(canvasElement, 0, 188);
+    expectResizeHeight(canvasElement, 1, 188);
+  },
+});
+
+async function assertLowerHalfHandleRemoval(
+  canvasElement: HTMLElement,
+  previewed: boolean,
+  replaceFollowingRow: () => Promise<void>,
+  onCustomRowHeightChange: DataTableDemoProps["onCustomRowHeightChange"],
+) {
+  const lower = canvasElement.querySelector<HTMLElement>(
+    'tr[data-row-index="1"] [data-row-resize-edge="below"]',
+  );
+  if (!lower) throw new globalThis.Error("Missing lower half handle");
+  const frames = resizeFrames(canvasElement, 0);
+  await pointAtResizeHandle(lower, "pointerdown", 0);
+  if (previewed) await pointAtResizeHandle(lower, "pointermove", 100);
+  await replaceFollowingRow();
+  await settleResize();
+  expect(lower).not.toBeInTheDocument();
+  resizeFrames(canvasElement, 0).forEach((frame, index) =>
+    expect(frame).toBe(frames[index]),
+  );
+  expectResizeHeight(canvasElement, 0, 28);
+  const probe = canvasElement.querySelector('[data-testid="resize-probe-0"]');
+  expect(probe).toHaveTextContent("compact");
+  const handle = canvasElement.querySelector<HTMLElement>(
+    '[role="slider"][aria-label="Row height"]',
+  );
+  if (!handle) throw new globalThis.Error("Missing row height slider");
+  await pointAtResizeHandle(handle, "pointerdown", 0, 2);
+  await pointAtResizeHandle(handle, "pointermove", 48, 2);
+  await pointAtResizeHandle(handle, "pointerup", 48, 2);
+  expect(onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+  expect(onCustomRowHeightChange).toHaveBeenCalledWith(76);
+}
+
+export const RemovedLowerHandleReleasesPendingResize = meta.story({
+  name: "(Test) Removed Lower Handle Releases Pending Resize",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    await assertLowerHalfHandleRemoval(
+      canvasElement,
+      false,
+      async () => {
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Replace following row" }),
+        );
+      },
+      args.onCustomRowHeightChange,
+    );
+  },
+});
+
+export const RemovedLowerHandleRollsBackPreview = meta.story({
+  name: "(Test) Removed Lower Handle Rolls Back Preview",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    await assertLowerHalfHandleRemoval(
+      canvasElement,
+      true,
+      async () => {
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Replace following row" }),
+        );
+      },
+      args.onCustomRowHeightChange,
+    );
+  },
+});
+
+export const RemovedKeyboardHandleCancelsResize = meta.story({
+  name: "(Test) Removed Keyboard Handle Cancels Resize",
+  args: {
+    rowHeight: "s",
+    customRowHeightPx: 80,
+    onCustomRowHeightChange: fn(),
+  },
+  render: (args) => <RowHeightLifecycleStory {...args} initialRowCount={1} />,
+  play: async ({ args, canvas, canvasElement }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    const frames = resizeFrames(canvasElement, 0);
+    handle.focus();
+    fireEvent.keyDown(handle, { key: "ArrowDown" });
+    await settleResize();
+    expectResizeHeight(canvasElement, 0, 96);
+    expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("expanded");
+    fireEvent.click(
+      canvas.getByRole("button", { name: "Append following row" }),
+    );
+    await settleResize();
+    expect(handle).not.toBeInTheDocument();
+    resizeFrames(canvasElement, 0).forEach((frame, index) =>
+      expect(frame).toBe(frames[index]),
+    );
+    expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+    expectResizeHeight(canvasElement, 0, 80);
+    expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("compact");
+    const replacement = canvas.getByRole("slider", { name: "Row height" });
+    await pointAtResizeHandle(replacement, "pointerdown", 0, 2);
+    await pointAtResizeHandle(replacement, "pointermove", 48, 2);
+    await pointAtResizeHandle(replacement, "pointerup", 48, 2);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledWith(128);
+  },
+});
+
+type ResizeStoryRow = {
+  id: string;
+  value: string;
+  status: string;
+  mode: number;
+};
+
+type ResizeProbeCellProps = { rowIndex: number };
+
+type RowHeightLifecycleStoryProps = Pick<
+  DataTableDemoProps,
+  | "rowHeight"
+  | "customRowHeights"
+  | "customRowHeightPx"
+  | "onCustomRowHeightChange"
+> & { initialRowCount?: number };
