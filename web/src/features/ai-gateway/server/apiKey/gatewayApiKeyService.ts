@@ -31,6 +31,7 @@ export class GatewayApiKeyService {
     organizationId: string;
     name?: string;
     metadata: GatewayMetadata;
+    expiresAt?: Date | null;
     session: OrgAuthedContext["session"];
   }) {
     const key = await this.prisma.$transaction(async (tx) => {
@@ -39,6 +40,7 @@ export class GatewayApiKeyService {
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId(params.session.user.id),
         name: params.name,
+        expiresAt: params.expiresAt,
       });
       await tx.gatewayApiKeyAssociation.create({
         data: {
@@ -59,6 +61,7 @@ export class GatewayApiKeyService {
           publicKey: key.publicKey,
           displaySecretKey: key.displaySecretKey,
           note: key.note,
+          expiresAt: params.expiresAt ?? null,
         },
       },
       this.prisma,

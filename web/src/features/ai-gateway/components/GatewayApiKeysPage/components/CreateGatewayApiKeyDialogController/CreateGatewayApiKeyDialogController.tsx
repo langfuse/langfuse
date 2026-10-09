@@ -18,7 +18,20 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
+import {
+  expiryPresetOptions,
+  localDateInputValue,
+  resolveExpiresAt,
+  type ExpiryPreset,
+} from "@/src/features/public-api/components/apiKeyFormOptions";
 import {
   api,
   reportNonTrpcError,
@@ -39,6 +52,8 @@ export function CreateGatewayApiKeyDialogController({
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const [name, setName] = useState("");
+  const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>("never");
+  const [customExpiry, setCustomExpiry] = useState("");
   const [metadata, setMetadata] = useState<MetadataField[]>(() => [
     { id: 1, key: "", value: "" },
   ]);
@@ -56,6 +71,8 @@ export function CreateGatewayApiKeyDialogController({
 
   const reset = () => {
     setName("");
+    setExpiryPreset("never");
+    setCustomExpiry("");
     setMetadata([{ id: 1, key: "", value: "" }]);
     setIsMetadataOpen(false);
     setGeneratedKeys(null);
@@ -63,8 +80,10 @@ export function CreateGatewayApiKeyDialogController({
   };
 
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
+  const expiresAt = resolveExpiresAt(expiryPreset, customExpiry);
 
   const submit = async () => {
+    if (expiresAt === undefined) return;
     const metadataObject = Object.fromEntries(
       metadata
         .filter((field) => field.key.trim())
@@ -75,6 +94,7 @@ export function CreateGatewayApiKeyDialogController({
         orgId: organizationId,
         name: name.trim() || undefined,
         metadata: metadataObject,
+        expiresAt,
       });
       setGeneratedKeys({
         publicKey: created.publicKey,
@@ -125,6 +145,43 @@ export function CreateGatewayApiKeyDialogController({
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                   />
+                </div>
+                <div>
+                  <Label htmlFor="gateway-key-expiry">Expiration</Label>
+                  <div
+                    className={
+                      expiryPreset === "custom" ? "mt-1.5 flex gap-2" : "mt-1.5"
+                    }
+                  >
+                    <Select
+                      value={expiryPreset}
+                      onValueChange={(value) =>
+                        setExpiryPreset(value as ExpiryPreset)
+                      }
+                    >
+                      <SelectTrigger id="gateway-key-expiry" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {expiryPresetOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {expiryPreset === "custom" ? (
+                      <Input
+                        type="date"
+                        aria-label="Custom expiration date"
+                        min={localDateInputValue(new Date())}
+                        value={customExpiry}
+                        onChange={(event) =>
+                          setCustomExpiry(event.target.value)
+                        }
+                      />
+                    ) : null}
+                  </div>
                 </div>
                 <Collapsible
                   open={isMetadataOpen}
@@ -231,7 +288,7 @@ export function CreateGatewayApiKeyDialogController({
                 </Button>
                 <Button
                   loading={create.isPending}
-                  disabled={create.isPending}
+                  disabled={create.isPending || expiresAt === undefined}
                   onClick={submit}
                 >
                   Create key

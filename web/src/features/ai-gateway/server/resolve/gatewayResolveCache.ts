@@ -104,11 +104,19 @@ export class GatewayResolveCache {
     fastHashedSecretKey: string;
     apiFormat: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
+    expiresAt?: Date | null;
   }) {
     if (!this.enabled) return;
 
     const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
-    const ttl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const configuredTtl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const ttl = params.expiresAt
+      ? Math.min(
+          configuredTtl,
+          Math.floor((params.expiresAt.getTime() - Date.now()) / 1000),
+        )
+      : configuredTtl;
+    if (ttl <= 0) return;
     try {
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
         await this.redis!.set(key, JSON.stringify(params.context), "EX", ttl);
@@ -123,7 +131,7 @@ export class GatewayResolveCache {
         this.redis!.sadd(index, key),
         // The index must outlive its entries, otherwise invalidation can miss a
         // cached key that is still live.
-        this.redis!.expire(index, ttl * 2),
+        this.redis!.expire(index, configuredTtl * 2),
       ]);
     } catch (error) {
       logger.error("Error writing gateway resolve cache", error);
