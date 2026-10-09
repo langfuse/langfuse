@@ -58,13 +58,11 @@ export function RuleFilterStep({
     sourceRules.find(
       ({ evaluationRule }) => evaluationRule.id === previewSourceRuleId,
     ) ?? sourceRules[0];
-  let effectivePreviewFilter = storedPreviewFilter;
-  if (
+  const effectivePreviewFilter =
     selectedSourceRule &&
     selectedSourceRule.evaluationRule.id !== previewSourceRuleId
-  ) {
-    effectivePreviewFilter = selectedSourceRule.evaluationRule.filter;
-  }
+      ? selectedSourceRule.evaluationRule.filter
+      : storedPreviewFilter;
   const previewSearchDraft = useSearchBarDraftCache(
     selectedSourceRule?.evaluationRule.id ?? "incoming",
   );
