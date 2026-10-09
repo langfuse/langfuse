@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import Link from "next/link";
-import { Download, FileCode2, Plus, Trash } from "lucide-react";
+import { Download, FileCode2, Plus, Terminal, Trash } from "lucide-react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
@@ -40,6 +40,7 @@ import {
   skillsFilterConfig,
 } from "../constants/skillsFilterConfig";
 import { ImportSkillsDialog } from "./ImportSkillsDialog";
+import { InstallSkillDialog } from "./InstallSkillDialog";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
@@ -48,41 +49,88 @@ export function SkillsPage() {
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
   const capture = usePostHogClientCapture();
   const newSkillHref = `/project/${projectId}/skills/new`;
+  const filterOptions = api.skills.filterOptions.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId) },
+  );
+
+  const renderHeaderActions = (
+    openDialog: (host: string) => void,
+    closeMenu?: () => void,
+  ) => (
+    <div className="flex max-w-full flex-wrap items-center gap-2">
+      <DesignSystemButton
+        text="Install with CLI"
+        icon={Terminal}
+        variant="secondary"
+        disabled={filterOptions.isPending}
+        onClick={() => {
+          closeMenu?.();
+          openDialog(window.location.origin);
+        }}
+      />
+      <ImportSkillsDialog key={projectId} projectId={projectId}>
+        {(openDialog) => (
+          <DesignSystemButton
+            text="Import"
+            icon={Download}
+            variant="secondary"
+            disabled={!canCreate}
+            onClick={openDialog}
+          />
+        )}
+      </ImportSkillsDialog>
+      <NewSkillButton
+        canCreate={canCreate}
+        href={newSkillHref}
+        onOpen={() => capture("skills:new_form_open")}
+      />
+    </div>
+  );
 
   return (
-    <Page
-      headerProps={{
-        title: "Skills",
-        titleBadges: <InternalFeatureBadge />,
-        help: {
-          description:
-            "Create, version, and distribute reusable agent skills from one place.",
-          href: "https://langfuse.com/docs",
-        },
-        actionButtonsRight: (
-          <div className="flex items-center gap-2">
-            <ImportSkillsDialog key={projectId} projectId={projectId}>
-              {(openDialog) => (
-                <DesignSystemButton
-                  text="Import"
-                  icon={Download}
-                  variant="secondary"
-                  disabled={!canCreate}
-                  onClick={openDialog}
-                />
-              )}
-            </ImportSkillsDialog>
-            <NewSkillButton
-              canCreate={canCreate}
-              href={newSkillHref}
-              onOpen={() => capture("skills:new_form_open")}
-            />
-          </div>
-        ),
-      }}
+    <DialogController<string>
+      renderDialog={({ state: host }) => (
+        <InstallSkillDialog
+          projectId={projectId}
+          initialValues={{
+            by: "tag",
+            name: "",
+            version: null,
+            label: "production",
+            tag: filterOptions.data?.tags[0]?.value ?? "my-tag",
+          }}
+          labels={["production", "latest"]}
+          tags={filterOptions.data?.tags.map((tag) => tag.value) ?? []}
+          host={host}
+        />
+      )}
     >
-      <SkillsList key={projectId} projectId={projectId} canDelete={canCreate} />
-    </Page>
+      {({ openDialog }) => (
+        <Page
+          headerProps={{
+            title: "Skills",
+            titleBadges: <InternalFeatureBadge />,
+            help: {
+              description:
+                "Create, version, and distribute reusable agent skills from one place.",
+              href: "https://langfuse.com/docs",
+            },
+            actionButtonsRight: renderHeaderActions(openDialog),
+            actionButtonsMenu: ({ closeMenu }) =>
+              renderHeaderActions(openDialog, () =>
+                closeMenu({ handoffFocus: true }),
+              ),
+          }}
+        >
+          <SkillsList
+            key={projectId}
+            projectId={projectId}
+            canDelete={canCreate}
+          />
+        </Page>
+      )}
+    </DialogController>
   );
 }
 

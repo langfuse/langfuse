@@ -15,6 +15,7 @@ import {
   TriangleAlert,
   RotateCcw,
   Save,
+  Terminal,
 } from "lucide-react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -24,6 +25,8 @@ import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { InstallSkillDialog } from "@/src/features/skills/components/InstallSkillDialog";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
@@ -110,6 +113,8 @@ export function SkillEditor({
   const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const name = useStore(store, (state) => state.name);
   const baseVersion = useStore(store, (state) => state.baseVersion);
+  const labels = useStore(store, (state) => state.labels);
+  const tags = useStore(store, (state) => state.tags);
   const skillMarkdown = useStore(
     store,
     (state) => state.files["SKILL.md"]?.content,
@@ -340,7 +345,10 @@ export function SkillEditor({
 
   const renderHeaderActions = (
     openDialog: (
-      state: { kind: "save"; createNew: boolean } | { kind: "discard" },
+      state:
+        | { kind: "save"; createNew: boolean }
+        | { kind: "discard" }
+        | { kind: "install"; host: string },
     ) => void,
     closeMenu?: () => void,
   ) => (
@@ -378,6 +386,17 @@ export function SkillEditor({
           )}
           Download
         </Button>
+      ) : null}
+      {!isDraft && baseVersion !== null ? (
+        <DesignSystemButton
+          text="Install with CLI"
+          variant="secondary"
+          icon={Terminal}
+          onClick={() => {
+            closeMenu?.();
+            openDialog({ kind: "install", host: window.location.origin });
+          }}
+        />
       ) : null}
       {nameWarning ? (
         <Tooltip label={nameWarning}>
@@ -457,10 +476,30 @@ export function SkillEditor({
 
   return (
     <DialogController<
-      { kind: "save"; createNew: boolean } | { kind: "discard" }
+      | { kind: "save"; createNew: boolean }
+      | { kind: "discard" }
+      | { kind: "install"; host: string }
     >
-      renderDialog={({ state, closeDialog }) =>
-        state.kind === "discard" ? (
+      renderDialog={({ state, closeDialog }) => {
+        if (state.kind === "install") {
+          if (baseVersion === null) return null;
+          return (
+            <InstallSkillDialog
+              projectId={projectId}
+              initialValues={{
+                by: "name",
+                name,
+                version: baseVersion,
+                label: labels.includes("production") ? "production" : "latest",
+                tag: tags[0] ?? "my-tag",
+              }}
+              labels={labels}
+              tags={tags}
+              host={state.host}
+            />
+          );
+        }
+        return state.kind === "discard" ? (
           <Dialog
             title="Discard draft?"
             text="Your unsaved file changes and commit note will be lost."
@@ -492,8 +531,8 @@ export function SkillEditor({
               if (await save(state.createNew)) closeDialog();
             }}
           />
-        )
-      }
+        );
+      }}
     >
       {({ openDialog }) => (
         <Page
