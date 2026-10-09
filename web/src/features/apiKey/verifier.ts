@@ -63,7 +63,6 @@ export class Verifier {
     const admin = this.verifyAdminKey(token);
     if (admin) return admin;
 
-    /** @deprecated Public bearer authentication will be removed in the next major version. */
     const byPublicKey = await this.verifyPublicKey(token);
     if (byPublicKey) return rejectExpired(byPublicKey);
 
@@ -116,7 +115,9 @@ export class Verifier {
       : null;
   }
 
-  /** verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown. */
+  /** verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown.
+   * @deprecated Public bearer authentication will be removed in the next major version.
+   */
   private async verifyPublicKey(
     token: string,
   ): Promise<VerifyApiKeyResult | null> {
