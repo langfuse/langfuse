@@ -150,13 +150,15 @@ async function backfillApiKeyRoleAssignment(
       tags: [],
     });
   } catch (error) {
-    if (
-      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-      error.code !== "P2002"
-    ) {
-      throw error;
-    }
+    if (!isUniqueConstraintFailedError(error)) throw error;
   }
+}
+
+function isUniqueConstraintFailedError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
 }
 
 /** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there. */
