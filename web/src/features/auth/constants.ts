@@ -7,3 +7,8 @@ export const ENTERPRISE_SSO_REQUIRED_MESSAGE =
 // where it is matched to classify the render as an expected outcome.
 export const MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE =
   "This domain is not associated with this SSO provider.";
+
+// Thrown by the credentials provider when LANGFUSE_REQUIRE_FIPS=true and the
+// stored password is a bcrypt hash, which FIPS mode does not verify.
+export const PASSWORD_RESET_REQUIRED_MESSAGE =
+  'This instance runs in FIPS mode and your password must be reset. Use "forgot password?" to set a new one, or contact your administrator.';

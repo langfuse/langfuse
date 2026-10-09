@@ -16,7 +16,7 @@ import { env } from "@/src/env.mjs";
 import {
   hashPassword,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+} from "@/src/features/auth-credentials/lib/passwordHash";
 import auth from "@/src/pages/api/auth/[...nextauth]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
