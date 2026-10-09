@@ -1933,6 +1933,7 @@ export const getScoreNames = async (
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -1981,6 +1982,7 @@ export const getScoreStringValues = async (
       ...(timestampFilterRes ? timestampFilterRes.params : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
