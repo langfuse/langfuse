@@ -127,6 +127,7 @@ export function SessionConversationalView(
   });
   if (props.state === "loaded" && !props.isSearchPending) {
     for (const [itemIndex, item] of timelineItems.entries()) {
+      let emptyTranscriptReason: "reasoning-only" | undefined;
       const transcriptRows = (() => {
         if (item.state.type === "error") return null;
         if (item.state.type === "loading") return undefined;
@@ -142,6 +143,7 @@ export function SessionConversationalView(
               row.message.parts.length > 0 &&
               row.message.parts.every((part) => part.type === "reasoning")
             ) {
+              emptyTranscriptReason = "reasoning-only";
               return [];
             }
             const label =
@@ -201,6 +203,8 @@ export function SessionConversationalView(
                 item.trace,
               ),
         transcriptRows: matchingRows,
+        emptyTranscriptReason:
+          transcriptRows?.length === 0 ? emptyTranscriptReason : undefined,
         threadCount: threadVisibility?.visibleThreads.length,
         hiddenThreadCount: threadVisibility?.hiddenThreadCount,
       });
