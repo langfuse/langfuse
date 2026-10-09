@@ -29,10 +29,10 @@ Cost sorting is deliberately unavailable until the backend can rank the full res
 
 The first nonempty string wins independently for each field:
 
-| Field | Preferred attribute | Standard fallback |
-| --- | --- | --- |
-| Name | `langfuse.agent.name` | `gen_ai.agent.name` |
-| ID | `langfuse.agent.id` | `gen_ai.agent.id` |
+| Field   | Preferred attribute      | Standard fallback      |
+| ------- | ------------------------ | ---------------------- |
+| Name    | `langfuse.agent.name`    | `gen_ai.agent.name`    |
+| ID      | `langfuse.agent.id`      | `gen_ai.agent.id`      |
 | Version | `langfuse.agent.version` | `gen_ai.agent.version` |
 
 Names support at most 200 Unicode characters because `events_core` truncates
@@ -55,7 +55,11 @@ import { startObservation } from "@langfuse/tracing";
 
 const agent = startObservation("research", {}, { asType: "agent" });
 agent.otelSpan.setAttribute("langfuse.agent.name", "research");
-const generation = agent.startObservation("answer", {}, { asType: "generation" });
+const generation = agent.startObservation(
+  "answer",
+  {},
+  { asType: "generation" },
+);
 generation.otelSpan.setAttribute("langfuse.agent.name", "research");
 // Record the generation's usage and output before ending it.
 generation.end();
@@ -97,11 +101,26 @@ NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-view --environment pr
 NEXTAUTH_URL=http://localhost:3017 LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true pnpm --filter web run dev --port 3017
 ```
 
-Use the CLI's printed links and sign in with the seeded demo account. The default
-fixture spans 08:00–12:00 UTC on the current UTC day; set the date picker to that
-window. It includes 8 agents, nested citation runs, named generation costs, skills,
-production/staging data, a name-only agent with incomplete cost, and a name with URL
-punctuation. Changing timing parameters needs a fresh `--id-prefix`.
+Use the CLI's printed links and sign in with the seeded demo account. List and
+profile links pin the generated window with `dateRange`. The default fixture
+spans 08:00–12:00 UTC on the current UTC day and includes eight agents, each with
+two meaningful skills, nested citation runs, named generation costs,
+production/staging data, a name-only agent with incomplete cost, and a name with
+URL punctuation. Skill invocations carry their owning agent's identity, so every
+profile has Skills rows with trace coverage and drill-downs. Printed Skills links
+open each profile directly with `tab=skills`.
+
+To enrich an existing demo on another day while preserving its traces and window,
+reuse its original UTC date, prefix and other seed flags:
+
+```sh
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-view --environment production --date YYYY-MM-DD --id-prefix original-prefix --v4
+```
+
+Replace the date and prefix placeholders with the original values. Omitted or
+empty `--date` defaults to today; changing the date or timing needs a fresh
+`--id-prefix`. See the [Agents fixture walkthrough](../../../../packages/shared/scripts/seeder/README.md#agents-view)
+for the full reseeding contract.
 
 Review Agents → research → Runs → trace peek; select a Pulse bar and verify stats
 and rows narrow together. Open compose → Skills for citation-style; open verify →
