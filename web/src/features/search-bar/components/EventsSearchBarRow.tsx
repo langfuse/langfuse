@@ -121,8 +121,9 @@ function EventsSearchBarRowContent({
    *  validation of the generated filters (undefined sets are not enforced). */
   aiScoreNames?: ObservedScoreNames;
   /** Overrides the wrapper spacing. The default (`px-2 pt-2 pb-1`) aligns the
-   *  bar with the desktop toolbar row; the mobile Filters sheet passes flush
-   *  padding so the bar lines up with the sheet's other sections. */
+   *  bar with the desktop toolbar row; hosts that place siblings on the bar's
+   *  row (the Tracing table, the mobile Filters sheet) pass flush padding and
+   *  own the spacing themselves. */
   className?: string;
   /** The view-specific grammar and filter contract. */
   registry?: FieldRegistry;

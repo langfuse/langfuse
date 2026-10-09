@@ -91,6 +91,8 @@ type CategoryPresetChipsProps = {
    * isn't active.
    */
   onPreviewView?: (viewData: TableViewPresetState | null) => void;
+  /** `ghost` drops the chip border; the selected fill stays. */
+  variant?: "outline" | "ghost";
 };
 
 /**
@@ -105,6 +107,7 @@ export function CategoryPresetChips({
   onApplyView,
   applyViewState,
   onPreviewView,
+  variant = "outline",
 }: CategoryPresetChipsProps) {
   const capture = usePostHogClientCapture();
   const { TableViewPresetsList } = useViewData({
@@ -222,7 +225,7 @@ export function CategoryPresetChips({
           >
             <PopoverTrigger asChild>
               <Button
-                variant="outline"
+                variant={variant}
                 onPointerDown={() => {
                   pointerDownRef.current = true;
                 }}
