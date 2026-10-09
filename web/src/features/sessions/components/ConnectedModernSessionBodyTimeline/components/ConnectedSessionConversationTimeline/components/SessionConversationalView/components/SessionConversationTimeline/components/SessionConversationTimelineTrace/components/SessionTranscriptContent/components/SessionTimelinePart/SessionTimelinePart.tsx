@@ -12,7 +12,10 @@ import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/componen
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { cn } from "@/src/utils/tailwind";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 function SessionTimelineReasoning({
@@ -95,15 +98,26 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
     typeof source === "string"
       ? `@@@langfuseMedia:type=${part.mediaType}|id=${part.content.id}|source=${source}@@@`
       : undefined;
+  const classifiedMedia =
+    part.content.kind === "url" ? classifyMediaValue(part.content.url) : null;
+  const s3Media = classifiedMedia?.kind === "s3" ? classifiedMedia : null;
+  const usesFallback = !reference && !s3Media && !safeImageUrl && !safeUrl;
 
   return (
-    <div className="border-border/70 bg-background flex w-fit max-w-full flex-col gap-2 rounded-md border p-3">
+    <div
+      className={cn(
+        "border-border/70 bg-background flex max-w-full flex-col gap-2 rounded-md border p-3",
+        usesFallback ? "w-full" : "w-fit",
+      )}
+    >
       <div className="text-muted-foreground flex items-center gap-2 text-xs font-bold">
         <FileIcon className="icon-base" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
       {reference ? (
         <LangfuseMediaView mediaReferenceString={reference} variant="preview" />
+      ) : s3Media ? (
+        <MediaReferenceTag descriptor={s3Media} />
       ) : safeImageUrl ? (
         <a href={safeImageUrl} target="_blank" rel="noreferrer">
           {/* eslint-disable-next-line @next/next/no-img-element */}
