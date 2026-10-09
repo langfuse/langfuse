@@ -133,25 +133,18 @@ export function buildSettingsPages({
     };
   });
 
-  /** Org links the account section already has, e.g. v4 Migration */
-  const accountHrefs = new Set(
-    accountPages.flatMap((page) => ("href" in page ? [page.href] : [])),
-  );
-
-  const organization = organizationPages
-    .filter((page) => !("href" in page && accountHrefs.has(page.href)))
-    .map((page): SettingsPageEntry => {
-      if (scope === "organization" || !("content" in page) || !organizationId)
-        return page;
-      return {
-        title: page.title,
-        slug: page.slug,
-        section: page.section,
-        show: page.show,
-        href: organizationSettingsPath(organizationId, page.slug),
-        internal: true,
-      };
-    });
+  const organization = organizationPages.map((page): SettingsPageEntry => {
+    if (scope === "organization" || !("content" in page) || !organizationId)
+      return page;
+    return {
+      title: page.title,
+      slug: page.slug,
+      section: page.section,
+      show: page.show,
+      href: organizationSettingsPath(organizationId, page.slug),
+      internal: true,
+    };
+  });
 
   return [...account, ...organization];
 }

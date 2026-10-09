@@ -93,6 +93,12 @@ describe("buildSettingsPages", () => {
         href: "/organization/org-1",
         internal: false,
       },
+      {
+        section: "Organization",
+        slug: "v4-migration",
+        href: "/v4-migration",
+        internal: false,
+      },
     ]);
   });
 
@@ -123,6 +129,12 @@ describe("buildSettingsPages", () => {
         section: "Organization",
         slug: "projects",
         href: "/organization/org-1",
+        internal: false,
+      },
+      {
+        section: "Organization",
+        slug: "v4-migration",
+        href: "/v4-migration",
         internal: false,
       },
     ]);
