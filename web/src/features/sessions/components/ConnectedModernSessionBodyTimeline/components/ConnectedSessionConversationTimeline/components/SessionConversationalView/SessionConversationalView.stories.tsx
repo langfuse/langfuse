@@ -2819,6 +2819,68 @@ export const ExactMessageNavigation = meta.story({
   },
 });
 
+export const RepeatNavigationHighlight = meta.story({
+  name: "(Test) Repeat Navigation Highlight",
+  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const feed = canvas.getByLabelText("Session conversation timeline");
+    await userEvent.type(sidebar.getByRole("textbox"), "Turn 1 thread 3");
+    const button = sidebar.getByRole("button", { name: "User message" });
+    await userEvent.click(button);
+    const target = await waitFor(async () => {
+      const row = feed.querySelector<HTMLElement>(
+        '[data-session-item-id="scroll-turn-1:2"] [data-session-transcript-row-id="2:1"]',
+      );
+      await expect(row).toHaveAttribute("data-session-navigation-highlight");
+      if (!row) throw new Error("Target message is not mounted");
+      return row;
+    });
+    const originalAnimation = target.getAnimations()[0]!;
+    await waitFor(
+      async () => {
+        await expect(originalAnimation.currentTime).toBeGreaterThanOrEqual(900);
+        await expect(originalAnimation.playState).toBe("running");
+      },
+      { timeout: 2_000 },
+    );
+    const fadedBackground = getComputedStyle(target).backgroundColor;
+
+    await userEvent.click(button);
+    const restartedAnimation = await waitFor(async () => {
+      const animation = target.getAnimations()[0];
+      await expect(animation).toBeDefined();
+      await expect(animation).not.toBe(originalAnimation);
+      await expect(animation?.currentTime).toBeLessThan(300);
+      await expect(getComputedStyle(target).backgroundColor).not.toBe(
+        fadedBackground,
+      );
+      return animation!;
+    });
+    await waitFor(
+      async () => {
+        await expect(target).not.toHaveAttribute(
+          "data-session-navigation-highlight",
+        );
+      },
+      { timeout: 2_000 },
+    );
+    const idleBackground = getComputedStyle(target).backgroundColor;
+
+    await userEvent.click(button);
+    await waitFor(async () => {
+      const animation = target.getAnimations()[0];
+      await expect(animation).toBeDefined();
+      await expect(animation).not.toBe(restartedAnimation);
+      await expect(animation?.currentTime).toBeLessThan(300);
+      await expect(getComputedStyle(target).backgroundColor).not.toBe(
+        idleBackground,
+      );
+    });
+  },
+});
+
 export const VirtualizedNavigation = meta.story({
   name: "(Test) Far Virtualized Navigation Both Directions",
   args: { transcriptTraces: navigationTraces, viewportHeight: 480 },

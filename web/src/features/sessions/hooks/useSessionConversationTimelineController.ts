@@ -13,7 +13,6 @@ import {
 const SESSION_TIMELINE_OVERSCAN = 5;
 const SESSION_TIMELINE_ANCHOR_RATIO = 0.2;
 const SESSION_TIMELINE_SCROLL_TIME_CONSTANT_MS = 80;
-const SESSION_TIMELINE_MAX_FRAME_ELAPSED_MS = 64;
 const SESSION_TIMELINE_HIGHLIGHT_MS = 1_500;
 export type SessionConversationTimelineScrollTarget = {
   itemId?: string;
@@ -231,10 +230,7 @@ export function useSessionConversationTimelineController(
         stableSince = performance.now();
       }
       const now = performance.now();
-      const elapsed = Math.min(
-        SESSION_TIMELINE_MAX_FRAME_ELAPSED_MS,
-        Math.max(0, now - previousFrameTime),
-      );
+      const elapsed = Math.max(0, now - previousFrameTime);
       previousFrameTime = now;
       // Retarget each frame as virtual rows mount and resize, without restarting
       // a browser smooth-scroll animation or relying on estimated row heights.

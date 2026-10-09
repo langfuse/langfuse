@@ -153,9 +153,13 @@ describe("useSessionConversationTimelineController", () => {
     },
   );
 
-  it.each([0, 9_500])(
-    "smoothly approaches a distant unmounted entry from %spx and retargets with integer scroll positions",
-    async (initialTop) => {
+  it.each([
+    { initialTop: 0, frameMs: 16 },
+    { initialTop: 9_500, frameMs: 16 },
+    { initialTop: 0, frameMs: 600 },
+  ])(
+    "smoothly approaches a distant unmounted entry from $initialTop px with $frameMs ms frames and integer scroll positions",
+    async ({ initialTop, frameMs }) => {
       vi.useFakeTimers({
         toFake: [
           "setTimeout",
@@ -165,6 +169,15 @@ describe("useSessionConversationTimelineController", () => {
           "performance",
         ],
       });
+      if (frameMs > 16) {
+        vi.spyOn(window, "requestAnimationFrame").mockImplementation(
+          (callback) =>
+            window.setTimeout(() => callback(performance.now()), frameMs),
+        );
+        vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frame) =>
+          window.clearTimeout(frame),
+        );
+      }
       vi.mocked(window.matchMedia).mockReturnValue({
         ...window.matchMedia("(prefers-reduced-motion: reduce)"),
         matches: false,
@@ -185,7 +198,9 @@ describe("useSessionConversationTimelineController", () => {
       );
       act(() => result.current.onSelect(79, undefined, "79:0"));
       expect(feed.scrollTop).toBe(initialTop);
-      await act(async () => await vi.advanceTimersByTimeAsync(64));
+      await act(
+        async () => await vi.advanceTimersByTimeAsync(Math.max(64, frameMs)),
+      );
       expect(feed.scrollTop).toBeGreaterThan(Math.min(initialTop, 7_800));
       expect(feed.scrollTop).toBeLessThan(Math.max(initialTop, 7_800));
       expect(result.current.activeItemId).toBe("trace:79");
@@ -194,7 +209,7 @@ describe("useSessionConversationTimelineController", () => {
       await act(async () => await vi.advanceTimersByTimeAsync(64));
       row.getBoundingClientRect = () =>
         new DOMRect(0, 200 + 8_800 - feed.scrollTop, 100, 100);
-      await act(async () => await vi.advanceTimersByTimeAsync(1_500));
+      await act(async () => await vi.advanceTimersByTimeAsync(3_500));
       expect(feed.scrollTop).toBe(8_700);
       virtualizer.scrollOffset = 0;
       rerender();
