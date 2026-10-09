@@ -25,16 +25,10 @@ export type DecisionModelQuestionResult = {
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
-function confidenceTone(confidence: number) {
-  if (confidence >= 0.8) return "text-dark-green";
-  if (confidence >= 0.5) return "text-dark-yellow";
-  return "text-destructive";
-}
-
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   return (
     <span
-      className={cn("shrink-0 font-mono text-xs", confidenceTone(confidence))}
+      className="text-muted-foreground shrink-0 font-mono text-xs"
       title="How concentrated the distribution is (0–1). Not the winner's probability."
     >
       confidence {confidence.toFixed(2)}
