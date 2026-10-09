@@ -120,7 +120,6 @@ async function materialize(
     principal,
     policies: roles.flatMap((role) => role.policies),
   };
-  /** @deprecated Public bearer authentication will be removed in the next major version. */
   if (authorization === "publicKey") {
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
@@ -172,7 +171,9 @@ function isUniqueConstraintFailedError(error: unknown): boolean {
   );
 }
 
-/** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there. */
+/** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there.
+ * @deprecated Public bearer authentication will be removed in the next major version.
+ */
 function publicBearerPolicies(
   roleContext: AuthorizationContext,
   apiKey: ApiKey,
