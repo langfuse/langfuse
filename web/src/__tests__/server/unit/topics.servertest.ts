@@ -987,6 +987,47 @@ describe("Topics local execution access and publication", () => {
 });
 
 describe("Topics current results", () => {
+  it("retains published map descriptions when reprocessed traces await assignment", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.getPublishedTopicRun.mockResolvedValue(run);
+    mocks.getLatestFacetSummaries.mockResolvedValue([
+      { ...summary, processedAt: "2026-09-17T00:00:00Z" },
+    ]);
+    mocks.readLatestTopicAssignments.mockResolvedValue([
+      {
+        projectId,
+        facetId,
+        facetVersion,
+        traceId: summary.traceId,
+        unitStartTime: summary.unitStartTime,
+        summaryProcessedAt: summary.processedAt,
+        topicId: run.topics[0].topicId,
+        runId: run.id,
+      },
+    ]);
+
+    const [result] = await caller("VIEWER").currentResults({
+      projectId,
+      timeRange,
+    });
+
+    expect(result.topics).toEqual([]);
+    expect(result.rows[0]).toMatchObject({
+      outcome: "awaiting_map",
+      topicId: null,
+    });
+    expect(result.map?.topics).toEqual([
+      {
+        id: run.topics[0].topicId,
+        name: run.topics[0].name,
+        description: run.topics[0].description,
+      },
+    ]);
+    expect(mocks.getTopicRuns).toHaveBeenCalledExactlyOnceWith(projectId, []);
+  });
+
   it("serves current and historical topic names to viewers without exposing vectors", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       {

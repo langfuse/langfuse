@@ -205,12 +205,17 @@ export function useTopicPipelineForm({
         !summaryCounts.error &&
         hasStoredSummaries
       : Boolean(selection?.count));
-  const actions = (
+  const triggerAction = {
+    label: operation === "process" ? "Process traces" : "Update topics",
+    disabled: !canWrite,
+    onSelect: () => setRunOpen(true),
+  };
+  const primaryAction = (
     <Button
-      text={operation === "process" ? "Process traces" : "Update topics"}
+      text={triggerAction.label}
       size="sm"
-      disabled={!canWrite}
-      onClick={() => setRunOpen(true)}
+      disabled={triggerAction.disabled}
+      onClick={triggerAction.onSelect}
     />
   );
   const configuration = (
@@ -377,7 +382,8 @@ export function useTopicPipelineForm({
     </DialogPrimitive.Root>
   );
   return {
-    actions: facets.length ? actions : null,
-    configuration: facets.length ? configuration : null,
+    primaryAction: facets.length > 0 ? primaryAction : null,
+    triggerAction: facets.length > 0 ? triggerAction : null,
+    configuration: facets.length > 0 ? configuration : null,
   };
 }
