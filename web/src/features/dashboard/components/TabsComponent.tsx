@@ -44,7 +44,8 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
           ))}
         </select>
       </div>
-      <div className="hidden sm:block">
+      {/* Bleeds through DashboardCard's p-4 so the divider spans the card. */}
+      <div className="-mx-4 hidden sm:block">
         <Tabs.List variant="underline" aria-label="Tabs">
           {tabs.map((tab, index) => (
             <Tabs.Trigger
