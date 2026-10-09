@@ -131,13 +131,13 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("403s a URL disagreeing with the header", () => {
+    it("prefers the URL project over a conflicting header", () => {
       expect(
         getProjectId(
           orgKey(),
           req({ projectId: PRJ }, { [projectIdHeader]: "prj_2" }),
         ),
-      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+      ).toEqual({ success: true, projectId: PRJ });
     });
     it("prefers the X-prefixed header when both are provided", () => {
       expect(
