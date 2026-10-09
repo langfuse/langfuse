@@ -7,15 +7,24 @@ const widths = [90, 150, 100, 80, 95];
 const overflowWidth = 32;
 
 describe("getVisibleRowItemIndices", () => {
-  it("tolerates a pixel of sub-pixel rounding at the boundary", () => {
+  it("tolerates sub-pixel rounding at the boundary, but no more", () => {
+    // The five tabs are 515 wide.
     expect(
       getVisibleRowItemIndices({
         widths,
-        availableWidth: 514.2,
+        availableWidth: 514.6,
         overflowWidth,
         pinnedIndex: 0,
       }),
     ).toEqual([0, 1, 2, 3, 4]);
+    expect(
+      getVisibleRowItemIndices({
+        widths,
+        availableWidth: 514.4,
+        overflowWidth,
+        pinnedIndex: 0,
+      }),
+    ).toEqual([0, 1, 2, 3]);
   });
 
   it("fills the row in order and leaves room for the overflow trigger", () => {
@@ -26,6 +35,17 @@ describe("getVisibleRowItemIndices", () => {
         availableWidth: 400,
         overflowWidth,
         pinnedIndex: 0,
+      }),
+    ).toEqual([0, 1, 2]);
+  });
+
+  it("fills the row in order when no item is pinned", () => {
+    expect(
+      getVisibleRowItemIndices({
+        widths,
+        availableWidth: 400,
+        overflowWidth,
+        pinnedIndex: -1,
       }),
     ).toEqual([0, 1, 2]);
   });
@@ -54,18 +74,7 @@ describe("getVisibleRowItemIndices", () => {
     ).toEqual([0, 2]);
   });
 
-  it("shows only the pinned item when nothing else fits", () => {
-    expect(
-      getVisibleRowItemIndices({
-        widths,
-        availableWidth: 140,
-        overflowWidth,
-        pinnedIndex: 3,
-      }),
-    ).toEqual([3]);
-  });
-
-  it("still shows the pinned item when even that one overflows", () => {
+  it("shows only the pinned item when nothing else fits, even itself", () => {
     expect(
       getVisibleRowItemIndices({
         widths,

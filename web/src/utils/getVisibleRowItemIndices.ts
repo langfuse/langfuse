@@ -18,9 +18,8 @@ export function getVisibleRowItemIndices({
   overflowWidth: number;
   pinnedIndex: number;
 }): number[] {
-  // Sub-pixel layout rounds against the content at the exact boundary, so
-  // spend a pixel of slack rather than collapsing a row that just fits.
-  const limit = availableWidth + 1;
+  // Fractional widths carry rounding noise; the slack is far below a pixel.
+  const limit = availableWidth + 0.5;
   const total = widths.reduce((sum, width) => sum + width, 0);
   if (total <= limit) return widths.map((_, index) => index);
 

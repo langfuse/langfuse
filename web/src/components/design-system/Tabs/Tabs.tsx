@@ -463,7 +463,11 @@ function useTabsOverflow<
         (child) => child.getBoundingClientRect().width,
       );
       const overflowWidth = widths.pop() ?? 0;
-      return { availableWidth: available.clientWidth, overflowWidth, widths };
+      return {
+        availableWidth: available.getBoundingClientRect().width,
+        overflowWidth,
+        widths,
+      };
     };
 
     setMetrics(read());
