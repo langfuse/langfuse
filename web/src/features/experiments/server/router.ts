@@ -863,6 +863,7 @@ export const experimentsRouter = createTRPCRouter({
         itemIds: z.array(z.string()),
         baseExperimentId: z.string().nullish(),
         compExperimentIds: z.array(z.string()),
+        ioCharLimit: z.number().int().positive().max(10_000).optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -881,6 +882,7 @@ export const experimentsRouter = createTRPCRouter({
         itemIds: input.itemIds,
         baseExperimentId: input.baseExperimentId ?? undefined,
         compExperimentIds: input.compExperimentIds,
+        ioCharLimit: input.ioCharLimit,
       });
 
       return batchIO;
