@@ -13,7 +13,13 @@ import { cn } from "@/src/utils/tailwind";
 
 type AIAssistedInputProps = Pick<
   ComponentProps<typeof Input>,
-  "disabled" | "id" | "maxLength" | "onChange" | "placeholder" | "value"
+  | "aria-invalid"
+  | "disabled"
+  | "id"
+  | "maxLength"
+  | "onChange"
+  | "placeholder"
+  | "value"
 > & {
   fieldName?: string;
   aiAssistance:

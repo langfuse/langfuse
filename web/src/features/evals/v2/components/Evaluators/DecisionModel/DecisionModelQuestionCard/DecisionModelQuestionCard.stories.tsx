@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
 import { QUESTION_EXAMPLES } from "../DecisionModelQuestionList/DecisionModelQuestionList";
@@ -128,5 +128,43 @@ export const WithErrors = meta.story({
       scoreName: "Another question already writes “send_readiness”.",
       options: "Option labels must be unique.",
     },
+  },
+});
+
+export const GeneratesScoreName = meta.story({
+  name: "(Test) Generates Score Name",
+  args: {
+    ...base,
+    question: {
+      id: "q6",
+      ...QUESTION_EXAMPLES[DecisionModelQuestionType.CHOICE],
+      scoreName: "custom_name",
+    },
+  },
+  render: (args) => {
+    const [question, setQuestion] = useState(args.question);
+    return (
+      <DecisionModelQuestionCard
+        {...args}
+        question={question}
+        onChange={(next) => {
+          setQuestion(next);
+          args.onChange(next);
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Regenerate score name with AI",
+      }),
+    );
+
+    await expect(canvas.getByLabelText(/Score name/)).toHaveValue(
+      "ready_send_answer",
+    );
   },
 });

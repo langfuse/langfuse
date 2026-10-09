@@ -2,10 +2,10 @@ import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import { Trash2 } from "lucide-react";
 
+import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
 import { ChoiceOptionsEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/ChoiceOptionsEditor/ChoiceOptionsEditor";
@@ -102,6 +102,11 @@ export function DecisionModelQuestionCard({
   const copy = QUESTION_TYPE_COPY[question.type];
   const hasErrors = Object.values(errors).some(Boolean);
   const summary = question.instructions.trim() || "Untitled question";
+  const handleGenerateScoreName = () =>
+    onChange({
+      ...question,
+      scoreName: suggestScoreName(question.instructions),
+    });
 
   return (
     <CollapsibleCard
@@ -229,19 +234,27 @@ export function DecisionModelQuestionCard({
             </InfoTooltip>
           </Label>
           <div className="flex flex-wrap items-center gap-3">
-            <Input
-              id={`${id}-score-name`}
-              value={question.scoreName}
-              onChange={(event) =>
-                onChange({ ...question, scoreName: event.target.value })
-              }
-              placeholder="e.g. refund_requested"
-              aria-invalid={Boolean(errors.scoreName)}
+            <div
               className={cn(
-                "max-w-xs font-mono",
-                errors.scoreName && "border-destructive",
+                "w-full max-w-xs font-mono",
+                errors.scoreName && "[&_input]:border-destructive",
               )}
-            />
+            >
+              <AIAssistedInput
+                id={`${id}-score-name`}
+                value={question.scoreName}
+                onChange={(event) =>
+                  onChange({ ...question, scoreName: event.target.value })
+                }
+                placeholder="e.g. refund_requested"
+                fieldName="score name"
+                aria-invalid={Boolean(errors.scoreName)}
+                aiAssistance={{
+                  state: "idle",
+                  onGenerate: handleGenerateScoreName,
+                }}
+              />
+            </div>
             <span className="text-muted-foreground text-xs">
               {writesLine(question)}
             </span>
