@@ -618,7 +618,9 @@ describe("organization API keys trpc", () => {
         role: "ADMIN",
       });
 
-      const projectResources = (await getRolesForPrincipal(ApiKeyId(key.id)))
+      const projectResources = (
+        await getRolesForPrincipal(prisma, ApiKeyId(key.id))
+      )
         .flatMap((role) => role.policies)
         .filter((policy) => policy.id.endsWith(":project"))
         .flatMap((policy) => policy.resources);

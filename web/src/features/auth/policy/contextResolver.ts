@@ -114,14 +114,14 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  let roles = await getRolesForPrincipal(ApiKeyId(apiKey.id));
+  let roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
   if (roles.length === 0) {
     await backfillApiKeyRoleAssignment(
       prisma,
       apiKey.id,
       OrganizationId(org.orgId),
     );
-    roles = await getRolesForPrincipal(ApiKeyId(apiKey.id));
+    roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
   }
   const context = {
     principal,
