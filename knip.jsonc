@@ -18,6 +18,8 @@
     },
     "packages/shared": {
       "ignoreFiles": [
+        // Schema fragment applied manually alongside cleanup.proposed.sql.
+        "prisma/migrations/20261008120000_reshape_role_assignments/proposed.prisma",
         // Standalone helper invoked manually as documented in the adjacent framework-traces README.
         "scripts/seeder/utils/framework-traces/merge-observations.ts",
       ],
