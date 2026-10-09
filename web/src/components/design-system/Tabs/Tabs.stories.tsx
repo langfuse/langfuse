@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "@/src/utils/tailwind";
 import { KeyRound, User } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -130,7 +131,7 @@ function OverflowTabs({
  * so picking Scores from the menu frees enough room for every tab and the
  * overflow trigger disappears.
  */
-function OverflowTabsWithConditionalTrailing() {
+function OverflowTabsWithTrailing() {
   const [value, setValue] = React.useState("preview");
 
   return (
@@ -144,11 +145,14 @@ function OverflowTabsWithConditionalTrailing() {
           >
             {overflowTriggers}
           </Tabs.List>
-          {value === "scores" ? null : (
-            <span className="text-muted-foreground w-64 shrink-0 px-2 text-xs">
-              trailing
-            </span>
-          )}
+          <span
+            className={cn(
+              "text-muted-foreground w-64 shrink-0 px-2 text-xs",
+              value === "scores" && "invisible",
+            )}
+          >
+            trailing
+          </span>
         </div>
         {overflowPanels}
       </Tabs>
@@ -550,7 +554,7 @@ export const SelectsHiddenTabFromOverflowMenu = meta.story({
 export const FocusesTabSelectedFromOverflowMenu = meta.story({
   name: "(Test) Focuses Tab Selected From Overflow Menu",
   parameters: overflowStoryParameters,
-  render: () => <OverflowTabsWithConditionalTrailing />,
+  render: () => <OverflowTabsWithTrailing />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(document.body);
@@ -564,10 +568,9 @@ export const FocusesTabSelectedFromOverflowMenu = meta.story({
     scoresItem.focus();
     await userEvent.keyboard("{Enter}");
 
-    // Scores frees the trailing slot, so every tab fits and the trigger that
-    // the menu would hand focus back to is gone.
+    // The trailing slot keeps its width, so Scores swaps into the row.
     await waitFor(() => {
-      expect(canvas.queryByRole("button", { name: "More tabs" })).toBeNull();
+      expect(canvas.getByRole("button", { name: "More tabs" })).toBeTruthy();
       expect(document.activeElement).toBe(
         canvas.getByRole("tab", { name: "Scores" }),
       );
