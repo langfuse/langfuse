@@ -10,8 +10,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
+  passwordRequiresReset,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+} from "@/src/features/auth-credentials/lib/passwordHash";
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
@@ -58,6 +59,7 @@ import {
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+  PASSWORD_RESET_REQUIRED_MESSAGE,
 } from "@/src/features/auth/constants";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
@@ -124,7 +126,7 @@ const staticProviders: Provider[] = [
       });
 
       if (!dbUser) {
-        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        // Keep hashing work comparable across failed login paths to reduce timing-based user enumeration.
         await hashPassword(credentials.password);
         throw new Error("Invalid credentials");
       }
@@ -133,6 +135,10 @@ const staticProviders: Provider[] = [
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
+      }
+
+      if (passwordRequiresReset(dbUser.password)) {
+        throw new Error(PASSWORD_RESET_REQUIRED_MESSAGE);
       }
 
       const isValidPassword = await verifyPassword(
