@@ -7,17 +7,19 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 
+type SkillCliSelectorProps = {
+  label: string;
+  options: { value: string; label: ReactNode }[];
+  value: string;
+  onValueChange: (value: string) => void;
+};
+
 export function SkillCliSelector({
   label,
   options,
   value,
   onValueChange,
-}: {
-  label: string;
-  options: { value: string; label: ReactNode }[];
-  value: string;
-  onValueChange: (value: string) => void;
-}) {
+}: SkillCliSelectorProps) {
   const id = useId();
   return (
     <div className="ph-no-capture flex min-w-0 flex-col gap-2">
@@ -32,7 +34,7 @@ export function SkillCliSelector({
         <SelectTrigger id={id} aria-label={label}>
           <SelectValue
             placeholder={
-              options.length
+              options.length > 0
                 ? `Select ${label.toLowerCase()}`
                 : "No skills available"
             }

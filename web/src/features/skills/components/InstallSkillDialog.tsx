@@ -1,33 +1,32 @@
-import { type ComponentProps } from "react";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { SkillInstallationOptions } from "./SkillInstallationOptions";
-import { api } from "@/src/utils/api";
+import {
+  SkillInstallationOptions,
+  type SkillInstallationOptionsProps,
+} from "./SkillInstallationOptions";
+import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { useSkillInstallOptions } from "../hooks/useSkillInstallOptions";
+import { shellQuote } from "../utils/shellQuote";
 
-// Single quotes keep shell metacharacters in host names literal.
-function shellQuote(value: string) {
-  return `'${value.replaceAll("'", "'\"'\"'")}'`;
-}
-
-export function InstallSkillDialog({
-  projectId,
-  host,
-  ...options
-}: Pick<
-  ComponentProps<typeof SkillInstallationOptions>,
+type InstallSkillDialogProps = Pick<
+  SkillInstallationOptionsProps,
   "initialValues" | "labels" | "tags"
 > & {
   projectId: string;
-  host: string;
-}) {
-  const skillOptions = api.skills.filterOptions.useQuery({ projectId });
-  const names = [
-    ...new Set([
-      ...(skillOptions.data?.names ?? []),
-      ...(options.initialValues.name ? [options.initialValues.name] : []),
-    ]),
-  ].sort((a, b) => a.localeCompare(b));
+};
+
+export function InstallSkillDialog({
+  projectId,
+  labels,
+  initialValues,
+  ...options
+}: InstallSkillDialogProps) {
+  const host = useLangfuseBaseUrl();
+  const { query: skillOptions, names } = useSkillInstallOptions(
+    projectId,
+    initialValues.name,
+  );
 
   return (
     <Dialog title="Install with CLI" size="lg" closeOnInteractionOutside>
@@ -67,11 +66,11 @@ export function InstallSkillDialog({
           </div>
         </div>
         {skillOptions.isPending && (
-          <p className="text-muted-foreground">Loading skill names…</p>
+          <p className="text-muted-foreground">Loading installation options…</p>
         )}
         {!skillOptions.isPending && skillOptions.isError && (
           <div className="flex flex-col items-start gap-2">
-            <p role="alert">Could not load skill names.</p>
+            <p role="alert">Could not load installation options.</p>
             <Button
               text="Try again"
               variant="secondary"
@@ -84,9 +83,12 @@ export function InstallSkillDialog({
           <SkillInstallationOptions
             {...options}
             names={names}
+            labels={[
+              ...new Set([...labels, ...(skillOptions.data?.labels ?? [])]),
+            ].sort((a, b) => a.localeCompare(b))}
             initialValues={{
-              ...options.initialValues,
-              name: options.initialValues.name || names[0] || "",
+              ...initialValues,
+              name: initialValues.name || names[0] || "",
             }}
           />
         )}
