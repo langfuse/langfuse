@@ -3,7 +3,7 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
     CODE: {
       title: "Create a code evaluator with AI",
       description:
-        "Describe what to evaluate. The Assistant will create the evaluator and help you test it.",
+        "Describe your goal. The Assistant will first confirm the observation scope, evaluation criterion, and model preference before creating and testing the evaluator.",
       examples: [
         {
           id: "groundedness",
@@ -28,7 +28,7 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
     LLM_AS_JUDGE: {
       title: "Create an LLM-as-a-judge evaluator with AI",
       description:
-        "Describe your evaluation criteria. The Assistant will create the judge and help you test it.",
+        "Describe your goal. The Assistant will first confirm the observation scope, evaluation criterion, and model preference before creating and testing the judge.",
       examples: [
         {
           id: "helpfulness",
@@ -52,7 +52,7 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
     DECISION_MODEL: {
       title: "Create a decision model evaluator with AI",
       description:
-        "Describe which observations and structured decisions to evaluate. The Assistant will inspect samples, configure the evaluator, and test it.",
+        "Describe your goal. The Assistant will first confirm the observation scope, structured decisions, and model preference before configuring and testing the evaluator.",
       examples: [
         {
           id: "support-routing",
@@ -75,7 +75,7 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
     CODE: {
       title: "Improve this code evaluator",
       description:
-        "Describe what should change. The Assistant will update the saved evaluator for you to review.",
+        "Describe the change. The Assistant will first confirm the observation scope, evaluation criterion, and model preference before updating and testing it.",
       examples: [
         {
           id: "empty-output",
@@ -98,7 +98,7 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
     LLM_AS_JUDGE: {
       title: "Improve this LLM-as-a-judge evaluator",
       description:
-        "Describe what should change. The Assistant will update the saved evaluator for you to review.",
+        "Describe the change. The Assistant will first confirm the observation scope, evaluation criterion, and model preference before updating and testing it.",
       examples: [
         {
           id: "strict",
@@ -121,7 +121,7 @@ export const EVALUATOR_ASSISTANT_LANDING_CONFIG = {
     DECISION_MODEL: {
       title: "Improve this decision model evaluator",
       description:
-        "Describe what should change. The Assistant will inspect matching observations, update the saved evaluator, and test it.",
+        "Describe the change. The Assistant will first confirm the observation scope, structured decisions, and model preference before updating and testing it.",
       examples: [
         {
           id: "question",

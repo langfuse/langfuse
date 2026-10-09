@@ -41,6 +41,7 @@ describe("getEvaluatorAssistantLanding", () => {
         id: "evaluator",
         title,
         placeholder,
+        description: expect.stringContaining("first confirm"),
       });
       expect(landing.examples).toHaveLength(3);
       expect(landing.examples.every((example) => example.prompt)).toBe(true);
