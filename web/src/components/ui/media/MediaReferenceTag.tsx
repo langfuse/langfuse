@@ -79,20 +79,42 @@ function S3MediaTag({
     enableForAdmins: false,
     projectId,
   });
+
+  if (!isFeatureEnabled) return descriptor.uri;
+
+  return (
+    <EnabledS3MediaTag
+      descriptor={descriptor}
+      label={label}
+      size={size}
+      projectId={projectId}
+    />
+  );
+}
+
+function EnabledS3MediaTag({
+  descriptor,
+  label,
+  size,
+  projectId,
+}: {
+  descriptor: S3Descriptor;
+  label?: string;
+  size?: MediaTagProps["size"];
+  projectId?: string;
+}) {
   const [armed, setArmed] = useState(false);
   const [open, setOpen] = useState(false);
   const resolved = api.media.resolveExternalMedia.useQuery(
     { projectId: projectId ?? "", uri: descriptor.uri },
     {
-      enabled: armed && isFeatureEnabled && Boolean(projectId),
+      enabled: armed && Boolean(projectId),
       staleTime: 4 * 60 * 1000,
       refetchInterval: open ? 4 * 60 * 1000 : false,
       retry: false,
       meta: { silentHttpCodes: [404] },
     },
   );
-
-  if (!isFeatureEnabled) return descriptor.uri;
 
   const isSignedUrlExpired =
     resolved.data?.expiresAt !== undefined &&

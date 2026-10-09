@@ -447,11 +447,7 @@ export const S3ImageFile = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await waitFor(() => {
-      const mediaTag = canvas.queryByRole("button", { name: "JPEG media" });
-      const disabledFeatureFallback = canvas.queryByText(s3ImageUri);
-      expect(mediaTag ?? disabledFeatureFallback).not.toBeNull();
-    });
+    await expect(canvas.getByText(s3ImageUri)).toBeVisible();
     await expect(canvas.queryByRole("table")).not.toBeInTheDocument();
   },
 });

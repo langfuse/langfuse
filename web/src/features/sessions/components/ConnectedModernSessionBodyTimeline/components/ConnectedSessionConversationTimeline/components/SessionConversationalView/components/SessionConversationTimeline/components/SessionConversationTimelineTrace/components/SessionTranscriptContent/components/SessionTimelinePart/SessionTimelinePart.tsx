@@ -138,7 +138,9 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
           {safeUrl}
         </a>
       ) : (
-        <PrettyJsonView json={part} currentView="pretty" />
+        <div className="min-w-0 overflow-x-auto">
+          <PrettyJsonView json={part} currentView="pretty" />
+        </div>
       )}
     </div>
   );
