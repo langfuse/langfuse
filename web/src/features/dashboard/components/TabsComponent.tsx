@@ -46,7 +46,8 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
             ))}
           </select>
         </div>
-        <div className="hidden sm:block">
+        {/* Scrolls instead of clipping tabs that do not fit the card. */}
+        <div className="hidden overflow-x-auto sm:block [&>[role=tablist]]:min-w-max">
           <Tabs.List variant="underline" aria-label="Tabs">
             {tabs.map((tab, index) => (
               <Tabs.Trigger
