@@ -22,6 +22,8 @@ type TabsLook = TabsVariant | "navigation";
 const rootFillClassName =
   "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden";
 
+const tabsTriggerLabelClassName = "min-w-0 truncate leading-normal";
+
 const tabsListVariants = cva(
   "items-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
   {
@@ -340,30 +342,14 @@ function TabsTriggerContent({
   TabsTriggerProps,
   "children" | "icon" | "internal" | "label" | "tooltip"
 >) {
-  const renderLabel = (triggerProps?: Record<string, unknown>) => (
-    <span
-      {...triggerProps}
-      className="min-w-0 truncate leading-normal"
-      title={tooltip ? undefined : label}
-    >
-      {label}
-    </span>
-  );
-
-  const renderContent = () => {
-    if (label === undefined) return children;
-    if (!tooltip) return renderLabel();
-    return (
-      <Tooltip label={tooltip}>
-        {({ getTriggerProps }) => renderLabel(getTriggerProps())}
-      </Tooltip>
-    );
-  };
-
   return (
     <>
       {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
-      {renderContent()}
+      {label === undefined ? (
+        children
+      ) : (
+        <TabsTriggerLabel label={label} tooltip={tooltip} />
+      )}
       {/* In a tight row the badge gives way before the label. */}
       {internal ? (
         <span className="flex min-w-0 shrink-100 overflow-hidden">
@@ -371,6 +357,29 @@ function TabsTriggerContent({
         </span>
       ) : null}
     </>
+  );
+}
+
+function TabsTriggerLabel({
+  label,
+  tooltip,
+}: Pick<TabsTriggerProps, "tooltip"> & { label: string }) {
+  if (!tooltip) {
+    return (
+      <span className={tabsTriggerLabelClassName} title={label}>
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <Tooltip label={tooltip}>
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} className={tabsTriggerLabelClassName}>
+          {label}
+        </span>
+      )}
+    </Tooltip>
   );
 }
 
