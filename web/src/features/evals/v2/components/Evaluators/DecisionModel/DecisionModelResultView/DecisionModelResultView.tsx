@@ -131,15 +131,29 @@ function resultValue(result: DecisionModelQuestionResult) {
   }
 }
 
+function resultDetail(result: DecisionModelQuestionResult) {
+  switch (result.type) {
+    case "choice":
+      return null;
+    case "score":
+      return String(result.score);
+    case "noul":
+      return percent(Math.max(result.probability, 1 - result.probability));
+  }
+}
+
 function ResultAnswer({ result }: { result: DecisionModelQuestionResult }) {
+  const value = resultValue(result);
+  const detail = resultDetail(result);
+
   return (
-    <span className="shrink-0 font-mono text-sm font-bold">
-      {resultValue(result)}
-      {result.type === "noul" ? (
-        <span className="text-muted-foreground font-normal">
-          {" "}
-          ({percent(Math.max(result.probability, 1 - result.probability))})
-        </span>
+    <span
+      className="max-w-1/2 min-w-0 shrink-0 truncate font-mono text-sm font-bold"
+      title={detail ? `${value} (${detail})` : value}
+    >
+      {value}
+      {detail ? (
+        <span className="text-muted-foreground font-normal"> ({detail})</span>
       ) : null}
     </span>
   );

@@ -87,6 +87,40 @@ export const LongQuestion = meta.story({
   },
 });
 
+export const LongAnswer = meta.story({
+  args: {
+    results: [
+      {
+        questionId: "q1",
+        type: "choice",
+        scoreName: "routing_destination",
+        instructions: "Where should this request be routed?",
+        choice:
+          "enterprise_customer_success_team_for_complex_implementation_requests",
+        probabilities: {
+          enterprise_customer_success_team_for_complex_implementation_requests: 0.92,
+          support: 0.08,
+        },
+        confidence: 0.84,
+      },
+      {
+        questionId: "q2",
+        type: "score",
+        scoreName: "technical_depth",
+        instructions: "How technical is the response?",
+        score: 1.28,
+        levels: [
+          "Not technical",
+          "Somewhat technical with a detailed explanation of implementation constraints",
+          "Very technical",
+        ],
+        probabilities: { "0": 0.08, "1": 0.56, "2": 0.36 },
+        confidence: 0.61,
+      },
+    ],
+  },
+});
+
 /** Scores at the ends of the scale highlight that level's bar. */
 export const ScoreAtEdges = meta.story({
   args: {
