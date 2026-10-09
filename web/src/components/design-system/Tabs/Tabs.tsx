@@ -304,7 +304,7 @@ function TabsTrigger(props: TabsTriggerProps) {
     <>
       {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
       {label !== undefined ? (
-        <span className="min-w-0 truncate" title={label}>
+        <span className="min-w-0 truncate leading-normal" title={label}>
           {label}
         </span>
       ) : (
