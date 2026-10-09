@@ -5,7 +5,7 @@ import { DecisionModelResultView } from "./DecisionModelResultView";
 
 const meta = preview.meta({ component: DecisionModelResultView });
 
-export const AllTypes = meta.story({
+export const VariantMatrix = meta.story({
   args: {
     results: [
       {
@@ -36,7 +36,7 @@ export const AllTypes = meta.story({
         type: "noul",
         scoreName: "refund_requested",
         instructions: "Does `input` request a refund?",
-        probability: 0.97,
+        probability: 0.03,
       },
     ],
   },
@@ -60,6 +60,28 @@ export const LowConfidence = meta.story({
         scoreName: "refund_requested",
         instructions: "Does `input` request a refund?",
         probability: 0.52,
+      },
+    ],
+  },
+});
+
+export const LongQuestion = meta.story({
+  args: {
+    results: [
+      {
+        questionId: "q1",
+        type: "choice",
+        scoreName: "primary_topic_user",
+        instructions:
+          "What is the primary topic of the user input when it includes several unrelated requests and a large amount of supporting context?",
+        choice: "implementation",
+        probabilities: {
+          unrelated: 0.01,
+          implementation: 0.94,
+          competition: 0.03,
+          feedback: 0.02,
+        },
+        confidence: 0.91,
       },
     ],
   },

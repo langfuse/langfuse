@@ -34,7 +34,7 @@ function confidenceTone(confidence: number) {
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   return (
     <span
-      className={cn("font-mono text-xs", confidenceTone(confidence))}
+      className={cn("shrink-0 font-mono text-xs", confidenceTone(confidence))}
       title="How concentrated the distribution is (0–1). Not the winner's probability."
     >
       confidence {confidence.toFixed(2)}
@@ -96,11 +96,16 @@ function NoulGauge({ probability }: { probability: number }) {
   return (
     <div className="flex flex-col gap-1 text-xs">
       <div className="flex items-center justify-between font-mono">
-        <span className="text-muted-foreground">no</span>
-        <span className="font-bold">
-          P(yes) = {probability.toFixed(2)} → leaning {leaning}
+        <span
+          className={leaning === "no" ? "font-bold" : "text-muted-foreground"}
+        >
+          no
         </span>
-        <span className="text-muted-foreground">yes</span>
+        <span
+          className={leaning === "yes" ? "font-bold" : "text-muted-foreground"}
+        >
+          yes
+        </span>
       </div>
       <div className="bg-muted relative h-2 rounded-full">
         <span
@@ -116,15 +121,31 @@ function NoulGauge({ probability }: { probability: number }) {
   );
 }
 
-function resultValue(
-  result: Exclude<DecisionModelQuestionResult, { type: "score" }>,
-) {
+function resultValue(result: DecisionModelQuestionResult) {
   switch (result.type) {
     case "choice":
       return result.choice;
+    case "score": {
+      const nearest = Math.min(
+        Math.max(Math.round(result.score), 0),
+        Math.max(result.levels.length - 1, 0),
+      );
+      return result.levels[nearest] || String(nearest);
+    }
     case "noul":
-      return result.probability.toFixed(2);
+      return result.probability >= 0.5 ? "yes" : "no";
   }
+}
+
+function ResultBadge({ result }: { result: DecisionModelQuestionResult }) {
+  return (
+    <Badge className="shrink-0 font-mono">
+      {result.type === "noul"
+        ? `${percent(Math.max(result.probability, 1 - result.probability))} `
+        : null}
+      {resultValue(result)}
+    </Badge>
+  );
 }
 
 function ResultVisual({ result }: { result: DecisionModelQuestionResult }) {
@@ -164,27 +185,29 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
   const copy = QUESTION_TYPE_COPY[result.type];
   return (
     <li className="flex flex-col gap-2 rounded-md border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <Badge variant="secondary" className="min-w-0 font-mono">
           <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
-          <Badge variant="secondary" className="font-mono">
+          <span className="truncate" title={result.scoreName}>
             {result.scoreName}
-          </Badge>
-          <span
-            className="text-muted-foreground truncate"
-            title={result.instructions}
-          >
-            {result.instructions}
           </span>
+        </Badge>
+        {result.type !== "noul" && result.confidence !== null ? (
+          <ConfidenceBadge confidence={result.confidence} />
+        ) : null}
+      </div>
+      <div className="flex min-w-0 items-center gap-2 text-sm">
+        <span
+          className="text-muted-foreground min-w-0 truncate"
+          title={result.instructions}
+        >
+          {result.instructions}
         </span>
-        <span className="flex items-center gap-3">
-          {result.type !== "noul" && result.confidence !== null ? (
-            <ConfidenceBadge confidence={result.confidence} />
-          ) : null}
-          {result.type === "score" ? null : (
-            <Badge className="font-mono">{resultValue(result)}</Badge>
-          )}
-        </span>
+        <div
+          className="border-border min-w-4 flex-1 border-t border-dashed"
+          aria-hidden="true"
+        />
+        <ResultBadge result={result} />
       </div>
       <ResultVisual result={result} />
     </li>
