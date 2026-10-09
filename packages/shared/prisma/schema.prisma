@@ -90,6 +90,8 @@ model User {
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
 
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
+
   @@map("users")
 }
 
@@ -131,7 +133,8 @@ model Organization {
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
-  ownedRoleAssignments             RoleAssignment[]         @relation("RoleAssignmentOwnerOrganization")
+
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentOrganization") @ignore
 
   @@map("organizations")
 }
@@ -208,6 +211,8 @@ model Project {
   topicClusteringRuns               TopicClusteringRun[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentProject") @ignore
+
   @@index([orgId])
   @@map("projects")
 }
@@ -242,6 +247,8 @@ model ApiKey {
   gatewayAssociation  GatewayApiKeyAssociation?
   roleAssignments     RoleAssignment[]
 
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentApiKey") @ignore
+
   @@index(orgId)
   @@index(projectId)
   @@index(createdByApiKeyId)
@@ -265,28 +272,43 @@ enum SystemRole {
 }
 
 model RoleAssignment {
-  id                String        @id @default(cuid())
-  orgId             String        @map("org_id")
-  organization      Organization  @relation("RoleAssignmentTenant", fields: [orgId], references: [id], onDelete: Cascade)
-  principalUserId   String?       @map("principal_user_id")
-  principalUser     User?         @relation(fields: [principalUserId], references: [id], onDelete: Cascade)
-  principalApiKeyId String?       @map("principal_api_key_id")
-  principalApiKey   ApiKey?       @relation(fields: [principalApiKeyId], references: [id], onDelete: Cascade)
-  systemRole        SystemRole    @map("system_role")
-  ownerOrgId        String?       @map("owner_org_id")
-  ownerOrg          Organization? @relation("RoleAssignmentOwnerOrganization", fields: [ownerOrgId], references: [id], onDelete: Cascade)
-  ownerProjectId    String?       @map("owner_project_id")
-  ownerProject      Project?      @relation(fields: [ownerProjectId], references: [id], onDelete: Cascade)
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at")
+  id           String       @id @default(cuid())
+  ownerId      String       @map("owner_id")
+  projectId    String?      @map("project_id")
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  orgId        String       @map("org_id")
+  organization Organization @relation("RoleAssignmentTenant", fields: [orgId], references: [id], onDelete: Cascade)
+  principalId  String       @map("principal_id")
+  userId       String?      @map("user_id")
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeyId     String?      @map("api_key_id")
+  apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  roleId       String       @map("role_id")
+  systemRole   SystemRole   @map("system_role")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([principalUserId, ownerOrgId, systemRole], map: "role_assignments_user_org_role_key")
-  @@unique([principalUserId, ownerProjectId, systemRole], map: "role_assignments_user_project_role_key")
-  @@unique([principalApiKeyId, ownerOrgId, systemRole], map: "role_assignments_api_key_org_role_key")
-  @@unique([principalApiKeyId, ownerProjectId, systemRole], map: "role_assignments_api_key_project_role_key")
+  deprecatedOwnerOrgId        String?       @map("owner_org_id") @ignore
+  deprecatedOwnerOrg          Organization? @relation("DeprecatedRoleAssignmentOrganization", fields: [deprecatedOwnerOrgId], references: [id], onDelete: Cascade) @ignore
+  deprecatedOwnerProjectId    String?       @map("owner_project_id") @ignore
+  deprecatedOwnerProject      Project?      @relation("DeprecatedRoleAssignmentProject", fields: [deprecatedOwnerProjectId], references: [id], onDelete: Cascade) @ignore
+  deprecatedPrincipalUserId   String?       @map("principal_user_id") @ignore
+  deprecatedPrincipalUser     User?         @relation("DeprecatedRoleAssignmentUser", fields: [deprecatedPrincipalUserId], references: [id], onDelete: Cascade) @ignore
+  deprecatedPrincipalApiKeyId String?       @map("principal_api_key_id") @ignore
+  deprecatedPrincipalApiKey   ApiKey?       @relation("DeprecatedRoleAssignmentApiKey", fields: [deprecatedPrincipalApiKeyId], references: [id], onDelete: Cascade) @ignore
+
+  @@unique([deprecatedPrincipalUserId, deprecatedOwnerOrgId, systemRole], map: "role_assignments_user_org_role_key")
+  @@unique([deprecatedPrincipalUserId, deprecatedOwnerProjectId, systemRole], map: "role_assignments_user_project_role_key")
+  @@unique([deprecatedPrincipalApiKeyId, deprecatedOwnerOrgId, systemRole], map: "role_assignments_api_key_org_role_key")
+  @@unique([deprecatedPrincipalApiKeyId, deprecatedOwnerProjectId, systemRole], map: "role_assignments_api_key_project_role_key")
+  @@unique([ownerId, principalId, roleId])
+  @@index([deprecatedOwnerOrgId], map: "role_assignments_owner_org_id_idx")
+  @@index([deprecatedOwnerProjectId], map: "role_assignments_owner_project_id_idx")
   @@index([orgId])
-  @@index([ownerOrgId])
-  @@index([ownerProjectId])
+  @@index([projectId])
+  @@index([principalId])
+  @@index([userId])
+  @@index([apiKeyId])
   @@map("role_assignments")
 }
 
