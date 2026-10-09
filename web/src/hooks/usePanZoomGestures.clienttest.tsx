@@ -192,6 +192,7 @@ describe("pan and zoom device input", () => {
     const draggedClick = new MouseEvent("click", {
       cancelable: true,
       bubbles: true,
+      detail: 1,
     });
     element.dispatchEvent(draggedClick);
     expect(draggedClick.defaultPrevented).toBe(true);
@@ -265,6 +266,66 @@ describe("pan and zoom device input", () => {
     expect(onZoom).toHaveBeenCalledExactlyOnceWith(1, { x: 0.625, y: 0.5 });
     expect(onPan).toHaveBeenCalledExactlyOnceWith(50, 0);
     expect(result.current.isDragging).toBe(true);
+  });
+
+  it("preserves the first toolbar tap after a pinch without allowing the pinch's click", () => {
+    const element = surface();
+    const button = document.createElement("button");
+    element.append(button);
+    button.addEventListener("pointerdown", (event) => event.stopPropagation());
+    const click = vi.fn();
+    button.addEventListener("click", click);
+    const target = { current: element };
+    const { result } = renderHook(() =>
+      usePanZoomGestures({ target, onPan: vi.fn(), onZoom: vi.fn() }),
+    );
+    const pinch = () =>
+      act(() => {
+        result.current.pointerHandlers.onPointerDown(
+          pointer(element, 1, 120, 140, { isPrimary: true }),
+        );
+        result.current.pointerHandlers.onPointerDown(
+          pointer(element, 2, 220, 140),
+        );
+        result.current.pointerHandlers.onPointerUp(
+          pointer(element, 2, 220, 140),
+        );
+        result.current.pointerHandlers.onPointerUp(
+          pointer(element, 1, 120, 140),
+        );
+      });
+
+    // Touch pinches need not produce a click; a toolbar owns the next press.
+    pinch();
+    button.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    const tap = new MouseEvent("click", {
+      cancelable: true,
+      bubbles: true,
+      detail: 1,
+    });
+    button.dispatchEvent(tap);
+    expect(tap.defaultPrevented).toBe(false);
+    expect(click).toHaveBeenCalledOnce();
+
+    pinch();
+    const pinchClick = new MouseEvent("click", {
+      cancelable: true,
+      bubbles: true,
+      detail: 1,
+    });
+    element.dispatchEvent(pinchClick);
+    expect(pinchClick.defaultPrevented).toBe(true);
+    expect(click).toHaveBeenCalledOnce();
+
+    pinch();
+    const keyboardClick = new MouseEvent("click", {
+      cancelable: true,
+      bubbles: true,
+      detail: 0,
+    });
+    button.dispatchEvent(keyboardClick);
+    expect(keyboardClick.defaultPrevented).toBe(false);
+    expect(click).toHaveBeenCalledTimes(2);
   });
 
   it("forgets a mouse press released outside the surface before capture", () => {

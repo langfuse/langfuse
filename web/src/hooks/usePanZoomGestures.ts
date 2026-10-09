@@ -118,15 +118,21 @@ export function usePanZoomGestures(options: Options) {
       }, WHEEL_END_MS);
     };
     const onClick = (event: MouseEvent) => {
-      if (!suppressClick.current) return;
+      if (!suppressClick.current || event.detail === 0) return;
       suppressClick.current = false;
       event.preventDefault();
       event.stopPropagation();
     };
+    // A new press may belong to a child control that stops pointer bubbling.
+    const onPress = () => {
+      suppressClick.current = false;
+    };
     element.addEventListener("wheel", onWheel, { passive: false });
+    element.addEventListener("pointerdown", onPress, { capture: true });
     element.addEventListener("click", onClick, { capture: true });
     return () => {
       element.removeEventListener("wheel", onWheel);
+      element.removeEventListener("pointerdown", onPress, { capture: true });
       element.removeEventListener("click", onClick, { capture: true });
       if (pending.current.frame) cancelAnimationFrame(pending.current.frame);
       if (wheelEnd.current) clearTimeout(wheelEnd.current);
