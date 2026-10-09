@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
@@ -14,6 +14,15 @@ import {
   type ResolveContextParams,
 } from "@/src/features/auth/policy/contextResolver";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+
+const { findRoleAssignments } = vi.hoisted(() => ({
+  findRoleAssignments: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  prisma: { roleAssignment: { findMany: findRoleAssignments } },
+}));
 
 const ORG = "org_1";
 const PRJ = "prj_1";
@@ -83,10 +92,6 @@ const mockPrisma = (row: OrganizationWithProjects | null): PrismaClient =>
       findUnique: async () => row,
       findFirst: async () => row,
     },
-    roleAssignment: {
-      findMany: async ({ where }: { where: { principalId: string } }) =>
-        assignmentsFor(where.principalId),
-    },
     project: {
       findMany: async () => (row?.projects ?? []).map((p) => ({ id: p.id })),
     },
@@ -127,6 +132,14 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
 });
 const orgKey = (over: Partial<ApiKey> = {}): ApiKey =>
   apiKey({ id: "key_o", scope: "ORGANIZATION", projectId: null, ...over });
+
+beforeEach(() => {
+  findRoleAssignments.mockReset();
+  findRoleAssignments.mockImplementation(
+    async ({ where }: { where: { principalId: string } }) =>
+      assignmentsFor(where.principalId),
+  );
+});
 
 describe("resolves the admin key", () => {
   it("grants admin over any project and org", async () => {
@@ -351,7 +364,7 @@ describe("role lookup failures", () => {
   it("does not backfill after a database error", async () => {
     const prisma = mockPrisma(orgRow());
     const failure = new Error("role lookup unavailable");
-    prisma.roleAssignment.findMany = vi.fn().mockRejectedValue(failure);
+    findRoleAssignments.mockRejectedValue(failure);
     prisma.$transaction = vi.fn();
     const resolver = new ContextResolver(
       new OrganizationRepository(prisma),

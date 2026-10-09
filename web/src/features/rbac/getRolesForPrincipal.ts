@@ -13,17 +13,12 @@ import {
   type TenantId,
 } from "@langfuse/shared/rbac";
 import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
-import {
-  prisma as defaultPrisma,
-  type PrismaClient,
-  type RoleAssignment,
-} from "@langfuse/shared/src/db";
+import { prisma, type RoleAssignment } from "@langfuse/shared/src/db";
 import { type Policy, type Role } from "./types";
 
 /** getRolesForPrincipal loads a principal's roles with policies bound to each assignment. */
 export async function getRolesForPrincipal(
   principalId: PrincipalId,
-  prisma: PrismaClient = defaultPrisma,
 ): Promise<Role[]> {
   const assignments = await getRoleAssignmentsForPrincipal(prisma, principalId);
   return assignments.map(toRole);
