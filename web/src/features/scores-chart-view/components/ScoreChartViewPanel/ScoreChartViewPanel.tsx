@@ -132,7 +132,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
             <ChartTypePicker
               value={config.chartType}
               onChange={onChartType}
-              showLabels
+              layout="full"
             />
           </PanelField>
           <PanelField label="View">

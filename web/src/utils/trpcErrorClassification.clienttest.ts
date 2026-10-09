@@ -32,6 +32,7 @@ describe("classifyTrpcToastError", () => {
       expect(classifyTrpcToastError(trpcError(code, httpStatus))).toEqual({
         errorOrigin,
         errorCategory,
+        operation: "test.procedure",
         trpcCode: code,
         httpStatus,
       });
@@ -46,6 +47,7 @@ describe("classifyTrpcToastError", () => {
       ).toEqual({
         errorOrigin: "backend",
         errorCategory: "user_input",
+        operation: path,
         trpcCode: "BAD_REQUEST",
         httpStatus: 400,
       });

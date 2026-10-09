@@ -353,6 +353,7 @@ async function getEventListPage(
       minTimestamp: minStartTime,
       excludeMetadata: true,
       includeHasMetadata: true,
+      preferredClickhouseService: "ReadOnly",
     }),
     traceIds.length > 0
       ? getScoresForTraces({

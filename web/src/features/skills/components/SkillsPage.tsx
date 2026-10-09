@@ -214,6 +214,7 @@ function SkillsList({
           </div>
           <div className="min-w-0 flex-1">
             <TableSearchBar
+              size="large"
               key={`${projectId}:${queryFilter.draftResetKey}`}
               projectId={projectId}
               tableName="skills"

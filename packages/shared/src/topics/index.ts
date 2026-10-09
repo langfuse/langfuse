@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
 
+export const TOPICS_BEDROCK_ACCESS_ERROR =
+  "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
+
 export const topicIdSchema = z
   .string()
   .min(1)

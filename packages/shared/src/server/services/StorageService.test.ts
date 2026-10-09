@@ -395,6 +395,56 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
   });
 });
 
+describe("StorageServiceFactory GCS credentials", () => {
+  const original = env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
+  afterEach(() => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = original;
+  });
+
+  const keyFilenameOf = (service: unknown) =>
+    (service as { storage: { authClient: { keyFilename?: string } } }).storage
+      .authClient.keyFilename;
+
+  it("uses ADC, not the deployment storage key, when GCS is selected explicitly without credentials", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    expect(keyFilenameOf(service)).toBeUndefined();
+  });
+
+  it("uses the deployment storage key when GCS is selected by env", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
+    env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
+    try {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+
+      expect(keyFilenameOf(service)).toBe("/etc/deployment-key.json");
+    } finally {
+      env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
+    }
+  });
+});
+
 /**
  * Source-stream errors on GCS uploads must reject the awaited upload instead
  * of escaping as an uncaught 'error' event. `.pipe().on("error")` only

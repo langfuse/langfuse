@@ -67,6 +67,7 @@ export function TraceLayoutMobile({
   graph,
   info,
   showGraph,
+  isLoading = false,
 }: {
   tree: ReactNode;
   timeline: ReactNode;
@@ -74,6 +75,8 @@ export function TraceLayoutMobile({
   info: ReactNode;
   /** Reused from TraceContent; hides the Graph tab when the trace has no graph. */
   showGraph: boolean;
+  /** Skips the data-bound notice while the panels show placeholders. */
+  isLoading?: boolean;
 }) {
   const [tabParam, setTabParam] = useQueryParam("mobileTab", StringParam);
   const { selectedNodeId } = useSelection();
@@ -131,7 +134,7 @@ export function TraceLayoutMobile({
 
         {/* Above the tab bodies, not inside one: the truncation applies to every
             tab, and the navigators own their own scroll containers. */}
-        <TraceTruncationNotice />
+        {!isLoading && <TraceTruncationNotice />}
 
         {/* Inactive tabs unmount (Radix default). On memory-constrained mobile
             that keeps a single heavy subtree live at a time (two virtualizers,

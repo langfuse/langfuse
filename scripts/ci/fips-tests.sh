@@ -3,21 +3,14 @@
 # code path that needs an algorithm a FIPS host refuses (md5, ...) fails here
 # with ERR_OSSL_EVP_UNSUPPORTED instead of in a customer deployment.
 #
-# Runs inside the Alpine toolchain stage of worker/Dockerfile: Alpine's Node
-# links the system OpenSSL, and OPENSSL_CONF=/etc/ssl/openssl-fips.cnf loads the
-# image's FIPS provider for it and every other OpenSSL user it starts. The
-# databases, migrations and env files must already be set up on the host, as
-# the tests-fips CI job does.
-#
-# FIPS mode covers the Langfuse processes and the tests, not the build, which
-# matches the images: their build stages run without it too. The standalone
-# Rust toolchain's cargo statically links its own OpenSSL, which reads
-# OPENSSL_CONF but cannot load the provider module, and then fails with
-# "library has no ciphers".
+# Runs inside the UBI toolchain stage of worker/Dockerfile: Red Hat's Node links
+# the system OpenSSL, and OPENSSL_FORCE_FIPS_MODE=1 switches it into FIPS mode
+# without a FIPS host kernel. The databases, migrations and env files must
+# already be set up on the host, as the tests-fips CI job does.
 #
 # Local run, from the repo root with the dev containers up and migrated:
 #   docker buildx build --load --target toolchain -f worker/Dockerfile -t langfuse-fips-toolchain .
-#   docker run --rm --network host -v "$PWD:/src:ro" \
+#   docker run --rm --network host -e OPENSSL_FORCE_FIPS_MODE=1 -v "$PWD:/src:ro" \
 #     langfuse-fips-toolchain bash /src/scripts/ci/fips-tests.sh worker [vitest filters...]
 
 set -euo pipefail
@@ -26,22 +19,19 @@ readonly SUITE="${1:?usage: fips-tests.sh web|worker [vitest filters...]}"
 shift
 readonly SRC_DIR="${FIPS_SOURCE_DIR:-/src}"
 readonly WORK_DIR="/work"
-readonly FIPS_OPENSSL_CONF="/etc/ssl/openssl-fips.cnf"
 
 export HUSKY=0 TURBO_TELEMETRY_DISABLED=1
-unset OPENSSL_CONF
 
 group() { echo "::group::$*"; }
 endgroup() { echo "::endgroup::"; }
 
-# Fail before the slow install and build when the image has no FIPS provider.
-if ! OPENSSL_CONF="$FIPS_OPENSSL_CONF" node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then
-  echo "The OpenSSL FIPS provider is not active with OPENSSL_CONF=$FIPS_OPENSSL_CONF." >&2
+if ! node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then
+  echo "The OpenSSL FIPS provider is not active; run with OPENSSL_FORCE_FIPS_MODE=1." >&2
   exit 1
 fi
 
 # Build on a private copy: the host's node_modules and build outputs were made
-# for the host, not for Alpine. Env files written by the host come along.
+# for the host, not for UBI. Env files written by the host come along.
 group "Copy sources"
 mkdir -p "$WORK_DIR"
 tar -C "$SRC_DIR" --exclude=.git --exclude=node_modules --exclude=.next \
@@ -78,7 +68,6 @@ case "$SUITE" in
     pnpm --filter=worker... run build
     endgroup
 
-    export OPENSSL_CONF="$FIPS_OPENSSL_CONF"
     NODE_ENV="test" pnpm --filter @langfuse/shared run test --passWithNoTests "$@"
     pnpm --filter=worker run test:exclude-llm-connections --passWithNoTests "$@"
     ;;
@@ -97,7 +86,6 @@ case "$SUITE" in
     pnpm --filter web run build:otel-worker
     endgroup
 
-    export OPENSSL_CONF="$FIPS_OPENSSL_CONF"
     group "Start Langfuse"
     # Docker sets HOSTNAME to the container's host name, and the worker binds
     # to HOSTNAME; bind all interfaces so localhost reaches it.
