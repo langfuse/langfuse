@@ -4,22 +4,9 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { SkillCliSelector } from "./SkillCliSelector";
+import { shellQuote } from "../utils/shellQuote";
 
-// Single quotes keep shell metacharacters in user-defined labels, tags, and paths literal.
-function shellQuote(value: string) {
-  return `'${value.replaceAll("'", "'\"'\"'")}'`;
-}
-
-function selectedOption(value: string, options: string[]) {
-  return options.includes(value) ? value : (options[0] ?? "");
-}
-
-export function SkillInstallationOptions({
-  initialValues,
-  labels,
-  tags,
-  names,
-}: {
+export type SkillInstallationOptionsProps = {
   initialValues: {
     by: "name" | "tag";
     name: string;
@@ -30,7 +17,14 @@ export function SkillInstallationOptions({
   labels: string[];
   tags: string[];
   names: string[];
-}) {
+};
+
+export function SkillInstallationOptions({
+  initialValues,
+  labels,
+  tags,
+  names,
+}: SkillInstallationOptionsProps) {
   const id = useId();
   const [by, setBy] = useState<string>(initialValues.by);
   const [name, setName] = useState(initialValues.name);
@@ -52,7 +46,7 @@ export function SkillInstallationOptions({
   const validVersion =
     /^[1-9]\d*$/.test(version) && Number.isSafeInteger(Number(version));
   const selectedName = selectedOption(name, names);
-  const selectedTag = tags.length ? selectedOption(tag, tags) : tag;
+  const selectedTag = tags.length > 0 ? selectedOption(tag, tags) : tag;
   const selectedNameLabel = selectedOption(nameLabel, labelOptions);
   const selectedTagLabel = selectedOption(tagLabel, labelOptions);
   const nameValidation = SkillNameSchema.safeParse(selectedName);
@@ -81,6 +75,7 @@ export function SkillInstallationOptions({
       ? "Enter a positive whole-number version."
       : null;
   const error = by === "name" ? (nameError ?? versionError) : tagError;
+  const description = getInstallationDescription(by, pinnedVersion);
 
   return (
     <div className="ph-no-capture flex flex-col gap-4">
@@ -104,7 +99,7 @@ export function SkillInstallationOptions({
             </Tabs.Content>
             <Tabs.Content value="tag">
               <div className="pt-3">
-                {tags.length ? (
+                {tags.length > 0 ? (
                   <SkillCliSelector
                     label="Skill tag"
                     options={tags.map((tag) => ({ value: tag, label: tag }))}
@@ -196,18 +191,7 @@ export function SkillInstallationOptions({
             />
           </div>
         </div>
-        {by === "tag" ? (
-          <p className="text-muted-foreground">
-            Installs every skill with this tag at the chosen label. Each skill
-            must have that label.
-          </p>
-        ) : (
-          <p className="text-muted-foreground">
-            {pinnedVersion
-              ? "Pins this skill to the selected version."
-              : "Follows this label when you update, even when it moves to a new version."}
-          </p>
-        )}
+        <p className="text-muted-foreground">{description}</p>
         {error ? (
           <p role="alert" className="text-destructive">
             {error}
@@ -231,4 +215,18 @@ export function SkillInstallationOptions({
       </div>
     </div>
   );
+}
+
+function selectedOption(value: string, options: string[]) {
+  return options.includes(value) ? value : (options[0] ?? "");
+}
+
+function getInstallationDescription(by: string, pinnedVersion: boolean) {
+  if (by === "tag") {
+    return "Installs every skill with this tag at the chosen label. Each skill must have that label.";
+  }
+  if (pinnedVersion) {
+    return "Pins this skill to the selected version.";
+  }
+  return "Follows this label when you update, even when it moves to a new version.";
 }

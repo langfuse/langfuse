@@ -348,7 +348,7 @@ export function SkillEditor({
       state:
         | { kind: "save"; createNew: boolean }
         | { kind: "discard" }
-        | { kind: "install"; host: string },
+        | { kind: "install" },
     ) => void,
     closeMenu?: () => void,
   ) => (
@@ -394,7 +394,7 @@ export function SkillEditor({
           icon={Terminal}
           onClick={() => {
             closeMenu?.();
-            openDialog({ kind: "install", host: window.location.origin });
+            openDialog({ kind: "install" });
           }}
         />
       ) : null}
@@ -478,7 +478,7 @@ export function SkillEditor({
     <DialogController<
       | { kind: "save"; createNew: boolean }
       | { kind: "discard" }
-      | { kind: "install"; host: string }
+      | { kind: "install" }
     >
       renderDialog={({ state, closeDialog }) => {
         if (state.kind === "install") {
@@ -495,7 +495,6 @@ export function SkillEditor({
               }}
               labels={labels}
               tags={tags}
-              host={state.host}
             />
           );
         }
