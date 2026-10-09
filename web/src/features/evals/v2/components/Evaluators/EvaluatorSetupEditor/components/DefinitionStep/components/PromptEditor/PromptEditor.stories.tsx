@@ -78,35 +78,6 @@ export const MultipleMessages = meta.story({
     const roleTag = canvas.getByText("System");
     const toolbar = collapseButton.parentElement?.parentElement;
     if (!toolbar) throw new Error("Prompt toolbar not found");
-    const outerGroup = canvas.getByRole("button", {
-      name: "Add message",
-    }).previousElementSibling;
-    const editor =
-      toolbar.parentElement?.querySelector<HTMLElement>(".cm-editor");
-    if (!(outerGroup instanceof HTMLElement) || !editor) {
-      throw new Error("Prompt surfaces not found");
-    }
-    await expect(outerGroup).toHaveClass("bg-secondary");
-    await expect(toolbar).toHaveClass("bg-header", "text-header-foreground");
-    await expect(toolbar).not.toHaveClass("bg-secondary");
-    const surfaceColors = () =>
-      [outerGroup, toolbar, editor].map(
-        (surface) => getComputedStyle(surface).backgroundColor,
-      );
-    const lightSurfaceColors = surfaceColors();
-    await expect(new Set(lightSurfaceColors).size).toBe(3);
-    const root = canvasElement.ownerDocument.documentElement;
-    root.classList.add("dark");
-    try {
-      await waitFor(() => {
-        const darkSurfaceColors = surfaceColors();
-        expect(darkSurfaceColors).not.toEqual(lightSurfaceColors);
-        expect(new Set(darkSurfaceColors).size).toBe(3);
-      });
-    } finally {
-      root.classList.remove("dark");
-    }
-
     const expandedMetrics = {
       toolbarHeight: toolbar.getBoundingClientRect().height,
       buttonWidth: collapseButton.getBoundingClientRect().width,

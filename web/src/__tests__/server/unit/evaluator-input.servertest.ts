@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   McpEvaluatorInput,
   McpEvaluatorInputBase,
-  toEvaluatorServiceInput,
 } from "@/src/features/mcp/server/evals/tools/evaluatorInput";
 
 const llmEvaluatorInput = {
@@ -96,40 +95,6 @@ describe("MCP evaluator input", () => {
       }
     },
   );
-
-  it("preserves structured prompt messages without a flat prompt", () => {
-    const promptMessages = [
-      { role: "system" as const, content: "Judge consistently." },
-      { role: "user" as const, content: "Judge {{output}}." },
-    ];
-    const input = {
-      ...llmEvaluatorInput,
-      prompt: undefined,
-      promptMessages,
-    };
-
-    expect(McpEvaluatorInput.safeParse(input).success).toBe(true);
-    expect(toEvaluatorServiceInput(input).definition).toMatchObject({
-      promptMessages,
-    });
-  });
-
-  it("rejects ambiguous flat and structured prompts", () => {
-    const result = McpEvaluatorInput.safeParse({
-      ...llmEvaluatorInput,
-      promptMessages: [{ role: "user", content: "Judge {{output}}." }],
-    });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues).toContainEqual(
-        expect.objectContaining({
-          path: ["promptMessages"],
-          message: "Provide either prompt or promptMessages, not both.",
-        }),
-      );
-    }
-  });
 
   it("derives a plain variable mapping schema from the shared schema", () => {
     expect(

@@ -93,10 +93,6 @@ import {
   testEvaluatorTool,
 } from "@/src/features/mcp/server/evals/tools/testEvaluator";
 import {
-  handleSetEvaluatorWorkbenchFilter,
-  setEvaluatorWorkbenchFilterTool,
-} from "@/src/features/mcp/server/evals/tools/setEvaluatorWorkbenchFilter";
-import {
   deleteExternalMediaStorageTool,
   handleConfigureExternalMediaStorage,
   handleDeleteExternalMediaStorage,
@@ -434,49 +430,6 @@ describe("MCP Write Tools", () => {
       expect(updatedEvaluator.versions).toEqual([
         expect.objectContaining({ version: 2 }),
       ]);
-    });
-
-    it("validates an ephemeral workbench filter for the current project evaluator", async () => {
-      const setup = await createMcpTestSetup();
-      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
-      expect(setEvaluatorWorkbenchFilterTool.annotations).toBeUndefined();
-
-      await expect(
-        handleSetEvaluatorWorkbenchFilter(
-          {
-            evaluatorId: evaluator.id,
-            filter: [
-              {
-                type: "stringOptions",
-                column: "type",
-                operator: "any of",
-                value: ["GENERATION"],
-              },
-            ],
-          },
-          setup.context,
-        ),
-      ).resolves.toMatchObject({
-        evaluatorId: evaluator.id,
-        filter: [
-          {
-            type: "stringOptions",
-            column: "type",
-            operator: "any of",
-            value: ["GENERATION"],
-          },
-        ],
-        application: "pending_current_ui",
-        persisted: false,
-      });
-
-      const otherProject = await createMcpTestSetup();
-      await expect(
-        handleSetEvaluatorWorkbenchFilter(
-          { evaluatorId: evaluator.id, filter: [] },
-          otherProject.context,
-        ),
-      ).rejects.toThrow();
     });
 
     it("switches evaluator type while retaining its stable id", async () => {

@@ -81,6 +81,64 @@ const PROMPT_MESSAGE_PLACEHOLDER =
 
 type PreparedPromptEditorState = ReturnType<typeof preparePromptEditorState>;
 
+function PromptPreviewToggle({
+  checked,
+  compact,
+  disabledReason,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  compact: boolean;
+  disabledReason: string | null;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const disabledDescriptionId = useId();
+
+  return (
+    <>
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <label
+            className={cn(
+              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
+              compact && "@max-[340px]/prompt-group:px-1",
+              disabledReason
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer",
+            )}
+            title={compact ? "Preview" : undefined}
+            tabIndex={disabledReason ? 0 : undefined}
+            aria-disabled={Boolean(disabledReason)}
+            aria-describedby={
+              disabledReason ? disabledDescriptionId : undefined
+            }
+          >
+            <Switch
+              size="sm"
+              checked={checked}
+              disabled={Boolean(disabledReason)}
+              onCheckedChange={onCheckedChange}
+            />
+            <span
+              className={cn(compact && "@max-[340px]/prompt-group:sr-only")}
+            >
+              Preview
+            </span>
+          </label>
+        </TooltipTrigger>
+        {disabledReason ? (
+          <TooltipContent>{disabledReason}</TooltipContent>
+        ) : null}
+      </Tooltip>
+      {disabledReason ? (
+        <span id={disabledDescriptionId} className="sr-only">
+          {disabledReason}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export function PromptEditor({
   projectId,
   evaluatorId,
@@ -131,7 +189,6 @@ export function PromptEditorContent({
   });
   const onboardingAnalytics = useEvalOnboardingAnalytics();
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-  const previewDisabledDescriptionId = useId();
   const activeMessageIndex = activeMessageId
     ? state.promptMessageIds.indexOf(activeMessageId)
     : -1;
@@ -144,62 +201,17 @@ export function PromptEditorContent({
   );
   const isSingleMessage = state.promptMessages.length === 1;
   const previewAction = (
-    <>
-      <Tooltip delayDuration={0}>
-        <TooltipTrigger asChild>
-          <label
-            className={cn(
-              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
-              isSingleMessage && "@max-[340px]/prompt-group:px-1",
-              combinedPrepared.promptPreviewDisabledReason
-                ? "cursor-not-allowed opacity-60"
-                : "cursor-pointer",
-            )}
-            title={isSingleMessage ? "Preview" : undefined}
-            tabIndex={
-              combinedPrepared.promptPreviewDisabledReason ? 0 : undefined
-            }
-            aria-disabled={Boolean(
-              combinedPrepared.promptPreviewDisabledReason,
-            )}
-            aria-describedby={
-              combinedPrepared.promptPreviewDisabledReason
-                ? previewDisabledDescriptionId
-                : undefined
-            }
-          >
-            <Switch
-              size="sm"
-              checked={state.promptPreviewEnabled}
-              disabled={Boolean(combinedPrepared.promptPreviewDisabledReason)}
-              onCheckedChange={(isEnabled) => {
-                state.actions.setPromptPreviewEnabled(isEnabled);
-                onboardingAnalytics?.track("eval:onboarding_preview_toggled", {
-                  isEnabled,
-                });
-              }}
-            />
-            <span
-              className={cn(
-                isSingleMessage && "@max-[340px]/prompt-group:sr-only",
-              )}
-            >
-              Preview
-            </span>
-          </label>
-        </TooltipTrigger>
-        {combinedPrepared.promptPreviewDisabledReason ? (
-          <TooltipContent>
-            {combinedPrepared.promptPreviewDisabledReason}
-          </TooltipContent>
-        ) : null}
-      </Tooltip>
-      {combinedPrepared.promptPreviewDisabledReason ? (
-        <span id={previewDisabledDescriptionId} className="sr-only">
-          {combinedPrepared.promptPreviewDisabledReason}
-        </span>
-      ) : null}
-    </>
+    <PromptPreviewToggle
+      checked={state.promptPreviewEnabled}
+      compact={isSingleMessage}
+      disabledReason={combinedPrepared.promptPreviewDisabledReason}
+      onCheckedChange={(isEnabled) => {
+        state.actions.setPromptPreviewEnabled(isEnabled);
+        onboardingAnalytics?.track("eval:onboarding_preview_toggled", {
+          isEnabled,
+        });
+      }}
+    />
   );
 
   const handleDragStart = ({ active }: DragStartEvent) => {
