@@ -59,4 +59,14 @@ describe("useResolvedExternalMedia", () => {
 
     expect(refetchMock).toHaveBeenCalledOnce();
   });
+
+  it("forces a new signed URL after a media element reports an error", async () => {
+    const { result } = renderHook(() =>
+      useResolvedExternalMedia(descriptor, { enabled: true }),
+    );
+
+    await act(result.current.refresh);
+
+    expect(refetchMock).toHaveBeenCalledOnce();
+  });
 });

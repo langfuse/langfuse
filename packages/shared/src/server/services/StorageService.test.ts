@@ -3,7 +3,7 @@ import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { S3Client } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
@@ -138,6 +138,35 @@ describe("S3StorageService region normalization", () => {
       "test-bucket.s3.us-east-1.amazonaws.com",
       "test-bucket.s3.eu-west-1.amazonaws.com",
     ]);
+  });
+});
+
+describe("S3StorageService object metadata", () => {
+  it("reads the object content length without downloading the object", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "us-east-1",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const send = vi.fn().mockResolvedValue({ ContentLength: 123 });
+    (service as unknown as { client: { send: typeof send } }).client = { send };
+
+    await expect(
+      service.getObjectContentLength("media/clip.mp3"),
+    ).resolves.toBe(123);
+    expect(send).toHaveBeenCalledWith(expect.any(HeadObjectCommand));
+    expect(send.mock.calls[0]?.[0].input).toEqual({
+      Bucket: "test-bucket",
+      Key: "media/clip.mp3",
+    });
   });
 });
 

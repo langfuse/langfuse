@@ -10,6 +10,8 @@ import {
 } from "@/src/components/ui/popover";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { MediaAudioPlayer } from "@/src/components/ui/media/MediaAudioPlayer";
+import { MediaVideoPlayer } from "@/src/components/ui/media/MediaVideoPlayer";
 
 export interface MediaButtonGroupProps {
   media: MediaReturnType[];
@@ -21,34 +23,6 @@ interface GroupedMedia {
   category: MediaCategory;
   items: MediaReturnType[];
   icon: typeof ImageIcon;
-}
-
-/**
- * AudioPlayer - Renders HTML5 audio player with controls
- */
-function AudioPlayer({ src }: { src?: string }) {
-  if (!src) return null;
-
-  return (
-    <audio controls className="w-full" preload="metadata">
-      <source src={src} />
-      Your browser does not support the audio element.
-    </audio>
-  );
-}
-
-/**
- * VideoPlayer - Renders HTML5 video player with controls
- */
-function VideoPlayer({ src }: { src?: string }) {
-  if (!src) return null;
-
-  return (
-    <video controls className="w-full" preload="metadata" playsInline>
-      <source src={src} />
-      Your browser does not support the video element.
-    </video>
-  );
 }
 
 /**
@@ -107,9 +81,9 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
   if (contentType.startsWith("image")) {
     return <ImagePreview src={mediaUrl} />;
   } else if (contentType.startsWith("audio")) {
-    return <AudioPlayer src={mediaUrl} />;
+    return <MediaAudioPlayer src={mediaUrl} />;
   } else if (contentType.startsWith("video")) {
-    return <VideoPlayer src={mediaUrl} />;
+    return <MediaVideoPlayer src={mediaUrl} />;
   }
   // Documents: use file icon view
   return <LangfuseMediaView mediaAPIReturnValue={mediaItem} variant="icon" />;

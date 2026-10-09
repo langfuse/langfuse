@@ -3,6 +3,8 @@ import { ExternalLink } from "lucide-react";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 import { Button } from "@/src/components/ui/button";
+import { MediaAudioPlayer } from "@/src/components/ui/media/MediaAudioPlayer";
+import { MediaVideoPlayer } from "@/src/components/ui/media/MediaVideoPlayer";
 import {
   COMPACT_IMAGE_MAX_HEIGHT_REM,
   ResizableImage,
@@ -14,12 +16,16 @@ export type MediaFileViewProps = {
   src: string;
   contentType: MediaContentType;
   defaultExpanded?: boolean;
+  onPreviewError?: () => void;
+  onPreviewRequest?: () => void;
 };
 
 export function MediaFileView({
   src,
   contentType,
   defaultExpanded = false,
+  onPreviewError,
+  onPreviewRequest,
 }: MediaFileViewProps) {
   const mimeType = String(contentType);
   const fileType = mimeType.split("/")[0];
@@ -57,6 +63,7 @@ export function MediaFileView({
   };
   const handleFileCardClick = () => {
     if (isPreviewable) {
+      onPreviewRequest?.();
       expandPreview();
       return;
     }
@@ -78,6 +85,7 @@ export function MediaFileView({
               fileName={fileName}
               fileType={fileType as MediaFilePreviewProps["fileType"]}
               compactImageWidth={compactImageWidth}
+              onError={onPreviewError}
             />
           </div>
           <Button
@@ -108,6 +116,7 @@ function MediaFilePreview({
   fileName,
   fileType,
   compactImageWidth,
+  onError,
 }: MediaFilePreviewProps) {
   if (fileType === "image") {
     return (
@@ -125,30 +134,12 @@ function MediaFilePreview({
   if (fileType === "audio") {
     return (
       <div className="max-w-xl min-w-72">
-        <AudioPlayer src={src} />
+        <MediaAudioPlayer src={src} onError={onError} />
       </div>
     );
   }
 
-  return <VideoPlayer src={src} />;
-}
-
-function AudioPlayer({ src }: { src: string }) {
-  return (
-    <audio controls className="w-full" preload="metadata">
-      <source src={src} />
-      Your browser does not support the audio element.
-    </audio>
-  );
-}
-
-function VideoPlayer({ src }: { src: string }) {
-  return (
-    <video controls className="w-full" preload="metadata" playsInline>
-      <source src={src} />
-      Your browser does not support the video element.
-    </video>
-  );
+  return <MediaVideoPlayer src={src} onError={onError} />;
 }
 
 type MediaFilePreviewProps = {
@@ -156,4 +147,5 @@ type MediaFilePreviewProps = {
   fileName: string;
   fileType: "image" | "audio" | "video";
   compactImageWidth?: string;
+  onError?: () => void;
 };

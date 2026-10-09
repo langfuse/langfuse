@@ -151,6 +151,7 @@ describe("external media storage service", () => {
     const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
     (StorageServiceFactory.getInstance as Mock).mockReturnValue({
       getSignedUrl,
+      getObjectContentLength: vi.fn().mockResolvedValue(42),
     });
     const project = await prepareIntegration({ prefix: null });
 
