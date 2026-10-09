@@ -164,7 +164,7 @@ describe("legacy evaluator compatibility service", () => {
       data: {
         targetObject: EvalTargetObject.SCORE_RESULT,
         triggerEvaluatorId: assignment.evaluatorId,
-        scoreResultPredicates: [
+        filter: [
           {
             scoreName: "quality",
             dataType: "NUMERIC",
@@ -1000,11 +1000,7 @@ describe("legacy evaluator compatibility service", () => {
         name: "Dependent result rule",
         status: "ACTIVE",
         targetObject: EvalTargetObject.SCORE_RESULT,
-        filter: [],
-        sampling: 1,
-        delay: 0,
-        triggerEvaluatorId: library.id,
-        scoreResultPredicates: [
+        filter: [
           {
             scoreName: "quality",
             dataType: "NUMERIC",
@@ -1012,6 +1008,9 @@ describe("legacy evaluator compatibility service", () => {
             value: 0.8,
           },
         ],
+        sampling: 1,
+        delay: 0,
+        triggerEvaluatorId: library.id,
       },
     });
 
@@ -1040,11 +1039,11 @@ describe("legacy evaluator compatibility service", () => {
     await expect(
       prisma.evaluationRule.findUniqueOrThrow({
         where: { id: dependentRule.id },
-        select: { status: true, triggerInvalidReason: true },
+        select: { status: true, ruleInvalidReason: true },
       }),
     ).resolves.toEqual({
       status: "INACTIVE",
-      triggerInvalidReason:
+      ruleInvalidReason:
         "The trigger evaluator changed. Review the score conditions.",
     });
     const config = await service.getConfig(project.id, rule!.id);
@@ -1217,11 +1216,7 @@ describe("legacy evaluator compatibility service", () => {
         name: "Dependent result rule",
         status: "ACTIVE",
         targetObject: EvalTargetObject.SCORE_RESULT,
-        filter: [],
-        sampling: 1,
-        delay: 0,
-        triggerEvaluatorId: evaluator.id,
-        scoreResultPredicates: [
+        filter: [
           {
             scoreName: "quality",
             dataType: "NUMERIC",
@@ -1229,6 +1224,9 @@ describe("legacy evaluator compatibility service", () => {
             value: 0.8,
           },
         ],
+        sampling: 1,
+        delay: 0,
+        triggerEvaluatorId: evaluator.id,
       },
     });
 
@@ -1245,11 +1243,11 @@ describe("legacy evaluator compatibility service", () => {
     await expect(
       prisma.evaluationRule.findUniqueOrThrow({
         where: { id: resultRule.id },
-        select: { status: true, triggerInvalidReason: true },
+        select: { status: true, ruleInvalidReason: true },
       }),
     ).resolves.toEqual({
       status: "INACTIVE",
-      triggerInvalidReason: "The trigger evaluator was deleted.",
+      ruleInvalidReason: "The trigger evaluator was deleted.",
     });
   });
 
@@ -1265,11 +1263,7 @@ describe("legacy evaluator compatibility service", () => {
         name: "Dependent result rule",
         status: "ACTIVE",
         targetObject: EvalTargetObject.SCORE_RESULT,
-        filter: [],
-        sampling: 1,
-        delay: 0,
-        triggerEvaluatorId: sourceEvaluator.id,
-        scoreResultPredicates: [
+        filter: [
           {
             scoreName: "quality",
             dataType: "NUMERIC",
@@ -1277,6 +1271,9 @@ describe("legacy evaluator compatibility service", () => {
             value: 0.8,
           },
         ],
+        sampling: 1,
+        delay: 0,
+        triggerEvaluatorId: sourceEvaluator.id,
         assignments: {
           create: {
             projectId: project.id,

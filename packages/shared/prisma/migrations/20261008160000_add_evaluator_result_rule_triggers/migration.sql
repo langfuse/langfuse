@@ -1,7 +1,6 @@
 ALTER TABLE "evaluation_rules"
 ADD COLUMN "trigger_evaluator_id" TEXT,
-ADD COLUMN "score_result_predicates" JSONB,
-ADD COLUMN "trigger_invalid_reason" TEXT;
+ADD COLUMN "rule_invalid_reason" TEXT;
 
 ALTER TABLE "evaluation_rules"
 ADD CONSTRAINT "evaluation_rules_trigger_evaluator_id_fkey"

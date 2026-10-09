@@ -40,7 +40,7 @@ export function RuleActiveSwitchCell({
     isLegacy && !rule.enabled
       ? "Legacy rules cannot be re-enabled because trace- and dataset-level evaluations are deprecated. Create an observation-based rule instead."
       : null;
-  const disabledReason = rule.triggerInvalidReason ?? legacyDisabledReason;
+  const disabledReason = rule.ruleInvalidReason ?? legacyDisabledReason;
 
   const switchControl = (
     <Switch

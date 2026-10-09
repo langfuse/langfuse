@@ -344,15 +344,17 @@ export function createRule(params: {
         ? JobConfigState.ACTIVE
         : JobConfigState.INACTIVE,
       targetObject: params.input.targetObject,
-      filter: params.input.filter as Prisma.InputJsonValue,
+      filter:
+        params.input.targetObject === EvalTargetObject.SCORE_RESULT &&
+        params.input.scoreResultTrigger
+          ? (params.input.scoreResultTrigger
+              .predicates as Prisma.InputJsonValue)
+          : (params.input.filter as Prisma.InputJsonValue),
       sampling: params.input.sampling,
       delay: 0,
       timeScope: ["NEW"],
       triggerEvaluatorId: params.input.scoreResultTrigger?.evaluatorId ?? null,
-      scoreResultPredicates: params.input.scoreResultTrigger
-        ? (params.input.scoreResultTrigger.predicates as Prisma.InputJsonValue)
-        : Prisma.DbNull,
-      triggerInvalidReason: null,
+      ruleInvalidReason: null,
       assignments: {
         create: params.input.evaluatorAssignments.map((assignment) => ({
           projectId: params.input.projectId,
@@ -371,7 +373,7 @@ export function updateRule(params: {
   targetObject?: EvalTargetObject;
   filter?: Prisma.InputJsonValue;
   scoreResultTrigger?: ScoreResultTrigger | null;
-  clearTriggerInvalidReason?: boolean;
+  clearRuleInvalidReason?: boolean;
   sampling?: number;
 }) {
   return params.prisma.evaluationRule.update({
@@ -400,13 +402,8 @@ export function updateRule(params: {
         ? {}
         : {
             triggerEvaluatorId: params.scoreResultTrigger?.evaluatorId ?? null,
-            scoreResultPredicates: params.scoreResultTrigger
-              ? (params.scoreResultTrigger.predicates as Prisma.InputJsonValue)
-              : Prisma.DbNull,
           }),
-      ...(params.clearTriggerInvalidReason
-        ? { triggerInvalidReason: null }
-        : {}),
+      ...(params.clearRuleInvalidReason ? { ruleInvalidReason: null } : {}),
     },
     include: ruleInclude,
   });
@@ -496,7 +493,7 @@ export function invalidateEvaluatorResultRules(params: {
     },
     data: {
       status: JobConfigState.INACTIVE,
-      triggerInvalidReason: params.reason,
+      ruleInvalidReason: params.reason,
     },
   });
 }

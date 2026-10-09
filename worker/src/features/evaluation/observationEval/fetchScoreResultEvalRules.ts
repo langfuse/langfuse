@@ -29,7 +29,7 @@ export async function fetchScoreResultEvalRules(params: {
       projectId: params.projectId,
       targetObject: EvalTargetObject.SCORE_RESULT,
       triggerEvaluatorId: params.evaluatorId,
-      triggerInvalidReason: null,
+      ruleInvalidReason: null,
       status: JobConfigState.ACTIVE,
       assignments: {
         some: {
@@ -41,7 +41,7 @@ export async function fetchScoreResultEvalRules(params: {
     select: {
       id: true,
       projectId: true,
-      scoreResultPredicates: true,
+      filter: true,
       sampling: true,
       status: true,
       assignments: {
@@ -80,7 +80,7 @@ export async function fetchScoreResultEvalRules(params: {
     assignments: rule.assignments,
     scoreResultTrigger: ScoreResultTriggerSchema.parse({
       evaluatorId: params.evaluatorId,
-      predicates: rule.scoreResultPredicates,
+      predicates: rule.filter,
     }),
   }));
 }

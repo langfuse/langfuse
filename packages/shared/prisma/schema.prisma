@@ -1225,10 +1225,9 @@ model EvaluationRule {
   idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
 
-  triggerEvaluatorId    String?    @map("trigger_evaluator_id")
-  triggerEvaluator      Evaluator? @relation("EvaluationRuleTriggerEvaluator", fields: [triggerEvaluatorId], references: [id], onDelete: SetNull)
-  scoreResultPredicates Json?      @map("score_result_predicates")
-  triggerInvalidReason  String?    @map("trigger_invalid_reason")
+  triggerEvaluatorId String?    @map("trigger_evaluator_id")
+  triggerEvaluator   Evaluator? @relation("EvaluationRuleTriggerEvaluator", fields: [triggerEvaluatorId], references: [id], onDelete: SetNull)
+  ruleInvalidReason  String?    @map("rule_invalid_reason")
 
   assignments EvaluationRuleEvaluatorAssignment[]
 

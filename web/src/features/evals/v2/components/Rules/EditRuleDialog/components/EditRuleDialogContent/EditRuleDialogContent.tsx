@@ -89,7 +89,7 @@ export function EditRuleDialogContent({
       (assignment) => !nextIds.has(assignment.evaluator.id),
     ).length;
     const preservesInvalidMissingTrigger =
-      Boolean(rule.triggerInvalidReason) &&
+      Boolean(rule.ruleInvalidReason) &&
       draft.targetObject === EvalTargetObject.SCORE_RESULT &&
       draft.scoreResultTrigger === null;
     await update.mutateAsync({
@@ -162,9 +162,9 @@ export function EditRuleDialogContent({
         mutationPending={update.isPending}
         nameGenerationPending={false}
         isEditing
-        allowUnchangedSave={Boolean(rule.triggerInvalidReason)}
+        allowUnchangedSave={Boolean(rule.ruleInvalidReason)}
         allowMissingScoreResultTrigger={
-          Boolean(rule.triggerInvalidReason) && rule.scoreResultTrigger === null
+          Boolean(rule.ruleInvalidReason) && rule.scoreResultTrigger === null
         }
         requireAssignments={rule.enabled}
         canEdit={hasWriteAccess}

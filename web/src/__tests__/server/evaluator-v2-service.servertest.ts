@@ -811,11 +811,7 @@ describe("EvaluatorService", () => {
         name: "Dependent rule",
         status: "ACTIVE",
         targetObject: EvalTargetObject.SCORE_RESULT,
-        filter: [],
-        sampling: 1,
-        delay: 0,
-        triggerEvaluatorId: created.id,
-        scoreResultPredicates: [
+        filter: [
           {
             scoreName: "quality",
             dataType: "NUMERIC",
@@ -823,6 +819,9 @@ describe("EvaluatorService", () => {
             value: 0.8,
           },
         ],
+        sampling: 1,
+        delay: 0,
+        triggerEvaluatorId: created.id,
       },
     });
 
@@ -842,11 +841,11 @@ describe("EvaluatorService", () => {
     await expect(
       prisma.evaluationRule.findUniqueOrThrow({
         where: { id: dependentRule.id },
-        select: { status: true, triggerInvalidReason: true },
+        select: { status: true, ruleInvalidReason: true },
       }),
     ).resolves.toEqual({
       status: "ACTIVE",
-      triggerInvalidReason: null,
+      ruleInvalidReason: null,
     });
 
     await service.update(
@@ -861,11 +860,11 @@ describe("EvaluatorService", () => {
     await expect(
       prisma.evaluationRule.findUniqueOrThrow({
         where: { id: dependentRule.id },
-        select: { status: true, triggerInvalidReason: true },
+        select: { status: true, ruleInvalidReason: true },
       }),
     ).resolves.toEqual({
       status: "INACTIVE",
-      triggerInvalidReason:
+      ruleInvalidReason:
         "The trigger evaluator changed. Review the score conditions.",
     });
 
@@ -893,11 +892,11 @@ describe("EvaluatorService", () => {
     await expect(
       prisma.evaluationRule.findUniqueOrThrow({
         where: { id: dependentRule.id },
-        select: { status: true, triggerInvalidReason: true },
+        select: { status: true, ruleInvalidReason: true },
       }),
     ).resolves.toEqual({
       status: "INACTIVE",
-      triggerInvalidReason:
+      ruleInvalidReason:
         "The trigger evaluator changed. Review the score conditions.",
     });
     const firstPage = await service.listVersions({
