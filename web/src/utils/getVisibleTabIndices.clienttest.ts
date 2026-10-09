@@ -64,6 +64,18 @@ describe("getVisibleTabIndices", () => {
     ).toEqual([0, 1, 2]);
   });
 
+  it("keeps the default order: nothing after the active tab jumps a spilled one", () => {
+    // Messages spills before the active Attributes, so Scores stays hidden too.
+    expect(
+      getVisibleTabIndices({
+        widths,
+        availableWidth: 320,
+        overflowWidth,
+        activeIndex: 2,
+      }),
+    ).toEqual([0, 2]);
+  });
+
   it("shows only the active tab when nothing else fits", () => {
     expect(
       getVisibleTabIndices({

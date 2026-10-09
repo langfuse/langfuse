@@ -4,7 +4,8 @@
  * go behind an overflow trigger that needs `overflowWidth` of the row itself.
  *
  * The active tab always stays visible: when it would overflow, it takes the
- * last slot and the tabs it displaces move behind the trigger instead.
+ * last slot and the tabs it displaces move behind the trigger instead. Tabs
+ * keep their default order, so once one spills no later tab is shown.
  */
 export function getVisibleTabIndices({
   widths,
@@ -29,12 +30,14 @@ export function getVisibleTabIndices({
   const visible: number[] = [];
   let used = active === null ? 0 : widths[active];
 
+  /** False once a tab spills. */
   const take = (from: number, to: number) => {
     for (let index = from; index < to; index++) {
-      if (used + widths[index] > budget) return;
+      if (used + widths[index] > budget) return false;
       used += widths[index];
       visible.push(index);
     }
+    return true;
   };
 
   if (active === null) {
@@ -42,8 +45,8 @@ export function getVisibleTabIndices({
     return visible;
   }
 
-  take(0, active);
+  const prefixFits = take(0, active);
   visible.push(active);
-  take(active + 1, widths.length);
+  if (prefixFits) take(active + 1, widths.length);
   return visible;
 }

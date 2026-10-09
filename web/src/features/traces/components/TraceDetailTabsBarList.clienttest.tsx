@@ -164,8 +164,9 @@ describe("TraceDetailTabsBarList", () => {
       </Tabs>,
     );
 
+    // Messages now spills first, so Scores after it stays hidden too.
     expect(screen.getByRole("tab", { name: "Preview" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Scores" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Scores" })).toBeNull();
     expect(screen.queryByRole("tab", { name: /Messages/ })).toBeNull();
     expect(screen.getByRole("button", { name: "More tabs" })).toBeTruthy();
   });
