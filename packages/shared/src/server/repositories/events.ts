@@ -760,6 +760,15 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
   }));
 };
 
+/**
+ * Settings for sort-key ORDER BY + LIMIT reads on events tables. Read-in-order
+ * buffering makes every stream read ahead before the merge, which is wasted
+ * once LIMIT is filled (3-4x the rows on filtered list queries).
+ */
+const EVENTS_LIST_CLICKHOUSE_SETTINGS: ClickHouseSettings = {
+  read_in_order_use_buffering: 0,
+};
+
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     select:
@@ -941,6 +950,7 @@ async function getObservationsFromEventsTableInternal<T>(
     tags: { projectId },
     clickhouseConfigs,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
+    clickhouseSettings: EVENTS_LIST_CLICKHOUSE_SETTINGS,
   });
 }
 
@@ -1613,7 +1623,10 @@ async function getObservationsRowsFromBuilder<T>(
     params,
     tags: { projectId, ...extraTags },
     preferredClickhouseService: "EventsReadOnly",
-    clickhouseSettings,
+    clickhouseSettings: {
+      ...EVENTS_LIST_CLICKHOUSE_SETTINGS,
+      ...clickhouseSettings,
+    },
   });
 }
 
