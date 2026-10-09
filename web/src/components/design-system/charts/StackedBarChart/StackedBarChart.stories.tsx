@@ -1,6 +1,10 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 
+import {
+  hoverChartTarget,
+  movePointerOffChart,
+} from "../storybookInteractions";
 import { StackedBarChart } from "./StackedBarChart";
 
 const meta = preview.meta({
@@ -198,7 +202,7 @@ export const MissingBuckets = meta.story({
       'rect[fill="transparent"]',
     )[0];
     if (!emptyBucket) throw new Error("Missing empty bucket hover area");
-    await userEvent.hover(emptyBucket);
+    await hoverChartTarget(emptyBucket);
     await expect(
       within(canvasElement.ownerDocument.body).getByRole("tooltip"),
     ).toHaveTextContent("No data available");
@@ -262,6 +266,7 @@ export const SyncedBucket = meta.story({
     sync: { activeKey: "Tuesday", onActiveKeyChange: () => undefined },
   },
   play: async ({ canvasElement }) => {
+    await movePointerOffChart(canvasElement);
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label]"),
     ).toHaveTextContent("Tuesday");

@@ -3,6 +3,10 @@ import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
 import { type LineChartLegend } from "../LineChart/LineChart";
+import {
+  hoverChartTarget,
+  movePointerOffChart,
+} from "../storybookInteractions";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
 import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 
@@ -223,7 +227,7 @@ export const Intermittent = meta.story({
       'rect[fill="transparent"]',
     )[1];
     if (!hoverArea) throw new Error("Missing hover area for data gap");
-    await userEvent.hover(hoverArea);
+    await hoverChartTarget(hoverArea);
     const tooltip = within(document.body).getByRole("tooltip");
     await expect(tooltip).toHaveTextContent("No data available");
     await expect(tooltip).toHaveTextContent("Sep 2, 2026");
@@ -292,7 +296,7 @@ export const MixedBuckets = meta.story({
     });
     const hoverArea = datePoint.parentElement?.querySelector("rect");
     if (!hoverArea) throw new Error("Hover area not found");
-    await userEvent.hover(hoverArea);
+    await hoverChartTarget(hoverArea);
     await expect(
       line.querySelector('line[stroke-dasharray="3 3"]'),
     ).toBeInTheDocument();
@@ -327,7 +331,7 @@ export const OverlappingAreas = meta.story({
       'rect[fill="transparent"]',
     );
     if (!hoverArea) throw new Error("Hover area not found");
-    await userEvent.hover(hoverArea);
+    await hoverChartTarget(hoverArea);
     await expect(stops[0]).toHaveAttribute(
       "stop-color",
       "color-mix(in srgb, #3a3dee 75%, hsl(var(--background)))",
@@ -366,6 +370,7 @@ export const StackedAreas = meta.story({
       Number(apiPoint.getAttribute("cy")),
       0,
     );
+    await movePointerOffChart(canvasElement);
     workerPoint.focus();
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
@@ -402,7 +407,7 @@ export const StackedAreasStableTicks = meta.story({
       'rect[fill="transparent"]',
     )[1];
     if (!hoverArea) throw new Error("Second hover area not found");
-    await userEvent.hover(hoverArea);
+    await hoverChartTarget(hoverArea);
     const after = getLabels();
     for (const [label, x] of after) {
       if (label === "Sep 2") continue;
