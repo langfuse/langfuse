@@ -1,7 +1,7 @@
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import { Gauge, ListChecks, ToggleLeft, type LucideIcon } from "lucide-react";
 
-import { SelectionCardRadioGroup } from "@/src/features/evals/v2/components/SelectionCardRadioGroup/SelectionCardRadioGroup";
+import { cn } from "@/src/utils/tailwind";
 
 export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
@@ -49,14 +49,6 @@ const ORDER: DecisionModelQuestionType[] = [
   DecisionModelQuestionType.NOUL,
 ];
 
-const OPTIONS = ORDER.map((type) => ({
-  value: type,
-  icon: QUESTION_TYPE_COPY[type].icon,
-  title: QUESTION_TYPE_COPY[type].label,
-  summary: QUESTION_TYPE_COPY[type].summary,
-  example: QUESTION_TYPE_COPY[type].example,
-}));
-
 /**
  * Picks the question type. All three primitives stay visible with their
  * descriptor so the model's vocabulary is learned where it is used.
@@ -73,14 +65,43 @@ export function QuestionTypeSelector({
   const active = QUESTION_TYPE_COPY[value];
   return (
     <div className="@container flex flex-col gap-1.5">
-      <SelectionCardRadioGroup
-        ariaLabel="Question type"
-        columns={3}
-        disabled={disabled}
-        options={OPTIONS}
-        value={value}
-        onValueChange={onValueChange}
-      />
+      <div
+        role="radiogroup"
+        aria-label="Question type"
+        className="grid gap-2 @lg:grid-cols-3"
+      >
+        {ORDER.map((type) => {
+          const copy = QUESTION_TYPE_COPY[type];
+          const selected = type === value;
+          return (
+            <button
+              key={type}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={disabled}
+              onClick={() => onValueChange(type)}
+              className={cn(
+                "flex flex-col gap-1 rounded-md border p-3 text-left text-sm transition-colors",
+                "hover:bg-muted/50 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-hidden",
+                selected
+                  ? "border-primary-accent bg-primary-accent/5 ring-primary-accent ring-1"
+                  : "border-border",
+                disabled && "cursor-not-allowed opacity-60",
+              )}
+            >
+              <span className="flex items-center gap-1.5 font-bold">
+                <copy.icon className="icon-base shrink-0" />
+                {copy.label}
+              </span>
+              <span className="text-muted-foreground">{copy.summary}</span>
+              <span className="text-muted-foreground text-xs italic">
+                e.g. “{copy.example}”
+              </span>
+            </button>
+          );
+        })}
+      </div>
       <p className="text-muted-foreground text-xs">
         Writes {active.writes}. {active.whenToUse}
       </p>
