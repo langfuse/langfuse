@@ -37,18 +37,18 @@ export function TraceDetailTabsBarList(
   return <LoadedTraceDetailTabsBarList {...props} />;
 }
 
-/** Real triggers with placeholder labels; the view toggle as one block. */
+/** Label bars in trigger-sized slots, no menu; the view toggle as one block. */
 function TraceDetailTabsBarListLoading() {
   return (
     <div className={rowClassName}>
-      <Tabs.List variant="underline" overflow="menu" aria-label="Detail views">
-        {LOADING_TAB_WIDTHS.map((width, index) => (
-          <Tabs.Trigger key={width} value={`loading-${index}`}>
+      <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+        {LOADING_TAB_WIDTHS.map((width) => (
+          <div key={width} className="px-4">
             <Skeleton className={cn("h-3.5", width)} />
-          </Tabs.Trigger>
+          </div>
         ))}
-      </Tabs.List>
-      <div className="ml-auto h-fit shrink-0 py-0.5 pr-4 pl-2">
+      </div>
+      <div className="h-fit shrink-0 py-0.5 pr-4 pl-2">
         <Skeleton className="h-6 w-32 rounded-md" />
       </div>
     </div>
