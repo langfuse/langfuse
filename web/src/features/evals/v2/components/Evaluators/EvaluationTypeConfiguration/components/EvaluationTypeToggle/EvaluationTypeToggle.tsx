@@ -23,7 +23,7 @@ const evaluationTypes = [
   },
   {
     value: EvalTemplateTypeEnum.DECISION_MODEL,
-    label: "Decision model (experimental)",
+    label: "Decision model",
     icon: Scale,
   },
 ] as const;
