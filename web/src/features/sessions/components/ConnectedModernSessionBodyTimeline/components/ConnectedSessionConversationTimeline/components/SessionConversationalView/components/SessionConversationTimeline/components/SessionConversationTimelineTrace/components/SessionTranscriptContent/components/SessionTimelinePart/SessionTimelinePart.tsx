@@ -1,5 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { FileIcon, Wrench } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
 import {
   type FilePart,
@@ -14,55 +16,66 @@ import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { cn } from "@/src/utils/tailwind";
 
-function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
+function SessionTimelineReasoning({
+  part,
+  trailingContent,
+}: {
+  part: ReasoningPart;
+  trailingContent?: ReactNode;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const content = part.content;
 
   if (content.kind === "encrypted") {
     return (
-      <span className="text-muted-foreground py-1 font-mono text-xs">
-        Encrypted reasoning
-      </span>
+      <SessionTimelineCollapsibleRow
+        label="Encrypted reasoning"
+        trailingContent={trailingContent}
+      />
     );
   }
 
   if (content.kind === "text") {
     return (
-      <SessionTimelineCollapsiblePart
+      <SessionTimelineCollapsibleRow
         label="Reasoning"
-        variant="plain"
-        alignment="row"
+        isExpanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        trailingContent={trailingContent}
       >
         <MarkdownView
           markdown={decodeUnicodeEscapesOnly(content.text, true)}
           className="px-0 py-0"
         />
-      </SessionTimelineCollapsiblePart>
+      </SessionTimelineCollapsibleRow>
     );
   }
 
   if (content.kind === "data") {
     return (
-      <SessionTimelineCollapsiblePart
+      <SessionTimelineCollapsibleRow
         label="Reasoning data"
-        variant="plain"
-        alignment="row"
+        isExpanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        trailingContent={trailingContent}
       >
         <PrettyJsonView json={content.value} currentView="pretty" />
-      </SessionTimelineCollapsiblePart>
+      </SessionTimelineCollapsibleRow>
     );
   }
 
   if (content.kind === "redacted") {
     return (
-      <SessionTimelineCollapsiblePart
+      <SessionTimelineCollapsibleRow
         label="Redacted reasoning"
-        variant="plain"
-        alignment="row"
+        isExpanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        trailingContent={trailingContent}
       >
         <pre className="text-muted-foreground overflow-hidden font-mono text-xs break-all whitespace-pre-wrap">
           {content.data}
         </pre>
-      </SessionTimelineCollapsiblePart>
+      </SessionTimelineCollapsibleRow>
     );
   }
 
@@ -126,8 +139,10 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
 
 export function SessionTimelinePart({
   part,
+  trailingContent,
 }: {
   part: NormalizedMessage["parts"][number];
+  trailingContent?: ReactNode;
 }) {
   if (part.type === "text") {
     return (
@@ -146,7 +161,9 @@ export function SessionTimelinePart({
   }
 
   if (part.type === "reasoning") {
-    return <SessionTimelineReasoning part={part} />;
+    return (
+      <SessionTimelineReasoning part={part} trailingContent={trailingContent} />
+    );
   }
 
   if (part.type === "file") {

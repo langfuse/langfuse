@@ -14,7 +14,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ExperimentItemsTableRow } from "./types";
 import { type ReactNode } from "react";
 
-const LIST_VIEW_ROW_HEIGHTS = {
+export const LIST_VIEW_ROW_HEIGHTS = {
   s: "h-24", // 96px - increased density
   m: "h-48", // 192px
   l: "h-96", // 384px
@@ -48,6 +48,12 @@ type ExperimentCompareTableProps = {
   columnVisibility: VisibilityState;
   onColumnVisibilityChange: OnChangeFn<VisibilityState>;
   rowHeight: RowHeight;
+  /** Free height in pixels. Null while a preset is active. */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge sets one height for every run column. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
+  /** Selects a preset when a drag lands on that preset's height. */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
   peekView?: DataTablePeekViewProps;
   noResultsMessage?: ReactNode;
   highlightAllRows?: boolean;
@@ -69,6 +75,9 @@ export const ExperimentCompareTable = ({
   columnVisibility,
   onColumnVisibilityChange,
   rowHeight,
+  customRowHeightPx,
+  onCustomRowHeightChange,
+  onSelectRowHeight,
   peekView,
   noResultsMessage,
   highlightAllRows,
@@ -106,6 +115,9 @@ export const ExperimentCompareTable = ({
       onColumnVisibilityChange={onColumnVisibilityChange}
       rowHeight={rowHeight}
       customRowHeights={LIST_VIEW_ROW_HEIGHTS}
+      customRowHeightPx={customRowHeightPx}
+      onCustomRowHeightChange={onCustomRowHeightChange}
+      onSelectRowHeight={onSelectRowHeight}
       topAlignCells
       highlightAllRows={highlightAllRows}
     />
