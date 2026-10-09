@@ -371,8 +371,9 @@ describe("gateway mutation local error handling", () => {
     ).toBeInTheDocument();
     expect(createApiKeyMutateAsync).toHaveBeenCalledWith({
       orgId: "org-1",
-      note: undefined,
+      name: undefined,
       metadata: {},
+      expiresAt: null,
     });
   });
 });
