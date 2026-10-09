@@ -263,10 +263,10 @@ function ConnectedDashboardWidgetTableContent({
   }, [widgetData, widgetError, widgetStatus]);
 
   return (
-    // The page tabs above draw the divider.
-    <div className="flex min-h-0 flex-1 flex-col [&>:first-child>:first-child]:border-t-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       <DashboardWidgetTable
         projectId={projectId}
+        topBorder={false}
         hasCUDAccess={hasCUDAccess}
         loadingRowCount={Math.min(paginationState.pageSize, 8)}
         onCopy={(widget) => handleCopyToClipboard(widget.id)}

@@ -162,10 +162,10 @@ export function ConnectedDashboardTable() {
               }}
             >
               {({ openDialog: openDeleteDialog }) => (
-                <div className="flex min-h-0 flex-1 flex-col [&>:first-child>:first-child]:border-t-0">
-                  {/* The page tabs above draw the divider. */}
+                <div className="flex min-h-0 flex-1 flex-col">
                   <DashboardTable
                     projectId={projectId}
+                    topBorder={false}
                     hasAccess={hasAccess}
                     loadingRowCount={Math.min(paginationState.pageSize, 8)}
                     onEdit={(dashboard) => {

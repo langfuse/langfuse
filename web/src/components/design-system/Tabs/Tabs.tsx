@@ -263,7 +263,10 @@ function TabsList({
   if (!inRoot) {
     return (
       <TabsListContext value={{ look }}>
-        <nav aria-label={ariaLabel} className={className}>
+        <nav
+          aria-label={ariaLabel}
+          className={cn(className, "w-max min-w-full")}
+        >
           {children}
         </nav>
       </TabsListContext>

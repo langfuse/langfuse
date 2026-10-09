@@ -194,7 +194,7 @@ export const MobilePageTitle = ({
         <PageHeaderControlsSlotTarget />
       </div>
 
-      {/* Bleeds through the block padding so the tabs' divider spans the full width. */}
+      {/** The strip bleeds through the block padding so its divider spans the full width. */}
       {tabsProps && (
         <PageTabs {...tabsProps} scrollable className="-mx-3 mt-2" />
       )}
