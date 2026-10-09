@@ -93,7 +93,6 @@ async function createRule({
       enabled: true,
       filter,
       sampling: 1,
-      triggerKind: "OBSERVATION",
       scoreResultTrigger: null,
       evaluatorAssignments: assignedEvaluatorIds.map((assignedEvaluatorId) => ({
         evaluatorId: assignedEvaluatorId,

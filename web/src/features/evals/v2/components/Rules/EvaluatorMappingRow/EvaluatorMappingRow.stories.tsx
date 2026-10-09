@@ -1,5 +1,6 @@
 import preview from "../../../../../../../.storybook/preview";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import { EvalTargetObject } from "@langfuse/shared";
 
 import { EvaluatorMappingRow } from "./EvaluatorMappingRow";
 
@@ -20,7 +21,7 @@ const store = createRuleSetupStore({
   name: "Rule",
   filter: [],
   sampling: 1,
-  triggerKind: "OBSERVATION",
+  targetObject: EvalTargetObject.EVENT,
   scoreResultTrigger: null,
   assignments: [
     {
@@ -37,7 +38,7 @@ const codeEvaluatorStore = createRuleSetupStore({
   name: "Experiment evaluators",
   filter: [],
   sampling: 1,
-  triggerKind: "OBSERVATION",
+  targetObject: EvalTargetObject.EXPERIMENT,
   scoreResultTrigger: null,
   assignments: [
     {

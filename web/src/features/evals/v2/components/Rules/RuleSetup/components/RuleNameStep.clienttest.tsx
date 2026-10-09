@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { EvalTargetObject } from "@langfuse/shared";
 
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { RuleNameStep } from "./RuleNameStep";
@@ -10,7 +11,7 @@ describe("RuleNameStep", () => {
       name: "",
       filter: [],
       sampling: 1,
-      triggerKind: "OBSERVATION",
+      targetObject: EvalTargetObject.EVENT,
       scoreResultTrigger: null,
       assignments: [],
     });

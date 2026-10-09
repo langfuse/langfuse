@@ -1,5 +1,4 @@
 import {
-  EvaluationRuleTriggerKindSchema,
   EvalTargetObject,
   EvalTemplateType,
   InvalidRequestError,
@@ -14,7 +13,6 @@ import {
   type ScoreResultTrigger,
 } from "@langfuse/shared";
 import {
-  EvaluationRuleTriggerKind,
   JobConfigState,
   type Prisma,
   type PrismaClient,
@@ -68,7 +66,7 @@ type RuleServiceUpdateInput = UpdateRuleInput & {
 };
 
 type RuleServiceOptions = {
-  visibleTriggerKinds?: EvaluationRuleTriggerKind[];
+  visibleTargetObjects?: EvalTargetObject[];
 };
 
 export class RuleService {
@@ -82,7 +80,7 @@ export class RuleService {
     const { rules, totalItems } = await repository.listRules({
       prisma: this.prisma,
       input,
-      triggerKinds: this.options.visibleTriggerKinds,
+      targetObjects: this.options.visibleTargetObjects,
     });
     return { rules: rules.map(toRuleResponse), totalItems };
   }
@@ -95,7 +93,7 @@ export class RuleService {
     const { rules, nextCursor } = await repository.listRulesCursor({
       prisma: this.prisma,
       input,
-      triggerKinds: this.options.visibleTriggerKinds,
+      targetObjects: this.options.visibleTargetObjects,
     });
     return { rules: rules.map(toRuleResponse), nextCursor };
   }
@@ -249,14 +247,14 @@ export class RuleService {
   async create(rawInput: CreateRuleInput, createdByUserId: string | null) {
     const input = CreateRuleSchema.parse(rawInput);
     const normalized =
-      input.triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
-        ? { targetObject: EvalTargetObject.EVENT, filter: [] }
+      input.targetObject === EvalTargetObject.SCORE_RESULT
+        ? { targetObject: EvalTargetObject.SCORE_RESULT, filter: [] }
         : normalizeEvaluationRuleTarget({
             targetObject: input.targetObject,
             filter: input.filter,
           });
     const filter =
-      input.triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
+      input.targetObject === EvalTargetObject.SCORE_RESULT
         ? []
         : this.validateRuleFilters(normalized.targetObject, normalized.filter);
     this.assertUniqueAssignments(input.evaluatorAssignments);
@@ -278,7 +276,7 @@ export class RuleService {
       await this.validateEvaluatorResultTrigger({
         prisma,
         projectId: input.projectId,
-        triggerKind: input.triggerKind,
+        targetObject: normalized.targetObject,
         scoreResultTrigger: input.scoreResultTrigger,
         targetEvaluatorIds: evaluatorAssignments.map(
           (assignment) => assignment.evaluatorId,
@@ -364,7 +362,6 @@ export class RuleService {
         filter,
         sampling: input.sampling,
         enabled: true,
-        triggerKind: EvaluationRuleTriggerKind.OBSERVATION,
         scoreResultTrigger: null,
         evaluatorAssignments: [
           { evaluatorId: input.evaluatorId, variableMapping: null },
@@ -393,7 +390,7 @@ export class RuleService {
       if (
         input.enabled === true &&
         current.triggerInvalidReason &&
-        input.triggerKind === undefined &&
+        input.targetObject === undefined &&
         input.scoreResultTrigger === undefined
       ) {
         throw new InvalidRequestError(
@@ -412,21 +409,11 @@ export class RuleService {
       });
       const currentTargetObject = current.targetObject as EvalTargetObject;
       const currentFilter = current.filter as FilterState;
-      const triggerKind = EvaluationRuleTriggerKindSchema.parse(
-        input.triggerKind ?? current.triggerKind,
-      );
-      if (triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT) {
+      const targetObject = input.targetObject ?? currentTargetObject;
+      if (targetObject === EvalTargetObject.SCORE_RESULT) {
         if (input.filter && input.filter.length > 0) {
           throw new InvalidRequestError(
             "Evaluator result rules cannot define observation filters",
-          );
-        }
-        if (
-          input.targetObject !== undefined &&
-          input.targetObject !== EvalTargetObject.EVENT
-        ) {
-          throw new InvalidRequestError(
-            "Evaluator result rules must target observations",
           );
         }
         if (input.sampling !== undefined && input.sampling !== 1) {
@@ -440,7 +427,7 @@ export class RuleService {
           ? input.scoreResultTrigger
           : toStoredScoreResultTrigger(current);
       if (
-        triggerKind === EvaluationRuleTriggerKind.OBSERVATION &&
+        targetObject !== EvalTargetObject.SCORE_RESULT &&
         input.scoreResultTrigger != null
       ) {
         throw new InvalidRequestError(
@@ -461,16 +448,19 @@ export class RuleService {
           ? EvalTargetObject.EXPERIMENT
           : currentTargetObject;
       const normalized =
-        triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
-          ? { targetObject: EvalTargetObject.EVENT, filter: [] }
+        targetObject === EvalTargetObject.SCORE_RESULT
+          ? { targetObject: EvalTargetObject.SCORE_RESULT, filter: [] }
           : normalizeEvaluationRuleTarget({
-              targetObject: input.targetObject ?? inheritedTargetObject,
+              targetObject:
+                input.targetObject === undefined
+                  ? inheritedTargetObject
+                  : input.targetObject,
               filter: effectiveFilter,
             });
       let filter = currentFilter;
       if (!isLegacyEvalTarget(currentTargetObject)) {
         filter =
-          triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
+          targetObject === EvalTargetObject.SCORE_RESULT
             ? []
             : this.validateRuleFilters(
                 normalized.targetObject,
@@ -497,19 +487,19 @@ export class RuleService {
         input.evaluatorMappings ?? current.assignments
       ).map((assignment) => assignment.evaluatorId);
       const preservesInvalidMissingTrigger =
-        triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT &&
+        targetObject === EvalTargetObject.SCORE_RESULT &&
         scoreResultTrigger === null &&
         current.triggerInvalidReason !== null &&
-        input.triggerKind === undefined &&
+        input.targetObject === undefined &&
         input.scoreResultTrigger === undefined;
       if (!preservesInvalidMissingTrigger) {
         await this.validateEvaluatorResultTrigger({
           prisma,
           projectId: input.projectId,
           ruleId: input.ruleId,
-          triggerKind,
+          targetObject,
           scoreResultTrigger:
-            triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
+            targetObject === EvalTargetObject.SCORE_RESULT
               ? scoreResultTrigger
               : null,
           targetEvaluatorIds,
@@ -517,11 +507,11 @@ export class RuleService {
       }
       let scoreResultTriggerUpdate: ScoreResultTrigger | null | undefined;
       if (
-        input.triggerKind !== undefined ||
+        input.targetObject !== undefined ||
         input.scoreResultTrigger !== undefined
       ) {
         scoreResultTriggerUpdate =
-          triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
+          targetObject === EvalTargetObject.SCORE_RESULT
             ? scoreResultTrigger
             : null;
       }
@@ -530,17 +520,11 @@ export class RuleService {
         input,
         targetObject: normalized.targetObject,
         filter: filter as Prisma.InputJsonValue,
-        triggerKind:
-          input.triggerKind === undefined
-            ? undefined
-            : (input.triggerKind as EvaluationRuleTriggerKind),
         scoreResultTrigger: scoreResultTriggerUpdate,
         sampling:
-          triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
-            ? 1
-            : undefined,
+          targetObject === EvalTargetObject.SCORE_RESULT ? 1 : undefined,
         clearTriggerInvalidReason:
-          input.triggerKind !== undefined ||
+          input.targetObject !== undefined ||
           input.scoreResultTrigger !== undefined,
       });
       if (input.evaluatorMappings) {
@@ -589,7 +573,7 @@ export class RuleService {
         );
       }
       if (
-        current.triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT &&
+        current.targetObject === EvalTargetObject.SCORE_RESULT &&
         params.sampling !== undefined &&
         params.sampling !== 1
       ) {
@@ -776,14 +760,14 @@ export class RuleService {
       });
       const scoreResultTrigger = toStoredScoreResultTrigger(rule);
       if (
-        rule.triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT &&
+        rule.targetObject === EvalTargetObject.SCORE_RESULT &&
         scoreResultTrigger
       ) {
         await this.validateEvaluatorResultTrigger({
           prisma,
           projectId: params.projectId,
           ruleId: params.ruleId,
-          triggerKind: EvaluationRuleTriggerKind.SCORE_RESULT,
+          targetObject: EvalTargetObject.SCORE_RESULT,
           scoreResultTrigger,
           targetEvaluatorIds: [
             ...rule.assignments.map((item) => item.evaluatorId),
@@ -869,7 +853,7 @@ export class RuleService {
       prisma,
       projectId,
       ruleId,
-      triggerKinds: this.options.visibleTriggerKinds,
+      targetObjects: this.options.visibleTargetObjects,
     });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return rule;
@@ -906,7 +890,6 @@ export class RuleService {
       input.filter !== undefined ||
       input.sampling !== undefined ||
       input.targetObject !== undefined ||
-      input.triggerKind !== undefined ||
       input.scoreResultTrigger !== undefined
     ) {
       throw new InvalidRequestError(
@@ -990,11 +973,11 @@ export class RuleService {
     prisma: Prisma.TransactionClient;
     projectId: string;
     ruleId?: string;
-    triggerKind: "OBSERVATION" | "SCORE_RESULT";
+    targetObject: EvalTargetObject;
     scoreResultTrigger: ScoreResultTrigger | null;
     targetEvaluatorIds: string[];
   }) {
-    if (params.triggerKind === EvaluationRuleTriggerKind.OBSERVATION) {
+    if (params.targetObject !== EvalTargetObject.SCORE_RESULT) {
       if (params.scoreResultTrigger !== null) {
         throw new InvalidRequestError(
           "Observation rules cannot define an evaluator result trigger",
@@ -1062,8 +1045,7 @@ function toRuleResponse(rule: StoredRule) {
     filter: normalized.filter,
     sampling: sampling.toNumber(),
     scoreResultTrigger:
-      rest.triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT &&
-      triggerEvaluatorId
+      rest.targetObject === EvalTargetObject.SCORE_RESULT && triggerEvaluatorId
         ? ScoreResultTriggerSchema.parse({
             evaluatorId: triggerEvaluatorId,
             predicates: scoreResultPredicates,
@@ -1098,11 +1080,11 @@ function toRuleResponse(rule: StoredRule) {
 function toStoredScoreResultTrigger(
   rule: Pick<
     StoredRule,
-    "triggerKind" | "triggerEvaluatorId" | "scoreResultPredicates"
+    "targetObject" | "triggerEvaluatorId" | "scoreResultPredicates"
   >,
 ): ScoreResultTrigger | null {
   if (
-    rule.triggerKind !== EvaluationRuleTriggerKind.SCORE_RESULT ||
+    rule.targetObject !== EvalTargetObject.SCORE_RESULT ||
     !rule.triggerEvaluatorId
   ) {
     return null;

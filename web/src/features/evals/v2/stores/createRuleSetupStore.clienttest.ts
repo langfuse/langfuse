@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EvalTargetObject } from "@langfuse/shared";
 
 import {
   createRuleSetupStore,
@@ -13,7 +14,7 @@ describe("isRuleDraftValid", () => {
       filter: [],
       sampling: 1,
       assignments: [],
-      triggerKind: "OBSERVATION",
+      targetObject: EvalTargetObject.EVENT,
       scoreResultTrigger: null,
     });
 
@@ -27,7 +28,7 @@ describe("isRuleDraftValid", () => {
       filter: [],
       sampling: 1,
       assignments: [],
-      triggerKind: "SCORE_RESULT",
+      targetObject: EvalTargetObject.SCORE_RESULT,
       scoreResultTrigger: null,
     });
 
@@ -41,7 +42,7 @@ describe("rule setup store", () => {
     name: "Initial",
     filter: [],
     sampling: 1,
-    triggerKind: "OBSERVATION" as const,
+    targetObject: EvalTargetObject.EVENT,
     scoreResultTrigger: null,
     assignments: [
       {
@@ -99,7 +100,7 @@ describe("rule setup store", () => {
     expect(isRuleDraftDirty(store.getState())).toBe(false);
   });
 
-  it("preserves observation settings while switching trigger kinds", () => {
+  it("preserves observation settings while switching target objects", () => {
     const filter = [{ type: "string", column: "name" }] as never;
     const scoreResultTrigger = {
       evaluatorId: "source-evaluator",
@@ -119,8 +120,8 @@ describe("rule setup store", () => {
       scoreResultTrigger,
     });
 
-    store.getState().actions.setTriggerKind("SCORE_RESULT");
-    store.getState().actions.setTriggerKind("OBSERVATION");
+    store.getState().actions.setTargetObject(EvalTargetObject.SCORE_RESULT);
+    store.getState().actions.setTargetObject(EvalTargetObject.EVENT);
 
     expect(store.getState()).toMatchObject({
       filter,

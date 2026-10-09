@@ -7,8 +7,12 @@ import {
   toStoredMappingList,
 } from "@/src/features/public-api/server";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import { EvalTemplateType, InvalidRequestError } from "@langfuse/shared";
-import { EvaluationRuleTriggerKind, prisma } from "@langfuse/shared/src/db";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  InvalidRequestError,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";
 import type { ServerContext } from "../../types";
 import {
@@ -44,7 +48,12 @@ export function createMcpRuleService(context: ServerContext) {
         apiKeyId: context.apiKeyId,
       }),
     {
-      visibleTriggerKinds: [EvaluationRuleTriggerKind.OBSERVATION],
+      visibleTargetObjects: [
+        EvalTargetObject.TRACE,
+        EvalTargetObject.DATASET,
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+      ],
     },
   );
 }

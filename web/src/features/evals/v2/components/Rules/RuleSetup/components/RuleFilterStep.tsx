@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "zustand";
 import { Activity, Gauge } from "lucide-react";
+import { EvalTargetObject } from "@langfuse/shared";
 
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -27,7 +28,7 @@ export function RuleFilterStep({
   store: RuleSetupStore;
 }) {
   const filter = useStore(store, (state) => state.filter);
-  const triggerKind = useStore(store, (state) => state.triggerKind);
+  const targetObject = useStore(store, (state) => state.targetObject);
   const scoreResultTrigger = useStore(
     store,
     (state) => state.scoreResultTrigger,
@@ -54,8 +55,12 @@ export function RuleFilterStep({
     projectId,
     evaluatorId: scoreResultTrigger?.evaluatorId ?? null,
   });
-  const handleTriggerKindChange = (value: string) => {
-    actions.setTriggerKind(value as "OBSERVATION" | "SCORE_RESULT");
+  const handleTargetObjectChange = (value: string) => {
+    actions.setTargetObject(
+      value as
+        | typeof EvalTargetObject.EVENT
+        | typeof EvalTargetObject.SCORE_RESULT,
+    );
   };
   const handleOpenTrace = (observation: SampleObservation) => {
     if (!observation.traceId) return;
@@ -79,7 +84,7 @@ export function RuleFilterStep({
     actions.setPreviewFilter(selected?.evaluationRule.filter ?? []);
   };
   const scopeFields =
-    triggerKind === "OBSERVATION" ? (
+    targetObject !== EvalTargetObject.SCORE_RESULT ? (
       <>
         <SearchBarDraftCacheContext.Provider value={observationSearchDraft}>
           <RuleSampleObservationSelector
@@ -144,14 +149,17 @@ export function RuleFilterStep({
     >
       <RadioGroup
         layout="two-column"
-        value={triggerKind}
-        onValueChange={handleTriggerKindChange}
+        value={targetObject}
+        onValueChange={handleTargetObjectChange}
       >
         <label
           className="border-border flex cursor-pointer items-start gap-3 rounded-md border p-3"
           htmlFor="rule-trigger-observation"
         >
-          <RadioGroup.Item id="rule-trigger-observation" value="OBSERVATION" />
+          <RadioGroup.Item
+            id="rule-trigger-observation"
+            value={EvalTargetObject.EVENT}
+          />
           <Activity className="icon-base text-icon-foreground mt-0.5" />
           <span>
             <span className="block text-sm">Incoming observations</span>
@@ -166,7 +174,7 @@ export function RuleFilterStep({
         >
           <RadioGroup.Item
             id="rule-trigger-score-result"
-            value="SCORE_RESULT"
+            value={EvalTargetObject.SCORE_RESULT}
           />
           <Gauge className="icon-base text-icon-foreground mt-0.5" />
           <span>
@@ -201,7 +209,8 @@ function useSourceRulePreview({
     { value: "incoming", label: "All incoming observations" },
     ...sourceRules
       .filter(
-        ({ evaluationRule }) => evaluationRule.triggerKind === "OBSERVATION",
+        ({ evaluationRule }) =>
+          evaluationRule.targetObject !== EvalTargetObject.SCORE_RESULT,
       )
       .map(({ evaluationRule }) => ({
         value: evaluationRule.id,

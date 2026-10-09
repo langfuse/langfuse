@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications";
-import type { EvalTargetObject, FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  type EvalTargetObject as EvalTargetObjectType,
+  type FilterState,
+} from "@langfuse/shared";
 import { useRef, useState } from "react";
 import {
   Dialog,
@@ -48,7 +52,7 @@ export function CreateRuleDialogContent({
   initialEvaluator: RuleEvaluatorOption | undefined;
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
-  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
+  targetObject?: Extract<EvalTargetObjectType, "event" | "experiment">;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
   onCreated?: () => void;
@@ -65,7 +69,8 @@ export function CreateRuleDialogContent({
       name: initialDraft?.name ?? "",
       filter: initialDraft?.filter ?? resolveInitialRuleFilters(initialFilter),
       sampling: initialDraft?.sampling ?? 1,
-      triggerKind: initialDraft?.triggerKind ?? "OBSERVATION",
+      targetObject:
+        initialDraft?.targetObject ?? targetObject ?? EvalTargetObject.EVENT,
       scoreResultTrigger: initialDraft?.scoreResultTrigger ?? null,
       assignments:
         initialDraft?.assignments ??
@@ -106,17 +111,14 @@ export function CreateRuleDialogContent({
 
   const create = async () => {
     const draft = prepareRuleDraftForSave(ruleSetupStore.getState());
-    const createTargetObject =
-      draft.triggerKind === "SCORE_RESULT" ? "event" : targetObject;
     const rule = await createRule.mutateAsync({
       projectId,
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
       enabled: true,
-      triggerKind: draft.triggerKind,
+      targetObject: draft.targetObject,
       scoreResultTrigger: draft.scoreResultTrigger,
-      ...(createTargetObject ? { targetObject: createTargetObject } : {}),
       evaluatorAssignments: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -127,7 +129,7 @@ export function CreateRuleDialogContent({
       ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
-      triggerKind: draft.triggerKind,
+      targetObject: draft.targetObject,
     });
     onCreated?.();
     if (successNotification === "toast") {

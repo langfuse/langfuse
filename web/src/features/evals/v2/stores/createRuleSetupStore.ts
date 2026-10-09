@@ -1,5 +1,5 @@
 import { createStore } from "zustand/vanilla";
-import { ScoreResultTriggerSchema } from "@langfuse/shared";
+import { EvalTargetObject, ScoreResultTriggerSchema } from "@langfuse/shared";
 
 import type {
   RuleDraft,
@@ -35,7 +35,7 @@ export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
         })),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
-      setTriggerKind: (triggerKind) => set({ triggerKind }),
+      setTargetObject: (targetObject) => set({ targetObject }),
       setScoreResultTrigger: (scoreResultTrigger) =>
         set({ scoreResultTrigger }),
       setPreviewSourceRuleId: (previewSourceRuleId) =>
@@ -53,7 +53,7 @@ export function isRuleDraftDirty(
       name: state.name,
       filter: state.filter,
       sampling: state.sampling,
-      triggerKind: state.triggerKind,
+      targetObject: state.targetObject,
       scoreResultTrigger: state.scoreResultTrigger,
       assignments: state.assignments,
     }) !== JSON.stringify(state.initialDraft)
@@ -66,7 +66,7 @@ export function isRuleDraftValid(
   allowMissingScoreResultTrigger = false,
 ) {
   if (requireAssignments && state.assignments.length === 0) return false;
-  if (state.triggerKind === "OBSERVATION") return true;
+  if (state.targetObject !== EvalTargetObject.SCORE_RESULT) return true;
   if (allowMissingScoreResultTrigger && state.scoreResultTrigger === null) {
     return true;
   }

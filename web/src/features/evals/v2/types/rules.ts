@@ -1,11 +1,11 @@
-import type {
-  EvaluationRuleTriggerKindSchema,
-  EvalTemplateType,
-  FilterState,
-  ObservationVariableMapping,
-  ScoreResultTrigger,
+import {
+  EvalTargetObject,
+  type EvalTargetObject as EvalTargetObjectType,
+  type EvalTemplateType,
+  type FilterState,
+  type ObservationVariableMapping,
+  type ScoreResultTrigger,
 } from "@langfuse/shared";
-import type { z } from "zod";
 import type { StoreApi } from "zustand/vanilla";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { RouterOutputs } from "@/src/utils/api";
@@ -25,9 +25,25 @@ export type RuleDraft = {
   filter: FilterState;
   sampling: number;
   assignments: RuleDraftAssignment[];
-  triggerKind: z.infer<typeof EvaluationRuleTriggerKindSchema>;
+  targetObject: Extract<
+    EvalTargetObjectType,
+    "event" | "experiment" | "score_result"
+  >;
   scoreResultTrigger: ScoreResultTrigger | null;
 };
+
+export function toRuleDraftTargetObject(
+  targetObject: EvalTargetObjectType,
+): RuleDraft["targetObject"] {
+  switch (targetObject) {
+    case EvalTargetObject.SCORE_RESULT:
+      return EvalTargetObject.SCORE_RESULT;
+    case EvalTargetObject.EXPERIMENT:
+      return EvalTargetObject.EXPERIMENT;
+    default:
+      return EvalTargetObject.EVENT;
+  }
+}
 
 export type RuleEvaluatorOption = {
   id: string;
@@ -64,9 +80,7 @@ type RuleSetupStoreActions = {
     variableMapping: ObservationVariableMapping[],
   ) => void;
   setSelectedObservation: (observation: SampleObservation | null) => void;
-  setTriggerKind: (
-    triggerKind: z.infer<typeof EvaluationRuleTriggerKindSchema>,
-  ) => void;
+  setTargetObject: (targetObject: RuleDraft["targetObject"]) => void;
   setScoreResultTrigger: (trigger: ScoreResultTrigger | null) => void;
   setPreviewSourceRuleId: (ruleId: string | null) => void;
   setPreviewFilter: (filter: FilterState) => void;

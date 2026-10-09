@@ -95,7 +95,7 @@ describe("evaluation rule v2 input validation", () => {
       sampling: 1,
       enabled: true,
       evaluatorAssignments: [],
-      triggerKind: "SCORE_RESULT",
+      targetObject: EvalTargetObject.SCORE_RESULT,
       scoreResultTrigger: {
         evaluatorId: "evaluator-id",
         predicates: [

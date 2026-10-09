@@ -162,7 +162,7 @@ describe("legacy evaluator compatibility service", () => {
     await prisma.evaluationRule.update({
       where: { id: rule.id },
       data: {
-        triggerKind: "SCORE_RESULT",
+        targetObject: EvalTargetObject.SCORE_RESULT,
         triggerEvaluatorId: assignment.evaluatorId,
         scoreResultPredicates: [
           {
@@ -999,11 +999,10 @@ describe("legacy evaluator compatibility service", () => {
         projectId: project.id,
         name: "Dependent result rule",
         status: "ACTIVE",
-        targetObject: EvalTargetObject.EVENT,
+        targetObject: EvalTargetObject.SCORE_RESULT,
         filter: [],
         sampling: 1,
         delay: 0,
-        triggerKind: "SCORE_RESULT",
         triggerEvaluatorId: library.id,
         scoreResultPredicates: [
           {
@@ -1217,11 +1216,10 @@ describe("legacy evaluator compatibility service", () => {
         projectId: project.id,
         name: "Dependent result rule",
         status: "ACTIVE",
-        targetObject: EvalTargetObject.EVENT,
+        targetObject: EvalTargetObject.SCORE_RESULT,
         filter: [],
         sampling: 1,
         delay: 0,
-        triggerKind: "SCORE_RESULT",
         triggerEvaluatorId: evaluator.id,
         scoreResultPredicates: [
           {
@@ -1266,11 +1264,10 @@ describe("legacy evaluator compatibility service", () => {
         projectId: project.id,
         name: "Dependent result rule",
         status: "ACTIVE",
-        targetObject: EvalTargetObject.EVENT,
+        targetObject: EvalTargetObject.SCORE_RESULT,
         filter: [],
         sampling: 1,
         delay: 0,
-        triggerKind: "SCORE_RESULT",
         triggerEvaluatorId: sourceEvaluator.id,
         scoreResultPredicates: [
           {

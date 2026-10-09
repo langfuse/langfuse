@@ -6,7 +6,7 @@ import {
   normalizeEvaluationRuleTarget,
   type FilterState,
 } from "@langfuse/shared";
-import { EvaluationRuleTriggerKind, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   hasNoEvalConfigsCache,
@@ -56,7 +56,6 @@ export async function fetchObservationEvalRules(
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
       status: JobConfigState.ACTIVE,
-      triggerKind: EvaluationRuleTriggerKind.OBSERVATION,
       // A rule without runnable assignments schedules nothing, so it must not
       // keep the project out of the "no rules" cache below.
       assignments: {

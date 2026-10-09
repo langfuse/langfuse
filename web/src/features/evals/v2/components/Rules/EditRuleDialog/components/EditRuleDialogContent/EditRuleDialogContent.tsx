@@ -1,5 +1,6 @@
 import { showSuccessToast } from "@/src/features/notifications";
 import {
+  EvalTargetObject,
   EvalTemplateType,
   observationVariableMappingList,
   singleFilterList,
@@ -10,7 +11,10 @@ import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleD
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import {
+  toRuleDraftTargetObject,
+  type RuleEvaluatorOption,
+} from "@/src/features/evals/v2/types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -43,7 +47,7 @@ export function EditRuleDialogContent({
       name: rule.name,
       filter: singleFilterList.catch([]).parse(rule.filter),
       sampling: rule.sampling,
-      triggerKind: rule.triggerKind,
+      targetObject: toRuleDraftTargetObject(rule.targetObject),
       scoreResultTrigger: rule.scoreResultTrigger,
       assignments: rule.assignments.map((assignment) => {
         const preparedDefault = prepareModernRuleVariableMapping(
@@ -86,7 +90,7 @@ export function EditRuleDialogContent({
     ).length;
     const preservesInvalidMissingTrigger =
       Boolean(rule.triggerInvalidReason) &&
-      draft.triggerKind === "SCORE_RESULT" &&
+      draft.targetObject === EvalTargetObject.SCORE_RESULT &&
       draft.scoreResultTrigger === null;
     await update.mutateAsync({
       projectId,
@@ -97,7 +101,7 @@ export function EditRuleDialogContent({
       ...(preservesInvalidMissingTrigger
         ? {}
         : {
-            triggerKind: draft.triggerKind,
+            targetObject: draft.targetObject,
             scoreResultTrigger: draft.scoreResultTrigger,
           }),
       evaluatorMappings: draft.assignments.map((assignment) => ({
@@ -110,7 +114,7 @@ export function EditRuleDialogContent({
       ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: rule.enabled,
-      triggerKind: draft.triggerKind,
+      targetObject: draft.targetObject,
     });
     if (attachedCount > 0) {
       capture("evaluation_rules:attach_evaluator", {

@@ -1167,11 +1167,6 @@ enum JobConfigState {
   INACTIVE
 }
 
-enum EvaluationRuleTriggerKind {
-  OBSERVATION
-  SCORE_RESULT
-}
-
 enum EvaluatorBlockReason {
   LLM_CONNECTION_AUTH_INVALID
   LLM_CONNECTION_BILLING_EXHAUSTED
@@ -1230,16 +1225,15 @@ model EvaluationRule {
   idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
 
-  triggerKind           EvaluationRuleTriggerKind @default(OBSERVATION) @map("trigger_kind")
-  triggerEvaluatorId    String?                   @map("trigger_evaluator_id")
-  triggerEvaluator      Evaluator?                @relation("EvaluationRuleTriggerEvaluator", fields: [triggerEvaluatorId], references: [id], onDelete: SetNull)
-  scoreResultPredicates Json?                     @map("score_result_predicates")
-  triggerInvalidReason  String?                   @map("trigger_invalid_reason")
+  triggerEvaluatorId    String?    @map("trigger_evaluator_id")
+  triggerEvaluator      Evaluator? @relation("EvaluationRuleTriggerEvaluator", fields: [triggerEvaluatorId], references: [id], onDelete: SetNull)
+  scoreResultPredicates Json?      @map("score_result_predicates")
+  triggerInvalidReason  String?    @map("trigger_invalid_reason")
 
   assignments EvaluationRuleEvaluatorAssignment[]
 
   @@index([projectId, updatedAt(sort: Desc)])
-  @@index([projectId, triggerKind, triggerEvaluatorId])
+  @@index([projectId, targetObject, triggerEvaluatorId])
   @@map("evaluation_rules")
 }
 

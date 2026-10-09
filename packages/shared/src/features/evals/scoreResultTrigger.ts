@@ -2,11 +2,6 @@ import { z } from "zod";
 
 const scoreName = z.string().trim().min(1).max(200);
 
-export const EvaluationRuleTriggerKindSchema = z.enum([
-  "OBSERVATION",
-  "SCORE_RESULT",
-]);
-
 const NumericScoreResultPredicateSchema = z.object({
   scoreName,
   dataType: z.literal("NUMERIC"),

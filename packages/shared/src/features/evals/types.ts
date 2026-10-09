@@ -118,6 +118,7 @@ export const EvalTargetObject = {
   DATASET: "dataset",
   EVENT: "event",
   EXPERIMENT: "experiment",
+  SCORE_RESULT: "score_result",
 } as const;
 
 export type EvalTargetObject =

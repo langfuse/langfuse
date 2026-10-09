@@ -1,5 +1,5 @@
 import { EvalTargetObject } from "@langfuse/shared";
-import { EvaluationRuleTriggerKind, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
@@ -33,7 +33,12 @@ function ruleService(auditScope: ApiAccessScope) {
         apiKeyId: auditScope.apiKeyId,
       }),
     {
-      visibleTriggerKinds: [EvaluationRuleTriggerKind.OBSERVATION],
+      visibleTargetObjects: [
+        EvalTargetObject.TRACE,
+        EvalTargetObject.DATASET,
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+      ],
     },
   );
 }

@@ -810,11 +810,10 @@ describe("EvaluatorService", () => {
         projectId,
         name: "Dependent rule",
         status: "ACTIVE",
-        targetObject: EvalTargetObject.EVENT,
+        targetObject: EvalTargetObject.SCORE_RESULT,
         filter: [],
         sampling: 1,
         delay: 0,
-        triggerKind: "SCORE_RESULT",
         triggerEvaluatorId: created.id,
         scoreResultPredicates: [
           {

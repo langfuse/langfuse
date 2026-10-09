@@ -1,11 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EvalTargetObject } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
-import {
-  EvaluationRuleTriggerKind,
-  prisma,
-  type Prisma,
-} from "@langfuse/shared/src/db";
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   afterAll,
@@ -378,7 +374,7 @@ describe("RuleService", () => {
       expect(result.totalItems).toBe(2);
     });
 
-    it("can restrict legacy clients to observation-triggered rules", async () => {
+    it("can restrict legacy clients to non-result target objects", async () => {
       const evaluator = await createEvaluator();
       const service = createService();
       const observationRule = await service.create(
@@ -390,12 +386,11 @@ describe("RuleService", () => {
           projectId,
           name: "Evaluator result rule",
           status: "INACTIVE",
-          targetObject: EvalTargetObject.EVENT,
+          targetObject: EvalTargetObject.SCORE_RESULT,
           filter: [],
           sampling: 1,
           delay: 0,
           timeScope: ["NEW"],
-          triggerKind: EvaluationRuleTriggerKind.SCORE_RESULT,
           triggerEvaluatorId: evaluator.id,
           scoreResultPredicates: [
             {
@@ -407,21 +402,26 @@ describe("RuleService", () => {
           ],
         },
       });
-      const observationOnlyService = createService(undefined, {
-        visibleTriggerKinds: [EvaluationRuleTriggerKind.OBSERVATION],
+      const legacySurfaceService = createService(undefined, {
+        visibleTargetObjects: [
+          EvalTargetObject.TRACE,
+          EvalTargetObject.DATASET,
+          EvalTargetObject.EVENT,
+          EvalTargetObject.EXPERIMENT,
+        ],
       });
 
       await expect(
-        observationOnlyService.list({ projectId, page: 1, limit: 50 }),
+        legacySurfaceService.list({ projectId, page: 1, limit: 50 }),
       ).resolves.toMatchObject({
         rules: [{ id: observationRule.id }],
         totalItems: 1,
       });
       await expect(
-        observationOnlyService.get(projectId, resultRule.id),
+        legacySurfaceService.get(projectId, resultRule.id),
       ).rejects.toThrow("Evaluation rule not found");
       await expect(
-        observationOnlyService.delete(projectId, resultRule.id),
+        legacySurfaceService.delete(projectId, resultRule.id),
       ).rejects.toThrow("Evaluation rule not found");
     });
   });
@@ -537,13 +537,13 @@ describe("RuleService", () => {
             ...createInput(targetEvaluator.id),
             filter: [],
             sampling: 1,
-            triggerKind: "SCORE_RESULT",
+            targetObject: EvalTargetObject.SCORE_RESULT,
             scoreResultTrigger,
           },
           null,
         ),
       ).resolves.toMatchObject({
-        triggerKind: "SCORE_RESULT",
+        targetObject: EvalTargetObject.SCORE_RESULT,
         scoreResultTrigger,
         filter: [],
         sampling: 1,
@@ -555,7 +555,7 @@ describe("RuleService", () => {
             ...createInput(sourceEvaluator.id),
             filter: [],
             sampling: 1,
-            triggerKind: "SCORE_RESULT",
+            targetObject: EvalTargetObject.SCORE_RESULT,
             scoreResultTrigger: {
               ...scoreResultTrigger,
               evaluatorId: targetEvaluator.id,
@@ -579,7 +579,7 @@ describe("RuleService", () => {
         ...createInput(targetEvaluatorId),
         filter: [],
         sampling: 1,
-        triggerKind: "SCORE_RESULT" as const,
+        targetObject: EvalTargetObject.SCORE_RESULT,
         scoreResultTrigger: {
           evaluatorId: sourceEvaluatorId,
           predicates: [
@@ -1171,7 +1171,7 @@ describe("RuleService", () => {
             projectId,
             ruleId: legacyRule.id,
             enabled: false,
-            triggerKind: "SCORE_RESULT",
+            targetObject: EvalTargetObject.SCORE_RESULT,
             scoreResultTrigger: {
               evaluatorId: otherEvaluator.id,
               predicates: [
@@ -1454,7 +1454,7 @@ describe("RuleService", () => {
           ...createInput(targetEvaluator.id),
           filter: [],
           sampling: 1,
-          triggerKind: "SCORE_RESULT",
+          targetObject: EvalTargetObject.SCORE_RESULT,
           scoreResultTrigger,
         },
         null,
@@ -1499,7 +1499,7 @@ describe("RuleService", () => {
           filter: [],
           sampling: 1,
           enabled: false,
-          triggerKind: "SCORE_RESULT",
+          targetObject: EvalTargetObject.SCORE_RESULT,
           scoreResultTrigger: {
             evaluatorId: sourceEvaluator.id,
             predicates: [
@@ -1528,7 +1528,7 @@ describe("RuleService", () => {
         }),
       ).resolves.toMatchObject({
         name: "Renamed invalid rule",
-        triggerKind: "SCORE_RESULT",
+        targetObject: EvalTargetObject.SCORE_RESULT,
         scoreResultTrigger: null,
         triggerInvalidReason: "The trigger evaluator was deleted.",
       });

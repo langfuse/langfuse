@@ -1,5 +1,6 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { useStore } from "zustand";
+import { EvalTargetObject } from "@langfuse/shared";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -43,7 +44,7 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
       name: "Experiment evaluators",
       filter: [],
       sampling: 1,
-      triggerKind: "OBSERVATION",
+      targetObject: EvalTargetObject.EXPERIMENT,
       scoreResultTrigger: null,
       assignments: initialAssignments,
     }),
@@ -60,7 +61,7 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
         name: state.name,
         filter: state.filter,
         sampling: state.sampling,
-        triggerKind: state.triggerKind,
+        targetObject: state.targetObject,
         scoreResultTrigger: state.scoreResultTrigger,
         assignments: state.assignments,
       },

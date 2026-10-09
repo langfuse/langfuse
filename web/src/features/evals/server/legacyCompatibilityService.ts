@@ -66,7 +66,7 @@ const LEGACY_TARGET_OBJECTS = [
 ];
 
 const visibleRuleWhere = {
-  triggerKind: "OBSERVATION",
+  targetObject: { not: EvalTargetObject.SCORE_RESULT },
   assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
 } satisfies Prisma.EvaluationRuleWhereInput;
 
@@ -671,7 +671,7 @@ const legacyConfigIdsQuery = (params: {
     ) a ON a."evaluation_rule_id" = r."id"
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
-      AND r."trigger_kind"::text = ${"OBSERVATION"}
+      AND r."target_object" <> ${EvalTargetObject.SCORE_RESULT}
       AND e."type"::text <> ${EvalTemplateType.FACET}
   ) jc
   WHERE TRUE
@@ -853,7 +853,7 @@ export class LegacyEvalCompatibilityService {
       where: {
         projectId,
         id: { in: jobConfigurationIds },
-        triggerKind: "SCORE_RESULT",
+        targetObject: EvalTargetObject.SCORE_RESULT,
       },
       select: { id: true },
     });
@@ -1685,7 +1685,7 @@ export class LegacyEvalCompatibilityService {
       await tx.evaluationRule.updateMany({
         where: {
           projectId,
-          triggerKind: "SCORE_RESULT",
+          targetObject: EvalTargetObject.SCORE_RESULT,
           status: JobConfigState.ACTIVE,
           assignments: {
             some: { evaluatorId: version.evaluatorId },

@@ -1,5 +1,4 @@
 import {
-  EvaluationRuleTriggerKind,
   JobConfigState,
   Prisma,
   type PrismaClient,
@@ -82,7 +81,6 @@ function ruleWhere(params: {
   search?: string;
   enabled?: boolean;
   targetObjects?: EvalTargetObject[];
-  triggerKinds?: EvaluationRuleTriggerKind[];
   filter?: FilterState;
 }): Prisma.EvaluationRuleWhereInput {
   const handlers = {
@@ -133,9 +131,6 @@ function ruleWhere(params: {
     ...(params.targetObjects === undefined
       ? {}
       : { targetObject: { in: params.targetObjects } }),
-    ...(params.triggerKinds === undefined
-      ? {}
-      : { triggerKind: { in: params.triggerKinds } }),
     AND: compilePrismaFilters<Prisma.EvaluationRuleWhereInput>(
       params.filter ?? [],
       handlers,
@@ -146,11 +141,11 @@ function ruleWhere(params: {
 export async function listRules(params: {
   prisma: PrismaClient;
   input: ListRulesInput;
-  triggerKinds?: EvaluationRuleTriggerKind[];
+  targetObjects?: EvalTargetObject[];
 }) {
   const where = ruleWhere({
     ...params.input,
-    triggerKinds: params.triggerKinds,
+    targetObjects: params.targetObjects ?? params.input.targetObjects,
   });
   const requestedOrder = params.input.orderBy;
   const orderColumn =
@@ -176,11 +171,11 @@ export async function listRulesCursor(params: {
   input: Omit<ListRulesInput, "page"> & {
     cursor?: { createdAt: Date; id: string };
   };
-  triggerKinds?: EvaluationRuleTriggerKind[];
+  targetObjects?: EvalTargetObject[];
 }) {
   const baseWhere = ruleWhere({
     ...params.input,
-    triggerKinds: params.triggerKinds,
+    targetObjects: params.targetObjects ?? params.input.targetObjects,
   });
   const where: Prisma.EvaluationRuleWhereInput = params.input.cursor
     ? {
@@ -225,7 +220,6 @@ export async function listReusableFilterCandidates(params: {
       targetObject: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
-      triggerKind: EvaluationRuleTriggerKind.OBSERVATION,
     },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: MAX_REUSABLE_FILTER_CANDIDATES,
@@ -289,16 +283,16 @@ export function findRule(params: {
   prisma: RulePrisma;
   projectId: string;
   ruleId: string;
-  triggerKinds?: EvaluationRuleTriggerKind[];
+  targetObjects?: EvalTargetObject[];
 }) {
   return params.prisma.evaluationRule.findFirst({
     where: {
       id: params.ruleId,
       projectId: params.projectId,
       ...visibleRuleWhere,
-      ...(params.triggerKinds === undefined
+      ...(params.targetObjects === undefined
         ? {}
-        : { triggerKind: { in: params.triggerKinds } }),
+        : { targetObject: { in: params.targetObjects } }),
     },
     include: ruleInclude,
   });
@@ -316,7 +310,6 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
       ...visibleRuleWhere,
       status: JobConfigState.ACTIVE,
       targetObject: EvalTargetObject.EVENT,
-      triggerKind: EvaluationRuleTriggerKind.OBSERVATION,
       sampling: params.sampling,
     },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
@@ -355,7 +348,6 @@ export function createRule(params: {
       sampling: params.input.sampling,
       delay: 0,
       timeScope: ["NEW"],
-      triggerKind: params.input.triggerKind,
       triggerEvaluatorId: params.input.scoreResultTrigger?.evaluatorId ?? null,
       scoreResultPredicates: params.input.scoreResultTrigger
         ? (params.input.scoreResultTrigger.predicates as Prisma.InputJsonValue)
@@ -378,7 +370,6 @@ export function updateRule(params: {
   input: UpdateRuleInput;
   targetObject?: EvalTargetObject;
   filter?: Prisma.InputJsonValue;
-  triggerKind?: EvaluationRuleTriggerKind;
   scoreResultTrigger?: ScoreResultTrigger | null;
   clearTriggerInvalidReason?: boolean;
   sampling?: number;
@@ -405,9 +396,6 @@ export function updateRule(params: {
               ? JobConfigState.ACTIVE
               : JobConfigState.INACTIVE,
           }),
-      ...(params.triggerKind === undefined
-        ? {}
-        : { triggerKind: params.triggerKind }),
       ...(params.scoreResultTrigger === undefined
         ? {}
         : {
@@ -432,7 +420,7 @@ export async function listEvaluatorResultRuleEdges(params: {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
-      triggerKind: EvaluationRuleTriggerKind.SCORE_RESULT,
+      targetObject: EvalTargetObject.SCORE_RESULT,
       triggerEvaluatorId: { not: null },
       ...(params.excludeRuleId ? { id: { not: params.excludeRuleId } } : {}),
     },
@@ -503,7 +491,7 @@ export function invalidateEvaluatorResultRules(params: {
   return params.prisma.evaluationRule.updateMany({
     where: {
       projectId: params.projectId,
-      triggerKind: EvaluationRuleTriggerKind.SCORE_RESULT,
+      targetObject: EvalTargetObject.SCORE_RESULT,
       triggerEvaluatorId: params.evaluatorId,
     },
     data: {
@@ -714,7 +702,6 @@ export async function listRulesForEvaluator(params: {
             id: true,
             name: true,
             status: true,
-            triggerKind: true,
             targetObject: true,
             timeScope: true,
             filter: true,
@@ -731,7 +718,6 @@ export async function listRulesForEvaluator(params: {
         id: evaluationRule.id,
         name: evaluationRule.name,
         enabled: evaluationRule.status === JobConfigState.ACTIVE,
-        triggerKind: evaluationRule.triggerKind,
         targetObject: evaluationRule.targetObject,
         timeScope: evaluationRule.timeScope,
         filter: evaluationRule.filter as FilterState,

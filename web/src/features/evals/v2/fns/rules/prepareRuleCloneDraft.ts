@@ -3,9 +3,10 @@ import {
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import type {
-  RuleDraft,
-  RuleTableRow,
+import {
+  toRuleDraftTargetObject,
+  type RuleDraft,
+  type RuleTableRow,
 } from "@/src/features/evals/v2/types/rules";
 
 export function prepareRuleCloneDraft(
@@ -15,7 +16,7 @@ export function prepareRuleCloneDraft(
     | "filter"
     | "sampling"
     | "assignments"
-    | "triggerKind"
+    | "targetObject"
     | "scoreResultTrigger"
   >,
 ): RuleDraft {
@@ -23,7 +24,7 @@ export function prepareRuleCloneDraft(
     name: `${rule.name} copy`,
     filter: rule.filter,
     sampling: rule.sampling,
-    triggerKind: rule.triggerKind,
+    targetObject: toRuleDraftTargetObject(rule.targetObject),
     scoreResultTrigger: rule.scoreResultTrigger,
     assignments: rule.assignments.map((assignment) => {
       const preparedDefault = prepareModernRuleVariableMapping(

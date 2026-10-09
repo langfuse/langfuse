@@ -1,5 +1,4 @@
 import {
-  EvaluationRuleTriggerKindSchema,
   EvalTargetObject,
   observationVariableMappingList,
   paginationLimitZod,
@@ -42,9 +41,15 @@ export const ListRulesSchema = z.object({
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z
-    .array(z.enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT]))
+    .array(
+      z.enum([
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+        EvalTargetObject.SCORE_RESULT,
+      ]),
+    )
     .min(1)
-    .max(2)
+    .max(3)
     .optional(),
   filter: singleFilterList
     .superRefine((filters, ctx) => {
@@ -70,20 +75,23 @@ export const ListRulesSchema = z.object({
 export const CreateRuleBaseSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z
-    .enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT])
+    .enum([
+      EvalTargetObject.EVENT,
+      EvalTargetObject.EXPERIMENT,
+      EvalTargetObject.SCORE_RESULT,
+    ])
     .default(EvalTargetObject.EVENT)
     .describe(
-      "Deprecated: modern rules are event rules and experiment scope is expressed through filters.",
+      "Rule trigger source. Experiment scope is normalized to event filters.",
     ),
   enabled: z.boolean(),
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
-  triggerKind: EvaluationRuleTriggerKindSchema.default("OBSERVATION"),
   scoreResultTrigger: ScoreResultTriggerSchema.nullable().default(null),
 });
 
 export const CreateRuleSchema = CreateRuleBaseSchema.superRefine(
   (rule, ctx) => {
-    if (rule.triggerKind === "OBSERVATION") {
+    if (rule.targetObject !== EvalTargetObject.SCORE_RESULT) {
       if (rule.scoreResultTrigger !== null) {
         ctx.addIssue({
           code: "custom",
@@ -110,13 +118,6 @@ export const CreateRuleSchema = CreateRuleBaseSchema.superRefine(
         message: "Evaluator result rules cannot define observation filters",
       });
     }
-    if (rule.targetObject !== EvalTargetObject.EVENT) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["targetObject"],
-        message: "Evaluator result rules must target observations",
-      });
-    }
     if (rule.sampling !== 1) {
       ctx.addIssue({
         code: "custom",
@@ -133,7 +134,13 @@ export const UpdateRuleSchema = RuleIdSchema.extend({
   sampling: RuleMetadataSchema.shape.sampling.optional(),
   enabled: z.boolean().optional(),
   evaluatorMappings: z.array(RuleAssignmentInputSchema).max(100).optional(),
-  triggerKind: EvaluationRuleTriggerKindSchema.optional(),
+  targetObject: z
+    .enum([
+      EvalTargetObject.EVENT,
+      EvalTargetObject.EXPERIMENT,
+      EvalTargetObject.SCORE_RESULT,
+    ])
+    .optional(),
   scoreResultTrigger: ScoreResultTriggerSchema.nullable().optional(),
 });
 

@@ -1,6 +1,5 @@
 import { EvalTargetObject, ScoreResultTriggerSchema } from "@langfuse/shared";
 import {
-  EvaluationRuleTriggerKind,
   EvalTemplateType,
   JobConfigState,
   prisma,
@@ -28,7 +27,7 @@ export async function fetchScoreResultEvalRules(params: {
   const rules = await prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
-      triggerKind: EvaluationRuleTriggerKind.SCORE_RESULT,
+      targetObject: EvalTargetObject.SCORE_RESULT,
       triggerEvaluatorId: params.evaluatorId,
       triggerInvalidReason: null,
       status: JobConfigState.ACTIVE,
