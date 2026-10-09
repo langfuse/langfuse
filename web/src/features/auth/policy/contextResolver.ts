@@ -10,7 +10,6 @@ import {
   ProjectId,
   SystemRoleId,
   systemRoleAccessRights,
-  type TenantId,
 } from "@langfuse/shared/rbac";
 
 import { assignRole } from "@langfuse/shared/rbac/server";
@@ -117,11 +116,7 @@ async function materialize(
 
   let roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
   if (roles.length === 0) {
-    await backfillApiKeyRoleAssignment(
-      prisma,
-      apiKey,
-      OrganizationId(org.orgId),
-    );
+    await backfillApiKeyRoleAssignment(prisma, apiKey, org);
     roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
   }
   const context = {
@@ -138,7 +133,7 @@ async function materialize(
 async function backfillApiKeyRoleAssignment(
   prisma: PrismaClient,
   apiKey: ApiKey,
-  tenantId: TenantId,
+  org: PrincipalOrganization,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const keys = await tx.$queryRaw<{ id: string }[]>`
@@ -156,7 +151,7 @@ async function backfillApiKeyRoleAssignment(
 
     const isProject = apiKey.scope === "PROJECT";
     await assignRole(tx, {
-      tenantId,
+      tenantId: OrganizationId(org.orgId),
       principalId,
       ownerId: isProject
         ? ProjectId(apiKey.projectId!)
