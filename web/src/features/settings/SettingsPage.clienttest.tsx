@@ -19,7 +19,6 @@ vi.mock("@/src/features/organizations/OrganizationSettingsPage", () => ({
 
 const accountPages = [
   { title: "General", slug: "index", content: "account general" },
-  { title: "v4 Migration", slug: "v4-migration", href: "/v4-migration" },
 ];
 
 const organizationPages = [
@@ -70,12 +69,6 @@ describe("buildSettingsPages", () => {
     expect(summarize(pages)).toEqual([
       { section: "Account Settings", slug: "index", content: true },
       {
-        section: "Account Settings",
-        slug: "v4-migration",
-        href: "/v4-migration",
-        internal: false,
-      },
-      {
         section: "Organization",
         slug: "index",
         href: "/organization/org-1/settings",
@@ -116,12 +109,6 @@ describe("buildSettingsPages", () => {
         slug: "index",
         href: "/account/settings?organizationId=org-1",
         internal: true,
-      },
-      {
-        section: "Account Settings",
-        slug: "v4-migration",
-        href: "/v4-migration",
-        internal: false,
       },
       { section: "Organization", slug: "index", content: true },
       { section: "Organization", slug: "billing", content: true },

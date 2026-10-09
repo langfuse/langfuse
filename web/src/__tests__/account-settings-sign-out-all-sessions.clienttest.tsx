@@ -79,10 +79,6 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: reportNonTrpcErrorMock,
 }));
 
-vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
-  useV4UpgradeUiFlag: () => false,
-}));
-
 import { useAccountSettingsPages } from "@/src/features/account";
 
 function AccountSettingsPage() {

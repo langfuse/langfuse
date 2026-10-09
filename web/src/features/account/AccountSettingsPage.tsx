@@ -30,7 +30,6 @@ import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
-import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 const displayNameSchema = z.object({
@@ -296,17 +295,14 @@ type AccountSettingsPage = {
 export function useAccountSettingsPages(): AccountSettingsPage[] {
   const { data: session } = useSession();
   const userEmail = session?.user?.email ?? "";
-  const showV4Migration = useV4UpgradeUiFlag();
 
-  return getAccountSettingsPages({ userEmail, showV4Migration });
+  return getAccountSettingsPages({ userEmail });
 }
 
 const getAccountSettingsPages = ({
   userEmail,
-  showV4Migration,
 }: {
   userEmail: string;
-  showV4Migration: boolean;
 }): AccountSettingsPage[] => [
   {
     title: "General",
@@ -363,11 +359,5 @@ const getAccountSettingsPages = ({
         />
       </div>
     ),
-  },
-  {
-    title: "v4 Migration",
-    slug: "v4-migration",
-    href: "/v4-migration",
-    show: showV4Migration,
   },
 ];
