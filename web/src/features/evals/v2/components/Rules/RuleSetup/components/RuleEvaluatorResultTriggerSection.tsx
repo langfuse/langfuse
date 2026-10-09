@@ -27,6 +27,7 @@ export function RuleEvaluatorResultTriggerSection({
 }: RuleEvaluatorResultTriggerSectionProps) {
   const trigger = useStore(store, (state) => state.scoreResultTrigger);
   const setTrigger = store.getState().actions.setScoreResultTrigger;
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(setSearchQuery, 300, false);
   const selectableEvaluators = useSelectableEvaluators({
@@ -47,10 +48,12 @@ export function RuleEvaluatorResultTriggerSection({
     store.getState().actions.setPreviewFilter([]);
   };
   const handleSearchChange = (value: string) => {
+    setSearchInput(value);
     debouncedSearch(value);
   };
   const handleSearchOpenChange = (open: boolean) => {
     if (open) return;
+    setSearchInput("");
     setSearchQuery("");
     debouncedSearch("");
   };
@@ -101,6 +104,7 @@ export function RuleEvaluatorResultTriggerSection({
           emptyMessage="No evaluators found."
           search={{
             placeholder: "Search evaluators...",
+            value: searchInput,
             onValueChange: handleSearchChange,
             onOpenChange: handleSearchOpenChange,
           }}

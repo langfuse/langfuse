@@ -9,6 +9,10 @@ import type { SampleObservation } from "@/src/features/evals/v2/components/Evalu
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import {
+  SearchBarDraftCacheContext,
+  useSearchBarDraftCache,
+} from "@/src/features/search-bar";
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { RuleSamplingSection } from "./RuleSamplingSection";
@@ -36,6 +40,10 @@ export function RuleFilterStep({
   const selectedObservationId = useStore(
     store,
     (state) => state.selectedObservation?.id ?? null,
+  );
+  const observationSearchDraft = useSearchBarDraftCache("observation");
+  const previewSearchDraft = useSearchBarDraftCache(
+    previewSourceRuleId ?? "incoming",
   );
   const [timeRange] = useState(() => {
     const to = new Date();
@@ -73,17 +81,19 @@ export function RuleFilterStep({
   const scopeFields =
     triggerKind === "OBSERVATION" ? (
       <>
-        <RuleSampleObservationSelector
-          projectId={projectId}
-          timeRange={timeRange}
-          filterState={filter}
-          onFilterStateChange={actions.setFilter}
-          tableName="evaluation-rule-matching-observations"
-          registry={RULE_SAMPLE_FIELD_REGISTRY}
-          selectedObservationId={selectedObservationId}
-          onSelect={actions.setSelectedObservation}
-          onOpenTrace={handleOpenTrace}
-        />
+        <SearchBarDraftCacheContext.Provider value={observationSearchDraft}>
+          <RuleSampleObservationSelector
+            projectId={projectId}
+            timeRange={timeRange}
+            filterState={filter}
+            onFilterStateChange={actions.setFilter}
+            tableName="evaluation-rule-matching-observations"
+            registry={RULE_SAMPLE_FIELD_REGISTRY}
+            selectedObservationId={selectedObservationId}
+            onSelect={actions.setSelectedObservation}
+            onOpenTrace={handleOpenTrace}
+          />
+        </SearchBarDraftCacheContext.Provider>
         <RuleSamplingSection store={store} />
       </>
     ) : (
@@ -108,17 +118,19 @@ export function RuleFilterStep({
               This selection only changes the preview. It does not restrict
               which evaluator executions trigger the rule.
             </p>
-            <RuleSampleObservationSelector
-              projectId={projectId}
-              timeRange={timeRange}
-              filterState={previewFilter}
-              onFilterStateChange={actions.setPreviewFilter}
-              tableName="evaluation-result-rule-preview"
-              registry={RULE_SAMPLE_FIELD_REGISTRY}
-              selectedObservationId={selectedObservationId}
-              onSelect={actions.setSelectedObservation}
-              onOpenTrace={handleOpenTrace}
-            />
+            <SearchBarDraftCacheContext.Provider value={previewSearchDraft}>
+              <RuleSampleObservationSelector
+                projectId={projectId}
+                timeRange={timeRange}
+                filterState={previewFilter}
+                onFilterStateChange={actions.setPreviewFilter}
+                tableName="evaluation-result-rule-preview"
+                registry={RULE_SAMPLE_FIELD_REGISTRY}
+                selectedObservationId={selectedObservationId}
+                onSelect={actions.setSelectedObservation}
+                onOpenTrace={handleOpenTrace}
+              />
+            </SearchBarDraftCacheContext.Provider>
           </div>
         )}
       </>

@@ -132,6 +132,63 @@ export const SearchableWithBadges = meta.story({
   },
 });
 
+export const TestControlledSearchReset = meta.story({
+  name: "(Test) Controlled search resets after Escape",
+  args: {
+    value: "",
+    placeholder: "Select an evaluator",
+    search: {
+      placeholder: "Search evaluators...",
+      onValueChange: fn(),
+      onOpenChange: fn(),
+    },
+    options: [
+      { value: "quality", label: "Quality" },
+      { value: "relevance", label: "Relevance" },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [searchValue, setSearchValue] = useState("");
+    return (
+      <SelectInput
+        {...args}
+        search={{
+          ...args.search,
+          placeholder: "Search evaluators...",
+          value: searchValue,
+          onValueChange: (value) => {
+            setSearchValue(value);
+            args.search?.onValueChange?.(value);
+          },
+          onOpenChange: (open) => {
+            if (!open) setSearchValue("");
+            args.search?.onOpenChange?.(open);
+          },
+        }}
+      />
+    );
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("combobox");
+
+    await userEvent.click(trigger);
+    await userEvent.type(
+      body.getByPlaceholderText("Search evaluators..."),
+      "quality",
+    );
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(trigger);
+
+    await expect(body.getByPlaceholderText("Search evaluators...")).toHaveValue(
+      "",
+    );
+    await expect(args.search?.onOpenChange).toHaveBeenCalledWith(false);
+  },
+});
+
 export const Empty = meta.story({
   name: "(Test) Empty",
   args: {
