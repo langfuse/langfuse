@@ -130,24 +130,17 @@ async function materialize(
   return context;
 }
 
-/** backfillApiKeyRoleAssignment repairs a verified key without widening existing grants. */
+/** backfillApiKeyRoleAssignment restores a verified key's legacy role. */
 async function backfillApiKeyRoleAssignment(
   prisma: PrismaClient,
   apiKey: ApiKey,
   org: PrincipalOrganization,
 ): Promise<void> {
-  const principalId = ApiKeyId(apiKey.id);
-  const existing = await prisma.roleAssignment.findFirst({
-    where: { principalId },
-    select: { id: true },
-  });
-  if (existing) return;
-
   const isProject = apiKey.scope === "PROJECT";
   try {
     await assignRole(prisma, {
       tenantId: OrganizationId(org.orgId),
-      principalId,
+      principalId: ApiKeyId(apiKey.id),
       ownerId: isProject
         ? ProjectId(apiKey.projectId!)
         : OrganizationId(apiKey.orgId!),

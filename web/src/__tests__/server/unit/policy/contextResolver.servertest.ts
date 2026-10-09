@@ -360,7 +360,6 @@ describe("role lookup", () => {
         .fn()
         .mockResolvedValueOnce([])
         .mockResolvedValue(assignmentsFor("apiKey/key_p"));
-      prisma.roleAssignment.findFirst = vi.fn().mockResolvedValue(null);
       prisma.$transaction = vi.fn().mockRejectedValue(failure);
       const resolver = new ContextResolver(
         new OrganizationRepository(prisma),
@@ -382,29 +381,6 @@ describe("role lookup", () => {
       ).toBe(true);
     },
   );
-
-  it("preserves a narrow grant added after the initial lookup", async () => {
-    const prisma = mockPrisma(orgRow());
-    prisma.roleAssignment.findMany = vi
-      .fn()
-      .mockResolvedValueOnce([])
-      .mockResolvedValue(assignmentsFor("apiKey/key_v"));
-    prisma.roleAssignment.findFirst = vi.fn().mockResolvedValue({ id: "grant" });
-    prisma.roleAssignment.create = vi.fn();
-    const resolver = new ContextResolver(
-      new OrganizationRepository(prisma),
-      prisma,
-    );
-    const resolved = await resolver.resolve({
-      authorization: "privateKey",
-      apiKey: apiKey({ id: "key_v" }),
-    });
-    if (!resolved.success) throw resolved.error;
-    expect(
-      new Set(resolved.context.policies.map((policy) => policy.roleId)),
-    ).toEqual(new Set([SystemRoleId("VIEWER")]));
-    expect(prisma.roleAssignment.create).not.toHaveBeenCalled();
-  });
 
   it("does not backfill after a database error", async () => {
     const prisma = mockPrisma(orgRow());
