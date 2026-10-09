@@ -1,8 +1,29 @@
-//! Declarative media markers, MIME policy, and OTLP field classifications.
+//! Decide which OTLP fields to inspect and which media types are supported.
+//!
+//! `MediaScanMode` records where the walk is in the document. An OTLP attribute name
+//! must stay intact; the attribute's value can contain media. For example:
+//!
+//! ```text
+//! span                                      Envelope
+//!   `-- attributes[]                        Attributes
+//!        |-- key: "attachment"              Disabled (attribute name)
+//!        `-- value                          AnyValue (OTLP value wrapper)
+//!             `-- stringValue: "data:..."    Payload (inspect for media)
+//! ```
+//!
+//! Inside a user payload, every field can contain media, even one named `key`.
+//! The marker checks cheaply select text worth scanning; the MIME allowlist limits
+//! supported content types. The scanner then validates the actual media encoding.
 
 use std::sync::LazyLock;
 
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
+
+// Leave sub-KiB encoded candidates (including a Data URI header) for the later
+// media pass to limit per-occurrence descriptors and hash entries. The 1 KiB
+// cutoff favors measured replay gains for small attachments; escaped embedded
+// media can still retain more memory than leaving it inline.
+pub(super) const MIN_EARLY_MEDIA_BYTES: usize = 1024;
 
 pub(super) const DATA_URI_PREFIX: &str = "data:";
 pub(super) const BASE64_MARKER: &str = ";base64,";

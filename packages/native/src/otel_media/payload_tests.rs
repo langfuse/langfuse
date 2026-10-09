@@ -1,7 +1,7 @@
 use proptest::prelude::*;
 use serde_json::Value;
 
-use super::super::scanner::MIN_EARLY_MEDIA_BYTES;
+use super::super::rules::MIN_EARLY_MEDIA_BYTES;
 use super::super::tests::{data_uri, json_string_strategy, json_value_strategy};
 use super::super::validate;
 use super::MediaStorage;
@@ -20,7 +20,8 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
     }).collect::<Vec<_>>();
     let uris = payloads.iter().map(|payload| data_uri(payload)).collect::<Vec<_>>();
 
-    // Exercise both multiple URI spans within one string and adjacent provider values.
+    // Escapes before and between URI spans exercise decoded-to-source offsets.
+    // Adjacent provider values also cover whole-token replacement.
     // Providers cover plain objects, one embedded document, and adjacent embedded documents.
     for provider in [false, true] {
         let originals = uris.iter().map(|uri| {
@@ -34,7 +35,7 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
                 if layers > 1 { serde_json::to_string(&object).unwrap() } else { object }
             }).collect::<Vec<_>>().join(", ")
         } else {
-            std::iter::once(format!("\"before {} / {} after\"", originals[0], originals[1]))
+            std::iter::once(format!(r#""before \u2603\uD83D\uDE00 {} \/\t\u0061 {} after""#, originals[0], originals[1]))
                 .chain(originals[2..].iter().map(|uri| format!("\"{uri}\"")))
                 .collect::<Vec<_>>().join(", ")
         };
@@ -70,7 +71,7 @@ fn compaction_preserves_source_bytes_around_generated_data_uri(
     // An escaped candidate instead owns decoded text, but must replace its exact source span.
     let (header, payload) = uris[0].split_once(',').unwrap();
     let escaped = format!("{header},\\u{:04x}{}", payload.as_bytes()[0], &payload[1..]);
-    let source = format!("{{\n  \"image\" : \"{escaped}\"\n}}");
+    let source = format!(r#"{{"image":"\uD83D\uDE00 {escaped} after"}}"#);
     let compacted = validate(source.as_bytes().to_vec()).unwrap().compact().unwrap();
     prop_assert_eq!(compacted.media.len(), 1);
     let media = &compacted.media[0];

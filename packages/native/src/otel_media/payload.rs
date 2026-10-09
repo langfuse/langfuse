@@ -1,5 +1,25 @@
-//! Owned media registry, source storage, and compaction.
+//! Source ownership and compaction; discovery borrows, this module owns.
+//!
+//! ```text
+//! ValidatedPayload { source } + MediaManifest
+//!   | apply_edit_plan: replace ranges, copy untouched JSON verbatim
+//!   v
+//! EarlyMediaResult
+//!   + compact_json                  reuses source if no edits
+//!   + ExtractedMedia[]
+//!       + Arc<MediaMetadata>        content identity shared across occurrences
+//!       + occurrence ID             replacement/restoration identity
+//!       + storage                   spelling after parsing the outer JSON once
+//!       + json_decode_layers        remaining JSON string decodes before media decoding
+//! ```
+//!
+//! `MediaPayloadKind` identifies the media shape; `MediaSource` distinguishes URI
+//! from provider values; `MediaEncoding` selects base64 or Python-bytes decoding.
+//! The stored spelling can differ from the raw span replaced during compaction.
+//! `MediaStorage` borrows a source range or owns its bytes; small retained ranges
+//! can be detached to release a large source allocation.
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fmt;
 use std::io::Write;
@@ -64,7 +84,7 @@ pub enum MediaEncoding {
     PythonBytesLiteral,
 }
 
-/// Content-derived strings shared by occurrences of the same public reference.
+/// Metadata shared by occurrences with the same source, content type and hash.
 /// Source ranges and encodings stay on the occurrence so restoration retains
 /// its exact representation rather than just the decoded content identity.
 #[derive(Debug, Eq, PartialEq)]
@@ -84,21 +104,31 @@ impl MediaMetadata {
 ///
 /// Temporary references identify occurrences; metadata hashes identify assets.
 /// Distinct source spellings can share an upload without sharing restoration text.
+///
+/// Store the spelling visible after parsing the outer JSON once. Restoration
+/// reads that spelling; upload removes `json_decode_layers` remaining string
+/// layers before decoding base64/Python bytes. A plain base64 span stays borrowed.
+///
+/// For a slash escaped inside an embedded JSON string (quotes omitted):
+/// ```text
+/// outer source      a\\/b
+/// stored spelling   a\/b   outer JSON layer removed during compaction
+/// media text        a/b    one remaining JSON decode before media decoding
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExtractedMedia {
     pub(crate) metadata: Arc<MediaMetadata>,
     occurrence_id: u128,
     /// Number of serialized JSON documents between the outer input and this candidate.
+    /// Used to adjust restoration to the consumer's current serialization layer.
     original_json_depth: u8,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
-    /// Encoded media text: a shared source range when JSON escaping left it unchanged,
-    /// otherwise an owned copy with JSON escapes decoded.
+    /// Source spelling after parsing the outer JSON, retaining any nested escapes.
     storage: MediaStorage,
-    /// Representation restored when an upload fails. For media found inside a
-    /// stringified JSON document this is the candidate text after that
-    /// document's outer string decode, so deeper escapes remain intact.
-    original_storage: Option<Arc<Vec<u8>>>,
+    /// Remaining JSON unescapes needed to reach media text. Zero when the stored
+    /// spelling already matches, even if the candidate was in an embedded document.
+    json_decode_layers: u8,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -121,7 +151,7 @@ impl ExtractedMedia {
 
     /// Decode a body without consuming its encoded text, allowing retry or inline restoration.
     pub fn decode(&self) -> Result<Vec<u8>, MediaDecodeError> {
-        super::encoding::decode_encoded_data(self.encoded_data(), self.encoding)
+        super::encoding::decode_encoded_data(&self.encoded_data()?, self.encoding)
     }
 
     /// Return the media text used for inline restoration.
@@ -144,7 +174,7 @@ impl ExtractedMedia {
             return Err(MediaDecodeError::JsonLayerLimit);
         }
         if json_layers == 0 {
-            return String::from_utf8(self.encoded_data().to_vec())
+            return String::from_utf8(self.encoded_data()?.into_owned())
                 .map_err(|_| MediaDecodeError::InvalidSourceText);
         }
 
@@ -164,7 +194,7 @@ impl ExtractedMedia {
 
     /// Whether inline restoration differs from the fully decoded media text.
     pub fn original_has_json_escapes(&self) -> bool {
-        self.original_storage.is_some()
+        self.json_decode_layers != 0
     }
 
     /// Number of serialized JSON documents containing this candidate.
@@ -184,12 +214,7 @@ impl ExtractedMedia {
         } else {
             0
         };
-        metadata
-            + storage_retained_bytes(&self.storage)
-            + self
-                .original_storage
-                .as_ref()
-                .map_or(0, |bytes| bytes.capacity())
+        metadata + storage_retained_bytes(&self.storage)
     }
 
     pub(crate) fn source_capacity(&self) -> Option<usize> {
@@ -199,14 +224,16 @@ impl ExtractedMedia {
         }
     }
 
-    fn encoded_data(&self) -> &[u8] {
-        storage_bytes(&self.storage)
+    fn encoded_data(&self) -> Result<Cow<'_, [u8]>, MediaDecodeError> {
+        let mut value = Cow::Borrowed(self.original_data());
+        for _ in 0..self.json_decode_layers {
+            value = Cow::Owned(unescape_json_layer(&value)?);
+        }
+        Ok(value)
     }
 
     fn original_data(&self) -> &[u8] {
-        self.original_storage
-            .as_ref()
-            .map_or_else(|| self.encoded_data(), |bytes| bytes.as_slice())
+        storage_bytes(&self.storage)
     }
 }
 
@@ -303,11 +330,11 @@ impl MediaManifest {
                 .entries
                 .iter()
                 .map(|entry| {
-                    (if seen.insert(Arc::as_ptr(&entry.metadata)) {
+                    if seen.insert(Arc::as_ptr(&entry.metadata)) {
                         entry.metadata.retained_bytes()
                     } else {
                         0
-                    }) + manifest_storage_retained_bytes(&entry.storage)
+                    }
                 })
                 .sum::<usize>()
     }
@@ -319,25 +346,11 @@ pub(super) struct MediaManifestEntry {
     pub(crate) original_json_depth: u8,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
-    /// Exact raw source span replaced during compaction.
+    /// Exact raw source span replaced during compaction. Also supplies the
+    /// restoration spelling; it need not equal the JSON-unescaped upload text.
     pub(super) edit_range: Range<usize>,
-    /// Source-backed candidate bytes when the raw representation is identical,
-    /// or one owned decoded candidate when JSON escaping changed its bytes.
-    pub(super) storage: ManifestMediaStorage,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) enum ManifestMediaStorage {
-    SourceRange(Range<usize>),
-    Owned(Vec<u8>),
-}
-
-#[cfg(test)]
-fn manifest_storage_retained_bytes(storage: &ManifestMediaStorage) -> usize {
-    match storage {
-        ManifestMediaStorage::SourceRange(_) => 0,
-        ManifestMediaStorage::Owned(bytes) => bytes.capacity(),
-    }
+    /// JSON unescapes remaining after the outer input is parsed once.
+    pub(super) json_decode_layers: u8,
 }
 
 /// JSON syntax errors and failures to construct or apply a media edit plan.
@@ -447,25 +460,17 @@ fn apply_edit_plan(
         compact_json.extend_from_slice(&input[cursor..entry.edit_range.start]);
         write_reference(&mut compact_json, &entry.metadata, occurrence_id);
         cursor = entry.edit_range.end;
-        let storage = match entry.storage {
-            ManifestMediaStorage::Owned(bytes) => MediaStorage::Owned(bytes),
-            ManifestMediaStorage::SourceRange(range) => MediaStorage::Source {
+        let raw = &input[entry.edit_range.clone()];
+        let storage = if raw.contains(&b'\\') {
+            MediaStorage::Owned(
+                unescape_json_layer(raw)
+                    .map_err(|_| EarlyMediaError::InvalidEditPlan { entry: index })?,
+            )
+        } else {
+            MediaStorage::Source {
                 bytes: Arc::clone(&source),
-                range: range.clone(),
-            },
-        };
-        // A source range identical to the edit range already has the exact spelling needed for
-        // restoration. Only an owned candidate crossed a JSON escape boundary and needs the
-        // source span decoded once; avoid rescanning large, source-backed media bodies.
-        let original_storage = match &storage {
-            MediaStorage::Source { range, .. } if *range == entry.edit_range => None,
-            _ => decode_outer_json_string_layer(
-                input,
-                &entry.edit_range,
-                storage_bytes(&storage),
-                index,
-            )?
-            .map(Arc::new),
+                range: entry.edit_range,
+            }
         };
         media.push(ExtractedMedia {
             metadata: entry.metadata,
@@ -474,7 +479,7 @@ fn apply_edit_plan(
             kind: entry.kind,
             encoding: entry.encoding,
             storage,
-            original_storage,
+            json_decode_layers: entry.json_decode_layers,
         });
     }
     compact_json.extend_from_slice(&input[cursor..]);
@@ -509,36 +514,6 @@ fn escape_json_layer(value: &[u8]) -> Result<Vec<u8>, MediaDecodeError> {
     let value = std::str::from_utf8(value).map_err(|_| MediaDecodeError::InvalidSourceText)?;
     let encoded = serde_json::to_string(value).map_err(|_| MediaDecodeError::InvalidJsonString)?;
     Ok(encoded.as_bytes()[1..encoded.len() - 1].to_vec())
-}
-
-/// Decode exactly one JSON string escaping layer from the source span.
-///
-/// For example, source text `a\/b` becomes `a/b`, while `a\\\/b` becomes
-/// `a\/b`. This restores the text visible after parsing the outer JSON string;
-/// it does not interpret a Data URI or decode base64.
-fn decode_outer_json_string_layer(
-    input: &[u8],
-    range: &Range<usize>,
-    encoded_data: &[u8],
-    entry: usize,
-) -> Result<Option<Vec<u8>>, EarlyMediaError> {
-    let raw = input
-        .get(range.clone())
-        .ok_or(EarlyMediaError::InvalidEditPlan { entry })?;
-    if !raw.contains(&b'\\') {
-        return Ok(None);
-    }
-    let mut token = Vec::with_capacity(raw.len() + 2);
-    token.push(b'"');
-    token.extend_from_slice(raw);
-    token.push(b'"');
-    let mut decoder = Jiter::new(&token);
-    let decoded = decoder
-        .next_str()
-        .map_err(|_| EarlyMediaError::InvalidEditPlan { entry })?
-        .as_bytes()
-        .to_vec();
-    Ok((decoded != encoded_data).then_some(decoded))
 }
 
 pub(super) fn validate_edit_plan(
