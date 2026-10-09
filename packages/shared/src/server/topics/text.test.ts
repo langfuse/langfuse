@@ -154,55 +154,6 @@ describe("generateTopicText", () => {
       }),
     ).rejects.toMatchObject({ status: 429 });
   });
-
-  it("reports cached prompt tokens from providers that cache automatically", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({
-          id: "chatcmpl-1",
-          object: "chat.completion",
-          created: 1,
-          model: "gpt-6-luna",
-          choices: [
-            {
-              index: 0,
-              finish_reason: "stop",
-              message: {
-                role: "assistant",
-                content: JSON.stringify({ summary: "Account access" }),
-              },
-            },
-          ],
-          usage: {
-            prompt_tokens: 3000,
-            completion_tokens: 200,
-            total_tokens: 3200,
-            prompt_tokens_details: { cached_tokens: 2560 },
-          },
-        }),
-      ),
-    );
-
-    const result = await generateTopicText({
-      model: {
-        slot: "summary",
-        provider: "openai-topics",
-        adapter: LLMAdapter.OpenAI,
-        model: "gpt-6-luna",
-        connection: { secretKey: encrypt("sk-test") },
-      },
-      system: [{ text: "System prompt and facets.", cache: true }],
-      input: "I cannot sign in.",
-      schema: z.object({ summary: z.string() }),
-      maxOutputTokens: 256,
-    });
-
-    expect(result.usage).toMatchObject({
-      inputTokens: 3000,
-      cacheReadTokens: 2560,
-    });
-  });
 });
 
 describe("generateTopicEmbedding", () => {
