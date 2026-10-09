@@ -1,6 +1,7 @@
-import { getFips, pbkdf2, randomBytes, timingSafeEqual } from "crypto";
+import { pbkdf2, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { compare, hash } from "bcryptjs";
+import { env } from "@langfuse/shared/src/env";
 
 const pbkdf2Async = promisify(pbkdf2);
 
@@ -18,19 +19,21 @@ const PBKDF2_KEY_BYTES = 32;
 const PBKDF2_MIN_SALT_BYTES = 16;
 const PBKDF2_MIN_KEY_BYTES = 14;
 const PBKDF2_MIN_ITERATIONS = 1_000;
+// Keeps a corrupted stored hash from stalling a login.
+const PBKDF2_MAX_ITERATIONS = 10_000_000;
 
 /**
- * hashesWithPbkdf2 is true when Node runs with the OpenSSL FIPS provider.
- * bcrypt is not FIPS-approved, so FIPS hosts hash passwords with
- * PBKDF2-HMAC-SHA256; other hosts keep bcrypt. Both formats verify everywhere.
+ * isFipsModeRequired is true with LANGFUSE_REQUIRE_FIPS=true. bcrypt is not
+ * FIPS-approved, so those hosts hash and verify passwords only with
+ * PBKDF2-HMAC-SHA256. Other hosts write bcrypt and verify both formats.
  */
-function hashesWithPbkdf2(): boolean {
-  return getFips() === 1;
+function isFipsModeRequired(): boolean {
+  return env.LANGFUSE_REQUIRE_FIPS === "true";
 }
 
 /** hashPassword hashes a password in the format this host writes. */
 export async function hashPassword(password: string): Promise<string> {
-  if (!hashesWithPbkdf2()) {
+  if (!isFipsModeRequired()) {
     return hash(password, BCRYPT_COST);
   }
 
@@ -45,12 +48,17 @@ export async function hashPassword(password: string): Promise<string> {
   return `${PBKDF2_PREFIX}i=${PBKDF2_ITERATIONS}$${toBase64(salt)}$${toBase64(key)}`;
 }
 
-/** verifyPassword checks a password against a bcrypt or PBKDF2 hash; any other stored value never matches. */
+/**
+ * verifyPassword checks a password against a bcrypt or PBKDF2 hash. In FIPS
+ * mode a bcrypt hash never matches (see passwordRequiresReset), and any other
+ * stored value never matches anywhere.
+ */
 export async function verifyPassword(
   password: string,
   hashedPassword: string,
 ): Promise<boolean> {
   if (BCRYPT_HASH_PATTERN.test(hashedPassword)) {
+    if (isFipsModeRequired()) return false;
     return compare(password, hashedPassword);
   }
 
@@ -67,12 +75,9 @@ export async function verifyPassword(
   return timingSafeEqual(key, parsed.key);
 }
 
-/** passwordNeedsRehash is true when a verified hash should be replaced by the format this host writes. */
-export function passwordNeedsRehash(hashedPassword: string): boolean {
-  if (!hashesWithPbkdf2()) return false;
-
-  const parsed = parsePbkdf2Hash(hashedPassword);
-  return !parsed || parsed.iterations < PBKDF2_ITERATIONS;
+/** passwordRequiresReset is true for a bcrypt hash in FIPS mode, which only a password reset can replace. */
+export function passwordRequiresReset(hashedPassword: string): boolean {
+  return isFipsModeRequired() && BCRYPT_HASH_PATTERN.test(hashedPassword);
 }
 
 function parsePbkdf2Hash(
@@ -87,6 +92,7 @@ function parsePbkdf2Hash(
   const iterations = Number(/^i=(\d+)$/.exec(params ?? "")?.[1]);
   if (!Number.isSafeInteger(iterations)) return null;
   if (iterations < PBKDF2_MIN_ITERATIONS) return null;
+  if (iterations > PBKDF2_MAX_ITERATIONS) return null;
 
   const saltBytes = Buffer.from(salt ?? "", "base64");
   const keyBytes = Buffer.from(key ?? "", "base64");

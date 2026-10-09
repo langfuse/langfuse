@@ -3,12 +3,8 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessionExpiration";
 import type { AdClickIds } from "@/src/features/auth";
 import { env } from "@/src/env.mjs";
-import {
-  hashPassword,
-  passwordNeedsRehash,
-} from "@/src/features/auth-credentials/lib/passwordHash";
+import { hashPassword } from "@/src/features/auth-credentials/lib/passwordHash";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 function hashEmailOtpToken(token: string) {
@@ -129,36 +125,6 @@ export async function consumeEmailOtpAndUpdatePassword({
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "Invalid or expired verification code.",
-    });
-  }
-}
-
-/**
- * rehashPasswordIfNeeded replaces a just-verified password hash with the
- * format this host writes. It only overwrites the hash it verified, so a
- * concurrent password change wins, and it keeps sessions valid because the
- * password itself is unchanged. A failed rewrite does not fail the login.
- */
-export async function rehashPasswordIfNeeded({
-  userId,
-  password,
-  verifiedHash,
-}: {
-  userId: string;
-  password: string;
-  verifiedHash: string;
-}) {
-  if (!passwordNeedsRehash(verifiedHash)) return;
-
-  try {
-    await prisma.user.updateMany({
-      where: { id: userId, password: verifiedHash },
-      data: { password: await hashPassword(password) },
-    });
-  } catch (error) {
-    logger.warn("Failed to upgrade password hash on login", {
-      userId,
-      error: error instanceof Error ? error.message : String(error),
     });
   }
 }

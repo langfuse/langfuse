@@ -8,9 +8,9 @@ import {
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
-import { rehashPasswordIfNeeded } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import {
   hashPassword,
+  passwordRequiresReset,
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/passwordHash";
 import {
@@ -59,6 +59,7 @@ import {
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+  PASSWORD_RESET_REQUIRED_MESSAGE,
 } from "@/src/features/auth/constants";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
@@ -136,17 +137,15 @@ const staticProviders: Provider[] = [
         );
       }
 
+      if (passwordRequiresReset(dbUser.password)) {
+        throw new Error(PASSWORD_RESET_REQUIRED_MESSAGE);
+      }
+
       const isValidPassword = await verifyPassword(
         credentials.password,
         dbUser.password,
       );
       if (!isValidPassword) throw new Error("Invalid credentials");
-
-      await rehashPasswordIfNeeded({
-        userId: dbUser.id,
-        password: credentials.password,
-        verifiedHash: dbUser.password,
-      });
 
       const userObj = {
         id: dbUser.id,
