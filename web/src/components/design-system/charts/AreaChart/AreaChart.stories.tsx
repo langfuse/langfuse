@@ -499,9 +499,11 @@ export const GapsAndIsolatedPoints = meta.story({
       name: /API 8\.0 requests/,
     });
     firstPoint.focus();
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
+    const tooltipHeading = await within(
+      canvasElement.ownerDocument.body,
+    ).findByText("Sep 1, 2026");
+    const tooltip = tooltipHeading.closest('[role="tooltip"]');
+    if (!tooltip) throw new Error("Tooltip not found");
     await expect(tooltip).toHaveTextContent("8.0 requests");
   },
 });
