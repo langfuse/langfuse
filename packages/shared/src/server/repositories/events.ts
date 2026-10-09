@@ -141,7 +141,7 @@ import {
   normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
-import { OBSERVATIONS_TO_TRACE_INTERVAL } from "./constants";
+import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./constants";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
 import {
   findUiColumnMapping,
@@ -1026,56 +1026,64 @@ export const getObservationByIdFromEventsTable = async ({
 const EVENTS_METADATA_MAP_SQL =
   "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))";
 
+/** Earliest start_time an observation of a trace anchored at `anchor` can have. */
+function observationsToTraceLowerBound(anchor: Date): Date {
+  return new Date(
+    anchor.getTime() -
+      OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
+  );
+}
+
 /** ClickHouse DateTime64(3) binds stay strings; the column type is Date. */
 function dateTimeParam(value: string): Date {
   return value as unknown as Date;
 }
 
 const OBSERVATION_BY_ID_SELECTS = [
-  sql`e.span_id`.as("id"),
-  sql`e.trace_id`.as("trace_id"),
-  sql`e.project_id`.as("project_id"),
-  sql`e.environment`.as("environment"),
-  sql`e.type`.as("type"),
-  sql`e.parent_span_id`.as("parent_observation_id"),
-  sql`e.start_time`.as("start_time"),
-  sql`e.end_time`.as("end_time"),
-  sql`e.name`.as("name"),
+  "e.span_id as id",
+  "e.trace_id as trace_id",
+  "e.project_id as project_id",
+  "e.environment as environment",
+  "e.type as type",
+  "e.parent_span_id as parent_observation_id",
+  "e.start_time as start_time",
+  "e.end_time as end_time",
+  "e.name as name",
   sql.raw(EVENTS_METADATA_MAP_SQL).as("metadata"),
-  sql`e.level`.as("level"),
-  sql`e.status_message`.as("status_message"),
-  sql`e.version`.as("version"),
-  sql`e.release`.as("release"),
-  sql`e.user_id`.as("user_id"),
-  sql`e.session_id`.as("session_id"),
+  "e.level as level",
+  "e.status_message as status_message",
+  "e.version as version",
+  "e.release as release",
+  "e.user_id as user_id",
+  "e.session_id as session_id",
   sql.raw(eventsTableTraceNameSelectSql).as("trace_name"),
-  sql`e.tags`.as("tags"),
-  sql`e.bookmarked`.as("bookmarked"),
-  sql`e.public`.as("public"),
-  sql`e.tool_definitions`.as("tool_definitions"),
-  sql`e.tool_calls`.as("tool_calls"),
-  sql`e.tool_call_names`.as("tool_call_names"),
-  sql`e.provided_model_name`.as("provided_model_name"),
-  sql`e.model_id`.as("internal_model_id"),
-  sql`e.model_parameters`.as("model_parameters"),
-  sql`e.provided_usage_details`.as("provided_usage_details"),
-  sql`e.usage_details`.as("usage_details"),
-  sql`e.provided_cost_details`.as("provided_cost_details"),
-  sql`e.cost_details`.as("cost_details"),
-  sql`e.total_cost`.as("total_cost"),
-  sql`e.usage_pricing_tier_id`.as("usage_pricing_tier_id"),
-  sql`e.usage_pricing_tier_name`.as("usage_pricing_tier_name"),
-  sql`e.completion_start_time`.as("completion_start_time"),
-  sql`e.prompt_id`.as("prompt_id"),
-  sql`e.prompt_name`.as("prompt_name"),
-  sql`e.prompt_version`.as("prompt_version"),
-  sql`e.created_at`.as("created_at"),
-  sql`e.updated_at`.as("updated_at"),
+  "e.tags as tags",
+  "e.bookmarked as bookmarked",
+  "e.public as public",
+  "e.tool_definitions as tool_definitions",
+  "e.tool_calls as tool_calls",
+  "e.tool_call_names as tool_call_names",
+  "e.provided_model_name as provided_model_name",
+  "e.model_id as internal_model_id",
+  "e.model_parameters as model_parameters",
+  "e.provided_usage_details as provided_usage_details",
+  "e.usage_details as usage_details",
+  "e.provided_cost_details as provided_cost_details",
+  "e.cost_details as cost_details",
+  "e.total_cost as total_cost",
+  "e.usage_pricing_tier_id as usage_pricing_tier_id",
+  "e.usage_pricing_tier_name as usage_pricing_tier_name",
+  "e.completion_start_time as completion_start_time",
+  "e.prompt_id as prompt_id",
+  "e.prompt_name as prompt_name",
+  "e.prompt_version as prompt_version",
+  "e.created_at as created_at",
+  "e.updated_at as updated_at",
   sql`e.event_ts`,
 ] as const;
 
 const TRACE_AGGREGATION_SELECTS = [
-  sql`trace_id`.as("id"),
+  "trace_id as id",
   sql`project_id`,
   sql.raw(eventsTableTraceNameAggregationSql).as("name"),
   sql`min(start_time)`.as("timestamp"),
@@ -1172,12 +1180,12 @@ function compileAgentGraphDataFromEventsTable(opts: {
   const query = db
     .selectFrom("events_core as e")
     .select([
-      sql`e.span_id`.as("id"),
-      sql`e.parent_span_id`.as("parent_observation_id"),
-      sql`e.type`.as("type"),
-      sql`e.name`.as("name"),
-      sql`e.start_time`.as("start_time"),
-      sql`e.end_time`.as("end_time"),
+      "e.span_id as id",
+      "e.parent_span_id as parent_observation_id",
+      "e.type as type",
+      "e.name as name",
+      "e.start_time as start_time",
+      "e.end_time as end_time",
       sql.raw(`${EVENTS_METADATA_MAP_SQL}['langgraph_node']`).as("node"),
       sql.raw(`${EVENTS_METADATA_MAP_SQL}['langgraph_step']`).as("step"),
     ])
@@ -1197,7 +1205,7 @@ function compileObservationsTraceIdsFromEventsTable(opts: {
 
   const query = db
     .selectFrom("events_core as e")
-    .select([sql`e.trace_id`.as("trace_id"), sql`e.span_id`.as("span_id")])
+    .select(["e.trace_id as trace_id", "e.span_id as span_id"])
     .where("e.span_id", "in", opts.observationIds);
 
   return compileClickhouseQuery(query, ctx);
@@ -1213,10 +1221,10 @@ function compileTraceMetadataByIdsFromEvents(opts: {
   const query = db
     .selectFrom("events_core as e")
     .select([
-      sql`e.trace_id`.as("id"),
+      "e.trace_id as id",
       sql.raw(eventsTableTraceNameSql).as("name"),
-      sql`e.user_id`.as("user_id"),
-      sql`e.tags`.as("tags"),
+      "e.user_id as user_id",
+      "e.tags as tags",
     ])
     .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
     .where("e.is_deleted", "=", 0)
@@ -1277,7 +1285,7 @@ function compileObservationByIdFromEventsTable(opts: {
       qb.where(
         "start_time",
         ">=",
-        sql<Date>`${convertDateToClickhouseDateTime(startTimeLowerBound!)} - ${sql.raw(OBSERVATIONS_TO_TRACE_INTERVAL)}`,
+        observationsToTraceLowerBound(startTimeLowerBound!),
       ),
     )
     .$if(type != null, (qb) => qb.where("type", "=", type!))
@@ -1310,9 +1318,6 @@ function compileTraceByIdFromEventsTable(opts: {
   const ctx: ExecutionContext = { projectId };
   const db = getClickhouseKysely();
   const truncated = renderingProps.truncated === true;
-  const startTimeFrom = fromTimestamp
-    ? convertDateToClickhouseDateTime(fromTimestamp)
-    : null;
   const ioCharLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
 
   const tracesCte = (qb: ReturnType<typeof getClickhouseKysely>) => {
@@ -1322,11 +1327,11 @@ function compileTraceByIdFromEventsTable(opts: {
     return from
       .select([...TRACE_AGGREGATION_SELECTS] as never)
       .where("trace_id", "in", [traceId])
-      .$if(startTimeFrom != null, (inner) =>
+      .$if(fromTimestamp != null, (inner) =>
         inner.where(
           "start_time",
           ">=",
-          sql<Date>`${startTimeFrom} - ${sql.raw(OBSERVATIONS_TO_TRACE_INTERVAL)}`,
+          observationsToTraceLowerBound(fromTimestamp!),
         ),
       )
       .groupBy(["trace_id", "project_id"])
