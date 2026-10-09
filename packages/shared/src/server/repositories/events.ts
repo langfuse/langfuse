@@ -117,6 +117,8 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
+  EVENTS_AGGREGATION_FIELDS,
+  eventsFieldSetSelectExpressions,
   type QueryWithParams,
   type SessionEventsMetricsRow,
   OrderByEntry,
@@ -135,8 +137,6 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
-  eventsTableTraceNameAggregationSql,
-  eventsTableTraceNameSelectSql,
   eventsTableTraceNameSql,
   normalizeEventsTraceName,
   type NumericEventsTableColumnId,
@@ -1026,146 +1026,9 @@ export const getObservationByIdFromEventsTable = async ({
 const EVENTS_METADATA_MAP_SQL =
   "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))";
 
-/** Earliest start_time an observation of a trace anchored at `anchor` can have. */
-function observationsToTraceLowerBound(anchor: Date): Date {
-  return new Date(
-    anchor.getTime() -
-      OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
-  );
-}
-
 /** ClickHouse DateTime64(3) binds stay strings; the column type is Date. */
 function dateTimeParam(value: string): Date {
   return value as unknown as Date;
-}
-
-const OBSERVATION_BY_ID_SELECTS = [
-  "e.span_id as id",
-  "e.trace_id as trace_id",
-  "e.project_id as project_id",
-  "e.environment as environment",
-  "e.type as type",
-  "e.parent_span_id as parent_observation_id",
-  "e.start_time as start_time",
-  "e.end_time as end_time",
-  "e.name as name",
-  sql.raw(EVENTS_METADATA_MAP_SQL).as("metadata"),
-  "e.level as level",
-  "e.status_message as status_message",
-  "e.version as version",
-  "e.release as release",
-  "e.user_id as user_id",
-  "e.session_id as session_id",
-  sql.raw(eventsTableTraceNameSelectSql).as("trace_name"),
-  "e.tags as tags",
-  "e.bookmarked as bookmarked",
-  "e.public as public",
-  "e.tool_definitions as tool_definitions",
-  "e.tool_calls as tool_calls",
-  "e.tool_call_names as tool_call_names",
-  "e.provided_model_name as provided_model_name",
-  "e.model_id as internal_model_id",
-  "e.model_parameters as model_parameters",
-  "e.provided_usage_details as provided_usage_details",
-  "e.usage_details as usage_details",
-  "e.provided_cost_details as provided_cost_details",
-  "e.cost_details as cost_details",
-  "e.total_cost as total_cost",
-  "e.usage_pricing_tier_id as usage_pricing_tier_id",
-  "e.usage_pricing_tier_name as usage_pricing_tier_name",
-  "e.completion_start_time as completion_start_time",
-  "e.prompt_id as prompt_id",
-  "e.prompt_name as prompt_name",
-  "e.prompt_version as prompt_version",
-  "e.created_at as created_at",
-  "e.updated_at as updated_at",
-  sql`e.event_ts`,
-] as const;
-
-const TRACE_AGGREGATION_SELECTS = [
-  "trace_id as id",
-  sql`project_id`,
-  sql.raw(eventsTableTraceNameAggregationSql).as("name"),
-  sql`min(start_time)`.as("timestamp"),
-  sql`argMaxIf(environment, event_ts, environment <> '')`.as("environment"),
-  sql`argMaxIf(version, event_ts, version <> '')`.as("version"),
-  sql`argMaxIf(session_id, event_ts, session_id <> '')`.as("session_id"),
-  sql`argMaxIf(user_id, event_ts, user_id <> '')`.as("user_id"),
-  sql`argMaxIf(input, event_ts, parent_span_id = '')`.as("input"),
-  sql`argMaxIf(output, event_ts, parent_span_id = '')`.as("output"),
-  sql
-    .raw(`argMaxIf(${EVENTS_METADATA_MAP_SQL}, event_ts, parent_span_id = '')`)
-    .as("metadata"),
-  sql`min(created_at)`.as("created_at"),
-  sql`max(updated_at)`.as("updated_at"),
-  sql`sum(total_cost)`.as("total_cost"),
-  sql`if(max(end_time) IS NULL, NULL, date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))))`.as(
-    "latency_milliseconds",
-  ),
-  sql`groupUniqArrayIf(span_id, span_id <> '')`.as("observation_ids"),
-  sql`length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id)))`.as(
-    "observation_count",
-  ),
-  sql`argMaxIf(bookmarked, event_ts, parent_span_id = '')`.as("bookmarked"),
-  sql`max(public)`.as("public"),
-  sql`argMaxIf(experiment_item_id, event_ts, experiment_item_id <> '')`.as(
-    "experiment_item_id",
-  ),
-  sql`sumMap(usage_details)`.as("usage_details"),
-  sql`sumMap(cost_details)`.as("cost_details"),
-  sql`multiIf(arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR', arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING', arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT', 'DEBUG')`.as(
-    "aggregated_level",
-  ),
-  sql`countIf(level = 'WARNING')`.as("warning_count"),
-  sql`countIf(level = 'ERROR')`.as("error_count"),
-  sql`countIf(level = 'DEFAULT')`.as("default_count"),
-  sql`countIf(level = 'DEBUG')`.as("debug_count"),
-  sql`argMaxIf(tags, event_ts, notEmpty(tags))`.as("tags"),
-  sql`argMaxIf(release, event_ts, release <> '')`.as("release"),
-  sql`argMaxIf(evaluator_id, event_ts, evaluator_id <> '')`.as("evaluator_id"),
-  sql`argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '')`.as(
-    "evaluation_rule_id",
-  ),
-  sql`any(experiment_id)`.as("experiment_id"),
-] as const;
-
-function observationIoSelects(
-  fetchWithInputOutput: boolean,
-  truncated: boolean | undefined,
-) {
-  if (!fetchWithInputOutput) return [];
-  if (truncated) {
-    const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
-    return [
-      sql.raw(`leftUTF8(input, ${charLimit})`).as("input"),
-      sql.raw(`leftUTF8(output, ${charLimit})`).as("output"),
-    ];
-  }
-  return [sql`input`, sql`output`];
-}
-
-type HasAnyEventsKind = "trace" | "user" | "session";
-
-function compileHasAnyFromEventsTable(opts: {
-  projectId: string;
-  kind: HasAnyEventsKind;
-}) {
-  const db = getClickhouseKysely();
-  const ctx: ExecutionContext = { projectId: opts.projectId };
-
-  const query = db
-    .selectFrom("events_core")
-    .select(sql<number>`1`.as("one"))
-    .$if(opts.kind === "user", (qb) =>
-      qb.where("user_id", "is not", null).where("user_id", "!=", ""),
-    )
-    .$if(opts.kind === "session", (qb) =>
-      qb.where("session_id", "is not", null).where("session_id", "!=", ""),
-    )
-    .where("is_deleted", "=", 0)
-    .limit(1);
-
-  return compileClickhouseQuery(query, ctx);
 }
 
 async function getObservationByIdFromEventsTableInternal({
@@ -1207,7 +1070,7 @@ async function getObservationByIdFromEventsTableInternal({
       ? db.selectFrom("events_full as e")
       : db.selectFrom("events_core as e")
   )
-    .select([...OBSERVATION_BY_ID_SELECTS, ...ioSelects] as never)
+    .select([...observationByIdSelects(), ...ioSelects] as never)
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
       qb.where((eb) =>
@@ -1245,6 +1108,36 @@ async function getObservationByIdFromEventsTableInternal({
   });
 }
 
+function observationIoSelects(
+  fetchWithInputOutput: boolean,
+  truncated: boolean | undefined,
+) {
+  if (!fetchWithInputOutput) return [];
+  if (truncated) {
+    const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
+    return [
+      sql.raw(`leftUTF8(input, ${charLimit})`).as("input"),
+      sql.raw(`leftUTF8(output, ${charLimit})`).as("output"),
+    ];
+  }
+  return [sql`input`, sql`output`];
+}
+
+/**
+ * Raw select expressions (`expr as alias`) taken from the legacy builder field
+ * maps, so the AST and the builders still serving other call sites cannot drift.
+ * Lazy: events.ts sits in an import cycle with the builder module, so the maps
+ * can still be undefined while this module initializes.
+ */
+function observationByIdSelects() {
+  return eventsFieldSetSelectExpressions(
+    "byIdBase",
+    "byIdModel",
+    "byIdPrompt",
+    "byIdTimestamps",
+  ).map((field) => sql.raw(field));
+}
+
 /**
  * Get a trace by ID from the events table.
  * Compatible with getTraceById but queries the events table instead.
@@ -1275,14 +1168,13 @@ export const getTraceByIdFromEventsTable = async ({
 }) => {
   const db = getClickhouseKysely();
   const truncated = renderingProps.truncated === true;
-  const ioCharLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
 
   const tracesCte = (qb: ReturnType<typeof getClickhouseKysely>) => {
     const from = truncated
       ? qb.selectFrom("events_core as e")
       : qb.selectFrom("events_full as e");
     return from
-      .select([...TRACE_AGGREGATION_SELECTS] as never)
+      .select(traceAggregationSelects() as never)
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -1298,16 +1190,6 @@ export const getTraceByIdFromEventsTable = async ({
   const metadataSelect = excludeMetadata
     ? sql`map()`.as("metadata")
     : sql`t.metadata`;
-  const inputSelect = excludeInputOutput
-    ? sql`''`.as("input")
-    : truncated
-      ? sql.raw(`leftUTF8(t.input, ${ioCharLimit})`).as("input")
-      : sql`t.input`;
-  const outputSelect = excludeInputOutput
-    ? sql`''`.as("output")
-    : truncated
-      ? sql.raw(`leftUTF8(t.output, ${ioCharLimit})`).as("output")
-      : sql`t.output`;
 
   const builder = db
     .with("traces", (qb) =>
@@ -1331,8 +1213,7 @@ export const getTraceByIdFromEventsTable = async ({
       sql`t.updated_at`,
       metadataSelect,
       sql`0`.as("is_deleted"),
-      inputSelect,
-      outputSelect,
+      ...traceIoSelects(excludeInputOutput, truncated),
     ])
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
@@ -1375,6 +1256,32 @@ export const getTraceByIdFromEventsTable = async ({
 
   return res.shift();
 };
+
+function traceAggregationSelects() {
+  return Object.values(EVENTS_AGGREGATION_FIELDS).map((field) =>
+    sql.raw(field),
+  );
+}
+
+/** Earliest start_time an observation of a trace anchored at `anchor` can have. */
+function observationsToTraceLowerBound(anchor: Date): Date {
+  return new Date(
+    anchor.getTime() -
+      OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
+  );
+}
+
+function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
+  if (excludeInputOutput) return [sql`''`.as("input"), sql`''`.as("output")];
+  if (truncated) {
+    const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
+    return [
+      sql.raw(`leftUTF8(t.input, ${charLimit})`).as("input"),
+      sql.raw(`leftUTF8(t.output, ${charLimit})`).as("output"),
+    ];
+  }
+  return [sql`t.input`, sql`t.output`];
+}
 
 /**
  * Routing wrapper for "trace by id" reads.
@@ -1457,6 +1364,30 @@ export const hasAnyTraceFromEventsTable = async (
 
   return rows.length > 0;
 };
+
+type HasAnyEventsKind = "trace" | "user" | "session";
+
+function compileHasAnyFromEventsTable(opts: {
+  projectId: string;
+  kind: HasAnyEventsKind;
+}) {
+  const db = getClickhouseKysely();
+  const ctx: ExecutionContext = { projectId: opts.projectId };
+
+  const query = db
+    .selectFrom("events_core")
+    .select(sql<number>`1`.as("one"))
+    .$if(opts.kind === "user", (qb) =>
+      qb.where("user_id", "is not", null).where("user_id", "!=", ""),
+    )
+    .$if(opts.kind === "session", (qb) =>
+      qb.where("session_id", "is not", null).where("session_id", "!=", ""),
+    )
+    .where("is_deleted", "=", 0)
+    .limit(1);
+
+  return compileClickhouseQuery(query, ctx);
+}
 
 /**
  * Routing wrapper for the tracing onboarding gate ("has this project ingested
