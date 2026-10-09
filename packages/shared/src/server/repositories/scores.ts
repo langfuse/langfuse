@@ -285,6 +285,7 @@ export const getScoresForSessions = async <
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const includeMetadataPayload = !excludeMetadata;
