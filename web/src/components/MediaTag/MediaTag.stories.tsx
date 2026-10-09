@@ -161,6 +161,15 @@ export const InlineWithText = meta.story({
 export const FormattedView = meta.story({
   render: () => (
     <span className="font-mono text-xs/5">
+      <MediaTag contentType="image/png" size="md" />
+    </span>
+  ),
+});
+
+export const CompactJsonRow = meta.story({
+  render: () => (
+    <span className="flex items-start font-mono text-[0.7rem] leading-[14px]">
+      <span>media: </span>
       <MediaTag contentType="image/png" />
     </span>
   ),

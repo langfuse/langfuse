@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { MediaTag, type MediaTagStatus } from "../../MediaTag/MediaTag";
+import {
+  MediaTag,
+  type MediaTagProps,
+  type MediaTagStatus,
+} from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
 import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
@@ -33,12 +37,14 @@ function getS3MediaStatus({
 export function MediaReferenceTag({
   descriptor,
   label,
+  size,
 }: {
   descriptor: MediaDescriptor;
   label?: string;
+  size?: MediaTagProps["size"];
 }) {
   if (descriptor.kind === "s3") {
-    return <S3MediaTag descriptor={descriptor} label={label} />;
+    return <S3MediaTag descriptor={descriptor} label={label} size={size} />;
   }
 
   if (descriptor.kind !== "langfuseRef") {
@@ -47,19 +53,22 @@ export function MediaReferenceTag({
         contentType={descriptor.contentType}
         status="ready"
         url={descriptor.src}
+        size={size}
       />
     );
   }
 
-  return <LangfuseRefMediaTag descriptor={descriptor} />;
+  return <LangfuseRefMediaTag descriptor={descriptor} size={size} />;
 }
 
 function S3MediaTag({
   descriptor,
   label,
+  size,
 }: {
   descriptor: S3Descriptor;
   label?: string;
+  size?: MediaTagProps["size"];
 }) {
   const router = useRouter();
   const projectId =
@@ -98,6 +107,7 @@ function S3MediaTag({
     <MediaTag
       contentType={descriptor.contentType}
       label={label}
+      size={size}
       status={status}
       url={isSignedUrlExpired ? undefined : resolved.data?.url}
       errorDetail={descriptor.uri}
@@ -115,8 +125,10 @@ function S3MediaTag({
 
 function LangfuseRefMediaTag({
   descriptor,
+  size,
 }: {
   descriptor: LangfuseRefDescriptor;
+  size?: MediaTagProps["size"];
 }) {
   const [armed, setArmed] = useState(false);
   const [open, setOpen] = useState(false);
@@ -133,6 +145,7 @@ function LangfuseRefMediaTag({
   return (
     <MediaTag
       contentType={descriptor.contentType}
+      size={size}
       status={status}
       url={url}
       contentLength={contentLength}
