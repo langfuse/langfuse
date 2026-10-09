@@ -108,6 +108,9 @@ export function RuleFilterStep({
         <RuleEvaluatorResultTriggerSection
           projectId={projectId}
           store={store}
+          attachedRuleNames={(attachedRules.data ?? []).map(
+            ({ evaluationRule }) => evaluationRule.name,
+          )}
         />
         {scoreResultTrigger && !attachedRules.isPending ? (
           <div className="flex flex-col gap-2">

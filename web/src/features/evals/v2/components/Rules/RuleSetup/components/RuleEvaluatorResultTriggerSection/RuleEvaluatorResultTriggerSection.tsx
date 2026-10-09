@@ -12,7 +12,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { RuleEvaluatorResultPredicateRow } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorResultTriggerSection/components/RuleEvaluatorResultPredicateRow/RuleEvaluatorResultPredicateRow";
 import { RuleEvaluatorSelect } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorResultTriggerSection/components/RuleEvaluatorSelect/RuleEvaluatorSelect";
 import { createDefaultFreeformScoreResultPredicate } from "@/src/features/evals/v2/fns/rules/createDefaultFreeformScoreResultPredicate";
-import { predicateForScoreName } from "@/src/features/evals/v2/fns/rules/predicateForScoreName";
 import { prepareEvaluatorResultPredicates } from "@/src/features/evals/v2/fns/rules/prepareEvaluatorResultPredicates";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -25,11 +24,13 @@ const keepFixedValue = () => undefined;
 type RuleEvaluatorResultTriggerSectionProps = {
   projectId: string;
   store: RuleSetupStore;
+  attachedRuleNames: string[];
 };
 
 export function RuleEvaluatorResultTriggerSection({
   projectId,
   store,
+  attachedRuleNames,
 }: RuleEvaluatorResultTriggerSectionProps) {
   const trigger = useStore(store, (state) => state.scoreResultTrigger);
   const setTrigger = store.getState().actions.setScoreResultTrigger;
@@ -58,16 +59,7 @@ export function RuleEvaluatorResultTriggerSection({
         toScoreDefinitionSource(selectedEvaluator.data),
       )
     : null;
-  const attachedRules = api.evalsV2.rules.listRulesForEvaluator.useQuery(
-    {
-      projectId,
-      evaluatorId: trigger?.evaluatorId ?? "",
-    },
-    { enabled: trigger !== null },
-  );
-  const attachmentSummary = formatAttachmentSummary(
-    (attachedRules.data ?? []).map(({ evaluationRule }) => evaluationRule.name),
-  );
+  const attachmentSummary = formatAttachmentSummary(attachedRuleNames);
   const handleEvaluatorChange = async (evaluatorId: string) => {
     const requestId = ++evaluatorRequestId.current;
     const evaluator = await utils.client.evalsV2.get.query({
@@ -85,9 +77,6 @@ export function RuleEvaluatorResultTriggerSection({
     setPreviewSourceRuleId(null);
     setPreviewFilter([]);
     debouncedSearch("");
-  };
-  const handleEvaluatorValueChange = async (evaluatorId: string) => {
-    await handleEvaluatorChange(evaluatorId);
   };
   const handleSearchChange = (value: string) => {
     setSearchInput(value);
@@ -130,9 +119,11 @@ export function RuleEvaluatorResultTriggerSection({
   };
   const handleScoreNameChange = (index: number, scoreName: string) => {
     if (!trigger || scoreDefinitions?.mode !== "known") return;
-    const predicate = predicateForScoreName(scoreName, scoreDefinitions.scores);
-    if (!predicate) return;
-    handlePredicateChange(index, predicate);
+    const definition = scoreDefinitions.scores.find(
+      (score) => score.name === scoreName,
+    );
+    if (!definition) return;
+    handlePredicateChange(index, createDefaultScoreResultPredicate(definition));
   };
   const knownScores =
     scoreDefinitions?.mode === "freeform"
@@ -177,7 +168,7 @@ export function RuleEvaluatorResultTriggerSection({
           search={searchInput}
           onSearchChange={handleSearchChange}
           onSearchOpenChange={handleSearchOpenChange}
-          onValueChange={handleEvaluatorValueChange}
+          onValueChange={handleEvaluatorChange}
         />
         <span aria-hidden />
       </div>

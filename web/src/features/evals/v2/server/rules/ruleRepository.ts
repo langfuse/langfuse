@@ -58,7 +58,6 @@ const assignmentInclude = {
 
 const ruleInclude = {
   createdByUser: { select: { id: true, name: true, email: true } },
-  triggerEvaluator: { select: { id: true, name: true, type: true } },
   assignments: assignmentInclude,
 } satisfies Prisma.EvaluationRuleInclude;
 

@@ -5,45 +5,24 @@ import { createObservationEvalSchedulerDeps } from "./createSchedulerDeps";
 import { fetchScoreResultEvalRules } from "./fetchScoreResultEvalRules";
 import { scheduleScoreResultEvals } from "./scheduleScoreResultEvals";
 
-type ProcessEvaluatorResultDeps = {
-  fetchRules: typeof fetchScoreResultEvalRules;
-  scheduleEvals: (params: {
-    observation: ObservationForEval;
-    scores: CodeEvalScoreWithName[];
-    rules: Awaited<ReturnType<typeof fetchScoreResultEvalRules>>;
-    upstreamJobExecutionId: string;
-  }) => Promise<void>;
-};
-
-const productionDeps: ProcessEvaluatorResultDeps = {
-  fetchRules: fetchScoreResultEvalRules,
-  scheduleEvals: async (params) =>
-    scheduleScoreResultEvals({
-      ...params,
-      schedulerDeps: createObservationEvalSchedulerDeps(),
-    }),
-};
-
-export async function processEvaluatorResult(
-  input: {
-    projectId: string;
-    evaluatorId: string;
-    upstreamJobExecutionId: string;
-    observation: ObservationForEval;
-    scores: CodeEvalScoreWithName[];
-  },
-  deps: ProcessEvaluatorResultDeps = productionDeps,
-) {
-  const rules = await deps.fetchRules({
+export async function processEvaluatorResult(input: {
+  projectId: string;
+  evaluatorId: string;
+  upstreamJobExecutionId: string;
+  observation: ObservationForEval;
+  scores: CodeEvalScoreWithName[];
+}) {
+  const rules = await fetchScoreResultEvalRules({
     projectId: input.projectId,
     evaluatorId: input.evaluatorId,
   });
   if (rules.length === 0) return;
 
-  await deps.scheduleEvals({
+  await scheduleScoreResultEvals({
     observation: input.observation,
     scores: input.scores,
     rules,
     upstreamJobExecutionId: input.upstreamJobExecutionId,
+    schedulerDeps: createObservationEvalSchedulerDeps(),
   });
 }
