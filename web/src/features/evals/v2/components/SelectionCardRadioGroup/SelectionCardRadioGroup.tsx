@@ -4,7 +4,7 @@ import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-export type SelectionCardRadioGroupOption<TValue extends string> = {
+type SelectionCardRadioGroupOption<TValue extends string> = {
   value: TValue;
   icon: LucideIcon;
   title: string;
