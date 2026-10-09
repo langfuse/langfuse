@@ -82,9 +82,9 @@ export function promptsTableColsWithOptions(
 }
 
 export function webhookActionFilterOptions(
-  labels: SingleValueOption[] = [],
+  options?: PromptOptions,
 ): ColumnDefinition[] {
-  return promptsTableColsWithOptions({ labels, tags: [] }).filter((col) =>
-    ["name", "labels"].includes(col.id),
+  return promptsTableColsWithOptions(options).filter((col) =>
+    ["name", "labels", "tags"].includes(col.id),
   );
 }

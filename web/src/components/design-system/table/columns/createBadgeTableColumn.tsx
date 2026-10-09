@@ -31,7 +31,10 @@ type NeutralBadgeVariant = Extract<
   "default" | "secondary" | "tertiary"
 >;
 
-type GetBadge<TData extends RowData, TVariant extends BadgeVariant> = (
+type GetBadge<
+  TData extends RowData,
+  TVariant extends BadgeVariant | "unknown",
+> = (
   value: string,
   context: CellContext<TData, string | null | undefined>,
 ) => {
@@ -51,19 +54,26 @@ type BadgeTableColumnOptions<TData extends RowData> =
     })
   | (TableColumnOptions<TData, string> & {
       range: "semantic";
-      getBadge: GetBadge<TData, SemanticBadgeVariant>;
+      getBadge: GetBadge<TData, SemanticBadgeVariant | "unknown">;
     });
 
 export function createBadgeTableColumn<TData extends RowData>({
   getBadge,
+  nullValue,
   range,
   ...options
-}: BadgeTableColumnOptions<TData>) {
+}: BadgeTableColumnOptions<TData> & { nullValue?: string }) {
   return createTableColumn<TData, string>({
     ...options,
     loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
     renderCell: (value, context) => {
-      if (!value) return null;
+      if (!value) {
+        return nullValue ? (
+          <span className="block w-full truncate" title={nullValue}>
+            {nullValue}
+          </span>
+        ) : null;
+      }
 
       const badge =
         range === "semantic" || range === "decorative"
@@ -73,11 +83,15 @@ export function createBadgeTableColumn<TData extends RowData>({
 
       return (
         <Badge
-          variant={badge.variant ?? "secondary"}
+          variant={
+            badge.variant === "unknown"
+              ? "default"
+              : (badge.variant ?? "secondary")
+          }
           className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
           title={badge.value}
         >
-          {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+          {Icon && <Icon className="icon-sm shrink-0" aria-hidden />}
           <span className="truncate" title={badge.value}>
             {badge.value}
           </span>

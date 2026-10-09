@@ -4,11 +4,11 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { type BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
@@ -91,12 +91,12 @@ export default function BlobStorageIntegrationPage() {
       }}
     >
       <p className="text-primary mb-4 text-sm">
-        Configure scheduled exports of your trace data to AWS S3, S3-compatible
-        storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
-        export to your own storage for data analysis or backup purposes. Use the
-        &quot;Validate&quot; button to test your configuration by uploading a
-        small test file, and the &quot;Run Now&quot; button to trigger an
-        immediate export.
+        Configure scheduled exports of your trace data to Amazon S3,
+        S3-compatible storages, Azure Blob Storage, or Google Cloud Storage. Set
+        up a hourly, daily, or weekly export to your own storage for data
+        analysis or backup purposes. Use the &quot;Validate&quot; button to test
+        your configuration by uploading a small test file, and the &quot;Run
+        Now&quot; button to trigger an immediate export.
       </p>
       {!hasEntitlement ? (
         <p className="text-sm">

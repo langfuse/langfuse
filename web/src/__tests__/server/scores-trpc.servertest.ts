@@ -27,6 +27,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -45,6 +46,8 @@ import {
   BatchActionQueue,
   QueueJobs,
   createOrgProjectAndApiKey,
+  getScoreById,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
@@ -100,14 +103,7 @@ describe("scores trpc", () => {
             ],
           },
         ],
-        featureFlags: {
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          searchBar: false,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,
@@ -118,6 +114,99 @@ describe("scores trpc", () => {
   });
 
   describe("scores.all", () => {
+    // allFromEvents reads scores FINAL with
+    // do_not_merge_across_partitions_select_final = 1, which is only correct
+    // while every version of a sorting key lands in one partition.
+    it("keeps each scores sorting key within one partition", async () => {
+      const [table] = await queryClickhouse<{
+        partition_key: string;
+        sorting_key: string;
+      }>({
+        query: `
+          SELECT partition_key, sorting_key
+          FROM system.tables
+          WHERE database = currentDatabase() AND name = 'scores'
+        `,
+      });
+
+      expect(table.partition_key).toBe("toYYYYMM(timestamp)");
+      expect(table.sorting_key).toBe("project_id, toDate(timestamp), name, id");
+    });
+
+    it("preserves evaluator-test filters for score rows and counts on both read paths", async () => {
+      const scores = [
+        createTraceScore({
+          project_id: projectId,
+          name: "missing-test-marker",
+          metadata: {},
+        }),
+        createTraceScore({
+          project_id: projectId,
+          name: "false-test-marker",
+          metadata: { evaluator_test: "false" },
+        }),
+        createTraceScore({
+          project_id: projectId,
+          name: "true-test-marker",
+          metadata: { evaluator_test: "true" },
+        }),
+      ];
+      await createScoresCh(scores);
+
+      for (const { operator, value, expectedIds } of [
+        {
+          operator: "=" as const,
+          value: false,
+          expectedIds: [scores[0].id, scores[1].id],
+        },
+        {
+          operator: "=" as const,
+          value: true,
+          expectedIds: [scores[2].id],
+        },
+        {
+          operator: "<>" as const,
+          value: true,
+          expectedIds: [scores[0].id, scores[1].id],
+        },
+        {
+          operator: "<>" as const,
+          value: false,
+          expectedIds: [scores[2].id],
+        },
+      ]) {
+        const payload = {
+          projectId,
+          filter: [
+            {
+              column: "isEvaluatorTest",
+              type: "boolean" as const,
+              operator,
+              value,
+            },
+          ],
+          orderBy: { column: "timestamp", order: "DESC" as const },
+          page: 0,
+          limit: 50,
+        };
+        const [rows, eventRows, count, eventCount] = await Promise.all([
+          caller.scores.all(payload),
+          caller.scores.allFromEvents(payload),
+          caller.scores.countAll({ ...payload, orderBy: null }),
+          caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+        ]);
+
+        expect(rows.scores.map(({ id }) => id).sort()).toEqual(
+          [...expectedIds].sort(),
+        );
+        expect(eventRows.scores.map(({ id }) => id).sort()).toEqual(
+          [...expectedIds].sort(),
+        );
+        expect(count.totalCount).toBe(expectedIds.length);
+        expect(eventCount.totalCount).toBe(expectedIds.length);
+      }
+    });
+
     it("applies search-bar name matching and repeated numeric bounds to v4 rows and counts", async () => {
       await createScoresCh(
         [
@@ -731,6 +820,29 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scores.deleteAnnotationScore", () => {
+    it("deletes a correction ingested via the API", async () => {
+      const correction = createTraceScore({
+        project_id: projectId,
+        name: "output",
+        source: "API",
+        data_type: "CORRECTION",
+        value: 0,
+        long_string_value: "corrected response",
+      });
+      await createScoresCh([correction]);
+
+      await caller.scores.deleteAnnotationScore({
+        projectId,
+        id: correction.id,
+      });
+
+      expect(
+        await getScoreById({ projectId, scoreId: correction.id }),
+      ).toBeUndefined();
+    });
+  });
+
   describe("scores.deleteMany", () => {
     it("should delete scores by ids", async () => {
       // Setup
@@ -956,6 +1068,43 @@ describe("scores trpc", () => {
 
       expect(tiedIds).toEqual(configIds.slice().sort());
       expect(new Set(tiedIds).size).toBe(configIds.length);
+    });
+  });
+
+  describe("scoreConfigs.byId", () => {
+    it("returns NOT_FOUND when the config is missing in the project", async () => {
+      await expect(
+        caller.scoreConfigs.byId({
+          projectId,
+          id: randomUUID(),
+        }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "No score config with this id in this project.",
+      });
+    });
+
+    it("returns the config when it exists in the project", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `byid-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.byId({
+          projectId,
+          id: config.id,
+        }),
+      ).resolves.toMatchObject({
+        id: config.id,
+        name: config.name,
+        dataType: ScoreConfigDataType.NUMERIC,
+      });
     });
   });
 

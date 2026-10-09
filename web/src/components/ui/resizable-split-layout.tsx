@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { type ReactNode, useCallback, useId, useLayoutEffect } from "react";
 import {
@@ -41,11 +40,6 @@ interface ResizableSplitLayoutProps {
 const PRIMARY_PANEL_ID = "primary";
 const SECONDARY_PANEL_ID = "secondary";
 
-const NOOP_LAYOUT_STORAGE = {
-  getItem: () => null,
-  setItem: () => {},
-};
-
 /**
  * Horizontal split layout with a collapsible secondary panel.
  *
@@ -76,24 +70,23 @@ export function ResizableSplitLayout({
     ? `resizable-layout-${persistId}`
     : `resizable-layout-${instanceId}`;
 
-  const storage =
-    persistId && typeof window !== "undefined"
-      ? sessionStorage
-      : NOOP_LAYOUT_STORAGE;
-
   const renderSecondaryPanel = keepSecondaryMounted || open;
-  const panelIds = renderSecondaryPanel
-    ? secondaryPosition === "left"
-      ? [SECONDARY_PANEL_ID, PRIMARY_PANEL_ID]
-      : [PRIMARY_PANEL_ID, SECONDARY_PANEL_ID]
-    : [PRIMARY_PANEL_ID];
+  const panelIds = (() => {
+    if (renderSecondaryPanel) {
+      if (secondaryPosition === "left") {
+        return [SECONDARY_PANEL_ID, PRIMARY_PANEL_ID];
+      }
+      return [PRIMARY_PANEL_ID, SECONDARY_PANEL_ID];
+    }
+    return [PRIMARY_PANEL_ID];
+  })();
 
   const secondaryPanelRef = usePanelRef();
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: groupId,
     panelIds,
-    storage,
+    storage: persistId ? "session" : false,
   });
 
   useLayoutEffect(() => {

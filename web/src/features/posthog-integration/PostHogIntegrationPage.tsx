@@ -4,7 +4,7 @@ import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
   PostHogIntegrationForm,
@@ -19,14 +19,14 @@ import {
 import {
   buildExportSourceContext,
   getExportSourceFormValue,
-} from "@/src/features/analytics-integrations/exportSource";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProject } from "@/src/features/projects/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+  IntegrationSettingsSkeleton,
+} from "@/src/features/analytics-integrations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
@@ -50,14 +50,18 @@ export default function PostHogIntegrationPage() {
 
   // A persisted fault outranks active/inactive: it is the state the admin has
   // to act on, and it is cleared by the next successful sync.
-  const status =
-    state.isLoading || !hasAccess
-      ? undefined
-      : state.data?.config?.lastError
-        ? "error"
-        : state.data?.config?.enabled
-          ? "active"
-          : "inactive";
+  const status = (() => {
+    if (state.isLoading || !hasAccess) {
+      return undefined;
+    }
+    if (state.data?.config?.lastError) {
+      return "error";
+    }
+    if (state.data?.config?.enabled) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   return (
     <ContainerPage

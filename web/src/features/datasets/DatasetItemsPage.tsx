@@ -1,10 +1,7 @@
 import { api } from "@/src/utils/api";
-import {
-  getDatasetTabs,
-  DATASET_TABS,
-} from "@/src/features/navigation/utils/dataset-tabs";
+import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
@@ -136,7 +133,7 @@ function DatasetItemsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical className="icon-base text-icon-foreground" />
                 </Button>
               )}
             </DatasetActionMenu>
@@ -146,7 +143,7 @@ function DatasetItemsView({
               onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
               title="Version History"
             >
-              <History className="h-4 w-4" />
+              <History className="icon-base text-icon-foreground" />
             </Button>
           </>
         ),

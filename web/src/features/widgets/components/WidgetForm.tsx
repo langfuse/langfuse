@@ -26,7 +26,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import React, { useMemo, useRef } from "react";
 import {
   useController,
@@ -55,7 +55,7 @@ import { useReadPath } from "@/src/features/events";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { MetricsFilterBuilder } from "@/src/features/metrics";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,
@@ -908,7 +908,7 @@ export function WidgetForm({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm">
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Sparkles className="icon-base text-icon-foreground mr-2" />
                         Presets
                       </Button>
                     </PopoverTrigger>
@@ -921,7 +921,7 @@ export function WidgetForm({
                               variant="ghost"
                               onClick={() => applyPreset(preset)}
                             >
-                              <preset.icon className="mr-2 h-4 w-4" />
+                              <preset.icon className="icon-base mr-2" />
                               {preset.label}
                             </Button>
                           </PopoverClose>
@@ -1156,14 +1156,15 @@ export function WidgetForm({
                     selectedAggregation,
                   )}
                 />
-                <ChartLoadingState
-                  isLoading={chartLoadingState.isLoading}
-                  showSpinner={chartLoadingState.showSpinner}
-                  showHintImmediately={chartLoadingState.showHintImmediately}
-                  hintText={chartLoadingState.hintText}
-                  progress={loadingProgress}
-                  className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-                />
+                {chartLoadingState.isLoading && (
+                  <ChartLoadingState
+                    showSpinner={chartLoadingState.showSpinner}
+                    showHintImmediately={chartLoadingState.showHintImmediately}
+                    hintText={chartLoadingState.hintText}
+                    progress={loadingProgress}
+                    className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                  />
+                )}
               </div>
             </div>
           ) : (
@@ -1171,7 +1172,6 @@ export function WidgetForm({
               <div className="flex h-[300px] items-center justify-center">
                 {chartLoadingState.isLoading ? (
                   <ChartLoadingState
-                    isLoading={chartLoadingState.isLoading}
                     showSpinner={chartLoadingState.showSpinner}
                     showHintImmediately={chartLoadingState.showHintImmediately}
                     hintText={chartLoadingState.hintText}
@@ -1435,7 +1435,7 @@ function PivotMetricsField({
                   onClick={() => removeSlot(index)}
                   className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="icon-base" />
                 </Button>
               )}
             </div>
@@ -1525,7 +1525,7 @@ function PivotMetricsField({
             onClick={addSlot}
             className="w-full"
           >
-            <Plus className="mr-1 h-3 w-3" />
+            <Plus className="icon-base text-icon-foreground mr-1" />
             Add Metric {metrics.length + 1}
           </Button>
         )}

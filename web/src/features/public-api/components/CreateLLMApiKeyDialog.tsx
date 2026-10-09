@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
 export function CreateLLMApiKeyDialog({
@@ -48,7 +48,7 @@ export function CreateLLMApiKeyDialog({
       {!hideTrigger && (
         <DialogTrigger asChild>
           <Button variant="secondary">
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="icon-base mr-1.5 -ml-0.5" aria-hidden="true" />
             Add LLM Connection
           </Button>
         </DialogTrigger>

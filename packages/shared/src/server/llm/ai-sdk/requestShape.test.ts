@@ -613,7 +613,7 @@ describe("AI SDK request shapes", () => {
     });
   });
 
-  it("Vertex Gemini: regional host, SA-key project, OAuth bearer, maxReasoningTokens", async () => {
+  it("Vertex Gemini: regional host, SA-key project, OAuth bearer, extra headers, maxReasoningTokens", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "vertex",
@@ -623,6 +623,7 @@ describe("AI SDK request shapes", () => {
       },
       apiKey: FAKE_GCP_SERVICE_ACCOUNT_KEY,
       llmConnectionConfig: { location: "us-east5" },
+      extraHeaders: { "X-Vertex-AI-Labels": "eyJ0ZWFtIjoiYSJ9" },
       response: GOOGLE_RESPONSE,
     });
 
@@ -631,6 +632,7 @@ describe("AI SDK request shapes", () => {
       "https://us-east5-aiplatform.googleapis.com/v1beta1/projects/sa-project-123/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent",
     );
     expect(request.headers.get("authorization")).toBe("Bearer fake-gcp-token");
+    expect(request.headers.get("x-vertex-ai-labels")).toBe("eyJ0ZWFtIjoiYSJ9");
     const generationConfig = request.body.generationConfig as Record<
       string,
       unknown
@@ -871,6 +873,34 @@ describe("AI SDK request shapes", () => {
       ],
       toolChoice: { any: {} },
     });
+  });
+
+  it("Bedrock: models rejecting forced tools use JSON instructions", async () => {
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    } as const;
+    const { result, request } = await runBedrockCompletion({
+      model: "us.anthropic.claude-fable-5-1",
+      output: createLLMOutput(schema),
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"answer":"ok"}' }],
+          },
+        },
+      },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.toolConfig).toBeUndefined();
+    expect(JSON.stringify(request.body)).toContain(
+      "You MUST answer with only a JSON object",
+    );
   });
 
   it("Bedrock: tenant credentials suppress server-level env auth fallbacks", async () => {

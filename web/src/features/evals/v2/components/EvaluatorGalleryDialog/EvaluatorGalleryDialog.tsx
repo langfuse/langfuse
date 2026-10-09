@@ -11,10 +11,18 @@ import {
 import { EvaluatorGalleryView } from "@/src/features/evals/v2/components/EvaluatorGalleryView/EvaluatorGalleryView";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { prepareEvaluatorGallery } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorGallery";
-import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import {
+  EVALUATOR_GALLERY_ALL_SECTION_KEY,
+  EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
+} from "@/src/features/evals/v2/constants/evaluatorGallery";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import { getTemplateSelectionAnalyticsProperties } from "@/src/features/evals/v2/fns/templateGallery/getTemplateSelectionAnalyticsProperties";
 import { api } from "@/src/utils/api";
+
+// Search reports once the user pauses typing, so one query is one event.
+const SEARCH_CAPTURE_DELAY_MS = 1000;
 
 export function EvaluatorGalleryDialog({
   projectId,
@@ -38,7 +46,15 @@ export function EvaluatorGalleryDialog({
     new Set(),
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingSearchCapture = useRef<{
+    timeout: ReturnType<typeof setTimeout>;
+    queryLength: number;
+  } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useLocalStorage(
+    "evaluatorGallery:decisionModelBannerDismissed:v1",
+    false,
+  );
   const projectEvaluators = api.evalsV2.listGallery.useInfiniteQuery(
     {
       projectId,
@@ -76,7 +92,34 @@ export function EvaluatorGalleryDialog({
       projectEvaluators.data?.pages[0]?.totalItems ?? customTemplates.length,
     search,
   });
+  const flushSearchCapture = () => {
+    const pending = pendingSearchCapture.current;
+    if (!pending) return;
+    clearTimeout(pending.timeout);
+    pendingSearchCapture.current = null;
+    capture("eval:onboarding_gallery_searched", {
+      queryLength: pending.queryLength,
+    });
+  };
+  const handleSearchChange = (nextSearch: string) => {
+    setSearch(nextSearch);
+    const queryLength = nextSearch.trim().length;
+    if (queryLength === 0) {
+      flushSearchCapture();
+      return;
+    }
+    if (pendingSearchCapture.current) {
+      clearTimeout(pendingSearchCapture.current.timeout);
+    }
+    pendingSearchCapture.current = {
+      queryLength,
+      timeout: setTimeout(flushSearchCapture, SEARCH_CAPTURE_DELAY_MS),
+    };
+  };
   const selectSection = (key: string) => {
+    if (key !== activeSection) {
+      capture("eval:onboarding_gallery_section_selected", { sectionKey: key });
+    }
     setActiveSection(key);
     scrollContainerRef.current?.scrollTo({ top: 0 });
   };
@@ -88,7 +131,26 @@ export function EvaluatorGalleryDialog({
       return next;
     });
   };
-  const handleSelectTemplate = (template: GalleryTemplate) => {
+  const handleSelectTemplate = (
+    template: GalleryTemplate,
+    sectionKey: string,
+  ) => {
+    flushSearchCapture();
+    capture(
+      "eval:onboarding_step_completed",
+      sectionKey === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY
+        ? {
+            stepName: "suggestion_selected",
+            surface: "gallery",
+            ...getTemplateSelectionAnalyticsProperties(template),
+          }
+        : {
+            stepName: "template_selected",
+            surface: "gallery",
+            sectionKey,
+            ...getTemplateSelectionAnalyticsProperties(template),
+          },
+    );
     const evaluatorType =
       template.source === "managed" ? template.evaluator.type : template.type;
     const creationSource =
@@ -105,6 +167,12 @@ export function EvaluatorGalleryDialog({
     onSelectTemplate(template);
   };
   const handleCreateFromScratch = (evaluatorType: EvalTemplateType) => {
+    flushSearchCapture();
+    capture("eval:onboarding_step_completed", {
+      stepName: "new_from_scratch_selected",
+      surface: "gallery",
+      evaluatorType,
+    });
     capture(
       "evaluators:gallery_creation_source_select",
       getEvaluatorCreationAnalyticsProperties({
@@ -118,15 +186,17 @@ export function EvaluatorGalleryDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[80dvh] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 p-0 sm:w-[70vw]"
+        className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 rounded-lg p-0 sm:h-[80dvh] sm:max-h-[85vh] sm:w-[70vw]"
         closeOnInteractionOutside
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           searchInputRef.current?.focus();
         }}
       >
-        <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
-          <DialogTitle>Add an evaluator</DialogTitle>
+        <DialogHeader className="p-3 sm:p-4 [&>div]:items-start [&>div]:text-left [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
+          <DialogTitle className="text-lg sm:text-xl">
+            Add an evaluator
+          </DialogTitle>
           <DialogDescription>
             Pick a template to start from or create a new evaluator from
             scratch.
@@ -134,7 +204,7 @@ export function EvaluatorGalleryDialog({
         </DialogHeader>
         <EvaluatorGalleryView
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={handleSearchChange}
           searchInputRef={searchInputRef}
           navigationItems={navigationItems}
           activeSection={activeSection}
@@ -154,6 +224,8 @@ export function EvaluatorGalleryDialog({
               ? projectEvaluators.error.message
               : undefined
           }
+          decisionModelBannerDismissed={bannerDismissed}
+          onDismissDecisionModelBanner={() => setBannerDismissed(true)}
         />
       </DialogContent>
     </Dialog>

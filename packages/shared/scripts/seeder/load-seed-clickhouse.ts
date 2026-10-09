@@ -1,6 +1,17 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import {
+  createLegacySecretKeyPlaceholder,
+  getDisplaySecretKey,
+  logger,
+} from "../../src/server";
+import { assignRole } from "../../src/features/rbac/roleAssignmentService";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../src/features/rbac/types";
 import { prepareClickhouse } from "./prepare-clickhouse";
 import { redis } from "../../src/server";
 
@@ -33,7 +44,7 @@ const prepareProjectsAndApiKeys = async (
       },
     });
 
-    await prisma.project.upsert({
+    const project = await prisma.project.upsert({
       where: { id: projectId },
       update: {},
       create: {
@@ -48,23 +59,30 @@ const prepareProjectsAndApiKeys = async (
       where: { id: apiKeyId },
     });
     if (!apiKeyExists) {
-      const sk = await hashSecretKey(
-        `sk-${Math.random().toString(36).slice(2, 11)}`,
-      );
-      await prisma.apiKey.create({
-        data: {
-          id: apiKeyId,
-          note: `API Key for ${projectId}`,
-          publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
-          hashedSecretKey: sk,
-          displaySecretKey: getDisplaySecretKey(sk),
-          scope: "PROJECT",
-          project: {
-            connect: {
-              id: projectId,
+      const sk = `sk-lf-${randomUUID()}`;
+      await prisma.$transaction(async (tx) => {
+        await tx.apiKey.create({
+          data: {
+            id: apiKeyId,
+            note: `API Key for ${projectId}`,
+            publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
+            hashedSecretKey: createLegacySecretKeyPlaceholder(),
+            displaySecretKey: getDisplaySecretKey(sk),
+            scope: "PROJECT",
+            project: {
+              connect: {
+                id: projectId,
+              },
             },
           },
-        },
+        });
+        await assignRole(tx, {
+          tenantId: OrganizationId(project.orgId),
+          principalId: ApiKeyId(apiKeyId),
+          roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+          ownerId: ProjectId(projectId),
+          tags: [],
+        });
       });
     }
   });

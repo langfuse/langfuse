@@ -96,6 +96,9 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    // Internal Topics PoC model selection; not a supported self-hosting setting.
+    LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+    LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -383,7 +386,10 @@ export const env = createEnv({
 
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
+    // Bounds how long a revoked API key can still authenticate. Entries are
+    // not refreshed on read, so a key stops working at most one TTL after its
+    // last cache write. Shared with the policy-core authz context cache.
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(60),
 
     // The gateway data plane calls /resolve on every LLM request, so the
     // lookup is cached. The TTL bounds how long a revoked key or a disabled
@@ -395,10 +401,11 @@ export const env = createEnv({
       .number()
       .default(60),
 
-    // auth migration; self-host and default stay legacy
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
       .default("legacy"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+    API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -789,6 +796,9 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_TOPICS_SUMMARY_MODEL: process.env.LANGFUSE_TOPICS_SUMMARY_MODEL,
+    LANGFUSE_TOPICS_EMBEDDING_MODEL:
+      process.env.LANGFUSE_TOPICS_EMBEDDING_MODEL,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
@@ -1114,6 +1124,8 @@ export const env = createEnv({
     LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:
       process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
+    API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
+    API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

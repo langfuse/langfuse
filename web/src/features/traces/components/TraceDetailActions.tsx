@@ -1,84 +1,91 @@
-import { api } from "@/src/utils/api";
-import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
-import { DeleteTraceButton } from "@/src/components/deleteButton";
+import { Download, Loader2, MoreVertical, TrashIcon } from "lucide-react";
 
-/**
- * Trace-level header actions (publish / delete) shared by the peek and
- * the standalone trace page, so both surfaces expose the same controls. Each
- * sub-component renders DISABLED (not hidden) when the user lacks the relevant
- * project scope, matching the page's long-standing behavior.
- *
- * `layout="toolbar"` (default) is the inline icon row; `layout="menu"` renders
- * the same controls as full-width labeled rows for the peek's overflow popover
- * (whole row clickable) — Share keeps its URL popover, Delete its confirm.
- *
- * Delete always targets the whole trace (same as the page, even when reached
- * from an observation/event row — the surface shows that trace). Behavior
- * differs only by surface:
- * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
- * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. It
- *   receives the deleted trace id so the peek can stay open if K/J-navigation
- *   already moved on to another trace (LFE-10535). We invalidate broadly
- *   because the peek is hosted over many different lists (traces, observations,
- *   events, sessions, experiments, datasets), each backed by a different query
- *   — so the deleted row disappears everywhere.
- */
-export function TraceDetailActions({
-  traceId,
-  projectId,
-  isPublic,
-  shareUrl,
-  name,
-  timestamp,
-  deleteRedirectUrl,
-  onAfterDelete,
-  size = "icon-xs",
-  layout = "toolbar",
-}: {
-  traceId: string;
-  projectId: string;
-  isPublic: boolean;
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import {
+  HeaderActionMenuRow,
+  HeaderActionMenuRows,
+} from "@/src/components/HeaderActionMenuRow";
+import {
+  DropdownMenu,
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { useShareMenuItems } from "@/src/components/useShareMenuItems";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import { staleProps } from "@/src/features/traces/fns/staleProps";
+import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
+import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { cn } from "@/src/utils/tailwind";
+
+type TraceDetailData = NonNullable<
+  ReturnType<typeof useTraceDetailData>["data"]
+>;
+
+type TraceDetailActionsLayout = "toolbar" | "menu";
+
+type TraceDetailActionsProps = {
+  /** Undefined while the trace loads: the actions render disabled in place. */
+  trace: TraceDetailData | undefined;
+  traceContext: "fullscreen" | "peek";
   shareUrl?: string;
-  name?: string | null;
   timestamp?: Date;
   deleteRedirectUrl?: string;
   onAfterDelete?: (deletedTraceId: string) => void;
-  size?: "icon" | "icon-xs";
-  layout?: "toolbar" | "menu";
+  layout?: TraceDetailActionsLayout;
+  /** `trace` is the previous trace, kept while the next one loads. */
+  isPlaceholderData?: boolean;
+};
+
+/**
+ * Trace-level header actions shared by the peek and the standalone trace page.
+ *
+ * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
+ * holding Share, Copy trace ID, Copy trace name and Delete. `layout="menu"`
+ * renders the same actions as full-width labeled rows for the mobile header
+ * menu.
+ *
+ * Delete always targets the whole trace. Behavior differs only by surface:
+ * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
+ * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. It
+ *   receives the deleted trace id so the peek can stay open if K/J-navigation
+ *   already moved on to another trace. We invalidate broadly because the peek
+ *   is hosted over many different lists, each backed by a different query.
+ */
+export function TraceDetailActions({
+  trace,
+  layout = "toolbar",
+  isPlaceholderData = false,
+  ...props
+}: TraceDetailActionsProps) {
+  if (!trace) return <DisabledTraceDetailActions layout={layout} />;
+  const { key, ...stale } = staleProps(isPlaceholderData, {
+    remountOnStale: true,
+  });
+  return (
+    <LoadedTraceDetailActions
+      key={key}
+      trace={trace}
+      layout={layout}
+      stale={stale}
+      {...props}
+    />
+  );
+}
+
+function DisabledTraceDetailActions({
+  layout,
+}: {
+  layout: TraceDetailActionsLayout;
 }) {
-  const utils = api.useUtils();
-  const isMenu = layout === "menu";
+  const downloadIcon = <Download className="icon-base" />;
 
-  // The page path navigates away (redirectUrl) and never calls this. The peek
-  // path is hosted over many different lists, so invalidate all queries to
-  // refresh whichever list is behind the peek, then close it. We hand the
-  // deleted trace id to onAfterDelete so the peek can skip closing when it has
-  // already navigated to a different trace (LFE-10535).
-  const onDeleteInvalidate = () => {
-    utils.invalidate();
-    onAfterDelete?.(traceId);
-  };
-
-  if (isMenu) {
+  if (layout === "menu") {
     return (
       <div className="flex w-full flex-col gap-0.5">
-        <PublishTraceSwitch
-          projectId={projectId}
-          traceId={traceId}
-          timestamp={timestamp}
-          isPublic={isPublic}
-          shareUrl={shareUrl}
-          label="Share"
-        />
-        <DeleteTraceButton
-          itemId={traceId}
-          projectId={projectId}
-          redirectUrl={deleteRedirectUrl}
-          invalidateFunc={onDeleteInvalidate}
-          deleteConfirmation={name ?? ""}
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start font-normal"
+        <HeaderActionMenuRow
+          label="Download JSON"
+          icon={downloadIcon}
+          disabled
         />
       </div>
     );
@@ -86,27 +93,131 @@ export function TraceDetailActions({
 
   return (
     <div className="flex flex-row items-center gap-1">
-      <PublishTraceSwitch
-        projectId={projectId}
-        traceId={traceId}
-        timestamp={timestamp}
-        isPublic={isPublic}
-        shareUrl={shareUrl}
-        size={size}
-        tooltip={isPublic ? "Shared (public)" : "Share"}
-      />
-      <DeleteTraceButton
-        itemId={traceId}
-        projectId={projectId}
-        redirectUrl={deleteRedirectUrl}
-        invalidateFunc={onDeleteInvalidate}
-        deleteConfirmation={name ?? ""}
-        icon
-        // Match Publish so both icons share one row height and a ghost (not
-        // boxed "outline") style.
-        size={size}
-        variant="ghost"
+      <HeaderActionButton label="Download JSON" icon={downloadIcon} disabled />
+      <HeaderActionButton
+        label="More actions"
+        icon={<MoreVertical className="icon-base" />}
+        disabled
       />
     </div>
+  );
+}
+
+function LoadedTraceDetailActions({
+  trace,
+  traceContext,
+  shareUrl,
+  timestamp,
+  deleteRedirectUrl,
+  onAfterDelete,
+  layout,
+  stale,
+}: Omit<TraceDetailActionsProps, "trace" | "layout" | "isPlaceholderData"> & {
+  trace: TraceDetailData;
+  layout: TraceDetailActionsLayout;
+  stale: Omit<ReturnType<typeof staleProps>, "key">;
+}) {
+  const shareItems = useShareMenuItems({
+    kind: "trace",
+    projectId: trace.projectId,
+    objectId: trace.id,
+    isPublic: trace.public,
+    shareUrl,
+    timestamp,
+  });
+  const [handleDownload, isDownloading] = useDownloadTraceAsJson({
+    trace,
+    observations: trace.observations,
+    traceContext,
+  });
+
+  const idItems = [
+    { id: trace.id, name: "trace ID" },
+    ...(trace.name ? [{ id: trace.name, name: "trace name" }] : []),
+  ];
+
+  const downloadIcon = isDownloading ? (
+    <Loader2 className="icon-base animate-spin" />
+  ) : (
+    <Download className="icon-base" />
+  );
+
+  return (
+    <DeleteTraceDialogController
+      projectId={trace.projectId}
+      traceId={trace.id}
+      traceName={trace.name}
+      redirectUrl={deleteRedirectUrl}
+      onAfterDelete={onAfterDelete}
+    >
+      {({ disabled: deleteDisabled, openDialog: openDeleteDialog }) => (
+        <ConnectedDetailHeaderActionsMenuController
+          idItems={idItems}
+          projectId={trace.projectId}
+          renderMenu={(copyItems) => {
+            const items: DropdownMenuItemDefinition[] = [
+              ...shareItems,
+              ...copyItems,
+              { id: "delete-separator", type: "separator" },
+              {
+                type: "item",
+                id: "delete",
+                title: "Delete",
+                icon: TrashIcon,
+                variant: "destructive",
+                disabled: deleteDisabled,
+                onClick: openDeleteDialog,
+              },
+            ];
+
+            if (layout === "menu") {
+              return (
+                <div
+                  inert={stale.inert}
+                  className={cn(
+                    "flex w-full flex-col gap-0.5",
+                    stale.className,
+                  )}
+                >
+                  <HeaderActionMenuRow
+                    label="Download JSON"
+                    icon={downloadIcon}
+                    disabled={isDownloading}
+                    onClick={() => handleDownload()}
+                  />
+                  <HeaderActionMenuRows items={items} />
+                </div>
+              );
+            }
+
+            return (
+              <div
+                inert={stale.inert}
+                className={cn(
+                  "flex flex-row items-center gap-1",
+                  stale.className,
+                )}
+              >
+                <HeaderActionButton
+                  label="Download JSON"
+                  icon={downloadIcon}
+                  disabled={isDownloading}
+                  onClick={() => handleDownload()}
+                />
+                <DropdownMenu items={items} placement="bottom-end">
+                  {({ getTriggerProps }) => (
+                    <HeaderActionButton
+                      label="More actions"
+                      icon={<MoreVertical className="icon-base" />}
+                      {...getTriggerProps()}
+                    />
+                  )}
+                </DropdownMenu>
+              </div>
+            );
+          }}
+        />
+      )}
+    </DeleteTraceDialogController>
   );
 }

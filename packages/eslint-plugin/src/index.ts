@@ -6,13 +6,16 @@ import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
 import { default as noExoticOperators } from "./rules/no-exotic-operators.js";
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
 import { default as noNullRender } from "./rules/no-null-render.js";
+import { default as noLetAssignInReact } from "./rules/no-let-assign-in-react.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
 import { default as noRawFontWeight } from "./rules/no-raw-font-weight.js";
+import { default as noRawIconSize } from "./rules/no-raw-icon-size.js";
 import { default as requireTitleWithTruncate } from "./rules/require-title-with-truncate.js";
 import { default as noStyleProps } from "./rules/no-style-props.js";
 import { default as noSwitchStatements } from "./rules/no-switch-statements.js";
 import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
 import { default as storybookPlayRequiresTestName } from "./rules/storybook-play-requires-test-name.js";
+import { default as preferStoriesOverClientTests } from "./rules/prefer-stories-over-client-tests.js";
 
 const plugin = {
   rules: {
@@ -23,12 +26,15 @@ const plugin = {
     "no-in-source-vitest": noInSourceVitest,
     "no-margin-on-root-elements": noMarginOnRootElements,
     "no-null-render": noNullRender,
+    "no-let-assign-in-react": noLetAssignInReact,
     "no-overlay-zindex": noOverlayZindex,
     "no-raw-font-weight": noRawFontWeight,
+    "no-raw-icon-size": noRawIconSize,
     "no-style-props": noStyleProps,
     "no-switch-statements": noSwitchStatements,
     "no-tailwind-overflow-scroll": noTailwindOverflowScroll,
     "no-unnecessary-cn": noUnnecessaryCn,
+    "prefer-stories-over-client-tests": preferStoriesOverClientTests,
     "require-title-with-truncate": requireTitleWithTruncate,
     "storybook-play-requires-test-name": storybookPlayRequiresTestName,
   },

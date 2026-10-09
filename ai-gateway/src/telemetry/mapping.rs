@@ -3,7 +3,7 @@ use chrono::{DateTime, SecondsFormat};
 use serde_json::{Map, Value, json};
 
 use super::context::GenerationContext;
-use crate::capture::{InferenceFacts, RelayOutcome};
+use crate::capture::{InferenceFacts, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, RelayOutcome};
 
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
@@ -36,7 +36,7 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         ));
     }
     if let Some(usage) = inference.usage_details
-        && let Some(projected) = openai_usage(&usage)
+        && let Some(projected) = usage_projection(facts.api_format, &usage)
     {
         attributes.push(attribute(
             "langfuse.observation.usage_details",
@@ -89,6 +89,39 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         span["traceState"] = json!(context.trace_state);
     }
     span
+}
+
+pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
+    let Some(attributes) = span["attributes"].as_array_mut() else {
+        return false;
+    };
+    let Some(index) = attributes
+        .iter()
+        .position(|attribute| attribute["key"] == "langfuse.observation.input")
+    else {
+        return false;
+    };
+    let input = attributes.remove(index);
+    let input_bytes = input["value"]["stringValue"].as_str().map_or(0, str::len);
+    if let Some(value) = attributes
+        .iter_mut()
+        .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+        .map(|attribute| &mut attribute["value"]["stringValue"])
+        && let Some(Value::Object(mut metadata)) = value
+            .as_str()
+            .and_then(|value| serde_json::from_str(value).ok())
+    {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(reason),
+        );
+        metadata.insert(
+            "langfuse.gateway.request.input_bytes".into(),
+            json!(input_bytes),
+        );
+        *value = Value::String(Value::Object(metadata).to_string());
+    }
+    true
 }
 
 fn reserved_metadata(key: &str) -> bool {
@@ -157,6 +190,31 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     for (key, value) in &facts.inference.request_metadata {
         metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
     }
+    // Inserted after caller request metadata so the gateway's own ID always wins.
+    for (source, target) in [
+        ("request_id", "request.id"),
+        ("client_request_id", "client.request.id"),
+    ] {
+        if let Some(value) = facts.metadata.get(source) {
+            metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
+        }
+    }
+    if let Some(omission) = facts.inference.input_omission {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(omission.reason),
+        );
+        metadata.insert(
+            "langfuse.gateway.request.body_bytes".into(),
+            json!(omission.body_bytes),
+        );
+        if omission.reason == InputOmissionReason::SizeLimit {
+            metadata.insert(
+                "langfuse.gateway.request.input_limit_bytes".into(),
+                json!(MAX_INPUT_CAPTURE_BYTES),
+            );
+        }
+    }
     metadata
 }
 
@@ -200,16 +258,33 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
     json!({"key": key, "value": {"stringValue": value.into()}})
 }
 
-/// The receiver's native `OpenAI` usage schema is strict at the top level, but
-/// accepts new numeric detail counters.
-fn openai_usage(usage: &Value) -> Option<Value> {
+fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
+    match api_format {
+        "openai.responses" => openai_usage(
+            usage,
+            ["input_tokens", "output_tokens", "total_tokens"],
+            ["input_tokens_details", "output_tokens_details"],
+        ),
+        "openai.chat-completions" => openai_usage(
+            usage,
+            ["prompt_tokens", "completion_tokens", "total_tokens"],
+            ["prompt_tokens_details", "completion_tokens_details"],
+        ),
+        "anthropic.messages" => usage.is_object().then(|| usage.clone()),
+        _ => None,
+    }
+}
+
+/// The receiver's native `OpenAI` usage schemas are strict at the top level, but
+/// accept new numeric detail counters.
+fn openai_usage(usage: &Value, counters: [&str; 3], details: [&str; 2]) -> Option<Value> {
     let usage = usage.as_object()?;
     let mut projected = Map::new();
-    for key in ["input_tokens", "output_tokens", "total_tokens"] {
+    for key in counters {
         let value = usage.get(key).filter(|value| value.as_u64().is_some())?;
         projected.insert(key.into(), value.clone());
     }
-    for key in ["input_tokens_details", "output_tokens_details"] {
+    for key in details {
         match usage.get(key) {
             Some(Value::Null) => {
                 projected.insert(key.into(), Value::Null);
@@ -505,6 +580,77 @@ mod tests {
         assert!(metadata(&attrs).get("native_usage").is_none());
     }
 
+    fn projected_usage(api_format: &'static str, usage: Value) -> Option<Value> {
+        let mut facts = facts();
+        facts.api_format = api_format;
+        facts.inference.usage_details = Some(usage);
+        let attrs = attributes(&span(facts, &context()));
+        attrs
+            .get("langfuse.observation.usage_details")
+            .map(|value| serde_json::from_str(value.as_str().unwrap()).unwrap())
+    }
+
+    #[test]
+    fn anthropic_usage_is_uploaded_as_native() {
+        let native = json!({
+            "input_tokens": 7, "output_tokens": 445,
+            "cache_creation_input_tokens": 2089, "cache_read_input_tokens": 16399,
+            "cache_creation": {"ephemeral_5m_input_tokens": 2000, "ephemeral_1h_input_tokens": 89},
+            "output_tokens_details": {"thinking_tokens": 300},
+            "server_tool_use": {"web_search_requests": 1},
+            "service_tier": "standard", "inference_geo": null
+        });
+        assert_eq!(
+            projected_usage("anthropic.messages", native.clone()),
+            Some(native)
+        );
+        assert_eq!(
+            projected_usage("anthropic.messages", json!({"input_tokens": 7})),
+            Some(json!({"input_tokens": 7}))
+        );
+        // The Anthropic shape never projects through the OpenAI rules.
+        assert_eq!(
+            projected_usage(
+                "openai.responses",
+                json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn chat_completions_usage_projects_into_the_receivers_completion_schema() {
+        let native = json!({
+            "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+            "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+            "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null, "future_object": {}},
+            "future_usage": {"cost": 123},
+        });
+        assert_eq!(
+            projected_usage("openai.chat-completions", native),
+            Some(json!({
+                "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+                "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+                "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null},
+            }))
+        );
+        // Each OpenAI contract projects only its own counter names.
+        assert_eq!(
+            projected_usage(
+                "openai.chat-completions",
+                json!({"input_tokens": 2, "output_tokens": 1, "total_tokens": 3})
+            ),
+            None
+        );
+        assert_eq!(
+            projected_usage(
+                "openai.responses",
+                json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
+            ),
+            None
+        );
+    }
+
     #[test]
     fn provider_request_metadata_is_namespaced_and_keeps_native_types() {
         let mut facts = facts();
@@ -533,6 +679,47 @@ mod tests {
         for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
             assert!(metadata.get(key).is_none());
         }
+    }
+
+    #[test]
+    fn omitted_input_is_explained_in_gateway_metadata() {
+        let mut facts = facts();
+        facts.inference.input = None;
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::SizeLimit,
+            body_bytes: MAX_INPUT_CAPTURE_BYTES + 1,
+        });
+        let attrs = attributes(&span(facts, &context()));
+        assert!(!attrs.contains_key("langfuse.observation.input"));
+        let metadata = metadata(&attrs);
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "size_limit"
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.body_bytes"],
+            MAX_INPUT_CAPTURE_BYTES + 1
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_limit_bytes"],
+            MAX_INPUT_CAPTURE_BYTES
+        );
+
+        let mut facts = self::facts();
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::ContentEncoding,
+            body_bytes: 10,
+        });
+        let metadata = self::metadata(&attributes(&span(facts, &context())));
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "content_encoding"
+        );
+        assert!(
+            metadata
+                .get("langfuse.gateway.request.input_limit_bytes")
+                .is_none()
+        );
     }
 
     #[test]

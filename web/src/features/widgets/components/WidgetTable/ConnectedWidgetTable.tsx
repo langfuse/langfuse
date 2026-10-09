@@ -1,10 +1,10 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   buildWidgetExport,
@@ -150,6 +150,7 @@ function ConnectedDashboardWidgetTableContent({
           widget_id: widgetId,
         });
         showSuccessToast({
+          operation: "widget.copy",
           title: "Widget copied",
           description: "Paste it on any dashboard with Cmd/Ctrl+V.",
         });
@@ -182,6 +183,7 @@ function ConnectedDashboardWidgetTableContent({
         });
         utils.dashboardWidgets.invalidate();
         showSuccessToast({
+          operation: "widget.clone",
           title: "Widget cloned",
           description: `Created "${exportSource.name} (Copy)".`,
         });
@@ -280,6 +282,7 @@ function ConnectedDashboardWidgetTableContent({
         }}
       />
       <PaginationBar
+        mode="offset"
         totalCount={widgets.data?.totalCount ?? null}
         onChange={setPaginationState}
         state={paginationState}

@@ -5,7 +5,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
-import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { AutomationButton } from "@/src/features/automations";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { monitorFilterConfig } from "@/src/features/filters";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
@@ -101,7 +101,12 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <FilterToggleButton className="md:hidden" />
               <AutomationButton projectId={projectId} />
               <ActionButton
-                icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+                icon={
+                  <PlusIcon
+                    className="icon-base text-icon-foreground"
+                    aria-hidden="true"
+                  />
+                }
                 hasAccess={hasCUDAccess}
                 usageLimit={
                   typeof monitorEntitlementLimit === "number"

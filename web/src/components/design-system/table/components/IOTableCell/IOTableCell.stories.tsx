@@ -140,7 +140,7 @@ export const TestOutputVariant = meta.story({
   },
   play: async ({ canvasElement }) => {
     await expect(
-      canvasElement.querySelector(".bg-accent-light-green"),
+      canvasElement.querySelector(".bg-surface-output"),
     ).toBeInTheDocument();
   },
 });

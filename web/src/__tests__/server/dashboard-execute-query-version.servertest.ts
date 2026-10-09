@@ -8,6 +8,7 @@
  *   (events tables not written) rejects v2 — not covered here because the
  *   test env boots in dual mode.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type QueryType } from "@langfuse/shared/query";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -57,14 +58,7 @@ describe("dashboard.executeQuery version contract", () => {
             ],
           },
         ],
-        featureFlags: {
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-          searchBar: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: false,
       },
       environment: {} as any,

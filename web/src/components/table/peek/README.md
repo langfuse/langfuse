@@ -18,7 +18,9 @@ Peek views allow users to quickly preview table items in a side panel. When navi
 - **Handheld** (`useIsHandheld` — narrower than `md`, _or_ a coarse pointer on a
   short screen, i.e. a phone in landscape) — a `vaul` bottom drawer with native
   swipe-down dismissal (Expand is hidden). Not width-only: a landscape phone is
-  wider than `md` and would otherwise get the desktop sheet.
+  wider than `md` and would otherwise get the desktop sheet. An inner non-modal
+  Radix root keeps child menus and dialogs accessible: Vaul's `modal` option
+  controls its gestures and backdrop but is not forwarded to its Radix root.
 
 Dismissal:
 
@@ -75,9 +77,9 @@ The full-page trace view keeps its own share-based, per-tab layout.
 
 The peek and the standalone trace page already share one beta-aware fetch
 ([`../../trace/useTraceDetailData.ts`](../../../features/traces)), one
-body + title
+body
 ([`../../trace/TraceDetailBody.tsx`](../../../features/traces) →
-`TraceDetailBody` / `traceDetailTitle`), and one action set
+`TraceDetailBody`), and one action set
 ([`../../trace/TraceDetailActions.tsx`](../../../features/traces) —
 star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
 hook. **Next slice:** collapse the `<Trace context>` branching and fold these
@@ -389,3 +391,9 @@ const filters = useSidebarFilterState(config, options, queryFilterOptions);
 - Full text search hook: [`search-bar/hooks/useFullTextSearch.ts`](../../../features/search-bar/hooks/useFullTextSearch.ts)
 - Filter state hook: [`web/src/features/filters/hooks/useSidebarFilterState.tsx`](../../../features/filters/hooks/useSidebarFilterState.tsx)
 - Order by hook: [`web/src/features/orderBy/hooks/useOrderByState.ts`](../../../features/orderBy/hooks/useOrderByState.ts)
+
+Content may request a temporary review width with `data-peek-layout="review"`
+(two columns) or `"review-navigation"` (three columns). The shell's CSS minimum
+width is capped at the sidebar edge; it does not write the stored widget width
+or expanded URL state. Nested content owns its responsive fallback when the
+available width is smaller than its preferred columns.

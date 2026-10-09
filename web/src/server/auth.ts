@@ -10,12 +10,13 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
+  passwordRequiresReset,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+} from "@/src/features/auth-credentials/lib/passwordHash";
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/utils";
+} from "@/src/features/feature-flags/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -54,10 +55,11 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/utils";
+} from "@/src/ee/features/multi-tenant-sso/server";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+  PASSWORD_RESET_REQUIRED_MESSAGE,
 } from "@/src/features/auth/constants";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
@@ -82,8 +84,8 @@ import { createSupportEmailHash } from "@/src/features/support-chat/createSuppor
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
-} from "@/src/features/events/lib/v4Rollout";
-import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+} from "@/src/features/events/server";
+import { canCreateOrganizations } from "@/src/features/organizations/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -125,7 +127,7 @@ const staticProviders: Provider[] = [
       });
 
       if (!dbUser) {
-        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        // Keep hashing work comparable across failed login paths to reduce timing-based user enumeration.
         await hashPassword(credentials.password);
         throw new Error("Invalid credentials");
       }
@@ -134,6 +136,10 @@ const staticProviders: Provider[] = [
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
+      }
+
+      if (passwordRequiresReset(dbUser.password)) {
+        throw new Error(PASSWORD_RESET_REQUIRED_MESSAGE);
       }
 
       const isValidPassword = await verifyPassword(
@@ -869,6 +875,12 @@ export async function getAuthOptions(signupAttribution?: {
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
               v4WriteMode,
+              apiKeyProjectRoleSelectionEnabled:
+                env.API_AUTH_MIGRATION === "enforce" &&
+                env.API_KEY_PROJECT_ROLES_ENABLE === "true",
+              apiKeyOrgRoleSelectionEnabled:
+                env.API_AUTH_MIGRATION === "enforce" &&
+                env.API_KEY_ORG_ROLES_ENABLE === "true",
             },
             user:
               dbUser !== null

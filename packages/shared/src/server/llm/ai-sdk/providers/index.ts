@@ -118,6 +118,11 @@ export async function buildAiSdkModel(params: {
         ),
       });
 
+    case LLMAdapter.TypeSafe:
+      throw new Error(
+        "TypeSafe decision models cannot generate text; use a decision-model evaluator",
+      );
+
     default: {
       const _exhaustiveCheck: never = model.adapter;
       throw new Error(`AI SDK adapter is not supported: ${_exhaustiveCheck}`);

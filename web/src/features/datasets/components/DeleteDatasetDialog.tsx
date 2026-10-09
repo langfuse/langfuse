@@ -1,7 +1,7 @@
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
+import { DialogController } from "@/src/features/in-app-agent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { type ReactNode, useState } from "react";

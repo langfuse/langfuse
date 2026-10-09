@@ -1,10 +1,10 @@
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
-import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { type ListEntry } from "@/src/features/navigate-detail-pages";
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const PEEK_PARAM = "peek";
 // View-mode param shared with the peek component (cleared whenever the peek closes).
@@ -58,9 +58,13 @@ interface PeekConfigWithExpand extends BasePeekConfig {
   };
 }
 
+export type PeekOpenOptions = {
+  queryParams?: Record<string, string>;
+};
+
 interface BasePeekNavigation {
   /** Open or close peek view. Pass id to open */
-  openPeek: (id?: string, row?: any) => void;
+  openPeek: (id?: string, row?: any, options?: PeekOpenOptions) => void;
   /** Close the peek view */
   closePeek: () => void;
   /** Resolve the navigation path for a detail entry */
@@ -98,7 +102,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
   const { isV4, tableName } = config;
 
   const openPeek = useCallback(
-    (id?: string, row?: any) => {
+    (id?: string, row?: any, options?: PeekOpenOptions) => {
       const pathname = getPathnameWithoutBasePath();
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
@@ -140,6 +144,12 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
             params.set(key, value);
           });
         }
+      }
+
+      if (id) {
+        Object.entries(options?.queryParams ?? {}).forEach(([key, value]) => {
+          params.set(key, value);
+        });
       }
 
       router.push(

@@ -4,9 +4,10 @@ import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import type { DataPoint } from "@/src/features/widgets";
 import { Button } from "@/src/components/ui/button";
+
 // Chart type picker is view-agnostic (only depends on `DashboardWidgetChartType`),
 // so it's reused as-is rather than duplicated.
-import { ChartTypePicker } from "@/src/features/chart-view/components/ConfigControls";
+import { ChartTypePicker, ChartCanvas } from "@/src/features/chart-view";
 import { type AggregationFn } from "@/src/features/chart-view/types";
 import { isTimeSeriesChartType } from "@/src/features/chart-view/vocab";
 import {
@@ -22,7 +23,6 @@ import {
 // Shared with the observations chart view: once a metric resolves to a
 // label/unit, rendering an already-aggregated series is identical regardless
 // of which vocabulary (events vs. scores) picked that metric.
-import { ChartCanvas } from "@/src/features/chart-view/components/ChartCanvas";
 import { DatasetSelect } from "@/src/features/scores-chart-view/components/DatasetSelect";
 import { MetricSelect } from "@/src/features/scores-chart-view/components/MetricSelect";
 import { AggregationSelect } from "@/src/features/scores-chart-view/components/AggregationSelect";
@@ -97,7 +97,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
             </div>
           ) : isLoading ? (
             <div className="text-muted-foreground flex h-full items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 className="icon-lg animate-spin" />
             </div>
           ) : (
             <ChartCanvas
@@ -125,14 +125,14 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
               aria-label="Collapse panel"
               onClick={() => setOpen(false)}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="icon-sm text-icon-foreground" />
             </Button>
           </div>
           <PanelField label="Chart type">
             <ChartTypePicker
               value={config.chartType}
               onChange={onChartType}
-              showLabels
+              layout="full"
             />
           </PanelField>
           <PanelField label="View">
@@ -177,7 +177,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
             aria-label="Expand panel"
             onClick={() => setOpen(true)}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="icon-sm text-icon-foreground" />
           </Button>
         </div>
       )}

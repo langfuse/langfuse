@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
-import { ChevronDown, Wrench, Braces, Variable } from "lucide-react";
+import { Wrench, Braces, Variable } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
   PopoverContent,
@@ -79,19 +80,19 @@ export const ConfigurationDropdowns: React.FC = () => {
     abbreviation?: string,
   ) => {
     if (isVeryCompact) {
-      return <IconComponent className="h-3 w-3" />;
+      return <IconComponent className="icon-base" />;
     }
     if (isCompact) {
       return (
         <>
-          <IconComponent className="h-3 w-3" />
+          <IconComponent className="icon-base" />
           <span className="text-sm">{abbreviation ?? fullText}</span>
         </>
       );
     }
     return (
       <>
-        <IconComponent className="h-3 w-3" />
+        <IconComponent className="icon-base" />
         <span className="text-sm">{fullText}</span>
       </>
     );
@@ -113,7 +114,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {toolsCount}
                 </Badge>
               )}
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent
@@ -171,7 +172,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {hasSchema}
                 </Badge>
               )}
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
@@ -224,7 +225,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {variablesCount}
                 </Badge>
               )}
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">

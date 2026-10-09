@@ -10,8 +10,8 @@ import {
 } from "@/src/features/traces";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/features/sessions/actions/downloadSessionAsJson";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { parseJsonIfString } from "@langfuse/shared";
@@ -273,7 +273,7 @@ export const SessionObservationIO = ({
       )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
-          <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />
+          <ExternalLinkIcon className="icon-base text-icon-foreground mr-1" />
           Open in trace view
         </Button>
         <Button
@@ -283,9 +283,9 @@ export const SessionObservationIO = ({
           disabled={isDownloading}
         >
           {isDownloading ? (
-            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="icon-base text-icon-foreground mr-1 animate-spin" />
           ) : (
-            <Download className="mr-1 h-3.5 w-3.5" />
+            <Download className="icon-base text-icon-foreground mr-1" />
           )}
           Download I/O
         </Button>

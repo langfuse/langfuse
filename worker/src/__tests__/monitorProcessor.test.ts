@@ -6,7 +6,11 @@ import {
   createOrgProjectAndApiKey,
   logger,
 } from "@langfuse/shared/src/server";
-import { InvalidRequestError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  decodeFiltersGeneric,
+  type FilterState,
+} from "@langfuse/shared";
 import {
   MonitorProcessor,
   type MonitorPublisher,
@@ -46,6 +50,7 @@ type SeedOverrides = Partial<{
   windowMs: bigint;
   status: MonitorStatus;
   view: MonitorView;
+  filters: FilterState;
   metric: Metric;
   alertThreshold: number;
   warningThreshold: number | null;
@@ -148,7 +153,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       id: seed.id,
       projectId,
       view: seed.view ?? "OBSERVATIONS",
-      filters: [] as unknown as Prisma.InputJsonValue,
+      filters: (seed.filters ?? []) as unknown as Prisma.InputJsonValue,
       metric: (seed.metric ?? {
         measure: "count",
         aggregation: "count",
@@ -1517,8 +1522,19 @@ describe("MonitorProcessor.process evaluation offset", () => {
 
   it("shifts the CH query window back by 30s and stamps it onto the alert payload", async () => {
     const monitorId = `m_off_${v4()}`;
+    const filters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["Source verified"],
+      },
+      { column: "value", type: "number", operator: "=", value: 0 },
+    ];
     await seedMonitor(projectId, {
       id: monitorId,
+      view: "SCORES_NUMERIC",
+      filters,
       severity: MonitorSeveritySchema.enum.UNKNOWN,
       lastPublishedAt: runAt,
       triggerIds: ["trig_off"],
@@ -1551,7 +1567,11 @@ describe("MonitorProcessor.process evaluation offset", () => {
       getTriggers,
     );
 
-    const event = makeEvent(projectId, [monitorId]);
+    const event: MonitorQueueEvent = {
+      ...makeEvent(projectId, [monitorId]),
+      view: "scores-numeric",
+      filters,
+    };
     await processor.process(event, justAfterRunAt);
 
     const offsetMs = 30_000;
@@ -1571,6 +1591,14 @@ describe("MonitorProcessor.process evaluation offset", () => {
     if (sent.type !== "monitor-alert") throw new Error("unexpected envelope");
     expect(sent.payload.fromTimestamp.toISOString()).toBe(expectedFrom);
     expect(sent.payload.toTimestamp.toISOString()).toBe(expectedTo);
+    const dataUrl = new URL(sent.payload.dataPermalink!);
+    expect(dataUrl.pathname).toBe(`/project/${projectId}/scores`);
+    expect(dataUrl.searchParams.get("dateRange")).toBe(
+      `${new Date(expectedFrom).getTime()}-${new Date(expectedTo).getTime()}`,
+    );
+    expect(decodeFiltersGeneric(dataUrl.searchParams.get("filter")!)).toEqual(
+      expect.arrayContaining(filters),
+    );
     // The cadence-boundary stamp stays unshifted — alerts say "fired at runAt".
     expect(sent.payload.timestamp.toISOString()).toBe(runAt.toISOString());
   });

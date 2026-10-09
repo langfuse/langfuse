@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -355,7 +356,7 @@ export function ExperimentComparisonSelector({
                 className="text-muted-foreground hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left"
               >
                 <div className="border-input flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border">
-                  {isAutoSelectEnabled && <Check className="h-3 w-3" />}
+                  {isAutoSelectEnabled && <Check className="icon-sm" />}
                 </div>
                 <span className="text-xs">
                   Auto-select a comparison experiment by default
@@ -377,9 +378,9 @@ export function ExperimentComparisonSelector({
                 className="bg-muted/40 hover:bg-muted flex w-full items-center gap-2 px-2 py-1.5 text-left"
               >
                 {row.isExpanded ? (
-                  <ChevronDown className="h-3 w-3 shrink-0" />
+                  <DropdownIndicator size="sm" nudge />
                 ) : (
-                  <ChevronRight className="h-3 w-3 shrink-0" />
+                  <DropdownIndicator direction="right" size="sm" nudge />
                 )}
                 <span className="truncate text-xs font-bold" title={row.label}>
                   {row.label}
@@ -409,7 +410,7 @@ export function ExperimentComparisonSelector({
               className="hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {isSelected && <Check className="text-primary h-4 w-4" />}
+                {isSelected && <Check className="text-primary icon-base" />}
               </div>
               <span
                 className="min-w-0 flex-1 truncate text-sm font-bold"
@@ -530,7 +531,7 @@ export function ExperimentComparisonSelector({
                 className="hover:bg-muted ml-0.5 rounded-full"
                 aria-label={`Remove ${option.experimentName}`}
               >
-                <X className="h-3 w-3" />
+                <X className="icon-sm" />
               </button>
             </Badge>
           );

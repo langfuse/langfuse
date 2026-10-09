@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -21,7 +20,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/src/components/ui/tooltip";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   mixpanelIntegrationFormSchema,
   MIXPANEL_REGIONS,
@@ -34,21 +33,22 @@ import {
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
   getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-} from "@/src/features/analytics-integrations/exportSource";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProject } from "@/src/features/projects/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+  IntegrationSettingsSkeleton,
+} from "@/src/features/analytics-integrations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
@@ -73,12 +73,15 @@ export default function MixpanelIntegrationPage() {
 
   const { project } = useQueryProject();
 
-  const status =
-    state.isLoading || !hasAccess
-      ? undefined
-      : state.data?.config?.enabled
-        ? "active"
-        : "inactive";
+  const status = (() => {
+    if (state.isLoading || !hasAccess) {
+      return undefined;
+    }
+    if (state.data?.config?.enabled) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   return (
     <ContainerPage
@@ -311,7 +314,7 @@ const MixpanelIntegrationSettingsForm = ({
                   Export Source
                   <Tooltip>
                     <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
+                      <Info className="text-muted-foreground icon-base" />
                     </TooltipTrigger>
                     <TooltipContent
                       side="bottom"
@@ -333,7 +336,7 @@ const MixpanelIntegrationSettingsForm = ({
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="icon-sm" />
                         </a>
                       </div>
                     </TooltipContent>

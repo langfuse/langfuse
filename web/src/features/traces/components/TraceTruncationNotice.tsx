@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 /**
  * Inline notice above the tree/timeline/search list when the trace has more
@@ -34,27 +33,34 @@ export function TraceTruncationNotice() {
   // The detached row carries no marker of its own (deliberately — a per-row label
   // is noise on every scroll), so this sentence is the ONLY place that can say
   // the tree is showing it out of position.
-  const detachedNote = !detachedObservationId
-    ? null
-    : detachedObservationIsMisplaced
-      ? " The one you opened is loaded separately, and appears at the top level because its parent is missing too."
-      : " The one you opened is loaded separately.";
+  const detachedNote = (() => {
+    if (!detachedObservationId) {
+      return null;
+    }
+    if (detachedObservationIsMisplaced) {
+      return " The one you opened is loaded separately, and appears at the top level because its parent is missing too.";
+    }
+    return " The one you opened is loaded separately.";
+  })();
 
   // Ranked by how much the message says. Dismissing hides that message and
   // everything it already covered, but never a later one that says MORE — so
   // dismissing the short detached note cannot swallow the out-of-position
   // caveat, which is the only warning that row gets.
-  const rank =
-    detachedObservationId && detachedObservationIsMisplaced
-      ? 2
-      : detachedObservationId
-        ? 1
-        : 0;
+  const rank = (() => {
+    if (detachedObservationId && detachedObservationIsMisplaced) {
+      return 2;
+    }
+    if (detachedObservationId) {
+      return 1;
+    }
+    return 0;
+  })();
   if (rank <= dismissedRank) return null;
 
   return (
     <div className="text-muted-foreground border-border bg-muted/40 flex shrink-0 items-start gap-2 border-b py-1.5 pr-1 pl-2 text-xs">
-      <TriangleAlert className="text-foreground-tertiary mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <TriangleAlert className="text-foreground-tertiary icon-base mt-0.5 shrink-0" />
       <p className="min-w-0 flex-1">
         {/* No total: the server stops counting at the cap, so we know "more than
             this", never how many. */}
@@ -72,7 +78,7 @@ export function TraceTruncationNotice() {
         onClick={() => setDismissedRank(rank)}
         className="hover:bg-muted-foreground/10 hover:text-foreground shrink-0 rounded p-0.5"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="icon-base" />
       </button>
     </div>
   );

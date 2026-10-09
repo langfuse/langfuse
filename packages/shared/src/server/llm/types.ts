@@ -251,6 +251,36 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  TypeSafe = "typesafe",
+}
+
+export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
+  LLMAdapter.TypeSafe,
+];
+
+/** OpenAI models the Decisions API accepts. */
+export const OPENAI_DECISION_MODEL_IDS: readonly string[] = ["gpt-6-luna"];
+
+export function isOpenAIDecisionModel(model: string): boolean {
+  return OPENAI_DECISION_MODEL_IDS.includes(model);
+}
+
+export function isDecisionModelAdapter(adapter: string): boolean {
+  return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
+}
+
+/** Adapters that can answer a decision-model evaluator. OpenAI stays a text adapter too. */
+export function supportsDecisionModels(adapter: string): boolean {
+  return adapter === LLMAdapter.TypeSafe || adapter === LLMAdapter.OpenAI;
+}
+
+export function isAllowedDecisionModel(
+  adapter: string,
+  model: string,
+): boolean {
+  if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
+  if (adapter === LLMAdapter.OpenAI) return isOpenAIDecisionModel(model);
+  return false;
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -321,6 +351,9 @@ export const openAIModels = [
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
   "gpt-6-astra",
+  "gpt-6-sol",
+  "gpt-6.1-sol",
+  "gpt-6-luna",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
@@ -382,13 +415,16 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
-  "claude-sonnet-4-5-20250929",
   "claude-sonnet-5",
+  "claude-sonnet-5-5",
+  "claude-sonnet-4-5-20250929",
   "claude-fable-5",
   "claude-fable-5-1",
   "claude-mythos-5",
   "claude-mythos-5-1",
+  "claude-opus-5-5",
   "claude-opus-5",
+  "claude-haiku-5-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
   "claude-opus-4-7",
@@ -411,30 +447,21 @@ export const anthropicModels = [
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
+// Only models Vertex AI still serves. Gemini 3.x is served from the "global"
+// location only (the default for Vertex connections). Retired 1.0/1.5/2.0
+// models, superseded previews and the Live API audio model are not listed.
 export const vertexAIModels = [
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
-  "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
   "gemini-3-flash-preview",
-  "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-live-2.5-flash-native-audio",
-  "gemini-2.0-flash",
-  "gemini-2.0-pro-exp-02-05",
-  "gemini-2.0-flash-001",
-  "gemini-2.0-flash-exp",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "gemini-1.0-pro",
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
@@ -448,17 +475,61 @@ export const googleAIStudioModels = [
   "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-2.0-flash",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
   "gemini-1.5-flash-8b",
 ] as const;
+
+export const typeSafeModels = ["jev-latest"] as const;
+
+/**
+ * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
+ * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
+ * the AI SDK provider then defaults to. Presets only prefill the base URL; a
+ * `custom` connection stores any base URL the provider appends `/systemone`
+ * to.
+ */
+export const TYPESAFE_UPSTREAMS = [
+  {
+    id: "typesafe",
+    label: "TypeSafe",
+    baseURL: null,
+    apiKeyLabel: "TypeSafe API key",
+  },
+  {
+    id: "vercel-ai-gateway",
+    label: "Vercel AI Gateway",
+    baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+    apiKeyLabel: "Vercel AI Gateway API key",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKeyLabel: "OpenRouter API key",
+  },
+  {
+    id: "custom",
+    label: "Custom",
+    baseURL: null,
+    apiKeyLabel: "API key",
+  },
+] as const;
+
+export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
+
+export function resolveTypeSafeUpstream(
+  baseURL: string | null | undefined,
+): TypeSafeUpstream {
+  if (!baseURL) return TYPESAFE_UPSTREAMS[0];
+  return (
+    TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL) ??
+    TYPESAFE_UPSTREAMS[TYPESAFE_UPSTREAMS.length - 1]
+  );
+}
 
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
@@ -469,6 +540,7 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.TypeSafe]: typeSafeModels,
 } as const;
 
 export type LLMFunctionCall = {

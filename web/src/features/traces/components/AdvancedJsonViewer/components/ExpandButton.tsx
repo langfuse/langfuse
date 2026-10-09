@@ -31,7 +31,15 @@ export function ExpandButton({
   }
 
   // Show spinner when toggling, otherwise show chevron
-  const Icon = isToggling ? Loader2 : isExpanded ? ChevronDown : ChevronRight;
+  const Icon = (() => {
+    if (isToggling) {
+      return Loader2;
+    }
+    if (isExpanded) {
+      return ChevronDown;
+    }
+    return ChevronRight;
+  })();
 
   return (
     <button
@@ -56,7 +64,7 @@ export function ExpandButton({
       }
       disabled={isToggling}
     >
-      <Icon size={14} />
+      <Icon className="icon-base" />
     </button>
   );
 }

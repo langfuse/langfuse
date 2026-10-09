@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.39.0",
+  "version": "4.56.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -27,7 +27,10 @@
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
     "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts",
-    "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts"
+    "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts",
+    "backfill-topic-traces": "dotenv -e ../.env -- tsx src/scripts/backfillTopicTraces.ts",
+    "test:native-codec": "LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE=1 vitest run nativeCodec",
+    "test:otel-replay": "vitest run otelReplay"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
@@ -91,6 +94,7 @@
     "@types/node": "^24.3.0",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "catalog:",
+    "fast-check": "3.23.2",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",

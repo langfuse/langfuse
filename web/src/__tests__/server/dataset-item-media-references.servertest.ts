@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import type { Session } from "next-auth";
 
@@ -21,8 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
-import { MediaContentType } from "@/src/features/media/validation";
-
+import { MediaContentType } from "@/src/features/media/server";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const session: Session = {
@@ -55,14 +55,7 @@ const session: Session = {
         ],
       },
     ],
-    featureFlags: {
-      searchBar: false,
-      excludeClickhouseRead: false,
-      templateFlag: true,
-      v4BetaToggleVisible: false,
-      observationEvals: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags(),
     admin: true,
   },
   environment: {} as never,
@@ -393,9 +386,12 @@ describe("Dataset item media tRPC procedures", () => {
     },
   );
 
-  it("rejects an upload for a dataset in another project", async () => {
+  it("returns not found for a dataset outside the project", async () => {
     // datasetId is not a dataset in this project
-    await expect(requestUploadUrl({ datasetId: v4() })).rejects.toThrow();
+    await expect(requestUploadUrl({ datasetId: v4() })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: expect.stringContaining("not found in project"),
+    });
   });
 
   it("rejects uploads above the media size limit", async () => {

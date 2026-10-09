@@ -124,12 +124,11 @@ export async function buildVertexModel(params: {
     return provider(modelId);
   }
 
-  // Extra headers are intentionally not sent for Gemini; only the OAuth
-  // headers belong on this request path.
   const provider = createVertex({
     project,
     location: resolvedLocation,
     googleAuthOptions,
+    headers: extraHeaders,
     fetch: params.fetch,
   });
 

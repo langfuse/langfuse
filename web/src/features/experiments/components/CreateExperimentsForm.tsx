@@ -2,7 +2,8 @@
 /* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { CheckIcon, ChevronDown, Code2, Cog, Wand2 } from "lucide-react";
+import { CheckIcon, Code2, Cog, Wand2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { api } from "@/src/utils/api";
 import {
   Card,
@@ -131,11 +132,15 @@ export const CreateExperimentsForm = ({
   const hasRemoteExperiment = !!existingRemoteExperiment.data;
   const isRemoteExperimentEnabled =
     existingRemoteExperiment.data?.enabled !== false;
-  const webhookActionLabel = isRemoteExperimentLoading
-    ? "Loading..."
-    : hasRemoteExperiment
-      ? "Run"
-      : "Configure";
+  const webhookActionLabel = (() => {
+    if (isRemoteExperimentLoading) {
+      return "Loading...";
+    }
+    if (hasRemoteExperiment) {
+      return "Run";
+    }
+    return "Configure";
+  })();
 
   if (!hasExperimentWriteAccess) {
     return null;
@@ -177,7 +182,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Wand2 className="size-4" />
+                  <Wand2 className="icon-base" />
                   via User Interface
                 </CardTitle>
                 <CardDescription>
@@ -220,7 +225,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Code2 className="size-4" />
+                  <Code2 className="icon-base" />
                   via Webhook
                 </CardTitle>
                 <CardDescription>
@@ -250,14 +255,14 @@ export const CreateExperimentsForm = ({
                             remoteExperimentDatasets.isPending ||
                             remoteExperimentDatasets.data?.length === 0
                           }
-                          className="w-full justify-between px-2 font-normal"
+                          className="w-full justify-between gap-2 px-2 font-normal"
                         >
                           {remoteExperimentDatasets.isPending
                             ? "Loading datasets"
                             : (selectedRemoteExperimentDataset?.name ??
                               remoteExperimentDataset?.name ??
                               "Select a dataset")}
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <DropdownIndicator />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -290,7 +295,7 @@ export const CreateExperimentsForm = ({
                                   {dataset.name}
                                   <CheckIcon
                                     className={cn(
-                                      "ml-auto h-4 w-4",
+                                      "icon-base ml-auto",
                                       dataset.id === datasetId
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -341,7 +346,7 @@ export const CreateExperimentsForm = ({
                       title="Edit remote trigger settings"
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
-                      <Cog className="h-3 w-3" />
+                      <Cog className="icon-base" />
                     </Button>
                   </div>
                 ) : (

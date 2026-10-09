@@ -1,4 +1,4 @@
-import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
+import { DATASET_ITEM_TABS } from "@/src/features/navigation";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { DatasetItemViewModeContent } from "@/src/features/datasets/components/DatasetItemViewModeContent";
 import { DatasetItemVersionedContent } from "@/src/features/datasets/components/DatasetItemVersionedContent";
@@ -8,9 +8,12 @@ import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { type DatasetItemRenderMode } from "@/src/features/datasets/components/DatasetItemField";
 import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { History, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 import {
@@ -48,6 +51,13 @@ function DatasetItemContent({
   );
   const [isVersionPanelOpen, setIsVersionPanelOpen] =
     useState(!!selectedVersion);
+  const [storedRenderMode, setRenderMode] =
+    useLocalStorage<DatasetItemRenderMode>(
+      "datasetItemJsonViewPreference",
+      "pretty",
+    );
+  const renderMode: DatasetItemRenderMode =
+    storedRenderMode === "json" ? "json" : "pretty";
 
   const routeReady =
     Boolean(projectId) && Boolean(datasetId) && Boolean(itemId);
@@ -124,7 +134,20 @@ function DatasetItemContent({
           )}
 
           {/* Version panel toggle button */}
-          <div className="bg-background sticky top-0 z-10 flex justify-end border-b p-2">
+          <div className="bg-background sticky top-0 z-10 flex items-center justify-end gap-2 border-b p-2">
+            {!isViewingOldVersion && (
+              <Tabs
+                value={renderMode}
+                onValueChange={(value) =>
+                  setRenderMode(value === "json" ? "json" : "pretty")
+                }
+              >
+                <Tabs.List variant="inset" size="sm">
+                  <Tabs.Trigger value="pretty" label="Formatted" />
+                  <Tabs.Trigger value="json" label="Raw" />
+                </Tabs.List>
+              </Tabs>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -137,12 +160,12 @@ function DatasetItemContent({
             >
               {isVersionPanelOpen ? (
                 <>
-                  <History className="mr-2 h-4 w-4" />
+                  <History className="icon-base text-icon-foreground mr-2" />
                   Hide Version History
                 </>
               ) : (
                 <>
-                  <PanelRightOpen className="mr-2 h-4 w-4" />
+                  <PanelRightOpen className="icon-base text-icon-foreground mr-2" />
                   Show Version History
                 </>
               )}
@@ -192,6 +215,7 @@ function DatasetItemContent({
                 item={item.data ?? null}
                 isLoading={item.isLoading}
                 dataset={toDatasetSchema(dataset.data ?? null)}
+                renderMode={renderMode}
               />
             )}
           </div>

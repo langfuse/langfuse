@@ -6,6 +6,7 @@ import { supportCopilotRefundLoopFixture } from "./trace/support-copilot-refund-
 import { supportCopilotFollowUpFixture } from "./trace/support-copilot-follow-up";
 import { standaloneToolObservationFixture } from "./trace/standalone-tool-observation";
 import { inheritedConversationHistoryFixture } from "./trace/inherited-conversation-history";
+import { replayedToolCallsWithLateReasoningFixture } from "./trace/replayed-tool-calls-with-late-reasoning";
 
 export type { TranscriptFixture } from "./fixture-types";
 
@@ -17,4 +18,5 @@ export const transcriptFixtures: TranscriptFixture[] = [
   supportCopilotRefundLoopFixture,
   supportCopilotFollowUpFixture,
   inheritedConversationHistoryFixture,
+  replayedToolCallsWithLateReasoningFixture,
 ];

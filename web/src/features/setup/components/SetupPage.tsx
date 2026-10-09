@@ -10,7 +10,7 @@ import {
 import { Card } from "@/src/components/ui/card";
 import { ConnectedNewOrganizationForm } from "@/src/features/organizations/components/ConnectedNewOrganizationForm";
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { cn } from "@/src/utils/tailwind";
 import { Check } from "lucide-react";
@@ -55,7 +55,7 @@ export function SetupPage() {
               )}
             >
               1. Create Organization
-              {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
+              {stepInt > 1 && <Check className="icon-sm ml-1 inline-block" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

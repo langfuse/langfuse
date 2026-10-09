@@ -21,14 +21,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  ChevronDown,
-  CheckIcon,
-  PlusIcon,
-  EyeIcon,
-  TriangleAlert,
-} from "lucide-react";
-import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
+import { CheckIcon, PlusIcon, EyeIcon, TriangleAlert } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
 import {
   hasPromptToolStructuredOutputConflict,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
@@ -40,7 +35,8 @@ import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { toPromptLabelListItems } from "@/src/features/prompts/utils";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 
 export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   projectId,
@@ -145,10 +141,10 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-2/3 justify-between px-2 font-normal"
+                    className="w-2/3 justify-between gap-2 px-2 font-normal"
                   >
                     {selectedPromptName || "Select a prompt"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <DropdownIndicator />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -182,7 +178,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 {name}
                                 <CheckIcon
                                   className={cn(
-                                    "ml-auto h-4 w-4",
+                                    "icon-base ml-auto",
                                     name === selectedPromptName
                                       ? "opacity-100"
                                       : "opacity-0",
@@ -203,12 +199,12 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     disabled={!selectedPromptName}
                     variant="outline"
                     role="combobox"
-                    className="w-1/3 justify-between px-2 font-normal"
+                    className="w-1/3 justify-between gap-2 px-2 font-normal"
                   >
                     {selectedPromptVersion
                       ? `Version ${selectedPromptVersion}`
                       : "Version"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <DropdownIndicator />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -240,16 +236,19 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                   Version {prompt.version}
                                 </span>
                                 {prompt.labels.length > 0 && (
-                                  <TruncatedLabels
-                                    labels={prompt.labels}
-                                    maxVisibleLabels={2}
-                                    className="min-w-0"
-                                  />
+                                  <div className="min-w-0">
+                                    <LabelList
+                                      labels={toPromptLabelListItems(
+                                        prompt.labels,
+                                      )}
+                                      maxVisible={2}
+                                    />
+                                  </div>
                                 )}
                               </div>
                               <CheckIcon
                                 className={cn(
-                                  "ml-auto h-4 w-4 shrink-0",
+                                  "icon-base ml-auto shrink-0",
                                   prompt.version === selectedPromptVersion
                                     ? "opacity-100"
                                     : "opacity-0",
@@ -270,7 +269,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             </div>
             {selectedPromptToolConfig.status === "invalid" && (
               <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
-                <TriangleAlert className="h-4 w-4 shrink-0" />
+                <TriangleAlert className="icon-base shrink-0" />
                 Invalid tool config detected on this prompt version. Its tools
                 will be ignored when running the experiment.
               </p>
@@ -338,10 +337,10 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                           variant="outline"
                           role="combobox"
                           aria-expanded={schemaPopoverOpen}
-                          className="flex-1 justify-between px-2 font-normal"
+                          className="flex-1 justify-between gap-2 px-2 font-normal"
                         >
                           {selectedSchema?.name || "Select schema"}
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <DropdownIndicator />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -374,7 +373,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                   {schema.name}
                                   <CheckIcon
                                     className={cn(
-                                      "ml-auto h-4 w-4",
+                                      "icon-base ml-auto",
                                       selectedSchema?.id === schema.id
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -395,7 +394,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                         aria-label={`View schema ${selectedSchema.name}`}
                         onClick={() => openSchemaDialog(selectedSchema)}
                       >
-                        <EyeIcon className="h-4 w-4" />
+                        <EyeIcon className="icon-base text-icon-foreground" />
                       </Button>
                     )}
                   </div>
@@ -405,7 +404,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     className="w-full"
                     onClick={() => openSchemaDialog(null)}
                   >
-                    <PlusIcon className="mr-2 h-4 w-4" />
+                    <PlusIcon className="icon-base text-icon-foreground mr-2" />
                     Add schema
                   </Button>
                 )}

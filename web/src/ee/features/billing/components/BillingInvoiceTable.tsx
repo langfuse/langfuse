@@ -1,299 +1,143 @@
-/* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-null-render */
-import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import { Button } from "@/src/components/ui/button";
-import { Badge, type BadgeProps } from "@/src/components/ui/badge";
-import { api } from "@/src/utils/api";
-import { costFormatter } from "@/src/utils/numbers";
+import { useCallback, useMemo } from "react";
 import { Download, ExternalLink } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 
-import { useBillingInformation } from "./useBillingInformation";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
+import { type TableProps } from "@/src/components/design-system/table/Table";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type RouterOutputs } from "@/src/utils/api";
+import { costFormatter } from "@/src/utils/numbers";
 
-type InvoiceRow = {
-  id: string;
-  number: string | null;
-  status: string | null;
-  currency: string;
-  created: Date;
-  hostedInvoiceUrl: string | null;
-  invoicePdfUrl: string | null;
-  breakdown?: {
-    subscriptionCents: number;
-    usageCents: number;
-    discountCents: number;
-    taxCents: number;
-    totalCents: number;
-  };
+export type BillingInvoiceRow = Omit<
+  RouterOutputs["cloudBilling"]["getInvoices"]["invoices"][number],
+  "created"
+> & { created: Date };
+
+type BillingInvoiceTableProps = Pick<
+  TableProps<BillingInvoiceRow>,
+  "data" | "loadingRowCount"
+> & {
+  showBreakdownColumns: boolean;
+  pagination: PaginationBarProps;
 };
 
-export function BillingInvoiceTable() {
-  const { organization } = useBillingInformation();
-  const isCloudBillingAvailable = useIsCloudBillingAvailable();
-  // Provider-agnostic: getInvoices dispatches to whichever provider bills the
-  // org, so the gate is "does this org have a billing identity at all", not
-  // "does it have a Stripe customer". A CHB org never populates
-  // stripe.customerId and would otherwise never see its invoice history.
-  const hasBillingIdentity = Boolean(
-    organization?.cloudConfig?.stripe?.customerId ??
-    organization?.cloudConfig?.clickhouse?.organizationId,
+export function BillingInvoiceTable({
+  showBreakdownColumns,
+  pagination,
+  ...tableProps
+}: BillingInvoiceTableProps) {
+  const columns = useMemo<LangfuseColumnDef<BillingInvoiceRow>[]>(
+    () => [
+      createDateTableColumn<BillingInvoiceRow>({
+        accessorKey: "created",
+        header: "Date",
+        size: 150,
+      }),
+      createBadgeTableColumn<BillingInvoiceRow>({
+        accessorKey: "status",
+        header: "Status",
+        size: 100,
+        range: "semantic",
+        nullValue: "-",
+        getBadge: (value) => {
+          const status = value.toLowerCase();
+          const variant = (() => {
+            if (status === "paid") return "success";
+            if (status === "open") return "warning";
+            if (status === "uncollectible" || status === "void") return "error";
+            return "unknown";
+          })();
+          return { value: status, variant };
+        },
+      }),
+      ...(showBreakdownColumns
+        ? [
+            createNumberTableColumn<BillingInvoiceRow>({
+              accessorFn: (row) =>
+                (row.breakdown?.subscriptionCents ?? 0) / 100,
+              id: "subscription",
+              header: "Subscription",
+              size: 110,
+              formatter: costFormatter,
+            }),
+            createNumberTableColumn<BillingInvoiceRow>({
+              accessorFn: (row) => (row.breakdown?.usageCents ?? 0) / 100,
+              id: "usage",
+              header: "Usage",
+              size: 90,
+              formatter: costFormatter,
+            }),
+            createNumberTableColumn<BillingInvoiceRow>({
+              accessorFn: (row) => (row.breakdown?.discountCents ?? 0) / 100,
+              id: "discounts",
+              header: "Discounts",
+              size: 100,
+              formatter: costFormatter,
+            }),
+            createNumberTableColumn<BillingInvoiceRow>({
+              accessorFn: (row) => (row.breakdown?.taxCents ?? 0) / 100,
+              id: "tax",
+              header: "Tax",
+              size: 90,
+              formatter: costFormatter,
+            }),
+          ]
+        : []),
+      createNumberTableColumn<BillingInvoiceRow>({
+        accessorFn: (row) => (row.breakdown?.totalCents ?? 0) / 100,
+        id: "total",
+        header: "Total",
+        size: 90,
+        formatter: costFormatter,
+      }),
+    ],
+    [showBreakdownColumns],
   );
-  const shouldShowTable = isCloudBillingAvailable && hasBillingIdentity;
-
-  const [virtualTotal, setVirtualTotal] = useState(9999);
-  const [paginationState, setPaginationState] = useState<{
-    pageIndex: number;
-    pageSize: number;
-    startingAfter?: string;
-    endingBefore?: string;
-  }>({ pageIndex: 0, pageSize: 10 });
-
-  const invoicesQuery = api.cloudBilling.getInvoices.useQuery(
-    {
-      orgId: organization?.id ?? "",
-      limit: paginationState.pageSize,
-      startingAfter: paginationState.startingAfter,
-      endingBefore: paginationState.endingBefore,
-    },
-    {
-      enabled: shouldShowTable,
-      retry: false,
-    },
+  const actions = useCallback<
+    NonNullable<TableProps<BillingInvoiceRow>["actions"]>
+  >(
+    (invoice) => [
+      ...(invoice.hostedInvoiceUrl
+        ? [
+            {
+              id: "view",
+              type: "item" as const,
+              title: "View",
+              icon: ExternalLink,
+              href: invoice.hostedInvoiceUrl,
+              linkTarget: "_blank" as const,
+            },
+          ]
+        : []),
+      ...(invoice.invoicePdfUrl
+        ? [
+            {
+              id: "pdf",
+              type: "item" as const,
+              title: "PDF",
+              icon: Download,
+              href: invoice.invoicePdfUrl,
+              linkTarget: "_blank" as const,
+            },
+          ]
+        : []),
+    ],
+    [],
   );
-
-  const isFirstPage =
-    !paginationState.startingAfter && !paginationState.endingBefore;
-  const hasMore = invoicesQuery.data?.hasMore ?? false;
-
-  const rows = useMemo(() => {
-    const data = invoicesQuery.data?.invoices ?? [];
-    return data.map((i: any) => ({
-      id: i.id,
-      number: i.number,
-      status: i.status ?? null,
-      currency: i.currency,
-      created: i.created,
-      hostedInvoiceUrl: i.hostedInvoiceUrl,
-      invoicePdfUrl: i.invoicePdfUrl,
-      breakdown: i.breakdown,
-    }));
-  }, [invoicesQuery.data]);
-
-  const data = useMemo(() => {
-    if (invoicesQuery.isPending) {
-      return { isLoading: true, isError: false } as const;
-    }
-    if (invoicesQuery.isError) {
-      // setting the error causes the table to remaining in loading state
-      // instead we just return an empty array
-      return {
-        isLoading: false,
-        isError: false,
-        data: [] as InvoiceRow[],
-      } as const;
-    }
-    return { isLoading: false, isError: false, data: rows } as const;
-  }, [rows, invoicesQuery.isPending, invoicesQuery.isError]);
-
-  useEffect(() => {
-    if (isFirstPage) setVirtualTotal(9999);
-  }, [organization?.id, paginationState.pageSize, isFirstPage]);
-
-  // When we fetch a page that reports hasMore === false, lock in the exact size
-  useEffect(() => {
-    if (!invoicesQuery.isFetching && !hasMore) {
-      const finalCount =
-        paginationState.pageIndex * paginationState.pageSize + rows.length;
-      setVirtualTotal(finalCount); // one-way only; stays stable afterwards
-    }
-  }, [
-    hasMore,
-    invoicesQuery.isFetching,
-    paginationState.pageIndex,
-    paginationState.pageSize,
-    rows.length,
-  ]);
-
-  const columns: LangfuseColumnDef<InvoiceRow>[] = [
-    {
-      accessorKey: "created",
-      id: "created",
-      header: "Date",
-      cell: ({ row }) => {
-        const value = row.getValue("created") as InvoiceRow["created"];
-        if (!value) return undefined;
-        const date = new Date(value);
-        const year = date.getFullYear();
-        const month = date.toLocaleDateString("en-US", { month: "short" });
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      },
-      size: 90,
-    },
-    {
-      accessorKey: "status",
-      id: "status",
-      header: "Status",
-      size: 100,
-      cell: ({ row }) => {
-        const status = (row.getValue("status") as string | null)?.toLowerCase();
-        if (!status) return null;
-        const variant: NonNullable<BadgeProps["variant"]> =
-          status === "paid"
-            ? "secondary"
-            : status === "open"
-              ? "outline-solid"
-              : "default";
-        return <Badge variant={variant}>{status}</Badge>;
-      },
-    },
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.subscriptionCents ?? 0) / 100,
-      id: "subscription",
-      header: "Subscription",
-      size: 100,
-      formatter: costFormatter,
-    }),
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.usageCents ?? 0) / 100,
-      id: "usage",
-      header: "Usage",
-      size: 90,
-      formatter: costFormatter,
-    }),
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.discountCents ?? 0) / 100,
-      id: "discounts",
-      header: "Discounts",
-      size: 90,
-      formatter: costFormatter,
-    }),
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.taxCents ?? 0) / 100,
-      id: "tax",
-      header: "Tax",
-      size: 90,
-      formatter: costFormatter,
-    }),
-    createNumberTableColumn<InvoiceRow>({
-      accessorFn: (row) => (row.breakdown?.totalCents ?? 0) / 100,
-      id: "total",
-      header: "Total",
-      size: 90,
-      formatter: costFormatter,
-    }),
-    {
-      accessorKey: "actions",
-      id: "actions",
-      header: "Actions",
-      size: 160,
-      cell: ({ row }) => {
-        const { hostedInvoiceUrl, invoicePdfUrl } = row.original;
-        return (
-          <div className="flex gap-2">
-            {hostedInvoiceUrl ? (
-              <a href={hostedInvoiceUrl} target="_blank" rel="noreferrer">
-                <Button size="sm" variant="ghost">
-                  <ExternalLink className="mr-1 h-4 w-4" /> View
-                </Button>
-              </a>
-            ) : null}
-            {invoicePdfUrl ? (
-              <a href={invoicePdfUrl} target="_blank" rel="noreferrer">
-                <Button size="sm" variant="ghost">
-                  <Download className="mr-1 h-4 w-4" /> PDF
-                </Button>
-              </a>
-            ) : null}
-          </div>
-        );
-      },
-    },
-  ];
-
-  // Helpers to derive cursors from the current page rows (exclude preview) as fallback
-  const firstNonPreviewId = rows.find((r) => r.id !== "preview")?.id;
-  const lastNonPreviewId = [...rows]
-    .reverse()
-    .find((r) => r.id !== "preview")?.id;
-
-  // 3) Guard "Next" when already at the end to avoid useless queries + flicker
-  const onPaginationChange = (updater: any) => {
-    const next =
-      typeof updater === "function" ? updater(paginationState) : updater;
-
-    // forward click but no more pages? ignore
-    if (next.pageIndex > paginationState.pageIndex && !hasMore) {
-      return;
-    }
-
-    // ... your existing handler unchanged below
-    if (next.pageSize !== paginationState.pageSize) {
-      setPaginationState({
-        ...next,
-        startingAfter: undefined,
-        endingBefore: undefined,
-      });
-      return;
-    }
-    if (next.pageIndex === paginationState.pageIndex) return;
-
-    const freshNext =
-      (invoicesQuery.data as any)?.cursors?.next ?? lastNonPreviewId;
-    const freshPrev =
-      (invoicesQuery.data as any)?.cursors?.prev ?? firstNonPreviewId;
-
-    if (next.pageIndex === 0 && paginationState.pageIndex > 0) {
-      setPaginationState({
-        ...next,
-        startingAfter: undefined,
-        endingBefore: undefined,
-      });
-    } else if (next.pageIndex > paginationState.pageIndex) {
-      setPaginationState({
-        ...next,
-        startingAfter: freshNext,
-        endingBefore: undefined,
-      });
-    } else {
-      setPaginationState({
-        ...next,
-        startingAfter: undefined,
-        endingBefore: freshPrev,
-      });
-    }
-  };
-
-  if (!shouldShowTable) {
-    // users on hobby plan who never had a subscription
-    return null;
-  }
 
   return (
-    <div className="space-y-0">
-      <div className="flex items-center justify-between pt-4">
-        <h3 className="font-bold">Invoice History</h3>
-      </div>
-      <DataTableToolbar columns={columns} tableName="billing-invoices" />
-      <DataTable
-        tableName="invoices"
+    <div className="space-y-2 pt-4">
+      <h3 className="font-bold">Invoice History</h3>
+      <SettingsTable
+        tableName="billing-invoices"
         columns={columns}
-        data={data}
-        pagination={{
-          totalCount: virtualTotal,
-          hideTotalCount: true,
-          canJumpPages: false,
-          onChange: onPaginationChange,
-          state: {
-            pageIndex: paginationState.pageIndex,
-            pageSize: paginationState.pageSize,
-          },
-          options: [10, 20, 30, 40, 50],
-        }}
+        actions={actions}
+        pagination={pagination}
+        noResultsMessage="No invoices found."
+        {...tableProps}
       />
     </div>
   );

@@ -353,8 +353,47 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 45,
-        avg_cost: 0.5,
+        // count-weighted average, not an average of averages:
+        // (0.5*10 + 0.6*15 + 0.4*20) / (10+15+20) = 22/45
+        avg_cost: 0.4888888889,
       });
+    });
+
+    it("never lets metric order pick the weight for an average", () => {
+      // Each average is weighted by its own count_<measure>, in either order.
+      const paired: DatabaseRow[] = [
+        { count_cost: 10, count_latency: 1, avg_cost: 1, avg_latency: 100 },
+        { count_cost: 1, count_latency: 10, avg_cost: 3, avg_latency: 200 },
+      ];
+      const metrics = [
+        "count_cost",
+        "count_latency",
+        "avg_cost",
+        "avg_latency",
+      ];
+      const expected = {
+        count_cost: 11,
+        count_latency: 11,
+        avg_cost: 1.1818181818, // (1*10 + 3*1) / 11
+        avg_latency: 190.9090909091, // (100*1 + 200*10) / 11
+      };
+      expect(calculateSubtotals(paired, metrics)).toEqual(expected);
+      expect(calculateSubtotals(paired, [...metrics].reverse())).toEqual(
+        expected,
+      );
+
+      // Two unrelated count columns and no match: unweighted mean, not a guess.
+      const ambiguous: DatabaseRow[] = [
+        { count_traces: 10, count_observations: 30, avg_latency: 100 },
+        { count_traces: 5, count_observations: 25, avg_latency: 200 },
+      ];
+      expect(
+        calculateSubtotals(ambiguous, [
+          "count_observations",
+          "count_traces",
+          "avg_latency",
+        ]).avg_latency,
+      ).toBe(150);
     });
 
     it("should handle missing values", () => {
@@ -368,7 +407,10 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 25,
-        avg_cost: 0.3,
+        // Weighted by count (missing fields coerce to 0, as elsewhere in this
+        // file): (0*10 + 0.6*15) / (10+15) = 0.36. The row with no count carries
+        // no weight and drops out.
+        avg_cost: 0.36,
       });
     });
 
@@ -388,7 +430,9 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 75, // 10 + 15 + 20 + 25 + 5
-        avg_cost: 0.5, // (0.5 + 0.6 + 0.2 + 0.4 + 0.8) / 5
+        // count-weighted average, not an average of averages:
+        // (0.5*10 + 0.6*15 + 0.2*20 + 0.4*25 + 0.8*5) / 75 = 32/75
+        avg_cost: 0.4266666667,
       });
     });
 
@@ -456,7 +500,8 @@ describe("pivot-table-utils", () => {
         });
         expect(result[0].values).toEqual({
           count: 75,
-          avg_cost: 0.5,
+          // count-weighted grand-total average (32/75), see calculateGrandTotals
+          avg_cost: 0.4266666667,
         });
       });
 
@@ -767,8 +812,10 @@ describe("pivot-table-utils", () => {
           // Sum should be summed: 5000 + 8000 + 2500 = 15500
           expect(totalRow.values.sum_tokens).toBe(15500);
 
-          // Average should be averaged: (120 + 80 + 140) / 3 = 113.33...
-          expect(totalRow.values.avg_latency).toBeCloseTo(113.33, 2);
+          // Average is weighted by each row's count, so the total equals the
+          // true overall average rather than an average of averages:
+          // (120*100 + 80*200 + 140*50) / 350 = 35000 / 350 = 100
+          expect(totalRow.values.avg_latency).toBeCloseTo(100, 2);
 
           // Min should be minimum: min(0.05, 0.02, 0.06) = 0.02
           expect(totalRow.values.min_cost).toBe(0.02);
@@ -776,8 +823,10 @@ describe("pivot-table-utils", () => {
           // Max should be maximum: max(0.15, 0.08, 0.18) = 0.18
           expect(totalRow.values.max_cost).toBe(0.18);
 
-          // Percentile should be averaged: (250 + 150 + 300) / 3 = 233.33...
-          expect(totalRow.values.p95_duration).toBeCloseTo(233.33, 2);
+          // Percentiles cannot be recombined exactly, but weighting by count is
+          // strictly closer than an unweighted mean of per-group percentiles:
+          // (250*100 + 150*200 + 300*50) / 350 = 70000 / 350 = 200
+          expect(totalRow.values.p95_duration).toBeCloseTo(200, 2);
         }
       });
 
@@ -843,8 +892,9 @@ describe("pivot-table-utils", () => {
           // Count: 100 + 200 = 300 (strings parsed correctly)
           expect(totalRow.values.count_requests).toBe(300);
 
-          // Average: (120.5 + 80.2) / 2 = 100.35
-          expect(totalRow.values.avg_latency).toBeCloseTo(100.35, 2);
+          // Average weighted by count (strings parsed correctly):
+          // (120.5*100 + 80.2*200) / 300 = 28090 / 300 = 93.6333...
+          expect(totalRow.values.avg_latency).toBeCloseTo(93.6333, 2);
 
           // Sum: 5000 + 8000 = 13000 (strings parsed correctly)
           expect(totalRow.values.sum_tokens).toBe(13000);
@@ -928,8 +978,9 @@ describe("pivot-table-utils", () => {
           // Production tokens: 5000 + 8000 = 13000
           expect(productionSubtotal.values.sum_tokens).toBe(13000);
 
-          // Production avg latency: (120 + 80) / 2 = 100
-          expect(productionSubtotal.values.avg_latency).toBe(100);
+          // Production avg latency weighted by count:
+          // (120*100 + 80*200) / 300 = 28000 / 300 = 93.333...
+          expect(productionSubtotal.values.avg_latency).toBeCloseTo(93.3333, 2);
 
           // Production min cost: min(0.05, 0.02) = 0.02
           expect(productionSubtotal.values.min_cost).toBe(0.02);

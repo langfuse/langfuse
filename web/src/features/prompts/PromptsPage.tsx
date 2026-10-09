@@ -1,27 +1,21 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Download, UploadIcon, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "@/src/features/prompts/PromptMetricsPage";
 import { useQueryParams, StringParam } from "use-query-params";
 import { useState } from "react";
-import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { AutomationButton } from "@/src/features/automations";
 import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { toast } from "sonner";
 
 export default function PromptsPage() {
@@ -40,12 +34,15 @@ export default function PromptsPage() {
   const isMetricsPage =
     segmentsArray.length > 0 &&
     segmentsArray[segmentsArray.length - 1] === "metrics";
-  const promptNameFromRoute =
-    segmentsArray.length > 0
-      ? isMetricsPage
-        ? segmentsArray.slice(0, -1).join("/")
-        : segmentsArray.join("/")
-      : "";
+  const promptNameFromRoute = (() => {
+    if (segmentsArray.length > 0) {
+      if (isMetricsPage) {
+        return segmentsArray.slice(0, -1).join("/");
+      }
+      return segmentsArray.join("/");
+    }
+    return "";
+  })();
 
   const hasCUDAccess = useHasProjectAccess({
     projectId,
@@ -131,21 +128,34 @@ export default function PromptsPage() {
           <>
             {projectId && <AutomationButton projectId={projectId} />}
             {hasReadAccess && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" disabled={isExporting}>
-                    <UploadIcon className="mr-1 h-4 w-4" />
+              <DropdownMenu
+                disabled={isExporting}
+                placement="bottom-end"
+                items={[
+                  {
+                    type: "item",
+                    id: "latest",
+                    title: "Latest version per prompt",
+                    onClick: () => handleExport("latest"),
+                  },
+                  {
+                    type: "item",
+                    id: "all",
+                    title: "All versions",
+                    onClick: () => handleExport("all"),
+                  },
+                ]}
+              >
+                {({ getTriggerProps }) => (
+                  <Button
+                    variant="outline"
+                    disabled={isExporting}
+                    {...getTriggerProps()}
+                  >
+                    <UploadIcon className="icon-base text-icon-foreground mr-1" />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleExport("latest")}>
-                    Latest version per prompt
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("all")}>
-                    All versions
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                )}
               </DropdownMenu>
             )}
             {projectId && (
@@ -157,14 +167,19 @@ export default function PromptsPage() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="mr-1 h-4 w-4" />
+                    <Download className="icon-base text-icon-foreground mr-1" />
                     Import
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
             )}
             <ActionButton
-              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              icon={
+                <PlusIcon
+                  className="icon-base text-icon-foreground"
+                  aria-hidden="true"
+                />
+              }
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               trackingEventName="prompts:new_form_open"

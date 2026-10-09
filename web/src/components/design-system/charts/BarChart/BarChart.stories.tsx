@@ -1,0 +1,275 @@
+import preview from "../../../../../.storybook/preview";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+
+import { chartColors } from "../constants";
+import { BarChart } from "./BarChart";
+
+const data = [
+  { label: "Alpha", value: 12 },
+  { label: "Beta", value: 24 },
+  { label: "Gamma", value: 18 },
+];
+
+const meta = preview.meta({
+  component: BarChart,
+  parameters: { layout: "fullscreen" },
+  args: { data },
+  decorators: [
+    (Story) => (
+      <div className="h-dvh w-full">
+        <Story />
+      </div>
+    ),
+  ],
+});
+
+export const Default = meta.story({});
+
+export const YAxisTickDensity = meta.story({
+  name: "(Test) Y-axis Tick Density",
+  render: (args) => (
+    <div className="flex w-[400px] flex-col gap-4">
+      {["h-[50px]", "h-[100px]", "h-[224px]"].map((heightClass) => (
+        <div key={heightClass} className={heightClass}>
+          <BarChart {...args} />
+        </div>
+      ))}
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(async () => {
+      const charts = within(canvasElement).getAllByRole("group", {
+        name: "Bar chart",
+      });
+      await expect(charts).toHaveLength(3);
+      for (const chart of charts) {
+        const labels = Array.from(
+          chart.querySelectorAll('text[text-anchor="end"][dominant-baseline]'),
+        );
+        await expect(labels.length).toBeGreaterThan(0);
+        const bounds = labels
+          .map((label) => label.getBoundingClientRect())
+          .sort((left, right) => left.top - right.top);
+        for (const bound of bounds) {
+          await expect(bound.height).toBeGreaterThan(0);
+        }
+        for (let index = 1; index < bounds.length; index++) {
+          const previous = bounds[index - 1];
+          const current = bounds[index];
+          if (!previous || !current) throw new Error("Label bounds not found");
+          // Allow minor font-metric and subpixel differences between browsers.
+          await expect(current.top).toBeGreaterThanOrEqual(previous.bottom - 1);
+        }
+        await expect(labels[0]).toHaveTextContent("0");
+      }
+    });
+  },
+});
+
+export const PositiveBaseline = meta.story({
+  name: "(Test) Positive Baseline",
+  play: async ({ canvasElement }) => {
+    const bars = within(canvasElement).getAllByRole("graphics-symbol");
+    const smallestBar = bars[0];
+    if (!smallestBar) throw new Error("Bar not found");
+    await expect(Number(smallestBar.getAttribute("height"))).toBeGreaterThan(1);
+  },
+});
+
+export const KeyboardFocus = meta.story({
+  name: "(Test) Keyboard Focus",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const firstBar = canvas.getByRole("graphics-symbol", { name: "Alpha: 12" });
+    firstBar.focus();
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent("Alpha");
+    await expect(tooltip).toHaveTextContent("12");
+    await expect(tooltip).toHaveTextContent(
+      "Click or press Enter to copy label",
+    );
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await userEvent.click(firstBar);
+      await expect(copy).toHaveBeenCalledWith("Alpha");
+      firstBar.focus();
+      await userEvent.keyboard("{Enter}");
+      await expect(copy).toHaveBeenCalledTimes(2);
+    } finally {
+      copy.mockRestore();
+    }
+    await userEvent.tab();
+    await expect(
+      canvas.getByRole("graphics-symbol", { name: "Beta: 24" }),
+    ).toHaveFocus();
+  },
+});
+
+export const CategoryColors = meta.story({
+  args: {
+    data: data.map((item, index) => ({
+      ...item,
+      color: chartColors[index],
+    })),
+    legend: {
+      items: data.map((item, index) => ({
+        id: item.label,
+        label: item.label,
+        color: chartColors[index] ?? "",
+      })),
+    },
+  },
+});
+
+export const CategoryColorTooltip = meta.story({
+  name: "(Test) Category Color Tooltip",
+  args: {
+    data: data.map((item, index) => ({
+      ...item,
+      color: chartColors[index],
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    canvas.getByRole("graphics-symbol", { name: "Alpha: 12" }).focus();
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
+      "fill",
+      chartColors[0],
+    );
+  },
+});
+
+export const CategoryColorsWithoutLegend = meta.story({
+  args: {
+    data: data.map((item, index) => ({
+      ...item,
+      color: chartColors[index],
+    })),
+  },
+});
+
+export const CompactLegend = meta.story({
+  name: "(Test) Compact Legend",
+  args: {
+    hideXAxisLabels: true,
+    data: data.map((item, index) => ({
+      ...item,
+      label: `production-evaluation-run-${item.label}-with-a-long-name`,
+      color: chartColors[index],
+    })),
+    legend: {
+      items: data.map((item, index) => ({
+        id: item.label,
+        label: `production-evaluation-run-${item.label}-with-a-long-name`,
+        color: ["#3a3dee", "#07b9d5", "#f18a42"][index] ?? "",
+      })),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas
+        .getAllByTitle("production-evaluation-run-Alpha-with-a-long-name")
+        .some((item) => !item.closest('[aria-hidden="true"]')),
+    ).toBe(true);
+    await expect(
+      canvasElement.querySelectorAll("[data-x-axis-label]"),
+    ).toHaveLength(0);
+  },
+});
+
+export const ManyCategories = meta.story({
+  args: {
+    data: Array.from({ length: 9 }, (_, index) => ({
+      label: `Run ${index + 1}`,
+      value: 10 + index,
+    })),
+  },
+});
+
+export const LongLabels = meta.story({
+  args: {
+    data: Array.from({ length: 12 }, (_, index) => ({
+      label: `production-evaluation-run-${index + 1}-with-a-long-name`,
+      value: 12 + index,
+    })),
+  },
+});
+
+export const EdgeLabels = meta.story({
+  name: "(Test) Edge Labels",
+  args: {
+    data: [
+      { label: "production-evaluation-run-Alpha-with-a-long-name", value: 12 },
+      { label: "production-evaluation-run-Beta-with-a-long-name", value: 24 },
+    ],
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[300px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    for (const bar of within(canvasElement).getAllByRole("graphics-symbol")) {
+      await userEvent.hover(bar);
+      const label = canvasElement.querySelector<SVGTextElement>(
+        "[data-active-x-axis-label]",
+      );
+      if (!label) throw new Error("Active label not found");
+      const chartWidth = label.ownerSVGElement?.width.baseVal.value ?? 0;
+      const bounds = label.getBBox();
+      await expect(bounds.x).toBeGreaterThanOrEqual(0);
+      await expect(bounds.x + bounds.width).toBeLessThanOrEqual(chartWidth);
+    }
+  },
+});
+
+export const FullyTruncatedLabels = meta.story({
+  name: "(Test) Fully Truncated Labels",
+  args: {
+    data: Array.from({ length: 20 }, (_, index) => ({
+      label: `Experiment ${index + 1}`,
+      value: index + 1,
+    })),
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[300px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvasElement.querySelectorAll("[data-x-axis-label]"),
+    ).toHaveLength(0);
+    const firstBar = canvas.getByRole("graphics-symbol", {
+      name: "Experiment 1: 1",
+    });
+    firstBar.focus();
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent("Experiment 1");
+  },
+});
+
+export const NegativeValues = meta.story({
+  args: {
+    data: [
+      { label: "Increase", value: 8 },
+      { label: "Decrease", value: -5 },
+      { label: "No data", value: null },
+    ],
+  },
+});
+
+export const Empty = meta.story({ args: { data: [] } });

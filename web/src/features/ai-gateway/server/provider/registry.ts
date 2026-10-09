@@ -25,6 +25,7 @@ export const GatewayResolveResponseSchema = z
     connection: z
       .object({
         id: z.string(),
+        name: z.string(),
         provider: z.enum(gatewayProviderIds),
         api_format: GatewayApiFormatSchema,
         base_url: z.url(),

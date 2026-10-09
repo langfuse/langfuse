@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { applyKeyedFilterEntries } from "@/src/features/filters/lib/sidebar-filter-actions";
-import { KeyValueFilterBuilder } from "./key-value-filter-builder";
+import { KeyValueFilterBuilder } from "./KeyValueFilterBuilder";
 
 const noop = () => {};
 
@@ -109,7 +109,7 @@ describe("KeyValueFilterBuilder", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
     const key = screen.getByPlaceholderText("Key");
     fireEvent.change(key, { target: { value: "a" } });
     fireEvent.change(key, { target: { value: "accuracy" } });
@@ -126,7 +126,7 @@ describe("KeyValueFilterBuilder", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
     fireEvent.change(screen.getByPlaceholderText("Key"), {
       target: { value: "draft-key" },
     });
@@ -144,7 +144,7 @@ describe("KeyValueFilterBuilder", () => {
 
   it("adopts external removals without reviving removed rows or losing incomplete edits", () => {
     render(<MetadataBuilderHarness />);
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
     fireEvent.change(screen.getAllByPlaceholderText("Key")[2], {
       target: { value: "draft-key" },
     });

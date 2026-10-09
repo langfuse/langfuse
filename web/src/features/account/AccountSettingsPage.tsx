@@ -32,8 +32,7 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { useRouter } from "next/router";
 import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
@@ -61,6 +60,7 @@ function UpdateDisplayName() {
       await utils.invalidate();
       form.reset();
       showSuccessToast({
+        operation: "account.display_name_update",
         title: "Display Name Updated",
         description: "Your display name has been successfully updated.",
       });
@@ -152,6 +152,7 @@ function DeleteAccountButton() {
     try {
       await deleteAccount.mutateAsync();
       showSuccessToast({
+        operation: "account.delete",
         title: "Account Deleted",
         description: "Your account has been successfully deleted.",
       });
@@ -248,6 +249,7 @@ function SignOutAllSessionsButton() {
     try {
       await signOutAllSessions.mutateAsync();
       showSuccessToast({
+        operation: "account.revoke_sessions",
         title: "Signed Out of All Sessions",
         description: "All sessions have been invalidated.",
       });

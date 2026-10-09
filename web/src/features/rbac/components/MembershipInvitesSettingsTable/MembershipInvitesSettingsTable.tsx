@@ -49,7 +49,7 @@ export function MembershipInvitesSettingsTable({
       }),
       ...(showProjectRole
         ? [
-            createTextTableColumn<MembershipInvitesSettingsTableRow>({
+            createBadgeTableColumn<MembershipInvitesSettingsTableRow>({
               accessorKey: "projectRole",
               header: "Project Role",
               nullValue: "-",

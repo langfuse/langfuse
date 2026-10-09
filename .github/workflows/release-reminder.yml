@@ -4,7 +4,7 @@ name: Release Reminder
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 10,16 * * *"
+    - cron: "0 10,16 * * 1-5"
       timezone: "Europe/Berlin"
 
 permissions: {}
@@ -72,8 +72,8 @@ jobs:
           ' <<<"$pull_requests")"
           count="$(jq 'length' <<<"$pull_requests")"
 
-          if [ "$count" -eq 0 ]; then
-            echo "No release-worthy pull requests since ${release_tag}; skipping."
+          if [ "$count" -lt 15 ]; then
+            echo "Only ${count} release-worthy pull requests since ${release_tag}; at least 15 required. Skipping."
             echo "notify=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -107,6 +107,11 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_ENGINEERING_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+
+          if [ "$(TZ=Europe/Berlin date +%u)" -gt 5 ]; then
+            echo "Weekend in Europe/Berlin; skipping Slack notification."
+            exit 0
+          fi
 
           if [ -z "${SLACK_WEBHOOK:-}" ]; then
             echo "::error::SLACK_ENGINEERING_WEBHOOK_URL is unset."

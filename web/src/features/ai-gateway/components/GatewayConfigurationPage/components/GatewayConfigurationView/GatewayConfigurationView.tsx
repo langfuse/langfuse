@@ -189,14 +189,14 @@ export function GatewayConfigurationView({
                 )}
               >
                 <div className="flex w-full items-center justify-between gap-2">
-                  <Icon className="text-muted-foreground size-4" />
+                  <Icon className="text-muted-foreground icon-base" />
                   {selected ? (
-                    <Check className="text-primary size-3.5" />
+                    <Check className="text-primary icon-base" />
                   ) : null}
                 </div>
                 <div>
                   <p className="text-sm font-bold">{option.title}</p>
-                  <p className="text-muted-foreground mt-0.5 text-xs leading-4">
+                  <p className="text-muted-foreground mt-0.5 text-xs">
                     {option.description}
                   </p>
                 </div>
@@ -294,7 +294,7 @@ function CreateIngestionProjectDialog({
       {({ openDialog }) =>
         showIcon ? (
           <Button onClick={openDialog}>
-            <Plus className="mr-1.5 size-4" />
+            <Plus className="icon-base mr-1.5" />
             {triggerLabel}
           </Button>
         ) : (
@@ -324,7 +324,11 @@ function GatewayUrl({ gatewayBaseUrl }: { gatewayBaseUrl: string }) {
         aria-label="Copy gateway base URL"
         onClick={() => copy(gatewayBaseUrl)}
       >
-        {isCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {isCopied ? (
+          <Check className="icon-sm text-icon-foreground" />
+        ) : (
+          <Copy className="icon-sm text-icon-foreground" />
+        )}
       </Button>
     </div>
   );

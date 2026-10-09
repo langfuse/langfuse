@@ -83,9 +83,9 @@ pub(crate) fn rejected(phase: &'static str) {
     METRICS.rejections.add(1, &[KeyValue::new("phase", phase)]);
 }
 
-pub(crate) fn delivery(outcome: &'static str, reason: &'static str) {
+pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64) {
     METRICS.delivery.add(
-        1,
+        records,
         &[
             KeyValue::new("outcome", outcome),
             KeyValue::new("reason", reason),
@@ -94,9 +94,6 @@ pub(crate) fn delivery(outcome: &'static str, reason: &'static str) {
 }
 
 pub(crate) fn execution_finished(facts: &crate::capture::InferenceFacts) {
-    if let Some(request_id) = &facts.inference.provider_request_id {
-        tracing::Span::current().record("provider_request_id", request_id.as_str());
-    }
     let outcome = match facts.outcome {
         RelayOutcome::Eof => "complete",
         RelayOutcome::Cancelled => "cancelled",

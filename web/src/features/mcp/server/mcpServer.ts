@@ -17,8 +17,8 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
-import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
+import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
+import { shadowAuthorize } from "@/src/features/public-api/server";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
@@ -128,7 +128,10 @@ export function createMcpServer(context: ServerContext): Server {
       content: [
         {
           type: "text",
-          text: JSON.stringify(result, null, 2),
+          text:
+            typeof result === "string"
+              ? result
+              : JSON.stringify(result, null, 2),
         },
       ],
     };
@@ -137,7 +140,7 @@ export function createMcpServer(context: ServerContext): Server {
   return server;
 }
 
-/** assertToolAuthorized authorizes a tool call through the per-item seam, throwing an enforce-mode deny as an MCP error. */
+/** assertToolAuthorized reports enforce-mode denials as MCP errors. */
 function assertToolAuthorized(
   definition: ToolDefinition,
   context: ServerContext,
@@ -146,7 +149,10 @@ function assertToolAuthorized(
     ctx: context.auth,
     action: definition.action,
     resource: { projectId: context.projectId },
-    accessLevel: context.accessLevel,
+    legacyDecision: {
+      success: true,
+      scope: { accessLevel: context.accessLevel },
+    },
   });
   if (!decision.success) throw formatErrorForUser(decision.error);
 }

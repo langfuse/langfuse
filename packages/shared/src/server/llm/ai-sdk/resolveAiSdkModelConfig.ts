@@ -99,6 +99,13 @@ export function resolveAiSdkModelConfig(params: {
       case LLMAdapter.GoogleAIStudio:
         return { adapter: model.adapter };
 
+      case LLMAdapter.TypeSafe:
+        throw new LLMValidationError({
+          code: "invalid-request",
+          message:
+            "TypeSafe decision models cannot generate text; use a decision-model evaluator",
+        });
+
       default: {
         const _exhaustiveCheck: never = model.adapter;
         throw new Error(`Unsupported LLM adapter: ${_exhaustiveCheck}`);

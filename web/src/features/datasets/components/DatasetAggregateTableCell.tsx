@@ -51,7 +51,7 @@ const DatasetAggregateCellContent = ({
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "scores:CUD",
+    scope: "scores:save",
   });
 
   // Merge server columns with cache-only columns
@@ -142,12 +142,22 @@ const DatasetAggregateCellContent = ({
   };
 
   const handleOpenReview = () => {
-    setActiveCell({
+    const opened = setActiveCell({
+      datasetRunId: value.datasetRunId,
       traceId: value.trace.id,
       observationId: value.observation?.id,
       scoreAggregates: scores,
       environment: data?.environment,
     });
+    if (opened && !isActiveCell) {
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "DatasetCompare",
+        targetType: value.observation ? "observation" : "trace",
+        isV4: false,
+      });
+    }
   };
 
   const isActiveCell =
@@ -227,8 +237,8 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
-                  <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
+                <Badge variant="tertiary" className="font-normal">
+                  <ClockIcon className="icon-sm mr-1 mb-0.5" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
                   </span>
@@ -243,7 +253,7 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
+                <Badge variant="tertiary" className="font-normal">
                   <span className="mr-0.5">{usdFormatter(totalCost)}</span>
                 </Badge>
               ))}
@@ -267,7 +277,7 @@ const DatasetAggregateCellContent = ({
                 title="View trace/observation"
                 onClick={handleOpenPeek}
               >
-                <ListTree className="h-3 w-3" />
+                <ListTree className="icon-base text-icon-foreground" />
               </Button>
             </div>
           )}

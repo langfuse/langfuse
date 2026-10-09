@@ -1,14 +1,13 @@
 /* eslint-disable no-nested-ternary */
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
+import { cn } from "@/src/utils/tailwind";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
-  type IOPreviewParserComparisonOutcome,
-  type IOPreviewParserMode,
   hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
@@ -21,6 +20,7 @@ import {
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -59,7 +59,7 @@ function JsonInputOutputView({
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="space-y-2 [&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="space-y-2">
       {showInput && (
         <PrettyJsonView
           title="Input"
@@ -99,7 +99,6 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
-  observationName?: string;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -115,11 +114,6 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  // Which parser produces the preview; the normalized parser is admin-only
-  // while it is being validated. Legacy remains the safe default.
-  parser?: IOPreviewParserMode;
-  // Called once after a normalized parser comparison has settled.
-  onParserComparison?: (outcome: IOPreviewParserComparisonOutcome) => void;
 }
 
 /**
@@ -144,7 +138,6 @@ export function IOPreviewPretty({
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
   chatMLParserResult,
-  observationName,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -165,8 +158,6 @@ export function IOPreviewPretty({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
-  parser = "legacy",
-  onParserComparison,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -194,14 +185,11 @@ export function IOPreviewPretty({
     [projectId, observationId],
   );
 
-  // Parse into the shared preview contract. The normalized parser is opt-in
-  // while it is being rolled out; legacy remains the safe default.
-  const { result: parserResult, comparisonOutcome } = useIOPreviewParser(
-    parser,
+  // Parse into the shared preview contract.
+  const parserResult = useIOPreviewParser(
     input,
     output,
     metadata,
-    observationName,
     parsedInput,
     parsedOutput,
     parsedMetadata,
@@ -218,33 +206,6 @@ export function IOPreviewPretty({
     toolNameToDefinitionNumber,
     inputMessageCount,
   } = parserResult;
-
-  const capturedComparisonRecord = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (
-      parser !== "normalized" ||
-      comparisonOutcome === undefined ||
-      !onParserComparison ||
-      isLoading ||
-      isParsing
-    ) {
-      return;
-    }
-
-    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
-    if (capturedComparisonRecord.current === recordKey) return;
-
-    capturedComparisonRecord.current = recordKey;
-    onParserComparison(comparisonOutcome);
-  }, [
-    comparisonOutcome,
-    isLoading,
-    isParsing,
-    observationId,
-    onParserComparison,
-    parser,
-    traceId,
-  ]);
 
   const characterLimit = useMarkdownRenderCharacterLimit();
 
@@ -314,7 +275,7 @@ export function IOPreviewPretty({
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
-    <div className="space-y-2 pt-1">
+    <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
@@ -329,7 +290,7 @@ export function IOPreviewPretty({
       ) : null}
 
       {shouldRenderMessages ? (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+        <div>
           <ChatMessageList
             messages={allMessages}
             shouldRenderMarkdown={shouldRenderMarkdown}
@@ -355,36 +316,32 @@ export function IOPreviewPretty({
       ) : showData ? (
         <div>
           <JsonInputOutputView {...jsonViewProps} />
-          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-            {showCorrections && (
-              <CorrectedOutputField
-                actualOutput={parsedOutput}
-                existingCorrection={outputCorrection}
-                observationId={observationId}
-                projectId={projectId}
-                traceId={traceId}
-                environment={environment}
-              />
-            )}
-          </div>
+          {showCorrections && (
+            <CorrectedOutputField
+              actualOutput={parsedOutput}
+              existingCorrection={outputCorrection}
+              observationId={observationId}
+              projectId={projectId}
+              traceId={traceId}
+              environment={environment}
+            />
+          )}
         </div>
       ) : null}
 
       {/* Metadata Section */}
       {showData && shouldShowMetadata && (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-          <PrettyJsonView
-            title="Metadata"
-            json={parsedMetadata}
-            isLoading={isLoading}
-            isParsing={isParsing}
-            media={media?.filter((m) => m.field === "metadata") ?? []}
-            currentView="pretty"
-            externalExpansionState={metadataExpansionState}
-            onExternalExpansionChange={onMetadataExpansionChange}
-            metadataActions={metadataActions}
-          />
-        </div>
+        <PrettyJsonView
+          title="Metadata"
+          json={parsedMetadata}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          media={media?.filter((m) => m.field === "metadata") ?? []}
+          currentView="pretty"
+          externalExpansionState={metadataExpansionState}
+          onExternalExpansionChange={onMetadataExpansionChange}
+          metadataActions={metadataActions}
+        />
       )}
     </div>
   );

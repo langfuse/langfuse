@@ -2,22 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CLICKHOUSE_QUERY_OUTCOME_METRIC,
+  CLICKHOUSE_QUERY_PERFORMANCE_METRICS,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
   clickHouseQueryOutcomeRouteLabel,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
+  recordClickHouseQueryPerformance,
 } from "./queryOutcome";
 
 const recordIncrement = vi.fn();
+const recordDistribution = vi.fn();
 
 vi.mock("../instrumentation", () => ({
   recordIncrement: (...args: unknown[]) => recordIncrement(...args),
+  recordDistribution: (...args: unknown[]) => recordDistribution(...args),
 }));
 
 describe("ClickHouse query outcome metric", () => {
   beforeEach(() => {
     recordIncrement.mockClear();
+    recordDistribution.mockClear();
   });
 
   describe("route labels", () => {
@@ -58,6 +63,14 @@ describe("ClickHouse query outcome metric", () => {
     // code-defined, so they are matched verbatim against the bare allowlist.
     it.each([
       ["events.all", "events.all"],
+      ["events.batchIO", "events.batchIO"],
+      ["events.experimentBatchIO", "events.experimentBatchIO"],
+      ["events.sessionBatchIO", "events.sessionBatchIO"],
+      ["events.filterOptions", "events.filterOptions"],
+      ["experiments.batchIO", "experiments.batchIO"],
+      ["scores.allFromEvents", "scores.allFromEvents"],
+      ["scores.countAllFromEvents", "scores.countAllFromEvents"],
+      ["traces.byId", "traces.byId"],
       ["listObservations", "listObservations"],
       ["trace_redirect", "trace_redirect"],
     ])("labels the bare route %s verbatim", (route, expected) => {
@@ -65,7 +78,7 @@ describe("ClickHouse query outcome metric", () => {
     });
 
     it("counts an unlisted bare route under the catch-all label", () => {
-      expect(clickHouseQueryOutcomeRouteLabel("traces.byId")).toBe("other");
+      expect(clickHouseQueryOutcomeRouteLabel("prompts.all")).toBe("other");
     });
   });
 
@@ -112,6 +125,16 @@ describe("ClickHouse query outcome metric", () => {
           "SELECT * FROM scores s FINAL LEFT JOIN traces t ON s.trace_id = t.id",
         ),
       ).toBe("scores");
+    });
+
+    // Dataset run tables filtered by a score read scores in a CTE; the scan
+    // under load is dataset_run_items_rmt, and the scores dedup shapes must not
+    // claim it.
+    it("labels a dataset run items query with a scores filter CTE as dataset_run_items", () => {
+      const query =
+        "WITH scores_aggregated AS (SELECT s.trace_id FROM scores s FINAL WHERE s.project_id = {projectId: String}) SELECT dri.id FROM dataset_run_items_rmt dri LEFT JOIN scores_aggregated sa ON dri.trace_id = sa.trace_id";
+      expect(clickHouseQueryTableLabel(query)).toBe("dataset_run_items");
+      expect(clickHouseQueryShape(query)).toBe("other");
     });
 
     it("matches a schema-qualified FROM table", () => {
@@ -211,6 +234,62 @@ describe("ClickHouse query outcome metric", () => {
         ),
       ).toBe("id_or_ilike");
     });
+
+    describe("scores dedup strategies", () => {
+      const latestJoin = `
+        SELECT s.id FROM (
+          SELECT s.* FROM scores s
+          INNER JOIN (
+            SELECT s.id AS latest_id, max(s.event_ts) AS latest_event_ts
+            FROM scores s
+            WHERE s.project_id = {projectId: String}
+            %SEEK%
+            GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+          ) latest ON s.id = latest.latest_id AND s.event_ts = latest.latest_event_ts
+          WHERE s.trace_id = {traceId: String}
+          LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+        ) s`;
+
+      it.each([
+        "SELECT s.id FROM (SELECT s.* FROM scores s FINAL WHERE s.project_id = {projectId: String}) s",
+        "SELECT * FROM scores FINAL WHERE project_id = {projectId: String}",
+      ])("labels a FINAL read as scores_final: %s", (query) => {
+        expect(clickHouseQueryShape(query)).toBe("scores_final");
+      });
+
+      // The seek's trace_id predicate would otherwise make it by_trace_id.
+      it("labels the latest-version join with a seek as scores_join_seek", () => {
+        const query = latestJoin.replace(
+          "%SEEK%",
+          "AND (s.project_id, toDate(s.timestamp), s.name, s.id) IN (SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id FROM scores s WHERE s.trace_id = {traceId: String})",
+        );
+        expect(clickHouseQueryShape(query)).toBe("scores_join_seek");
+      });
+
+      it("labels the latest-version join without a seek as scores_join", () => {
+        expect(clickHouseQueryShape(latestJoin.replace("%SEEK%", ""))).toBe(
+          "scores_join",
+        );
+      });
+
+      it("does not label FINAL on another table as a scores shape", () => {
+        expect(
+          clickHouseQueryShape(
+            "SELECT * FROM traces t FINAL WHERE t.id = {id: String}",
+          ),
+        ).toBe("other");
+      });
+
+      // A scores FINAL subquery under an events read keeps the events table
+      // label, so the scores shapes do not apply.
+      it("applies the scores shapes only when the table label is scores", () => {
+        const query =
+          "SELECT * FROM events_full e WHERE e.trace_id = {traceId: String} AND e.span_id IN (SELECT observation_id FROM scores s FINAL)";
+        expect(clickHouseQueryTableLabel(query)).toBe("events_full");
+        expect(clickHouseQueryShape(query)).toBe("by_trace_id");
+        expect(clickHouseQueryShape(query, "scores")).toBe("scores_final");
+      });
+    });
   });
 
   it("maps every ClickHouse resource error type to an outcome", () => {
@@ -235,6 +314,7 @@ describe("ClickHouse query outcome metric", () => {
       },
       "events_full",
       "io_content",
+      "events_read_replica",
     );
 
     expect(recordIncrement).toHaveBeenCalledTimes(1);
@@ -247,7 +327,60 @@ describe("ClickHouse query outcome metric", () => {
         route: "get_/api/public/v2/observations",
         table: "events_full",
         query_shape: "io_content",
+        clickhouse_service: "events_read_replica",
       },
+    );
+  });
+
+  it("emits the summary header as distributions with the outcome tags", () => {
+    recordClickHouseQueryPerformance(
+      {
+        read_rows: "1200",
+        read_bytes: "524288",
+        written_rows: "0",
+        elapsed_ns: "37500000",
+        memory_usage: "8388608",
+      },
+      {
+        tag_schema_version: "1",
+        surface: "trpc",
+        route: "scores.allFromEvents",
+        projectId: "project-1",
+      },
+      "scores",
+      "scores_final",
+      "main",
+    );
+
+    const tags = {
+      surface: "trpc",
+      route: "scores.allFromEvents",
+      table: "scores",
+      query_shape: "scores_final",
+      clickhouse_service: "main",
+    };
+    expect(recordDistribution.mock.calls).toEqual([
+      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.elapsedMs, 37.5, tags],
+      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readBytes, 524288, tags],
+      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readRows, 1200, tags],
+      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.memoryBytes, 8388608, tags],
+    ]);
+  });
+
+  it("skips summary keys that are missing or not numeric", () => {
+    recordClickHouseQueryPerformance(
+      { read_rows: "10", read_bytes: "n/a" },
+      { tag_schema_version: "1", surface: "unknown" },
+      "other",
+      "other",
+      "main",
+    );
+
+    expect(recordDistribution).toHaveBeenCalledTimes(1);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readRows,
+      10,
+      expect.any(Object),
     );
   });
 
@@ -260,6 +393,7 @@ describe("ClickHouse query outcome metric", () => {
       },
       "other",
       "other",
+      "main",
     );
 
     expect(recordIncrement).toHaveBeenCalledWith(
@@ -271,6 +405,7 @@ describe("ClickHouse query outcome metric", () => {
         route: "other",
         table: "other",
         query_shape: "other",
+        clickhouse_service: "main",
       },
     );
   });

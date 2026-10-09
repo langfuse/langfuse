@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import {
+  MultiSelectKeyValues,
+  CompareViewAdapter,
+  getScoreDataTypeIcon,
+} from "@/src/features/scores";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
@@ -10,20 +14,21 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  CreateExperimentsForm,
+  useExperimentAccess,
+  toExperimentsResultsUrl,
+} from "@/src/features/experiments";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
-import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import {
   RESOURCE_METRICS,
   isEmptyChart,
-} from "@/src/features/dashboard/lib/score-analytics-utils";
-import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
-} from "@/src/features/dashboard/lib/chart-data-adapters";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+} from "@/src/features/dashboard";
+import { Chart } from "@/src/features/widgets";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import {
@@ -33,17 +38,14 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
 import { useDatasetRunCompareChartData } from "@/src/features/datasets/hooks/useDatasetRunCompareChartData";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
-} from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+} from "@/src/features/navigation";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
 function DatasetCompareChartsLegacy() {
   const router = useRouter();
@@ -124,7 +126,7 @@ function DatasetCompareChartsLegacy() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical className="icon-base text-icon-foreground" />
                   <span className="ml-2 hidden md:block">New experiment</span>
                 </Button>
               </DialogTrigger>
@@ -149,7 +151,9 @@ function DatasetCompareChartsLegacy() {
               className="w-fit"
               variant="outline"
               hideClearButton
-              iconLeft={<List className="mr-2 h-4 w-4" />}
+              iconLeft={
+                <List className="icon-base text-icon-foreground mr-2" />
+              }
               options={runs.map((run) => ({
                 key: run.key,
                 value: run.value,

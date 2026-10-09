@@ -15,17 +15,14 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
   featurePreviewLabels,
-  type FeaturePreviewFlag,
-} from "@/src/features/feature-flags/available-flags";
-
+  type PersonalFeaturePreviewFlag,
+} from "@/src/features/feature-flags";
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
-import improvedMessageRenderingDarkIllustration from "../assets/improved-message-rendering-dark.svg";
-import improvedMessageRenderingLightIllustration from "../assets/improved-message-rendering-light.svg";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts. */
-export type PreviewFlag = FeaturePreviewFlag;
+export type PreviewFlag = PersonalFeaturePreviewFlag;
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
@@ -40,7 +37,7 @@ type PreviewRegistryItem = {
   description: string;
   details: string;
   feedbackUrl: string;
-  illustration: PreviewIllustration;
+  illustration?: PreviewIllustration;
 };
 
 /** Per-preview dynamic state, supplied by ControlledFeaturePreviewModal (which
@@ -53,9 +50,17 @@ export type PreviewState = {
   isToggling?: boolean;
 };
 
-// Static registry — one entry per preview. Order = sidebar order; each
-// preview ships separate light/dark illustrations.
+// Static registry — one entry per preview, in sidebar order.
+// Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
+  {
+    flag: "langfuseTopics",
+    description:
+      "Discover common topics across traces, with summaries and an interactive topic map.",
+    details:
+      "Choose traces and facets, run the topic pipeline, and explore the resulting clusters and trace summaries.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
   {
     flag: "modernSession",
     description:
@@ -67,19 +72,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       light: modernSessionLightIllustration,
       dark: modernSessionDarkIllustration,
       alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
-    },
-  },
-  {
-    flag: "normalizedIoPreview",
-    description:
-      "Render the Formatted view of trace and observation input/output more faithfully — chat messages, tool calls, and reasoning are recognized across a wide range of model providers and frameworks.",
-    details:
-      "A new parser understands the conventions of OpenAI, Anthropic, Gemini, LangChain, the Vercel AI SDK, OpenTelemetry GenAI, Pydantic AI, and more. Messages, tool calls, tool results, and reasoning render as structured blocks in the Formatted view instead of falling back to raw JSON. When enabled, the Formatted tab is powered by this parser everywhere trace and observation I/O is shown.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
-    illustration: {
-      light: improvedMessageRenderingLightIllustration,
-      dark: improvedMessageRenderingDarkIllustration,
-      alt: "Formatted trace view rendering a user message, an assistant reply, a tool call, and a reasoning block as distinct structured cards.",
     },
   },
 ];
@@ -175,7 +167,7 @@ export function FeaturePreviewModal({
                     <h2 className="text-foreground text-xl font-bold">
                       {featurePreviewLabels[selected.flag]}
                     </h2>
-                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
+                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
                       {selected.description}
                     </p>
                     <Button asChild className="mt-4">
@@ -207,7 +199,7 @@ export function FeaturePreviewModal({
                       <h3 className="text-foreground text-sm font-bold">
                         {featurePreviewLabels.sessionTimeline}
                       </h3>
-                      <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-5">
+                      <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
                         Use the redesigned timeline to navigate session events
                         in chronological order.
                       </p>
@@ -229,9 +221,11 @@ export function FeaturePreviewModal({
                   </div>
                 ) : null}
 
-                <PreviewMockupPanel illustration={selected.illustration} />
+                {selected.illustration && (
+                  <PreviewMockupPanel illustration={selected.illustration} />
+                )}
 
-                <p className="text-muted-foreground mt-5 text-sm leading-5">
+                <p className="text-muted-foreground mt-5 text-sm">
                   {selected.details}
                 </p>
               </>

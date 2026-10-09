@@ -1,16 +1,19 @@
-/**
- * Tooltip-based metadata badges for ObservationDetailView
- * These badges use BreakdownTooltip to show detailed cost/usage information
- */
+/** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
   type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+
+/** Header cost: short, with the exact value on hover. */
+export const formatMetricCost = (cost: number) => usdFormatter(cost, 2, 3);
+
+/** Header tokens, e.g. "21k tokens". */
+export const formatMetricTokens = (tokens: number) =>
+  `${compactNumberFormatter(tokens, 0).toLowerCase()} tokens`;
 
 export function CostBadge({
   totalCost,
@@ -24,7 +27,14 @@ export function CostBadge({
   costSource?: CostSource;
 }) {
   if (!hasBreakdown(costDetails)) {
-    return <Badge text={usdFormatter(totalCost)} />;
+    return (
+      <Badge
+        font="mono"
+        color="ghost"
+        text={formatMetricCost(totalCost)}
+        title={`exact $${totalCost.toFixed(6)}`}
+      />
+    );
   }
   return (
     <BreakdownTooltip
@@ -33,46 +43,36 @@ export function CostBadge({
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
+      <Badge
+        font="mono"
+        color="ghost"
+        interactive
+        text={formatMetricCost(totalCost)}
+      />
     </BreakdownTooltip>
   );
 }
 
 /** A breakdown of nothing but zeros has nothing to say. */
-const hasBreakdown = (details: Record<string, number>) =>
+export const hasBreakdown = (details: Record<string, number>) =>
   Object.values(details).some((value) => value > 0);
 
 export function UsageBadge({
-  inputUsage,
-  outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  inputUsage: number;
-  outputUsage: number;
   totalUsage: number;
   usageDetails: Record<string, number>;
 }) {
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
+  const tokenText = formatMetricTokens(totalUsage);
 
-  if (tokenText && !hasBreakdown(usageDetails)) {
-    return <Badge text={tokenText} />;
+  if (!hasBreakdown(usageDetails)) {
+    return <Badge font="mono" color="ghost" text={tokenText} />;
   }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      {tokenText ? (
-        <Badge text={tokenText} trailingIcon={InfoIcon} />
-      ) : (
-        <BadgeShell aria-label="View usage breakdown">
-          <InfoIcon aria-hidden className="size-3" />
-        </BadgeShell>
-      )}
+      <Badge font="mono" color="ghost" interactive text={tokenText} />
     </BreakdownTooltip>
   );
 }

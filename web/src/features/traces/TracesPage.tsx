@@ -4,13 +4,10 @@ import TracesTable from "@/src/features/traces/TracesTable";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
-import {
-  getTracingTabs,
-  TRACING_TABS,
-} from "@/src/features/navigation/utils/tracing-tabs";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { getTracingTabs, TRACING_TABS } from "@/src/features/navigation";
+import { useReadPath } from "@/src/features/events";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function TracesPage() {

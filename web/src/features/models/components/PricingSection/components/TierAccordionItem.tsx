@@ -1,5 +1,6 @@
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
@@ -69,11 +70,11 @@ export function TierAccordionItem({
                   remove(index);
                 }}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="icon-base text-icon-foreground" />
               </Button>
             )}
           </div>
-          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+          <DropdownIndicator />
         </AccordionPrimitive.Trigger>
       </AccordionPrimitive.Header>
 

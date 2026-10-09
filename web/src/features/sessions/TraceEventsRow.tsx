@@ -124,11 +124,7 @@ const ObservationHeader = ({
     </span>
     <span className="-mr-1">•</span>
     <span className="inline-flex items-center gap-1">
-      <ItemBadge
-        type={observation.type ?? "EVENT"}
-        isSmall
-        className="h-3 w-3"
-      />
+      <ItemBadge type={observation.type ?? "EVENT"} isSmall />
       <span>
         {String(observation.type ?? "EVENT")
           .toLowerCase()
@@ -158,7 +154,7 @@ const openSessionViewMenu = () => {
 const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
   <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
     <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500">
-      <FilterX className="h-3.5 w-3.5 shrink-0" />
+      <FilterX className="icon-base shrink-0" />
       {viewLabel
         ? `No observation matches the "${viewLabel}" view in this trace`
         : "No observation matches the current filter in this trace"}
@@ -463,6 +459,7 @@ export const TraceEventsRow = React.memo(
                     </div>
                   </Link>
                   <SessionTraceActionButtons
+                    isV4={true}
                     projectId={projectId}
                     traceId={trace.id}
                     timestamp={new Date(trace.timestamp)}

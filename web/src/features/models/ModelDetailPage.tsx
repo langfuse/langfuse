@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import Generations from "@/src/features/tracing-tables/observations/ObservationsTable";
+import { ObservationsTable as Generations } from "@/src/features/tracing-tables";
 import Page from "@/src/components/layouts/page";
 import { SquareArrowOutUpRight, Info as InfoIcon } from "lucide-react";
 import {
@@ -29,11 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { useModelDefinitionsEnabled } from "@/src/features/models/hooks/useModelDefinitionsEnabled";
 
@@ -241,42 +237,46 @@ export default function ModelDetailPage() {
                     </SelectContent>
                   </Select>
                   {activeTier && !activeTier.isDefault && (
-                    <HoverCard openDelay={200} closeDelay={100}>
-                      <HoverCardTrigger asChild>
+                    <HoverCard
+                      openDelay={200}
+                      closeDelay={100}
+                      collisionPadding={20}
+                      content={
+                        <div className="max-h-[80vh] w-[400px] overflow-auto p-3">
+                          <p className="text-sm font-bold">
+                            Pricing Tier Conditions
+                          </p>
+                          <p className="text-muted-foreground pt-2 text-sm">
+                            This tier is applied when the following conditions
+                            are met:
+                          </p>
+                          <div className="mt-2">
+                            <CodeMirrorEditor
+                              mode="json"
+                              value={JSON.stringify(
+                                activeTier.conditions,
+                                null,
+                                2,
+                              )}
+                              onChange={() => {}} // Read-only
+                              className="max-h-[250px] overflow-y-auto"
+                              editable={false}
+                            />
+                          </div>
+                        </div>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
                         <Button
                           variant="ghost"
                           className="text-muted-foreground hover:text-accent-foreground inline-flex h-auto items-center gap-1.5 p-0 text-xs hover:bg-transparent"
                           size="sm"
+                          {...getTriggerProps()}
                         >
-                          <InfoIcon className="h-3 w-3" />
+                          <InfoIcon className="icon-base text-icon-foreground" />
                           <span>Conditions</span>
                         </Button>
-                      </HoverCardTrigger>
-                      <HoverCardContent
-                        className="max-h-[80vh] w-[400px] overflow-auto"
-                        collisionPadding={20}
-                      >
-                        <p className="text-sm font-bold">
-                          Pricing Tier Conditions
-                        </p>
-                        <p className="text-muted-foreground pt-2 text-sm">
-                          This tier is applied when the following conditions are
-                          met:
-                        </p>
-                        <div className="mt-2">
-                          <CodeMirrorEditor
-                            mode="json"
-                            value={JSON.stringify(
-                              activeTier.conditions,
-                              null,
-                              2,
-                            )}
-                            onChange={() => {}} // Read-only
-                            className="max-h-[250px] overflow-y-auto"
-                            editable={false}
-                          />
-                        </div>
-                      </HoverCardContent>
+                      )}
                     </HoverCard>
                   )}
                 </div>
@@ -324,7 +324,7 @@ export default function ModelDetailPage() {
                   className="flex items-center gap-1"
                 >
                   <span className="text-sm">View all</span>
-                  <SquareArrowOutUpRight className="h-4 w-4" />
+                  <SquareArrowOutUpRight className="icon-base text-icon-foreground" />
                 </Link>
               </Button>
             </CardTitle>

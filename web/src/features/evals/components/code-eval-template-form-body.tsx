@@ -242,12 +242,15 @@ export function CodeEvalTemplateFormBody({
   const shouldShowFormatButton = editable;
   const canFormat =
     editable && validationResult !== null && !validationResult.hasErrors;
-  const formatDisabledReason =
-    validationResult === null
-      ? "Wait for code validation to finish before formatting."
-      : validationResult.hasErrors
-        ? "Fix the code validation errors before formatting."
-        : null;
+  const formatDisabledReason = (() => {
+    if (validationResult === null) {
+      return "Wait for code validation to finish before formatting.";
+    }
+    if (validationResult.hasErrors) {
+      return "Fix the code validation errors before formatting.";
+    }
+    return null;
+  })();
   // `onSourceCodeChange` comes from a react-hook-form render prop and changes
   // identity as the field updates. Keep CodeMirror's handler stable so it does
   // not reconfigure the editor on every keystroke. The refs are synced in an
@@ -406,7 +409,9 @@ export function CodeEvalTemplateFormBody({
       className={formatDisabledReason ? "pointer-events-none" : undefined}
       onClick={() => formatSource()}
     >
-      {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+      {isFormatting && (
+        <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
+      )}
       Format
       <span className="ml-2 hidden md:inline-flex">
         <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />

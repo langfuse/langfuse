@@ -1,7 +1,6 @@
-/* eslint-disable no-nested-ternary */
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { AutomationButton } from "@/src/features/automations";
 import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 import {
   ChannelSelector,
@@ -12,7 +11,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/ui/badge";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Card,
   CardContent,
@@ -71,11 +70,15 @@ export default function SlackIntegrationPage() {
       { enabled: !!projectId },
     );
 
-  const status = isLoading
-    ? undefined
-    : integrationStatus?.isConnected
-      ? "active"
-      : "inactive";
+  const status = (() => {
+    if (isLoading) {
+      return undefined;
+    }
+    if (integrationStatus?.isConnected) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     null,
