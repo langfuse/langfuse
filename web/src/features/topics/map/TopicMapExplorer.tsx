@@ -625,6 +625,7 @@ function MapLabels({
         const zone = hints.zones[0];
         if (!trace && !zone) return null;
         const rect = trace?.card ?? zone!.label;
+        const topicPrefix = trace?.topicName ? `${trace.topicName}. ` : "";
         return (
           <div
             key={label.token}
@@ -639,7 +640,7 @@ function MapLabels({
             aria-hidden={!active}
             aria-label={
               trace
-                ? `Trace summary: ${trace.topicName ? `${trace.topicName}. ` : ""}${trace.point.summary}`
+                ? `Trace summary: ${topicPrefix}${trace.point.summary}`
                 : `${zone!.name}, ${zone!.countLabel}`
             }
             onTransitionEnd={handleHoverTransitionEnd}
