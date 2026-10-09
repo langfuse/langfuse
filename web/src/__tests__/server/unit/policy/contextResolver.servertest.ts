@@ -348,6 +348,45 @@ describe("a verified key with no org is a 500 invariant break", () => {
 });
 
 describe("role lookup", () => {
+  it("throws an internal server error when backfill leaves no roles", async () => {
+    const prisma = mockPrisma(orgRow());
+    prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([]);
+    prisma.$transaction = vi.fn().mockResolvedValue(undefined);
+    const resolver = new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    );
+    await expect(
+      resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
+    ).rejects.toThrow(InternalServerError);
+    expect(prisma.roleAssignment.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows a stored role that grants no actions", async () => {
+    const prisma = mockPrisma(orgRow());
+    prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([
+      {
+        ...assignmentsFor("apiKey/key_p")[0],
+        systemRole: "NONE",
+        roleId: "system/NONE",
+      },
+    ]);
+    prisma.$transaction = vi.fn();
+    const resolver = new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    );
+    const resolved = await resolver.resolve({
+      authorization: "privateKey",
+      apiKey: apiKey(),
+    });
+    expect(resolved).toMatchObject({
+      success: true,
+      context: { policies: [{ roleId: SystemRoleId("NONE"), actions: [] }] },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it.each(["P2002", "P2003"])(
     "handles a backfill %s error without swallowing other failures",
     async (code) => {

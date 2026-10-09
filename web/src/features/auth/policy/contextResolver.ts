@@ -4,7 +4,7 @@ import {
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
+import { CloudConfigSchema, InternalServerError } from "@langfuse/shared";
 import {
   ApiKeyId,
   OrganizationId,
@@ -23,7 +23,7 @@ import {
   type OrganizationWithProjects,
 } from "./organizationRepository";
 import { authorize } from "@/src/features/rbac/authorize";
-import { type Policy } from "@/src/features/rbac/types";
+import { type Policy, type Role } from "@/src/features/rbac/types";
 import {
   internalServerError,
   type AuthorizationContext,
@@ -115,11 +115,7 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  let roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
-  if (roles.length === 0) {
-    await backfillApiKeyRoleAssignment(prisma, apiKey, org);
-    roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
-  }
+  const roles = await getRolesForApiKey(apiKey.id);
   const context = {
     principal,
     policies: roles.flatMap((role) => role.policies),
@@ -128,6 +124,21 @@ async function materialize(
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
   return context;
+
+  /** getRolesForApiKey restores missing assignments and rejects an empty result after repair. */
+  async function getRolesForApiKey(apiKeyId: string): Promise<Role[]> {
+    let roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+    if (roles.length === 0) {
+      await backfillApiKeyRoleAssignment(prisma, apiKey, org);
+      roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+    }
+    if (roles.length === 0) {
+      throw new InternalServerError(
+        `API key ${apiKeyId} has no role assignments after backfill`,
+      );
+    }
+    return roles;
+  }
 }
 
 /** backfillApiKeyRoleAssignment restores a verified key's legacy role. */
