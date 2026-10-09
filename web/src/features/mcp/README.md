@@ -49,6 +49,37 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 5. **Verify observation access**
    In Claude Code: `List recent Langfuse observations`
 
+## Download trace data for local search
+
+Call `downloadFullTrace({ traceId })` or `exportObservation({ observationId })` to get
+`{ downloadUrl, filename, mimeType, expiresAt }`. Save the URL directly to a file
+using the agent's shell or HTTP client, then search selected fields or snippets
+locally. The MCP result contains no trace payload. For example:
+
+```bash
+curl --fail --silent --show-error --output './trace.json' '<downloadUrl>'
+```
+
+The URL expires after five minutes and needs no authorization header. Treat it as
+a secret. The download rechecks the originating API key and current access;
+revoked or expired keys cannot redeem it. Data is read at download time.
+
+Exports use the same `{ observations, scores }` payload, serializer and limits as
+the trace UI's **Download JSON** button. At 350 or more observations, `input`,
+`output`, `metadata`, `toolDefinitions` and `toolCalls` are omitted. The configured
+observation cap (default 20,000) and payload-size guard (default 80 MB) apply.
+An observation export selects that observation and its scores from the same
+bounded trace export, without descendants. It fails if the observation is not
+included in that export. It does not bypass the parent trace's limits.
+
+Both tools share the observation feature gate. `NEXTAUTH_SECRET` must be set to
+sign download links. The capability URL is an internal MCP download transport;
+discover it through the tool result rather than constructing it yourself.
+
+These download tools are available only to external MCP clients. The in-app agent
+can use `silent: true` on its existing MCP tools to save their results to sandbox
+files and search them without loading the payload into context.
+
 ## Architecture
 
 ### Stateless Design
