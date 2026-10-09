@@ -102,23 +102,7 @@ describe("Python SDK deprecations", () => {
         ({ resourcePath, methodName }) =>
           `${resourcePath.replaceAll(path.sep, "/")}:${methodName}`,
       ),
-    ).toEqual([
-      "dataset_run_items:create",
-      "dataset_run_items:list",
-      "datasets:get_run",
-      "datasets:delete_run",
-      "datasets:get_runs",
-      "ingestion:batch",
-      "legacy/metrics_v1:metrics",
-      "legacy/observations_v1:get",
-      "legacy/observations_v1:get_many",
-      "scores:get_many",
-      "scores:get_by_id",
-      "sessions:list",
-      "sessions:get",
-      "trace:get",
-      "trace:list",
-    ]);
+    ).toEqual(["ingestion:batch"]);
   });
 
   it("decorates sync, async, raw, and async-raw endpoint methods", () => {
