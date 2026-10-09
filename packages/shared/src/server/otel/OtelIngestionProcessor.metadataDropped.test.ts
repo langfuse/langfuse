@@ -427,10 +427,17 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     retries: 3,
     ratio: 1.5,
     enabled: true,
-    missing: null,
     database: { host: "localhost", port: 5432, auth: { user: "app" } },
     steps: [{ name: "web_fetch", args: { url: "https://example.com" } }],
     empty: {},
+  };
+
+  const perKeyValue = (value: unknown, space?: number) => {
+    if (typeof value === "string") return { stringValue: value };
+    if (typeof value === "boolean") return { boolValue: value };
+    if (Number.isInteger(value)) return { intValue: value };
+    if (typeof value === "number") return { doubleValue: value };
+    return { stringValue: JSON.stringify(value, null, space) };
   };
 
   const blobAttributes = (
@@ -443,15 +450,30 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     },
   ];
 
-  // Structured-metadata SDKs JSON-encode every value, strings included.
+  // Structured-metadata SDKs JSON-encode objects and arrays; strings, numbers
+  // and booleans are sent as native OTel attribute values.
   const perKeyAttributes = (
     domain: "observation" | "trace",
     space?: number,
   ): OtelAttribute[] =>
     Object.entries(metadata).map(([key, value]) => ({
       key: `langfuse.${domain}.metadata.${key}`,
-      value: { stringValue: JSON.stringify(value, null, space) },
+      value: perKeyValue(value, space),
     }));
+
+  const pathCases = [
+    { path: "v3", domain: "observation", span: "root" },
+    { path: "v3", domain: "trace", span: "root" },
+    { path: "v3", domain: "trace", span: "child" },
+    { path: "v4", domain: "observation", span: "root" },
+    { path: "v4", domain: "trace", span: "root" },
+    { path: "v4", domain: "trace", span: "child" },
+  ] as const;
+
+  const undecodedCalls = () =>
+    recordIncrementMock.mock.calls.filter(
+      ([stat]) => stat === "langfuse.ingestion.metadata_undecoded",
+    );
 
   const processMetadata = async (
     path: "v3" | "v4",
@@ -542,27 +564,118 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     },
   );
 
-  it("keeps a per-key value that is not valid JSON as sent and counts it", async () => {
-    recordIncrementMock.mockClear();
-    const result = await processMetadata("v4", [
-      {
-        key: "langfuse.observation.metadata.note",
-        value: { stringValue: "{not json" },
-      },
-      {
-        key: "langfuse.observation.metadata.environment",
-        value: { stringValue: '"prod"' },
-      },
-    ]);
+  it.each(pathCases)(
+    "decodes only object and array strings ($path, $domain on $span span)",
+    async ({ path, domain, span }) => {
+      recordIncrementMock.mockClear();
+      const values: Record<string, string> = {
+        object: '{"host":"localhost","port":5432}',
+        array: '[1,"two",{"three":3}]',
+        indentedObject: '\n  {\n    "host": "localhost"\n  }',
+        indentedArray: "\t [true]",
+        digits: "123",
+        bool: "true",
+        nullish: "null",
+        word: "prod",
+        quoted: '"prod"',
+        braceInside: "prod {x}",
+      };
+      const result = await processMetadata(
+        path,
+        Object.entries(values).map(([key, value]) => ({
+          key: `langfuse.${domain}.metadata.${key}`,
+          value: { stringValue: value },
+        })),
+        { domain, span },
+      );
 
-    expect(result).toMatchObject({ note: "{not json", environment: "prod" });
-    expect(droppedCalls()).toHaveLength(0);
-    const undecodedCalls = recordIncrementMock.mock.calls.filter(
-      ([stat]) => stat === "langfuse.ingestion.metadata_undecoded",
-    );
-    expect(undecodedCalls).toHaveLength(1);
-    expect(undecodedCalls[0][2]).toEqual({ kind: "truncated_json" });
-  });
+      expect(result).toMatchObject({
+        object: { host: "localhost", port: 5432 },
+        array: [1, "two", { three: 3 }],
+        indentedObject: { host: "localhost" },
+        indentedArray: [true],
+        digits: "123",
+        bool: "true",
+        nullish: "null",
+        word: "prod",
+        quoted: '"prod"',
+        braceInside: "prod {x}",
+      });
+      expect(flattenJsonToPathArrays(result)).toEqual(
+        expect.objectContaining({
+          names: expect.arrayContaining([
+            "object.host",
+            "object.port",
+            "indentedObject.host",
+          ]),
+        }),
+      );
+      expect(undecodedCalls()).toHaveLength(0);
+    },
+  );
+
+  it.each(pathCases)(
+    "keeps native numbers and booleans as sent ($path, $domain on $span span)",
+    async ({ path, domain, span }) => {
+      const result = await processMetadata(
+        path,
+        [
+          {
+            key: `langfuse.${domain}.metadata.retries`,
+            value: { intValue: 3 },
+          },
+          {
+            key: `langfuse.${domain}.metadata.ratio`,
+            value: { doubleValue: 1.5 },
+          },
+          {
+            key: `langfuse.${domain}.metadata.enabled`,
+            value: { boolValue: false },
+          },
+        ],
+        { domain, span },
+      );
+
+      expect(result).toMatchObject({ retries: 3, ratio: 1.5, enabled: false });
+    },
+  );
+
+  it.each([
+    { path: "v3", domain: "observation" },
+    { path: "v3", domain: "trace" },
+    { path: "v4", domain: "observation" },
+    { path: "v4", domain: "trace" },
+  ] as const)(
+    "keeps an object-like value that is not valid JSON as sent and counts it ($path, $domain)",
+    async ({ path, domain }) => {
+      recordIncrementMock.mockClear();
+      const result = await processMetadata(
+        path,
+        [
+          {
+            key: `langfuse.${domain}.metadata.note`,
+            value: { stringValue: '  {"a":"long va' },
+          },
+          {
+            key: `langfuse.${domain}.metadata.environment`,
+            value: { stringValue: "prod" },
+          },
+        ],
+        { domain },
+      );
+
+      expect(result).toMatchObject({
+        note: '  {"a":"long va',
+        environment: "prod",
+      });
+      expect(droppedCalls()).toHaveLength(0);
+      const calls = undecodedCalls();
+      expect(calls.length).toBeGreaterThanOrEqual(1);
+      for (const call of calls) {
+        expect(call[2]).toEqual({ kind: "truncated_json" });
+      }
+    },
+  );
 
   it.each([
     {
@@ -589,9 +702,10 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     );
 
     expect(result).toMatchObject({
-      environment: '"prod"',
-      retries: "3",
+      environment: "prod",
+      retries: 3,
       database: '{"host":"localhost","port":5432,"auth":{"user":"app"}}',
+      steps: JSON.stringify(metadata.steps),
     });
   });
 

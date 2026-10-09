@@ -120,6 +120,13 @@ const OTEL_SDK_LANGUAGE_TO_SDK_NAME = new Map<
   ["webjs", "javascript"],
 ]);
 
+const JSON_CONTAINER_START = /^\s*[{[]/;
+
+// Per-key metadata values are decoded only when they look like a JSON object
+// or array; plain strings such as "123" or "true" stay strings.
+const looksLikeJsonContainer = (value: unknown): value is string =>
+  typeof value === "string" && JSON_CONTAINER_START.test(value);
+
 const DANGEROUS_OTEL_PATH_SEGMENTS = new Set([
   "__proto__",
   "constructor",
@@ -3506,7 +3513,8 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     prefixes: string[];
     excludedKeys?: Set<string>;
-    // Set for structured-metadata SDKs, which JSON-encode every value.
+    // Set for structured-metadata SDKs, which JSON-encode object and array
+    // values. Every other value, including plain strings, is kept as sent.
     decodeValues?: boolean;
   }): Record<string, unknown> {
     const {
@@ -3527,14 +3535,14 @@ export class OtelIngestionProcessor {
           continue;
         }
 
-        if (!decodeValues || typeof value !== "string") {
+        if (!decodeValues || !looksLikeJsonContainer(value)) {
           metadata[metadataKey] = value;
           continue;
         }
 
-        // Decoded values match what a metadata blob holds for the key. An
-        // undecodable value (e.g. cut by an attribute length limit) is kept as
-        // sent so its content is not lost.
+        // A decoded object or array is flattened like a metadata blob, so its
+        // nested paths are filterable. An undecodable value (e.g. cut by an
+        // attribute length limit) is kept as sent so its content is not lost.
         try {
           metadata[metadataKey] = JSON.parse(value);
         } catch {
