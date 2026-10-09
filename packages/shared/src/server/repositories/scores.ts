@@ -1324,13 +1324,6 @@ export async function getScoresUiTable<
   });
 }
 
-// Rows sharing the sort value (e.g. one batch's timestamp) would otherwise
-// land on arbitrary pages under LIMIT/OFFSET.
-const withIdTiebreaker = (orderByClause: string, orderBy: OrderByState) =>
-  orderByClause && orderBy
-    ? `${orderByClause}, s.id ${orderBy.order}`
-    : orderByClause;
-
 const getScoresUiGeneric = async <T>(props: {
   select: "count" | "rows";
   projectId: string;
@@ -1820,6 +1813,12 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     preferredClickhouseService: needsTracesCTE ? "EventsReadOnly" : "ReadOnly",
   });
 };
+
+/** Appends s.id in the primary sort direction so LIMIT/OFFSET pages are deterministic on ties */
+const withIdTiebreaker = (orderByClause: string, orderBy: OrderByState) =>
+  orderByClause && orderBy
+    ? `${orderByClause}, s.id ${orderBy.order}`
+    : orderByClause;
 
 export const getScoresUiCountFromEvents = async (props: {
   projectId: string;
