@@ -11,12 +11,11 @@ import { redis } from "./";
  */
 
 /** Cache types for different eval job configuration targets */
-type EvalConfigCacheType = "traceBased" | "eventBased" | "scoreResultBased";
+type EvalConfigCacheType = "traceBased" | "eventBased";
 
 const CACHE_PREFIXES: Record<EvalConfigCacheType, string> = {
   traceBased: "langfuse:eval:no-trace-and-dataset-job-configs", // for target_object 'trace' | 'observation'
   eventBased: "langfuse:eval:no-event-and-experiment-job-configs", // for target_object 'event' | 'experiment'
-  scoreResultBased: "langfuse:eval:no-score-result-rules",
 };
 
 const CACHE_TTL_SECONDS = 600; // 10 minutes
@@ -93,9 +92,8 @@ export const clearNoEvalConfigsCache = async (
 
 export const invalidateProjectEvalConfigCaches = (
   projectId: string,
-): Promise<[void, void, void]> =>
+): Promise<[void, void]> =>
   Promise.all([
     clearNoEvalConfigsCache(projectId, "traceBased"),
     clearNoEvalConfigsCache(projectId, "eventBased"),
-    clearNoEvalConfigsCache(projectId, "scoreResultBased"),
   ]);

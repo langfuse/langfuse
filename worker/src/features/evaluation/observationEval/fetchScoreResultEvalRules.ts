@@ -4,10 +4,6 @@ import {
   JobConfigState,
   prisma,
 } from "@langfuse/shared/src/db";
-import {
-  hasNoEvalConfigsCache,
-  setNoEvalConfigsCache,
-} from "@langfuse/shared/src/server";
 import type { ScoreResultEvalRule } from "./types";
 
 const runnableEvaluatorTypes = [
@@ -20,10 +16,6 @@ export async function fetchScoreResultEvalRules(params: {
   projectId: string;
   evaluatorId: string;
 }): Promise<ScoreResultEvalRule[]> {
-  if (await hasNoEvalConfigsCache(params.projectId, "scoreResultBased")) {
-    return [];
-  }
-
   const rules = await prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
@@ -64,10 +56,6 @@ export async function fetchScoreResultEvalRules(params: {
       },
     },
   });
-
-  if (rules.length === 0) {
-    await setNoEvalConfigsCache(params.projectId, "scoreResultBased");
-  }
 
   return rules.map((rule) => ({
     id: rule.id,
