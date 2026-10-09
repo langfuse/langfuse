@@ -81,7 +81,7 @@ function SessionTranscriptThread({
   } | null;
 }) {
   const groups = groupConsecutiveTools(rows, {
-    minGroupSize: 4,
+    minGroupSize: 2,
     isTool: ({ row }) => row.type === "tool",
     getBoundary: ({ threadIndex }) => threadIndex,
     getToolName: ({ row }) =>
@@ -105,6 +105,9 @@ function SessionTranscriptThread({
     <div
       key={group.type === "tools" ? group.rows[0]!.id : group.row.id}
       data-session-compact-row={isCompact ? "" : undefined}
+      data-session-tool-group-id={
+        group.type === "tools" ? group.rows[0]!.id : undefined
+      }
       className={cn(
         index > 0 &&
           (() => {
@@ -184,6 +187,7 @@ function SessionTranscriptRow({
       className="group space-y-1"
       data-session-tool-row={isTool ? "" : undefined}
       data-session-system-row={isSystem ? "" : undefined}
+      data-session-message-row={!isTool && !isSystem ? "" : undefined}
       data-session-observation-id={row.message.observationId ?? undefined}
       data-session-transcript-row-id={id}
       data-scroll-request-id={scrollRequestId}
@@ -223,6 +227,15 @@ function SessionTranscriptToolGroup({
   const isOpen =
     expansion.isExpanded ||
     (containsTarget && props.scrollTarget?.requestId !== expansion.requestId);
+  if (rows.length < 4) {
+    return (
+      <div className="space-y-1">
+        {rows.map((item) => (
+          <SessionTranscriptRow key={item.id} {...props} item={item} />
+        ))}
+      </div>
+    );
+  }
   return (
     <SessionTimelineCollapsibleRow
       label={summary}

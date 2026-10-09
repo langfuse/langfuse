@@ -2299,7 +2299,7 @@ function SessionConversationalViewStory({
             return next;
           })
         }
-        onSelect={(index, observationId, rowId) => {
+        onSelect={(index, observationId, rowId, toolGroupId) => {
           const entry = entries[index];
           const traceId = entry
             ? displayedTraces[entry.traceIndex]?.trace.id
@@ -2313,7 +2313,7 @@ function SessionConversationalViewStory({
               requestId: ++requestId.current,
             });
           }
-          controller.onSelect(index, observationId, rowId);
+          controller.onSelect(index, observationId, rowId, toolGroupId);
         }}
         onVisibleTraceIdsChange={fn()}
         isLoadingTranscripts={isSearchPending}
@@ -2796,6 +2796,20 @@ export const ExactMessageNavigation = meta.story({
     await userEvent.click(
       card.getByRole("button", { name: "Tool: lookup · save" }),
     );
+    const toolGroup = await waitFor(async () => {
+      const group = canvas
+        .getByLabelText("Session conversation timeline")
+        .querySelector<HTMLElement>(
+          '[data-session-item-id="scroll-turn-2:0"] [data-session-tool-group-id="0:3"]',
+        );
+      await expect(group).toHaveAttribute("data-session-navigation-highlight");
+      if (!group) throw new Error("Target tool group is not mounted");
+      await expect(
+        group.querySelectorAll("[data-session-tool-row]"),
+      ).toHaveLength(2);
+      await expect(group.getAnimations()).toHaveLength(1);
+      return group;
+    });
     await expectNavigation(
       canvasElement,
       /^2\.1 Navigation turn 2/,
@@ -2816,6 +2830,96 @@ export const ExactMessageNavigation = meta.story({
     await expect(
       within(entry).getByRole("button", { name: "Expand save" }),
     ).toBeVisible();
+    await userEvent.type(search, "save");
+    const filteredHeader = await sidebar.findByRole("button", {
+      name: /^2\.1 Navigation turn 2/,
+    });
+    await userEvent.click(
+      within(filteredHeader.parentElement!.parentElement!).getByRole("button", {
+        name: "tool: save",
+      }),
+    );
+    await waitFor(async () => {
+      await expect(toolGroup).not.toHaveAttribute(
+        "data-session-navigation-highlight",
+      );
+      await expect(
+        toolGroup.querySelector('[data-session-transcript-row-id="0:4"]'),
+      ).toHaveAttribute("data-session-navigation-highlight");
+      await expect(
+        toolGroup.querySelector('[data-session-transcript-row-id="0:3"]'),
+      ).not.toHaveAttribute("data-session-navigation-highlight");
+    });
+  },
+});
+
+export const RepeatNavigationHighlight = meta.story({
+  name: "(Test) Repeat Navigation Highlight",
+  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const feed = canvas.getByLabelText("Session conversation timeline");
+    await userEvent.type(sidebar.getByRole("textbox"), "Turn 1 thread 3");
+    const button = sidebar.getByRole("button", { name: "User message" });
+    await userEvent.click(button);
+    const target = await waitFor(async () => {
+      const row = feed.querySelector<HTMLElement>(
+        '[data-session-item-id="scroll-turn-1:2"] [data-session-transcript-row-id="2:1"]',
+      );
+      await expect(row).toHaveAttribute("data-session-navigation-highlight");
+      if (!row) throw new Error("Target message is not mounted");
+      return row;
+    });
+    const bubble = target.querySelector<HTMLElement>(
+      "[data-session-message-bubble]",
+    );
+    if (!bubble) throw new Error("Target message bubble is not mounted");
+    await expect(target.getAnimations()).toHaveLength(0);
+    await expect(getComputedStyle(target).backgroundColor).toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+    const originalAnimation = bubble.getAnimations()[0]!;
+    await waitFor(
+      async () => {
+        await expect(originalAnimation.currentTime).toBeGreaterThanOrEqual(900);
+        await expect(originalAnimation.playState).toBe("running");
+      },
+      { timeout: 2_000 },
+    );
+    const fadedBackground = getComputedStyle(bubble).backgroundColor;
+
+    await userEvent.click(button);
+    const restartedAnimation = await waitFor(async () => {
+      const animation = bubble.getAnimations()[0];
+      await expect(animation).toBeDefined();
+      await expect(animation).not.toBe(originalAnimation);
+      await expect(animation?.currentTime).toBeLessThan(300);
+      await expect(getComputedStyle(bubble).backgroundColor).not.toBe(
+        fadedBackground,
+      );
+      return animation!;
+    });
+    await waitFor(
+      async () => {
+        await expect(target).not.toHaveAttribute(
+          "data-session-navigation-highlight",
+        );
+      },
+      { timeout: 2_000 },
+    );
+    const idleBackground = getComputedStyle(bubble).backgroundColor;
+
+    await userEvent.click(button);
+    await waitFor(async () => {
+      const animation = bubble.getAnimations()[0];
+      await expect(animation).toBeDefined();
+      await expect(animation).not.toBe(restartedAnimation);
+      await expect(animation?.currentTime).toBeLessThan(300);
+      await expect(getComputedStyle(bubble).backgroundColor).not.toBe(
+        idleBackground,
+      );
+    });
   },
 });
 
