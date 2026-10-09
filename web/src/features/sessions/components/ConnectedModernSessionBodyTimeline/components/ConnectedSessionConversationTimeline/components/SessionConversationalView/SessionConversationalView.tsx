@@ -134,9 +134,16 @@ export function SessionConversationalView(
         let toolGroupId: string | undefined;
         return getSessionTranscriptRows(item.state.result.transcript)
           .filter((row) => row.threadIndex === item.threadIndex)
-          .map(({ id, threadIndex, row }) => {
+          .flatMap(({ id, threadIndex, row }) => {
             if (row.type !== "tool") toolGroupId = undefined;
             else if (toolGroupId === undefined) toolGroupId = id;
+            if (
+              row.type !== "tool" &&
+              row.message.parts.length > 0 &&
+              row.message.parts.every((part) => part.type === "reasoning")
+            ) {
+              return [];
+            }
             const label =
               row.type === "tool"
                 ? (row.call?.toolName ?? row.result?.toolName ?? "Tool")
@@ -150,17 +157,20 @@ export function SessionConversationalView(
                     .join(" ") ||
                   row.message.senderName ||
                   row.message.role;
-            return {
-              id,
-              threadIndex,
-              toolGroupId:
-                row.type === "tool"
-                  ? `${id.split(":")[0]}:${toolGroupId}`
-                  : undefined,
-              observationId: row.message.observationId,
-              label,
-              role: row.type === "tool" ? ("tool" as const) : row.message.role,
-            };
+            return [
+              {
+                id,
+                threadIndex,
+                toolGroupId:
+                  row.type === "tool"
+                    ? `${id.split(":")[0]}:${toolGroupId}`
+                    : undefined,
+                observationId: row.message.observationId,
+                label,
+                role:
+                  row.type === "tool" ? ("tool" as const) : row.message.role,
+              },
+            ];
           });
       })();
       const matchingRows =

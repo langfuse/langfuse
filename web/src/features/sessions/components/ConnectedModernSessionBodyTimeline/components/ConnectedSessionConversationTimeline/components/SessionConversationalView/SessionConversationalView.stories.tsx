@@ -2482,6 +2482,112 @@ const meta = preview.meta({
 });
 export default meta;
 
+export const OmitReasoningOnlySidebarMessages = meta.story({
+  name: "(Test) Omit Reasoning-Only Sidebar Messages",
+  args: {
+    transcriptTraces: [
+      {
+        ...traces[0]!,
+        state: {
+          type: "transcript",
+          result: {
+            state: "loaded",
+            cutoff: false,
+            transcript: {
+              threads: [
+                {
+                  conversationHistory: [],
+                  currentTurn: {
+                    nestingLevel: 0,
+                    observations: [],
+                    messages: [
+                      {
+                        observationId: "reasoning-only",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:00Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "text",
+                              text: "Reasoning without an answer",
+                            },
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "encrypted-reasoning-only",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:01Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "encrypted",
+                              data: "encrypted-payload",
+                            },
+                          },
+                        ],
+                      },
+                      {
+                        observationId: "reasoning-with-answer",
+                        traceId: "trace-1",
+                        startTime: new Date("2026-09-24T12:00:02Z"),
+                        endTime: null,
+                        role: "assistant",
+                        source: "output",
+                        parts: [
+                          {
+                            type: "reasoning",
+                            content: {
+                              kind: "text",
+                              text: "Reasoning with an answer",
+                            },
+                          },
+                          { type: "text", text: "The visible answer" },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sidebar = within(canvas.getByRole("complementary"));
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await sidebar.findByRole("button", { name: "Assistant message" });
+    await expect(
+      sidebar.getAllByRole("button", { name: "Assistant message" }),
+    ).toHaveLength(1);
+    await expect(timeline.getByText("Encrypted reasoning")).toBeInTheDocument();
+    const reasoningButtons = timeline.getAllByRole("button", {
+      name: "Reasoning",
+    });
+    await expect(reasoningButtons).toHaveLength(2);
+    await userEvent.click(reasoningButtons[0]!);
+    await expect(
+      timeline.getByText("Reasoning without an answer"),
+    ).toBeVisible();
+    await userEvent.click(reasoningButtons[1]!);
+    await expect(timeline.getByText("Reasoning with an answer")).toBeVisible();
+    await expect(timeline.getByText("The visible answer")).toBeVisible();
+  },
+});
+
 export const ManualScrollSynchronization = meta.story({
   name: "(Test) Manual Scroll Synchronization",
   args: {
