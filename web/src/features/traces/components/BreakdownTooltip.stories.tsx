@@ -54,6 +54,14 @@ const nearDecimalCostDetails = {
   total: 0.058342999997,
 };
 
+const promptCacheUsage = {
+  cache_read_input_tokens: 208_706,
+  cache_creation_input_tokens: 41_313,
+  input: 952,
+  output: 2_254,
+  total: 253_225,
+};
+
 const priceSource = {
   projectId: "project-1",
   modelId: "gpt-5.6/priority",
@@ -70,6 +78,13 @@ export const Usage = meta.story({
   args: {
     details: usageDetails,
     children: <span>185 tokens</span>,
+  },
+});
+
+export const WithCacheHitRate = meta.story({
+  args: {
+    details: promptCacheUsage,
+    children: <span>253,225 tokens</span>,
   },
 });
 
@@ -148,7 +163,7 @@ async function openBreakdownTooltip(
     : null;
   if (!tooltip) throw new Error("Tooltip content was not rendered");
 
-  return { trigger, content: within(tooltip) };
+  return { trigger, content: within(tooltip), tooltip };
 }
 
 export const TestLinksMatchedPricingTier = meta.story({
@@ -235,5 +250,128 @@ export const TestNearDecimalCostFormatting = meta.story({
     await expect(
       content.queryByText("$0.058342999997"),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const TestCacheHitRate = meta.story({
+  name: "(Test) Shows cache hit rate above input usage",
+  args: {
+    details: promptCacheUsage,
+    children: <span>253,225 tokens</span>,
+  },
+  play: async ({ canvasElement }) => {
+    const { content, tooltip } = await openBreakdownTooltip(
+      canvasElement,
+      "253,225 tokens",
+    );
+    const text = tooltip.textContent ?? "";
+
+    await expect(content.getByText("83.2%")).toBeInTheDocument();
+    await expect(text.indexOf("Cache hit rate")).toBeLessThan(
+      text.indexOf("Input usage"),
+    );
+
+    await expect(
+      content.getByLabelText("How cache hit rate is calculated"),
+    ).toBeInTheDocument();
+  },
+});
+
+export const TestZeroCacheHitRate = meta.story({
+  name: "(Test) Shows zero cache hit rate when no tokens were read",
+  args: {
+    details: {
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 40,
+      input: 60,
+      output: 10,
+      total: 110,
+    },
+    children: <span>110 tokens</span>,
+  },
+  play: async ({ canvasElement }) => {
+    const { content } = await openBreakdownTooltip(canvasElement, "110 tokens");
+    await expect(content.getByText("Cache hit rate")).toBeInTheDocument();
+    await expect(content.getByText("0.0%")).toBeInTheDocument();
+  },
+});
+
+const undividableCacheUsage = [
+  ["no cache tokens", { input: 100, output: 20, total: 120 }],
+  ["zero input", { cache_read_input_tokens: 0, input: 0, output: 1, total: 1 }],
+  [
+    "missing cache counts",
+    {
+      cache_read_input_tokens: undefined,
+      input: 100,
+      output: 1,
+      total: 101,
+    },
+  ],
+  [
+    "non-finite input",
+    { cache_read_input_tokens: Number.NaN, input: 10, output: 1, total: 11 },
+  ],
+  [
+    "infinite input",
+    {
+      cache_read_input_tokens: Number.POSITIVE_INFINITY,
+      input: 10,
+      output: 1,
+      total: 11,
+    },
+  ],
+  [
+    "negative total",
+    { cache_read_input_tokens: 4, input: -10, output: 1, total: -5 },
+  ],
+  [
+    "negative cache read",
+    { cache_read_input_tokens: -4, input: 10, output: 1, total: 6 },
+  ],
+  [
+    "cancelling input",
+    { cache_read_input_tokens: 8, input: -8, output: 1, total: 1 },
+  ],
+] as const;
+
+export const TestHiddenCacheHitRate = meta.story({
+  name: "(Test) Hides cache hit rate when it cannot be divided",
+  render: () => (
+    <div className="flex flex-col gap-2">
+      {undividableCacheUsage.map(([label, details]) => (
+        <BreakdownTooltip key={label} details={details}>
+          <span>{label}</span>
+        </BreakdownTooltip>
+      ))}
+      <BreakdownTooltip
+        details={[
+          { cache_read_input_tokens: 10, input: 0 },
+          { cache_read_input_tokens: -10, input: 0 },
+        ]}
+      >
+        <span>cancelling generations</span>
+      </BreakdownTooltip>
+      <BreakdownTooltip details={promptCacheUsage} isCost>
+        <span>cost breakdown</span>
+      </BreakdownTooltip>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    for (const [label] of undividableCacheUsage) {
+      const { content } = await openBreakdownTooltip(canvasElement, label);
+      await expect(
+        content.queryByText("Cache hit rate"),
+      ).not.toBeInTheDocument();
+      await expect(content.queryByText("NaN%")).not.toBeInTheDocument();
+      await expect(content.queryByText("Infinity%")).not.toBeInTheDocument();
+    }
+
+    for (const label of ["cancelling generations", "cost breakdown"]) {
+      const { content } = await openBreakdownTooltip(canvasElement, label);
+      await expect(
+        content.queryByText("Cache hit rate"),
+      ).not.toBeInTheDocument();
+    }
   },
 });

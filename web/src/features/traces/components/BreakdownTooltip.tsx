@@ -8,8 +8,10 @@ import {
 import { useState } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, InfoIcon } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { cva, type VariantProps } from "class-variance-authority";
 
@@ -86,6 +88,7 @@ export const BreakdownTooltip = ({
       : usdFormatter(value, costFractionDigits, costFractionDigits);
   };
   const waterfallSegments = createWaterfallSegments(contributionEntries);
+  const cacheHitRate = isCost ? null : getCacheHitRate(inputEntries);
   const displayedTotal =
     aggregatedDetails.total ??
     (isCost ? sumEntries(contributionEntries) : new Decimal(0));
@@ -159,6 +162,11 @@ export const BreakdownTooltip = ({
               entries={inputEntries}
               formatValue={formatValue}
               waterfallSegments={waterfallSegments}
+              leading={
+                cacheHitRate === null ? null : (
+                  <CacheHitRateRow rate={cacheHitRate} />
+                )
+              }
             />
 
             {/* Output Section */}
@@ -300,6 +308,8 @@ interface SectionProps {
   entries: [string, number | undefined][];
   formatValue: (value: number | Decimal) => string;
   waterfallSegments: Map<string, WaterfallSegment>;
+  /** Sits immediately above the section title, closer to it than to the breakdown header. */
+  leading?: React.ReactNode;
 }
 
 const Section = ({
@@ -307,16 +317,27 @@ const Section = ({
   entries,
   formatValue,
   waterfallSegments,
+  leading,
 }: SectionProps) => {
   const sectionTotal = sumEntries(entries);
+  const titleRow = (
+    <BreakdownRow
+      label={title}
+      value={formatValue(sectionTotal)}
+      variant="section"
+    />
+  );
 
   return (
     <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
-      <BreakdownRow
-        label={title}
-        value={formatValue(sectionTotal)}
-        variant="section"
-      />
+      {leading ? (
+        <div className="col-span-3 flex flex-col gap-1">
+          {leading}
+          {titleRow}
+        </div>
+      ) : (
+        titleRow
+      )}
       {entries.map(([key, value]) => (
         <BreakdownRow
           key={key}
@@ -329,6 +350,80 @@ const Section = ({
     </div>
   );
 };
+
+function CacheHitRateRow({ rate }: { rate: number }) {
+  return (
+    <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+      <span className="inline-flex items-center gap-1">
+        Cache hit rate
+        <CacheHitRateInfo />
+      </span>
+      <Badge
+        color="filled"
+        size="sm"
+        font="mono"
+        text={formatCacheHitRate(rate)}
+      />
+    </div>
+  );
+}
+
+function CacheHitRateInfo() {
+  return (
+    <CustomTooltip
+      placement="top"
+      content={
+        <div className="space-y-1.5">
+          <p>Cache-read tokens divided by total input tokens.</p>
+          <p>
+            For multi-turn interactions, above 90% is common when later turns
+            keep a stable prefix, and about 70% for a single turn with a fixed
+            rubric.
+          </p>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <InfoIcon
+          {...getTriggerProps()}
+          aria-hidden={false}
+          aria-label="How cache hit rate is calculated"
+          className="text-muted-foreground icon-sm shrink-0"
+        />
+      )}
+    </CustomTooltip>
+  );
+}
+
+function getCacheHitRate(entries: [string, number | undefined][]) {
+  if (!entries.some(([key]) => /cache/i.test(key))) return null;
+  if (entries.some(([, value]) => !isUsableTokenCount(value))) return null;
+
+  const total = sumEntries(entries);
+  // A zero or negative total cannot be a denominator.
+  if (!total.isFinite() || total.lte(0)) return null;
+
+  const cacheRead = sumEntries(entries.filter(([key]) => isCacheReadKey(key)));
+  if (!cacheRead.isFinite() || cacheRead.isNeg()) return null;
+
+  const rate = cacheRead.div(total);
+  if (!rate.isFinite()) return null;
+
+  return rate.toNumber();
+}
+
+function isUsableTokenCount(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isCacheReadKey(key: string) {
+  if (/creation|cache_write/i.test(key)) return false;
+  return /cache_read|cached/i.test(key);
+}
+
+function formatCacheHitRate(rate: number) {
+  return `${(rate * 100).toFixed(1)}%`;
+}
 
 function sortEntriesByValue(entries: [string, number | undefined][]) {
   return entries.toSorted(([, a], [, b]) => (b ?? 0) - (a ?? 0));

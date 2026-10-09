@@ -24,7 +24,8 @@ const badgeVariants = cva(
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
-        filled: "border-transparent bg-muted text-foreground-secondary",
+        filled:
+          "border-transparent bg-muted text-foreground-secondary dark:bg-tertiary/60",
       },
       interactive: {
         true: "underline-dotted",
