@@ -4,11 +4,25 @@ import type { Server } from "http";
 import { initializeWorker } from "./initialize";
 import { env } from "./env";
 import { logger } from "@langfuse/shared/src/server";
+import { getStartupJitterMs, sleep } from "./utils/startupJitter";
 
 export let server: Server | undefined;
 
 const startWorker = async (): Promise<void> => {
   await initializeWorker();
+
+  // Importing app.js registers all queue consumers and starts the periodic
+  // runners, which open their Redis connections. Delay it by a random amount
+  // so tasks that boot together do not connect in the same instant.
+  const startupJitterMs = getStartupJitterMs(
+    env.LANGFUSE_WORKER_STARTUP_JITTER_MAX_MS,
+  );
+  if (startupJitterMs > 0) {
+    logger.info(
+      `Delaying queue registration by ${startupJitterMs}ms (startup jitter)`,
+    );
+    await sleep(startupJitterMs);
+  }
 
   type AppDefault = typeof import("./app.js").default;
   const mod = (await import("./app.js")) as unknown as {
