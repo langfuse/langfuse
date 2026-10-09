@@ -588,7 +588,8 @@ function TabsOverflowList({
         <div
           ref={rowRef}
           className={cn(
-            "flex h-full items-center",
+            // A tab wider than the row truncates; the overflow trigger never clips.
+            "flex h-full min-w-0 items-center [&>[role=tab]]:min-w-0",
             visibleIndices === null && "invisible",
           )}
         >
