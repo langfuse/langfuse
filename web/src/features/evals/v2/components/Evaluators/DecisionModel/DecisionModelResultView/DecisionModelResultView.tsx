@@ -198,7 +198,7 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
           {result.instructions}
         </span>
         <div
-          className="border-border min-w-4 flex-1 border-t border-dashed"
+          className="border-border min-w-4 flex-1 self-end border-t border-dashed"
           aria-hidden="true"
         />
         <ResultBadge result={result} />
