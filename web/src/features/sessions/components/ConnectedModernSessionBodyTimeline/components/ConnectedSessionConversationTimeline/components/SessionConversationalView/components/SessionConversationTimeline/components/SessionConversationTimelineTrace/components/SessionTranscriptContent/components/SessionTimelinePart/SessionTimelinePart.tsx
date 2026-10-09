@@ -12,6 +12,7 @@ import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { cn } from "@/src/utils/tailwind";
 
 function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
   const content = part.content;
@@ -82,9 +83,15 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
     typeof source === "string"
       ? `@@@langfuseMedia:type=${part.mediaType}|id=${part.content.id}|source=${source}@@@`
       : undefined;
+  const usesFallback = !reference && !safeImageUrl && !safeUrl;
 
   return (
-    <div className="border-border/70 bg-background flex w-fit max-w-full flex-col gap-2 rounded-md border p-3">
+    <div
+      className={cn(
+        "border-border/70 bg-background flex max-w-full flex-col gap-2 rounded-md border p-3",
+        usesFallback ? "w-full" : "w-fit",
+      )}
+    >
       <div className="text-muted-foreground flex items-center gap-2 text-xs font-bold">
         <FileIcon className="icon-base" />
         {part.filename ?? part.mediaType ?? "File"}
