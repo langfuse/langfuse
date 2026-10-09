@@ -8,6 +8,7 @@ import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath } from "@/src/features/events";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function EditWidgetPage() {
   const router = useRouter();
@@ -64,7 +65,11 @@ export default function EditWidgetPage() {
       }
     },
     onError: (error) => {
-      showErrorToast("Failed to update widget", error.message);
+      showErrorToast(
+        "Failed to update widget",
+        error.message,
+        classifyTrpcToastError(error, "widget.update"),
+      );
     },
   });
 

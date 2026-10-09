@@ -160,6 +160,7 @@ export function useParsedObservation({
     enabled: !!mergedObservation, // Only run when we have data
     staleTime: Infinity, // Parsed data never goes stale (input data is the source of truth)
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes after unmount
+    meta: { toastOperation: "observation.parse" },
   });
 
   return {

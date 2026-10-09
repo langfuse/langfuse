@@ -197,6 +197,11 @@ async function runImport(params: {
       showErrorToast(
         "Widget filters were adjusted",
         "Some imported filters or filter values were removed because they are not available in this project.",
+        {
+          operation: "widget.import",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
         "WARNING",
       );
     }
@@ -204,6 +209,11 @@ async function runImport(params: {
     showErrorToast(
       "Malformed input",
       "This operation can't be done due to the malformed input",
+      {
+        operation: "widget.import",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      },
       "WARNING",
     );
   }

@@ -13,8 +13,8 @@ import {
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { showSuccessToast } from "@/src/features/notifications";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
 export const StripeCancellationButton = ({
@@ -41,10 +41,14 @@ export const StripeCancellationButton = ({
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
-    onError: () => {
+    onError: (error) => {
       setLoading(false);
       setOpId(null);
-      toast.error("Failed to cancel subscription");
+      showToast({
+        type: "ERROR",
+        title: "Failed to cancel subscription",
+        analytics: classifyTrpcToastError(error, "subscription.cancel"),
+      });
     },
   });
 
@@ -60,10 +64,14 @@ export const StripeCancellationButton = ({
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
-      onError: () => {
+      onError: (error) => {
         setLoading(false);
         setOpId(null);
-        toast.error("Failed to reactivate subscription");
+        showToast({
+          type: "ERROR",
+          title: "Failed to reactivate subscription",
+          analytics: classifyTrpcToastError(error, "subscription.reactivate"),
+        });
       },
     });
 
@@ -77,8 +85,12 @@ export const StripeCancellationButton = ({
         setOpId(opId);
       }
       await reactivateMutation.mutateAsync({ orgId, opId });
-    } catch (_e) {
-      toast.error("Failed to reactivate subscription");
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to reactivate subscription",
+        analytics: classifyTrpcToastError(error, "subscription.reactivate"),
+      });
     }
   };
 
@@ -92,8 +104,12 @@ export const StripeCancellationButton = ({
         setOpId(opId);
       }
       await cancelMutation.mutateAsync({ orgId, opId });
-    } catch (_e) {
-      toast.error("Failed to cancel subscription");
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to cancel subscription",
+        analytics: classifyTrpcToastError(error, "subscription.cancel"),
+      });
     }
   };
 

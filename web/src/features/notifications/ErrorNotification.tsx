@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import {
   type ToastErrorAnalytics,
-  type ToastErrorEventProperties,
+  getToastErrorProperties,
 } from "@/src/features/notifications/toastAnalytics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSupportDrawer } from "@/src/features/support-chat";
@@ -19,7 +19,7 @@ interface ErrorNotificationProps {
   source?: "application" | "trpc";
   path?: string;
   traceId?: string;
-  analytics?: ToastErrorAnalytics;
+  analytics: ToastErrorAnalytics;
 }
 
 export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
@@ -42,23 +42,18 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   const textColor = isError
     ? "text-destructive-foreground"
     : "text-dark-yellow";
-  const interactionProperties = {
-    toastType: type,
+  const eventProperties = getToastErrorProperties(
+    analytics,
+    type,
     source,
-    ...(path ? { path } : {}),
-    errorOrigin: analytics?.errorOrigin ?? "unknown",
-    errorCategory: analytics?.errorCategory ?? "unknown",
-    ...(analytics?.operation ? { operation: analytics.operation } : {}),
-    ...(analytics?.trpcCode ? { trpcCode: analytics.trpcCode } : {}),
-    ...(analytics?.httpStatus !== undefined
-      ? { httpStatus: analytics.httpStatus }
-      : {}),
-  };
-  const eventProperties: ToastErrorEventProperties = {
-    ...interactionProperties,
-    hasErrorId: Boolean(traceId),
-    ...(traceId ? { errorId: traceId } : {}),
-  };
+    analytics.trpcPath,
+    traceId,
+  );
+  const {
+    hasErrorId: _hasErrorId,
+    errorId: _errorId,
+    ...interactionProperties
+  } = eventProperties;
 
   const captureShown = (element: HTMLDivElement | null) => {
     if (!element || didCaptureShown.current) return;

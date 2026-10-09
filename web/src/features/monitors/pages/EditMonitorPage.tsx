@@ -10,6 +10,7 @@ import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, type APIError } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { type Monitor } from "@langfuse/shared/monitors";
 
 /** EditMonitorPage gates the edit-monitor route and defers all data fetching to EditMonitorPageContent so blocked users never trigger the monitor query. */
@@ -62,7 +63,12 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
       });
       await router.replace(`/project/${monitor.projectId}/alerts`);
     },
-    onError: (error) => showErrorToast("Failed to delete alert", error.message),
+    onError: (error) =>
+      showErrorToast(
+        "Failed to delete alert",
+        error.message,
+        classifyTrpcToastError(error, "monitor.delete"),
+      ),
   });
 
   return (

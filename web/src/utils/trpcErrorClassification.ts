@@ -1,6 +1,14 @@
 import { TRPCClientError } from "@trpc/client";
-import { type ToastErrorAnalytics } from "@/src/features/notifications/toastAnalytics";
+import {
+  TRPC_ERROR_CODES_BY_KEY,
+  type TRPC_ERROR_CODE_KEY,
+} from "@trpc/server/rpc";
+import {
+  type ToastErrorAnalytics,
+  type ToastOperation,
+} from "@/src/features/notifications/toastAnalytics";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
+import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
 
 type SyntaxErrorWithResponseStatus = SyntaxError & { responseStatus?: number };
 
@@ -30,8 +38,13 @@ const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
     : undefined;
 };
 
-const getCode = (error: TRPCClientError<any>): string | undefined =>
-  typeof error.data?.code === "string" ? error.data.code : undefined;
+const getCode = (
+  error: TRPCClientError<any>,
+): TRPC_ERROR_CODE_KEY | undefined =>
+  typeof error.data?.code === "string" &&
+  Object.hasOwn(TRPC_ERROR_CODES_BY_KEY, error.data.code)
+    ? (error.data.code as TRPC_ERROR_CODE_KEY)
+    : undefined;
 
 const getPath = (error: TRPCClientError<any>): string | undefined =>
   typeof error.data?.path === "string" ? error.data.path : undefined;
@@ -44,23 +57,53 @@ const getHttpStatus = (error: TRPCClientError<any>): number | undefined =>
 const withTransportMetadata = (
   error: TRPCClientError<any>,
   classification: Pick<ToastErrorAnalytics, "errorOrigin" | "errorCategory">,
+  operation: ToastOperation,
 ): ToastErrorAnalytics => {
-  const operation = getPath(error);
   const trpcCode = getCode(error);
   const httpStatus = getHttpStatus(error);
+  const trpcPath = getTrpcToastOperation(error);
 
   return {
     ...classification,
-    ...(operation ? { operation } : {}),
+    operation,
     ...(trpcCode ? { trpcCode } : {}),
     ...(httpStatus !== undefined ? { httpStatus } : {}),
+    ...(typeof error.data?.traceId === "string"
+      ? { errorId: error.data.traceId }
+      : {}),
+    ...(trpcPath ? { trpcPath } : {}),
   };
 };
 
-export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
+export const classifyTrpcToastError = (
+  error: unknown,
+  operation: ToastOperation,
+): ToastErrorAnalytics => {
   if (!(error instanceof TRPCClientError)) {
-    return { errorOrigin: "frontend", errorCategory: "internal" };
+    const trpcPath = getTrpcToastOperation(error);
+    if (
+      trpcPath &&
+      error instanceof TypeError &&
+      FAILED_FETCH_MESSAGE.test(error.message)
+    ) {
+      return {
+        operation,
+        errorOrigin: "network",
+        errorCategory: "transient",
+        trpcPath,
+      };
+    }
+    return {
+      operation,
+      errorOrigin: "frontend",
+      errorCategory: "internal",
+      ...(trpcPath ? { trpcPath } : {}),
+    };
   }
+
+  const classify = (
+    classification: Pick<ToastErrorAnalytics, "errorOrigin" | "errorCategory">,
+  ) => withTransportMetadata(error, classification, operation);
 
   const code = getCode(error);
   const path = getPath(error);
@@ -70,14 +113,14 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
     error.cause instanceof SyntaxError &&
     ![414, 431].includes(httpStatus ?? 0)
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "network",
       errorCategory: "transient",
     });
   }
 
   if ([414, 431].includes(httpStatus ?? 0)) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "frontend",
       errorCategory: "internal",
     });
@@ -90,7 +133,7 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
       FAILED_FETCH_MESSAGE.test(error.cause.message)) ||
       FAILED_FETCH_MESSAGE.test(error.message))
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "network",
       errorCategory: "transient",
     });
@@ -102,7 +145,7 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
       path !== undefined &&
       (EXPECTED_TRPC_BAD_REQUEST_PATHS as readonly string[]).includes(path))
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "backend",
       errorCategory: "user_input",
     });
@@ -114,7 +157,7 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
     httpStatus === 401 ||
     httpStatus === 403
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "backend",
       errorCategory: "permission",
     });
@@ -126,14 +169,14 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
     code === "PRECONDITION_FAILED" ||
     [404, 409, 412].includes(httpStatus ?? 0)
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "backend",
       errorCategory: "product_state",
     });
   }
 
   if (code === "TOO_MANY_REQUESTS" || httpStatus === 429) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "backend",
       errorCategory: "rate_limit",
     });
@@ -145,7 +188,7 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
     httpStatus === 413 ||
     httpStatus === 422
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "backend",
       errorCategory: "resource_limit",
     });
@@ -157,14 +200,14 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
     code === "SERVICE_UNAVAILABLE" ||
     [408, 499, 502, 503, 504, 524].includes(httpStatus ?? 0)
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "network",
       errorCategory: "transient",
     });
   }
 
   if (code === "INTERNAL_SERVER_ERROR" || (httpStatus ?? 0) >= 500) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "backend",
       errorCategory: "internal",
     });
@@ -175,14 +218,14 @@ export const classifyTrpcToastError = (error: unknown): ToastErrorAnalytics => {
     code === "BAD_REQUEST" ||
     code === "METHOD_NOT_SUPPORTED"
   ) {
-    return withTransportMetadata(error, {
+    return classify({
       errorOrigin: "frontend",
       errorCategory: "internal",
     });
   }
 
-  return withTransportMetadata(error, {
+  return classify({
     errorOrigin: "backend",
-    errorCategory: "unknown",
+    errorCategory: "internal",
   });
 };

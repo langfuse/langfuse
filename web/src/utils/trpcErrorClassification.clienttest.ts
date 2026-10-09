@@ -6,6 +6,7 @@ import {
   classifyTrpcToastError,
   EXPECTED_TRPC_BAD_REQUEST_PATHS,
 } from "@/src/utils/trpcErrorClassification";
+import { rememberTrpcToastOperation } from "@/src/utils/trpcToastOperation";
 
 const trpcError = (code: string, httpStatus: number, path = "test.procedure") =>
   TRPCClientError.from({
@@ -17,6 +18,40 @@ const trpcError = (code: string, httpStatus: number, path = "test.procedure") =>
   });
 
 describe("classifyTrpcToastError", () => {
+  it("recognizes a raw failed fetch without relabeling a linked client bug", () => {
+    const offline = new TypeError("Failed to fetch");
+    const clientBug = new Error("Transformer invariant failed");
+    rememberTrpcToastOperation(offline, "projectApiKeys.create");
+    rememberTrpcToastOperation(clientBug, "projectApiKeys.create");
+
+    expect(
+      classifyTrpcToastError(offline, "project_api_key.create"),
+    ).toMatchObject({
+      operation: "project_api_key.create",
+      trpcPath: "projectApiKeys.create",
+      errorOrigin: "network",
+      errorCategory: "transient",
+    });
+    expect(
+      classifyTrpcToastError(clientBug, "project_api_key.create"),
+    ).toMatchObject({
+      errorOrigin: "frontend",
+      errorCategory: "internal",
+    });
+  });
+
+  it("retains the failed intent when a transport error has no server path", () => {
+    const error = new TRPCClientError("Failed to fetch", {
+      cause: new TypeError("Failed to fetch"),
+    });
+
+    expect(classifyTrpcToastError(error, "project_api_key.create")).toEqual({
+      operation: "project_api_key.create",
+      errorOrigin: "network",
+      errorCategory: "transient",
+    });
+  });
+
   it.each([
     ["BAD_REQUEST", 400, "frontend", "internal"],
     ["FORBIDDEN", 403, "backend", "permission"],
@@ -25,14 +60,16 @@ describe("classifyTrpcToastError", () => {
     ["UNPROCESSABLE_CONTENT", 422, "backend", "resource_limit"],
     ["SERVICE_UNAVAILABLE", 503, "network", "transient"],
     ["INTERNAL_SERVER_ERROR", 500, "backend", "internal"],
-    ["PARSE_ERROR", 418, "backend", "unknown"],
+    ["PARSE_ERROR", 418, "backend", "internal"],
   ] as const)(
     "maps %s (%i) to %s/%s",
     (code, httpStatus, errorOrigin, errorCategory) => {
-      expect(classifyTrpcToastError(trpcError(code, httpStatus))).toEqual({
+      expect(
+        classifyTrpcToastError(trpcError(code, httpStatus), "prompts.create"),
+      ).toEqual({
         errorOrigin,
         errorCategory,
-        operation: "test.procedure",
+        operation: "prompts.create",
         trpcCode: code,
         httpStatus,
       });
@@ -43,7 +80,7 @@ describe("classifyTrpcToastError", () => {
     "classifies user-configured BAD_REQUEST path %s as user input",
     (path) => {
       expect(
-        classifyTrpcToastError(trpcError("BAD_REQUEST", 400, path)),
+        classifyTrpcToastError(trpcError("BAD_REQUEST", 400, path), path),
       ).toEqual({
         errorOrigin: "backend",
         errorCategory: "user_input",
@@ -59,7 +96,8 @@ describe("classifyTrpcToastError", () => {
       cause: new SyntaxError("Sensitive response body"),
     });
 
-    expect(classifyTrpcToastError(error)).toEqual({
+    expect(classifyTrpcToastError(error, "prompts.create")).toEqual({
+      operation: "prompts.create",
       errorOrigin: "network",
       errorCategory: "transient",
     });
@@ -70,7 +108,8 @@ describe("classifyTrpcToastError", () => {
       cause: new TypeError("Failed to fetch"),
     });
 
-    expect(classifyTrpcToastError(error)).toEqual({
+    expect(classifyTrpcToastError(error, "prompts.create")).toEqual({
+      operation: "prompts.create",
       errorOrigin: "network",
       errorCategory: "transient",
     });
@@ -81,7 +120,8 @@ describe("classifyTrpcToastError", () => {
       cause: new Error("Transformer failed"),
     });
 
-    expect(classifyTrpcToastError(error)).toEqual({
+    expect(classifyTrpcToastError(error, "prompts.create")).toEqual({
+      operation: "prompts.create",
       errorOrigin: "frontend",
       errorCategory: "internal",
     });
@@ -96,8 +136,12 @@ describe("classifyTrpcToastError", () => {
     cause.responseStatus = 431;
 
     expect(
-      classifyTrpcToastError(new TRPCClientError("parse failed", { cause })),
+      classifyTrpcToastError(
+        new TRPCClientError("parse failed", { cause }),
+        "prompts.create",
+      ),
     ).toEqual({
+      operation: "prompts.create",
       errorOrigin: "frontend",
       errorCategory: "internal",
       httpStatus: 431,
@@ -105,9 +149,12 @@ describe("classifyTrpcToastError", () => {
   });
 
   it("classifies values outside the tRPC seam as frontend failures", () => {
-    expect(classifyTrpcToastError(new Error("boom"))).toEqual({
-      errorOrigin: "frontend",
-      errorCategory: "internal",
-    });
+    expect(classifyTrpcToastError(new Error("boom"), "prompts.create")).toEqual(
+      {
+        operation: "prompts.create",
+        errorOrigin: "frontend",
+        errorCategory: "internal",
+      },
+    );
   });
 });

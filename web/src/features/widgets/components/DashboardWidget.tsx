@@ -2,6 +2,7 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   buildWidgetOrderBy,
   getResultUnit,
@@ -523,7 +524,11 @@ export function DashboardWidget({
       });
     },
     onError: (e) => {
-      showErrorToast("Failed to clone widget", e.message);
+      showErrorToast(
+        "Failed to clone widget",
+        e.message,
+        classifyTrpcToastError(e, "widget.clone"),
+      );
     },
   });
   const handleCopy = () => {
@@ -596,7 +601,11 @@ export function DashboardWidget({
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast("Copy failed", "Could not write to the clipboard.", {
+        operation: "widget.copy",
+        errorOrigin: "frontend",
+        errorCategory: "permission",
+      });
     }
   };
 

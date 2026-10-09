@@ -12,8 +12,8 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
 export const StripeKeepPlanButton = ({
@@ -40,10 +40,14 @@ export const StripeKeepPlanButton = ({
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
-    onError: () => {
+    onError: (error) => {
       onProcessing(null);
       setOpId(null);
-      toast.error("Failed to keep current plan");
+      showToast({
+        type: "ERROR",
+        title: "Failed to keep current plan",
+        analytics: classifyTrpcToastError(error, "billing_plan.keep"),
+      });
     },
   });
 

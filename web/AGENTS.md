@@ -296,6 +296,25 @@ Sentry instrumentation skill first and decide whether it should capture at all
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
 
+### Toasts
+
+- Use the typed helpers exported by `src/features/notifications`; importing the
+  Sonner `toast` API outside their implementation is lint-prohibited.
+- Every toast requires a static `operation` from `toastOperations.ts` or a typed
+  tRPC procedure path. Register a new semantic intent when needed; never use
+  resource identifiers, names, messages, URLs, or form values.
+- Errors and warnings additionally require `errorOrigin` and `errorCategory`.
+  For tRPC catches, use `classifyTrpcToastError(error, operation)` to retain
+  classification, request path, response code/status, and error ID. Local
+  validation, clipboard, and product-state branches must classify explicitly.
+- `showToast` preserves native Sonner presentation; `showErrorToast` and
+  `showSuccessToast` render the custom cards. Analytics captures metadata only,
+  never the title, description, or exception payload.
+- Direct TanStack queries or mutations that can show global error toasts must include a
+  registered `meta.toastOperation`. Unattributed global failures use explicit
+  gap markers (`query.execute` / `mutation.execute`, `isOperationFallback=true`),
+  not an inferred intent from customer-controlled query keys.
+
 ### Add frontend feature
 
 1. Prefer `src/features/<feature>/*` for feature-local code.

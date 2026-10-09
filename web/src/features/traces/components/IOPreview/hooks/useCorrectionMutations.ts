@@ -2,8 +2,9 @@ import { useState, useCallback } from "react";
 import { api } from "@/src/utils/api";
 import { useCorrectionCache } from "@/src/features/corrections";
 import { type ScoreDomain } from "@langfuse/shared";
-import { toast } from "sonner";
 import { v4 } from "uuid";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 interface UseCorrectionMutationsParams {
   projectId: string;
@@ -80,7 +81,11 @@ export function useCorrectionMutations({
       return { previousValue, correctionId: effectiveCorrection.id };
     },
     onError: (error, _, context) => {
-      toast.error("Failed to delete correction");
+      showToast({
+        type: "ERROR",
+        title: "Failed to delete correction",
+        analytics: classifyTrpcToastError(error, "correction.delete"),
+      });
       // Rollback delete - restore to cache if we had a previous value
       if (context?.correctionId) {
         correctionCache.rollbackDelete(

@@ -2,6 +2,7 @@ import { TRPCClientError } from "@trpc/client";
 import { showErrorToast } from "@/src/features/notifications";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
+import type { ToastOperation } from "@/src/features/notifications/toastAnalytics";
 
 // Catch network level errors, e.g. by proxy rate-limiting
 
@@ -81,7 +82,7 @@ const getErrorDescription = (httpStatus: number) => {
   }
 };
 
-export const trpcErrorToast = (error: unknown) => {
+export const trpcErrorToast = (error: unknown, operation: ToastOperation) => {
   if (error instanceof TRPCClientError) {
     // Handle infrastructure-level errors that return non-JSON responses
     // (e.g., 431 with empty body, 502/503/504 with HTML error pages)
@@ -89,18 +90,19 @@ export const trpcErrorToast = (error: unknown) => {
       showErrorToast(
         "Unexpected Response",
         "The request could not be completed. Please try again or contact support if this persists.",
+        classifyTrpcToastError(error, operation),
         "WARNING",
         undefined,
         undefined,
         "trpc",
-        classifyTrpcToastError(error),
       );
       return;
     }
 
     const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
 
-    const path = error.data?.path;
+    const path =
+      typeof error.data?.path === "string" ? error.data.path : undefined;
     // OTEL trace id attached by the tRPC errorFormatter; absent when OTEL is not
     // running (self-hosted / unsampled). Surfaced so users can share it in
     // support tickets for correlation.
@@ -113,21 +115,21 @@ export const trpcErrorToast = (error: unknown) => {
     showErrorToast(
       validationDescription ? "Invalid input" : errorTitle,
       description,
+      classifyTrpcToastError(error, operation),
       httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
       path,
       traceId,
       "trpc",
-      classifyTrpcToastError(error),
     );
   } else {
     showErrorToast(
       "Unexpected Error",
       "An unexpected error occurred.",
+      classifyTrpcToastError(error, operation),
       "ERROR",
       undefined,
       undefined,
       "trpc",
-      classifyTrpcToastError(error),
     );
   }
 };

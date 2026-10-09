@@ -21,6 +21,7 @@ import { type z } from "zod";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { assertUnreachable } from "@/src/utils/types";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { DashboardWidgetTable, type WidgetTableRow } from "./WidgetTable";
 
 export function ConnectedDashboardWidgetTable() {
@@ -40,11 +41,16 @@ export function ConnectedDashboardWidgetTable() {
         showErrorToast(
           "Widget in use",
           "Widget is still in use. Please remove it from all dashboards before deleting it.",
+          classifyTrpcToastError(error, "widget.delete"),
         );
         return;
       }
 
-      showErrorToast("Failed to delete widget", error.message);
+      showErrorToast(
+        "Failed to delete widget",
+        error.message,
+        classifyTrpcToastError(error, "widget.delete"),
+      );
     },
   });
 
@@ -131,6 +137,7 @@ function ConnectedDashboardWidgetTableContent({
         showErrorToast(
           "Failed to download widget",
           error instanceof Error ? error.message : "Unknown error",
+          classifyTrpcToastError(error, "widget.download"),
         );
       }
     },
@@ -139,8 +146,10 @@ function ConnectedDashboardWidgetTableContent({
 
   const handleCopyToClipboard = useCallback(
     async (widgetId: string) => {
+      let failurePhase: "trpc" | "clipboard" = "trpc";
       try {
         const exportSource = await fetchExportSource(widgetId);
+        failurePhase = "clipboard";
         await copyTextToClipboard(
           JSON.stringify(buildWidgetExport(exportSource), null, 2),
         );
@@ -158,6 +167,13 @@ function ConnectedDashboardWidgetTableContent({
         showErrorToast(
           "Failed to copy widget",
           error instanceof Error ? error.message : "Unknown error",
+          failurePhase === "trpc"
+            ? classifyTrpcToastError(error, "widget.copy")
+            : {
+                operation: "widget.copy",
+                errorOrigin: "frontend",
+                errorCategory: "permission",
+              },
         );
       }
     },
@@ -191,6 +207,7 @@ function ConnectedDashboardWidgetTableContent({
         showErrorToast(
           "Failed to duplicate widget",
           error instanceof Error ? error.message : "Unknown error",
+          classifyTrpcToastError(error, "widget.clone"),
         );
       }
     },

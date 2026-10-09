@@ -2,11 +2,12 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { BadgeCheck, X } from "lucide-react";
 import { useRef } from "react";
+import type { ToastOperation } from "./toastAnalytics";
 
 export type SuccessNotificationProps = {
   title: string;
   description: string;
-  operation: string;
+  operation: ToastOperation;
   onDismiss: () => void;
   link?: {
     href: string;

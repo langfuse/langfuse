@@ -2,6 +2,10 @@ import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
 import { chartColors } from "../constants";
+import {
+  hoverChartTarget,
+  movePointerOffChart,
+} from "../storybookInteractions";
 import { BarChart } from "./BarChart";
 
 const data = [
@@ -80,7 +84,9 @@ export const KeyboardFocus = meta.story({
   name: "(Test) Keyboard Focus",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const firstBar = canvas.getByRole("graphics-symbol", { name: "Alpha: 12" });
+    const firstBar = canvas.getByRole("graphics-symbol", {
+      name: "Alpha: 12",
+    });
     firstBar.focus();
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
@@ -110,11 +116,12 @@ export const KeyboardFocus = meta.story({
 export const CategoryHoverArea = meta.story({
   name: "(Test) Category Hover Area",
   play: async ({ canvasElement }) => {
+    const bar = within(canvasElement).getAllByRole("graphics-symbol")[0];
     const area = canvasElement.querySelector<SVGRectElement>(
       "[data-bar-hover-area]",
     );
-    if (!area) throw new Error("Hover area not found");
-    await userEvent.hover(area);
+    if (!bar || !area) throw new Error("Bar or hover area not found");
+    await hoverChartTarget(area, bar);
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
     );
@@ -141,7 +148,7 @@ export const TooltipFollowsBar = meta.story({
       const bar = bars[index];
       const area = areas[index];
       if (!bar || !area) throw new Error("Bar or hover area not found");
-      await userEvent.hover(area);
+      await hoverChartTarget(area, bar);
       const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
         "tooltip",
       );
@@ -153,7 +160,7 @@ export const TooltipFollowsBar = meta.story({
         Node.DOCUMENT_POSITION_FOLLOWING,
       );
       const areaTop = tooltip.getBoundingClientRect().top;
-      await userEvent.hover(bar);
+      await hoverChartTarget(bar);
       await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(areaTop, 0);
       if (index === 0) {
         await expect(
@@ -190,7 +197,9 @@ export const CategoryColorTooltip = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    canvas.getByRole("graphics-symbol", { name: "Alpha: 12" }).focus();
+    const firstBar = canvas.getByRole("graphics-symbol", { name: "Alpha: 12" });
+    await movePointerOffChart(canvasElement);
+    firstBar.focus();
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
     );
@@ -264,7 +273,7 @@ export const LongLabels = meta.story({
     await expect(
       canvasElement.querySelector("[data-x-axis-label]"),
     ).toHaveTextContent(/…$/);
-    await userEvent.hover(firstBar);
+    await hoverChartTarget(firstBar);
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label]"),
     ).toHaveTextContent("production-evaluation-run-1-with-a-long-name");
@@ -288,7 +297,7 @@ export const EdgeLabels = meta.story({
   ],
   play: async ({ canvasElement }) => {
     for (const bar of within(canvasElement).getAllByRole("graphics-symbol")) {
-      await userEvent.hover(bar);
+      await hoverChartTarget(bar);
       const label = canvasElement.querySelector<SVGTextElement>(
         "[data-active-x-axis-label]",
       );

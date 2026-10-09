@@ -38,7 +38,7 @@ describe("SuccessNotification", () => {
       <SuccessNotification
         title="Another title"
         description="Another description"
-        operation="dashboard.update"
+        operation="dashboard.clone"
         onDismiss={vi.fn()}
       />,
     );
@@ -56,7 +56,7 @@ describe("SuccessNotification", () => {
       <SuccessNotification
         title="Saved"
         description="Done"
-        operation="dashboard.update"
+        operation="dashboard.clone"
         onDismiss={onDismiss}
       />,
     );
@@ -67,7 +67,7 @@ describe("SuccessNotification", () => {
     expect(mocks.capture).toHaveBeenLastCalledWith("toast:dismiss", {
       toastType: "SUCCESS",
       source: "application",
-      operation: "dashboard.update",
+      operation: "dashboard.clone",
     });
     expect(onDismiss).toHaveBeenCalledOnce();
   });

@@ -15,6 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { parseJsonIfString } from "@langfuse/shared";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -164,10 +165,11 @@ export const SessionObservationIO = ({
         },
         fileName: `observation-${observation.id}.json`,
       });
-    } catch {
+    } catch (error) {
       showErrorToast(
         "Download failed",
         "Could not fetch the observation's full I/O. Please try again.",
+        classifyTrpcToastError(error, "observation.download"),
       );
     } finally {
       setIsDownloading(false);

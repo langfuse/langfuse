@@ -43,6 +43,7 @@ import {
 } from "@/src/features/skills/components/SkillFileExplorer";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
 import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
 import {
   createSkillDraftFile,
@@ -234,6 +235,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to create skill version",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_version.create"),
       );
       return false;
     } finally {
@@ -278,6 +280,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to update skill labels",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_labels.update"),
       );
       return false;
     }
@@ -311,6 +314,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to update skill tags",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_tags.update"),
       );
       return false;
     }
@@ -328,10 +332,11 @@ export function SkillEditor({
         getFileContents: (input) => utils.skills.fileContents.fetch(input),
       });
       capture("skills:version_download", { fileCount: result.fileCount });
-    } catch {
+    } catch (error) {
       showErrorToast(
         "Download failed",
         "Could not download this skill version. Please try again.",
+        classifyTrpcToastError(error, "skill_version.download"),
       );
     } finally {
       setIsDownloading(false);
@@ -553,7 +558,11 @@ export function SkillEditor({
                     minSize={undefined}
                     isDisabled={isImporting}
                     onError={(error) => {
-                      showErrorToast("Could not add files", error.message);
+                      showErrorToast("Could not add files", error.message, {
+                        operation: "skill_files.add",
+                        errorOrigin: "frontend",
+                        errorCategory: "user_input",
+                      });
                       uploadPanelRef.current?.focus();
                     }}
                     onDrop={async (files) => {
