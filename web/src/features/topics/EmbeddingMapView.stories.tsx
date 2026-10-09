@@ -656,6 +656,12 @@ export const HoverPreservesMapGeometry = meta.story({
   args: {
     fillContainer: true,
     data,
+    topics: [
+      {
+        id: "billing",
+        name: "Billing, invoices, subscriptions, and account administration",
+      },
+    ],
     selectedTopic: null,
     selectedTraceId: null,
     onSelectTrace: fn(),
