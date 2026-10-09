@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useStore } from "zustand";
 import {
   createDefaultScoreResultPredicate,
@@ -9,6 +9,7 @@ import {
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -35,6 +36,7 @@ export function RuleEvaluatorResultTriggerSection({
   const trigger = useStore(store, (state) => state.scoreResultTrigger);
   const setTrigger = store.getState().actions.setScoreResultTrigger;
   const utils = api.useUtils();
+  const evaluatorRequestId = useRef(0);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(setSearchQuery, 300, false);
@@ -66,10 +68,12 @@ export function RuleEvaluatorResultTriggerSection({
     (attachedRules.data ?? []).map(({ evaluationRule }) => evaluationRule.name),
   );
   const handleEvaluatorChange = async (evaluatorId: string) => {
+    const requestId = ++evaluatorRequestId.current;
     const evaluator = await utils.client.evalsV2.get.query({
       projectId,
       evaluatorId,
     });
+    if (requestId !== evaluatorRequestId.current) return;
     const prepared = prepareEvaluatorResultPredicates(
       toScoreDefinitionSource(evaluator),
     );
@@ -128,9 +132,13 @@ export function RuleEvaluatorResultTriggerSection({
     handlePredicateChange(index, predicate);
   };
   const knownScores =
-    scoreDefinitions?.mode === "known" ? scoreDefinitions.scores : null;
+    scoreDefinitions?.mode === "freeform"
+      ? null
+      : (scoreDefinitions?.scores ?? []);
   const addDisabled =
     !trigger ||
+    scoreDefinitions === null ||
+    scoreDefinitions.mode === "unsupported" ||
     trigger.predicates.length >= 20 ||
     (scoreDefinitions?.mode === "known" &&
       scoreDefinitions.scores.length === 0);
@@ -183,18 +191,36 @@ export function RuleEvaluatorResultTriggerSection({
         </p>
       ) : null}
 
-      {trigger?.predicates.map((predicate, index) => (
-        <RuleEvaluatorResultPredicateRow
-          key={`${trigger.evaluatorId}:${index}:${predicate.scoreName}:${predicate.dataType}`}
-          index={index}
-          predicate={predicate}
-          canRemove={trigger.predicates.length > 1}
-          scoreDefinitions={knownScores}
-          onChange={handlePredicateChange}
-          onScoreNameChange={handleScoreNameChange}
-          onRemove={handlePredicateRemove}
-        />
-      ))}
+      {trigger && selectedEvaluator.isPending ? (
+        <Skeleton className="ml-[3.75rem] h-9" />
+      ) : null}
+
+      {selectedEvaluator.isError ? (
+        <p className="text-destructive pl-[3.75rem] text-sm">
+          Could not load this evaluator’s score definition.
+        </p>
+      ) : null}
+
+      {scoreDefinitions?.mode === "known" &&
+      scoreDefinitions.scores.length === 0 ? (
+        <p className="text-destructive pl-[3.75rem] text-sm">
+          This evaluator has no valid saved score definition.
+        </p>
+      ) : null}
+
+      {scoreDefinitions !== null &&
+        trigger?.predicates.map((predicate, index) => (
+          <RuleEvaluatorResultPredicateRow
+            key={`${trigger.evaluatorId}:${index}:${predicate.scoreName}:${predicate.dataType}`}
+            index={index}
+            predicate={predicate}
+            canRemove={trigger.predicates.length > 1}
+            scoreDefinitions={knownScores}
+            onChange={handlePredicateChange}
+            onScoreNameChange={handleScoreNameChange}
+            onRemove={handlePredicateRemove}
+          />
+        ))}
 
       <div>
         <Button

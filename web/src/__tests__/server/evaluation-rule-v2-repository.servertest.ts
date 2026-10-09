@@ -893,5 +893,36 @@ describe("evaluation rule v2 repository", () => {
         }),
       ]);
     });
+
+    it("does not expose stored score predicates as observation filters", async () => {
+      const evaluator = await createEvaluator();
+      const rule = await createRule({ evaluatorId: evaluator.id });
+      await prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: {
+          targetObject: EvalTargetObject.SCORE_RESULT,
+          filter: [
+            {
+              scoreName: "quality",
+              dataType: "NUMERIC",
+              operator: ">=",
+              value: 0.8,
+            },
+          ],
+        },
+      });
+
+      await expect(
+        ruleRepository.listRulesForEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          evaluationRule: expect.objectContaining({ filter: [] }),
+        }),
+      ]);
+    });
   });
 });

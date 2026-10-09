@@ -717,7 +717,10 @@ export async function listRulesForEvaluator(params: {
         enabled: evaluationRule.status === JobConfigState.ACTIVE,
         targetObject: evaluationRule.targetObject,
         timeScope: evaluationRule.timeScope,
-        filter: evaluationRule.filter as FilterState,
+        filter:
+          evaluationRule.targetObject === EvalTargetObject.SCORE_RESULT
+            ? []
+            : (evaluationRule.filter as FilterState),
         sampling: evaluationRule.sampling.toNumber(),
       },
     }),

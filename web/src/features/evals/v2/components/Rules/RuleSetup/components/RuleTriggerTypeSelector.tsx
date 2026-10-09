@@ -2,7 +2,7 @@ import { Activity, Gauge } from "lucide-react";
 import { EvalTargetObject } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { SelectionCardRadioGroup } from "@/src/components/design-system/SelectionCardRadioGroup/SelectionCardRadioGroup";
+import { SelectionCardRadioGroup } from "@/src/features/evals/v2/components/SelectionCardRadioGroup/SelectionCardRadioGroup";
 import type { RuleDraft } from "@/src/features/evals/v2/types/rules";
 
 const TRIGGER_OPTIONS = [

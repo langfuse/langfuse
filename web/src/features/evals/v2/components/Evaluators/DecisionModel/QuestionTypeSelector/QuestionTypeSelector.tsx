@@ -1,7 +1,7 @@
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import { Gauge, ListChecks, ToggleLeft, type LucideIcon } from "lucide-react";
 
-import { SelectionCardRadioGroup } from "@/src/components/design-system/SelectionCardRadioGroup/SelectionCardRadioGroup";
+import { SelectionCardRadioGroup } from "@/src/features/evals/v2/components/SelectionCardRadioGroup/SelectionCardRadioGroup";
 
 export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
