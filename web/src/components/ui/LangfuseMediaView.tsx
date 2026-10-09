@@ -16,9 +16,10 @@ import {
 } from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
-import { MediaAudioPlayer } from "@/src/components/ui/media/MediaAudioPlayer";
-import { MediaVideoPlayer } from "@/src/components/ui/media/MediaVideoPlayer";
-import { PREVIEW_AUTO_EXPAND_MAX_BYTES } from "@/src/components/ui/media/mediaConstants";
+
+// Above this, "preview" media falls back to the click-to-open icon instead of
+// rendering inline, so a large file isn't fetched/decoded just by opening a view.
+const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
@@ -146,9 +147,31 @@ export const LangfuseMediaView = ({
       />
     );
   } else if (mediaData.type.startsWith("audio")) {
-    return <MediaAudioPlayer src={mediaUrl} />;
+    return <AudioPlayer src={mediaUrl} />;
   } else if (mediaData.type.startsWith("video")) {
-    return <MediaVideoPlayer src={mediaUrl} />;
+    return <VideoPlayer src={mediaUrl} />;
   }
   return <MediaFileView src={mediaUrl} contentType={mediaData.type} />;
 };
+
+function AudioPlayer({ src }: { src?: string }) {
+  if (!src) return null;
+
+  return (
+    <audio controls className="w-full" preload="metadata">
+      <source src={src} />
+      Your browser does not support the audio element.
+    </audio>
+  );
+}
+
+function VideoPlayer({ src }: { src?: string }) {
+  if (!src) return null;
+
+  return (
+    <video controls className="w-full" preload="metadata" playsInline>
+      <source src={src} />
+      Your browser does not support the video element.
+    </video>
+  );
+}

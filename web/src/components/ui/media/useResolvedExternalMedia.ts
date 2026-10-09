@@ -9,8 +9,6 @@ export function useResolvedExternalMedia(
 ): {
   status: MediaTagStatus;
   url?: string;
-  contentLength?: number;
-  refresh: () => Promise<void>;
   refreshIfNeeded: () => Promise<void>;
 } {
   const projectId = useProjectIdFromURL();
@@ -30,20 +28,16 @@ export function useResolvedExternalMedia(
     if (!query.isError && !isExpired(query.data?.expiresAt)) return;
     await query.refetch();
   };
-  const refresh = async () => {
-    await query.refetch();
-  };
 
   if (!enabled || !projectId) {
-    return { status: "idle", refresh, refreshIfNeeded };
+    return { status: "idle", refreshIfNeeded };
   }
   if (query.isError) {
-    return { status: "error", refresh, refreshIfNeeded };
+    return { status: "error", refreshIfNeeded };
   }
   if (isExpired(query.data?.expiresAt)) {
     return {
       status: query.isFetching ? "loading" : "error",
-      refresh,
       refreshIfNeeded,
     };
   }
@@ -51,12 +45,10 @@ export function useResolvedExternalMedia(
     return {
       status: "ready",
       url: query.data.url,
-      contentLength: query.data.contentLength,
-      refresh,
       refreshIfNeeded,
     };
   }
-  return { status: "loading", refresh, refreshIfNeeded };
+  return { status: "loading", refreshIfNeeded };
 }
 
 function isExpired(expiresAt?: Date) {

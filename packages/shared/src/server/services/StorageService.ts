@@ -3,7 +3,6 @@ import { pipeline } from "stream/promises";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
-  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   PutObjectCommandInput,
@@ -319,8 +318,6 @@ export interface StorageService {
     ttlSeconds: number,
     asAttachment?: boolean,
   ): Promise<string>;
-
-  getObjectContentLength(path: string): Promise<number | undefined>;
 
   getSignedUploadUrl(params: {
     path: string;
@@ -709,19 +706,6 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
-  public async getObjectContentLength(
-    path: string,
-  ): Promise<number | undefined> {
-    try {
-      await this.createContainerIfNotExists();
-      const properties = await this.client.getBlobClient(path).getProperties();
-      return properties.contentLength;
-    } catch (err) {
-      logger.error(`Failed to read Azure Blob Storage metadata ${path}`, err);
-      handleStorageError(err, "read Azure Blob Storage metadata");
-    }
-  }
-
   public async getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -1080,23 +1064,6 @@ class S3StorageService implements StorageService {
     }
   }
 
-  public async getObjectContentLength(
-    path: string,
-  ): Promise<number | undefined> {
-    try {
-      const response = await this.client.send(
-        new HeadObjectCommand({
-          Bucket: this.bucketName,
-          Key: path,
-        }),
-      );
-      return response.ContentLength;
-    } catch (err) {
-      this.logClientFailure(`Failed to read S3 object metadata ${path}`, err);
-      handleStorageError(err, "read S3 object metadata");
-    }
-  }
-
   public async deleteFiles(paths: string[]): Promise<void> {
     await backOff(() => this.deleteFilesNonRetrying(paths), {
       numOfAttempts: 3,
@@ -1376,19 +1343,6 @@ class GoogleCloudStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "generate signed URL for Google Cloud Storage");
-    }
-  }
-
-  public async getObjectContentLength(
-    path: string,
-  ): Promise<number | undefined> {
-    try {
-      const [metadata] = await this.bucket.file(path).getMetadata();
-      const contentLength = Number(metadata.size);
-      return Number.isFinite(contentLength) ? contentLength : undefined;
-    } catch (err) {
-      logger.error(`Failed to read Google Cloud Storage metadata ${path}`, err);
-      handleStorageError(err, "read Google Cloud Storage metadata");
     }
   }
 
@@ -1906,23 +1860,6 @@ class OCIObjectStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "generate signed URL for OCI Object Storage ");
-    }
-  }
-
-  public async getObjectContentLength(
-    path: string,
-  ): Promise<number | undefined> {
-    try {
-      const { client, namespaceName } = await this.getClientAndNamespace();
-      const response = await client.headObject({
-        namespaceName,
-        bucketName: this.bucketName,
-        objectName: path,
-      });
-      return response.contentLength;
-    } catch (err) {
-      logger.error(`Failed to read OCI Object Storage metadata ${path}`, err);
-      handleStorageError(err, "read OCI Object Storage metadata");
     }
   }
 

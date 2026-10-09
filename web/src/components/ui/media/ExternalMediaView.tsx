@@ -1,10 +1,7 @@
-import { useRef } from "react";
-
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { type MediaContentType } from "@/src/features/media";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { PREVIEW_AUTO_EXPAND_MAX_BYTES } from "./mediaConstants";
 import { MediaFileView } from "./MediaFileView";
 import { type MediaDescriptor } from "./mediaUtils";
 import { useResolvedExternalMedia } from "./useResolvedExternalMedia";
@@ -25,11 +22,9 @@ export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
 }
 
 function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
-  const refreshedAfterErrorUrl = useRef<string | undefined>(undefined);
-  const { status, url, contentLength, refresh, refreshIfNeeded } =
-    useResolvedExternalMedia(descriptor, {
-      enabled: true,
-    });
+  const { status, url } = useResolvedExternalMedia(descriptor, {
+    enabled: true,
+  });
 
   if (status === "idle" || status === "error") {
     return <ExternalMediaFallback uri={descriptor.uri} />;
@@ -39,25 +34,11 @@ function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
     return <Skeleton className="h-24 w-24 max-w-full" />;
   }
 
-  const refreshBeforePreview = () => {
-    refreshIfNeeded().catch(() => undefined);
-  };
-  const refreshAfterError = () => {
-    if (refreshedAfterErrorUrl.current === url) return;
-    refreshedAfterErrorUrl.current = url;
-    refresh().catch(() => undefined);
-  };
-
   return (
     <MediaFileView
       src={url}
       contentType={descriptor.contentType as MediaContentType}
-      defaultExpanded={
-        contentLength !== undefined &&
-        contentLength <= PREVIEW_AUTO_EXPAND_MAX_BYTES
-      }
-      onPreviewError={refreshAfterError}
-      onPreviewRequest={refreshBeforePreview}
+      defaultExpanded
     />
   );
 }
