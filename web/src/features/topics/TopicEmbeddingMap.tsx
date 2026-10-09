@@ -20,6 +20,7 @@ export function TopicEmbeddingMap({
   headerStats,
   onSelectTrace,
   selectedTraceId,
+  fillContainer = false,
 }: {
   projectId: string;
   runId: string;
@@ -30,6 +31,7 @@ export function TopicEmbeddingMap({
   headerStats?: ReactNode;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
+  fillContainer?: boolean;
 }) {
   const { openPeek } = usePeekNavigation({
     tableName: "topics-traces",
@@ -75,6 +77,7 @@ export function TopicEmbeddingMap({
       headerStats={headerStats}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
+      fillContainer={fillContainer}
     />
   );
 }

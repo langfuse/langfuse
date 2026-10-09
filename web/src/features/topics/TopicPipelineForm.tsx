@@ -292,41 +292,29 @@ export function useTopicPipelineForm({
     actionLabel = selection?.count
       ? `Process ${selection.count.toLocaleString()} traces`
       : "Process traces";
-  const actions = (
-    <>
-      <Button
-        text="Configure topics"
-        variant="secondary"
-        size="sm"
-        onClick={() => setConfigurationOpen(true)}
-      />
-
-      <Button
-        text={trigger.isPending ? "Starting…" : actionLabel}
-        size="sm"
-        disabled={
-          !canWrite ||
-          !embeddingConfig.success ||
-          (operation === "update" &&
-            (!timeRange || !minimumTraceCountResult.success)) ||
-          trigger.isPending ||
-          !selectedFacets.length ||
-          (operation === "update"
-            ? summaryCounts.isFetching ||
-              !!summaryCounts.error ||
-              !hasStoredSummaries
-            : !selection?.count)
-        }
-        onClick={submit}
-      />
-      {error && (
-        <Alert variant="destructive" size="sm">
-          <Alert.Description>
-            <p className="break-words">{error}</p>
-          </Alert.Description>
-        </Alert>
-      )}
-    </>
+  const triggerAction = {
+    label: trigger.isPending ? "Starting…" : actionLabel,
+    disabled:
+      !canWrite ||
+      !embeddingConfig.success ||
+      (operation === "update" &&
+        (!timeRange || !minimumTraceCountResult.success)) ||
+      trigger.isPending ||
+      !selectedFacets.length ||
+      (operation === "update"
+        ? summaryCounts.isFetching ||
+          !!summaryCounts.error ||
+          !hasStoredSummaries
+        : !selection?.count),
+    onSelect: submit,
+  };
+  const primaryAction = (
+    <Button
+      text={triggerAction.label}
+      size="sm"
+      disabled={triggerAction.disabled}
+      onClick={triggerAction.onSelect}
+    />
   );
   const configuration = (
     <DialogPrimitive.Root
@@ -542,7 +530,10 @@ export function useTopicPipelineForm({
     </DialogPrimitive.Root>
   );
   return {
-    actions: facets.length ? actions : null,
+    primaryAction: facets.length ? primaryAction : null,
+    triggerAction: facets.length ? triggerAction : null,
+    openConfiguration: () => setConfigurationOpen(true),
+    error: facets.length ? error : null,
     configuration: facets.length ? configuration : null,
   };
 }

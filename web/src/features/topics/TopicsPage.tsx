@@ -1,5 +1,13 @@
 import { useState } from "react";
 import { format } from "date-fns";
+import {
+  History,
+  MoreHorizontal,
+  Play,
+  RefreshCw,
+  Settings2,
+} from "lucide-react";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -19,9 +27,11 @@ import {
 } from "@/src/components/ui/sheet";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
 import { Textarea } from "@/src/components/ui/textarea";
-import { PopoverClose, PopoverController } from "@/src/components/ui/popover";
+import { PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Select,
@@ -40,7 +50,7 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
-import { CurrentTopics } from "./CurrentTopics";
+import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import {
   isValidTopicTimeRange,
   relativeTopicTimeRange,
@@ -79,6 +89,11 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   no_topics: "No topics found",
   failed: "Facet failed",
 };
+const loadingPage = (
+  <Page headerProps={{ title: "Topics" }} withPadding>
+    <p>Loading topics…</p>
+  </Page>
+);
 
 export default function TopicsPage() {
   const router = useRouter();
@@ -93,14 +108,13 @@ export default function TopicsPage() {
   return projectId ? (
     <TopicsWorkspace key={projectId} projectId={projectId} />
   ) : (
-    <Page headerProps={{ title: "Topics" }} withPadding>
-      <p>Loading topics…</p>
-    </Page>
+    loadingPage
   );
 }
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
+  if (facets.isLoading) return loadingPage;
   return (
     <TopicsWorkspaceView
       key={facets.data?.length ? "configured" : "empty"}
@@ -120,6 +134,8 @@ function TopicsWorkspaceView({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [timeWindow, setTimeWindow] = useState("7");
   const [timeRange, setTimeRange] = useState(() => relativeTopicTimeRange(7));
+  const [selectedFacetId, setSelectedFacetId] = useState<string>();
+  const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const validTimeRange = isValidTopicTimeRange(timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -168,6 +184,20 @@ function TopicsWorkspaceView({
     timeWindow === "custom" || !Number.isFinite(rangeEnd)
       ? timeRange
       : relativeTopicTimeRange(Number(timeWindow), new Date(rangeEnd));
+  const running =
+    Boolean(executions.data?.some((execution) => busy(execution.status))) ||
+    busy(selectedExecution.data?.status ?? "");
+  const results = useCurrentTopics({
+    projectId,
+    running,
+    refreshAfter: completedAt,
+    timeRange: currentTimeRange,
+  });
+  const selectedFacet = results.data?.some(
+    (facet) => facet.facetId === selectedFacetId,
+  )
+    ? selectedFacetId
+    : results.data?.[0]?.facetId;
   const refreshResults = () => {
     if (timeWindow !== "custom")
       setTimeRange(relativeTopicTimeRange(Number(timeWindow)));
@@ -193,7 +223,13 @@ function TopicsWorkspaceView({
       shallow: true,
     });
   };
-  const { actions: pipelineActions, configuration } = useTopicPipelineForm({
+  const {
+    primaryAction,
+    triggerAction,
+    openConfiguration,
+    configuration,
+    error,
+  } = useTopicPipelineForm({
     projectId,
     facets: facets.data ?? [],
     canWrite,
@@ -204,21 +240,92 @@ function TopicsWorkspaceView({
         <FacetEditor projectId={projectId} facets={facets.data} />
       ) : null,
   });
+  const filters = (menu = false) => (
+    <div
+      className={
+        menu
+          ? "ph-no-capture flex flex-col gap-3 p-1"
+          : "ph-no-capture flex min-w-0 flex-wrap items-center gap-2"
+      }
+    >
+      {!!results.data?.length && selectedFacet && (
+        <div className={menu ? "flex w-full flex-col gap-1" : "w-44"}>
+          {menu && <span className="text-muted-foreground text-xs">Facet</span>}
+          <Select value={selectedFacet} onValueChange={setSelectedFacetId}>
+            <SelectTrigger aria-label="Topics facet" className="h-8">
+              <SelectValue placeholder="Facet" />
+            </SelectTrigger>
+            <SelectContent className="ph-no-capture">
+              {results.data.map((facet) => (
+                <SelectItem key={facet.facetId} value={facet.facetId}>
+                  {facet.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <div className={menu ? "flex w-full flex-col gap-1" : "w-36"}>
+        {menu && (
+          <span className="text-muted-foreground text-xs">Time range</span>
+        )}
+        <SelectInput
+          aria-label="Topics time range"
+          placeholder="Topics time range"
+          value={timeWindow}
+          options={topicTimeRangePresets}
+          onValueChange={(value) => {
+            setTimeWindow(value);
+            setTimeRange(
+              value === "custom"
+                ? topicCalendarRange(topicCalendarDates(currentTimeRange))
+                : relativeTopicTimeRange(Number(value)),
+            );
+          }}
+        />
+      </div>
+    </div>
+  );
   const actions = (
-    <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
-      {pipelineActions}
-      <Button
-        text="History"
-        variant="ghost"
-        size="sm"
-        onClick={() => setHistoryOpen(true)}
-      />
-      <Button
-        text="Refresh results"
-        variant="ghost"
-        size="sm"
-        onClick={refreshResults}
-      />
+    <div className="ph-no-capture flex items-center justify-end gap-1">
+      {primaryAction}
+      <DropdownMenu
+        ariaLabel="Topics actions"
+        placement="bottom-end"
+        items={[
+          ...(facets.data?.length
+            ? [
+                {
+                  id: "configure",
+                  type: "item" as const,
+                  title: "Configure topics",
+                  onClick: openConfiguration,
+                },
+              ]
+            : []),
+          {
+            id: "history",
+            type: "item",
+            title: "History",
+            onClick: () => setHistoryOpen(true),
+          },
+          {
+            id: "refresh",
+            type: "item",
+            title: "Refresh results",
+            onClick: refreshResults,
+          },
+        ]}
+      >
+        {({ getTriggerProps }) => (
+          <IconButton
+            {...getTriggerProps()}
+            icon={MoreHorizontal}
+            label="Topics actions"
+            size="sm"
+          />
+        )}
+      </DropdownMenu>
     </div>
   );
   return (
@@ -230,153 +337,175 @@ function TopicsWorkspaceView({
             "Explore recurring themes across traces, one facet at a time.",
         },
         actionButtonsRight: actions,
-        actionButtonsMenu: <PopoverClose asChild>{actions}</PopoverClose>,
-      }}
-      scrollable={Boolean(facets.data?.length)}
-      withPadding
-    >
-      <div className="ph-no-capture mb-6 flex flex-wrap items-end gap-3">
-        <label className="flex w-48 flex-col gap-1 text-sm">
-          Topics time range
-          <SelectInput
-            aria-label="Topics time range"
-            placeholder="Topics time range"
-            value={timeWindow}
-            options={topicTimeRangePresets}
-            onValueChange={(value) => {
-              setTimeWindow(value);
-              setTimeRange(
-                value === "custom"
-                  ? topicCalendarRange(topicCalendarDates(currentTimeRange))
-                  : relativeTopicTimeRange(Number(value)),
-              );
-            }}
-          />
-        </label>
-        {timeWindow === "custom" && (
-          <DateRangeInput
-            value={topicCalendarDates(timeRange)}
-            max={format(new Date(), "yyyy-MM-dd")}
-            fromAriaLabel="Topics start date"
-            toAriaLabel="Topics end date"
-            onValueChange={(value) => setTimeRange(topicCalendarRange(value))}
-          />
-        )}
-        <p className="text-muted-foreground text-sm">
-          Trace start time for results and Update topics.
-        </p>
-      </div>
-      {!validTimeRange && (
-        <ErrorMessage message="Select a time range of at most 93 days." />
-      )}
-      {configuration}
-      <Sheet
-        open={historyOpen || executionId !== null}
-        onOpenChange={showExecutionList}
-      >
-        <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
-          <SheetHeader>
-            <SheetTitle>
-              {executionId ? "Run status" : "Past executions"}
-            </SheetTitle>
-            <SheetDescription>
-              Review progress, errors, and retry interrupted runs.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-            {executionId ? (
-              <>
-                <div className="self-start">
-                  <Button
-                    text="All runs"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => showExecutionList(true)}
-                  />
-                </div>
-                <ExecutionPanel
-                  key={executionId}
-                  projectId={projectId}
-                  executionId={executionId}
-                  query={selectedExecution}
-                  facets={facets.data ?? []}
-                  canWrite={canWrite}
-                />
-              </>
-            ) : (
-              <>
-                <div className="self-end">
-                  <Button
-                    text="Refresh"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => executions.refetch()}
-                  />
-                </div>
-                {executions.error && (
-                  <ErrorMessage message={executions.error.message} />
-                )}
-                {!executions.data?.length && (
-                  <p className="text-muted-foreground text-sm">
-                    Your triggered batches will appear here.
-                  </p>
-                )}
-                {executions.data?.map((execution) => (
-                  <button
-                    key={execution.id}
-                    onClick={() => openExecution(execution.id)}
-                    className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-                  >
-                    <span className="capitalize">
-                      {operationLabels[execution.input.operation]} ·{" "}
-                      {new Date(execution.createdAt).toLocaleString()}
-                    </span>
-                    <span>{execution.facets.length} facets</span>
-                    <Badge text={executionLabels[execution.status]} />
-                  </button>
-                ))}
-              </>
+        actionButtonsLeft: filters(),
+        actionButtonsMenu: ({ closeMenu }) => (
+          <>
+            {filters(true)}
+            {triggerAction && (
+              <HeaderActionMenuRow
+                label={triggerAction.label}
+                icon={<Play className="icon-base text-icon-foreground" />}
+                disabled={triggerAction.disabled}
+                onClick={() => {
+                  closeMenu();
+                  triggerAction.onSelect();
+                }}
+              />
             )}
-          </div>
-        </SheetContent>
-      </Sheet>
-      <div className="ph-no-capture flex w-full min-w-0 flex-col gap-6 pb-12">
-        <TablePeekViewTraceDetail
-          {...peekNavigation}
-          itemType="TRACE"
-          projectId={projectId}
-        />
-        {validTimeRange && (
-          <CurrentTopics
-            projectId={projectId}
-            timeRange={currentTimeRange}
-            refreshAfter={completedAt}
-            running={
-              Boolean(
-                executions.data?.some((execution) => busy(execution.status)),
-              ) || busy(selectedExecution.data?.status ?? "")
-            }
-          />
-        )}
-        {facets.isLoading && <p>Loading facets…</p>}
-        {facets.error && <ErrorMessage message={facets.error.message} />}
-        {facets.data?.length === 0 && (
-          <section className="flex flex-col items-start gap-3">
-            <h2 className="font-bold">Start with a question</h2>
-            <p className="text-muted-foreground text-sm">
-              Create built-in facets for intent, outcome, and issues, then add
-              custom facets for your own questions.
-            </p>
-            <Button
-              text="Create starter facets"
-              disabled={!canWrite || initialize.isPending}
-              onClick={() => initialize.mutate({ projectId })}
+            {!!facets.data?.length && (
+              <HeaderActionMenuRow
+                label="Configure topics"
+                icon={<Settings2 className="icon-base text-icon-foreground" />}
+                onClick={() => {
+                  closeMenu({ handoffFocus: true });
+                  openConfiguration();
+                }}
+              />
+            )}
+            <HeaderActionMenuRow
+              label="History"
+              icon={<History className="icon-base text-icon-foreground" />}
+              onClick={() => {
+                closeMenu({ handoffFocus: true });
+                setHistoryOpen(true);
+              }}
             />
-            {initialize.error && (
-              <ErrorMessage message={initialize.error.message} />
-            )}
-          </section>
+            <HeaderActionMenuRow
+              label="Refresh results"
+              icon={<RefreshCw className="icon-base text-icon-foreground" />}
+              onClick={() => {
+                closeMenu();
+                refreshResults();
+              }}
+            />
+          </>
+        ),
+      }}
+    >
+      <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+        {timeWindow === "custom" && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <DateRangeInput
+              value={topicCalendarDates(timeRange)}
+              max={format(new Date(), "yyyy-MM-dd")}
+              fromAriaLabel="Topics start date"
+              toAriaLabel="Topics end date"
+              onValueChange={(value) => setTimeRange(topicCalendarRange(value))}
+            />
+          </div>
         )}
+        {!validTimeRange && (
+          <ErrorMessage message="Select a time range of at most 93 days." />
+        )}
+        {error && <ErrorMessage message={error} />}
+        {configuration}
+        <Sheet
+          open={historyOpen || executionId !== null}
+          onOpenChange={showExecutionList}
+        >
+          <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
+            <SheetHeader>
+              <SheetTitle>
+                {executionId ? "Run status" : "Past executions"}
+              </SheetTitle>
+              <SheetDescription>
+                Review progress, errors, and retry interrupted runs.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+              {executionId ? (
+                <>
+                  <div className="self-start">
+                    <Button
+                      text="All runs"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => showExecutionList(true)}
+                    />
+                  </div>
+                  <ExecutionPanel
+                    key={executionId}
+                    projectId={projectId}
+                    executionId={executionId}
+                    query={selectedExecution}
+                    facets={facets.data ?? []}
+                    canWrite={canWrite}
+                  />
+                </>
+              ) : (
+                <>
+                  <div className="self-end">
+                    <Button
+                      text="Refresh"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => executions.refetch()}
+                    />
+                  </div>
+                  {executions.error && (
+                    <ErrorMessage message={executions.error.message} />
+                  )}
+                  {!executions.data?.length && (
+                    <p className="text-muted-foreground text-sm">
+                      Your triggered batches will appear here.
+                    </p>
+                  )}
+                  {executions.data?.map((execution) => (
+                    <button
+                      key={execution.id}
+                      onClick={() => openExecution(execution.id)}
+                      className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
+                    >
+                      <span className="capitalize">
+                        {operationLabels[execution.input.operation]} ·{" "}
+                        {new Date(execution.createdAt).toLocaleString()}
+                      </span>
+                      <span>{execution.facets.length} facets</span>
+                      <Badge text={executionLabels[execution.status]} />
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+          <TablePeekViewTraceDetail
+            {...peekNavigation}
+            itemType="TRACE"
+            projectId={projectId}
+            defaultWidthTarget={tracePanel}
+            widthStorageKey="topicsPeekViewWidthFraction"
+          />
+          {validTimeRange && (
+            <CurrentTopics
+              projectId={projectId}
+              timeRange={currentTimeRange}
+              result={results}
+              selectedFacetId={selectedFacet}
+              tracePanelRef={setTracePanel}
+            />
+          )}
+          {facets.isLoading && <p>Loading facets…</p>}
+          {facets.error && <ErrorMessage message={facets.error.message} />}
+          {facets.data?.length === 0 && (
+            <section className="flex flex-col items-start gap-3">
+              <h2 className="font-bold">Start with a question</h2>
+              <p className="text-muted-foreground text-sm">
+                Create built-in facets for intent, outcome, and issues, then add
+                custom facets for your own questions.
+              </p>
+              <Button
+                text="Create starter facets"
+                disabled={!canWrite || initialize.isPending}
+                onClick={() => initialize.mutate({ projectId })}
+              />
+              {initialize.error && (
+                <ErrorMessage message={initialize.error.message} />
+              )}
+            </section>
+          )}
+        </div>
       </div>
     </Page>
   );

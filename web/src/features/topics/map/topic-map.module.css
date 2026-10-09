@@ -1,4 +1,5 @@
 .hoverCard {
+  pointer-events: none;
   transform-origin: center;
   opacity: 0;
   transform: translateY(4px) scale(0.94);
@@ -8,7 +9,7 @@
 }
 
 .enter {
-  opacity: 1;
+  opacity: 0.96;
   transform: translateY(0) scale(1);
 }
 
@@ -16,6 +17,17 @@
   pointer-events: none;
   transform: translateY(3px) scale(0.96);
   transition-duration: 130ms;
+}
+
+.backgroundLabel {
+  animation: labelEnter 180ms ease-out;
+  transition: opacity 180ms ease-out;
+}
+
+@keyframes labelEnter {
+  from {
+    opacity: 0;
+  }
 }
 
 @starting-style {
@@ -27,7 +39,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .enter,
-  .exit {
+  .exit,
+  .backgroundLabel {
+    animation-duration: 1ms;
     transition-duration: 1ms;
   }
 }

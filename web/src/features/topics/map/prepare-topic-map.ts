@@ -36,11 +36,6 @@ export type TopicMapModel = {
 
 export type MapPosition = { x: number; y: number };
 type MapRectangle = MapPosition & { width: number; height: number };
-export type TopicMapNodeLayout = {
-  bounds: Bounds;
-  size: Size;
-  worldTargets: ReadonlyMap<string, MapPosition>;
-};
 type TopicMapNode = {
   point: MapPoint;
   center: MapPosition;
@@ -50,8 +45,8 @@ type TopicMapNode = {
   expansion: number;
   backgroundOpacity: number;
   strokeOpacity: number;
-  iconOpacity: number;
   textOpacity: number;
+  fontSize: number;
   excerpt: string;
 };
 export type TopicMapNodeFrame = {
@@ -143,7 +138,7 @@ export function zoomCamera(
   bounds: Bounds,
   size: Size,
 ): Camera {
-  const zoom = Math.min(32, Math.max(0.4, camera.zoom * 2 ** levels));
+  const zoom = Math.min(128, Math.max(0.4, camera.zoom * 2 ** levels));
   const before = baseScale(bounds, size) * camera.zoom;
   const after = baseScale(bounds, size) * zoom;
   const dx = (anchor.x - 0.5) * size.width;
@@ -180,18 +175,16 @@ export function prepareTopicMap(
   const known = new Map(
     topics.map((topic, i) => [topic.id, { ...topic, color: topicColor(i) }]),
   );
-  const points: MapPoint[] = rotatePoints(data.points, data.points).map(
-    (point) => ({
-      ...point,
-      groupId:
-        point.outcome === "unassigned"
-          ? "awaiting_map"
-          : (point.topicId ?? "outliers"),
-      color: topicColor(topics.findIndex((t) => t.id === point.topicId)),
-      // This is decorative depth, independent of embedding distance or quality.
-      depth: visualDepth(point.traceId),
-    }),
-  );
+  const points: MapPoint[] = data.points.map((point) => ({
+    ...point,
+    groupId:
+      point.outcome === "unassigned"
+        ? "awaiting_map"
+        : (point.topicId ?? "outliers"),
+    color: topicColor(topics.findIndex((t) => t.id === point.topicId)),
+    // This is decorative depth, independent of embedding distance or quality.
+    depth: visualDepth(point.traceId),
+  }));
   const grouped = new Map<string, MapPoint[]>();
   for (const point of points) {
     const group = grouped.get(point.groupId) ?? [];
@@ -239,7 +232,7 @@ function smoothStep(from: number, to: number, value: number) {
   return progress * progress * (3 - 2 * progress);
 }
 
-export function readingLayoutBlend(zoom: number) {
+export function nodeDetailBlend(zoom: number) {
   return smoothStep(3, 10, zoom);
 }
 
@@ -247,201 +240,27 @@ function readingNodeSize(size: Size) {
   return { width: Math.max(6, Math.min(264, size.width - 48)), height: 144 };
 }
 
-type ReadingZone = {
-  zone: TopicMapModel["zones"][number];
-  bounds: Bounds;
-};
-
-function separationAxis(a: ReadingZone, b: ReadingZone): "x" | "y" {
-  const first = a.zone.bounds;
-  const second = b.zone.bounds;
-  const gapX = Math.max(first.minX - second.maxX, second.minX - first.maxX);
-  const gapY = Math.max(first.minY - second.maxY, second.minY - first.maxY);
-  if (gapX >= 0 && gapY < 0) return "x";
-  if (gapY >= 0 && gapX < 0) return "y";
-  const spanX = Math.max(
-    first.maxX - first.minX,
-    second.maxX - second.minX,
-    0.1,
-  );
-  const spanY = Math.max(
-    first.maxY - first.minY,
-    second.maxY - second.minY,
-    0.1,
-  );
-  const x = gapX >= 0 ? gapX : Math.abs(a.zone.x - b.zone.x);
-  const y = gapY >= 0 ? gapY : Math.abs(a.zone.y - b.zone.y);
-  return x / spanX >= y / spanY ? "x" : "y";
-}
-
-function separateReadingZones(
-  zones: ReadingZone[],
-  gap: number,
-  anchorZoneId: string | null,
-) {
-  const constraints = {
-    x: new Map<string, { before: string; distance: number }[]>(),
-    y: new Map<string, { before: string; distance: number }[]>(),
-  };
-  for (let i = 0; i < zones.length; i++) {
-    for (let j = i + 1; j < zones.length; j++) {
-      const axis = separationAxis(zones[i], zones[j]);
-      const [a, b] = [zones[i], zones[j]].sort(
-        (a, b) =>
-          a.zone[axis] - b.zone[axis] || a.zone.id.localeCompare(b.zone.id),
-      );
-      const distance =
-        axis === "x"
-          ? a.bounds.maxX - a.zone.x - (b.bounds.minX - b.zone.x) + gap
-          : a.bounds.maxY - a.zone.y - (b.bounds.minY - b.zone.y) + gap;
-      const predecessors = constraints[axis].get(b.zone.id) ?? [];
-      predecessors.push({ before: a.zone.id, distance });
-      constraints[axis].set(b.zone.id, predecessors);
-    }
-  }
-  const offsets = new Map(zones.map(({ zone }) => [zone.id, { x: 0, y: 0 }]));
-  for (const axis of ["x", "y"] as const) {
-    const centers = new Map<string, number>();
-    // Canonical ordering makes each axis a DAG; spacing propagates without iterative repulsion.
-    for (const { zone } of [...zones].sort(
-      (a, b) =>
-        a.zone[axis] - b.zone[axis] || a.zone.id.localeCompare(b.zone.id),
-    )) {
-      let center = zone[axis];
-      for (const constraint of constraints[axis].get(zone.id) ?? [])
-        center = Math.max(
-          center,
-          centers.get(constraint.before)! + constraint.distance,
-        );
-      centers.set(zone.id, center);
-      offsets.get(zone.id)![axis] = center - zone[axis];
-    }
-    const anchor = offsets.get(anchorZoneId ?? "");
-    const drift =
-      anchor?.[axis] ??
-      zones.reduce(
-        (sum, { zone }) =>
-          sum + offsets.get(zone.id)![axis] * zone.points.length,
-        0,
-      ) /
-        Math.max(
-          1,
-          zones.reduce((sum, { zone }) => sum + zone.points.length, 0),
-        );
-    for (const offset of offsets.values()) offset[axis] -= drift;
-  }
-  return offsets;
-}
-
-export function prepareNodeLayout(
-  model: TopicMapModel,
-  size: Size,
-  readingTopic: string | null = null,
-  anchorZoneId: string | null = readingTopic,
-): TopicMapNodeLayout {
-  const full = readingNodeSize(size);
-  const pitchX = full.width + 24;
-  const pitchY = full.height + 24;
-  const scale = baseScale(model.bounds, size) * 10;
-  const worldTargets = new Map<string, MapPosition>();
-  const zones: ReadingZone[] = [];
-  for (const zone of model.zones) {
-    const reading = !readingTopic || readingTopic === zone.id;
-    if (!reading) {
-      for (const point of zone.points)
-        worldTargets.set(point.traceId, { x: point.x, y: point.y });
-    } else {
-      const columns = Math.min(
-        zone.points.length,
-        Math.max(1, Math.floor((size.width - 48) / pitchX)),
-      );
-      const rows = Math.ceil(zone.points.length / columns);
-      // Spatial rows preserve the cloud's vertical order; horizontal ranks are local to each row.
-      const vertical = [...zone.points].sort(
-        (a, b) => b.y - a.y || a.x - b.x || a.traceId.localeCompare(b.traceId),
-      );
-      for (let row = 0; row < rows; row++) {
-        const members = vertical
-          .slice(row * columns, (row + 1) * columns)
-          .sort(
-            (a, b) =>
-              a.x - b.x || b.y - a.y || a.traceId.localeCompare(b.traceId),
-          );
-        members.forEach((point, column) =>
-          worldTargets.set(point.traceId, {
-            x: zone.x + ((column - (members.length - 1) / 2) * pitchX) / scale,
-            y: zone.y - ((row - (rows - 1) / 2) * pitchY) / scale,
-          }),
-        );
-      }
-    }
-    const footprint = pointBounds(
-      zone.points.map((p) => worldTargets.get(p.traceId)!),
-    );
-    const padX = (reading ? full.width : 10) / scale / 2;
-    const padY = (reading ? full.height : 10) / scale / 2;
-    zones.push({
-      zone,
-      bounds: {
-        minX: footprint.minX - padX,
-        maxX: footprint.maxX + padX,
-        minY: footprint.minY - padY,
-        maxY: footprint.maxY + padY,
-      },
-    });
-  }
-  const offsets = separateReadingZones(zones, 64 / scale, anchorZoneId);
-  for (const point of model.points) {
-    const target = worldTargets.get(point.traceId)!;
-    const offset = offsets.get(point.groupId)!;
-    worldTargets.set(point.traceId, {
-      x: target.x + offset.x,
-      y: target.y + offset.y,
-    });
-  }
-  return { bounds: model.bounds, size, worldTargets };
-}
-
-export function displayedNodeWorldPoint(
-  point: MapPoint,
-  zoom: number,
-  layout: TopicMapNodeLayout,
-): MapPosition {
-  const blend = readingLayoutBlend(zoom);
-  const target = layout.worldTargets.get(point.traceId);
-  if (!blend || !target) return { x: point.x, y: point.y };
-  if (blend === 1) return { ...target };
-  return {
-    x: point.x + (target.x - point.x) * blend,
-    y: point.y + (target.y - point.y) * blend,
-  };
-}
-
 export function prepareMapNodes(
   model: TopicMapModel,
-  layout: TopicMapNodeLayout,
   camera: Camera,
   size: Size,
   pointer: MapPosition,
   readingTopic: string | null = null,
-  worldPositions?: ReadonlyMap<string, MapPosition>,
 ): TopicMapNodeFrame {
   const full = readingNodeSize(size);
-  const blend = readingLayoutBlend(camera.zoom);
+  const blend = nodeDetailBlend(camera.zoom);
   const cells = new Map<string, number[]>();
   const cellWidth = full.width + 8;
   const cellHeight = full.height + 8;
   const prepared = model.points.map((point, index) => {
-    const worldPosition =
-      worldPositions?.get(point.traceId) ??
-      displayedNodeWorldPoint(point, camera.zoom, layout);
+    const worldPosition = { x: point.x, y: point.y };
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
     const depth = point.depth * (1 - blend);
     const center = {
       x: projected.x + pointer.x * depth * 6,
       y: projected.y + pointer.y * depth * 6,
     };
-    const diameter = (5 + depth) * Math.sqrt(Math.min(camera.zoom, 4));
+    const diameter = (5 + depth) * Math.sqrt(Math.min(camera.zoom, 16));
     const growth = readingTopic && point.groupId !== readingTopic ? 0 : blend;
     const growWidth = (full.width - diameter) * growth;
     const growHeight = (full.height - diameter) * growth;
@@ -506,6 +325,7 @@ export function prepareMapNodes(
     const height = item.diameter + item.growHeight * clearance;
     const expansion = item.growth * clearance;
     const smaller = Math.min(width, height);
+    const textOpacity = smoothStep(76, 132, width) * smoothStep(30, 64, height);
     const node: TopicMapNode = {
       point: item.point,
       center: item.center,
@@ -516,15 +336,13 @@ export function prepareMapNodes(
         width,
         height,
       },
-      cornerRadius: Math.min(
-        smaller / 2,
-        item.diameter / 2 + (8 - item.diameter / 2) * expansion,
-      ),
+      cornerRadius:
+        smaller / 2 + (Math.min(8, smaller / 2) - smaller / 2) * textOpacity,
       expansion,
-      backgroundOpacity: smoothStep(10, 28, smaller),
-      strokeOpacity: smoothStep(10, 24, smaller),
-      iconOpacity: smoothStep(20, 36, smaller),
-      textOpacity: smoothStep(120, 240, width) * smoothStep(56, 132, height),
+      backgroundOpacity: textOpacity,
+      strokeOpacity: textOpacity,
+      textOpacity,
+      fontSize: 9 + smoothStep(100, 264, width) * 3,
       excerpt: item.point.summary,
     };
     nodeById.set(item.point.traceId, node);
@@ -536,18 +354,132 @@ export function prepareMapNodes(
     )
       nodes.push(node);
   }
-  const zones = model.zones.map((zone) => {
-    const positions = zone.points.map(
-      (p) => nodeById.get(p.traceId)!.worldPosition,
+  return {
+    model,
+    camera,
+    size,
+    pointer,
+    readingTopic,
+    zones: model.zones,
+    nodes,
+    nodeById,
+  };
+}
+
+type MapTextLabel = {
+  id: string;
+  kind: "zone";
+  title: string;
+  color: string;
+  description: string;
+  rect: MapRectangle;
+  fontSize: number;
+  opacity: number;
+  detailOpacity: number;
+};
+
+export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
+  const { camera, model, size, readingTopic } = frame;
+  const visibility = smoothStep(1.5, 3, camera.zoom);
+  if (!visibility) return [];
+  const detailOpacity = smoothStep(3.5, 7, camera.zoom);
+  const labels: MapTextLabel[] = [];
+  const fontSize = 15 + smoothStep(3, 8, camera.zoom) * 3;
+  const visible = (rect: MapRectangle) =>
+    rect.x + rect.width > 0 &&
+    rect.y + rect.height > 0 &&
+    rect.x < size.width &&
+    rect.y < size.height;
+  for (const zone of frame.zones) {
+    const width = Math.min(
+      Math.max(120, zone.name.length * fontSize * 0.55),
+      260,
+      Math.max(80, size.width - 32),
     );
-    return {
-      ...zone,
-      bounds: pointBounds(positions),
-      x: positions.reduce((sum, p) => sum + p.x, 0) / positions.length,
-      y: positions.reduce((sum, p) => sum + p.y, 0) / positions.length,
+    const titleHeight =
+      Math.min(2, Math.ceil((zone.name.length * fontSize * 0.55) / width)) *
+      fontSize *
+      1.2;
+    const height = titleHeight + 40 * detailOpacity;
+    const topLeft = screenPoint(
+      { x: zone.bounds.minX, y: zone.bounds.maxY },
+      camera,
+      model.bounds,
+      size,
+    );
+    const bottomRight = screenPoint(
+      { x: zone.bounds.maxX, y: zone.bounds.minY },
+      camera,
+      model.bounds,
+      size,
+    );
+    const left = Math.max(0, topLeft.x);
+    const right = Math.min(size.width, bottomRight.x);
+    const top = Math.max(0, topLeft.y);
+    const bottom = Math.min(size.height, bottomRight.y);
+    // A zone keeps one geographic label as its center moves beyond the viewport.
+    // Clamping to the visible intersection is continuous through pan and zoom.
+    if (right < left || bottom < top) continue;
+    const center = screenPoint(zone, camera, model.bounds, size);
+    const xInset = Math.min(width / 2 + 12, (right - left) / 2);
+    const yInset = Math.min(height / 2 + 12, (bottom - top) / 2);
+    const x = Math.max(left + xInset, Math.min(right - xInset, center.x));
+    const y = Math.max(top + yInset, Math.min(bottom - yInset, center.y));
+    const topInset = Math.min(44, size.height / 4);
+    const bottomInset = Math.min(28, size.height / 4);
+    const rect = {
+      x: Math.min(
+        Math.max(8, x - width / 2),
+        Math.max(8, size.width - width - 8),
+      ),
+      y: Math.min(
+        Math.max(topInset, y - height / 2),
+        Math.max(topInset, size.height - height - bottomInset),
+      ),
+      width,
+      height,
     };
-  });
-  return { model, camera, size, pointer, readingTopic, zones, nodes, nodeById };
+    if (!visible(rect)) continue;
+    labels.push({
+      id: zone.id,
+      kind: "zone",
+      title: zone.name,
+      color: zone.color,
+      description: zone.description,
+      rect,
+      fontSize,
+      opacity:
+        visibility * (readingTopic && readingTopic !== zone.id ? 0.32 : 0.45),
+      detailOpacity,
+    });
+  }
+
+  const shown: MapTextLabel[] = [];
+  for (const label of labels) {
+    let separation = 1;
+    for (const other of shown) {
+      const x =
+        Math.abs(
+          label.rect.x +
+            label.rect.width / 2 -
+            other.rect.x -
+            other.rect.width / 2,
+        ) /
+        ((label.rect.width + other.rect.width) / 2 + 16);
+      const y =
+        Math.abs(
+          label.rect.y +
+            label.rect.height / 2 -
+            other.rect.y -
+            other.rect.height / 2,
+        ) /
+        ((label.rect.height + other.rect.height) / 2 + 12);
+      separation = Math.min(separation, smoothStep(0.8, 1.15, Math.max(x, y)));
+    }
+    label.opacity *= separation;
+    if (label.opacity > 0.01) shown.push(label);
+  }
+  return labels;
 }
 
 function roundedDistance(node: TopicMapNode, at: MapPosition) {
@@ -599,23 +531,6 @@ export function zoneHalo(
     rx: Math.max(28, (zone.bounds.maxX - zone.bounds.minX) * scale * 0.62),
     ry: Math.max(28, (zone.bounds.maxY - zone.bounds.minY) * scale * 0.62),
   };
-}
-
-export function hitZone(frame: TopicMapNodeFrame, at: MapPosition) {
-  const { model, camera, size } = frame;
-  if (readingLayoutBlend(camera.zoom) >= 1) return null;
-  let nearest: TopicMapModel["zones"][number] | null = null;
-  let distance = 1;
-  for (const zone of frame.zones) {
-    if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
-    const halo = zoneHalo(zone, camera, model.bounds, size);
-    const d = Math.hypot((at.x - halo.x) / halo.rx, (at.y - halo.y) / halo.ry);
-    if (d < distance) {
-      nearest = zone;
-      distance = d;
-    }
-  }
-  return nearest;
 }
 
 function hoverRectangle(

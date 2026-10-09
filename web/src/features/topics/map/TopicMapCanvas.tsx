@@ -1,15 +1,13 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import {
-  displayedNodeWorldPoint,
   prepareMapNodes,
-  readingLayoutBlend,
+  nodeDetailBlend,
   zoneHalo,
   type Camera,
   type MapPosition,
   type Size,
   type TopicMapModel,
   type TopicMapNodeFrame,
-  type TopicMapNodeLayout,
 } from "./prepare-topic-map";
 import {
   getTopicMapHover,
@@ -20,11 +18,10 @@ import {
 type Presentation = {
   frame: TopicMapNodeFrame | null;
   camera: Camera;
+  scope: string | null;
+  flight: { start: Camera; target: Camera; started: number } | null;
   pointer: MapPosition;
-  layout: TopicMapNodeLayout;
   emphasis: Map<string, number>;
-  offsets: Map<string, MapPosition>;
-  transitionStarted: number;
   lastTime: number;
 };
 
@@ -48,8 +45,7 @@ function drawMap(
   context.clearRect(0, 0, size.width, size.height);
   const theme = getComputedStyle(canvas);
   const surface = `hsl(${theme.getPropertyValue("--background").trim()})`;
-  const ink = `hsl(${theme.getPropertyValue("--foreground").trim()})`;
-  const cloudVisibility = 1 - readingLayoutBlend(camera.zoom);
+  const cloudVisibility = 1 - nodeDetailBlend(camera.zoom);
   context.globalAlpha = cloudVisibility;
   for (const zone of frame.zones) {
     if (!cloudVisibility) break;
@@ -102,33 +98,12 @@ function drawMap(
       );
       context.stroke();
     }
-    if (node.iconOpacity > 0) {
-      const x =
-        node.center.x + (rect.x + 18 - node.center.x) * node.textOpacity;
-      const y =
-        node.center.y + (rect.y + 18 - node.center.y) * node.textOpacity;
-      context.globalAlpha = node.iconOpacity * opacity;
-      context.strokeStyle = ink;
-      context.lineWidth = 1.25;
-      context.beginPath();
-      context.moveTo(x - 5, y - 5);
-      context.lineTo(x + 4, y - 5);
-      context.lineTo(x + 4, y + 5);
-      context.lineTo(x - 5, y + 5);
-      context.closePath();
-      context.moveTo(x - 2, y - 1);
-      context.lineTo(x + 1, y - 1);
-      context.moveTo(x - 2, y + 2);
-      context.lineTo(x + 1, y + 2);
-      context.stroke();
-    }
   }
   context.globalAlpha = 1;
 }
 
 export function TopicMapCanvas({
   model,
-  layout,
   size,
   camera,
   store,
@@ -136,7 +111,6 @@ export function TopicMapCanvas({
   selectedTraceId,
 }: {
   model: TopicMapModel;
-  layout: TopicMapNodeLayout;
   size: Size;
   camera: Camera;
   store: TopicMapStore;
@@ -156,33 +130,13 @@ export function TopicMapCanvas({
       scene = {
         frame: null,
         camera: target,
+        scope: selectedTopic,
+        flight: null,
         pointer: targetPointer,
-        layout,
         emphasis: new Map(),
-        offsets: new Map(),
-        transitionStarted: now,
         lastTime: now,
       };
       presentation.current = scene;
-    }
-    if (
-      scene.layout !== layout ||
-      scene.frame?.readingTopic !== selectedTopic
-    ) {
-      scene.offsets.clear();
-      for (const [id, previous] of scene.frame?.nodeById ?? []) {
-        const next = displayedNodeWorldPoint(
-          previous.point,
-          scene.camera.zoom,
-          layout,
-        );
-        scene.offsets.set(id, {
-          x: previous.worldPosition.x - next.x,
-          y: previous.worldPosition.y - next.y,
-        });
-      }
-      scene.layout = layout;
-      scene.transitionStarted = now;
     }
     const elapsed = Math.min(64, Math.max(1, now - scene.lastTime));
     scene.lastTime = now;
@@ -197,48 +151,60 @@ export function TopicMapCanvas({
       unsettled = true;
       return value + (goal - value) * (1 - Math.exp(-elapsed / duration));
     };
-    const targetLogZoom = Math.log(target.zoom);
-    const logZoom = approach(
-      Math.log(scene.camera.zoom),
-      targetLogZoom,
-      65,
-      0.0001,
-    );
-    scene.camera = {
-      x: approach(scene.camera.x, target.x, 65, 0.00001),
-      y: approach(scene.camera.y, target.y, 65, 0.00001),
-      zoom: logZoom === targetLogZoom ? target.zoom : Math.exp(logZoom),
-    };
+    if (scene.scope !== selectedTopic) {
+      scene.scope = selectedTopic;
+      scene.flight = state.reducedMotion
+        ? null
+        : { start: scene.camera, target, started: now };
+    }
+    if (
+      scene.flight &&
+      (scene.flight.target.x !== target.x ||
+        scene.flight.target.y !== target.y ||
+        scene.flight.target.zoom !== target.zoom)
+    )
+      scene.flight = null;
+    if (scene.flight && !state.reducedMotion) {
+      const { start, started } = scene.flight;
+      const progress = Math.min(1, (now - started) / 1050);
+      const t = progress ** 3 * (progress * (progress * 6 - 15) + 10);
+      scene.camera = {
+        x: start.x + (target.x - start.x) * t,
+        y: start.y + (target.y - start.y) * t,
+        zoom: Math.exp(
+          Math.log(start.zoom) + Math.log(target.zoom / start.zoom) * t,
+        ),
+      };
+      if (progress < 1) unsettled = true;
+      else {
+        scene.camera = target;
+        scene.flight = null;
+      }
+    } else {
+      const targetLogZoom = Math.log(target.zoom);
+      const logZoom = approach(
+        Math.log(scene.camera.zoom),
+        targetLogZoom,
+        65,
+        0.0001,
+      );
+      scene.camera = {
+        x: approach(scene.camera.x, target.x, 65, 0.00001),
+        y: approach(scene.camera.y, target.y, 65, 0.00001),
+        zoom: logZoom === targetLogZoom ? target.zoom : Math.exp(logZoom),
+      };
+    }
     const cameraMoving = unsettled;
     scene.pointer = {
       x: approach(scene.pointer.x, targetPointer.x, 120, 0.001),
       y: approach(scene.pointer.y, targetPointer.y, 120, 0.001),
     };
-    const transition = state.reducedMotion
-      ? 1
-      : Math.min(1, (now - scene.transitionStarted) / 260);
-    const offsetWeight = (1 - transition) ** 3;
-    const layoutMoving = offsetWeight > 0 && scene.offsets.size > 0;
-    const positions = new Map<string, MapPosition>();
-    if (layoutMoving) {
-      unsettled = true;
-      for (const point of model.points) {
-        const next = displayedNodeWorldPoint(point, scene.camera.zoom, layout);
-        const offset = scene.offsets.get(point.traceId);
-        positions.set(point.traceId, {
-          x: next.x + (offset?.x ?? 0) * offsetWeight,
-          y: next.y + (offset?.y ?? 0) * offsetWeight,
-        });
-      }
-    } else scene.offsets.clear();
     const frame = prepareMapNodes(
       model,
-      layout,
       scene.camera,
       size,
       scene.pointer,
       selectedTopic,
-      positions.size ? positions : undefined,
     );
     const hover = getTopicMapHover(state, frame);
     for (const point of model.points) {
@@ -257,7 +223,7 @@ export function TopicMapCanvas({
     }
     drawMap(ref.current, frame, scene.emphasis);
     scene.frame = frame;
-    publishTopicMapFrame(store, frame, cameraMoving || layoutMoving);
+    publishTopicMapFrame(store, frame, cameraMoving);
     return unsettled;
   });
   // Canvas owns presentation interpolation; DOM content and hit testing share its painted frame.
@@ -294,7 +260,6 @@ export function TopicMapCanvas({
   }, [
     store,
     model,
-    layout,
     size.width,
     size.height,
     camera.x,

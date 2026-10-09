@@ -5,8 +5,16 @@ Topics**. Only platform administrators see or change this personal flag. The
 sidebar, direct page, and Topics API also require deployment enablement and
 project permissions. Processing additionally requires the project allowlist.
 
-- `TopicsPage.tsx` owns facet configuration and the execution history drawer.
-  `CurrentTopics.tsx` remains mounted as the only results workspace, including
+- `TopicsPage.tsx` owns facet configuration, the execution history drawer,
+  the current-results query and facet selection. A compact header keeps the facet
+  picker, time range and processing action on one row; configuration, history and
+  refresh live in the overflow menu. `CurrentTopics.tsx` presents the selected
+  facet in independently scrolling panels: map and groups on the left, traces on
+  the right. Narrow views keep the map above Topics/Traces tabs, with readable
+  summary rows on phones and all processing controls in the mobile overflow
+  menu. Selecting a group filters traces without changing the active tab.
+  Peek defaults to the trace panel width and has its own resize preference.
+  The results workspace stays mounted, including
   while a run's status is open. Execution URL parameters open progress, errors
   and retry controls in the drawer; returning to the run list or closing the
   drawer removes only that parameter. Historical map comparison is not exposed.
@@ -69,43 +77,49 @@ project permissions. Processing additionally requires the project allowlist.
 - `TopicEmbeddingMap.tsx` loads the published map and supplies trace navigation.
   `EmbeddingMapView.tsx` preserves the controlled selection contract as a drop-in
   adapter to `map/TopicMapExplorer.tsx`. The renderer owns no queries or clustering.
-  `map/prepare-topic-map.ts` prepares stable cohort orientation, topic zones,
-  colors, mapped-cohort counts, camera geometry, spatial reading grids and collision-bounded node footprints.
-  Zones represent existing topics, not a new clustering hierarchy; halos and
-  deterministic depth are decorative, not density, severity or quality measures.
-  The bird's-eye cloud uses a uniform scale for the saved 2D distances and shows
-  block labels only on hover. Zoom progressively interpolates each topic's cloud
-  into a stable card grid for reading; those display positions are not embedding
-  distances and never change the saved coordinates or topic membership. The
-  camera keeps surrounding topics visible when a selection focuses a cloud.
-  Whole-zone reading envelopes are packed along fixed axes chosen from the saved
-  cloud geometry, so neighboring grids cannot interleave as they expand. A reading
-  anchor is captured when zoom first enters reading mode and remains fixed through
-  pan/zoom; other zones make room around it. A focused topic opens into its own grid
-  while surrounding clouds translate rigidly, preserving their internal geometry.
-  Halos, zone hints and hit testing follow the same displayed zone positions.
-  Each trace grows continuously from a circle into a rounded rectangle, reveals a
-  trace icon, then fades in its stored summary when its actual footprint allows it.
-  Neighbor clearance constrains expansion, including offscreen neighbors. Spatial
-  rows preserve cloud order as the grid forms; hovering never reallocates nodes.
-  Explicit hover hints fade and scale gently while summaries lack inline space.
-  Camera movement clears hover until fresh physical pointer movement, and the
-  same painted frame supplies Canvas, inline content and hit testing. The inspector
-  pins full summaries and opens traces.
-  Previous/Next controls expose every plotted trace to keyboard users, including
-  coincident points and fullscreen, without mounting thousands of focusable dots.
-  `map/TopicMapCanvas.tsx` interpolates camera, depth, hover emphasis and responsive
-  layout changes via a frame-batched subscription to a per-mount vanilla store.
-  Inline summaries and animated hover hints subscribe to its shared presentation.
+  `map/prepare-topic-map.ts` prepares topic zones, colors, mapped-cohort counts,
+  camera geometry and collision-bounded node footprints. Saved coordinates are
+  the fixed world centers at every zoom; fitting and camera movement use one
+  uniform scale. Zones represent existing topics, not a new clustering hierarchy;
+  halos and deterministic depth are decorative, not density, severity or quality
+  measures. Subtle pointer parallax fades as detail grows; it does not change
+  stored positions, topic membership or the spatial arrangement.
+  The bird's-eye cloud keeps group labels hidden. Only individual traces show
+  hover hints; group context comes from the in-space labels. Each trace grows around
+  its fixed center, retaining a filled abstract shape until its actual footprint
+  allows summary text. Text starts small, increases with available space and
+  fades in as the shape becomes a rounded card. Neighbor
+  clearance constrains expansion, including foreign and offscreen neighbors.
+  Dense or coincident points keep their hover and trace-table paths. Zoom can reach
+  128 times the fitted overview so dense regions can reveal detail without packing
+  points into a grid. Background text contains only existing group names and
+  descriptions, including Outliers, with one label per group. Labels follow fixed
+  zone centers and stay within the visible part of each zone as users pan and
+  zoom. Overlapping labels fade instead of searching for new positions.
+  Hover hints fade and scale gently while summaries lack inline space. These
+  translucent hints always ignore pointer events, so moving across them targets
+  the underlying map. Inline trace content remains selectable. Camera movement
+  clears hover until fresh physical pointer movement, and the same painted frame
+  supplies Canvas, inline content and hit testing. Zone selection uses a slow
+  eased camera flight, including selection from the group panel. Hover never
+  changes the map layout. Clicking a trace opens peek directly; trace-table links
+  also expose dense and coincident points without mounting thousands of focusable
+  dots.
+  `map/TopicMapCanvas.tsx` interpolates camera, pointer parallax and hover emphasis
+  via a frame-batched subscription to a per-mount vanilla store. Inline summaries,
+  background text and animated hover hints subscribe to its shared presentation.
   The measured stage fills its container and expands with native browser fullscreen,
   retaining the camera. Opening a trace exits fullscreen before using the peek panel.
   `usePanZoomGestures` shares wheel input with the timeline: scroll pans, pinch or
   Ctrl/Command-scroll zooms at the pointer, and two touch contacts pinch and pan.
   Drag capture starts after a threshold so clicks remain clicks. Arrow keys pan,
-  +/- zoom and 0/Home fit the current selection. OS reduced motion disables focus
-  flights, presentation interpolation and pointer parallax, with immediate hints. Missing-coordinate warnings remain below the map. This internal
-  PoC adds no analytics events for camera/hover/fullscreen; the entire renderer is
-  blocked from session replay. Browser fullscreen denial is expected UI state.
+  +/- zoom and 0/Home return to the full map. Zoom, fit and fullscreen controls
+  overlay the chart without reserving a header row. OS reduced motion disables focus
+  flights, presentation interpolation and pointer parallax, with immediate hints.
+  Unpositioned summaries remain available in the trace table. This internal PoC
+  adds no
+  analytics events for camera/hover/fullscreen; the entire renderer is blocked
+  from session replay. Browser fullscreen denial is expected UI state.
 - `server/currentResults.ts` joins latest per-trace/facet assignments to their
   exact topic versions, including assignments from older maps. Summary states
   identify terminal no-topic results. An assignment applies only when its stored
@@ -131,10 +145,9 @@ project permissions. Processing additionally requires the project allowlist.
 
 The plot is an approximate 2D view, separate from clustering and classification.
 It always shows the original discovery cohort. Later assignment batches keep
-their results in the list; they are explicitly reported as unpositioned because
-the PoC does not retain a UMAP transform. Missing coordinates show an explanation
-instead of fabricated points. Missing source summaries do not change the
-remaining points' coordinates.
+their results in the trace table because the PoC does not retain a UMAP
+transform. The map only renders saved coordinates; missing source summaries do
+not change the remaining points' coordinates.
 
 Runtime and numerical pipeline:
 [`worker/src/features/topics/README.md`](../../../../worker/src/features/topics/README.md).

@@ -1,16 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Expand,
-  LocateFixed,
-  Maximize2,
-  Minus,
-  Plus,
-  X,
-} from "lucide-react";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { LocateFixed, Maximize2, Minus, Plus, X } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
@@ -26,17 +16,14 @@ import {
   type TopicMapStore,
 } from "./topic-map-store";
 import {
-  baseScale,
   fitCamera,
-  displayedNodeWorldPoint,
   fitMapPoints,
   hitMapNode,
-  hitZone,
   panCamera,
   prepareMapHover,
-  prepareNodeLayout,
+  prepareMapTextLabels,
   prepareTopicMap,
-  readingLayoutBlend,
+  nodeDetailBlend,
   zoomCamera,
   type Camera,
   type MapData,
@@ -55,6 +42,7 @@ export type TopicMapExplorerProps = {
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
   onOpenTrace: (traceId: string) => void;
+  fillContainer?: boolean;
 };
 
 export function TopicMapExplorer({
@@ -62,10 +50,10 @@ export function TopicMapExplorer({
   topics,
   selectedTopic,
   onSelectTopic,
-  headerStats,
   onSelectTrace,
   selectedTraceId,
   onOpenTrace,
+  fillContainer = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
   const model = useMemo(() => prepareTopicMap(data, topics), [data, topics]);
@@ -77,22 +65,6 @@ export function TopicMapExplorer({
     width: stageSize?.width || 960,
     height: stageSize?.height || 560,
   };
-  const readingAnchor = useStore(store, (s) => s.readingAnchor);
-  const effectiveReadingAnchor =
-    selectedTopic ??
-    (model.zones.some((zone) => zone.id === readingAnchor)
-      ? readingAnchor
-      : null);
-  const layout = useMemo(
-    () =>
-      prepareNodeLayout(
-        model,
-        { width: size.width, height: size.height },
-        selectedTopic,
-        effectiveReadingAnchor,
-      ),
-    [model, size.width, size.height, selectedTopic, effectiveReadingAnchor],
-  );
   const selectedZone = model.zones.find((zone) => zone.id === selectedTopic);
   const initialCamera = fitCamera(
     selectedZone?.bounds ?? model.bounds,
@@ -111,7 +83,24 @@ export function TopicMapExplorer({
     clearTopicMapHover(store);
     store.setState({ camera, scope });
   };
-  const cancelFlight = () => cancelAnimationFrame(animationRef.current);
+  const cancelFlight = () => {
+    const manualFlight = animationRef.current !== 0;
+    cancelAnimationFrame(animationRef.current);
+    animationRef.current = 0;
+    const state = store.getState();
+    const frame = state.frame;
+    if (
+      state.isMoving &&
+      (manualFlight ||
+        state.scope !== selectedTopic ||
+        state.camera === null) &&
+      frame?.model === model &&
+      frame.readingTopic === selectedTopic &&
+      frame.size.width === size.width &&
+      frame.size.height === size.height
+    )
+      setCamera(frame.camera);
+  };
   const flyTo = (target: Camera, scope: string | null, fit = false) => {
     cancelFlight();
     clearTopicMapHover(store);
@@ -122,8 +111,9 @@ export function TopicMapExplorer({
     }
     const started = performance.now();
     const step = (now: number) => {
-      const progress = Math.min(1, (now - started) / 320);
-      const t = 1 - (1 - progress) ** 3;
+      animationRef.current = 0;
+      const progress = Math.min(1, (now - started) / 1050);
+      const t = progress ** 3 * (progress * (progress * 6 - 15) + 10);
       setCamera(
         {
           x: start.x + (target.x - start.x) * t,
@@ -141,66 +131,23 @@ export function TopicMapExplorer({
     animationRef.current = requestAnimationFrame(step);
   };
   const chooseZone = (id: string | null) => {
-    store.setState({ readingAnchor: null });
-    const zone = model.zones.find((item) => item.id === id);
-    flyTo(
-      fitCamera(zone?.bounds ?? model.bounds, model.bounds, size),
-      id,
-      true,
-    );
+    if (id === selectedTopic) {
+      const zone = model.zones.find((item) => item.id === id);
+      flyTo(
+        fitCamera(zone?.bounds ?? model.bounds, model.bounds, size),
+        id,
+        true,
+      );
+    } else {
+      cancelFlight();
+      setCamera(null, id);
+    }
     onSelectTopic(id);
-  };
-  const fitSelection = () => {
-    store.setState({ readingAnchor: null });
-    flyTo(
-      fitCamera(selectedZone?.bounds ?? model.bounds, model.bounds, size),
-      selectedTopic,
-      true,
-    );
   };
   const zoom = (levels: number, anchor = { x: 0.5, y: 0.5 }) => {
     const before = getCamera();
     const next = zoomCamera(before, levels, anchor, model.bounds, size);
-    if (next.zoom <= 3) store.setState({ readingAnchor: null });
-    else if (selectedTopic === null && before.zoom <= 3) {
-      const scale = baseScale(model.bounds, size) * before.zoom;
-      const at = {
-        x: before.x + ((anchor.x - 0.5) * size.width) / scale,
-        y: before.y - ((anchor.y - 0.5) * size.height) / scale,
-      };
-      let nearest: (typeof model.zones)[number] | undefined;
-      let distance = Infinity;
-      for (const zone of model.zones) {
-        const candidate = Math.hypot(zone.x - at.x, zone.y - at.y);
-        if (candidate < distance) {
-          distance = candidate;
-          nearest = zone;
-        }
-      }
-      store.setState({ readingAnchor: nearest?.id ?? null });
-    }
     setCamera(next);
-  };
-  const focusTrace = (id: string) => {
-    const point = model.pointById.get(id);
-    if (!point) return;
-    onSelectTrace(id);
-    const before = getCamera();
-    const targetZoom = Math.max(4, before.zoom);
-    const nextAnchor =
-      selectedTopic === null && before.zoom <= 3
-        ? point.groupId
-        : effectiveReadingAnchor;
-    if (selectedTopic === null && before.zoom <= 3)
-      store.setState({ readingAnchor: nextAnchor });
-    const targetLayout = prepareNodeLayout(
-      model,
-      size,
-      selectedTopic,
-      nextAnchor,
-    );
-    const position = displayedNodeWorldPoint(point, targetZoom, targetLayout);
-    flyTo({ ...position, zoom: targetZoom }, selectedTopic);
   };
   const gestures = usePanZoomGestures({
     target: stageRef,
@@ -264,61 +211,10 @@ export function TopicMapExplorer({
       aria-label="Embedding map"
       className={cn(
         "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden rounded-lg border",
+        fillContainer && "h-full min-h-0",
         fullscreen && "h-dvh rounded-none border-0",
       )}
     >
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-        <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h4 className="text-sm font-bold">Topics explorer</h4>
-            {headerStats}
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Explore a topic cloud. Zoom closer to read the traces behind it.
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            text="All topics"
-            variant={selectedTopic === null ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => chooseZone(null)}
-          />
-          <IconButton
-            icon={LocateFixed}
-            label="Fit map (0)"
-            onClick={fitSelection}
-          />
-          <IconButton
-            icon={Minus}
-            label="Zoom out (-)"
-            onClick={() => {
-              cancelFlight();
-              zoom(-0.5);
-            }}
-          />
-          <ZoomReadout
-            store={store}
-            initialCamera={initialCamera}
-            scope={selectedTopic}
-          />
-          <IconButton
-            icon={Plus}
-            label="Zoom in (+)"
-            onClick={() => {
-              cancelFlight();
-              zoom(0.5);
-            }}
-          />
-          <IconButton
-            icon={fullscreen ? X : Maximize2}
-            label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            onClick={() => {
-              toggleFullscreen();
-            }}
-          />
-        </div>
-      </header>
       {fullscreenError && (
         <p role="status" className="text-muted-foreground px-4 py-2 text-xs">
           Fullscreen is unavailable in this browser. You can still pan and zoom
@@ -331,8 +227,10 @@ export function TopicMapExplorer({
         role="group"
         aria-label="Interactive topic map. Drag or scroll to pan, pinch or control scroll to zoom. Arrow keys pan, plus and minus zoom, zero fits the map."
         className={cn(
-          "bg-muted/10 focus-visible:ring-ring relative min-h-[340px] w-full overflow-hidden overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset",
-          fullscreen ? "min-h-0 flex-1" : "h-[clamp(380px,64vh,820px)]",
+          "bg-muted/10 focus-visible:ring-ring relative w-full overflow-hidden overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset",
+          fullscreen || fillContainer
+            ? "min-h-0 flex-1"
+            : "h-[clamp(380px,64vh,820px)] min-h-[340px]",
           gestures.isDragging ? "cursor-grabbing" : "cursor-grab",
         )}
         style={{ touchAction: "none" }}
@@ -382,12 +280,6 @@ export function TopicMapExplorer({
             return;
           }
           const hovered = hitMapNode(frame, at);
-          const label =
-            event.target instanceof Element
-              ? event.target.closest<HTMLElement>(
-                  '[data-topic-zone]:not([data-active="false"])',
-                )
-              : null;
           const traceLabel =
             event.target instanceof Element
               ? event.target.closest<HTMLElement>(
@@ -396,12 +288,8 @@ export function TopicMapExplorer({
               : null;
           setTopicMapHover(
             store,
-            traceLabel?.dataset.topicTrace ??
-              (label ? null : (hovered?.traceId ?? null)),
-            label?.dataset.topicZone ??
-              hovered?.groupId ??
-              hitZone(frame, at)?.id ??
-              null,
+            traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? null,
+            null,
             pointer,
             pointerAt,
           );
@@ -423,6 +311,7 @@ export function TopicMapExplorer({
                 })
               : null;
           onSelectTrace(point?.traceId ?? null);
+          if (point) openTrace(point.traceId);
         }}
         onDoubleClick={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -453,7 +342,8 @@ export function TopicMapExplorer({
             cancelFlight();
             if (event.key === "+" || event.key === "=") zoom(0.5);
             else if (event.key === "-") zoom(-0.5);
-            else if (event.key === "0" || event.key === "Home") fitSelection();
+            else if (event.key === "0" || event.key === "Home")
+              chooseZone(null);
             else if (event.key === "Escape") {
               if (document.fullscreenElement === sectionRef.current)
                 toggleFullscreen();
@@ -476,9 +366,51 @@ export function TopicMapExplorer({
           }
         }}
       >
+        <div
+          role="toolbar"
+          aria-label="Map controls"
+          className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm backdrop-blur-sm"
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerEnter={() => clearTopicMapHover(store)}
+        >
+          <IconButton
+            icon={LocateFixed}
+            label="Fit map (0)"
+            onClick={() => chooseZone(null)}
+          />
+          <IconButton
+            icon={Minus}
+            label="Zoom out (-)"
+            onClick={() => {
+              cancelFlight();
+              zoom(-0.5);
+            }}
+          />
+          <ZoomReadout
+            store={store}
+            initialCamera={initialCamera}
+            scope={selectedTopic}
+          />
+          <IconButton
+            icon={Plus}
+            label="Zoom in (+)"
+            onClick={() => {
+              cancelFlight();
+              zoom(0.5);
+            }}
+          />
+          <IconButton
+            icon={fullscreen ? X : Maximize2}
+            label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            onClick={() => {
+              toggleFullscreen();
+            }}
+          />
+        </div>
+        <MapBackgroundLabels store={store} />
         <TopicMapCanvas
           model={model}
-          layout={layout}
           size={size}
           camera={initialCamera}
           store={store}
@@ -491,8 +423,10 @@ export function TopicMapExplorer({
           store={store}
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
-          onSelectZone={chooseZone}
-          onSelectTrace={onSelectTrace}
+          onSelectTrace={(id) => {
+            onSelectTrace(id);
+            openTrace(id);
+          }}
         />
         {model.points.length === 0 && (
           <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm">
@@ -506,29 +440,13 @@ export function TopicMapExplorer({
             scope={selectedTopic}
             population={model.populationLabel}
           />
-          <span>Drag / scroll to pan · Pinch / Ctrl or ⌘ + scroll to zoom</span>
+          {!fillContainer && (
+            <span>
+              Drag / scroll to pan · Pinch / Ctrl or ⌘ + scroll to zoom
+            </span>
+          )}
         </div>
       </div>
-      <MapInspector
-        model={model}
-        store={store}
-        selectedTopic={selectedTopic}
-        selectedTraceId={selectedTraceId}
-        onSelectZone={chooseZone}
-        onSelectTrace={focusTrace}
-        onClearTrace={() => onSelectTrace(null)}
-        onOpenTrace={(id) => {
-          openTrace(id);
-        }}
-      />
-      {(data.unpositionedCount > 0 || data.missingSummaryCount > 0) && (
-        <p className="text-muted-foreground shrink-0 border-t px-4 py-2 text-xs">
-          {data.unpositionedCount > 0 &&
-            `${data.unpositionedCount.toLocaleString()} current summaries have no saved coordinates; they remain in the list below. `}
-          {data.missingSummaryCount > 0 &&
-            `${data.missingSummaryCount.toLocaleString()} original summaries are no longer available.`}
-        </p>
-      )}
     </section>
   );
 }
@@ -575,8 +493,8 @@ function LayoutReadout({
   return (
     <span>
       {population} ·{" "}
-      {readingLayoutBlend(current.zoom) > 0
-        ? "Reading layout"
+      {nodeDetailBlend(current.zoom) > 0
+        ? "Adaptive detail"
         : "Saved 2D projection"}
     </span>
   );
@@ -588,7 +506,6 @@ function MapLabels({
   store,
   selectedTopic,
   selectedTraceId,
-  onSelectZone,
   onSelectTrace,
 }: {
   model: TopicMapModel;
@@ -596,7 +513,6 @@ function MapLabels({
   store: TopicMapStore;
   selectedTopic: string | null;
   selectedTraceId: string | null;
-  onSelectZone: (id: string) => void;
   onSelectTrace: (id: string) => void;
 }) {
   const state = useStore(store);
@@ -622,27 +538,21 @@ function MapLabels({
               data-trace-id={node.point.traceId}
               data-testid="topic-map-trace-card"
               data-hovered={node.point.traceId === hover.hoveredId}
-              data-icon-opacity={node.iconOpacity}
               data-text-opacity={node.textOpacity}
               tabIndex={node.textOpacity >= 0.9 ? 0 : -1}
               aria-pressed={node.point.traceId === selectedTraceId}
               aria-label={`Select trace: ${node.point.summary}`}
               onClick={() => onSelectTrace(node.point.traceId)}
-              className="text-foreground focus-visible:outline-ring pointer-events-auto absolute cursor-pointer overflow-hidden rounded-lg px-3 py-2.5 text-left text-xs leading-relaxed focus-visible:outline-2"
+              className="text-foreground focus-visible:outline-ring pointer-events-auto absolute cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 text-left leading-relaxed focus-visible:outline-2"
               style={{
                 left: node.rect.x,
                 top: node.rect.y,
                 width: node.rect.width,
                 height: node.rect.height,
                 opacity: node.textOpacity,
+                fontSize: node.fontSize,
               }}
             >
-              <span
-                className="mb-2 block pl-6 text-[10px] font-bold"
-                style={{ color: node.point.color }}
-              >
-                Trace summary
-              </span>
               <span className="block">{node.excerpt}</span>
             </button>
           ))}
@@ -668,37 +578,29 @@ function MapLabels({
         if (!trace && !zone) return null;
         const rect = trace?.card ?? zone!.label;
         return (
-          <button
+          <div
             key={label.token}
-            type="button"
+            role="tooltip"
             data-testid="topic-map-hover-card"
             data-topic-trace={trace?.point.traceId}
             data-topic-zone={zone?.id}
             data-trace-id={trace?.point.traceId}
             data-active={active}
             data-hovered={active && label.kind === "trace"}
-            tabIndex={active ? 0 : -1}
             aria-hidden={!active}
             aria-label={
               trace
-                ? `Select trace: ${trace.point.summary}`
-                : `Explore ${zone!.name}, ${zone!.countLabel}`
-            }
-            onClick={() =>
-              active &&
-              (trace
-                ? onSelectTrace(trace.point.traceId)
-                : onSelectZone(zone!.id))
+                ? `Trace summary: ${trace.point.summary}`
+                : `${zone!.name}, ${zone!.countLabel}`
             }
             onTransitionEnd={(event) => {
               if (!active && event.propertyName === "opacity")
                 finishTopicMapHover(store, label.token);
             }}
             className={cn(
-              "bg-background/95 text-foreground focus-visible:outline-ring absolute cursor-pointer overflow-hidden rounded-lg border px-3 py-2.5 text-left text-xs leading-relaxed shadow-md backdrop-blur-sm focus-visible:outline-2",
+              "bg-background/85 text-foreground pointer-events-none absolute overflow-hidden rounded-lg border px-3 py-2.5 text-left text-xs leading-relaxed shadow-md backdrop-blur-sm",
               styles.hoverCard,
               active ? styles.enter : styles.exit,
-              active && "pointer-events-auto",
             )}
             style={{
               left: rect.x,
@@ -725,184 +627,60 @@ function MapLabels({
                 <span className="line-clamp-3 text-[11px]">{zone!.detail}</span>
               </>
             )}
-          </button>
+          </div>
         );
       })}
     </div>
   );
 }
 
-function MapInspector({
-  model,
-  store,
-  selectedTopic,
-  selectedTraceId,
-  onSelectZone,
-  onSelectTrace,
-  onClearTrace,
-  onOpenTrace,
-}: {
-  model: TopicMapModel;
-  store: TopicMapStore;
-  selectedTopic: string | null;
-  selectedTraceId: string | null;
-  onSelectZone: (id: string) => void;
-  onSelectTrace: (id: string) => void;
-  onClearTrace: () => void;
-  onOpenTrace: (id: string) => void;
-}) {
-  const hoveredId = useStore(
-    store,
-    (s) => getTopicMapHover(s, s.frame).hoveredId,
-  );
-  const hoveredZoneId = useStore(
-    store,
-    (s) => getTopicMapHover(s, s.frame).hoveredZoneId,
-  );
-  const activeId = selectedTraceId ?? hoveredId;
-  const active = activeId ? model.pointById.get(activeId) : undefined;
-  const zone = model.zones.find(
-    (z) => z.id === (active?.groupId ?? selectedTopic ?? hoveredZoneId),
-  );
-  const browsePoints = selectedTopic
-    ? (model.zones.find((item) => item.id === selectedTopic)?.points ?? [])
-    : model.points;
-  const traceIndex = browsePoints.findIndex(
-    (point) => point.traceId === activeId,
-  );
-  const browse = (direction: number) => {
-    const nextIndex =
-      traceIndex < 0
-        ? 0
-        : (traceIndex + direction + browsePoints.length) % browsePoints.length;
-    const point = browsePoints[nextIndex];
-    if (point) onSelectTrace(point.traceId);
-  };
+function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
+  const frame = useStore(store, (state) => state.frame);
   return (
     <div
-      className="bg-background flex max-h-60 min-h-28 shrink-0 flex-col gap-2 overflow-y-auto border-t px-4 py-3"
-      aria-label="Map details"
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      aria-hidden
     >
-      {(() => {
-        if (active)
-          return (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <button
-                  type="button"
-                  className="cursor-pointer text-xs font-bold hover:underline"
-                  style={{ color: zone?.color }}
-                  onClick={() => zone && onSelectZone(zone.id)}
-                >
-                  {zone?.name ?? "Trace summary"}
-                </button>
-                <div className="flex items-center gap-1">
-                  <Button
-                    text="Open trace"
-                    icon={Expand}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onOpenTrace(active.traceId)}
-                  />
-                  {selectedTraceId && (
-                    <IconButton
-                      icon={X}
-                      label="Clear selected trace"
-                      size="sm"
-                      onClick={onClearTrace}
-                    />
-                  )}
-                </div>
-              </div>
-              <p className="max-w-5xl text-sm whitespace-pre-wrap">
-                {active.summary}
-              </p>
-              <p
-                className="text-muted-foreground truncate text-[10px]"
-                title={active.traceId}
+      {frame &&
+        prepareMapTextLabels(frame).map((label) => (
+          <div
+            key={label.id}
+            data-topic-background-label={label.id}
+            data-label-kind={label.kind}
+            className={cn(
+              "text-muted-foreground pointer-events-none absolute overflow-hidden text-center",
+              styles.backgroundLabel,
+            )}
+            style={{
+              left: label.rect.x,
+              top: label.rect.y,
+              width: label.rect.width,
+              height: label.rect.height,
+              opacity: label.opacity,
+            }}
+          >
+            <span
+              className={cn(
+                "line-clamp-2 block leading-[1.2]",
+                label.kind === "zone" && "font-bold",
+              )}
+              style={{
+                fontSize: label.fontSize,
+                color: `color-mix(in srgb, ${label.color} 35%, hsl(var(--muted-foreground)))`,
+              }}
+            >
+              {label.title}
+            </span>
+            {label.description && (
+              <span
+                className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
+                style={{ opacity: label.detailOpacity }}
               >
-                {active.traceId}
-              </p>
-            </>
-          );
-        if (zone)
-          return (
-            <>
-              <div className="flex flex-wrap items-baseline gap-2">
-                <h5 className="text-sm font-bold" style={{ color: zone.color }}>
-                  {zone.name}
-                </h5>
-                <span className="text-muted-foreground text-xs">
-                  {zone.countLabel} · {zone.shareLabel}
-                </span>
-              </div>
-              <p className="text-muted-foreground text-xs">
-                {zone.description}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {zone.points.slice(0, 3).map((point) => (
-                  <button
-                    key={point.traceId}
-                    type="button"
-                    onClick={() => onSelectTrace(point.traceId)}
-                    className="bg-muted/20 hover:bg-muted/50 max-w-80 flex-1 cursor-pointer rounded-md border p-2 text-left text-xs"
-                  >
-                    <span className="line-clamp-2">{point.summary}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          );
-        return (
-          <>
-            <p className="text-muted-foreground text-xs">
-              Choose a topic to enter its cloud, or a dot to inspect a trace.
-              More summaries appear as you zoom.
-            </p>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {model.zones.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onSelectZone(item.id)}
-                  aria-label={`Explore ${item.name}, ${item.countLabel}`}
-                  className="flex cursor-pointer items-center gap-1.5 py-1 text-xs hover:underline"
-                >
-                  <span
-                    className="size-1.5 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span>{item.name}</span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {item.points.length}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        );
-      })()}
-      {browsePoints.length > 0 && (
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t pt-2">
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {traceIndex < 0
-              ? `${browsePoints.length.toLocaleString()} traces to explore`
-              : `Trace ${(traceIndex + 1).toLocaleString()} of ${browsePoints.length.toLocaleString()}`}
-          </span>
-          <IconButton
-            icon={ChevronLeft}
-            label="Previous trace"
-            size="sm"
-            onClick={() => browse(-1)}
-          />
-          <IconButton
-            icon={ChevronRight}
-            label="Next trace"
-            size="sm"
-            onClick={() => browse(1)}
-          />
-        </div>
-      )}
+                {label.description}
+              </span>
+            )}
+          </div>
+        ))}
     </div>
   );
 }
