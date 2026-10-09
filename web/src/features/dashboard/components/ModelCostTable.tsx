@@ -137,7 +137,7 @@ export const ModelCostTable = ({
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
-          metric={costFormatter(totalTokenCost)}
+          metric={total.isSuccess ? costFormatter(totalTokenCost) : "—"}
           description="Total cost"
         >
           <DocPopup

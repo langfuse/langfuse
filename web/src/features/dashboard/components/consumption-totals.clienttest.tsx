@@ -62,9 +62,16 @@ beforeEach(() => {
           [countField]: 1,
         })).slice(0, query.chartConfig?.row_limit ?? 21)
       : [{ sum_totalCost: 21, [countField]: 21 }];
-    return { data, isPending: false, isLoading: false } as ReturnType<
-      typeof useScheduledDashboardExecuteQuery
-    >;
+    return {
+      data,
+      isPending: false,
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      fetchStatus: "idle",
+      progress: null,
+      error: null,
+    };
   });
 });
 
@@ -95,7 +102,7 @@ function expectUnboundedTotals() {
       expect.arrayContaining(other.query.filters),
     );
     const view = getViewDeclaration(input.query.view, input.version);
-    const relations = (query: QueryType) =>
+    const relations = (query: typeof input.query) =>
       new Set(
         [
           ...query.dimensions.map(({ field }) => view.dimensions[field]),
@@ -144,9 +151,76 @@ it.each([UserChart, ModelCostTable])(
       const result = implementation(input, options);
       return input.query.dimensions.length
         ? result
-        : { ...result, data: undefined, isPending: true, isLoading: false };
+        : {
+            ...result,
+            data: undefined,
+            isPending: true,
+            isLoading: false,
+            isSuccess: false,
+          };
     });
     const { container } = render(<Component {...props} metricsVersion="v2" />);
     expect(container.querySelector(".animate-spin")).toBeInTheDocument();
   },
 );
+
+describe.each([
+  {
+    Component: UserChart,
+    tab: "Token cost",
+    queryId: "cost-total",
+    list: "bars",
+    zero: "$0.00",
+  },
+  {
+    Component: UserChart,
+    tab: "Count of Traces",
+    queryId: "traces-total",
+    list: "bars",
+    zero: "0",
+  },
+  {
+    Component: ModelCostTable,
+    tab: undefined,
+    queryId: "total",
+    list: "rows",
+    zero: "$0.00",
+  },
+])("$queryId total", ({ Component, tab, queryId, list, zero }) => {
+  it.each(["pending", "error"])("shows unknown, not zero, when %s", (state) => {
+    const implementation = queryHook.getMockImplementation()!;
+    queryHook.mockImplementation((input, options) => {
+      const result = implementation(input, options);
+      return options.queryId.endsWith(`:${queryId}`)
+        ? {
+            ...result,
+            data: undefined,
+            isPending: state === "pending",
+            isLoading: false,
+            isError: state === "error",
+            isSuccess: false,
+            error: state === "error" ? "Query timed out" : null,
+          }
+        : result;
+    });
+    render(<Component {...props} metricsVersion="v2" />);
+    if (tab) fireEvent.click(screen.getByText(tab, { selector: "a" }));
+    expect(screen.getByTestId(list)).toHaveTextContent("20");
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText(zero)).not.toBeInTheDocument();
+  });
+
+  it("shows a successfully returned zero", () => {
+    const implementation = queryHook.getMockImplementation()!;
+    queryHook.mockImplementation((input, options) => {
+      const result = implementation(input, options);
+      return options.queryId.endsWith(`:${queryId}`)
+        ? { ...result, data: [{ sum_totalCost: 0, uniq_traceId: 0 }] }
+        : result;
+    });
+    render(<Component {...props} metricsVersion="v2" />);
+    if (tab) fireEvent.click(screen.getByText(tab, { selector: "a" }));
+    expect(screen.getByText(zero)).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
+});

@@ -213,7 +213,7 @@ export const UserChart = ({
     {
       tabTitle: "Token cost",
       data: transformedCost,
-      totalMetric: costFormatter(totalCost),
+      totalMetric: userTotal.isSuccess ? costFormatter(totalCost) : "—",
       metricDescription: "Total cost",
       chartMetricLabel: "USD",
       chartUnit: "USD",
@@ -221,9 +221,9 @@ export const UserChart = ({
     {
       tabTitle: "Count of Traces",
       data: transformedNumberOfTraces,
-      totalMetric: totalTraces
+      totalMetric: tracesTotal.isSuccess
         ? compactNumberFormatter(totalTraces)
-        : compactNumberFormatter(0),
+        : "—",
       metricDescription: "Total traces",
       chartMetricLabel: "Traces",
       chartUnit: "traces",
