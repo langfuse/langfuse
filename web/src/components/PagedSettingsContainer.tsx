@@ -41,15 +41,9 @@ export const PagedSettingsContainer = ({
   sectionHeaders = {},
 }: SettingsProps) => {
   const router = useRouter();
-  const availablePages = pages.filter((page) => {
-    if ("show" in page) {
-      if (typeof page.show === "function") {
-        return page.show();
-      }
-      return page.show;
-    }
-    return true;
-  });
+  const availablePages = pages.filter((page) =>
+    typeof page.show === "function" ? page.show() : (page.show ?? true),
+  );
 
   const contentPages = availablePages.filter((page) => "content" in page);
   const currentPage =

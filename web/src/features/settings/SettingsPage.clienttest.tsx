@@ -1,4 +1,10 @@
+import { render, screen } from "@testing-library/react";
+import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { buildSettingsPages } from "@/src/features/settings/SettingsPage";
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ asPath: "/account/settings", push: vi.fn() }),
+}));
 
 vi.mock("@/src/features/account", () => ({
   useAccountSettingsPages: () => [],
@@ -117,5 +123,24 @@ describe("buildSettingsPages", () => {
         internal: false,
       },
     ]);
+  });
+
+  it("keeps converted links visible in the nav", () => {
+    render(
+      <PagedSettingsContainer
+        pages={buildSettingsPages({
+          scope: "account",
+          organizationId: "org-1",
+          accountPages,
+          organizationPages,
+        })}
+      />,
+    );
+
+    expect(screen.getAllByRole("link", { name: "General" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Billing" })).toHaveAttribute(
+      "href",
+      "/organization/org-1/settings/billing",
+    );
   });
 });
