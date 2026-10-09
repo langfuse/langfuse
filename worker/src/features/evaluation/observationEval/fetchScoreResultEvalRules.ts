@@ -1,60 +1,16 @@
 import { EvalTargetObject, ScoreResultTriggerSchema } from "@langfuse/shared";
-import {
-  EvalTemplateType,
-  JobConfigState,
-  prisma,
-} from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
+import { listRunnableScoreResultEvaluationRules } from "@langfuse/shared/src/server";
 import type { ScoreResultEvalRule } from "./types";
-
-const runnableEvaluatorTypes = [
-  EvalTemplateType.LLM_AS_JUDGE,
-  EvalTemplateType.CODE,
-  EvalTemplateType.DECISION_MODEL,
-];
 
 export async function fetchScoreResultEvalRules(params: {
   projectId: string;
   evaluatorId: string;
 }): Promise<ScoreResultEvalRule[]> {
-  const rules = await prisma.evaluationRule.findMany({
-    where: {
-      projectId: params.projectId,
-      targetObject: EvalTargetObject.SCORE_RESULT,
-      triggerEvaluatorId: params.evaluatorId,
-      ruleInvalidReason: null,
-      status: JobConfigState.ACTIVE,
-      assignments: {
-        some: {
-          projectId: params.projectId,
-          evaluator: { blockedAt: null, type: { in: runnableEvaluatorTypes } },
-        },
-      },
-    },
-    select: {
-      id: true,
-      projectId: true,
-      filter: true,
-      sampling: true,
-      status: true,
-      assignments: {
-        where: {
-          projectId: params.projectId,
-          evaluator: { blockedAt: null, type: { in: runnableEvaluatorTypes } },
-        },
-        select: {
-          id: true,
-          evaluatorId: true,
-          variableMapping: true,
-          evaluator: {
-            select: {
-              id: true,
-              projectId: true,
-              type: true,
-            },
-          },
-        },
-      },
-    },
+  const rules = await listRunnableScoreResultEvaluationRules({
+    prisma,
+    projectId: params.projectId,
+    triggerEvaluatorId: params.evaluatorId,
   });
 
   return rules.map((rule) => ({
