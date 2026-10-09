@@ -154,6 +154,7 @@ async function backfillApiKeyRoleAssignment(
   }
 }
 
+/** isUniqueConstraintFailedError identifies Prisma's P2002 uniqueness violation. */
 function isUniqueConstraintFailedError(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
