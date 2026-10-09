@@ -3793,7 +3793,7 @@ export class OtelIngestionProcessor {
   private extractSkills(
     attributes: Record<string, unknown>,
     observationType: string,
-    name: string,
+    toolName: string,
     input: unknown,
     output: unknown,
     statusCode: number | undefined,
@@ -3806,108 +3806,124 @@ export class OtelIngestionProcessor {
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE],
       ),
     );
-    const result =
-      available.success && observationType === ObservationType.GENERATION
-        ? { skillsAvailable: available.data }
-        : {};
-
-    const isNativeLoad = attributes["gen_ai.operation.name"] === "load_skill";
+    if (observationType === ObservationType.GENERATION) {
+      if (available.success) return { skillsAvailable: available.data };
+      return {};
+    }
     if (
+      observationType !== ObservationType.TOOL ||
       statusCode === 2 ||
       parseObservationLevel(
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
-      ) === ObservationLevel.ERROR ||
-      (!isNativeLoad &&
-        (observationType !== ObservationType.TOOL || output == null))
-    )
-      return result;
-
-    // Resource contents can be JSON documents containing an "error" field.
-    const toolResult =
-      isNativeLoad || name === "Read" || name === "skill_read"
-        ? output
-        : this.parseJsonPayload(output);
-    if (
-      (OtelIngestionProcessor.isPlainObject(toolResult) &&
-        (toolResult.isError === true || toolResult.error !== undefined)) ||
-      (!isNativeLoad &&
-        (name === "skill" || name === "skill_read") &&
-        typeof output === "string" &&
-        /^(?:Skill|File) ".*" not found/.test(output))
-    )
-      return result;
+      ) === ObservationLevel.ERROR
+    ) {
+      return {};
+    }
 
     const loaded = SkillsResourceLoadedSchema.element.safeParse(
-      isNativeLoad
-        ? {
-            skillName: attributes["langfuse.skill.name"],
-            langfuseSkillId: attributes["langfuse.skill.id"],
-            langfuseSkillVersion: attributes["langfuse.skill.version"],
-            filePath: attributes["langfuse.skill.resource.path"] ?? "SKILL.md",
-          }
-        : this.extractSkillToolReference(name, input),
+      this.extractSkillResource(
+        toolName,
+        input,
+        output,
+        available.success ? available.data : [],
+      ),
     );
-    if (!loaded.success) return result;
+    if (!loaded.success) return {};
 
-    const reference = loaded.data;
+    const reference = {
+      ...loaded.data,
+      skillName: loaded.data.skillName.replace(/^inline\//, ""),
+    };
+    if (!reference.skillName) return {};
     const matches = (available.success ? available.data : []).filter(
-      (skill) =>
-        skill.skillName === reference.skillName &&
-        (reference.langfuseSkillId == null ||
-          skill.langfuseSkillId === reference.langfuseSkillId) &&
-        (reference.langfuseSkillVersion == null ||
-          skill.langfuseSkillVersion === reference.langfuseSkillVersion),
+      (skill) => skill.skillName === reference.skillName,
     );
     const matchedSkill = matches.length === 1 ? matches[0] : undefined;
     return {
-      ...result,
       skillsResourceLoaded: [
         {
           ...reference,
-          langfuseSkillId:
-            reference.langfuseSkillId ?? matchedSkill?.langfuseSkillId,
-          langfuseSkillVersion:
-            reference.langfuseSkillVersion ??
-            matchedSkill?.langfuseSkillVersion,
+          langfuseSkillId: matchedSkill?.langfuseSkillId,
+          langfuseSkillVersion: matchedSkill?.langfuseSkillVersion,
         },
       ],
     };
   }
 
-  private extractSkillToolReference(name: string, input: unknown) {
+  private extractSkillResource(
+    toolName: string,
+    input: unknown,
+    output: unknown,
+    available: SkillsAvailable,
+  ) {
+    if (output == null) return;
+
     const args = this.parseJsonPayload(input);
     if (!OtelIngestionProcessor.isPlainObject(args)) return;
 
-    const identity = {
-      langfuseSkillId: args.langfuseSkillId,
-      langfuseSkillVersion: args.langfuseSkillVersion,
-    };
-    switch (name) {
-      case "Skill":
-        return { ...identity, skillName: args.skill, filePath: "SKILL.md" };
+    switch (toolName) {
       case "skill":
-      case "skill_read": {
-        const skillName = name === "skill" ? args.name : args.skillName;
+      case "Skill":
+      case "loadSkill":
+        if (this.isFailedSkillActivation(output)) return;
         return {
-          ...identity,
-          skillName:
-            typeof skillName === "string"
-              ? skillName.replace(/^inline\//, "")
-              : skillName,
-          filePath: name === "skill" ? "SKILL.md" : args.path,
+          skillName: args.name ?? args.skill,
+          filePath: "SKILL.md",
         };
-      }
-      case "Read": {
-        if (typeof args.file_path !== "string") return;
-        const path = args.file_path
-          .replace(/\\/g, "/")
-          .match(/(?:^|\/)\.claude\/skills\/([^/]+)\/(.+)$/);
-        if (!path) return;
-        return { ...identity, skillName: path[1], filePath: path[2] };
-      }
+      case "skill_read":
+        if (this.isFailedResourceRead(output)) return;
+        return {
+          skillName: args.skillName,
+          filePath: args.path,
+        };
+      case "readFile":
+      case "Read":
+        if (this.isFailedResourceRead(output)) return;
+        return this.extractSkillResourceFromPath(
+          args.path ?? args.file_path,
+          available,
+        );
       default:
         return;
     }
+  }
+
+  private extractSkillResourceFromPath(
+    path: unknown,
+    available: SkillsAvailable,
+  ) {
+    if (typeof path !== "string") return;
+    const segments = path.split("/");
+    const matches = segments.filter((segment) =>
+      available.some((skill) => skill.skillName === segment),
+    );
+    if (matches.length !== 1) return;
+    const skillName = matches[0];
+    return {
+      skillName,
+      filePath: segments.slice(segments.indexOf(skillName) + 1).join("/"),
+    };
+  }
+
+  private isFailedSkillActivation(output: unknown): boolean {
+    const result = this.parseJsonPayload(output);
+    return (
+      this.isFailedResourceRead(output) ||
+      (OtelIngestionProcessor.isPlainObject(result) &&
+        (result.isError === true || result.error !== undefined))
+    );
+  }
+
+  private isFailedResourceRead(output: unknown): boolean {
+    if (OtelIngestionProcessor.isPlainObject(output)) {
+      return output.isError === true || output.error !== undefined;
+    }
+    // Resource contents can be JSON documents containing an "error" field.
+    const parsed = this.parseJsonPayload(output);
+    const text = typeof parsed === "string" ? parsed : output;
+    return (
+      typeof text === "string" && /^(?:Skill|File) ".*" not found/.test(text)
+    );
   }
 
   /**

@@ -23,6 +23,8 @@ function getSkillObservationFields(
 ): Pick<ViewDeclarationType, "dimensions" | "measures"> {
   const availableNames = `arrayMap(skill -> skill.skillName, ${table}.skills_available)`;
   const loadedNames = `arrayMap(resource -> resource.skillName, ${table}.skills_resource_loaded)`;
+  const availableIds = `arrayMap(skill -> assumeNotNull(skill.langfuseSkillId), arrayFilter(skill -> isNotNull(skill.langfuseSkillId), ${table}.skills_available))`;
+  const loadedResourceIds = `arrayMap(resource -> toJSONString([assumeNotNull(resource.langfuseSkillId), resource.filePath]), arrayFilter(resource -> isNotNull(resource.langfuseSkillId), ${table}.skills_resource_loaded))`;
   const loadedResources = `arrayMap(resource -> toJSONString([resource.skillName, resource.filePath]), ${table}.skills_resource_loaded)`;
 
   return {
@@ -34,6 +36,21 @@ function getSkillObservationFields(
         explodeArray: true,
         description:
           "Names of skills made available or loaded, across versions.",
+      },
+      availableSkillIds: {
+        sql: `arrayDistinct(${availableIds})`,
+        alias: "availableSkillIds",
+        type: "arrayString",
+        description:
+          "Managed skill version IDs made available to the generation.",
+      },
+      loadedSkillResourceIds: {
+        sql: `arrayDistinct(${loadedResourceIds})`,
+        alias: "loadedSkillResourceIds",
+        type: "arrayString",
+        explodeArray: true,
+        description:
+          "Loaded resources as JSON-encoded [langfuseSkillId, filePath] pairs.",
       },
       loadedSkillResources: {
         sql: `arrayDistinct(${loadedResources})`,
@@ -65,6 +82,17 @@ function getSkillObservationFields(
         unit: "loads",
         defaultAggregation: "sum",
         description: "Resource loads per skill name, including repeated reads.",
+      },
+      langfuseSkillResourceLoads: {
+        sql: `countEqual(@@AGG1@@(${loadedResourceIds}), loadedSkillResourceIds)`,
+        aggs: { agg1: "any" },
+        alias: "langfuseSkillResourceLoads",
+        type: "integer",
+        requiresDimension: "loadedSkillResourceIds",
+        unit: "loads",
+        defaultAggregation: "sum",
+        description:
+          "Loads per managed skill version and file path, including repeated reads.",
       },
       skillResourceLoads: {
         sql: `countEqual(@@AGG1@@(${loadedResources}), loadedSkillResources)`,

@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { type QueryType } from "@langfuse/shared/query";
 import { TimeRangePicker } from "@/src/components/date-picker";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   Table,
   type AsyncTableData,
@@ -15,13 +16,19 @@ import {
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 
-type FileUsage = { file: string; loaded: number };
+type FileUsage = { file: string; available: number; loaded: number };
 
 const COLUMNS = [
   createTextTableColumn<FileUsage>({
     accessorKey: "file",
     header: "File",
     size: 280,
+  }),
+  createNumberTableColumn<FileUsage>({
+    accessorKey: "available",
+    formatter: (value) => value.toLocaleString(),
+    header: "Skill available",
+    size: 140,
   }),
   createNumberTableColumn<FileUsage>({
     accessorKey: "loaded",
@@ -40,8 +47,23 @@ export function SkillMetrics({
   skillName: string;
   filePaths: string[];
 }) {
+  const [selectedVersion, setSelectedVersion] = useState("all");
+  const allVersions = selectedVersion === "all";
+  const history = api.skills.skillVersions.useInfiniteQuery(
+    { projectId, name: skillName, limit: 20 },
+    { getNextPageParam: (page) => page.nextCursor },
+  );
+  const selectedSkill = api.skills.byName.useQuery(
+    {
+      projectId,
+      name: skillName,
+      version: allVersions ? 1 : Number(selectedVersion),
+    },
+    { enabled: !allVersions },
+  );
+  const skillId = selectedSkill.data?.id;
   const { isV4, isResolved } = useReadPath();
-  const version = isV4 ? "v2" : "v1";
+  const metricsVersion = isV4 ? "v2" : "v1";
   const { timeRange, setTimeRange } = useTableDateRange(projectId, {
     defaultRelativeAggregation: "last30Days",
   });
@@ -63,53 +85,92 @@ export function SkillMetrics({
     timeDimension: null,
     orderBy: null,
   };
-  const enabled = isResolved && Boolean(dateRange);
-  const usage = api.dashboard.executeQuery.useQuery(
+  const enabled =
+    isResolved && Boolean(dateRange) && (allVersions || Boolean(skillId));
+  const availability = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      version,
-      query: {
-        ...commonQuery,
-        dimensions: [{ field: "skillName" }],
-        metrics: [
-          { measure: "skillAvailability", aggregation: "sum" },
-          { measure: "skillLoads", aggregation: "sum" },
-        ],
-      },
+      version: metricsVersion,
+      query: allVersions
+        ? {
+            ...commonQuery,
+            dimensions: [{ field: "skillName" }],
+            metrics: [{ measure: "skillAvailability", aggregation: "sum" }],
+          }
+        : {
+            ...commonQuery,
+            filters: [
+              {
+                column: "availableSkillIds",
+                type: "arrayOptions",
+                operator: "any of",
+                value: [skillId ?? ""],
+              },
+            ],
+            metrics: [{ measure: "count", aggregation: "count" }],
+          },
     },
     { enabled },
   );
+  const resourceDimension = allVersions
+    ? "loadedSkillResources"
+    : "loadedSkillResourceIds";
+  const resourceMeasure = allVersions
+    ? "skillResourceLoads"
+    : "langfuseSkillResourceLoads";
   const loads = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      version,
+      version: metricsVersion,
       query: {
         ...commonQuery,
-        dimensions: [{ field: "loadedSkillResources" }],
-        metrics: [{ measure: "skillResourceLoads", aggregation: "sum" }],
+        dimensions: [{ field: resourceDimension }],
+        metrics: [{ measure: resourceMeasure, aggregation: "sum" }],
       },
     },
     { enabled },
   );
-  const skillUsage = usage.data?.find((row) => row.skillName === skillName);
-  const loadedByPath = new Map(
-    (loads.data ?? []).flatMap((row) => {
-      const [name, path] = JSON.parse(String(row.loadedSkillResources)) as [
-        string,
-        string,
-      ];
-      return name === skillName
-        ? [[path, Number(row.sum_skillResourceLoads)] as const]
-        : [];
-    }),
+  const availableCount = Number(
+    allVersions
+      ? (availability.data?.find((row) => row.skillName === skillName)
+          ?.sum_skillAvailability ?? 0)
+      : (availability.data?.[0]?.count_count ?? 0),
   );
-  const rows: FileUsage[] = [...new Set([...filePaths, ...loadedByPath.keys()])]
+  const loadedByPath = new Map<string, number>();
+  for (const row of loads.data ?? []) {
+    const [identity, path] = JSON.parse(String(row[resourceDimension])) as [
+      string,
+      string,
+    ];
+    if (identity === (allVersions ? skillName : skillId)) {
+      loadedByPath.set(
+        path,
+        (loadedByPath.get(path) ?? 0) + Number(row[`sum_${resourceMeasure}`]),
+      );
+    }
+  }
+  const paths = allVersions
+    ? filePaths
+    : (selectedSkill.data?.files.map((file) => file.path) ?? []);
+  const rows: FileUsage[] = [...new Set([...paths, ...loadedByPath.keys()])]
     .sort()
-    .map((file) => ({ file, loaded: loadedByPath.get(file) ?? 0 }));
-  const error = (usage.error ?? loads.error)?.message;
+    .map((file) => ({
+      file,
+      available: availableCount,
+      loaded: loadedByPath.get(file) ?? 0,
+    }));
+  const totalLoads = [...loadedByPath.values()].reduce(
+    (total, count) => total + count,
+    0,
+  );
+  const error = (
+    availability.error ??
+    loads.error ??
+    (!allVersions ? selectedSkill.error : null)
+  )?.message;
   const data = ((): AsyncTableData<FileUsage[]> => {
     if (error) return { status: "error", error };
-    if (usage.isPending || loads.isPending) return { status: "loading" };
+    if (availability.isPending || loads.isPending) return { status: "loading" };
     return { status: "success", data: rows };
   })();
 
@@ -119,14 +180,50 @@ export function SkillMetrics({
         <div>
           <h2 className="text-lg font-bold">Skill resource usage</h2>
           <p className="text-muted-foreground text-sm">
-            Generation availability and resource loads across all versions.
+            Generation availability and resource loads.
           </p>
         </div>
-        <TimeRangePicker
-          timeRange={timeRange}
-          onTimeRangeChange={setTimeRange}
-          timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-44">
+            <SelectInput
+              aria-label="Skill version"
+              value={selectedVersion}
+              placeholder="Select version"
+              options={[
+                { value: "all", label: "All versions" },
+                ...(
+                  history.data?.pages.flatMap((page) => page.items) ?? []
+                ).map(({ version }) => ({
+                  value: String(version),
+                  label: `Version ${version}`,
+                })),
+                ...(history.hasNextPage
+                  ? [
+                      {
+                        value: "more",
+                        label: "Load older versions…",
+                        ...(history.isFetchingNextPage
+                          ? {
+                              disabled: true as const,
+                              disabledReason: "Loading older versions",
+                            }
+                          : {}),
+                      },
+                    ]
+                  : []),
+              ]}
+              onValueChange={async (value) => {
+                if (value === "more") await history.fetchNextPage();
+                else setSelectedVersion(value);
+              }}
+            />
+          </div>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+          />
+        </div>
       </div>
       {dateRange ? (
         <>
@@ -134,17 +231,13 @@ export function SkillMetrics({
             Skill made available:{" "}
             <strong>
               {data.status === "success"
-                ? Number(
-                    skillUsage?.sum_skillAvailability ?? 0,
-                  ).toLocaleString()
+                ? availableCount.toLocaleString()
                 : "—"}
             </strong>{" "}
             times
             {" · "}Resource loads:{" "}
             <strong>
-              {data.status === "success"
-                ? Number(skillUsage?.sum_skillLoads ?? 0).toLocaleString()
-                : "—"}
+              {data.status === "success" ? totalLoads.toLocaleString() : "—"}
             </strong>
           </div>
           <div className="ph-no-capture min-h-64 flex-1 rounded-md border">
@@ -157,8 +250,11 @@ export function SkillMetrics({
             />
           </div>
           <p className="text-muted-foreground text-xs">
-            Files include this version’s files and historical loads. Repeated
-            reads count as additional loads.
+            Availability counts generations offering the skill, not individual
+            files. Repeated reads count as additional loads.
+            {allVersions
+              ? " Files include this editor version’s files and historical loads. Loads without a Langfuse version are included in All versions."
+              : " Only observations linked to this Langfuse skill version are included."}
           </p>
         </>
       ) : null}
