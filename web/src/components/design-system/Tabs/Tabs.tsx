@@ -364,7 +364,12 @@ function TabsTriggerContent({
     <>
       {Icon ? <Icon aria-hidden="true" className="icon-base shrink-0" /> : null}
       {renderContent()}
-      {internal ? <TabsInternalBadge /> : null}
+      {/* In a tight row the badge gives way before the label. */}
+      {internal ? (
+        <span className="flex min-w-0 shrink-100 overflow-hidden">
+          <TabsInternalBadge />
+        </span>
+      ) : null}
     </>
   );
 }
