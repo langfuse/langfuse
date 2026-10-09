@@ -117,7 +117,7 @@ const mediaTagVariants = cva(
     },
     defaultVariants: {
       intent: "default",
-      size: "sm",
+      size: "md",
     },
   },
 );

@@ -386,9 +386,7 @@ export const ValueCell = memo(
           const mediaDescriptor = classifyMediaValue(stringValue);
           if (mediaDescriptor) {
             return {
-              content: (
-                <MediaReferenceTag descriptor={mediaDescriptor} size="md" />
-              ),
+              content: <MediaReferenceTag descriptor={mediaDescriptor} />,
               needsTruncation: false,
             };
           }
