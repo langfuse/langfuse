@@ -23,19 +23,16 @@ import { useCallback, useMemo, useState } from "react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
   useCommentedPaths,
 } from "@/src/features/comments";
 import { useRouter } from "next/router";
-import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
+import { TraceDetailTabs } from "../TraceDetailTabs";
+import { getDetailTabs } from "../../fns/getDetailTabs";
+import { resolveDetailTab } from "../../fns/resolveDetailTab";
 import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
@@ -69,12 +66,9 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
-import {
-  InternalFeatureBadge,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
-import { ObservationAttributesTab } from "./ObservationAttributesTab";
+import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
 
@@ -102,7 +96,6 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const showMessagesTab = internalFeaturesEnabled && isV4Enabled;
   const {
     observations,
     roots,
@@ -124,9 +117,16 @@ export function ConnectedObservationDetailView({
   } = useViewPreferences();
 
   // Tab visibility: hide Log View and Scores tabs in annotation mode
-  const showLogViewTab =
-    isV4Enabled && observations.length > 0 && !isAnnotationMode;
-  const showScoresTab = !isAnnotationMode;
+  const tabs = getDetailTabs({
+    target: "observation",
+    isV4: isV4Enabled,
+    internalFeaturesEnabled,
+    isAnnotationMode,
+    hasObservations: observations.length > 0,
+    canViewScores: true,
+  });
+  const showLogViewTab = tabs.includes("log");
+  const showScoresTab = tabs.includes("scores");
   const attributes = buildObservationAttributes({
     model: observation.model,
     environment: observation.environment,
@@ -173,15 +173,7 @@ export function ConnectedObservationDetailView({
     return aggregateTraceMetrics(allObservations);
   }, [isRoot, treeNode, observations, observation]);
 
-  // "log" is v4-only and needs observations; everything else falls back to preview.
-  const selectedTab = useMemo(() => {
-    if (globalSelectedTab === "messages" && showMessagesTab)
-      return "messages" as const;
-    if (globalSelectedTab === "scores") return "scores" as const;
-    if (globalSelectedTab === "attributes") return "attributes" as const;
-    if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
-    return "preview" as const;
-  }, [globalSelectedTab, showLogViewTab, showMessagesTab]);
+  const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
 
   const refreshTraceScores = useCallback(() => {
     utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -378,44 +370,12 @@ export function ConnectedObservationDetailView({
             onValueChange={(value) => setSelectedTab(value as DetailTab)}
           >
             <TooltipProvider>
-              <TraceDetailTabsBarList
+              <TraceDetailTabs
                 selectedTab={selectedTab}
                 onSelect={setSelectedTab}
-                tabs={[
-                  "preview",
-                  ...(showMessagesTab ? ["messages" as const] : []),
-                  "attributes",
-                  ...(showScoresTab ? ["scores" as const] : []),
-                  ...(showLogViewTab ? ["log" as const] : []),
-                ]}
-                triggers={
-                  <>
-                    <Tabs.Trigger value="preview" label="Preview" />
-                    {showMessagesTab && (
-                      <Tabs.Trigger value="messages">
-                        Messages <InternalFeatureBadge />
-                      </Tabs.Trigger>
-                    )}
-                    <Tabs.Trigger value="attributes" label="Attributes" />
-                    {showScoresTab ? (
-                      <Tabs.Trigger value="scores" label="Scores" />
-                    ) : null}
-                    {showLogViewTab ? (
-                      <Tabs.Trigger value="log">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>Log View</span>
-                          </TooltipTrigger>
-                          <TooltipContent className="text-xs">
-                            {isLogViewVirtualized
-                              ? `Shows all ${observations.length} observations with virtualization enabled.`
-                              : "Shows all observations concatenated. Great for quickly scanning through them."}
-                          </TooltipContent>
-                        </Tooltip>
-                      </Tabs.Trigger>
-                    ) : null}
-                  </>
-                }
+                tabs={tabs}
+                observationCount={observations.length}
+                isLogViewVirtualized={isLogViewVirtualized}
                 trailingControls={
                   (selectedTab === "log" ||
                     selectedTab === "attributes" ||
@@ -567,8 +527,6 @@ export function ConnectedObservationDetailView({
                       objectStartTime: observation.startTime,
                     }),
                   commentedPathsByField,
-                  // Metadata lives in the Attributes tab now.
-                  showMetadata: false,
                   observationId: observation.id,
                   projectId,
                   traceId,
@@ -578,13 +536,15 @@ export function ConnectedObservationDetailView({
             </Tabs.Content>
 
             <Tabs.Content value="attributes" layout="fill">
-              <ObservationAttributesTab
-                attributes={attributes}
-                attributesAnchorTime={observation.startTime}
-                modelParameters={modelParameters}
+              <DetailAttributesTab
+                observation={{
+                  attributes,
+                  attributesAnchorTime: observation.startTime,
+                  modelParameters,
+                }}
                 metadata={observationWithIOCompat.data?.metadata ?? undefined}
                 parsedMetadata={parsedMetadata}
-                observationId={observation.id}
+                objectId={observation.id}
                 projectId={projectId}
                 currentView={selectedViewTab}
               />

@@ -6,15 +6,10 @@ import {
   DropdownMenuRadioItem,
 } from "@/src/components/ui/dropdown-menu";
 import { InternalFeatureBadge } from "@/src/features/feature-flags";
-import type { DetailTab } from "../contexts/SelectionContext";
-
-const labels: Record<DetailTab, string> = {
-  preview: "Preview",
-  messages: "Messages",
-  attributes: "Attributes",
-  scores: "Scores",
-  log: "Log View",
-};
+import {
+  DETAIL_TAB_LABELS as labels,
+  type DetailTab,
+} from "../constants/detailTabs";
 
 export function TraceDetailTabMenu({
   tabs,
