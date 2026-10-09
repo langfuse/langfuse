@@ -253,7 +253,7 @@ function getCloudConfig(
 /** ResolveContextParams is a verified credential: an api key with how it was presented, or the admin key. */
 export type ResolveContextParams =
   | {
-      /** @deprecated The "publicKey" authorization value will be removed in the next major version. */
+      /** @deprecated Remove in the next major version when all API-key authentication is private. */
       authorization: "publicKey" | "privateKey";
       apiKey: ApiKey;
     }
