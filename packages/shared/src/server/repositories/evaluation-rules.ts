@@ -1,6 +1,9 @@
-import type { PrismaClient } from "@prisma/client";
+import {
+  EvalTemplateType,
+  JobConfigState,
+  type PrismaClient,
+} from "@prisma/client";
 
-import { EvalTemplateType, JobConfigState } from "../../db";
 import { EvalTargetObject } from "../../features/evals/types";
 
 const runnableEvaluatorTypes = [

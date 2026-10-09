@@ -1,7 +1,10 @@
-import type { PrismaClient } from "@prisma/client";
+import {
+  EvalTemplateType,
+  JobConfigState,
+  type PrismaClient,
+} from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EvalTemplateType, JobConfigState } from "../../db";
 import { EvalTargetObject } from "../../features/evals/types";
 import { listRunnableScoreResultEvaluationRules } from "./evaluation-rules";
 
