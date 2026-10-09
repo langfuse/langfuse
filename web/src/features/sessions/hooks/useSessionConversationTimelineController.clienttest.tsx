@@ -1,5 +1,5 @@
 import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionConversationTimelineController } from "./useSessionConversationTimelineController";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { getScrollSpyAnchor } from "@/src/hooks/useVirtualizedScrollSpy";
@@ -41,10 +41,27 @@ const trace = {
   scores: [],
 } satisfies EventSessionTrace;
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      matches: true,
+      media: "(prefers-reduced-motion: reduce)",
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  );
+});
+
 afterEach(() => {
   feedRef.current = null;
   virtualizer.scrollOffset = 0;
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   vi.clearAllMocks();
 });
@@ -84,24 +101,65 @@ function appendMeasuredRow(
 }
 
 describe("useSessionConversationTimelineController", () => {
-  it.each([300, 500, 800])(
-    "aligns with 20%% of the actual %spx scroll viewport rather than the bounding box or window",
-    (height) => {
-      const feed = createMeasuredFeed();
-      Object.defineProperty(feed, "clientHeight", {
-        value: height,
-        configurable: true,
+  it.each([0, 9_500])(
+    "smoothly approaches a distant unmounted entry from %spx and retargets with integer scroll positions",
+    async (initialTop) => {
+      vi.useFakeTimers({
+        toFake: [
+          "setTimeout",
+          "clearTimeout",
+          "requestAnimationFrame",
+          "cancelAnimationFrame",
+          "performance",
+        ],
       });
-      appendMeasuredRow(feed, "trace:0", "0:0", 700);
-      const { result } = renderHook(() =>
-        useSessionConversationTimelineController([
-          { trace, itemId: "trace:0" },
-        ]),
+      vi.mocked(window.matchMedia).mockReturnValue({
+        ...window.matchMedia("(prefers-reduced-motion: reduce)"),
+        matches: false,
+      });
+      const feed = createMeasuredFeed();
+      feed.scrollTop = initialTop;
+      feed.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+        if (typeof options !== "object") return;
+        feed.scrollTop = Math.round(options.top ?? 0);
+        virtualizer.scrollOffset = feed.scrollTop;
+      });
+      const traces = Array.from({ length: 80 }, (_, index) => ({
+        trace,
+        itemId: `trace:${index}`,
+      }));
+      const { result, rerender } = renderHook(() =>
+        useSessionConversationTimelineController(traces),
       );
-      act(() => result.current.onSelect(0, undefined, "0:0"));
-      expect(feed.scrollTop).toBe(700 - height * 0.2);
+      act(() => result.current.onSelect(79, undefined, "79:0"));
+      expect(feed.scrollTop).toBe(initialTop);
+      await act(async () => await vi.advanceTimersByTimeAsync(64));
+      expect(feed.scrollTop).toBeGreaterThan(Math.min(initialTop, 7_800));
+      expect(feed.scrollTop).toBeLessThan(Math.max(initialTop, 7_800));
+      expect(result.current.activeItemId).toBe("trace:79");
+
+      const row = appendMeasuredRow(feed, "trace:79", "79:0", 8_500);
+      await act(async () => await vi.advanceTimersByTimeAsync(64));
+      row.getBoundingClientRect = () =>
+        new DOMRect(0, 200 + 8_800 - feed.scrollTop, 100, 100);
+      await act(async () => await vi.advanceTimersByTimeAsync(1_500));
+      expect(feed.scrollTop).toBe(8_700);
+      virtualizer.scrollOffset = 0;
+      rerender();
+      expect(result.current.activeItemId).toBe("trace:1");
     },
   );
+
+  it("aligns rows with 20% of the scroll viewport in offset containers with reduced motion", () => {
+    const feed = createMeasuredFeed();
+    feed.scrollTop = 100;
+    appendMeasuredRow(feed, "trace:0", "0:0", 700);
+    const { result } = renderHook(() =>
+      useSessionConversationTimelineController([{ trace, itemId: "trace:0" }]),
+    );
+    act(() => result.current.onSelect(0, undefined, "0:0"));
+    expect(feed.scrollTop).toBe(600);
+  });
 
   it("corrects navigation and recomputes the scroll-spy anchor when the viewport resizes", async () => {
     const feed = createMeasuredFeed();
@@ -113,6 +171,7 @@ describe("useSessionConversationTimelineController", () => {
       ]),
     );
     act(() => result.current.onSelect(1, undefined, "2:0"));
+    expect(result.current.activeItemId).toBe("trace:2");
     expect(feed.scrollTop).toBe(40);
     Object.defineProperty(feed, "clientHeight", { value: 300 });
     rerender();
@@ -126,7 +185,7 @@ describe("useSessionConversationTimelineController", () => {
     expect(result.current.activeItemId).toBe("trace:0");
   });
 
-  it("bounds the fallback for a short entry before the earliest reachable anchor and releases it on resize", async () => {
+  it("keeps an unreachable boundary entry selected until scrolling past the buffer and releases it on resize", async () => {
     const feed = createMeasuredFeed();
     Object.defineProperty(feed, "clientHeight", {
       value: 800,
@@ -144,6 +203,20 @@ describe("useSessionConversationTimelineController", () => {
       async () =>
         await new Promise((resolve) => window.setTimeout(resolve, 300)),
     );
+    fireEvent.wheel(feed);
+    expect(result.current.activeItemId).toBe("trace:0");
+    feed.scrollTop = 80;
+    fireEvent.scroll(feed);
+    expect(result.current.activeItemId).toBe("trace:0");
+    feed.scrollTop = 81;
+    fireEvent.scroll(feed);
+    expect(result.current.activeItemId).toBe("trace:2");
+    feed.scrollTop = 0;
+    act(() => result.current.onSelect(0));
+    await act(
+      async () =>
+        await new Promise((resolve) => window.setTimeout(resolve, 300)),
+    );
     expect(result.current.activeItemId).toBe("trace:0");
     Object.defineProperty(feed, "clientHeight", { value: 300 });
     feed.scrollTop = 100;
@@ -151,39 +224,6 @@ describe("useSessionConversationTimelineController", () => {
     rerender();
     expect(result.current.activeItemId).toBe("trace:2");
   });
-
-  it.each(["wheel", "touchstart", "pointerdown", "keydown"])(
-    "keeps fallback selection after %s until scrolling past the buffer",
-    async (eventType) => {
-      const feed = createMeasuredFeed();
-      Object.defineProperty(feed, "clientHeight", { value: 800 });
-      appendMeasuredRow(feed, "trace:0", "0:0", 0);
-      const { result } = renderHook(() =>
-        useSessionConversationTimelineController([
-          { trace, itemId: "trace:0" },
-          { trace, itemId: "trace:2" },
-        ]),
-      );
-      act(() => result.current.onSelect(0));
-      await act(
-        async () =>
-          await new Promise((resolve) => window.setTimeout(resolve, 300)),
-      );
-      fireEvent(
-        feed,
-        eventType === "keydown"
-          ? new KeyboardEvent(eventType, { key: "ArrowDown" })
-          : new Event(eventType),
-      );
-      expect(result.current.activeItemId).toBe("trace:0");
-      feed.scrollTop = 80;
-      fireEvent.scroll(feed);
-      expect(result.current.activeItemId).toBe("trace:0");
-      feed.scrollTop = 81;
-      fireEvent.scroll(feed);
-      expect(result.current.activeItemId).toBe("trace:2");
-    },
-  );
 
   it("uses content starts rather than clamped scroll offsets at the natural bottom", () => {
     const feed = createMeasuredFeed();
@@ -210,28 +250,6 @@ describe("useSessionConversationTimelineController", () => {
         viewportInset: 100,
       }),
     ).toBeCloseTo(9_700);
-  });
-
-  it("navigates to rows without an observation and releases selection to the scroll spy", async () => {
-    const feed = createMeasuredFeed();
-    appendMeasuredRow(feed, "trace:2", "2:0", 140);
-    const { result, rerender } = renderHook(() =>
-      useSessionConversationTimelineController([
-        { trace, itemId: "trace:0" },
-        { trace, itemId: "trace:2" },
-        { trace, itemId: "trace:4" },
-      ]),
-    );
-    act(() => result.current.onSelect(1, undefined, "2:0"));
-    expect(result.current.activeItemId).toBe("trace:2");
-    expect(feed.scrollTop).toBe(40);
-    await act(
-      async () =>
-        await new Promise((resolve) => window.setTimeout(resolve, 300)),
-    );
-    virtualizer.scrollOffset = 200;
-    rerender();
-    expect(result.current.activeItemId).toBe("trace:4");
   });
 
   it("lets the latest click win when an earlier row mounts later", async () => {
@@ -292,56 +310,46 @@ describe("useSessionConversationTimelineController", () => {
     expect(feed.scrollTop).toBe(0);
   });
 
-  it("aligns rows with the scroll-spy anchor in offset containers rather than centering", () => {
-    const feed = document.createElement("div");
-    feedRef.current = feed;
-    Object.defineProperty(feed, "clientHeight", { value: 500 });
-    feed.scrollTop = 100;
-    feed.getBoundingClientRect = () => new DOMRect(0, 200, 100, 500);
-    feed.scrollTo = vi.fn();
-    const item = document.createElement("div");
-    item.dataset.sessionTraceId = trace.id;
-    const row = document.createElement("div");
-    row.dataset.sessionObservationId = "generation";
-    row.dataset.sessionTranscriptRowId = "0:1";
-    row.getBoundingClientRect = () => new DOMRect(0, 450, 100, 100);
-    item.append(row);
-    feed.append(item);
-    const { result } = renderHook(() =>
-      useSessionConversationTimelineController([{ trace }]),
-    );
-    act(() => result.current.onSelect(0, "generation", "0:1"));
-    expect(feed.scrollTo).toHaveBeenCalledWith({
-      top: 250,
-      behavior: "auto",
-    });
-  });
-
   it.each(["wheel", "touchstart", "pointerdown", "keydown"])(
-    "cancels delayed row navigation on %s intent",
+    "cancels animation and delayed row navigation on %s intent",
     async (eventType) => {
-      const feed = document.createElement("div");
-      feedRef.current = feed;
-      feed.scrollTo = vi.fn();
+      vi.useFakeTimers({
+        toFake: [
+          "setTimeout",
+          "clearTimeout",
+          "requestAnimationFrame",
+          "cancelAnimationFrame",
+          "performance",
+        ],
+      });
+      vi.mocked(window.matchMedia).mockReturnValue({
+        ...window.matchMedia("(prefers-reduced-motion: reduce)"),
+        matches: false,
+      });
+      const feed = createMeasuredFeed();
       const { result } = renderHook(() =>
-        useSessionConversationTimelineController([{ trace }]),
+        useSessionConversationTimelineController(
+          Array.from({ length: 21 }, (_, index) => ({
+            trace,
+            itemId: `trace:${index}`,
+          })),
+        ),
       );
-      act(() => result.current.onSelect(0, "generation", "0:1"));
+      act(() => result.current.onSelect(20, undefined, "20:1"));
+      await act(async () => await vi.advanceTimersByTimeAsync(64));
+      expect(feed.scrollTop).toBeGreaterThan(0);
+      expect(feed.scrollTop).toBeLessThan(1_900);
       fireEvent(
         feed,
         eventType === "keydown"
           ? new KeyboardEvent("keydown", { key: "PageUp" })
           : new Event(eventType),
       );
+      const stoppedTop = feed.scrollTop;
       vi.mocked(feed.scrollTo).mockClear();
-      const item = document.createElement("div");
-      item.dataset.sessionTraceId = trace.id;
-      const row = document.createElement("div");
-      row.dataset.sessionObservationId = "generation";
-      row.dataset.sessionTranscriptRowId = "0:1";
-      item.append(row);
-      feed.append(item);
-      await act(async () => await Promise.resolve());
+      appendMeasuredRow(feed, "trace:20", "20:1", 2_500);
+      await act(async () => await vi.advanceTimersByTimeAsync(500));
+      expect(feed.scrollTop).toBe(stoppedTop);
       expect(feed.scrollTo).not.toHaveBeenCalled();
     },
   );
@@ -389,17 +397,15 @@ describe("useSessionConversationTimelineController", () => {
   });
 
   it("selects the exact thread item when observations repeat", () => {
-    const feed = document.createElement("div");
-    Object.defineProperty(feed, "clientHeight", { value: 500 });
-    feedRef.current = feed;
-    feed.scrollTo = vi.fn();
+    const feed = createMeasuredFeed();
     for (const [index, itemId] of ["trace:0", "trace:2"].entries()) {
       const item = document.createElement("div");
       item.dataset.sessionTraceId = trace.id;
       item.dataset.sessionItemId = itemId;
       const row = document.createElement("div");
       row.dataset.sessionObservationId = "generation";
-      row.getBoundingClientRect = () => new DOMRect(0, index * 100, 100, 0);
+      row.getBoundingClientRect = () =>
+        new DOMRect(0, 200 + 400 + index * 300 - feed.scrollTop, 100, 100);
       item.append(row);
       feed.append(item);
     }
@@ -411,10 +417,7 @@ describe("useSessionConversationTimelineController", () => {
     );
     act(() => result.current.onSelect(1, "generation"));
     expect(result.current.activeItemId).toBe("trace:2");
-    expect(feed.scrollTo).toHaveBeenCalledWith({
-      top: 0,
-      behavior: "auto",
-    });
+    expect(feed.scrollTop).toBe(600);
   });
   it("scrolls to the exact row when multiple rows share an observation", () => {
     const feed = document.createElement("div");
@@ -439,29 +442,7 @@ describe("useSessionConversationTimelineController", () => {
     expect(result.current.activeItemId).toBe("trace");
     expect(feed.scrollTo).toHaveBeenCalledWith({
       top: 100,
-      behavior: "auto",
+      behavior: "instant",
     });
-  });
-
-  it("waits for a virtualized row to mount before scrolling", async () => {
-    const feed = document.createElement("div");
-    feedRef.current = feed;
-    feed.scrollTo = vi.fn();
-    const { result } = renderHook(() =>
-      useSessionConversationTimelineController([{ trace }]),
-    );
-    act(() => result.current.onSelect(0, "generation", "0:1"));
-    expect(feed.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
-    vi.mocked(feed.scrollTo).mockClear();
-
-    const traceElement = document.createElement("div");
-    traceElement.dataset.sessionTraceId = trace.id;
-    const row = document.createElement("div");
-    row.dataset.sessionObservationId = "generation";
-    row.dataset.sessionTranscriptRowId = "0:1";
-    row.getBoundingClientRect = () => new DOMRect(0, 200, 100, 0);
-    traceElement.append(row);
-    feed.append(traceElement);
-    await waitFor(() => expect(feed.scrollTo).toHaveBeenCalledOnce());
   });
 });

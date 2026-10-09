@@ -12,6 +12,8 @@ import {
 
 const SESSION_TIMELINE_OVERSCAN = 5;
 const SESSION_TIMELINE_ANCHOR_RATIO = 0.2;
+const SESSION_TIMELINE_SCROLL_TIME_CONSTANT_MS = 80;
+const SESSION_TIMELINE_MAX_FRAME_ELAPSED_MS = 64;
 export type SessionConversationTimelineScrollTarget = {
   itemId?: string;
   traceId: string;
@@ -103,6 +105,10 @@ export function useSessionConversationTimelineController(
     let previousTarget: number | undefined;
     let stableSince = performance.now();
     let previousScrollTop = feed.scrollTop;
+    let previousFrameTime = performance.now();
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     let stopped = false;
     const cleanup = () => {
       stopped = true;
@@ -205,10 +211,36 @@ export function useSessionConversationTimelineController(
         endTransitionRatio: 0.2,
         viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
       });
-      if (previousTarget === undefined || Math.abs(previousTarget - top) > 1) {
+      const targetChanged =
+        previousTarget === undefined || Math.abs(previousTarget - top) > 1;
+      if (targetChanged) {
         previousTarget = top;
         stableSince = performance.now();
-        feed.scrollTo({ top, behavior: "auto" });
+      }
+      const now = performance.now();
+      const elapsed = Math.min(
+        SESSION_TIMELINE_MAX_FRAME_ELAPSED_MS,
+        Math.max(0, now - previousFrameTime),
+      );
+      previousFrameTime = now;
+      // Retarget each frame as virtual rows mount and resize, without restarting
+      // a browser smooth-scroll animation or relying on estimated row heights.
+      const distance = top - feed.scrollTop;
+      // Integer scroll positions would otherwise stall on subpixel steps.
+      const step = Math.min(
+        Math.abs(distance),
+        Math.max(
+          elapsed > 0 ? 1 : 0,
+          Math.abs(distance) *
+            (1 - Math.exp(-elapsed / SESSION_TIMELINE_SCROLL_TIME_CONSTANT_MS)),
+        ),
+      );
+      const nextTop =
+        reduceMotion || Math.abs(distance) <= 1
+          ? top
+          : feed.scrollTop + Math.sign(distance) * step;
+      if (reduceMotion ? targetChanged : nextTop !== feed.scrollTop) {
+        feed.scrollTo({ top: nextTop, behavior: "instant" });
       }
       if (
         virtualizer.isScrolling ||
