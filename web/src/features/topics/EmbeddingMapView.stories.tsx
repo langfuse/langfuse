@@ -172,20 +172,22 @@ const nearbyCloudData = {
 function ControlledExplorer(args: ExplorerProps) {
   const [selectedTopic, setSelectedTopic] = useState(args.selectedTopic);
   const [selectedTraceId, setSelectedTraceId] = useState(args.selectedTraceId);
+  const handleSelectTopic = (id: string | null) => {
+    setSelectedTopic(id);
+    setSelectedTraceId(null);
+    args.onSelectTopic(id);
+  };
+  const handleSelectTrace = (id: string | null) => {
+    setSelectedTraceId(id);
+    args.onSelectTrace(id);
+  };
   return (
     <EmbeddingMapView
       {...args}
       selectedTopic={selectedTopic}
       selectedTraceId={selectedTraceId}
-      onSelectTopic={(id) => {
-        setSelectedTopic(id);
-        setSelectedTraceId(null);
-        args.onSelectTopic(id);
-      }}
-      onSelectTrace={(id) => {
-        setSelectedTraceId(id);
-        args.onSelectTrace(id);
-      }}
+      onSelectTopic={handleSelectTopic}
+      onSelectTrace={handleSelectTrace}
     />
   );
 }
@@ -326,17 +328,40 @@ export const Empty = meta.story({
   args: { data: { ...data, points: [] } },
 });
 
-export const MissingSummaries = meta.story({
-  args: { data: { ...data, missingSummaryCount: 2, unpositionedCount: 3 } },
-});
-
 export const DenseIssueCloud = meta.story({
   args: {
     topics: denseTopics,
     data: denseData,
-    headerStats: `${denseData.points.length} traces · ${denseTopics.length} topics`,
   },
   render: (args) => <ControlledExplorer {...args} />,
+});
+
+export const MissingSummaries = meta.story({
+  name: "(Test) Missing summaries coverage",
+  args: { data: { ...data, missingSummaryCount: 2, unpositionedCount: 3 } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const baseline = stage.getBoundingClientRect();
+    const trigger = canvas.getByRole("button", { name: /^Map coverage/ });
+    expect(getComputedStyle(trigger).pointerEvents).toBe("auto");
+    await userEvent.hover(trigger);
+    const body = within(canvasElement.ownerDocument.body);
+    await waitFor(() => {
+      const tooltip = body.getByRole("tooltip");
+      expect(getComputedStyle(tooltip).pointerEvents).toBe("none");
+      expect(tooltip).toHaveTextContent(
+        "2 saved map points have no current summary.",
+      );
+      expect(tooltip).toHaveTextContent(
+        "3 current summaries have no saved coordinates.",
+      );
+    });
+    const after = stage.getBoundingClientRect();
+    expect(after.width).toBe(baseline.width);
+    expect(after.height).toBe(baseline.height);
+    expect(after.top).toBe(baseline.top);
+  },
 });
 
 export const ExploreZoneAndTrace = meta.story({
@@ -752,12 +777,13 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
   },
   render: function Render(args) {
     const [selectedTopic, setSelectedTopic] = useState(args.selectedTopic);
+    const handleRestoreOverview = () => setSelectedTopic(null);
     return (
       <>
         <Button
           text="Restore overview"
           variant="secondary"
-          onClick={() => setSelectedTopic(null)}
+          onClick={handleRestoreOverview}
         />
         <EmbeddingMapView {...args} selectedTopic={selectedTopic} />
       </>

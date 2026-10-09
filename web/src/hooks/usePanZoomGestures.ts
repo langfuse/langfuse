@@ -11,20 +11,6 @@ import {
   type PanZoomAnchor,
 } from "@/src/utils/panZoomGestures";
 
-type Point = { x: number; y: number };
-type Options = {
-  target: RefObject<HTMLElement | null>;
-  onPan: (dxPx: number, dyPx: number) => void;
-  /** One level doubles scale; anchor coordinates are fractions of the surface. */
-  onZoom: (levels: number, anchor: PanZoomAnchor) => void;
-  canPan?: (dxPx: number, dyPx: number) => boolean;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-  enabled?: boolean;
-  /** A surface with its own marquee gestures can reuse just the wheel adapter. */
-  pointerPan?: boolean;
-};
-
 const DRAG_THRESHOLD_PX = 3;
 const WHEEL_END_MS = 120;
 
@@ -149,9 +135,6 @@ export function usePanZoomGestures(options: Options) {
     };
   }, [target, enabled]);
 
-  const capture = (element: HTMLElement, pointerId: number) => {
-    element.setPointerCapture?.(pointerId);
-  };
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (!enabled || !pointerPan) return;
     if (event.pointerType !== "touch" && event.button !== 0) return;
@@ -269,6 +252,10 @@ export function usePanZoomGestures(options: Options) {
     }
   };
 
+  const capture = (element: HTMLElement, pointerId: number) => {
+    element.setPointerCapture?.(pointerId);
+  };
+
   return {
     isDragging: enabled && isDragging,
     pointerHandlers: {
@@ -280,3 +267,17 @@ export function usePanZoomGestures(options: Options) {
     },
   };
 }
+
+type Point = { x: number; y: number };
+type Options = {
+  target: RefObject<HTMLElement | null>;
+  onPan: (dxPx: number, dyPx: number) => void;
+  /** One level doubles scale; anchor coordinates are fractions of the surface. */
+  onZoom: (levels: number, anchor: PanZoomAnchor) => void;
+  canPan?: (dxPx: number, dyPx: number) => boolean;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
+  enabled?: boolean;
+  /** A surface with its own marquee gestures can reuse just the wheel adapter. */
+  pointerPan?: boolean;
+};

@@ -1,15 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import type { Camera, TopicMapNodeFrame } from "./prepare-topic-map";
 
-type PointerPosition = { x: number; y: number };
-type HoverLabel = {
-  kind: "trace" | "zone";
-  id: string;
-  token: number;
-  active: boolean;
-  frame: TopicMapNodeFrame | null;
-};
-
 export function createTopicMapStore() {
   return createStore(() => ({
     camera: null as Camera | null,
@@ -29,7 +20,6 @@ export function createTopicMapStore() {
     fullscreenError: false,
   }));
 }
-export type TopicMapStore = ReturnType<typeof createTopicMapStore>;
 
 export function publishTopicMapFrame(
   store: TopicMapStore,
@@ -53,6 +43,10 @@ export function publishTopicMapFrame(
       }),
     };
   });
+}
+
+export function clearTopicMapHover(store: TopicMapStore) {
+  setTopicMapHover(store, null, null);
 }
 
 export function setTopicMapHover(
@@ -103,10 +97,6 @@ export function setTopicMapHover(
   });
 }
 
-export function clearTopicMapHover(store: TopicMapStore) {
-  setTopicMapHover(store, null, null);
-}
-
 export function finishTopicMapHover(store: TopicMapStore, token: number) {
   store.setState((state) => {
     if (!state.hoverLabels.some((item) => item.token === token)) return state;
@@ -143,3 +133,14 @@ function sameFrameContext(
     captured.readingTopic === frame.readingTopic
   );
 }
+
+export type TopicMapStore = ReturnType<typeof createTopicMapStore>;
+
+type PointerPosition = { x: number; y: number };
+type HoverLabel = {
+  kind: "trace" | "zone";
+  id: string;
+  token: number;
+  active: boolean;
+  frame: TopicMapNodeFrame | null;
+};

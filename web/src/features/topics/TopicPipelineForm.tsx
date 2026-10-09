@@ -41,6 +41,12 @@ export function useTopicPipelineForm({
   timeRange: TopicTimeRange | null;
 }) {
   const [configurationOpen, setConfigurationOpen] = useState(false);
+  function openConfiguration() {
+    setConfigurationOpen(true);
+  }
+  function closeConfiguration() {
+    setConfigurationOpen(false);
+  }
   const [operation, setOperation] = useState<TopicOperation>("process");
   const [reuseExistingSummaries, setReuseExistingSummaries] = useState(false);
   const rules = api.topics.rules.useQuery(
@@ -60,7 +66,7 @@ export function useTopicPipelineForm({
     projectId,
     enabled: facets.length > 0 && operation === "process",
     filterOptionsEnabled: configurationOpen,
-    onOpenTrace: () => setConfigurationOpen(false),
+    onOpenTrace: closeConfiguration,
   });
   const [selectedFacetIds, setSelectedFacetIds] = useState<string[]>(() =>
     facets
@@ -161,7 +167,8 @@ export function useTopicPipelineForm({
   async function submit() {
     setError(null);
     try {
-      if (!selectedFacets.length) throw new Error("Select at least one facet.");
+      if (selectedFacets.length === 0)
+        throw new Error("Select at least one facet.");
       const base = {
         projectId,
         facets: selectedFacets,
@@ -300,7 +307,7 @@ export function useTopicPipelineForm({
       (operation === "update" &&
         (!timeRange || !minimumTraceCountResult.success)) ||
       trigger.isPending ||
-      !selectedFacets.length ||
+      selectedFacets.length === 0 ||
       (operation === "update"
         ? summaryCounts.isFetching ||
           !!summaryCounts.error ||
@@ -396,7 +403,7 @@ export function useTopicPipelineForm({
                     disabled={
                       !canWrite ||
                       !ruleName.trim() ||
-                      !activeFacetIds.length ||
+                      activeFacetIds.length === 0 ||
                       saveRule.isPending
                     }
                     onClick={() =>
@@ -523,17 +530,17 @@ export function useTopicPipelineForm({
           <Button
             text="Done"
             variant="secondary"
-            onClick={() => setConfigurationOpen(false)}
+            onClick={closeConfiguration}
           />
         </div>
       </Dialog>
     </DialogPrimitive.Root>
   );
   return {
-    primaryAction: facets.length ? primaryAction : null,
-    triggerAction: facets.length ? triggerAction : null,
-    openConfiguration: () => setConfigurationOpen(true),
-    error: facets.length ? error : null,
-    configuration: facets.length ? configuration : null,
+    primaryAction: facets.length > 0 ? primaryAction : null,
+    triggerAction: facets.length > 0 ? triggerAction : null,
+    openConfiguration,
+    error: facets.length > 0 ? error : null,
+    configuration: facets.length > 0 ? configuration : null,
   };
 }

@@ -1,7 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from "react";
 import { useStore } from "zustand";
 import { LocateFixed, Maximize2, Minus, Plus, X } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
 import { cn } from "@/src/utils/tailwind";
@@ -32,18 +42,26 @@ import {
   type TopicMapModel,
 } from "./prepare-topic-map";
 
-export type TopicMapExplorerProps = {
-  projectId: string;
-  data: MapData;
-  topics: MapTopic[];
-  selectedTopic: string | null;
-  onSelectTopic: (id: string | null) => void;
-  headerStats?: ReactNode;
-  onSelectTrace: (traceId: string | null) => void;
-  selectedTraceId: string | null;
-  onOpenTrace: (traceId: string) => void;
-  fillContainer?: boolean;
+const arrowKeyPan: Readonly<
+  Record<string, { dx: number; dy: number } | undefined>
+> = {
+  ArrowLeft: { dx: 80, dy: 0 },
+  ArrowRight: { dx: -80, dy: 0 },
+  ArrowUp: { dx: 0, dy: 80 },
+  ArrowDown: { dx: 0, dy: -80 },
 };
+const zoomKeyLevels: Readonly<Record<string, number | undefined>> = {
+  "+": 0.5,
+  "=": 0.5,
+  "-": -0.5,
+};
+const mapKeys = new Set([
+  ...Object.keys(arrowKeyPan),
+  ...Object.keys(zoomKeyLevels),
+  "0",
+  "Home",
+  "Escape",
+]);
 
 export function TopicMapExplorer({
   data,
@@ -149,15 +167,18 @@ export function TopicMapExplorer({
     const next = zoomCamera(before, levels, anchor, model.bounds, size);
     setCamera(next);
   };
+  const handlePan = (dx: number, dy: number) => {
+    setCamera(panCamera(getCamera(), dx, dy, model.bounds, size));
+  };
+  const handleInteractionStart = () => {
+    cancelFlight();
+    clearTopicMapHover(store);
+  };
   const gestures = usePanZoomGestures({
     target: stageRef,
-    onPan: (dx, dy) =>
-      setCamera(panCamera(getCamera(), dx, dy, model.bounds, size)),
+    onPan: handlePan,
     onZoom: zoom,
-    onInteractionStart: () => {
-      cancelFlight();
-      clearTopicMapHover(store);
-    },
+    onInteractionStart: handleInteractionStart,
   });
   // Browser fullscreen and OS motion preferences are external subscriptions.
   useEffect(() => {
@@ -205,6 +226,138 @@ export function TopicMapExplorer({
       store.setState({ fullscreenError: true });
     }
   };
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    gestures.pointerHandlers.onPointerMove(event);
+    if (event.pointerType !== "mouse") return;
+    const pointerAt = { x: event.clientX, y: event.clientY };
+    if (event.buttons !== 0) {
+      clearTopicMapHover(store);
+      store.setState({ pointerAt });
+      return;
+    }
+    const previous = store.getState().pointerAt;
+    if (
+      previous &&
+      Math.hypot(pointerAt.x - previous.x, pointerAt.y - previous.y) <= 0.5
+    )
+      return;
+    if (gestures.isDragging) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const at = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    const pointer = store.getState().reducedMotion
+      ? { x: 0, y: 0 }
+      : {
+          x: (at.x / size.width - 0.5) * 2,
+          y: (at.y / size.height - 0.5) * 2,
+        };
+    const frame = store.getState().frame;
+    const intended = getCamera();
+    if (
+      store.getState().isMoving ||
+      !frame ||
+      frame.model !== model ||
+      frame.readingTopic !== selectedTopic ||
+      frame.size.width !== size.width ||
+      frame.size.height !== size.height ||
+      frame.camera.zoom !== intended.zoom ||
+      frame.camera.x !== intended.x ||
+      frame.camera.y !== intended.y
+    ) {
+      setTopicMapHover(store, null, null, pointer, pointerAt);
+      return;
+    }
+    const hovered = hitMapNode(frame, at);
+    const traceLabel =
+      event.target instanceof Element
+        ? event.target.closest<HTMLElement>(
+            '[data-topic-trace]:not([data-active="false"])',
+          )
+        : null;
+    setTopicMapHover(
+      store,
+      traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? null,
+      null,
+      pointer,
+      pointerAt,
+    );
+  };
+  const handleStageClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const frame = store.getState().frame;
+    const point =
+      frame && frame.model === model && frame.readingTopic === selectedTopic
+        ? hitMapNode(frame, {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+          })
+        : null;
+    onSelectTrace(point?.traceId ?? null);
+    if (point) openTrace(point.traceId);
+  };
+  const handleStageDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    cancelFlight();
+    zoom(1, {
+      x: (event.clientX - rect.left) / size.width,
+      y: (event.clientY - rect.top) / size.height,
+    });
+  };
+  const handlePointerLeave = () => {
+    setTopicMapHover(store, null, null, { x: 0, y: 0 });
+  };
+  const handleStageKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || !mapKeys.has(event.key)) return;
+    event.preventDefault();
+    cancelFlight();
+    const zoomLevels = zoomKeyLevels[event.key];
+    if (zoomLevels !== undefined) {
+      zoom(zoomLevels);
+      return;
+    }
+    const pan = arrowKeyPan[event.key];
+    if (pan) {
+      handlePan(pan.dx, pan.dy);
+      return;
+    }
+    if (event.key === "Escape") {
+      handleEscape();
+      return;
+    }
+    chooseZone(null);
+  };
+  const handleEscape = () => {
+    if (document.fullscreenElement === sectionRef.current) {
+      toggleFullscreen();
+      return;
+    }
+    if (selectedTraceId) {
+      onSelectTrace(null);
+      return;
+    }
+    chooseZone(null);
+  };
+  const handleControlPointerEnter = () => clearTopicMapHover(store);
+  const handleFitMap = () => chooseZone(null);
+  const handleZoomOut = () => {
+    cancelFlight();
+    zoom(-0.5);
+  };
+  const handleZoomIn = () => {
+    cancelFlight();
+    zoom(0.5);
+  };
+  const handleToggleFullscreen = () => {
+    toggleFullscreen();
+  };
+  const handleSelectTrace = (id: string) => {
+    onSelectTrace(id);
+    openTrace(id);
+  };
   return (
     <section
       ref={sectionRef}
@@ -235,177 +388,40 @@ export function TopicMapExplorer({
         )}
         style={{ touchAction: "none" }}
         {...gestures.pointerHandlers}
-        onPointerMove={(event) => {
-          gestures.pointerHandlers.onPointerMove(event);
-          if (event.pointerType !== "mouse") return;
-          const pointerAt = { x: event.clientX, y: event.clientY };
-          if (event.buttons !== 0) {
-            clearTopicMapHover(store);
-            store.setState({ pointerAt });
-            return;
-          }
-          const previous = store.getState().pointerAt;
-          if (
-            previous &&
-            Math.hypot(pointerAt.x - previous.x, pointerAt.y - previous.y) <=
-              0.5
-          )
-            return;
-          if (gestures.isDragging) return;
-          const rect = event.currentTarget.getBoundingClientRect();
-          const at = {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-          };
-          const pointer = store.getState().reducedMotion
-            ? { x: 0, y: 0 }
-            : {
-                x: (at.x / size.width - 0.5) * 2,
-                y: (at.y / size.height - 0.5) * 2,
-              };
-          const frame = store.getState().frame;
-          const intended = getCamera();
-          if (
-            store.getState().isMoving ||
-            !frame ||
-            frame.model !== model ||
-            frame.readingTopic !== selectedTopic ||
-            frame.size.width !== size.width ||
-            frame.size.height !== size.height ||
-            frame.camera.zoom !== intended.zoom ||
-            frame.camera.x !== intended.x ||
-            frame.camera.y !== intended.y
-          ) {
-            setTopicMapHover(store, null, null, pointer, pointerAt);
-            return;
-          }
-          const hovered = hitMapNode(frame, at);
-          const traceLabel =
-            event.target instanceof Element
-              ? event.target.closest<HTMLElement>(
-                  '[data-topic-trace]:not([data-active="false"])',
-                )
-              : null;
-          setTopicMapHover(
-            store,
-            traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? null,
-            null,
-            pointer,
-            pointerAt,
-          );
-        }}
-        onPointerLeave={() =>
-          setTopicMapHover(store, null, null, { x: 0, y: 0 })
-        }
-        onClick={(event) => {
-          if (event.target !== event.currentTarget) return;
-          const rect = event.currentTarget.getBoundingClientRect();
-          const frame = store.getState().frame;
-          const point =
-            frame &&
-            frame.model === model &&
-            frame.readingTopic === selectedTopic
-              ? hitMapNode(frame, {
-                  x: event.clientX - rect.left,
-                  y: event.clientY - rect.top,
-                })
-              : null;
-          onSelectTrace(point?.traceId ?? null);
-          if (point) openTrace(point.traceId);
-        }}
-        onDoubleClick={(event) => {
-          if (event.target !== event.currentTarget) return;
-          const rect = event.currentTarget.getBoundingClientRect();
-          cancelFlight();
-          zoom(1, {
-            x: (event.clientX - rect.left) / size.width,
-            y: (event.clientY - rect.top) / size.height,
-          });
-        }}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          if (
-            [
-              "+",
-              "=",
-              "-",
-              "0",
-              "Home",
-              "ArrowLeft",
-              "ArrowRight",
-              "ArrowUp",
-              "ArrowDown",
-              "Escape",
-            ].includes(event.key)
-          ) {
-            event.preventDefault();
-            cancelFlight();
-            if (event.key === "+" || event.key === "=") zoom(0.5);
-            else if (event.key === "-") zoom(-0.5);
-            else if (event.key === "0" || event.key === "Home")
-              chooseZone(null);
-            else if (event.key === "Escape") {
-              if (document.fullscreenElement === sectionRef.current)
-                toggleFullscreen();
-              else if (selectedTraceId) onSelectTrace(null);
-              else chooseZone(null);
-            } else
-              setCamera(
-                panCamera(
-                  getCamera(),
-                  (
-                    { ArrowLeft: 80, ArrowRight: -80 } as Record<string, number>
-                  )[event.key] ?? 0,
-                  ({ ArrowUp: 80, ArrowDown: -80 } as Record<string, number>)[
-                    event.key
-                  ] ?? 0,
-                  model.bounds,
-                  size,
-                ),
-              );
-          }
-        }}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        onClick={handleStageClick}
+        onDoubleClick={handleStageDoubleClick}
+        onKeyDown={handleStageKeyDown}
       >
         <div
           role="toolbar"
           aria-label="Map controls"
           className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm backdrop-blur-sm"
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerMove={(event) => event.stopPropagation()}
-          onPointerEnter={() => clearTopicMapHover(store)}
+          onPointerDown={stopPointerPropagation}
+          onPointerMove={stopPointerPropagation}
+          onPointerEnter={handleControlPointerEnter}
         >
           <IconButton
             icon={LocateFixed}
             label="Fit map (0)"
-            onClick={() => chooseZone(null)}
+            onClick={handleFitMap}
           />
           <IconButton
             icon={Minus}
             label="Zoom out (-)"
-            onClick={() => {
-              cancelFlight();
-              zoom(-0.5);
-            }}
+            onClick={handleZoomOut}
           />
           <ZoomReadout
             store={store}
             initialCamera={initialCamera}
             scope={selectedTopic}
           />
-          <IconButton
-            icon={Plus}
-            label="Zoom in (+)"
-            onClick={() => {
-              cancelFlight();
-              zoom(0.5);
-            }}
-          />
+          <IconButton icon={Plus} label="Zoom in (+)" onClick={handleZoomIn} />
           <IconButton
             icon={fullscreen ? X : Maximize2}
             label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            onClick={() => {
-              toggleFullscreen();
-            }}
+            onClick={handleToggleFullscreen}
           />
         </div>
         <MapBackgroundLabels store={store} />
@@ -423,10 +439,7 @@ export function TopicMapExplorer({
           store={store}
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
-          onSelectTrace={(id) => {
-            onSelectTrace(id);
-            openTrace(id);
-          }}
+          onSelectTrace={handleSelectTrace}
         />
         {model.points.length === 0 && (
           <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm">
@@ -439,6 +452,8 @@ export function TopicMapExplorer({
             initialCamera={initialCamera}
             scope={selectedTopic}
             population={model.populationLabel}
+            missingSummaryCount={data.missingSummaryCount}
+            unpositionedCount={data.unpositionedCount}
           />
           {!fillContainer && (
             <span>
@@ -481,22 +496,39 @@ function LayoutReadout({
   initialCamera,
   scope,
   population,
-}: {
-  store: TopicMapStore;
-  initialCamera: Camera;
-  scope: string | null;
-  population: string;
-}) {
+  missingSummaryCount,
+  unpositionedCount,
+}: LayoutReadoutProps) {
   const camera = useStore(store, (s) => s.camera);
   const cameraScope = useStore(store, (s) => s.scope);
   const current = cameraScope === scope && camera ? camera : initialCamera;
+  const handlePointerEnter = () => clearTopicMapHover(store);
   return (
-    <span>
-      {population} ·{" "}
-      {nodeDetailBlend(current.zoom) > 0
-        ? "Adaptive detail"
-        : "Saved 2D projection"}
-    </span>
+    <Tooltip
+      label={mapCoverageLabel(
+        population,
+        missingSummaryCount,
+        unpositionedCount,
+      )}
+      hoverableContent={false}
+    >
+      {({ getTriggerProps }) => (
+        <button
+          {...getTriggerProps()}
+          type="button"
+          aria-label={`Map coverage: ${population}`}
+          className="focus-visible:outline-ring pointer-events-auto cursor-help text-left focus-visible:outline-2"
+          onPointerDown={stopPointerPropagation}
+          onPointerMove={stopPointerPropagation}
+          onPointerEnter={handlePointerEnter}
+        >
+          {population} ·{" "}
+          {nodeDetailBlend(current.zoom) > 0
+            ? "Adaptive detail"
+            : "Saved 2D projection"}
+        </button>
+      )}
+    </Tooltip>
   );
 }
 
@@ -524,6 +556,22 @@ function MapLabels({
     frame.size.width === size.width &&
     frame.size.height === size.height &&
     frame.readingTopic === selectedTopic;
+  const handleTraceClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    const traceId = event.currentTarget.dataset.traceId;
+    if (traceId) onSelectTrace(traceId);
+  };
+  const handleHoverTransitionEnd = (
+    event: ReactTransitionEvent<HTMLDivElement>,
+  ) => {
+    if (
+      event.currentTarget.dataset.active === "false" &&
+      event.propertyName === "opacity"
+    )
+      finishTopicMapHover(
+        store,
+        Number(event.currentTarget.dataset.hoverToken),
+      );
+  };
   return (
     <div className="pointer-events-none absolute inset-0">
       {current &&
@@ -542,7 +590,7 @@ function MapLabels({
               tabIndex={node.textOpacity >= 0.9 ? 0 : -1}
               aria-pressed={node.point.traceId === selectedTraceId}
               aria-label={`Select trace: ${node.point.summary}`}
-              onClick={() => onSelectTrace(node.point.traceId)}
+              onClick={handleTraceClick}
               className="text-foreground focus-visible:outline-ring pointer-events-auto absolute cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 text-left leading-relaxed focus-visible:outline-2"
               style={{
                 left: node.rect.x,
@@ -586,6 +634,7 @@ function MapLabels({
             data-topic-zone={zone?.id}
             data-trace-id={trace?.point.traceId}
             data-active={active}
+            data-hover-token={label.token}
             data-hovered={active && label.kind === "trace"}
             aria-hidden={!active}
             aria-label={
@@ -593,10 +642,7 @@ function MapLabels({
                 ? `Trace summary: ${trace.point.summary}`
                 : `${zone!.name}, ${zone!.countLabel}`
             }
-            onTransitionEnd={(event) => {
-              if (!active && event.propertyName === "opacity")
-                finishTopicMapHover(store, label.token);
-            }}
+            onTransitionEnd={handleHoverTransitionEnd}
             className={cn(
               "bg-background/85 text-foreground pointer-events-none absolute overflow-hidden rounded-lg border px-3 py-2.5 text-left text-xs leading-relaxed shadow-md backdrop-blur-sm",
               styles.hoverCard,
@@ -671,7 +717,7 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
             >
               {label.title}
             </span>
-            {label.description && (
+            {label.description.length > 0 && (
               <span
                 className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
                 style={{ opacity: label.detailOpacity }}
@@ -684,5 +730,38 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
     </div>
   );
 }
+
+function stopPointerPropagation(event: ReactPointerEvent<HTMLElement>) {
+  event.stopPropagation();
+}
+
+function mapCoverageLabel(
+  population: string,
+  missingSummaryCount: number,
+  unpositionedCount: number,
+) {
+  return `${population}.\n${missingSummaryCount.toLocaleString()} saved map points have no current summary.\n${unpositionedCount.toLocaleString()} current summaries have no saved coordinates.`;
+}
+
+export type TopicMapExplorerProps = {
+  projectId: string;
+  data: MapData;
+  topics: MapTopic[];
+  selectedTopic: string | null;
+  onSelectTopic: (id: string | null) => void;
+  onSelectTrace: (traceId: string | null) => void;
+  selectedTraceId: string | null;
+  onOpenTrace: (traceId: string) => void;
+  fillContainer?: boolean;
+};
+
+type LayoutReadoutProps = {
+  store: TopicMapStore;
+  initialCamera: Camera;
+  scope: string | null;
+  population: string;
+  missingSummaryCount: number;
+  unpositionedCount: number;
+};
 
 export const __test = { fitMapPoints };

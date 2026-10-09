@@ -6,15 +6,6 @@ import TopicsPage from "./TopicsPage";
 const state = vi.hoisted(() => ({
   status: "failed",
   executionUpdatedAt: 110,
-  executionId: "execution" as string | null,
-  facetsLoading: false,
-  facets: [] as {
-    id: string;
-    name: string;
-    isBuiltIn: boolean;
-    versions: { version: number; prompt: string }[];
-  }[],
-  results: [] as { facetId: string; name: string }[],
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
   refetchExecution: vi.fn(),
@@ -22,26 +13,11 @@ const state = vi.hoisted(() => ({
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
-    query: { projectId: "project", executionId: state.executionId },
+    query: { projectId: "project", executionId: "execution" },
   }),
 }));
 vi.mock("@/src/components/layouts/page", () => ({
-  default: ({
-    children,
-    headerProps,
-  }: {
-    children: ReactNode;
-    headerProps: {
-      actionButtonsLeft: ReactNode;
-      actionButtonsRight: ReactNode;
-    };
-  }) => (
-    <>
-      {headerProps.actionButtonsLeft}
-      {headerProps.actionButtonsRight}
-      {children}
-    </>
-  ),
+  default: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
   usePeekNavigation: () => ({}),
@@ -69,31 +45,23 @@ vi.mock("./CurrentTopics", () => ({
   }: {
     running: boolean;
     refreshAfter: number;
-  }) => ({ running, refreshAfter, data: state.results }),
+  }) => ({ running, refreshAfter, data: [] }),
   CurrentTopics: ({
     result,
-    selectedFacetId,
   }: {
     result: { running: boolean; refreshAfter: number };
-    selectedFacetId: string | undefined;
   }) => (
     <div
       data-testid="current-topics"
       data-running={result.running}
       data-refresh-after={result.refreshAfter}
-      data-selected-facet={selectedFacetId}
     />
   ),
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
-      facets: {
-        useQuery: () => ({
-          data: state.facetsLoading ? undefined : state.facets,
-          isLoading: state.facetsLoading,
-        }),
-      },
+      facets: { useQuery: () => ({ data: [], isLoading: false }) },
       executions: { useQuery: () => ({ data: [] }) },
       initialize: { useMutation: () => ({}) },
       execution: {
@@ -144,69 +112,10 @@ beforeEach(() => {
     },
   );
   state.status = "failed";
-  state.executionId = "execution";
-  state.facetsLoading = false;
-  state.facets = [];
-  state.results = [];
   state.executionUpdatedAt = 110;
   state.updatedAt = "2026-09-23T12:00:00Z";
 });
 
-it("waits for initial facets before mounting interactive workspace controls", () => {
-  state.executionId = null;
-  state.facetsLoading = true;
-  const view = render(<TopicsPage />);
-  expect(screen.queryByRole("button", { name: "Topics actions" })).toBeNull();
-  expect(screen.queryByTestId("current-topics")).toBeNull();
-  expect(screen.getByText("Loading topics…")).toBeInTheDocument();
-
-  state.facetsLoading = false;
-  state.facets = [
-    {
-      id: "intent",
-      name: "Intent",
-      isBuiltIn: true,
-      versions: [{ version: 1, prompt: "Intent" }],
-    },
-  ];
-  state.results = [{ facetId: "intent", name: "Intent" }];
-  view.rerender(<TopicsPage />);
-  expect(
-    screen.getByRole("button", { name: "Topics actions" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByRole("combobox", { name: "Topics facet" }),
-  ).toHaveTextContent("Intent");
-  expect(screen.getByTestId("current-topics")).toHaveAttribute(
-    "data-selected-facet",
-    "intent",
-  );
-});
-
-it("preserves the selected facet through result refresh and derives a fallback if it disappears", () => {
-  state.executionId = null;
-  state.results = [
-    { facetId: "intent", name: "Intent" },
-    { facetId: "issues", name: "Issues" },
-  ];
-  const view = render(<TopicsPage />);
-  const current = screen.getByTestId("current-topics");
-  expect(current).toHaveAttribute("data-selected-facet", "intent");
-  const picker = screen.getByRole("combobox", { name: "Topics facet" });
-  fireEvent.keyDown(picker, { key: "ArrowDown" });
-  fireEvent.click(screen.getByRole("option", { name: "Issues" }));
-  expect(current).toHaveAttribute("data-selected-facet", "issues");
-
-  state.results = state.results.map((facet) => ({ ...facet }));
-  view.rerender(<TopicsPage />);
-  expect(current).toHaveAttribute("data-selected-facet", "issues");
-  expect(picker).toHaveTextContent("Issues");
-
-  state.results = [{ facetId: "intent", name: "Intent" }];
-  view.rerender(<TopicsPage />);
-  expect(current).toHaveAttribute("data-selected-facet", "intent");
-  expect(picker).toHaveTextContent("Intent");
-});
 afterEach(() => vi.unstubAllGlobals());
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {

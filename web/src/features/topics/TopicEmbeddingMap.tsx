@@ -1,6 +1,5 @@
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { type ReactNode } from "react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { EmbeddingMapView } from "./EmbeddingMapView";
@@ -17,7 +16,6 @@ export function TopicEmbeddingMap({
   topics,
   selectedTopic,
   onSelectTopic,
-  headerStats,
   onSelectTrace,
   selectedTraceId,
   fillContainer = false,
@@ -28,7 +26,6 @@ export function TopicEmbeddingMap({
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
-  headerStats?: ReactNode;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
   fillContainer?: boolean;
@@ -74,7 +71,6 @@ export function TopicEmbeddingMap({
       topics={topics}
       selectedTopic={selectedTopic}
       onSelectTopic={onSelectTopic}
-      headerStats={headerStats}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
       fillContainer={fillContainer}

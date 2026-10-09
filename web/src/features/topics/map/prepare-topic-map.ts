@@ -62,7 +62,7 @@ export type TopicMapNodeFrame = {
 
 const emptyBounds = { minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 };
 function pointBounds(points: { x: number; y: number }[]): Bounds {
-  if (!points.length) return emptyBounds;
+  if (points.length === 0) return emptyBounds;
   let minX = Infinity,
     maxX = -Infinity,
     minY = Infinity,

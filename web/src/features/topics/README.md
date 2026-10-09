@@ -116,8 +116,9 @@ project permissions. Processing additionally requires the project allowlist.
   +/- zoom and 0/Home return to the full map. Zoom, fit and fullscreen controls
   overlay the chart without reserving a header row. OS reduced motion disables focus
   flights, presentation interpolation and pointer parallax, with immediate hints.
-  Unpositioned summaries remain available in the trace table. This internal PoC
-  adds no
+  Unpositioned summaries remain available in the trace table. The compact mapped-count
+  tooltip reports points without summaries and summaries without coordinates, without
+  reserving a footer row. This internal PoC adds no
   analytics events for camera/hover/fullscreen; the entire renderer is blocked
   from session replay. Browser fullscreen denial is expected UI state.
 - `server/currentResults.ts` joins latest per-trace/facet assignments to their

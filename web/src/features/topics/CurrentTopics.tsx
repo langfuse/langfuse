@@ -1,6 +1,6 @@
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { useMediaQuery } from "react-responsive";
 import { cn } from "@/src/utils/tailwind";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
@@ -18,6 +18,7 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
+import { TopicGroupCard } from "./TopicGroupCard";
 import { topicColor } from "./topic-map-colors";
 import { SummaryInspector } from "./SummaryInspector";
 import { isValidTopicTimeRange } from "./time-range";
@@ -93,6 +94,18 @@ function CurrentFacet({
     setSelectedTraceId(null);
     setPagination((current) => ({ ...current, pageIndex: 0 }));
   }
+  function selectAllTraces() {
+    selectTopic(null);
+  }
+  function selectOutliers() {
+    selectTopic("outliers");
+  }
+  function selectNoTopic() {
+    selectTopic("no_topic");
+  }
+  function selectAwaitingMap() {
+    selectTopic("awaiting_map");
+  }
   const selected =
     selection === "outliers" ||
     selection === "no_topic" ||
@@ -147,7 +160,6 @@ function CurrentFacet({
           onSelectTopic={selectTopic}
           onSelectTrace={setSelectedTraceId}
           selectedTraceId={selectedTraceId}
-          headerStats={counts}
           fillContainer
         />
       ) : (
@@ -170,33 +182,15 @@ function CurrentFacet({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {facet.topics.map((topic) => (
-            <button
+            <TopicGroupCard
               key={topic.id}
-              onClick={() => selectTopic(topic.id)}
-              aria-pressed={selected === topic.id}
-              className={cn(
-                "hover:bg-muted/50 flex flex-col gap-1 rounded-md border p-2 text-left",
-                selected === topic.id && "border-primary bg-muted/30",
+              topic={topic}
+              isSelected={selected === topic.id}
+              color={topicColor(
+                topics.findIndex((item) => item.id === topic.id),
               )}
-            >
-              <div className="flex w-full items-start justify-between gap-2">
-                <h4 className="flex min-w-0 items-start gap-1.5 text-xs font-bold">
-                  <span
-                    className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: topicColor(
-                        topics.findIndex((item) => item.id === topic.id),
-                      ),
-                    }}
-                  />
-                  {topic.name}
-                </h4>
-                <Badge text={topic.count.toLocaleString()} size="sm" />
-              </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                {topic.description}
-              </p>
-            </button>
+              onSelect={selectTopic}
+            />
           ))}
         </div>
         {facet.topics.length === 0 && (
@@ -219,14 +213,14 @@ function CurrentFacet({
           text={`All traces (${facet.rows.length.toLocaleString()})`}
           size="sm"
           variant={selected === null ? "secondary" : "ghost"}
-          onClick={() => selectTopic(null)}
+          onClick={selectAllTraces}
         />
         {outliers > 0 && (
           <Button
             text={`Outliers (${outliers.toLocaleString()})`}
             size="sm"
             variant={selected === "outliers" ? "secondary" : "ghost"}
-            onClick={() => selectTopic("outliers")}
+            onClick={selectOutliers}
           />
         )}
         {noTopic > 0 && (
@@ -234,7 +228,7 @@ function CurrentFacet({
             text={`No topic (${noTopic.toLocaleString()})`}
             size="sm"
             variant={selected === "no_topic" ? "secondary" : "ghost"}
-            onClick={() => selectTopic("no_topic")}
+            onClick={selectNoTopic}
           />
         )}
         {facet.awaitingCount > 0 && (
@@ -242,7 +236,7 @@ function CurrentFacet({
             text={`Awaiting update (${facet.awaitingCount.toLocaleString()})`}
             size="sm"
             variant={selected === "awaiting_map" ? "secondary" : "ghost"}
-            onClick={() => selectTopic("awaiting_map")}
+            onClick={selectAwaitingMap}
           />
         )}
       </div>
@@ -337,13 +331,18 @@ function CurrentTraceTable({
       header: "Trace ID",
       size: 132,
       minSize: 100,
-      cell: ({ row }) => (
-        <TextLink
-          path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
-          value={row.original.traceId}
-          onClick={() => peekNavigation.openPeek(row.original.traceId)}
-        />
-      ),
+      cell: ({ row }) => {
+        function openTrace() {
+          peekNavigation.openPeek(row.original.traceId);
+        }
+        return (
+          <TextLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
+            value={row.original.traceId}
+            onClick={openTrace}
+          />
+        );
+      },
     },
     {
       accessorKey: "topicName",
@@ -364,42 +363,48 @@ function CurrentTraceTable({
       size: 300,
       minSize: 180,
       isFlexWidth: true,
-      cell: ({ row }) => (
-        <div className="flex flex-col items-start gap-1 py-1">
-          {isMobile && (
-            <div className="flex w-full min-w-0 items-center justify-between gap-2">
-              <Badge
-                text={
-                  row.original.topicName ??
-                  row.original.outcome.replaceAll("_", " ")
-                }
-                size="sm"
-              />
-              <TextLink
-                path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
-                value="Open trace"
-                onClick={() => peekNavigation.openPeek(row.original.traceId)}
-              />
-            </div>
-          )}
-          <p className="break-words whitespace-pre-wrap">
-            {row.original.summary || "No applicable summary."}
-          </p>
-          <Button
-            text="Inspect transcript"
-            variant="ghost"
-            size="sm"
-            onClick={(event) => {
-              event.stopPropagation();
-              openInspector({
-                traceId: row.original.traceId,
-                facetVersion: row.original.facetVersion,
-                unitStartTime: row.original.unitStartTime,
-              });
-            }}
-          />
-        </div>
-      ),
+      cell: ({ row }) => {
+        function openTrace() {
+          peekNavigation.openPeek(row.original.traceId);
+        }
+        function inspectTranscript(event: MouseEvent) {
+          event.stopPropagation();
+          openInspector({
+            traceId: row.original.traceId,
+            facetVersion: row.original.facetVersion,
+            unitStartTime: row.original.unitStartTime,
+          });
+        }
+        return (
+          <div className="flex flex-col items-start gap-1 py-1">
+            {isMobile && (
+              <div className="flex w-full min-w-0 items-center justify-between gap-2">
+                <Badge
+                  text={
+                    row.original.topicName ??
+                    row.original.outcome.replaceAll("_", " ")
+                  }
+                  size="sm"
+                />
+                <TextLink
+                  path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
+                  value="Open trace"
+                  onClick={openTrace}
+                />
+              </div>
+            )}
+            <p className="break-words whitespace-pre-wrap">
+              {row.original.summary || "No applicable summary."}
+            </p>
+            <Button
+              text="Inspect transcript"
+              variant="ghost"
+              size="sm"
+              onClick={inspectTranscript}
+            />
+          </div>
+        );
+      },
     },
   ];
   return (

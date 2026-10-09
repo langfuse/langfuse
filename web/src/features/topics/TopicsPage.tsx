@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import {
-  History,
-  MoreHorizontal,
-  Play,
-  RefreshCw,
-  Settings2,
-} from "lucide-react";
-import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { MoreHorizontal } from "lucide-react";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -26,7 +19,6 @@ import {
   SheetDescription,
 } from "@/src/components/ui/sheet";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
@@ -51,12 +43,15 @@ import {
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
+import { TopicsFilters } from "./TopicsFilters";
+import { TopicsActionsMenu } from "./TopicsActionsMenu";
+import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
+import { resolveTopicFacetId } from "./topic-facet-selection";
 import {
   isValidTopicTimeRange,
   relativeTopicTimeRange,
   topicCalendarDates,
   topicCalendarRange,
-  topicTimeRangePresets,
 } from "./time-range";
 
 const operationLabels: Record<TopicOperation, string> = {
@@ -114,13 +109,14 @@ export default function TopicsPage() {
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
-  if (facets.isLoading) return loadingPage;
   return (
-    <TopicsWorkspaceView
-      key={facets.data?.length ? "configured" : "empty"}
-      projectId={projectId}
-      facets={facets}
-    />
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      <TopicsWorkspaceView
+        key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
+        projectId={projectId}
+        facets={facets}
+      />
+    </TopicsWorkspaceGate>
   );
 }
 
@@ -193,11 +189,10 @@ function TopicsWorkspaceView({
     refreshAfter: completedAt,
     timeRange: currentTimeRange,
   });
-  const selectedFacet = results.data?.some(
-    (facet) => facet.facetId === selectedFacetId,
-  )
-    ? selectedFacetId
-    : results.data?.[0]?.facetId;
+  const selectedFacet = resolveTopicFacetId(
+    results.data ?? [],
+    selectedFacetId,
+  );
   const refreshResults = () => {
     if (timeWindow !== "custom")
       setTimeRange(relativeTopicTimeRange(Number(timeWindow)));
@@ -223,6 +218,22 @@ function TopicsWorkspaceView({
       shallow: true,
     });
   };
+  function openHistory() {
+    setHistoryOpen(true);
+  }
+  function selectTimeWindow(value: string) {
+    setTimeWindow(value);
+    setTimeRange(
+      value === "custom"
+        ? topicCalendarRange(topicCalendarDates(currentTimeRange))
+        : relativeTopicTimeRange(Number(value)),
+    );
+  }
+  function selectCalendarRange(
+    value: Parameters<typeof topicCalendarRange>[0],
+  ) {
+    setTimeRange(topicCalendarRange(value));
+  }
   const {
     primaryAction,
     triggerAction,
@@ -236,56 +247,17 @@ function TopicsWorkspaceView({
     onTriggered: openExecution,
     timeRange: validTimeRange ? currentTimeRange : null,
     facetEditor:
-      canWrite && facets.data?.length ? (
-        <FacetEditor projectId={projectId} facets={facets.data} />
+      canWrite && (facets.data?.length ?? 0) > 0 ? (
+        <FacetEditor projectId={projectId} facets={facets.data ?? []} />
       ) : null,
   });
-  const filters = (menu = false) => (
-    <div
-      className={
-        menu
-          ? "ph-no-capture flex flex-col gap-3 p-1"
-          : "ph-no-capture flex min-w-0 flex-wrap items-center gap-2"
-      }
-    >
-      {!!results.data?.length && selectedFacet && (
-        <div className={menu ? "flex w-full flex-col gap-1" : "w-44"}>
-          {menu && <span className="text-muted-foreground text-xs">Facet</span>}
-          <Select value={selectedFacet} onValueChange={setSelectedFacetId}>
-            <SelectTrigger aria-label="Topics facet" className="h-8">
-              <SelectValue placeholder="Facet" />
-            </SelectTrigger>
-            <SelectContent className="ph-no-capture">
-              {results.data.map((facet) => (
-                <SelectItem key={facet.facetId} value={facet.facetId}>
-                  {facet.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      <div className={menu ? "flex w-full flex-col gap-1" : "w-36"}>
-        {menu && (
-          <span className="text-muted-foreground text-xs">Time range</span>
-        )}
-        <SelectInput
-          aria-label="Topics time range"
-          placeholder="Topics time range"
-          value={timeWindow}
-          options={topicTimeRangePresets}
-          onValueChange={(value) => {
-            setTimeWindow(value);
-            setTimeRange(
-              value === "custom"
-                ? topicCalendarRange(topicCalendarDates(currentTimeRange))
-                : relativeTopicTimeRange(Number(value)),
-            );
-          }}
-        />
-      </div>
-    </div>
-  );
+  const filterProps = {
+    facets: results.data ?? [],
+    selectedFacetId,
+    timeWindow,
+    onSelectFacet: setSelectedFacetId,
+    onSelectTimeWindow: selectTimeWindow,
+  };
   const actions = (
     <div className="ph-no-capture flex items-center justify-end gap-1">
       {primaryAction}
@@ -293,7 +265,7 @@ function TopicsWorkspaceView({
         ariaLabel="Topics actions"
         placement="bottom-end"
         items={[
-          ...(facets.data?.length
+          ...((facets.data?.length ?? 0) > 0
             ? [
                 {
                   id: "configure",
@@ -307,7 +279,7 @@ function TopicsWorkspaceView({
             id: "history",
             type: "item",
             title: "History",
-            onClick: () => setHistoryOpen(true),
+            onClick: openHistory,
           },
           {
             id: "refresh",
@@ -337,48 +309,18 @@ function TopicsWorkspaceView({
             "Explore recurring themes across traces, one facet at a time.",
         },
         actionButtonsRight: actions,
-        actionButtonsLeft: filters(),
+        actionButtonsLeft: <TopicsFilters {...filterProps} layout="header" />,
         actionButtonsMenu: ({ closeMenu }) => (
-          <>
-            {filters(true)}
-            {triggerAction && (
-              <HeaderActionMenuRow
-                label={triggerAction.label}
-                icon={<Play className="icon-base text-icon-foreground" />}
-                disabled={triggerAction.disabled}
-                onClick={() => {
-                  closeMenu();
-                  triggerAction.onSelect();
-                }}
-              />
-            )}
-            {!!facets.data?.length && (
-              <HeaderActionMenuRow
-                label="Configure topics"
-                icon={<Settings2 className="icon-base text-icon-foreground" />}
-                onClick={() => {
-                  closeMenu({ handoffFocus: true });
-                  openConfiguration();
-                }}
-              />
-            )}
-            <HeaderActionMenuRow
-              label="History"
-              icon={<History className="icon-base text-icon-foreground" />}
-              onClick={() => {
-                closeMenu({ handoffFocus: true });
-                setHistoryOpen(true);
-              }}
-            />
-            <HeaderActionMenuRow
-              label="Refresh results"
-              icon={<RefreshCw className="icon-base text-icon-foreground" />}
-              onClick={() => {
-                closeMenu();
-                refreshResults();
-              }}
-            />
-          </>
+          <TopicsActionsMenu
+            hasFacets={(facets.data?.length ?? 0) > 0}
+            triggerAction={triggerAction}
+            closeMenu={closeMenu}
+            onOpenConfiguration={openConfiguration}
+            onOpenHistory={openHistory}
+            onRefresh={refreshResults}
+          >
+            <TopicsFilters {...filterProps} layout="menu" />
+          </TopicsActionsMenu>
         ),
       }}
     >
@@ -390,7 +332,7 @@ function TopicsWorkspaceView({
               max={format(new Date(), "yyyy-MM-dd")}
               fromAriaLabel="Topics start date"
               toAriaLabel="Topics end date"
-              onValueChange={(value) => setTimeRange(topicCalendarRange(value))}
+              onValueChange={selectCalendarRange}
             />
           </div>
         )}
