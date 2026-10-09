@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { FileIcon, Wrench } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
@@ -9,13 +8,14 @@ import {
   type ReasoningPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
-import {
-  ExternalMediaView,
-  LangfuseMediaView,
-} from "@/src/components/ui/LangfuseMediaView";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { ExternalMediaView } from "@/src/components/ui/media/ExternalMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
+import {
+  classifyMediaValue,
+  type MediaDescriptor,
+} from "@/src/components/ui/media/mediaUtils";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
@@ -87,63 +87,121 @@ function SessionTimelineReasoning({
 }
 
 function SessionTimelineFile({ part }: { part: FilePart }) {
-  const source = part.providerMetadata?.source;
-  const safeUrl =
-    part.content.kind === "url" ? getSafeLinkUrl(part.content.url) : null;
-  const safeImageUrl =
-    part.content.kind === "url" && part.mediaType?.startsWith("image/")
-      ? getSafeImageUrl(part.content.url)
-      : null;
-  const reference =
-    part.content.kind === "reference" &&
-    part.mediaType &&
-    typeof source === "string"
-      ? `@@@langfuseMedia:type=${part.mediaType}|id=${part.content.id}|source=${source}@@@`
-      : undefined;
-  const classifiedMedia =
-    part.content.kind === "url" ? classifyMediaValue(part.content.url) : null;
-  const s3Media = classifiedMedia?.kind === "s3" ? classifiedMedia : null;
-  const usesFallback = !reference && !s3Media && !safeImageUrl && !safeUrl;
+  const content = getSessionTimelineFileContent(part);
 
   return (
     <div
       className={cn(
         "border-border/70 bg-background flex max-w-full flex-col gap-2 rounded-md border p-3",
-        usesFallback ? "w-full" : "w-fit",
+        content.kind === "fallback" ? "w-full" : "w-fit",
       )}
     >
       <div className="text-muted-foreground flex items-center gap-2 text-xs font-bold">
         <FileIcon className="icon-base" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
-      {reference ? (
-        <LangfuseMediaView mediaReferenceString={reference} variant="preview" />
-      ) : s3Media ? (
-        <ExternalMediaView descriptor={s3Media} />
-      ) : safeImageUrl ? (
-        <a href={safeImageUrl} target="_blank" rel="noreferrer">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={safeImageUrl}
-            alt={part.filename ?? "Embedded image"}
-            className="max-h-64 max-w-full rounded-md object-contain"
-          />
-        </a>
-      ) : safeUrl ? (
-        <a
-          href={safeUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-primary min-w-0 truncate text-xs underline underline-offset-2"
-          title={part.content.kind === "url" ? part.content.url : undefined}
-        >
-          {safeUrl}
-        </a>
-      ) : (
-        <div className="min-w-0 overflow-x-auto">
-          <PrettyJsonView json={part} currentView="pretty" />
-        </div>
-      )}
+      <SessionTimelineFileBody
+        content={content}
+        filename={part.filename ?? "Embedded image"}
+      />
+    </div>
+  );
+}
+
+type SessionTimelineFileContent =
+  | { kind: "langfuse"; reference: string }
+  | {
+      kind: "s3";
+      descriptor: Extract<MediaDescriptor, { kind: "s3" }>;
+    }
+  | { kind: "image"; url: string }
+  | { kind: "link"; url: string; sourceUrl: string }
+  | { kind: "fallback"; part: FilePart };
+
+type SessionTimelineFileBodyProps = {
+  content: SessionTimelineFileContent;
+  filename: string;
+};
+
+function getSessionTimelineFileContent(
+  part: FilePart,
+): SessionTimelineFileContent {
+  const source = part.providerMetadata?.source;
+  const reference =
+    part.content.kind === "reference" &&
+    part.mediaType &&
+    typeof source === "string"
+      ? `@@@langfuseMedia:type=${part.mediaType}|id=${part.content.id}|source=${source}@@@`
+      : undefined;
+
+  if (reference) return { kind: "langfuse", reference };
+  if (part.content.kind !== "url") return { kind: "fallback", part };
+
+  const classifiedMedia = classifyMediaValue(part.content.url);
+  if (classifiedMedia?.kind === "s3") {
+    return { kind: "s3", descriptor: classifiedMedia };
+  }
+
+  const safeImageUrl = part.mediaType?.startsWith("image/")
+    ? getSafeImageUrl(part.content.url)
+    : null;
+  if (safeImageUrl) return { kind: "image", url: safeImageUrl };
+
+  const safeUrl = getSafeLinkUrl(part.content.url);
+  if (safeUrl) {
+    return { kind: "link", url: safeUrl, sourceUrl: part.content.url };
+  }
+
+  return { kind: "fallback", part };
+}
+
+function SessionTimelineFileBody({
+  content,
+  filename,
+}: SessionTimelineFileBodyProps) {
+  if (content.kind === "langfuse") {
+    return (
+      <LangfuseMediaView
+        mediaReferenceString={content.reference}
+        variant="preview"
+      />
+    );
+  }
+
+  if (content.kind === "s3") {
+    return <ExternalMediaView descriptor={content.descriptor} />;
+  }
+
+  if (content.kind === "image") {
+    return (
+      <a href={content.url} target="_blank" rel="noreferrer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={content.url}
+          alt={filename}
+          className="max-h-64 max-w-full rounded-md object-contain"
+        />
+      </a>
+    );
+  }
+
+  if (content.kind === "link") {
+    return (
+      <a
+        href={content.url}
+        target="_blank"
+        rel="noreferrer"
+        className="text-primary min-w-0 truncate text-xs underline underline-offset-2"
+        title={content.sourceUrl}
+      >
+        {content.url}
+      </a>
+    );
+  }
+
+  return (
+    <div className="min-w-0 overflow-x-auto">
+      <PrettyJsonView json={content.part} currentView="pretty" />
     </div>
   );
 }

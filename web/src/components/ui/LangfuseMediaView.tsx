@@ -1,86 +1,25 @@
 /* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { useMemo, useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { useMemo } from "react";
 
-import { ImageOff, ExternalLink } from "lucide-react";
+import { ImageOff } from "lucide-react";
 import {
   MediaReferenceStringSchema,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import {
-  COMPACT_IMAGE_MAX_HEIGHT_REM,
-  ResizableImage,
-} from "@/src/components/ui/resizable-image";
+import { ResizableImage } from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
-import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
-import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
 const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
-const EXTERNAL_MEDIA_REFRESH_INTERVAL_MS = 4 * 60 * 1000;
-
-type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;
-
-export function ExternalMediaView({
-  descriptor,
-}: {
-  descriptor: S3MediaDescriptor;
-}) {
-  const projectId = useProjectIdFromURL();
-  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
-    projectId,
-  });
-
-  if (!isFeatureEnabled) return descriptor.uri;
-
-  return (
-    <EnabledExternalMediaView descriptor={descriptor} projectId={projectId} />
-  );
-}
-
-function EnabledExternalMediaView({
-  descriptor,
-  projectId,
-}: {
-  descriptor: S3MediaDescriptor;
-  projectId?: string;
-}) {
-  const resolved = api.media.resolveExternalMedia.useQuery(
-    { projectId: projectId ?? "", uri: descriptor.uri },
-    {
-      enabled: Boolean(projectId),
-      staleTime: EXTERNAL_MEDIA_REFRESH_INTERVAL_MS,
-      refetchInterval: EXTERNAL_MEDIA_REFRESH_INTERVAL_MS,
-      retry: false,
-      meta: { silentHttpCodes: [404] },
-    },
-  );
-  const isSignedUrlExpired =
-    resolved.data?.expiresAt !== undefined &&
-    resolved.data.expiresAt.getTime() <= Date.now();
-  const url = isSignedUrlExpired ? undefined : resolved.data?.url;
-
-  if (!url) return null;
-
-  return (
-    <FileViewer
-      src={url}
-      contentType={descriptor.contentType as MediaContentType}
-      defaultExpanded
-    />
-  );
-}
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
@@ -191,7 +130,7 @@ export const LangfuseMediaView = ({
       variant === "preview" &&
       (data?.contentLength ?? 0) <= PREVIEW_AUTO_EXPAND_MAX_BYTES;
     return (
-      <FileViewer
+      <MediaFileView
         src={mediaUrl}
         contentType={mediaData.type}
         defaultExpanded={autoExpand}
@@ -212,117 +151,8 @@ export const LangfuseMediaView = ({
   } else if (mediaData.type.startsWith("video")) {
     return <VideoPlayer src={mediaUrl} />;
   }
-  return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
+  return <MediaFileView src={mediaUrl} contentType={mediaData.type} />;
 };
-
-function FileViewer({
-  src,
-  contentType,
-  defaultExpanded = false,
-}: {
-  src?: string;
-  contentType: MediaContentType;
-  defaultExpanded?: boolean;
-}) {
-  const mimeType = String(contentType);
-  const fileType = mimeType.split("/")[0];
-  const isImage = fileType === "image";
-  const isAudio = fileType === "audio";
-  const isVideo = fileType === "video";
-  const isPreviewable = isImage || isAudio || isVideo;
-
-  const [isExpanded, setIsExpanded] = useState(
-    defaultExpanded && isPreviewable,
-  );
-  const [compactImageWidth, setCompactImageWidth] = useState<string>();
-
-  if (!src) return null;
-
-  const fileName = src.split("/").pop()?.split("?")[0] || "";
-  const openInNewTab = () => {
-    window.open(src, "_blank", "noopener,noreferrer");
-  };
-
-  const expandPreview = () => {
-    if (!isImage || compactImageWidth) {
-      setIsExpanded(true);
-      return;
-    }
-
-    const image = new window.Image();
-    image.onload = () => {
-      const { naturalWidth, naturalHeight } = image;
-      if (naturalWidth && naturalHeight) {
-        setCompactImageWidth(
-          `${COMPACT_IMAGE_MAX_HEIGHT_REM * (naturalWidth / naturalHeight)}rem`,
-        );
-      }
-      setIsExpanded(true);
-    };
-    image.onerror = () => setIsExpanded(true);
-    image.src = src;
-  };
-
-  const previewContent = (() => {
-    if (isImage) {
-      return (
-        <ResizableImage
-          src={src}
-          alt={fileName}
-          isDefaultVisible={true}
-          shouldValidateImageSource={false}
-          fitContent
-          compactWidth={compactImageWidth}
-        />
-      );
-    }
-    if (isAudio) {
-      return <AudioPlayer src={src} />;
-    }
-    if (isVideo) {
-      return <VideoPlayer src={src} />;
-    }
-    return null;
-  })();
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-2",
-        isPreviewable && isExpanded ? "basis-full" : "shrink-0",
-      )}
-    >
-      {isPreviewable && isExpanded ? (
-        <div className="flex max-w-3xl items-start gap-2">
-          <div className={cn(isImage ? "contents" : "min-w-0 flex-1")}>
-            {isAudio ? (
-              <div className="max-w-xl min-w-72">{previewContent}</div>
-            ) : (
-              previewContent
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={openInNewTab}
-            aria-label={`Open ${fileName} in new tab`}
-            title={`Open ${fileName} in new tab`}
-            className="shrink-0"
-          >
-            <ExternalLink className="icon-base text-icon-foreground" />
-          </Button>
-        </div>
-      ) : (
-        <MediaFileCard
-          contentType={contentType}
-          fileName={fileName}
-          onClick={() => (isPreviewable ? expandPreview() : openInNewTab())}
-        />
-      )}
-    </div>
-  );
-}
 
 function AudioPlayer({ src }: { src?: string }) {
   if (!src) return null;
