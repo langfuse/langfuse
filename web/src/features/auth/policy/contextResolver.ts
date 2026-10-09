@@ -196,9 +196,7 @@ function publicBearerPolicies(
   }));
 }
 
-/** adminContext is the self-host superuser: an evaluated OWNER on every tenant. It binds the OWNER catalog to the org- and project-kind wildcards under the organization/* tenant, so the PDP grants it exactly what OWNER grants, on every tenant.
- *
- * The organization/* tenant is minted only here; a future custom-role loader must reject a wildcard tenant on a stored role. */
+/** adminContext grants the admin principal OWNER permissions across all tenants. */
 function adminContext(): AuthorizationContext {
   const principal: Principal = { kind: "admin", userId: null };
   const roleId = SystemRoleId("OWNER");
