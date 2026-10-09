@@ -89,16 +89,7 @@ export async function completeEvalExecution({
     !result.evaluationContext.evaluatorExecutionIsTest &&
     onEvaluatorCompleted
   ) {
-    try {
-      await onEvaluatorCompleted(result);
-    } catch (error) {
-      logger.error("Failed to schedule evaluator result rules", {
-        projectId,
-        jobExecutionId,
-        error,
-      });
-      traceException(error);
-    }
+    await onEvaluatorCompleted(result);
   }
 
   await deps.updateJobExecution({

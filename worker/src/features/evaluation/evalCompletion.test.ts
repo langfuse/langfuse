@@ -84,7 +84,7 @@ describe("completeEvalExecution", () => {
     expect(onEvaluatorCompleted).not.toHaveBeenCalled();
   });
 
-  it("marks the execution complete when downstream scheduling fails", async () => {
+  it("retries the execution when downstream scheduling fails", async () => {
     const updateJobExecution = vi.fn();
 
     await expect(
@@ -96,14 +96,8 @@ describe("completeEvalExecution", () => {
           throw new Error("notification failed");
         },
       }),
-    ).resolves.toEqual({ scoreCount: 1 });
+    ).rejects.toThrow("notification failed");
 
-    expect(updateJobExecution).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: "COMPLETED",
-        }),
-      }),
-    );
+    expect(updateJobExecution).not.toHaveBeenCalled();
   });
 });
