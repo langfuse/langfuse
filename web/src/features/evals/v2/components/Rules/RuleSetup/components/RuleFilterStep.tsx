@@ -115,9 +115,6 @@ export function RuleFilterStep({
       </>
     ) : (
       <>
-        <p className="text-muted-foreground text-sm">
-          Evaluators attached below run on the observation the score belongs to.
-        </p>
         <RuleEvaluatorResultTriggerSection
           projectId={projectId}
           store={store}
