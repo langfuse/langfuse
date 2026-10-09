@@ -7,7 +7,6 @@ import { cn } from "@/src/utils/tailwind";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 import { type Observation } from "@langfuse/shared";
 
-
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
 
