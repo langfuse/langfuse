@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   useRowHeightRendering,
@@ -122,13 +122,18 @@ describe("DataTable custom row height", () => {
     });
   });
 
-  const pointAt = (handle: HTMLElement, type: string, clientY: number) => {
+  const pointAt = (
+    handle: HTMLElement,
+    type: string,
+    clientY: number,
+    pointerId = 1,
+  ) => {
     handle.dispatchEvent(
       new PointerEventPolyfill(type, {
         bubbles: true,
         cancelable: true,
         button: 0,
-        pointerId: 1,
+        pointerId,
         clientY,
       }),
     );
@@ -491,6 +496,352 @@ describe("DataTable custom row height", () => {
       cell: () => <ModeProbe />,
     },
   ];
+
+  it("keeps mounted cell renders and commit effects unchanged during pixel-only dragging", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(96),
+    );
+    const onRender = vi.fn();
+    const onCommit = vi.fn();
+    function MountedCell({ rowIndex }: { rowIndex: number }) {
+      onRender(rowIndex);
+      useEffect(() => {
+        onCommit(rowIndex);
+      });
+      return <span>Cell {rowIndex}</span>;
+    }
+    const mountedColumns: LangfuseColumnDef<Row>[] = [
+      {
+        accessorKey: "mode",
+        id: "mode",
+        header: "Mounted cell",
+        cell: ({ row }) => <MountedCell rowIndex={row.index} />,
+      },
+    ];
+    render(
+      <DataTable
+        tableName="row-height-render-boundary"
+        columns={mountedColumns}
+        hidePagination
+        rowHeight="m"
+        onCustomRowHeightChange={vi.fn()}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+    onRender.mockClear();
+    onCommit.mockClear();
+
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => pointAt(handle, "pointerdown", 100));
+    for (const clientY of [101, 108, 116, 124, 140]) {
+      act(() => pointAt(handle, "pointermove", clientY));
+    }
+
+    expect({
+      cellRenders: onRender.mock.calls.length,
+      cellCommitEffects: onCommit.mock.calls.length,
+    }).toEqual({ cellRenders: 0, cellCommitEffects: 0 });
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "136px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "96px" });
+    }
+  });
+
+  it("updates only the dragged row's cells when crossing Medium in either direction", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(28),
+    );
+    const onRender = vi.fn();
+    const onCommit = vi.fn();
+    function MountedModeCell({ rowIndex }: { rowIndex: number }) {
+      const rendering = useRowHeightRendering();
+      onRender(rowIndex);
+      useEffect(() => {
+        onCommit(rowIndex);
+      });
+      return (
+        <span data-testid={`mounted-row-mode-${rowIndex}`}>
+          {rendering?.compact ? "compact" : "expanded"}
+        </span>
+      );
+    }
+    const mountedColumns: LangfuseColumnDef<Row>[] = [
+      {
+        accessorKey: "mode",
+        id: "mode",
+        header: "Mounted mode cell",
+        cell: ({ row }) => <MountedModeCell rowIndex={row.index} />,
+      },
+    ];
+    render(
+      <DataTable
+        tableName="row-height-mode-boundary"
+        columns={mountedColumns}
+        hidePagination
+        rowHeight="s"
+        onCustomRowHeightChange={vi.fn()}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => pointAt(handle, "pointerdown", 0));
+
+    for (const [clientY, mode] of [
+      [68, "expanded"],
+      [67, "compact"],
+    ] as const) {
+      onRender.mockClear();
+      onCommit.mockClear();
+      act(() => pointAt(handle, "pointermove", clientY));
+
+      expect(screen.getByTestId("mounted-row-mode-0")).toHaveTextContent(mode);
+      expect(screen.getByTestId("mounted-row-mode-1")).toHaveTextContent(
+        "compact",
+      );
+      expect(onRender.mock.calls).toEqual([[0]]);
+      expect(onCommit.mock.calls).toEqual([[0]]);
+
+      onRender.mockClear();
+      onCommit.mockClear();
+      act(() => pointAt(handle, "pointermove", clientY));
+      expect(onRender).not.toHaveBeenCalled();
+      expect(onCommit).not.toHaveBeenCalled();
+    }
+  });
+
+  it("continues dragging when async values refresh without replacing rows or cells", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(28),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    const tableProps = {
+      tableName: "row-height-async-values",
+      columns: modeColumns,
+      hidePagination: true,
+      rowHeight: "s" as const,
+      onCustomRowHeightChange,
+    };
+    const { rerender } = render(
+      <DataTable
+        {...tableProps}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    const initialFrames = rowBoxes(0);
+    act(() => {
+      pointAt(handle, "pointerdown", 0);
+      pointAt(handle, "pointermove", 100);
+    });
+    const refreshedRows = rows.map((row) => ({
+      ...row,
+      scoreName: `${row.scoreName}-loaded`,
+    }));
+
+    rerender(
+      <DataTable
+        {...tableProps}
+        data={{ isLoading: false, isError: false, data: refreshedRows }}
+      />,
+    );
+
+    expect(screen.getByText("zeta-score-loaded")).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Row height" })).toBe(handle);
+    const refreshedFrames = rowBoxes(0);
+    expect(refreshedFrames).toHaveLength(initialFrames.length);
+    refreshedFrames.forEach((frame, index) => {
+      expect(frame).toBe(initialFrames[index]);
+      expect(frame).toHaveStyle({ height: "128px" });
+    });
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("expanded");
+
+    act(() => pointAt(handle, "pointermove", 160));
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "188px" });
+    }
+    act(() => pointAt(handle, "pointerup", 160));
+    expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(188);
+  });
+
+  it("cancels a preview when refreshed data replaces the dragged row", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(28),
+    );
+    type IdentifiedRow = { id: string; mode: number };
+    const identifiedColumns: LangfuseColumnDef<IdentifiedRow>[] = [
+      {
+        accessorKey: "mode",
+        id: "mode",
+        header: "Mode",
+        cell: () => <ModeProbe />,
+      },
+    ];
+    const onCustomRowHeightChange = vi.fn();
+    const tableProps = {
+      tableName: "row-height-refreshed-data",
+      columns: identifiedColumns,
+      hidePagination: true,
+      rowHeight: "s" as const,
+      onCustomRowHeightChange,
+    };
+    const { rerender } = render(
+      <DataTable
+        {...tableProps}
+        data={{
+          isLoading: false,
+          isError: false,
+          data: [{ id: "old", mode: 0 }],
+        }}
+      />,
+    );
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 0);
+      pointAt(handle, "pointermove", 100);
+    });
+    expect(screen.getByTestId("row-mode")).toHaveTextContent("expanded");
+
+    rerender(
+      <DataTable
+        {...tableProps}
+        data={{
+          isLoading: false,
+          isError: false,
+          data: [{ id: "new", mode: 1 }],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("row-mode")).toHaveTextContent("compact");
+    const replacementHandle = screen.getByRole("slider", {
+      name: "Row height",
+    });
+    act(() => {
+      pointAt(replacementHandle, "pointermove", 120);
+      pointAt(replacementHandle, "pointerup", 120);
+    });
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "28px" });
+    }
+  });
+
+  it("cancels a preview when visible column membership changes", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(28),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    const tableProps = {
+      tableName: "row-height-visible-columns",
+      columns: modeColumns,
+      hidePagination: true,
+      rowHeight: "s" as const,
+      onCustomRowHeightChange,
+      data: { isLoading: false, isError: false, data: rows },
+    };
+    const { rerender } = render(
+      <DataTable {...tableProps} columnVisibility={{ status: false }} />,
+    );
+    const handle = screen.getByRole("slider", { name: "Row height" });
+    act(() => {
+      pointAt(handle, "pointerdown", 0);
+      pointAt(handle, "pointermove", 100);
+    });
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("expanded");
+
+    rerender(<DataTable {...tableProps} columnVisibility={{ status: true }} />);
+
+    expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("compact");
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "28px" });
+    }
+    const currentHandle = screen.getByRole("slider", { name: "Row height" });
+    act(() => pointAt(currentHandle, "pointerup", 100));
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+  });
+
+  it.each(["pointercancel", "lostpointercapture"])(
+    "rolls back a preview without persisting on %s",
+    (eventType) => {
+      vi.spyOn(
+        HTMLElement.prototype,
+        "getBoundingClientRect",
+      ).mockImplementation(() => rect(28));
+      const onCustomRowHeightChange = vi.fn();
+      render(
+        <DataTable
+          tableName="row-height-canceled-drag"
+          columns={modeColumns}
+          hidePagination
+          rowHeight="s"
+          onCustomRowHeightChange={onCustomRowHeightChange}
+          data={{ isLoading: false, isError: false, data: rows }}
+        />,
+      );
+      const handle = screen.getByRole("slider", { name: "Row height" });
+      act(() => {
+        pointAt(handle, "pointerdown", 0);
+        pointAt(handle, "pointermove", 100);
+      });
+      expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent(
+        "expanded",
+      );
+
+      act(() => pointAt(handle, eventType, 100));
+
+      expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+      expect(screen.getAllByTestId("row-mode")[0]).toHaveTextContent("compact");
+      expect(handle).toHaveAttribute("aria-valuenow", "28");
+      for (const box of rowBoxes(0)) {
+        expect(box).toHaveStyle({ height: "28px" });
+      }
+      act(() => pointAt(handle, "pointerup", 100));
+      expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the first pointer's resize active when a second pointer presses another row", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(28),
+    );
+    const onCustomRowHeightChange = vi.fn();
+    render(
+      <DataTable
+        tableName="row-height-overlapping-pointers"
+        columns={modeColumns}
+        hidePagination
+        rowHeight="s"
+        onCustomRowHeightChange={onCustomRowHeightChange}
+        data={{ isLoading: false, isError: false, data: rows }}
+      />,
+    );
+    const firstHandle = screen.getByRole("slider", { name: "Row height" });
+    const secondHandle = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="last"]',
+    );
+    act(() => {
+      pointAt(firstHandle, "pointerdown", 0, 1);
+      pointAt(firstHandle, "pointermove", 100, 1);
+      pointAt(secondHandle!, "pointerdown", 0, 2);
+      pointAt(secondHandle!, "pointermove", 200, 2);
+      pointAt(secondHandle!, "pointerup", 200, 2);
+    });
+
+    expect(onCustomRowHeightChange).not.toHaveBeenCalled();
+    for (const box of rowBoxes(0)) {
+      expect(box).toHaveStyle({ height: "128px" });
+    }
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "28px" });
+    }
+    act(() => pointAt(firstHandle, "pointerup", 160, 1));
+    expect(onCustomRowHeightChange).toHaveBeenCalledExactlyOnceWith(188);
+    for (const box of [...rowBoxes(0), ...rowBoxes(1)]) {
+      expect(box).toHaveStyle({ height: "28px" });
+    }
+  });
 
   it("switches the cell mode at Medium while the drag is still in progress", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
