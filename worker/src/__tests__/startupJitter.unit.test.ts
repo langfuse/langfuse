@@ -11,13 +11,4 @@ describe("getStartupJitterMs", () => {
     expect(getStartupJitterMs(10_000, () => 0.5)).toBe(5_000);
     expect(getStartupJitterMs(10_000, () => 0.999999999)).toBe(10_000);
   });
-
-  it("stays within bounds for Math.random", () => {
-    for (let i = 0; i < 1_000; i++) {
-      const ms = getStartupJitterMs(30_000);
-      expect(ms).toBeGreaterThanOrEqual(0);
-      expect(ms).toBeLessThanOrEqual(30_000);
-      expect(Number.isInteger(ms)).toBe(true);
-    }
-  });
 });

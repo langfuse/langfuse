@@ -3,8 +3,8 @@ import "./ee/fipsMode"; // enforce LANGFUSE_REQUIRE_FIPS before anything connect
 import type { Server } from "http";
 import { initializeWorker } from "./initialize";
 import { env } from "./env";
-import { logger } from "@langfuse/shared/src/server";
-import { getStartupJitterMs, sleep } from "./utils/startupJitter";
+import { logger, sleep } from "@langfuse/shared/src/server";
+import { getStartupJitterMs } from "./utils/startupJitter";
 
 export let server: Server | undefined;
 

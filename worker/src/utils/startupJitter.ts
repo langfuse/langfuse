@@ -11,6 +11,3 @@ export const getStartupJitterMs = (
   if (maxMs <= 0) return 0;
   return Math.floor(random() * (maxMs + 1));
 };
-
-export const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
