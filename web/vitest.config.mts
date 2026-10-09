@@ -272,11 +272,18 @@ export default defineConfig({
         ],
         test: {
           name: "storybook",
+          setupFiles: ["./.storybook/vitest.setup.ts"],
           browser: {
             enabled: true,
             provider: playwright(),
             headless: true,
             instances: [{ browser: "chromium" }],
+            commands: {
+              async resetStorybookPointer({ page }) {
+                // Moving the pointer does not require the test iframe to exist.
+                await page.mouse.move(-1000, -1000);
+              },
+            },
           },
         },
       },
