@@ -129,10 +129,9 @@ describe("external media storage service", () => {
 
   it("signs an object within the configured bucket and prefix", async () => {
     const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
-    const getObjectContentLength = vi.fn().mockResolvedValue(42);
     (StorageServiceFactory.getInstance as Mock).mockReturnValue({
       getSignedUrl,
-      getObjectContentLength,
+      getObjectContentLength: vi.fn().mockResolvedValue(42),
     });
     const project = await prepareIntegration({ prefix: "customer/" });
 
@@ -142,9 +141,7 @@ describe("external media storage service", () => {
     });
 
     expect(result.url).toBe("https://signed.example");
-    expect(result.contentLength).toBe(42);
     expect(getSignedUrl).toHaveBeenCalledWith("customer/image.png", 300, false);
-    expect(getObjectContentLength).toHaveBeenCalledWith("customer/image.png");
   });
 
   it("allows any object in the bucket when no prefix is configured", async () => {

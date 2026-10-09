@@ -40,12 +40,12 @@ function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
   }
 
   const refreshBeforePreview = () => {
-    void refreshIfNeeded();
+    refreshIfNeeded().catch(() => undefined);
   };
   const refreshAfterError = () => {
     if (refreshedAfterErrorUrl.current === url) return;
     refreshedAfterErrorUrl.current = url;
-    void refresh();
+    refresh().catch(() => undefined);
   };
 
   return (
