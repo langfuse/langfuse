@@ -2,18 +2,23 @@
 
 import * as React from "react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
+import { cn } from "@/src/utils/tailwind";
 
 type RadioGroupProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
-  "children" | "defaultValue" | "onValueChange" | "value"
+  "children" | "className" | "defaultValue" | "onValueChange" | "value"
 >;
 
 const RadioGroupRoot = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
->((props, ref) => {
+>(({ className, ...props }, ref) => {
   return (
-    <RadioGroupPrimitive.Root className="grid gap-2" {...props} ref={ref} />
+    <RadioGroupPrimitive.Root
+      className={cn("grid gap-2", className)}
+      {...props}
+      ref={ref}
+    />
   );
 });
 RadioGroupRoot.displayName = RadioGroupPrimitive.Root.displayName;
