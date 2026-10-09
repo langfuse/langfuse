@@ -10,7 +10,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
  * the URL (`peekView=expanded`, owned by `usePeekNavigation`) so it is shareable
  * and survives back/forward. This store only owns the widget width and the
  * transient drag state:
- * - **widthFraction** — cross-view persisted widget width (localStorage, a
+ * - **widthFraction** — persisted widget width (localStorage, a
  *   resolution-independent viewport fraction).
  * - **draftFraction / draftExpanded / isResizing** — high-frequency transient
  *   drag state. On pointer-up the drag either commits a widget width or asks the
@@ -40,11 +40,11 @@ const KEYBOARD_RESIZE_STEP = 0.05;
 // the default never lands narrower than the user could drag back to.
 export const PEEK_MAX_DEFAULT_WIDTH_PX = 1400;
 
-const clampWidthFraction = (fraction: number) =>
-  Math.min(
-    PEEK_MAX_WIDGET_WIDTH_FRACTION,
-    Math.max(PEEK_MIN_WIDTH_FRACTION, fraction),
-  );
+const clampWidthFraction = (
+  fraction: number,
+  minimum = PEEK_MIN_WIDTH_FRACTION,
+  maximum = PEEK_MAX_WIDGET_WIDTH_FRACTION,
+) => Math.min(maximum, Math.max(minimum, fraction));
 
 // Default width when the user has no saved preference. Viewport-aware: the plain
 // 50vw fraction, but capped so the resulting px never exceeds
@@ -59,37 +59,66 @@ export function resolveDefaultWidthFraction(): number {
   );
 }
 
-// The width fraction that will actually be used to open the peek: the saved
-// preference (clamped) if present, else the viewport-aware default. SSR-safe
-// (returns the plain default when there's no window). Exported so the inner
-// tree↔info split can size its default against the real peek width without
-// re-measuring the DOM.
-export function resolveEffectiveWidthFraction(): number {
-  if (typeof window === "undefined") return PEEK_DEFAULT_WIDTH_FRACTION;
+function readStoredWidthFraction(
+  storageKey: string,
+  allowLayoutWidths = false,
+): number | null {
+  if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (typeof parsed === "number") return clampWidthFraction(parsed);
+      if (typeof parsed === "number" && Number.isFinite(parsed)) {
+        if (allowLayoutWidths) return parsed > 0 ? Math.min(1, parsed) : null;
+        return clampWidthFraction(parsed);
+      }
     }
   } catch {
     // Fall through to the default on any read/parse failure.
   }
-  return resolveDefaultWidthFraction();
+  return null;
 }
 
-function writeStoredWidthFraction(fraction: number): void {
+/** Resolve the host's visible width; hosts without sizing use the shared preference. */
+export function resolveEffectiveWidthFraction({
+  widgetWidthFraction,
+  isExpanded = false,
+  sidebarOffsetPx = 0,
+}: {
+  widgetWidthFraction?: number;
+  isExpanded?: boolean;
+  sidebarOffsetPx?: number;
+} = {}): number {
+  const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
+  const maximumFraction =
+    viewportWidth > 0
+      ? Math.max(0, (viewportWidth - sidebarOffsetPx) / viewportWidth)
+      : 1;
+  if (isExpanded) return maximumFraction;
+  const widgetFraction =
+    widgetWidthFraction ??
+    readStoredWidthFraction(STORAGE_KEY) ??
+    resolveDefaultWidthFraction();
+  return Math.min(widgetFraction, maximumFraction);
+}
+
+function writeStoredWidthFraction(storageKey: string, fraction: number): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fraction));
+    window.localStorage.setItem(storageKey, JSON.stringify(fraction));
   } catch {
     // Ignore write failures (private mode, quota) — width is a best-effort pref.
   }
 }
 
 export interface PeekPanelStoreState {
-  /** Committed widget width (persisted), as a fraction of the viewport. */
+  /** Widget width, as a fraction of the viewport. Explicit resizes are persisted. */
   widthFraction: number;
+  /** Resize bounds include a host's layout default and any saved preference. */
+  minimumWidthFraction: number;
+  maximumWidgetWidthFraction: number;
+  /** A saved or explicitly resized width takes precedence over a layout default. */
+  hasCustomWidth: boolean;
   /** Live widget width during a drag; null when not dragging or expanded. */
   draftFraction: number | null;
   /** True while a drag is previewing the expanded (max) width. */
@@ -97,6 +126,8 @@ export interface PeekPanelStoreState {
   /** True while the resize handle is being dragged. */
   isResizing: boolean;
   actions: {
+    /** Fit a host's layout until the user chooses a width. Never persisted. */
+    setDefaultWidth: (fraction: number) => void;
     setResizing: (isResizing: boolean) => void;
     /** Abandon an in-flight drag without committing (e.g. peek closed mid-drag). */
     cancelResize: () => void;
@@ -113,27 +144,75 @@ export interface PeekPanelStoreState {
 
 export type PeekPanelStore = StoreApi<PeekPanelStoreState>;
 
-export function createPeekPanelStore(): PeekPanelStore {
+export function createPeekPanelStore({
+  widthStorageKey = STORAGE_KEY,
+  allowLayoutWidths = false,
+}: {
+  widthStorageKey?: string;
+  /** Retain saved widths outside the shared bounds for a host with layout sizing. */
+  allowLayoutWidths?: boolean;
+} = {}): PeekPanelStore {
+  const storedWidth = readStoredWidthFraction(
+    widthStorageKey,
+    allowLayoutWidths,
+  );
   return createStore<PeekPanelStoreState>((set, get) => ({
-    widthFraction: resolveEffectiveWidthFraction(),
+    widthFraction: storedWidth ?? resolveDefaultWidthFraction(),
+    minimumWidthFraction: Math.min(
+      PEEK_MIN_WIDTH_FRACTION,
+      storedWidth ?? PEEK_MIN_WIDTH_FRACTION,
+    ),
+    maximumWidgetWidthFraction: Math.max(
+      PEEK_MAX_WIDGET_WIDTH_FRACTION,
+      storedWidth ?? PEEK_MAX_WIDGET_WIDTH_FRACTION,
+    ),
+    hasCustomWidth: storedWidth !== null,
     draftFraction: null,
     draftExpanded: false,
     isResizing: false,
     actions: {
+      setDefaultWidth: (fraction) => {
+        if (get().isResizing || !Number.isFinite(fraction) || fraction <= 0)
+          return;
+        const width = Math.min(1, fraction);
+        const customWidth = get().hasCustomWidth ? get().widthFraction : width;
+        set({
+          minimumWidthFraction: Math.min(
+            PEEK_MIN_WIDTH_FRACTION,
+            width,
+            customWidth,
+          ),
+          maximumWidgetWidthFraction: Math.max(
+            PEEK_MAX_WIDGET_WIDTH_FRACTION,
+            width,
+            customWidth,
+          ),
+          ...(!get().hasCustomWidth ? { widthFraction: width } : {}),
+        });
+      },
       setResizing: (isResizing) => set({ isResizing }),
       cancelResize: () =>
         set({ draftFraction: null, draftExpanded: false, isResizing: false }),
       setDraftFraction: (fraction) =>
         set({
-          draftFraction: clampWidthFraction(fraction),
+          draftFraction: clampWidthFraction(
+            fraction,
+            get().minimumWidthFraction,
+            get().maximumWidgetWidthFraction,
+          ),
           draftExpanded: false,
         }),
       setDraftExpanded: () => set({ draftExpanded: true, draftFraction: null }),
       commitWidth: (fraction) => {
-        const clamped = clampWidthFraction(fraction);
-        writeStoredWidthFraction(clamped);
+        const clamped = clampWidthFraction(
+          fraction,
+          get().minimumWidthFraction,
+          get().maximumWidgetWidthFraction,
+        );
+        writeStoredWidthFraction(widthStorageKey, clamped);
         set({
           widthFraction: clamped,
+          hasCustomWidth: true,
           draftFraction: null,
           draftExpanded: false,
         });
@@ -141,9 +220,18 @@ export function createPeekPanelStore(): PeekPanelStore {
       nudgeWidth: (direction) => {
         const delta =
           direction === "grow" ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP;
-        const next = clampWidthFraction(get().widthFraction + delta);
-        writeStoredWidthFraction(next);
-        set({ widthFraction: next, draftFraction: null, draftExpanded: false });
+        const next = clampWidthFraction(
+          get().widthFraction + delta,
+          get().minimumWidthFraction,
+          get().maximumWidgetWidthFraction,
+        );
+        writeStoredWidthFraction(widthStorageKey, next);
+        set({
+          widthFraction: next,
+          hasCustomWidth: true,
+          draftFraction: null,
+          draftExpanded: false,
+        });
       },
     },
   }));
@@ -160,4 +248,4 @@ export const selectDraftExpanded = (state: PeekPanelStoreState) =>
  * computed by the hook, since it depends on the live sidebar offset.
  */
 export const selectWidgetWidth = (state: PeekPanelStoreState): string =>
-  `${clampWidthFraction(state.draftFraction ?? state.widthFraction) * 100}vw`;
+  `${(state.draftFraction ?? state.widthFraction) * 100}vw`;
