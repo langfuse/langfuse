@@ -12,6 +12,7 @@ import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/component
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
 import { cn } from "@/src/utils/tailwind";
+import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 
 export function SessionTranscriptContent({
   result,
@@ -65,6 +66,10 @@ export function SessionTranscriptContent({
 type DisplayMessage = NormalizedMessage & {
   timing: { startTime: Date; endTime: Date | null } | null;
   observationId: string | null;
+  level?: NonNullable<
+    Extract<SessionTraceTranscriptState, { state: "loaded" }>["transcript"]
+  >["threads"][number]["currentTurn"]["messages"][number]["level"];
+  statusMessage?: string | null;
 };
 
 function SessionTranscriptThread({
@@ -236,6 +241,28 @@ function SessionTranscriptToolGroup({
       </div>
     );
   }
+  const errors: Array<
+    Extract<
+      ComponentProps<typeof SessionToolTooltip>["content"],
+      { type: "group" }
+    >["errors"][number]
+  > = [];
+  const warnings: typeof errors = [];
+  for (const { row } of rows) {
+    if (row.type !== "tool") continue;
+    const name = row.call?.toolName ?? row.result?.toolName ?? "Tool";
+    if (row.message.level === "ERROR" || row.result?.isError) {
+      errors.push({
+        name,
+        message: row.message.statusMessage || "Tool failed",
+      });
+    } else if (row.message.level === "WARNING") {
+      warnings.push({
+        name,
+        message: row.message.statusMessage || "Tool reported a warning",
+      });
+    }
+  }
   return (
     <SessionTimelineCollapsibleRow
       label={summary}
@@ -250,6 +277,48 @@ function SessionTranscriptToolGroup({
           requestId: props.scrollTarget?.requestId,
         })
       }
+      trailingContent={[
+        {
+          tools: errors,
+          label: "error" as const,
+          className: "border-destructive/40 text-destructive",
+        },
+        {
+          tools: warnings,
+          label: "warning" as const,
+          className:
+            "border-yellow-500/40 text-yellow-600 dark:text-yellow-500",
+        },
+      ].map(({ tools, label, className }) => {
+        if (tools.length === 0) return null;
+        const summary = `${tools.length} ${label}${tools.length === 1 ? "" : "s"}`;
+        return (
+          <SessionToolTooltip
+            key={label}
+            variant="timeline"
+            content={{
+              type: "group",
+              title,
+              errors: label === "error" ? tools : [],
+              warnings: label === "warning" ? tools : [],
+            }}
+          >
+            {({ getTriggerProps }) => (
+              <span
+                {...getTriggerProps()}
+                tabIndex={0}
+                aria-label={`Tool group: ${summary}`}
+                className={cn(
+                  "ml-1 rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                  className,
+                )}
+              >
+                {summary}
+              </span>
+            )}
+          </SessionToolTooltip>
+        );
+      })}
     >
       <div className="space-y-1">
         {rows.map((item) => (
@@ -274,6 +343,8 @@ function SessionTranscriptTool({
       input={row.call?.input}
       output={row.result?.output}
       isError={row.result?.isError}
+      level={row.message.level}
+      statusMessage={row.message.statusMessage}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
       trailingContent={trailingContent}

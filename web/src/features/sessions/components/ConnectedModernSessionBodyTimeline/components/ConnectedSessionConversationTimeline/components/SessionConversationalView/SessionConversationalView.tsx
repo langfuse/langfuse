@@ -169,6 +169,11 @@ export function SessionConversationalView(
                     : undefined,
                 observationId: row.message.observationId,
                 label,
+                level:
+                  row.type === "tool" && row.result?.isError
+                    ? ("ERROR" as const)
+                    : row.message.level,
+                statusMessage: row.message.statusMessage,
                 role:
                   row.type === "tool" ? ("tool" as const) : row.message.role,
               },

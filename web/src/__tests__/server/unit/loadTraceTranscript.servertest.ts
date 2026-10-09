@@ -119,6 +119,38 @@ beforeEach(() => {
   mocks.splitTurn.mockReset().mockImplementation(mocks.splitTurnActual);
 });
 
+it("retains the source tool observation status on transcript messages", async () => {
+  const transcript = fixture(["search"], ["search"]);
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "generation",
+        type: "GENERATION",
+        level: "DEFAULT",
+        statusMessage: null,
+      },
+      {
+        id: "tool-0",
+        type: "TOOL",
+        level: "ERROR",
+        statusMessage: "Search timed out",
+      },
+    ],
+    totalCount: 2,
+  });
+
+  const result = await loadTraceTranscript(trace);
+
+  expect(result.transcript?.threads[0]?.currentTurn.messages[1]).toMatchObject({
+    observationId: "tool-0",
+    level: "ERROR",
+    statusMessage: "Search timed out",
+  });
+  expect(transcript.threads[0]?.currentTurn.messages[1]).not.toHaveProperty(
+    "level",
+  );
+});
+
 it.each(["image", "media-token"])(
   "attaches reversed nested %s results by recovered call ID",
   async (scenario) => {

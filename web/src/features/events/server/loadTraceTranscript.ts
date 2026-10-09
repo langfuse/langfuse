@@ -32,6 +32,24 @@ type Observation = Awaited<
   ReturnType<typeof getObservationsForTraceFromEventsTable>
 >["observations"][number];
 
+type SessionTranscript = Omit<Transcript, "threads"> & {
+  threads: Array<
+    Omit<Transcript["threads"][number], "currentTurn"> & {
+      currentTurn: Omit<
+        Transcript["threads"][number]["currentTurn"],
+        "messages"
+      > & {
+        messages: Array<
+          Transcript["threads"][number]["currentTurn"]["messages"][number] & {
+            level?: Observation["level"];
+            statusMessage?: Observation["statusMessage"];
+          }
+        >;
+      };
+    }
+  >;
+};
+
 /**
  * Load a trace's observations from the events table, walk them in trace tree
  * order, and assemble the transcript of its generations and tools.
@@ -50,7 +68,7 @@ export async function loadTraceTranscript(trace: {
   /** Use root observation I/O when no generation/tool transcript exists. */
   fallbackToRootIO?: boolean;
 }): Promise<{
-  transcript: Transcript | null;
+  transcript: SessionTranscript | null;
   /** The trace has more observations than the transcript could read. */
   cutoff: boolean;
 }> {
@@ -137,7 +155,38 @@ export async function loadTraceTranscript(trace: {
     structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
     content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS;
   return {
-    transcript,
+    transcript:
+      transcript &&
+      content.observations.some(
+        (observation) =>
+          observation.level !== undefined ||
+          observation.statusMessage !== undefined,
+      )
+        ? {
+            ...transcript,
+            threads: transcript.threads.map((thread) => ({
+              ...thread,
+              currentTurn: {
+                ...thread.currentTurn,
+                messages: thread.currentTurn.messages.map((message) => {
+                  const observation = contentById.get(message.observationId);
+                  if (
+                    !observation ||
+                    (observation.level === undefined &&
+                      observation.statusMessage === undefined)
+                  ) {
+                    return message;
+                  }
+                  return {
+                    ...message,
+                    level: observation?.level,
+                    statusMessage: observation?.statusMessage,
+                  };
+                }),
+              },
+            })),
+          }
+        : transcript,
     cutoff,
   };
 }

@@ -1,8 +1,12 @@
-import { CircleAlert } from "lucide-react";
+import { Bug, CircleAlert, Info, TriangleAlert } from "lucide-react";
 import { type ReactNode } from "react";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
+import { cn } from "@/src/utils/tailwind";
+import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { type Observation } from "@langfuse/shared";
+
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
@@ -14,6 +18,8 @@ export function SessionTimelineToolRow({
   isExpanded,
   onExpandedChange,
   isError,
+  level,
+  statusMessage,
   trailingContent,
 }: {
   name: string;
@@ -22,8 +28,20 @@ export function SessionTimelineToolRow({
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   isError?: boolean;
+  level?: Observation["level"];
+  statusMessage?: Observation["statusMessage"];
   trailingContent?: ReactNode;
 }) {
+  const StatusIcon = level
+    ? (
+        {
+          ERROR: CircleAlert,
+          WARNING: TriangleAlert,
+          DEFAULT: Info,
+          DEBUG: Bug,
+        } satisfies Record<Observation["level"], typeof CircleAlert>
+      )[level]
+    : null;
   return (
     <SessionTimelineCollapsibleRow
       label={name}
@@ -31,12 +49,48 @@ export function SessionTimelineToolRow({
       icon={renderFilterIcon("TOOL")}
       isExpanded={isExpanded}
       onExpandedChange={onExpandedChange}
-      trailingContent={
+      trailingContent={trailingContent}
+      labelTrailingContent={
         <>
-          {trailingContent}
-          {isError ? (
+          {level &&
+          StatusIcon &&
+          (statusMessage || level === "WARNING" || level === "ERROR") ? (
+            <SessionToolTooltip
+              variant="timeline"
+              content={{
+                type: "status",
+                name,
+                level,
+                message: statusMessage || level,
+              }}
+            >
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  tabIndex={0}
+                  aria-label={`Tool status: ${level}`}
+                  className={cn(
+                    "ml-1 flex shrink-0 items-center",
+                    (
+                      {
+                        ERROR: "text-destructive",
+                        WARNING: "text-yellow-600 dark:text-yellow-500",
+                        DEFAULT:
+                          "text-muted-foreground invisible group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
+                        DEBUG:
+                          "text-muted-foreground invisible group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
+                      } satisfies Record<Observation["level"], string>
+                    )[level],
+                  )}
+                >
+                  <StatusIcon className="icon-sm" aria-hidden="true" />
+                </span>
+              )}
+            </SessionToolTooltip>
+          ) : null}
+          {isError && level !== "ERROR" ? (
             <CircleAlert
-              className="icon-sm text-destructive"
+              className="icon-sm text-destructive ml-1 shrink-0"
               aria-label="Failed"
             />
           ) : null}

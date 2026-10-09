@@ -30,6 +30,7 @@ type CustomTooltipProps = {
   delay?: number;
   hoverableContent?: boolean;
   placement?: Placement;
+  padding?: "default" | "uniform";
 };
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
@@ -50,6 +51,7 @@ function CustomTooltip({
   delay = 150,
   hoverableContent = true,
   placement = "top",
+  padding = "default",
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const layerContainer = useLayerContainer("tooltip");
@@ -90,7 +92,13 @@ function CustomTooltip({
           <div
             ref={refs.setFloating}
             className={cn(
-              "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
+              "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border text-sm shadow-md",
+              (
+                { default: "px-3 py-1.5", uniform: "p-2" } satisfies Record<
+                  NonNullable<CustomTooltipProps["padding"]>,
+                  string
+                >
+              )[padding],
               !hoverableContent && "pointer-events-none",
             )}
             style={floatingStyles}
