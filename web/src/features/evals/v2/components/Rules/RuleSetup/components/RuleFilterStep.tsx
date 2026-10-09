@@ -142,7 +142,11 @@ export function RuleFilterStep({
       title="Configure rule scope"
       description="Choose what should trigger attached evaluators."
     >
-      <RadioGroup value={triggerKind} onValueChange={handleTriggerKindChange}>
+      <RadioGroup
+        className="grid grid-cols-2 gap-3"
+        value={triggerKind}
+        onValueChange={handleTriggerKindChange}
+      >
         <label
           className="border-border flex cursor-pointer items-start gap-3 rounded-md border p-3"
           htmlFor="rule-trigger-observation"
