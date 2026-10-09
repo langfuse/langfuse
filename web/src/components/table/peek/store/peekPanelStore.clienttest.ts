@@ -99,6 +99,74 @@ describe("peekPanelStore", () => {
     );
   });
 
+  it("fits a local default without replacing other views' preference, then retains an explicit resize", () => {
+    window.localStorage.setItem(STORAGE_KEY, "0.7");
+    const localKey = "peek-width-topics";
+    const store = createPeekPanelStore({ widthStorageKey: localKey });
+    store.getState().actions.setDefaultWidth(0.3);
+    expect(selectWidgetWidth(store.getState())).toBe("30vw");
+    store.getState().actions.setDefaultWidth(0.96);
+    expect(selectWidgetWidth(store.getState())).toBe("96vw");
+    store.getState().actions.setDefaultWidth(0.35);
+    expect(selectWidgetWidth(store.getState())).toBe("35vw");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("0.7");
+    expect(window.localStorage.getItem(localKey)).toBeNull();
+
+    store.getState().actions.commitWidth(0.55);
+    store.getState().actions.setDefaultWidth(0.32);
+    expect(selectWidgetWidth(store.getState())).toBe(pct(0.55));
+    expect(window.localStorage.getItem(localKey)).toBe("0.55");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("0.7");
+    const reopened = createPeekPanelStore({ widthStorageKey: localKey });
+    reopened.getState().actions.setDefaultWidth(0.32);
+    expect(reopened.getState().widthFraction).toBe(0.55);
+  });
+
+  it("returns to a narrow layout width without reversing keyboard or drag resizing", () => {
+    const store = createPeekPanelStore({
+      widthStorageKey: "peek-width-topics",
+    });
+    const { actions } = store.getState();
+    actions.setDefaultWidth(0.35);
+    actions.nudgeWidth("shrink");
+    expect(store.getState().widthFraction).toBeCloseTo(0.35);
+    actions.nudgeWidth("grow");
+    actions.nudgeWidth("shrink");
+    expect(store.getState().widthFraction).toBeCloseTo(0.35);
+    actions.setDraftFraction(0.36);
+    expect(store.getState().draftFraction).toBeCloseTo(0.36);
+    actions.commitWidth(0.36);
+    expect(store.getState().widthFraction).toBeCloseTo(0.36);
+    const reopened = createPeekPanelStore({
+      widthStorageKey: "peek-width-topics",
+      allowLayoutWidths: true,
+    });
+    reopened.getState().actions.setDefaultWidth(0.45);
+    expect(reopened.getState().widthFraction).toBeCloseTo(0.36);
+    reopened.getState().actions.nudgeWidth("shrink");
+    expect(reopened.getState().widthFraction).toBeCloseTo(0.36);
+  });
+
+  it("does not shrink a wide layout width when asked to grow", () => {
+    const store = createPeekPanelStore({
+      widthStorageKey: "peek-width-topics",
+    });
+    const { actions } = store.getState();
+    actions.setDefaultWidth(0.96);
+    actions.nudgeWidth("grow");
+    expect(store.getState().widthFraction).toBeCloseTo(0.96);
+    actions.nudgeWidth("shrink");
+    expect(store.getState().widthFraction).toBeCloseTo(0.91);
+    actions.setDraftFraction(0.93);
+    expect(store.getState().draftFraction).toBeCloseTo(0.93);
+    actions.commitWidth(0.93);
+    const reopened = createPeekPanelStore({
+      widthStorageKey: "peek-width-topics",
+      allowLayoutWidths: true,
+    });
+    expect(reopened.getState().widthFraction).toBeCloseTo(0.93);
+  });
+
   it("commitWidth clamps, persists, and clears the draft", () => {
     const store = createPeekPanelStore();
     store.getState().actions.setDraftExpanded();

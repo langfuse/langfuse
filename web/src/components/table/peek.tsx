@@ -82,6 +82,8 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
+  defaultWidthTarget?: HTMLElement | null;
+  widthStorageKey?: string;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -211,6 +213,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     isOpen: !!itemId,
     isExpanded,
     onExpandedChange: setExpanded,
+    defaultWidthTarget: props.defaultWidthTarget,
+    widthStorageKey: props.widthStorageKey,
     onResized: useCallback(
       (widthFraction: number, trigger: "drag" | "keyboard") => {
         capture("peek:resized", {

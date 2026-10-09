@@ -71,10 +71,16 @@ export function usePeekPanelState({
   isExpanded,
   onExpandedChange,
   onResized,
+  defaultWidthTarget,
+  widthStorageKey,
 }: {
   isOpen: boolean;
   isExpanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  /** Match a layout panel's width until this host has an explicit width preference. */
+  defaultWidthTarget?: HTMLElement | null;
+  /** Isolate a host's resize preference from the shared peek width. */
+  widthStorageKey?: string;
   /**
    * Notified once per user resize gesture that lands on a widget width — a
    * completed drag, or a burst of keyboard nudges (debounced). The host's
@@ -82,11 +88,44 @@ export function usePeekPanelState({
    */
   onResized?: (widthFraction: number, trigger: "drag" | "keyboard") => void;
 }): PeekPanelView {
-  const [store] = useState(() => createPeekPanelStore());
+  const [store] = useState(() =>
+    createPeekPanelStore({
+      widthStorageKey,
+      allowLayoutWidths: defaultWidthTarget !== undefined,
+    }),
+  );
 
   const isResizing = useStore(store, selectIsResizing);
   const draftExpanded = useStore(store, selectDraftExpanded);
   const widgetWidth = useStore(store, selectWidgetWidth);
+  const minimumWidthFraction = useStore(
+    store,
+    (state) => state.minimumWidthFraction,
+  );
+
+  useEffect(() => {
+    if (!defaultWidthTarget) return;
+    const measure = () => {
+      if (window.innerWidth > 0)
+        store
+          .getState()
+          .actions.setDefaultWidth(
+            defaultWidthTarget.getBoundingClientRect().width /
+              window.innerWidth,
+          );
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    observer?.observe(defaultWidthTarget);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [defaultWidthTarget, store, isResizing]);
 
   // Keep the latest callback in a ref so drag/keyboard closures never go
   // stale and the memoized handlers don't churn on a new callback identity.
@@ -258,7 +297,7 @@ export function usePeekPanelState({
       role: "separator",
       "aria-orientation": "vertical",
       "aria-label": "Resize peek view",
-      "aria-valuemin": Math.round(PEEK_MIN_WIDTH_FRACTION * 100),
+      "aria-valuemin": Math.round(minimumWidthFraction * 100),
       "aria-valuemax": 100,
       "aria-valuenow": widthPercent,
       tabIndex: 0,
