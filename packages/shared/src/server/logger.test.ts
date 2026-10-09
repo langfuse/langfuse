@@ -74,7 +74,7 @@ describe("logger trace correlation", () => {
     getCurrentSpan.mockReturnValueOnce({
       spanContext: () => ({
         traceId: "617222771252365135e4848d739614a8",
-        spanId: "35e4848d739614a8",
+        spanId: "00f067aa0ba902b7",
       }),
     });
 
@@ -82,11 +82,11 @@ describe("logger trace correlation", () => {
 
     expect(line.dd).toEqual({
       trace_id: "3883374521764680872",
-      span_id: "3883374521764680872",
+      span_id: "67667974448284343",
     });
     expect(line).not.toHaveProperty(["dd.trace_id"]);
     expect(line).not.toHaveProperty(["dd.span_id"]);
     expect(line.trace_id).toBe("617222771252365135e4848d739614a8");
-    expect(line.span_id).toBe("35e4848d739614a8");
+    expect(line.span_id).toBe("00f067aa0ba902b7");
   });
 });

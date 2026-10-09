@@ -1,4 +1,4 @@
-import type { TRPCError, TRPC_ERROR_CODE_KEY } from "@trpc/server";
+import { TRPCError, type TRPC_ERROR_CODE_KEY } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import { logger, traceException } from "@langfuse/shared/src/server";
 
@@ -64,11 +64,21 @@ export const getTRPCErrorReporting = (
 };
 
 /**
- * Attaches the unscrubbed error to the error sent to the client, so error
- * reporting can trace the real cause. Non-enumerable, so it never reaches the
+ * Builds the error sent to the client for a 5xx: no cause, so no stack trace
+ * is exposed. The original error is kept under a non-enumerable symbol so
+ * error reporting can still trace the real cause; it never reaches the
  * response.
  */
-export const attachOriginalError = (error: TRPCError, original: unknown) => {
+export const createScrubbedError = ({
+  code,
+  message,
+  original,
+}: {
+  code: TRPC_ERROR_CODE_KEY;
+  message: string;
+  original: unknown;
+}) => {
+  const error = new TRPCError({ code, message, cause: null });
   Object.defineProperty(error, originalErrorKey, {
     value: original,
     enumerable: false,

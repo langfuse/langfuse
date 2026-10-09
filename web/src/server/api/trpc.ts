@@ -24,7 +24,7 @@ import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import {
-  attachOriginalError,
+  createScrubbedError,
   getTRPCErrorCodeFromHTTPStatusCode,
 } from "@/src/server/utils/trpc-utils";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
@@ -221,17 +221,20 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         : "Please check error logs in your self-hosted deployment.";
 
       logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
-      const original = res.error.cause ?? res.error;
-      res.error = new TRPCError({
-        code,
-        cause: null, // do not expose stack traces
-        message: isSafeToExpose
-          ? res.error.message
-          : "Internal error. " + errorMessage,
-      });
-      if (!isSafeToExpose) {
+      if (isSafeToExpose) {
+        res.error = new TRPCError({
+          code,
+          cause: null, // do not expose stack traces
+          message: res.error.message,
+        });
+      } else {
+        const original = res.error.cause ?? res.error;
         traceException(original);
-        attachOriginalError(res.error, original);
+        res.error = createScrubbedError({
+          code,
+          message: "Internal error. " + errorMessage,
+          original,
+        });
       }
     }
   }
