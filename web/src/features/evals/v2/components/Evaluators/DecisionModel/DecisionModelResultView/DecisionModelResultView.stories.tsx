@@ -162,7 +162,7 @@ export const TenLevels = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("No technical detail")).toBeInTheDocument();
     await expect(
-      canvas.getByText("Explains system behavior"),
+      canvas.getByTitle("Explains system behavior"),
     ).toBeInTheDocument();
   },
 });
