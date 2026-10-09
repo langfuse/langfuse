@@ -108,7 +108,7 @@ export function ConnectedModernSessionBodyTimeline({
           projectId,
           traceId: trace.id,
           timestamp: trace.timestamp,
-          pairTextToolResponses: true,
+          recoverToolResponses: true,
         }) !== undefined,
     );
   const searchQuery = allTranscriptsLoaded
