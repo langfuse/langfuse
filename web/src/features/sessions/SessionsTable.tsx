@@ -849,6 +849,7 @@ export default function SessionsTable({
         <StickySearchableTableFilterLayout
           search={
             <TableSearchBar
+              size={showControlsInPageHeader ? "large" : "default"}
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={isV4}
               filterState={queryFilter.searchBarFilterState}

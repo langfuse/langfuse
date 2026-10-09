@@ -79,6 +79,8 @@ const tabsTriggerVariants = cva(
 );
 
 type TabsRootProps = {
+  /** `manual`: arrow keys only move focus; Enter/Space selects. For form inputs where a focus must not commit a value. */
+  activationMode?: "automatic" | "manual";
   children: React.ReactNode;
   /** `fill`: a column that takes its flex parent's remaining height, for `Tabs.Content layout="fill"`. */
   layout?: "fill";
@@ -92,6 +94,7 @@ type TabsRootProps = {
 const TabsRootContext = React.createContext(false);
 
 function TabsRoot({
+  activationMode,
   children,
   defaultValue,
   layout,
@@ -102,6 +105,7 @@ function TabsRoot({
   return (
     <TabsRootContext value={true}>
       <TabsPrimitive.Root
+        activationMode={activationMode}
         className={layout === "fill" ? rootFillClassName : undefined}
         defaultValue={defaultValue}
         onValueChange={onValueChange}

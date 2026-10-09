@@ -394,6 +394,7 @@ const events = {
     "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
+    "signup_survey_submitted",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [

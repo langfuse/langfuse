@@ -1442,6 +1442,7 @@ function TracesTableInternal({
           search={
             hideControls ? null : (
               <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
                 key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName={tracesFilterConfig.tableName}

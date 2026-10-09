@@ -1180,7 +1180,7 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return await hasAnyScore(input.projectId);
+      return await hasAnyScore(input.projectId, "ReadOnly");
     }),
   getScoreMetadataById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
