@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
+import {
+  Prisma,
+  type ApiKey,
+  type PrismaClient,
+} from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
@@ -35,35 +39,42 @@ const orgRow = (
   }) as unknown as OrganizationWithProjects;
 
 // Backfilled keys receive their legacy role, owned by their project or organization.
-const assignmentsFor = (principalApiKeyId: string) => {
-  const principal = { principalApiKeyId, principalUserId: null };
-  if (principalApiKeyId === "key_o")
+const assignmentsFor = (principalId: string) => {
+  const principal = {
+    principalId,
+    apiKeyId: principalId.slice(7),
+    userId: null,
+  };
+  if (principalId === "apiKey/key_o")
     return [
       {
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
+        roleId: "system/LEGACY_ORGANIZATION_API_KEY",
         ...principal,
-        ownerOrgId: ORG,
-        ownerProjectId: null,
+        ownerId: `organization/${ORG}`,
+        projectId: null,
         orgId: ORG,
       },
     ];
-  if (principalApiKeyId === "key_p")
+  if (principalId === "apiKey/key_p")
     return [
       {
         systemRole: "LEGACY_PROJECT_API_KEY",
+        roleId: "system/LEGACY_PROJECT_API_KEY",
         ...principal,
-        ownerOrgId: null,
-        ownerProjectId: PRJ,
+        ownerId: `project/${PRJ}`,
+        projectId: PRJ,
         orgId: ORG,
       },
     ];
-  if (principalApiKeyId === "key_v")
+  if (principalId === "apiKey/key_v")
     return [
       {
         ...principal,
         systemRole: "VIEWER",
-        ownerOrgId: null,
-        ownerProjectId: PRJ,
+        roleId: "system/VIEWER",
+        ownerId: `project/${PRJ}`,
+        projectId: PRJ,
         orgId: ORG,
       },
     ];
@@ -77,8 +88,8 @@ const mockPrisma = (row: OrganizationWithProjects | null): PrismaClient =>
       findFirst: async () => row,
     },
     roleAssignment: {
-      findMany: async ({ where }: { where: { principalApiKeyId: string } }) =>
-        assignmentsFor(where.principalApiKeyId),
+      findMany: async ({ where }: { where: { principalId: string } }) =>
+        assignmentsFor(where.principalId),
     },
     project: {
       findMany: async () => (row?.projects ?? []).map((p) => ({ id: p.id })),
@@ -337,5 +348,95 @@ describe("a verified key with no org is a 500 invariant break", () => {
     if (!resolved.success) {
       expect(resolved.error).toBeInstanceOf(InternalServerError);
     }
+  });
+});
+
+describe("role lookup", () => {
+  it("throws an internal server error when backfill leaves no roles", async () => {
+    const prisma = mockPrisma(orgRow());
+    prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([]);
+    prisma.$transaction = vi.fn().mockResolvedValue(undefined);
+    const resolver = new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    );
+    await expect(
+      resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
+    ).rejects.toThrow(InternalServerError);
+    expect(prisma.roleAssignment.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows a stored role that grants no actions", async () => {
+    const prisma = mockPrisma(orgRow());
+    prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([
+      {
+        ...assignmentsFor("apiKey/key_p")[0],
+        systemRole: "NONE",
+        roleId: "system/NONE",
+      },
+    ]);
+    prisma.$transaction = vi.fn();
+    const resolver = new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    );
+    const resolved = await resolver.resolve({
+      authorization: "privateKey",
+      apiKey: apiKey(),
+    });
+    expect(resolved).toMatchObject({
+      success: true,
+      context: { policies: [{ roleId: SystemRoleId("NONE"), actions: [] }] },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it.each(["P2002", "P2003"])(
+    "handles a backfill %s error without swallowing other failures",
+    async (code) => {
+      const prisma = mockPrisma(orgRow());
+      const failure = new Prisma.PrismaClientKnownRequestError("write failed", {
+        code,
+        clientVersion: Prisma.prismaVersion.client,
+      });
+      prisma.roleAssignment.findMany = vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValue(assignmentsFor("apiKey/key_p"));
+      prisma.$transaction = vi.fn().mockRejectedValue(failure);
+      const resolver = new ContextResolver(
+        new OrganizationRepository(prisma),
+        prisma,
+      );
+      const result = resolver.resolve({
+        authorization: "privateKey",
+        apiKey: apiKey(),
+      });
+      if (code !== "P2002") {
+        await expect(result).rejects.toThrow(failure);
+        return;
+      }
+      const resolved = await result;
+      if (!resolved.success) throw resolved.error;
+      expect(
+        authorize(resolved.context, TENANT, "project:read", ProjectId(PRJ))
+          .success,
+      ).toBe(true);
+    },
+  );
+
+  it("does not backfill after a database error", async () => {
+    const prisma = mockPrisma(orgRow());
+    const failure = new Error("role lookup unavailable");
+    prisma.roleAssignment.findMany = vi.fn().mockRejectedValue(failure);
+    prisma.$transaction = vi.fn();
+    const resolver = new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    );
+    await expect(
+      resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
+    ).rejects.toThrow(failure);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

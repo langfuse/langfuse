@@ -32,6 +32,24 @@ type Observation = Awaited<
   ReturnType<typeof getObservationsForTraceFromEventsTable>
 >["observations"][number];
 
+type SessionTranscript = Omit<Transcript, "threads"> & {
+  threads: Array<
+    Omit<Transcript["threads"][number], "currentTurn"> & {
+      currentTurn: Omit<
+        Transcript["threads"][number]["currentTurn"],
+        "messages"
+      > & {
+        messages: Array<
+          Transcript["threads"][number]["currentTurn"]["messages"][number] & {
+            level?: Observation["level"];
+            statusMessage?: Observation["statusMessage"];
+          }
+        >;
+      };
+    }
+  >;
+};
+
 /**
  * Load a trace's observations from the events table, walk them in trace tree
  * order, and assemble the transcript of its generations and tools.
@@ -50,7 +68,7 @@ export async function loadTraceTranscript(trace: {
   /** Use root observation I/O when no generation/tool transcript exists. */
   fallbackToRootIO?: boolean;
 }): Promise<{
-  transcript: Transcript | null;
+  transcript: SessionTranscript | null;
   /** The trace has more observations than the transcript could read. */
   cutoff: boolean;
 }> {
@@ -137,8 +155,44 @@ export async function loadTraceTranscript(trace: {
     structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
     content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS;
   return {
-    transcript,
+    transcript: withToolObservationStatus(transcript, contentById),
     cutoff,
+  };
+}
+
+function withToolObservationStatus(
+  transcript: Transcript | null,
+  observationsById: ReadonlyMap<string, Observation>,
+): SessionTranscript | null {
+  if (!transcript) return null;
+  const hasToolStatus = [...observationsById.values()].some(
+    (observation) =>
+      observation.type === "TOOL" &&
+      (observation.level !== undefined ||
+        observation.statusMessage !== undefined),
+  );
+  if (!hasToolStatus) return transcript;
+  return {
+    ...transcript,
+    threads: transcript.threads.map((thread) => ({
+      ...thread,
+      currentTurn: {
+        ...thread.currentTurn,
+        messages: thread.currentTurn.messages.map((message) => {
+          const observation = observationsById.get(message.observationId);
+          if (
+            observation?.type !== "TOOL" ||
+            observation.traceId !== message.traceId
+          )
+            return message;
+          return {
+            ...message,
+            level: observation.level,
+            statusMessage: observation.statusMessage,
+          };
+        }),
+      },
+    })),
   };
 }
 
@@ -170,6 +224,19 @@ function assembleSessionTraceTranscript(
       messages,
       (message) => message.source === "input",
     );
+    if (
+      observation.type === "TOOL" &&
+      outputMessages.every((message) => message.parts.length === 0) &&
+      (observation.level === "ERROR" ||
+        observation.level === "WARNING" ||
+        observation.statusMessage)
+    ) {
+      outputMessages.push({
+        role: "tool",
+        source: "output",
+        parts: [{ type: "data", value: null }],
+      });
+    }
     const [input, output] = partition(
       [...inputMessages, ...transformOutput(observation, outputMessages)].map(
         (message) => ({ message, key: messageKey(message) }),
@@ -322,6 +389,28 @@ function recoverToolCalls(observations: Observation[]) {
         !resolvedCallIds.has(JSON.stringify([observation.traceId, callId]))
       )
         return messages;
+      if (
+        observation.output === null &&
+        (observation.level === "ERROR" ||
+          observation.level === "WARNING" ||
+          observation.statusMessage)
+      ) {
+        return [
+          {
+            role: "tool",
+            source: "output",
+            parts: [
+              {
+                type: "tool-result",
+                toolCallId: callId,
+                toolName: observation.name ?? "Tool",
+                output: null,
+                isError: observation.level === "ERROR",
+              },
+            ],
+          },
+        ];
+      }
       const parts = messages.flatMap((message) => message.parts);
       // Tool-result payloads are JSON; wrapping media would discard the file
       // parts the session renderer needs for previews.
