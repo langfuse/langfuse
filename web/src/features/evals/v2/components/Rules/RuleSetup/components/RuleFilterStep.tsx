@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "zustand";
 import { EvalTargetObject } from "@langfuse/shared";
 
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { RuleSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
@@ -12,6 +13,7 @@ import {
   useSearchBarDraftCache,
 } from "@/src/features/search-bar";
 import { env } from "@/src/env.mjs";
+import { api } from "@/src/utils/api";
 import { RuleSamplingSection } from "./RuleSamplingSection";
 import { RuleEvaluatorResultTriggerSection } from "./RuleEvaluatorResultTriggerSection";
 import { RuleTriggerTypeSelector } from "./RuleTriggerTypeSelector";
@@ -26,16 +28,50 @@ export function RuleFilterStep({
 }) {
   const filter = useStore(store, (state) => state.filter);
   const targetObject = useStore(store, (state) => state.targetObject);
+  const scoreResultTrigger = useStore(
+    store,
+    (state) => state.scoreResultTrigger,
+  );
+  const previewSourceRuleId = useStore(
+    store,
+    (state) => state.previewSourceRuleId,
+  );
+  const storedPreviewFilter = useStore(store, (state) => state.previewFilter);
   const selectedObservationId = useStore(
     store,
     (state) => state.selectedObservation?.id ?? null,
   );
   const observationSearchDraft = useSearchBarDraftCache("observation");
+  const actions = store.getState().actions;
+  const attachedRules = api.evalsV2.rules.listRulesForEvaluator.useQuery(
+    {
+      projectId,
+      evaluatorId: scoreResultTrigger?.evaluatorId ?? "",
+    },
+    { enabled: scoreResultTrigger !== null },
+  );
+  const sourceRules = (attachedRules.data ?? []).filter(
+    ({ evaluationRule }) =>
+      evaluationRule.targetObject !== EvalTargetObject.SCORE_RESULT,
+  );
+  const selectedSourceRule =
+    sourceRules.find(
+      ({ evaluationRule }) => evaluationRule.id === previewSourceRuleId,
+    ) ?? sourceRules[0];
+  let effectivePreviewFilter = storedPreviewFilter;
+  if (
+    selectedSourceRule &&
+    selectedSourceRule.evaluationRule.id !== previewSourceRuleId
+  ) {
+    effectivePreviewFilter = selectedSourceRule.evaluationRule.filter;
+  }
+  const previewSearchDraft = useSearchBarDraftCache(
+    selectedSourceRule?.evaluationRule.id ?? "incoming",
+  );
   const [timeRange] = useState(() => {
     const to = new Date();
     return { from: new Date(to.getTime() - SEVEN_DAYS_MS), to };
   });
-  const actions = store.getState().actions;
   const handleOpenTrace = (observation: SampleObservation) => {
     if (!observation.traceId) return;
     const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -44,6 +80,22 @@ export function RuleFilterStep({
       "_blank",
       "noopener,noreferrer",
     );
+  };
+  const handlePreviewRuleChange = (ruleId: string) => {
+    const selected = sourceRules.find(
+      ({ evaluationRule }) => evaluationRule.id === ruleId,
+    );
+    if (!selected) return;
+    actions.setPreviewSourceRuleId(ruleId);
+    actions.setPreviewFilter(selected.evaluationRule.filter);
+  };
+  const handlePreviewFilterChange = (
+    filterState: typeof storedPreviewFilter,
+  ) => {
+    if (selectedSourceRule) {
+      actions.setPreviewSourceRuleId(selectedSourceRule.evaluationRule.id);
+    }
+    actions.setPreviewFilter(filterState);
   };
   const scopeFields =
     targetObject !== EvalTargetObject.SCORE_RESULT ? (
@@ -72,6 +124,44 @@ export function RuleFilterStep({
           projectId={projectId}
           store={store}
         />
+        {scoreResultTrigger && !attachedRules.isPending ? (
+          <div className="flex flex-col gap-2">
+            {sourceRules.length > 1 && selectedSourceRule ? (
+              <>
+                <label className="text-sm" htmlFor="preview-rule">
+                  Preview observation source
+                </label>
+                <SelectInput
+                  id="preview-rule"
+                  value={selectedSourceRule.evaluationRule.id}
+                  options={sourceRules.map(({ evaluationRule }) => ({
+                    value: evaluationRule.id,
+                    label: evaluationRule.name,
+                  }))}
+                  onValueChange={handlePreviewRuleChange}
+                  placeholder="Select a source rule"
+                />
+                <p className="text-muted-foreground text-xs">
+                  Matching observations use the selected attached rule’s
+                  filters.
+                </p>
+              </>
+            ) : null}
+            <SearchBarDraftCacheContext.Provider value={previewSearchDraft}>
+              <RuleSampleObservationSelector
+                projectId={projectId}
+                timeRange={timeRange}
+                filterState={effectivePreviewFilter}
+                onFilterStateChange={handlePreviewFilterChange}
+                tableName="evaluation-result-rule-preview"
+                registry={RULE_SAMPLE_FIELD_REGISTRY}
+                selectedObservationId={selectedObservationId}
+                onSelect={actions.setSelectedObservation}
+                onOpenTrace={handleOpenTrace}
+              />
+            </SearchBarDraftCacheContext.Provider>
+          </div>
+        ) : null}
       </>
     );
 

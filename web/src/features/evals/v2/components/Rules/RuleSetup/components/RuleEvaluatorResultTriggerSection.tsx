@@ -35,6 +35,9 @@ export function RuleEvaluatorResultTriggerSection({
 }: RuleEvaluatorResultTriggerSectionProps) {
   const trigger = useStore(store, (state) => state.scoreResultTrigger);
   const setTrigger = store.getState().actions.setScoreResultTrigger;
+  const setPreviewSourceRuleId =
+    store.getState().actions.setPreviewSourceRuleId;
+  const setPreviewFilter = store.getState().actions.setPreviewFilter;
   const utils = api.useUtils();
   const evaluatorRequestId = useRef(0);
   const [searchInput, setSearchInput] = useState("");
@@ -81,6 +84,8 @@ export function RuleEvaluatorResultTriggerSection({
       evaluatorId,
       predicates: prepared.predicates,
     });
+    setPreviewSourceRuleId(null);
+    setPreviewFilter([]);
     debouncedSearch("");
   };
   const handleEvaluatorValueChange = async (evaluatorId: string) => {
