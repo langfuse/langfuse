@@ -149,7 +149,7 @@ export function RuleEvaluatorResultTriggerSection({
   return (
     <div className="flex flex-col gap-2">
       <div>
-        <p className="text-sm font-medium">Filter evaluator results</p>
+        <p className="text-sm font-bold">Filter evaluator results</p>
         <p className="text-muted-foreground text-xs">
           Group conditions on the same evaluator to wait for all its scores.
         </p>
