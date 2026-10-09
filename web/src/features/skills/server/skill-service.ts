@@ -428,7 +428,7 @@ export class SkillService {
         projectId: params.projectId,
         labels: { has: SKILL_LATEST_LABEL },
       },
-      select: { tags: true },
+      select: { name: true, tags: true },
     });
     const counts = new Map<string, number>();
     for (const skill of skills) {
@@ -437,6 +437,9 @@ export class SkillService {
       }
     }
     return {
+      names: [...new Set(skills.map(({ name }) => name))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
       tags: [...counts]
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => a.value.localeCompare(b.value)),
