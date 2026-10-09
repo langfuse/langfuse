@@ -5,19 +5,62 @@ import {
   sanitizeInAppAgentContext,
 } from "./context";
 
-it("includes sanitized feature screen context", () => {
+it("includes sanitized evaluator screen context", () => {
+  const workbenchContext = {
+    description: "evaluator_workbench",
+    value: JSON.stringify({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      mode: "create",
+      evaluatorType: "LLM_AS_JUDGE",
+      sampleFilter: [],
+      selectedObservation: {
+        observationId: "observation-1",
+        traceId: "trace-1",
+        startTime: "2026-09-03T07:45:00.000Z",
+        input: "strip me",
+      },
+      unknown: "strip me",
+    }),
+  };
+  const sanitized = sanitizeInAppAgentContext(
+    [
+      {
+        description: "selected_evaluator_sample",
+        value:
+          '{"projectId":"project-1","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+      },
+      workbenchContext,
+    ],
+    "project-1",
+  );
+
+  expect(sanitized).toHaveLength(2);
+  const workbench = sanitized.find(
+    ({ description }) => description === "evaluator_workbench",
+  );
+  expect(JSON.parse(workbench?.value ?? "")).toEqual({
+    evaluatorId: "evaluator-1",
+    mode: "create",
+    evaluatorType: "LLM_AS_JUDGE",
+    sampleFilter: [],
+    selectedObservation: {
+      observationId: "observation-1",
+      traceId: "trace-1",
+      startTime: "2026-09-03T07:45:00.000Z",
+    },
+  });
   expect(
     sanitizeInAppAgentContext(
       [
         {
-          description: "selected_evaluator_sample",
-          value:
-            '{"projectId":"project-1","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+          ...workbenchContext,
+          value: workbenchContext.value.replace("project-1", "project-2"),
         },
       ],
       "project-1",
     ),
-  ).toHaveLength(1);
+  ).toEqual([]);
 });
 
 describe("getInAppAgentScreenContextDescription", () => {
