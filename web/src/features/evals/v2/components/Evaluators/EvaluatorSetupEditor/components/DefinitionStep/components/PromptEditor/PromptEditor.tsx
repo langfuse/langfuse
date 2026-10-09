@@ -69,6 +69,7 @@ import { useEvaluatorAssistantPromptUpdateSignal } from "@/src/features/evals/v2
 import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
+import styles from "./PromptEditor.module.css";
 
 const ROLES: Array<{ value: EvaluatorPromptMessage["role"]; label: string }> = [
   { value: "system", label: "System" },
@@ -414,132 +415,143 @@ function SortablePromptMessage({
           <GripVertical className="icon-base" />
         </button>
       ) : null}
-      <PromptVariableEditor
-        value={message.content}
-        onChange={(content) => onChange({ ...message, content })}
-        variableStatus={combinedPrepared.promptVariableStatus}
-        variableMappings={combinedPrepared.promptVariableMappings}
-        previewEnabled={previewEnabled}
-        preview={prepared.promptPreview}
-        renderPreviewText={renderMediaAwareText}
-        collapsed={!expanded}
-        surfaceVariant={index === messageCount - 1 ? "nested-last" : "nested"}
-        placeholder={PROMPT_MESSAGE_PLACEHOLDER}
-        toolbarVariant={toolbarVariant}
-        toolbarStart={
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="shrink-0"
-              aria-expanded={expanded}
-              aria-label={`${expanded ? "Collapse" : "Expand"} ${message.role} prompt message`}
-              title={`${expanded ? "Collapse" : "Expand"} prompt message`}
-              onClick={() => setExpanded((current) => !current)}
-            >
-              <ChevronDown
-                className={cn(
-                  "icon-sm text-icon-foreground shrink-0 transition-transform",
-                  !expanded && "-translate-x-0.5 -rotate-90",
-                )}
-              />
-            </Button>
-            {warningReason ? (
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex" tabIndex={0}>
-                    {roleBadge}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{warningReason}</TooltipContent>
-              </Tooltip>
-            ) : (
-              roleBadge
-            )}
-            {!expanded ? (
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <span
-                    className="text-muted-foreground min-w-0 flex-1 cursor-help truncate px-1 text-xs leading-none"
-                    tabIndex={0}
-                    title={message.content || "Empty message"}
-                  >
-                    {message.content || "Empty message"}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent className="ph-no-capture max-w-sm break-words whitespace-pre-wrap">
-                  {message.content || "Empty message"}
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-          </>
-        }
-        onToolbarClick={() => setExpanded((current) => !current)}
-        toolbarActions={
-          <>
-            {toolbarActionsBeforeMenu}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Prompt message settings"
-                  title="Prompt message settings"
-                >
-                  <MoreVertical className="icon-sm text-icon-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">
-                  Role
-                </DropdownMenuLabel>
-                {ROLES.map((role) => {
-                  const disabledReason =
-                    index > 0 && role.value === "system"
-                      ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR
-                      : null;
-                  return (
-                    <DropdownMenuItem
-                      key={role.value}
-                      disabled={Boolean(disabledReason)}
-                      allowPointerEventsWhenDisabled={Boolean(disabledReason)}
-                      title={disabledReason ?? undefined}
-                      onSelect={() =>
-                        onChange({ ...message, role: role.value })
-                      }
+      <div
+        className={cn(
+          "relative",
+          styles.promptSurface,
+          toolbarVariant === "group" && styles.groupSurface,
+          index === messageCount - 1 && styles.lastSurface,
+        )}
+      >
+        <PromptVariableEditor
+          value={message.content}
+          onChange={(content) => onChange({ ...message, content })}
+          variableStatus={combinedPrepared.promptVariableStatus}
+          variableMappings={combinedPrepared.promptVariableMappings}
+          previewEnabled={previewEnabled}
+          preview={prepared.promptPreview}
+          renderPreviewText={renderMediaAwareText}
+          collapsed={!expanded}
+          toolbarStart={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0"
+                aria-expanded={expanded}
+                aria-label={`${expanded ? "Collapse" : "Expand"} ${message.role} prompt message`}
+                title={`${expanded ? "Collapse" : "Expand"} prompt message`}
+                onClick={() => setExpanded((current) => !current)}
+              >
+                <ChevronDown
+                  className={cn(
+                    "icon-sm text-icon-foreground shrink-0 transition-transform",
+                    !expanded && "-translate-x-0.5 -rotate-90",
+                  )}
+                />
+              </Button>
+              {warningReason ? (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex" tabIndex={0}>
+                      {roleBadge}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{warningReason}</TooltipContent>
+                </Tooltip>
+              ) : (
+                roleBadge
+              )}
+              {!expanded ? (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="text-muted-foreground min-w-0 flex-1 cursor-help truncate px-1 text-xs leading-none"
+                      tabIndex={0}
+                      title={message.content || "Empty message"}
                     >
-                      <span className="flex-1">{role.label}</span>
-                      {message.role === role.value ? (
-                        <Check className="icon-base text-icon-foreground" />
-                      ) : null}
-                    </DropdownMenuItem>
-                  );
-                })}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => {
-                    copy(message.content).catch(() => undefined);
-                  }}
-                >
-                  <Copy className="icon-base text-icon-foreground mr-2" />
-                  Copy prompt
-                </DropdownMenuItem>
-                {messageCount > 1 ? (
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onSelect={onRemove}
+                      {message.content || "Empty message"}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="ph-no-capture max-w-sm break-words whitespace-pre-wrap">
+                    {message.content || "Empty message"}
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+            </>
+          }
+          onToolbarClick={() => setExpanded((current) => !current)}
+          toolbarActions={
+            <>
+              {toolbarActionsBeforeMenu}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Prompt message settings"
+                    title="Prompt message settings"
                   >
-                    <Trash2 className="icon-base mr-2" />
-                    Delete message
+                    <MoreVertical className="icon-sm text-icon-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">
+                    Role
+                  </DropdownMenuLabel>
+                  {ROLES.map((role) => {
+                    const disabledReason =
+                      index > 0 && role.value === "system"
+                        ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR
+                        : null;
+                    return (
+                      <DropdownMenuItem
+                        key={role.value}
+                        disabled={Boolean(disabledReason)}
+                        allowPointerEventsWhenDisabled={Boolean(disabledReason)}
+                        title={disabledReason ?? undefined}
+                        onSelect={() =>
+                          onChange({ ...message, role: role.value })
+                        }
+                      >
+                        <span className="flex-1">{role.label}</span>
+                        {message.role === role.value ? (
+                          <Check className="icon-base text-icon-foreground" />
+                        ) : null}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      copy(message.content).catch(() => undefined);
+                    }}
+                  >
+                    <Copy className="icon-base text-icon-foreground mr-2" />
+                    Copy prompt
                   </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        }
-      />
+                  {messageCount > 1 ? (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={onRemove}
+                    >
+                      <Trash2 className="icon-base mr-2" />
+                      Delete message
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          }
+        />
+        {expanded && !previewEnabled && hasEmptyContent ? (
+          <span className="text-muted-foreground pointer-events-none absolute top-11 left-3 text-sm">
+            {PROMPT_MESSAGE_PLACEHOLDER}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
