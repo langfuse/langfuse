@@ -55,6 +55,7 @@ export function RuleEvaluatorResultPredicateRow({
     onChange(index, { ...predicate, value: value === "true" });
   };
   const handleValueChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (predicate.dataType === "BOOLEAN") return;
     if (predicate.dataType !== "NUMERIC") {
       onChange(index, { ...predicate, value: event.target.value });
       return;
