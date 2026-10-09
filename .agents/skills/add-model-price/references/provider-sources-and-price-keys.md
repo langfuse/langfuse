@@ -961,6 +961,89 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   page (`ai.google.dev/pricing`) were not independently re-fetched this run;
   AWS Bedrock and TypeSafe Jev were not re-checked either — no drift signal
   for any of them, prices carry forward from their last confirmed audit.
+- **October 9 2026 audit: no price or catalog drift; a large OpenAI retirement
+  batch scheduled for October 23, 2026 found (not yet actionable); Gemini
+  2.5-family access-restriction note found (not a shutdown)** — Re-fetched the
+  full Anthropic pricing page (model table, cache-hits footnote, Fast mode and
+  Batch tables) and the Anthropic models-overview comparison table (no model
+  beyond the existing lineup; retirement commitments for Fable 5.1/Opus
+  5.5/Sonnet 5.5/Haiku 5.5 are all "not sooner than" one year after each
+  model's launch), the OpenAI aggregate Standard pricing table, the full
+  OpenAI model catalog, `https://developers.openai.com/api/docs/deprecations`,
+  both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing` for the
+  3.x family, `ai.google.dev/pricing` for the 2.5 family), the Gemini models
+  catalog, `ai.google.dev/gemini-api/docs/deprecations`, the AWS Bedrock
+  pricing page, and the TypeSafe Jev models page. Every price already in the
+  file — including every `gpt-6-astra`/`gpt-6-sol`/`gpt-6.1-sol`/`gpt-6-luna`,
+  every `gpt-5.6`/`gpt-5.5`/`gpt-5.4` tier, `claude-opus-5-5`,
+  `claude-haiku-5-5`, and `gemini-3.6/3.7/3.8-flash`'s introductory rate —
+  matched verbatim; no updates were needed. Two findings:
+  1. **OpenAI's deprecations page lists a 10-model "Legacy GPT model
+     snapshots" retirement batch with shutdown date October 23, 2026**
+     (announced 2026-04-22, confirmed via two independent verbatim-quote
+     fetches of `developers.openai.com/api/docs/deprecations`):
+     `gpt-3.5-turbo-0125` (alias `gpt-3.5-turbo`) → `gpt-5.6-terra`,
+     `gpt-4-0613` (aliases `gpt-4`, `gpt-4-0613-completions`,
+     `gpt-4-completions`) → `gpt-5.6-sol`, `gpt-4-1106-preview` →
+     `gpt-5.6-sol`, `gpt-4-turbo` (alias `gpt-4-turbo-2024-04-09`) →
+     `gpt-5.6-sol`, `gpt-4.1-nano` (alias `gpt-4.1-nano-2025-04-14`) →
+     `gpt-5.6-luna`, `gpt-4o-2024-05-13` → `gpt-5.6-sol`, `o1` (alias
+     `o1-2024-12-17`) → `gpt-5.6-sol`, `o1-pro` (alias `o1-pro-2025-03-19`) →
+     `gpt-5.6-sol` (`reasoning.mode: pro`), `o3-mini` (alias
+     `o3-mini-2025-01-31`) → `gpt-5.6-sol`, `o4-mini` (alias
+     `o4-mini-2025-04-16`) → `gpt-5.6-terra`. **October 23, 2026 is still 14
+     days after this audit's date (October 9, 2026) — the retirement date has
+     not passed yet**, so per the removal criteria in `automated-audit.md`
+     none of these were removed from `openAIModels` this run (it currently
+     lists `gpt-4.1-nano`/`gpt-4.1-nano-2025-04-14`, `gpt-4-0613`,
+     `gpt-4-1106-preview`, `gpt-3.5-turbo`/`gpt-3.5-turbo-0125`,
+     `o3-mini`/`o3-mini-2025-01-31`, `o4-mini`/`o4-mini-2025-04-16`; it does
+     not list bare `gpt-4-turbo`, `o1`/`o1-2024-12-17`, or
+     `o1-pro`/`o1-pro-2025-03-19`, so those three have no selectable-array
+     action regardless). **Re-check this exact page on or after October 23,
+     2026 and remove the still-listed IDs from `openAIModels` once the page
+     confirms the shutdown date has passed** (keep their pricing entries).
+     Lesson for future audits: a first, generically-worded WebFetch of this
+     page summarized the batch as "Past Shutdowns (Already Occurred)" even
+     though the quoted date (October 23, 2026) was still in the future
+     relative to the audit date — the summarizer anchored on the page's own
+     "announced" date (2026-04-22) rather than today's date. A second fetch
+     that explicitly asked for the literal shutdown-date string and explicitly
+     asked whether the page states its own current/last-updated date (it does
+     not) corrected this. Always sanity-check a deprecation-page date against
+     the audit's own run date before treating a listed shutdown as already
+     effective, the same way the existing Gemini free/paid column-collapse
+     lesson requires a verbatim re-quote before trusting a summarized result.
+  2. **Gemini 2.5 Pro / Flash / Flash-Lite show a new access-restriction
+     notice, not a deprecation** — Both `ai.google.dev/pricing` and
+     `ai.google.dev/gemini-api/docs/deprecations` now state: "To ensure
+     reliable performance for everyone, we are limiting access to the 2.5
+     models to users who have actively used them in the past." No shutdown
+     date is given for the three GA 2.5 models themselves (their own preview
+     snapshots, e.g. `gemini-2.5-flash-preview-09-25` and
+     `gemini-2.5-flash-lite-preview-09-2025`, already have separate confirmed
+     past shutdown dates, unaffected by this note). This restricts *new*
+     callers rather than shutting the model down for existing users, so it
+     meets none of the removal criteria in `automated-audit.md` (not shut
+     down, no retirement date, not a preview superseded in-array, still
+     callable through the text-generation endpoint for existing callers) —
+     `gemini-2.5-pro`/`gemini-2.5-flash`/`gemini-2.5-flash-lite` were left in
+     `vertexAIModels`/`googleAIStudioModels` unchanged. Pricing for all three
+     also matched verbatim this run. Re-investigate only if a future fetch
+     shows an actual shutdown date for the GA (non-preview) 2.5 models.
+     `gemini-2.0-flash-lite` is independently confirmed "(Shut down)" on the
+     models catalog and June 1, 2026 on the deprecations page, but it was
+     already absent from both selectable arrays before this run (no action
+     needed). The Vertex AI lifecycle page
+     (`cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions`)
+     still 301-redirects to a `docs.cloud.google.com` host outside the allowed
+     WebFetch domain list — not fetched, consistent with the standing quirk
+     documented above; `vertexAIModels` was not re-verified against it this
+     run. The Daybreak cyber/Rosalind restricted family (this run's catalog
+     fetch again showed only `gpt-5.6-cyber` and `gpt-rosalind-research`, not
+     `gpt-5.5-cyber`/`gpt-5.4-cyber` — groupings of this restricted family
+     continue to vary by fetch) and the AWS Bedrock Public Extended Access SKU
+     were re-confirmed unchanged but remain standing, out-of-scope exclusions.
 
 Capture:
 
