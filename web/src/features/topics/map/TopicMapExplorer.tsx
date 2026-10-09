@@ -625,6 +625,7 @@ function MapLabels({
         const zone = hints.zones[0];
         if (!trace && !zone) return null;
         const rect = trace?.card ?? zone!.label;
+        const topicPrefix = trace?.topicName ? `${trace.topicName}. ` : "";
         return (
           <div
             key={label.token}
@@ -639,7 +640,7 @@ function MapLabels({
             aria-hidden={!active}
             aria-label={
               trace
-                ? `Trace summary: ${trace.point.summary}`
+                ? `Trace summary: ${topicPrefix}${trace.point.summary}`
                 : `${zone!.name}, ${zone!.countLabel}`
             }
             onTransitionEnd={handleHoverTransitionEnd}
@@ -658,7 +659,17 @@ function MapLabels({
             }}
           >
             {trace ? (
-              <span className="line-clamp-6">{trace.excerpt}</span>
+              <>
+                {trace.topicName && (
+                  <span
+                    className="mb-1 line-clamp-2"
+                    style={{ color: trace.point.color }}
+                  >
+                    {trace.topicName}
+                  </span>
+                )}
+                <span className="line-clamp-6">{trace.excerpt}</span>
+              </>
             ) : (
               <>
                 <span

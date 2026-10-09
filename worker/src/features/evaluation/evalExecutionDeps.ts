@@ -157,7 +157,7 @@ export interface EvalExecutionDeps {
     params: FetchModelConfigParams,
   ) => Promise<ModelConfigResult>;
 
-  // Decision-model operations (experimental)
+  // Decision-model operations
   callDecisionModel: (
     params: DecisionModelCallParams,
   ) => Promise<DecisionModelEvaluation>;

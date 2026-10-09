@@ -1,79 +1,41 @@
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { type ReactNode } from "react";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { resolveTopicFacetId } from "./topic-facet-selection";
-import { topicTimeRangePresets } from "./time-range";
-
-const layouts = {
-  header: {
-    root: "ph-no-capture flex min-w-0 flex-wrap items-center gap-2",
-    facet: "w-44",
-    range: "w-36",
-  },
-  menu: {
-    root: "ph-no-capture flex flex-col gap-3 p-1",
-    facet: "flex w-full flex-col gap-1",
-    range: "flex w-full flex-col gap-1",
-  },
-};
 
 export function TopicsFilters({
-  layout,
   facets,
   selectedFacetId,
-  timeWindow,
   onSelectFacet,
-  onSelectTimeWindow,
+  children,
 }: TopicsFiltersProps) {
   const selectedFacet = resolveTopicFacetId(facets, selectedFacetId);
-  const classes = layouts[layout];
+  if (!selectedFacet) return children;
+
   return (
-    <div className={classes.root}>
-      {facets.length > 0 && selectedFacet && (
-        <div className={classes.facet}>
-          {layout === "menu" && (
-            <span className="text-muted-foreground text-xs">Facet</span>
-          )}
-          <Select value={selectedFacet} onValueChange={onSelectFacet}>
-            <SelectTrigger aria-label="Topics facet" className="h-8">
-              <SelectValue placeholder="Facet" />
-            </SelectTrigger>
-            <SelectContent className="ph-no-capture">
-              {facets.map((facet) => (
-                <SelectItem key={facet.facetId} value={facet.facetId}>
-                  {facet.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="ph-no-capture flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <Tabs value={selectedFacet} onValueChange={onSelectFacet} layout="fill">
+        <div className="shrink-0 overflow-x-auto">
+          <Tabs.List variant="underline" aria-label="Topics facets">
+            {facets.map((facet) => (
+              <Tabs.Trigger
+                key={facet.facetId}
+                value={facet.facetId}
+                label={facet.name}
+              />
+            ))}
+          </Tabs.List>
         </div>
-      )}
-      <div className={classes.range}>
-        {layout === "menu" && (
-          <span className="text-muted-foreground text-xs">Time range</span>
-        )}
-        <SelectInput
-          aria-label="Topics time range"
-          placeholder="Topics time range"
-          value={timeWindow}
-          options={topicTimeRangePresets}
-          onValueChange={onSelectTimeWindow}
-        />
-      </div>
+        <Tabs.Content value={selectedFacet} layout="fill">
+          <div className="flex min-h-0 flex-1 flex-col pt-2">{children}</div>
+        </Tabs.Content>
+      </Tabs>
     </div>
   );
 }
 
 type TopicsFiltersProps = {
-  layout: "header" | "menu";
   facets: readonly { facetId: string; name: string }[];
   selectedFacetId: string | undefined;
-  timeWindow: string;
   onSelectFacet: (facetId: string) => void;
-  onSelectTimeWindow: (value: string) => void;
+  children?: ReactNode;
 };

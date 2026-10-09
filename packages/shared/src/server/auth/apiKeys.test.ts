@@ -7,8 +7,10 @@ vi.mock("../../env", () => ({ env: { SALT: "test-salt" } }));
 
 import {
   createApiKey,
+  createShaHash,
   formatSubmittedPublicKeyForLog,
   redactLangfuseSecretKeys,
+  verifySecretKey,
 } from "./apiKeys";
 import {
   ApiKeyId,
@@ -188,6 +190,25 @@ describe("createApiKey assignment rows", () => {
     expect(data.createdByUserId).toBeUndefined();
     // An organization owner resolves to itself; no project lookup is needed.
     expect(tx.project.findFirstOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("stores the secret only as a fast hash, with a placeholder no bcrypt check accepts", async () => {
+    const { tx, getApiKeyData } = makeTx();
+
+    const result = await createApiKey(asTx(tx), {
+      owner: ProjectId("proj_1"),
+      role: SystemRoleId("VIEWER"),
+      createdBy: UserId("user_1"),
+    });
+
+    const data = getApiKeyData();
+    expect(data.fastHashedSecretKey).toBe(
+      createShaHash(result.secretKey, "test-salt"),
+    );
+    expect(data.hashedSecretKey).toMatch(/^unused:/);
+    expect(
+      await verifySecretKey(result.secretKey, data.hashedSecretKey as string),
+    ).toBe(false);
   });
 
   it.each(["legacy name", ""])(
