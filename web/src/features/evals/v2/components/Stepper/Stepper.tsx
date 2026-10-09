@@ -39,7 +39,7 @@ export function Stepper({
   };
 
   return (
-    <div className="group/step flex gap-3">
+    <div className="group/step flex gap-1.5">
       <div className="flex flex-col items-center">
         <div className="bg-primary text-primary-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm">
           {number}
