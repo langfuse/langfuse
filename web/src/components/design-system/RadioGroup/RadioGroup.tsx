@@ -6,22 +6,14 @@ import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 type RadioGroupProps = Pick<
   React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
   "children" | "defaultValue" | "onValueChange" | "value"
-> & {
-  layout?: "stacked" | "two-column";
-};
+>;
 
 const RadioGroupRoot = React.forwardRef<
   React.ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
->(({ layout = "stacked", ...props }, ref) => {
+>((props, ref) => {
   return (
-    <RadioGroupPrimitive.Root
-      className={
-        layout === "two-column" ? "grid grid-cols-2 gap-3" : "grid gap-2"
-      }
-      {...props}
-      ref={ref}
-    />
+    <RadioGroupPrimitive.Root className="grid gap-2" {...props} ref={ref} />
   );
 });
 RadioGroupRoot.displayName = RadioGroupPrimitive.Root.displayName;

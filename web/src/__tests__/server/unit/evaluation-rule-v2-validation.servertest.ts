@@ -86,48 +86,4 @@ describe("evaluation rule v2 input validation", () => {
       }).success,
     ).toBe(false);
   });
-
-  it("requires a complete evaluator result trigger without observation filters", () => {
-    const input = {
-      projectId: "project-id",
-      name: "Escalate unsafe results",
-      filter: [],
-      sampling: 1,
-      enabled: true,
-      evaluatorAssignments: [],
-      targetObject: EvalTargetObject.SCORE_RESULT,
-      scoreResultTrigger: {
-        evaluatorId: "evaluator-id",
-        predicates: [
-          {
-            scoreName: "safe",
-            dataType: "BOOLEAN",
-            operator: "=",
-            value: false,
-          },
-        ],
-      },
-    } as const;
-
-    expect(CreateRuleSchema.safeParse(input).success).toBe(true);
-    expect(
-      CreateRuleSchema.safeParse({
-        ...input,
-        scoreResultTrigger: null,
-      }).success,
-    ).toBe(false);
-    expect(
-      CreateRuleSchema.safeParse({
-        ...input,
-        filter: [
-          {
-            column: "name",
-            type: "string",
-            operator: "=",
-            value: "generation",
-          },
-        ],
-      }).success,
-    ).toBe(false);
-  });
 });

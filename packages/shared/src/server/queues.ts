@@ -177,7 +177,6 @@ export const ObservationEvalExecutionEventSchema = z.object({
   // inherit the evaluator version mapping.
   variableMapping: observationVariableMappingList.optional(),
 });
-
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
